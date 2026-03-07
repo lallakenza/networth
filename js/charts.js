@@ -586,14 +586,18 @@ function buildCoupleTreemap(state) {
   const colorMap = {};
   treeData.forEach(d => { colorMap[d.label] = d.color; });
 
-  // Use only 1 group level so leaves are actual data nodes (not nested groups)
+  // Use 2 group levels: category (header) → label (colored leaf)
+  // With 2 groups, every _data node has children (even leaves wrap 1 child).
+  // To distinguish: category headers have path without '~', leaves have 'category~label'.
+  const isCategoryHeader = (d) => d && d.path && !d.path.includes('~');
+
   charts.coupleTreemap = new Chart(el, {
     type: 'treemap',
     data: {
       datasets: [{
         tree: treeData,
         key: 'value',
-        groups: ['category'],
+        groups: ['category', 'label'],
         borderWidth: 2,
         borderColor: '#ffffff',
         spacing: 1,
@@ -601,12 +605,12 @@ function buildCoupleTreemap(state) {
           if (ctx.type !== 'data') return 'transparent';
           if (!ctx.raw || !ctx.raw._data) return '#e2e8f0';
           const d = ctx.raw._data;
-          // Category group header → light tint
-          if (d.children && d.children.length > 0) {
-            const catColor = CATS.find(c => c.label === d.label)?.color || '#6b7280';
-            return catColor + '20';
+          if (isCategoryHeader(d)) {
+            // Category header — very light tint
+            const cat = CATS.find(c => c.label === d.label);
+            return (cat ? cat.color : '#6b7280') + '18';
           }
-          // Leaf node → vivid color
+          // Leaf block — vivid color!
           return d.color || colorMap[d.label] || '#94a3b8';
         },
         labels: {
@@ -618,7 +622,7 @@ function buildCoupleTreemap(state) {
           color: function(ctx) {
             if (!ctx.raw || !ctx.raw._data) return '#333';
             const d = ctx.raw._data;
-            if (d.children && d.children.length > 0) return '#1a202c';
+            if (isCategoryHeader(d)) return '#1a202c';
             return '#ffffff';
           },
           font: [
@@ -630,13 +634,12 @@ function buildCoupleTreemap(state) {
             const v = ctx.raw.v || 0;
             if (v < 200) return '';
             const d = ctx.raw._data || {};
-            // Category header
-            if (d.children && d.children.length > 0) {
-              const pct = (v / grandTotal * 100).toFixed(1);
-              return d.label + '\n€' + (v / 1000).toFixed(0) + 'K (' + pct + '%)';
+            const label = d.label || ctx.raw.g || '';
+            if (isCategoryHeader(d)) {
+              // Category header label
+              return label;
             }
-            // Leaf — show label + value
-            const label = d.label || '';
+            // Leaf label
             if (v < grandTotal * 0.015) return label;
             const pctNW = (v / grandTotal * 100).toFixed(1);
             return label + '\n€' + (v / 1000).toFixed(0) + 'K (' + pctNW + '%)';
@@ -659,19 +662,15 @@ function buildCoupleTreemap(state) {
           callbacks: {
             title: items => {
               const d = items[0]?.raw?._data;
-              if (!d) return '';
-              if (d.children && d.children.length > 0) return d.label;
-              return d.label || '';
+              return d?.label || '';
             },
             label: item => {
               const v = item.raw?.v || 0;
               const d = item.raw?._data;
               const pctNW = (v / grandTotal * 100).toFixed(1);
-              if (d && d.children && d.children.length > 0) {
-                // Category header tooltip
+              if (isCategoryHeader(d)) {
                 return [fmt(v) + ' € — ' + pctNW + '% du patrimoine'];
               }
-              // Leaf tooltip — dual %
               const lines = [fmt(v) + ' € — ' + pctNW + '% du patrimoine'];
               if (d) {
                 const catTot = d.catTotal || catTotals[d.category] || 0;
