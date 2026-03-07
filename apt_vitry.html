@@ -47,7 +47,7 @@
 <header>
   <h1>Appartement Vitry-sur-Seine</h1>
   <div class="subtitle">Vitry-sur-Seine, 94400 | 67.14 m² | Propriétaire : Mohamed Amine Koraibi</div>
-  <div class="badge">Analyse patrimoniale — Mars 2026</div>
+  <div class="badge" id="dateBadgeVitry">Analyse patrimoniale — --</div>
 </header>
 
 <!-- SECTION 1: FICHE PROPRIETE -->
@@ -215,6 +215,59 @@
   </div>
 </div>
 
+<!-- SECTION 8: SIMULATION FISCALE 10 ANS -->
+<div class="card">
+  <h2><span class="section-num">8</span>Simulation Fiscale — Régime Réel Foncier (10 ans)</h2>
+  <p style="color:#718096;margin-bottom:10px;">
+    3 prêts : Action Logement (40K, 0.50%) + PTZ (60K, 0%) + Banque Populaire (175K, 2.10%).<br>
+    Taux d'imposition non-résident : TMI 20% + PS 17.2% = <strong>37.2%</strong> sur le revenu net foncier.<br>
+    <span style="color:var(--green);">&#x2714;</span> Logement neuf livré 2025 → <strong>TF exonérée 2026-2027</strong>.
+    Contrat locatif effectif <strong>avril 2026</strong> (9 mois la 1ère année).
+  </p>
+
+  <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
+    <strong>Revenus locatifs :</strong> Loyer total = <strong>1 400 €/mois</strong> (hors parking temporaire). Charges copro = 150 €/mois.
+    <strong>Revenu net = 1 250 €/mois</strong>.<br>
+    <small style="color:var(--gray);">Le slider ci-dessous fixe la part <em>déclarée</em> (bail officiel). Le reste est perçu en cash non déclaré.</small>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+    <label style="font-weight:600;white-space:nowrap;">Loyer déclaré (hors charges) :</label>
+    <input type="range" id="vitrySimLoyer" min="250" max="850" step="10" value="450"
+           style="flex:1;min-width:200px;">
+    <span id="vitrySimLoyerVal" style="font-size:1.3rem;font-weight:700;color:#2b6cb0;min-width:100px;">450 €/mois</span>
+  </div>
+
+  <div id="vitryFiscalSummary" class="highlight" style="margin-bottom:14px;"></div>
+
+  <div style="overflow-x:auto;">
+  <table style="font-size:0.82rem;">
+    <thead>
+      <tr>
+        <th>Année</th>
+        <th class="num">Loyer<br>Total</th>
+        <th class="num">Loyer<br>Déclaré</th>
+        <th class="num">Cash<br>Non décl.</th>
+        <th class="num" style="background:#edf2f7;">Déductions</th>
+        <th class="num">Rev.<br>Imposable</th>
+        <th class="num" style="background:#fed7d7;">Impôt<br>Déclaré</th>
+        <th class="num">Revenu<br>Net Total</th>
+        <th class="num">Taux eff.<br>/ revenu net</th>
+      </tr>
+    </thead>
+    <tbody id="vitryFiscalSimBody"></tbody>
+  </table>
+  </div>
+
+  <div id="vitryDeductionDetail" style="margin-top:12px;"></div>
+
+  <p style="color:#a0aec0;font-size:0.75rem;margin-top:8px;">
+    * Intérêts calculés d'après les tableaux d'amortissement réels.
+    PNO estimée ~180€/an. TF estimée ~900€/an (exonérée 2026-2027). Assurance APRIL 209.76€/an + AL 39.96€/an.
+    Charges copropriété = 150€/mois (non déductible en location nue sauf provisions régularisées).
+  </p>
+</div>
+
 <footer>
   <p>Analyse Appartement Vitry-sur-Seine — Mars 2026</p>
   <p>Données issues du tableau d'amortissement et de la structure de coûts</p>
@@ -223,6 +276,13 @@
 </div>
 
 <script>
+// Dynamic date badge
+(function() {
+  var d = new Date();
+  var badge = document.getElementById('dateBadgeVitry');
+  if (badge) badge.textContent = 'Analyse patrimoniale — ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+})();
+
 const ctxEquity = document.getElementById('equityChart').getContext('2d');
 new Chart(ctxEquity, {
   type: 'line',
@@ -360,6 +420,189 @@ new Chart(ctxWealth, {
     }
   }
 });
+
+// ============ FISCAL SIMULATOR ============
+(function() {
+  // Loan data (from real amortization schedules)
+  var loans = [
+    { name: 'Action Logement', principal: 40000, rate: 0.005, startDate: '2023-03', durationMonths: 300, monthlyPayment: 145.20 },
+    { name: 'PTZ', principal: 60000, rate: 0, startDate: '2023-03', durationMonths: 240,
+      periods: [{ months: 60, payment: 0 }, { months: 180, payment: 333.33 }] },
+    { name: 'Banque Populaire (Riv\'immo)', principal: 175000, rate: 0.021, startDate: '2023-03', durationMonths: 300,
+      periods: [{ months: 24, payment: 306.25 }, { months: 36, payment: 1020.55 }, { months: 180, payment: 687.55 }, { months: 60, payment: 1020.58 }] },
+  ];
+
+  // Fixed charges
+  var assuranceAPRIL = 209.76;   // €/an (APRIL: PTZ + BP)
+  var assuranceAL = 3.33 * 12;   // €/an (Action Logement)
+  var totalAssurance = assuranceAPRIL + assuranceAL;
+  var pnoAnnuel = 15 * 12;       // 180 €/an
+  var tfAnnuel = 75 * 12;        // 900 €/an
+  var coproMensuel = 150;         // charges copro €/mois
+
+  // Revenue
+  var loyerTotalMensuel = 1400;   // Loyer total reçu (hors parking temporaire)
+  var chargesCopro = coproMensuel;
+
+  // Tax rates (non-résident)
+  var tmi = 0.20, ps = 0.172, totalRate = tmi + ps; // 37.2%
+
+  // TF exoneration (logement neuf livré 2025)
+  var tfExemptionEndYear = 2027;
+  // Contract starts April 2026
+  var contractStartMonth = 4;
+  var startYear = 2026, nYears = 10;
+
+  function computeAmort(loan) {
+    var schedule = [], crd = loan.principal, monthlyRate = loan.rate / 12, idx = 0;
+    if (loan.periods) {
+      for (var p = 0; p < loan.periods.length; p++) {
+        var period = loan.periods[p];
+        for (var i = 0; i < period.months && crd > 0.01; i++) {
+          var interest = crd * monthlyRate;
+          var payment = Math.min(period.payment, crd + interest);
+          var princ = Math.max(0, payment - interest);
+          crd = Math.max(0, crd - princ);
+          schedule.push({ interest: interest });
+          idx++;
+        }
+      }
+    } else {
+      for (var j = 0; j < loan.durationMonths && crd > 0.01; j++) {
+        var int2 = crd * monthlyRate;
+        var princ2 = Math.min(loan.monthlyPayment - int2, crd);
+        crd = Math.max(0, crd - princ2);
+        schedule.push({ interest: int2 });
+      }
+    }
+    return schedule;
+  }
+
+  function yearlyInt(schedule, startDate) {
+    var parts = startDate.split('-'), sy = parseInt(parts[0]), sm = parseInt(parts[1]);
+    var yearly = {};
+    for (var i = 0; i < schedule.length; i++) {
+      var y = sy + Math.floor((sm - 1 + i) / 12);
+      yearly[y] = (yearly[y] || 0) + schedule[i].interest;
+    }
+    return yearly;
+  }
+
+  // Precompute amortizations
+  var amorts = loans.map(function(l) {
+    var sch = computeAmort(l);
+    return { yearlyInt: yearlyInt(sch, l.startDate) };
+  });
+
+  var slider = document.getElementById('vitrySimLoyer');
+  var valEl = document.getElementById('vitrySimLoyerVal');
+  var tbody = document.getElementById('vitryFiscalSimBody');
+  var summaryEl = document.getElementById('vitryFiscalSummary');
+  var detailEl = document.getElementById('vitryDeductionDetail');
+
+  function update() {
+    var loyerDeclare = parseInt(slider.value);
+    valEl.textContent = loyerDeclare + ' €/mois';
+    var loyerCashMensuel = loyerTotalMensuel - loyerDeclare;
+
+    var html = '';
+    var totalImpot10 = 0, totalRevenuNet10 = 0;
+
+    for (var y = 0; y < nYears; y++) {
+      var year = startYear + y;
+
+      // Months of rent for this year
+      var moisLoyer = 12;
+      if (year === startYear) moisLoyer = 12 - contractStartMonth + 1; // 9 months Apr-Dec
+
+      // Revenue
+      var loyerTotalAn = loyerTotalMensuel * moisLoyer;
+      var loyerDeclareAn = loyerDeclare * moisLoyer;
+      var loyerCashAn = loyerCashMensuel * moisLoyer;
+      var coproAn = chargesCopro * moisLoyer;
+      var revenuNetAn = loyerTotalAn - coproAn;
+
+      // TF exoneration
+      var tfAnnee = year <= tfExemptionEndYear ? 0 : tfAnnuel;
+      var tfNote = year <= tfExemptionEndYear ? ' <small style="color:#276749;">(exo.)</small>' : '';
+
+      // Interest for the year
+      var totalInterets = 0;
+      for (var a = 0; a < amorts.length; a++) totalInterets += (amorts[a].yearlyInt[year] || 0);
+
+      // Pro-rata for partial year
+      var prorata = moisLoyer / 12;
+      var assuranceAnnee = totalAssurance * prorata;
+      var pnoAnnee = pnoAnnuel * prorata;
+
+      // Total deductions (on declared portion)
+      var totalDeductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
+
+      // Taxable income on declared portion
+      var revenuImposable = Math.max(0, loyerDeclareAn - totalDeductions);
+      var impotDeclare = Math.round(revenuImposable * totalRate);
+
+      // Effective tax rate vs total net revenue
+      var tauxEff = revenuNetAn > 0 ? (impotDeclare / revenuNetAn * 100).toFixed(1) : '0.0';
+
+      // Monthly note
+      var moisNote = moisLoyer < 12 ? ' <small style="color:#718096;">(' + moisLoyer + 'm)</small>' : '';
+
+      totalImpot10 += impotDeclare;
+      totalRevenuNet10 += revenuNetAn;
+
+      var rowBg = year <= tfExemptionEndYear ? ' style="background:#f0fff4;"' : '';
+
+      html += '<tr' + rowBg + '>'
+        + '<td><strong>' + year + '</strong></td>'
+        + '<td class="num">' + (loyerTotalAn).toLocaleString('fr-FR') + moisNote + '</td>'
+        + '<td class="num">' + (loyerDeclareAn).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#718096;">' + (loyerCashAn).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="font-weight:600;">' + Math.round(totalDeductions).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(revenuImposable).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="font-weight:700;' + (impotDeclare > 0 ? 'color:#c53030;' : 'color:#276749;') + '">'
+          + impotDeclare.toLocaleString('fr-FR') + ' <small>(' + (moisLoyer > 0 ? Math.round(impotDeclare / moisLoyer) : 0) + '/m)</small></td>'
+        + '<td class="num" style="color:#276749;font-weight:600;">' + Math.round(revenuNetAn - impotDeclare).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + tauxEff + '%</td>'
+        + '</tr>';
+    }
+    tbody.innerHTML = html;
+
+    // Summary (year 1)
+    var m1 = 12 - contractStartMonth + 1;
+    var loyer1Total = loyerTotalMensuel * m1;
+    var loyer1Decl = loyerDeclare * m1;
+    var loyer1Cash = loyerCashMensuel * m1;
+    var copro1 = chargesCopro * m1;
+    var revNet1 = loyer1Total - copro1;
+    var int1 = 0;
+    for (var a2 = 0; a2 < amorts.length; a2++) int1 += (amorts[a2].yearlyInt[startYear] || 0);
+    var pr1 = m1 / 12;
+    var ded1 = int1 + totalAssurance * pr1 + pnoAnnuel * pr1; // TF exo
+    var rev1 = Math.max(0, loyer1Decl - ded1);
+    var imp1 = Math.round(rev1 * totalRate);
+
+    summaryEl.innerHTML = '<strong>Résumé 2026 (' + m1 + ' mois, TF exonérée) :</strong> '
+      + 'Loyer total ' + loyer1Total.toLocaleString('fr-FR') + '€ (déclaré ' + loyer1Decl.toLocaleString('fr-FR') + '€ + cash ' + loyer1Cash.toLocaleString('fr-FR') + '€)'
+      + ' | Déductions ' + Math.round(ded1).toLocaleString('fr-FR') + '€'
+      + ' | <strong style="' + (imp1 > 0 ? 'color:#c53030;' : 'color:#276749;') + '">Impôt ' + imp1.toLocaleString('fr-FR') + '€/an (' + Math.round(imp1 / m1) + '€/mois)</strong>'
+      + ' | Revenu net après impôt : <strong style="color:#276749;">' + Math.round(revNet1 - imp1).toLocaleString('fr-FR') + '€</strong>';
+
+    // Deduction detail for year 1
+    detailEl.innerHTML = '<details style="font-size:0.82rem;color:#4a5568;">'
+      + '<summary style="cursor:pointer;font-weight:600;">Détail déductions 2026</summary>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;max-width:500px;">'
+      + '<span>Intérêts (3 prêts)</span><span class="num">' + Math.round(int1).toLocaleString('fr-FR') + ' €</span>'
+      + '<span>Assurance (APRIL+AL)</span><span class="num">' + Math.round(totalAssurance * pr1).toLocaleString('fr-FR') + ' €</span>'
+      + '<span>PNO</span><span class="num">' + Math.round(pnoAnnuel * pr1).toLocaleString('fr-FR') + ' €</span>'
+      + '<span>Taxe foncière</span><span class="num" style="color:#276749;">0 € (exonérée)</span>'
+      + '<span style="font-weight:700;">Total déductions</span><span class="num" style="font-weight:700;">' + Math.round(ded1).toLocaleString('fr-FR') + ' €</span>'
+      + '</div></details>';
+  }
+
+  slider.addEventListener('input', update);
+  update();
+})();
 </script>
 
 </body>

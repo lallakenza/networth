@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=14';
-import { IMMO_CONSTANTS } from './data.js?v=14';
+import { fmt, fmtAxis } from './render.js?v=15';
+import { IMMO_CONSTANTS } from './data.js?v=15';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -345,161 +345,11 @@ function runNezhaSimulator(state) {
   });
 }
 
-// ============ VITRY FISCAL SIMULATOR ============
-
-/**
- * Compute amortization for a multi-period loan (like Riv'immo BP)
- * Returns monthly schedule: [{month, interest, principal, crd}]
- */
-function computeMultiPeriodAmort(loan) {
-  const schedule = [];
-  let crd = loan.principal;
-  const monthlyRate = loan.rate / 12;
-  let monthIdx = 0;
-
-  if (loan.periods) {
-    for (const period of loan.periods) {
-      for (let i = 0; i < period.months && crd > 0.01; i++) {
-        const interest = crd * monthlyRate;
-        const payment = Math.min(period.payment, crd + interest);
-        const principalPart = Math.max(0, payment - interest);
-        crd = Math.max(0, crd - principalPart);
-        schedule.push({ month: monthIdx + 1, interest, principal: principalPart, crd, payment });
-        monthIdx++;
-      }
-    }
-  } else {
-    // Simple fixed-payment loan
-    for (let i = 0; i < loan.durationMonths && crd > 0.01; i++) {
-      const interest = crd * monthlyRate;
-      const principalPart = Math.min(loan.monthlyPayment - interest, crd);
-      crd = Math.max(0, crd - principalPart);
-      schedule.push({ month: i + 1, interest, principal: principalPart, crd, payment: loan.monthlyPayment });
-    }
-  }
-  return schedule;
-}
-
-/**
- * Get yearly interest totals from a monthly schedule
- * startDate: 'YYYY-MM', returns {year: totalInterest}
- */
-function yearlyInterest(schedule, startDate) {
-  const [sy, sm] = startDate.split('-').map(Number);
-  const yearly = {};
-  schedule.forEach((row, i) => {
-    const y = sy + Math.floor((sm - 1 + i) / 12);
-    yearly[y] = (yearly[y] || 0) + row.interest;
-  });
-  return yearly;
-}
-
-/**
- * Build & run the Vitry fiscal simulator
- * Interactive table: loyer déclaré (slider) × 10 years
- */
-function runVitryFiscalSim() {
-  const container = document.getElementById('vitryFiscalSimBody');
-  const sliderEl = document.getElementById('vitrySimLoyer');
-  const loyerValEl = document.getElementById('vitrySimLoyerVal');
-  if (!container || !sliderEl) return;
-
-  const loans = IC.loans && IC.loans.vitryLoans;
-  if (!loans || loans.length === 0) return;
-
-  // Compute amortization for each loan
-  const amorts = loans.map(loan => ({
-    name: loan.name,
-    schedule: computeMultiPeriodAmort(loan),
-    startDate: loan.startDate,
-    yearlyInt: {},
-  }));
-  amorts.forEach(a => { a.yearlyInt = yearlyInterest(a.schedule, loans[0].startDate); });
-
-  // Fixed charges (annual estimates)
-  const insAPRIL = IC.loans && IC.loans.vitryInsuranceAPRIL;
-  const assuranceAPRIL = insAPRIL ? insAPRIL.annualTTC : 210;
-  const assuranceAL = loans[0].insuranceMonthly * 12; // 3.33 × 12 = 39.96
-  const pnoAnnuel = IC.charges.vitry.pno * 12;        // 15 × 12 = 180
-  const tfAnnuel = IC.charges.vitry.tf * 12;           // 75 × 12 = 900
-  const totalAssurance = assuranceAPRIL + assuranceAL;
-
-  // Tax rates (non-résident)
-  const tmi = IC.fiscalite.vitry.tmi;   // 20%
-  const ps = IC.fiscalite.vitry.ps;     // 17.2%
-  const totalRate = tmi + ps;           // 37.2%
-
-  const startYear = 2026;
-  const nYears = 10;
-
-  function update() {
-    const loyerMensuel = parseInt(sliderEl.value);
-    if (loyerValEl) loyerValEl.textContent = loyerMensuel + ' €/mois';
-    const loyerAnnuel = loyerMensuel * 12;
-
-    let html = '';
-    for (let y = 0; y < nYears; y++) {
-      const year = startYear + y;
-
-      // Total interest for the year across all loans
-      const interetsAL = amorts[0].yearlyInt[year] || 0;
-      const interetsPTZ = amorts[1] ? (amorts[1].yearlyInt[year] || 0) : 0;
-      const interetsBP = amorts[2] ? (amorts[2].yearlyInt[year] || 0) : 0;
-      const totalInterets = interetsAL + interetsPTZ + interetsBP;
-
-      // Total deductions
-      const totalDeductions = totalInterets + totalAssurance + pnoAnnuel + tfAnnuel;
-
-      // Taxable income
-      const revenuImposable = Math.max(0, loyerAnnuel - totalDeductions);
-      const deficit = loyerAnnuel - totalDeductions < 0 ? Math.abs(loyerAnnuel - totalDeductions) : 0;
-      const impot = Math.round(revenuImposable * totalRate);
-      const impotMois = Math.round(impot / 12);
-
-      const deficitClass = deficit > 0 ? ' class="pl-pos"' : '';
-      const impotClass = impot > 0 ? ' class="pl-neg"' : ' class="pl-pos"';
-
-      html += '<tr>'
-        + '<td><strong>' + year + '</strong></td>'
-        + '<td class="num">' + Math.round(totalInterets).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + Math.round(totalAssurance).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + pnoAnnuel.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + tfAnnuel.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="font-weight:600">' + Math.round(totalDeductions).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + loyerAnnuel.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num"' + (deficit > 0 ? ' style="color:var(--green)"' : '') + '>'
-          + (deficit > 0 ? '<span style="color:var(--green)">Déficit ' + Math.round(deficit).toLocaleString('fr-FR') + '</span>' : Math.round(revenuImposable).toLocaleString('fr-FR'))
-        + '</td>'
-        + '<td class="num"' + impotClass + ' style="font-weight:700">' + impot.toLocaleString('fr-FR') + ' <small>(' + impotMois + '/m)</small></td>'
-        + '</tr>';
-    }
-    container.innerHTML = html;
-
-    // Update summary card
-    const summaryEl = document.getElementById('vitryFiscalSummary');
-    if (summaryEl) {
-      const yr1Int = (amorts[0].yearlyInt[startYear] || 0) + (amorts[1] ? amorts[1].yearlyInt[startYear] || 0 : 0) + (amorts[2] ? amorts[2].yearlyInt[startYear] || 0 : 0);
-      const yr1Ded = yr1Int + totalAssurance + pnoAnnuel + tfAnnuel;
-      const yr1Rev = Math.max(0, loyerAnnuel - yr1Ded);
-      const yr1Impot = Math.round(yr1Rev * totalRate);
-      summaryEl.innerHTML = '<strong>Résumé ' + startYear + ' :</strong> '
-        + 'Loyer déclaré ' + loyerAnnuel.toLocaleString('fr-FR') + '€/an'
-        + ' | Déductions ' + Math.round(yr1Ded).toLocaleString('fr-FR') + '€'
-        + ' | Revenu imposable ' + Math.round(yr1Rev).toLocaleString('fr-FR') + '€'
-        + ' | <strong' + (yr1Impot > 0 ? ' class="pl-neg"' : ' class="pl-pos"') + '>Impôt ' + yr1Impot.toLocaleString('fr-FR') + '€/an (' + Math.round(yr1Impot / 12) + '€/mois)</strong>';
-    }
-  }
-
-  sliderEl.addEventListener('input', update);
-  update();
-}
-
 // ============ INIT SIMULATORS ============
 export function initSimulators(state) {
   runCoupleSimulator(state);
   runAmineSimulator(state);
   runNezhaSimulator(state);
-  runVitryFiscalSim();
 }
 
 export function bindSimulatorEvents(state, refreshFn) {
