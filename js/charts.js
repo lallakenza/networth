@@ -588,8 +588,9 @@ function buildCoupleTreemap(state) {
 
   // Use 2 group levels: category (header) → label (colored leaf)
   // With 2 groups, every _data node has children (even leaves wrap 1 child).
-  // To distinguish: category headers have path without '~', leaves have 'category~label'.
-  const isCategoryHeader = (d) => d && d.path && !d.path.includes('~');
+  // Path separator is '.' — category headers = "Cash", leaves = "Cash.Amine — UAE (AED)"
+  // Leaf color is at d.children[0].color (the actual data row inside the label group)
+  const isCategoryHeader = (d) => d && d.path && !d.path.includes('.');
 
   charts.coupleTreemap = new Chart(el, {
     type: 'treemap',
@@ -610,8 +611,9 @@ function buildCoupleTreemap(state) {
             const cat = CATS.find(c => c.label === d.label);
             return (cat ? cat.color : '#6b7280') + '18';
           }
-          // Leaf block — vivid color!
-          return d.color || colorMap[d.label] || '#94a3b8';
+          // Leaf block — vivid color from the wrapped data row
+          const leafColor = (d.children && d.children[0]?.color) || colorMap[d.label] || d.color;
+          return leafColor || '#94a3b8';
         },
         labels: {
           display: true,
