@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=2';
-import { getGrandTotal } from './engine.js?v=2';
+import { CURRENCY_CONFIG } from './data.js?v=3';
+import { getGrandTotal } from './engine.js?v=3';
 
 // ---- Formatting helpers ----
 
@@ -782,43 +782,98 @@ function renderCashView(state) {
       + 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(Math.abs(cv.jpyShortEUR) * 0.1) + '.';
   }
 
-  // Diagnostics
+  // ── Diagnostics stratégiques ──
   const diagContainer = document.getElementById('cashDiagnostics');
   if (diagContainer && cv.diagnostics) {
     diagContainer.innerHTML = '';
-    cv.diagnostics.forEach(d => {
-      const isUrgent = d.severity === 'urgent';
-      const borderColor = isUrgent ? '#e53e3e' : '#dd6b20';
-      const bgColor = isUrgent ? '#fff5f5' : '#fffaf0';
-      const badge = isUrgent
-        ? '<span style="background:#e53e3e;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">URGENT</span>'
-        : '<span style="background:#dd6b20;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">ATTENTION</span>';
+    const severityConfig = {
+      urgent: { border: '#e53e3e', bg: '#fff5f5', label: 'PRIORIT\u00c9', labelBg: '#e53e3e' },
+      warning: { border: '#dd6b20', bg: '#fffaf0', label: 'ATTENTION', labelBg: '#dd6b20' },
+      info: { border: '#3182ce', bg: '#ebf8ff', label: 'CONSEIL', labelBg: '#3182ce' },
+    };
 
-      let title = '', detail = '';
-      if (d.category === 'inflation') {
-        const yieldLabel = d.currentYield > 0 ? (d.currentYield * 100).toFixed(0) + '%' : '0%';
-        title = '\uD83D\uDCC9 ' + d.account + ' \u2014 ' + fmt(d.amountEUR) + ' \u00e0 ' + yieldLabel + ' rendement';
-        detail = d.currentYield > 0
-          ? 'Rendement insuffisant (' + yieldLabel + ' < 3%). Manque \u00e0 gagner vs 6% : ~' + fmt(d.amountEUR * (0.06 - d.currentYield)) + '/an.'
-          : 'Perd ~' + fmt(d.annualLoss) + '/an en pouvoir d\'achat (' + d.inflationPct + '% inflation).';
-      } else if (d.category === 'concentration') {
-        title = '\u26A0\uFE0F Concentration ' + d.concentrationCur + ' : ' + d.concentrationPct.toFixed(0) + '% du cash total';
-        detail = fmt(d.amountEUR) + ' en ' + d.concentrationCur + ' sur ' + fmt(d.totalCashEUR) + ' total.';
-      } else if (d.category === 'forex') {
-        title = '\uD83D\uDCB1 Risque JPY Short : ' + fmt(d.jpyShortEUR) + ' d\'exposition';
-        detail = 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(d.riskAmount) + '.';
-      } else if (d.category === 'erosion') {
-        title = '\uD83D\uDD25 \u00c9rosion totale : -' + fmt(d.annualLoss) + '/an sur cash dormant';
-        detail = fmt(d.amountEUR) + ' de cash \u00e0 0% rendement perd ' + fmt(d.monthlyLoss) + '/mois. Potentiel si plac\u00e9 \u00e0 4% : +' + fmt(d.potentialGain) + '/an.';
+    cv.diagnostics.forEach(d => {
+      const cfg = severityConfig[d.severity] || severityConfig.info;
+      const badge = '<span style="background:' + cfg.labelBg + ';color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">' + cfg.label + '</span>';
+
+      let title = '', detail = '', actionsHtml = '';
+
+      // ── Résumé stratégique ──
+      if (d.category === 'summary') {
+        title = '\uD83D\uDCCA Bilan : ' + d.dormantPct.toFixed(0) + '% du cash est dormant \u2014 manque \u00e0 gagner ' + fmt(d.totalMissedAnn) + '/an';
+        detail = 'Rendement moyen actuel : ' + (d.avgYield * 100).toFixed(1) + '% vs ' + (d.targetYield * 100).toFixed(0) + '% atteignable. '
+          + fmt(d.dormantEUR) + ' de cash rapporte moins de 3%. '
+          + 'Co\u00fbt emprunt JPY : ' + fmt(d.jpyCostAnn) + '/an en plus.';
       }
 
+      // ── Cash Nezha ──
+      else if (d.category === 'nezha_cash') {
+        title = '\uD83D\uDD25 Cash Nezha : ' + fmt(d.amountEUR) + ' \u00e0 0% \u2014 perd ' + fmt(d.gainPotentiel) + '/an';
+        detail = 'Cash France : ' + fmt(d.cashFranceEUR) + ' | Cash Maroc : ' + fmt(d.cashMarocEUR) + '. '
+          + 'C\'est le plus gros gisement de gains. Chaque mois qui passe co\u00fbte ~' + fmt(d.gainPotentiel / 12) + '.';
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── IBKR EUR ──
+      else if (d.category === 'ibkr_eur') {
+        title = '\uD83D\uDCB0 IBKR EUR : ' + fmt(d.amountEUR) + ' \u00e0 ' + (d.effectiveYield * 100).toFixed(1) + '% effectif \u2014 manque ' + fmt(d.missedAnn) + '/an';
+        detail = 'Premiers 10K\u20ac \u00e0 0% chez IBKR, le reste \u00e0 1.53%. Rendement effectif trop faible. '
+          + 'Exc\u00e9dent de ~' + fmt(d.excessEUR) + ' pourrait rapporter ' + fmt(d.gainTransfert) + '/an plac\u00e9 \u00e0 6%.';
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── Cash Maroc Amine ──
+      else if (d.category === 'maroc_cash') {
+        title = '\uD83C\uDDF2\uD83C\uDDE6 Cash Maroc Amine : ' + fmt(d.amountEUR) + ' \u00e0 0% \u2014 potentiel +' + fmt(d.gainPotentiel) + '/an';
+        detail = 'Attijariwafa : ' + Math.round(d.attijariMAD).toLocaleString('fr-FR') + ' MAD | Nabd : ' + Math.round(d.nabdMAD).toLocaleString('fr-FR') + ' MAD. '
+          + 'Des options existent pour faire travailler ce cash au Maroc.';
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── JPY Levier ──
+      else if (d.category === 'jpy_leverage') {
+        title = '\uD83D\uDCB1 Levier JPY : \u00a5' + Math.round(d.jpyNative).toLocaleString('ja-JP') + ' emprunt\u00e9s \u2014 co\u00fbt ' + fmt(d.costAnn) + '/an';
+        detail = 'Taux blend\u00e9 ' + (d.blendedRate * 100).toFixed(1) + '% (par tranche IBKR Pro). '
+          + 'Risque de change : un yen \u00e0 +10% = perte de ~' + fmt(d.riskYen10pct) + ' suppl\u00e9mentaire.';
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── IBKR USD ──
+      else if (d.category === 'ibkr_usd') {
+        title = '\uD83D\uDCB5 IBKR USD : ' + fmt(d.amountEUR) + ' \u00e0 ' + (d.effectiveYield * 100).toFixed(1) + '% effectif';
+        detail = 'Premiers 10K$ \u00e0 0% r\u00e9duisent fortement le rendement. '
+          + 'Manque \u00e0 gagner : ' + fmt(d.missedAnn) + '/an vs benchmark 6%.';
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── Petits comptes ──
+      else if (d.category === 'small_accounts') {
+        title = '\uD83D\uDCE6 ' + d.count + ' petits comptes dormants : ' + fmt(d.amountEUR) + ' total';
+        detail = d.labels;
+        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      }
+
+      // ── Plan d'action ──
+      else if (d.category === 'action_plan') {
+        title = '\uD83D\uDCCB Plan d\'action \u2014 r\u00e9cup\u00e9rer ' + fmt(d.totalMissedAnn) + '/an';
+        detail = '';
+        actionsHtml = d.steps.map(s => '<div style="padding:4px 0;font-size:13px;">' + s + '</div>').join('');
+      }
+
+      if (!title) return; // skip unknown categories
+
       const card = document.createElement('div');
-      card.style.cssText = 'border-left:4px solid ' + borderColor + ';background:' + bgColor + ';padding:14px 18px;border-radius:6px;';
-      card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
-        + badge + ' <strong style="font-size:14px;">' + title + '</strong></div>'
-        + '<div style="font-size:13px;color:#4a5568;margin-bottom:8px;">' + detail + '</div>'
-        + '<div style="font-size:13px;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:4px;">'
-        + '<strong style="color:' + borderColor + ';">\u27A1 Action :</strong> ' + d.action + '</div>';
+      card.style.cssText = 'border-left:4px solid ' + cfg.border + ';background:' + cfg.bg + ';padding:14px 18px;border-radius:6px;';
+      let html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+        + badge + ' <strong style="font-size:14px;">' + title + '</strong></div>';
+      if (detail) {
+        html += '<div style="font-size:13px;color:#4a5568;margin-bottom:8px;">' + detail + '</div>';
+      }
+      if (actionsHtml) {
+        html += '<div style="font-size:13px;background:#fff;border:1px solid #e2e8f0;padding:10px 14px;border-radius:4px;">'
+          + '<strong style="color:' + cfg.border + ';">\u27A1 Actions :</strong>' + actionsHtml + '</div>';
+      }
+      card.innerHTML = html;
       diagContainer.appendChild(card);
     });
   }

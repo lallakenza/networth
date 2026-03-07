@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js?v=2';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js?v=3';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -329,78 +329,197 @@ function computeCashView(portfolio, fx) {
   const annualInflationCost = totalNonYielding * INFLATION_RATE;
   const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
 
-  // --- Cash Diagnostic: urgent actions (raw data, formatted in render.js) ---
+  // ── DIAGNOSTICS STRATÉGIQUES ─────────────────────────────
+  // Conseils priorisés par impact (manque à gagner annuel)
+  // Catégories : strategy, action, optimize, risk
   const diagnostics = [];
+  const REF_YIELD = 0.06; // Benchmark 6% (Wio/Mashreq AED)
 
-  // 1. Dormant cash losing to inflation
-  const PRODUCTIVE_THRESHOLD = 0.03;
-  const dormantAccounts = accounts.filter(a => !a.isDebt && (a.yield || 0) < PRODUCTIVE_THRESHOLD && a.valEUR > 1000);
-  dormantAccounts.forEach(a => {
-    const erosion = a.valEUR * INFLATION_RATE;
-    diagnostics.push({
-      severity: a.valEUR > 10000 ? 'urgent' : 'warning',
-      category: 'inflation',
-      account: a.label,
-      owner: a.owner,
-      amountEUR: a.valEUR,
-      annualLoss: erosion,
-      currentYield: a.yield || 0,
-      currency: a.currency,
-      inflationPct: INFLATION_RATE * 100,
-      action: a.currency === 'AED' ? 'Transférer vers Wio Savings (6%) ou Mashreq NEO+ (6.25%)'
-        : a.currency === 'MAD' ? 'Ouvrir un DAT ou OPCVM monétaire au Maroc (3-4%)'
-        : a.currency === 'EUR' && a.label.includes('Revolut') ? 'Activer le coffre Revolut ou transférer vers un livret (2-3%)'
-        : a.currency === 'EUR' && a.label.includes('ESPP') ? 'Transférer vers compte rémunéré ou investir'
-        : a.currency === 'EUR' && a.label.includes('France') ? 'Placer sur livret A, fonds euro, ou assurance-vie'
-        : a.currency === 'EUR' ? 'Placer sur livret, fonds euro, ou OPCVM monétaire'
-        : 'Chercher un placement rémunéré dans cette devise',
-    });
+  // --- Calcul du JPY ---
+  const jpyAccount = accounts.find(a => a.isDebt);
+  const jpyCostAnn = jpyAccount ? Math.abs(jpyAccount.valEUR * jpyAccount.yield) : 0;
+
+  // --- Manque à gagner total ---
+  const totalMissedAnn = accounts
+    .filter(a => !a.isDebt && a.valEUR > 0)
+    .reduce((s, a) => s + a.valEUR * (REF_YIELD - (a.yield || 0)), 0);
+
+  // ═══════════════════════════════════════════════════════
+  // 1. VUE D'ENSEMBLE — Résumé stratégique
+  // ═══════════════════════════════════════════════════════
+  diagnostics.push({
+    severity: 'urgent',
+    category: 'summary',
+    dormantPct: (totalNonYielding / totalCash * 100),
+    dormantEUR: totalNonYielding,
+    totalMissedAnn: totalMissedAnn,
+    jpyCostAnn: jpyCostAnn,
+    avgYield: weightedAvgYield,
+    targetYield: REF_YIELD,
+    potentialGainAnn: totalMissedAnn,
   });
 
-  // 2. Concentration risk by currency
-  const currencyEntries = Object.entries(byCurrency).map(([cur, val]) => ({ cur, val, pct: val / totalCash * 100 }));
-  currencyEntries.filter(c => c.pct > 50).forEach(c => {
-    diagnostics.push({
-      severity: 'warning',
-      category: 'concentration',
-      amountEUR: c.val,
-      totalCashEUR: totalCash,
-      concentrationPct: c.pct,
-      concentrationCur: c.cur,
-      action: 'Diversifier progressivement vers EUR ou USD pour réduire le risque devise.',
-    });
-  });
-
-  // 3. JPY short risk
-  if (jpyShortEUR < -5000) {
-    const riskAmount = Math.abs(jpyShortEUR) * 0.10;
-    diagnostics.push({
-      severity: 'warning',
-      category: 'forex',
-      amountEUR: Math.abs(jpyShortEUR),
-      jpyShortEUR: jpyShortEUR,
-      riskAmount: riskAmount,
-      action: 'Surveiller le JPY/EUR. Définir un stop-loss ou couvrir partiellement si le yen se renforce.',
-    });
-  }
-
-  // 4. Total inflation cost summary
-  if (annualInflationCost > 2000) {
+  // ═══════════════════════════════════════════════════════
+  // 2. PRIORITÉ #1 — Cash Nezha (85K€ + 9K€ à 0%)
+  //    Plus gros gisement de gains. Impact : ~5 600€/an
+  // ═══════════════════════════════════════════════════════
+  const nezhaCashFR = accounts.find(a => a.label === 'Cash France');
+  const nezhaCashMA = accounts.find(a => a.label === 'Cash Maroc');
+  if (nezhaCashFR && nezhaCashFR.valEUR > 0) {
+    const nezhaTotalDormant = nezhaCashFR.valEUR + (nezhaCashMA ? nezhaCashMA.valEUR : 0);
+    const nezhaGainPotentiel = nezhaTotalDormant * REF_YIELD;
     diagnostics.push({
       severity: 'urgent',
-      category: 'erosion',
-      amountEUR: totalNonYielding,
-      annualLoss: annualInflationCost,
-      monthlyLoss: monthlyInflationCost,
-      potentialGain: totalNonYielding * 0.04,
-      action: 'Priorité #1 : placer le cash dormant pour stopper l\'érosion.',
+      category: 'nezha_cash',
+      amountEUR: nezhaTotalDormant,
+      cashFranceEUR: nezhaCashFR.valEUR,
+      cashMarocEUR: nezhaCashMA ? nezhaCashMA.valEUR : 0,
+      gainPotentiel: nezhaGainPotentiel,
+      actions: [
+        'Option A : Ouvrir un compte AED (Wio/Mashreq) au nom de Nezha → 6%/an soit +' + Math.round(nezhaGainPotentiel) + '€/an',
+        'Option B : Assurance-vie fonds euros en France → ~2.5-3%/an',
+        'Option C : Livret A (22 950€ max) + LDDS (12 000€ max) → ~3%/an défiscalisé',
+        'Option D : OPCVM monétaire Maroc pour le cash MAD → ~3-4%/an',
+      ],
     });
   }
 
-  // Sort: urgent first, then by amount
-  diagnostics.sort((a, b) => {
-    if (a.severity !== b.severity) return a.severity === 'urgent' ? -1 : 1;
-    return (b.amountEUR || 0) - (a.amountEUR || 0);
+  // ═══════════════════════════════════════════════════════
+  // 3. PRIORITÉ #2 — IBKR EUR (66K€ à 1.3% effectif)
+  //    Rendement faible à cause du seuil 10K€ à 0%
+  //    Impact : ~3 100€/an de manque à gagner
+  // ═══════════════════════════════════════════════════════
+  const ibkrEUR = accounts.find(a => a.label === 'IBKR Cash EUR');
+  if (ibkrEUR && ibkrEUR.valEUR > 20000) {
+    const ibkrMissed = ibkrEUR.valEUR * (REF_YIELD - ibkrEUR.yield);
+    // Montant optimal à garder chez IBKR (marge + opportunité d'investissement)
+    const optimalIBKR = 20000; // ~20K€ pour marge et opportunités
+    const excessIBKR = ibkrEUR.valEUR - optimalIBKR;
+    const gainTransfert = excessIBKR * REF_YIELD;
+    diagnostics.push({
+      severity: 'urgent',
+      category: 'ibkr_eur',
+      amountEUR: ibkrEUR.valEUR,
+      effectiveYield: ibkrEUR.yield,
+      missedAnn: ibkrMissed,
+      excessEUR: excessIBKR,
+      gainTransfert: gainTransfert,
+      actions: [
+        'Transférer ~' + Math.round(excessIBKR/1000) + 'K€ excédentaire vers Mashreq/Wio (6%) → +' + Math.round(gainTransfert) + '€/an',
+        'Garder ~20K€ chez IBKR comme marge de sécurité + opportunité d\'investissement',
+        'Alternative : investir l\'excédent en ETF obligataire court terme (2-4%)',
+      ],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // 4. PRIORITÉ #3 — Cash Maroc Amine (17.5K€ à 0%)
+  //    Impact : ~1 050€/an de manque à gagner
+  // ═══════════════════════════════════════════════════════
+  const attijari = accounts.find(a => a.label === 'Attijariwafa');
+  const nabd = accounts.find(a => a.label.includes('Nabd'));
+  if (attijari && attijari.valEUR > 5000) {
+    const marocTotal = attijari.valEUR + (nabd ? nabd.valEUR : 0);
+    diagnostics.push({
+      severity: 'warning',
+      category: 'maroc_cash',
+      amountEUR: marocTotal,
+      attijariMAD: attijari.native,
+      nabdMAD: nabd ? nabd.native : 0,
+      gainPotentiel: marocTotal * 0.04, // 4% réaliste au Maroc
+      actions: [
+        'DAT 6 mois chez Attijariwafa → ~3.5-4%/an sur ' + Math.round(attijari.native/1000) + 'K MAD',
+        'OPCVM monétaire (ex: CDG Capital Money Market) → ~3-3.5%/an, liquidité J+1',
+        'Garder un minimum opérationnel (~30K MAD) et placer le reste',
+      ],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // 5. LEVIER JPY — Coût et risque de l'emprunt
+  //    Coût annuel : ~2 600€ + risque de change
+  // ═══════════════════════════════════════════════════════
+  if (jpyAccount && Math.abs(jpyAccount.valEUR) > 5000) {
+    const riskYen10pct = Math.abs(jpyAccount.valEUR) * 0.10;
+    diagnostics.push({
+      severity: 'warning',
+      category: 'jpy_leverage',
+      amountEUR: Math.abs(jpyAccount.valEUR),
+      costAnn: jpyCostAnn,
+      riskYen10pct: riskYen10pct,
+      jpyNative: Math.abs(portfolio.amine.ibkr.cashJPY),
+      blendedRate: Math.abs(jpyAccount.yield),
+      actions: [
+        'Coût réel : ~' + Math.round(jpyCostAnn) + '€/an d\'intérêts (taux blended ' + (Math.abs(jpyAccount.yield)*100).toFixed(1) + '%)',
+        'Risque : si le yen monte de 10%, perte supplémentaire de ~' + Math.round(riskYen10pct) + '€',
+        'Le short JPY est rentable SI Shiseido + gains de change > coût d\'emprunt',
+        'Définir un stop-loss JPY/EUR pour limiter les pertes en cas de retournement',
+      ],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // 6. IBKR USD — Rendement effectif faible (1.0%)
+  //    Impact modéré : ~660€/an
+  // ═══════════════════════════════════════════════════════
+  const ibkrUSD = accounts.find(a => a.label === 'IBKR Cash USD');
+  if (ibkrUSD && ibkrUSD.valEUR > 5000) {
+    const usdMissed = ibkrUSD.valEUR * (REF_YIELD - ibkrUSD.yield);
+    diagnostics.push({
+      severity: 'info',
+      category: 'ibkr_usd',
+      amountEUR: ibkrUSD.valEUR,
+      effectiveYield: ibkrUSD.yield,
+      missedAnn: usdMissed,
+      actions: [
+        'Premiers 10K$ à 0% → rendement effectif seulement ' + (ibkrUSD.yield*100).toFixed(1) + '%',
+        'Investir en ETF monétaire USD (ex: BIL, SGOV) → 4-5%/an sans sortir d\'IBKR',
+        'Ou convertir en EUR et transférer vers compte rémunéré AED',
+      ],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // 7. PETITS COMPTES — Revolut + ESPP + Wio Current
+  //    Impact faible individuellement, mais à regrouper
+  // ═══════════════════════════════════════════════════════
+  // Exclure les comptes déjà couverts par les diagnostics ci-dessus
+  const alreadyCovered = ['Cash France', 'Cash Maroc', 'Attijariwafa', 'Nabd (ex-SOGE)', 'IBKR Cash EUR', 'IBKR Cash USD'];
+  const smallAccounts = accounts.filter(a =>
+    !a.isDebt && (a.yield || 0) < 0.03 && a.valEUR > 0 && a.valEUR < 10000
+    && !alreadyCovered.includes(a.label)
+  );
+  if (smallAccounts.length > 0) {
+    const smallTotal = smallAccounts.reduce((s, a) => s + a.valEUR, 0);
+    const smallLabels = smallAccounts.map(a => a.label + ' (' + Math.round(a.valEUR) + '€)').join(', ');
+    diagnostics.push({
+      severity: 'info',
+      category: 'small_accounts',
+      amountEUR: smallTotal,
+      count: smallAccounts.length,
+      labels: smallLabels,
+      actions: [
+        'Regrouper ou investir : ' + smallLabels,
+        'Total : ' + Math.round(smallTotal) + '€ à 0% → manque à gagner ~' + Math.round(smallTotal * REF_YIELD) + '€/an',
+        'Revolut : activer le coffre flexible (~2.5%) ou transférer vers Wio',
+        'ESPP Cash : réinvestir en actions Accenture ou transférer',
+      ],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // 8. STRATÉGIE GLOBALE — Plan d'action séquencé
+  // ═══════════════════════════════════════════════════════
+  diagnostics.push({
+    severity: 'info',
+    category: 'action_plan',
+    totalMissedAnn: totalMissedAnn,
+    steps: [
+      '1. Court terme (cette semaine) : Transférer l\'excédent IBKR EUR (~46K€) vers Mashreq/Wio',
+      '2. Court terme (ce mois) : Ouvrir un DAT chez Attijariwafa pour le cash MAD',
+      '3. Moyen terme : Ouvrir un compte rémunéré pour Nezha (Livret A + fonds euro ou AED)',
+      '4. Continu : Surveiller le JPY/EUR et le coût d\'emprunt IBKR',
+    ],
   });
 
   return {
