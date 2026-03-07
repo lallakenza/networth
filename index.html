@@ -916,6 +916,47 @@
   <div id="fiscalSummary" class="highlight" style="margin-top:12px;"></div>
 </div>
 
+<!-- VITRY: Simulation Fiscale 10 ans -->
+<div class="card hidden" data-view="immobilier">
+  <h2><span class="section-icon" style="background: #e53e3e;">&#x1F4CA;</span>Simulation Fiscale — Vitry (R&eacute;gime R&eacute;el Foncier)</h2>
+  <p style="color:#718096;margin-bottom:16px;">
+    3 pr&ecirc;ts : Action Logement (40K, 0.50%) + PTZ (60K, 0%) + Banque Populaire (175K, 2.10%).<br>
+    Taux d'imposition non-r&eacute;sident : TMI 20% + PS 17.2% = <strong>37.2%</strong> sur le revenu net foncier.
+  </p>
+
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+    <label style="font-weight:600;white-space:nowrap;">Loyer d&eacute;clar&eacute; (hors charges) :</label>
+    <input type="range" id="vitrySimLoyer" min="250" max="850" step="10" value="450"
+           style="flex:1;min-width:200px;">
+    <span id="vitrySimLoyerVal" style="font-size:1.3rem;font-weight:700;color:var(--accent);min-width:100px;">450 &euro;/mois</span>
+  </div>
+
+  <div id="vitryFiscalSummary" class="highlight" style="margin-bottom:14px;"></div>
+
+  <div style="overflow-x:auto;">
+  <table style="font-size:0.85rem;">
+    <thead>
+      <tr>
+        <th>Ann&eacute;e</th>
+        <th class="num">Int&eacute;r&ecirc;ts<br><small>(3 pr&ecirc;ts)</small></th>
+        <th class="num">Assurance<br><small>(APRIL+AL)</small></th>
+        <th class="num">PNO</th>
+        <th class="num">Taxe<br>Fonci&egrave;re</th>
+        <th class="num" style="background:#edf2f7;">Total<br>D&eacute;ductions</th>
+        <th class="num">Loyer<br>D&eacute;clar&eacute;/an</th>
+        <th class="num">Revenu<br>Imposable</th>
+        <th class="num" style="background:#fed7d7;">Imp&ocirc;t<br>(37.2%)</th>
+      </tr>
+    </thead>
+    <tbody id="vitryFiscalSimBody"></tbody>
+  </table>
+  </div>
+  <p style="color:#a0aec0;font-size:0.75rem;margin-top:8px;">
+    * Int&eacute;r&ecirc;ts calcul&eacute;s d'apr&egrave;s les tableaux d'amortissement r&eacute;els.
+    PNO estim&eacute;e ~180&euro;/an. TF estim&eacute;e ~900&euro;/an. Assurance APRIL 209.76&euro;/an + AL 39.96&euro;/an.
+  </p>
+</div>
+
 <!-- ============ VUE CREANCES ============ -->
 <div class="card hidden" data-view="creances">
   <h2><span class="section-icon" style="background: #cbd5e0;">&#x1F4CB;</span>Cr&eacute;ances & Recouvrements</h2>
@@ -955,7 +996,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=11"></script>
+<script type="module" src="js/app.js?v=12"></script>
 
 </body>
 </html>

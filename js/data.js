@@ -291,13 +291,64 @@ export const IMMO_CONSTANTS = {
   // insurance: assurance emprunteur mensuelle
   // ──────────────────────────────────────────────────────
   loans: {
+    // ── VITRY : 3 prêts ──
+    // Combined approximation for CRD chart (somme des 3 prêts)
     vitry: {
-      principal: 293000,
-      rate: 0.0125,
+      principal: 275000,     // 175K BP + 60K PTZ + 40K AL
+      rate: 0.016,           // taux moyen pondéré approx
       startDate: '2023-03',
-      durationMonths: 300,   // 25 ans
+      durationMonths: 300,   // 25 ans (BP le plus long)
       monthlyPayment: 1317,
-      insurance: 30,
+      insurance: 17.48,      // APRIL : 209.76€/an = 17.48/mois
+    },
+    // ── Détail des 3 prêts Vitry (simulation fiscale) ──
+    vitryLoans: [
+      {
+        name: 'Action Logement',
+        principal: 40000,
+        rate: 0.005,           // 0.50%
+        startDate: '2023-03',
+        durationMonths: 300,   // 25 ans
+        monthlyPayment: 145.20,
+        insuranceMonthly: 3.33,  // assurance AL intégrée
+      },
+      {
+        name: 'PTZ (via Banque Populaire)',
+        principal: 60000,
+        rate: 0,               // 0% — Prêt à Taux Zéro
+        startDate: '2023-03',
+        durationMonths: 240,   // 20 ans
+        // 2 périodes :
+        periods: [
+          { months: 60, payment: 0 },        // P1 : franchise 5 ans
+          { months: 180, payment: 333.33 },   // P2 : amortissement constant
+        ],
+        insuranceMonthly: 0,
+      },
+      {
+        name: 'Banque Populaire (Riv\'immo)',
+        principal: 175000,
+        rate: 0.021,           // 2.10%
+        startDate: '2023-03',
+        durationMonths: 300,   // 25 ans
+        // 4 périodes :
+        periods: [
+          { months: 24, payment: 306.25 },    // P1 : franchise capital
+          { months: 36, payment: 1020.55 },   // P2 : échéances constantes
+          { months: 180, payment: 687.55 },   // P3 : échéances constantes
+          { months: 60, payment: 1020.58 },   // P4 : échéances constantes
+        ],
+        insuranceMonthly: 0,
+      },
+    ],
+    // Assurance emprunteur APRIL (couvre PTZ + BP Riv'immo)
+    vitryInsuranceAPRIL: {
+      annualTTC: 209.76,       // 17.48€/mois
+      breakdown: {
+        ptz: 53.16,            // Emprunt N°1 : 60K PTZ
+        bp: 147.00,            // Emprunt N°2 : 175K Riv'immo
+        cotisationAssociative: 9.60,
+      },
     },
     rueil: {
       principal: 220000,
