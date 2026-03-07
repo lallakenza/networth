@@ -1081,10 +1081,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
           return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
         }),
-        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#475569' },
-        { label: 'ESPP Accenture', val: amineEspp, color: '#7c3aed' },
-        { label: 'SGTM Amine', val: amineSgtm, color: '#ea580c' },
-        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#d97706' },
+        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af' },
+        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1' },
+        { label: 'SGTM Amine', val: amineSgtm, color: '#4f46e5' },
+        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#818cf8' },
       ].filter(s => s.val > 100)
     },
     {
@@ -1094,7 +1094,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           .reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
       })(),
       sub: p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
-        const colors = ['#f59e0b','#ea580c'];
+        const colors = ['#f59e0b','#d97706'];
         const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
         return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
       })
@@ -1103,27 +1103,27 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Cash', color: '#48bb78',
       total: p.nezha.cashFrance + nezhaCashMaroc + amineUae + amineMoroccoCash,
       sub: [
-        { label: 'Amine \u2014 UAE (AED)', val: amineUae, color: '#38a169' },
-        { label: 'Nezha \u2014 France (EUR)', val: p.nezha.cashFrance, color: '#e53e3e' },
-        { label: 'Amine \u2014 Maroc (MAD)', val: amineMoroccoCash, color: '#d69e2e' },
-        { label: 'Nezha \u2014 Maroc (MAD)', val: nezhaCashMaroc, color: '#9f7aea' },
+        { label: 'Amine \u2014 UAE (AED)', val: amineUae, color: '#22c55e' },
+        { label: 'Nezha \u2014 France (EUR)', val: p.nezha.cashFrance, color: '#16a34a' },
+        { label: 'Amine \u2014 Maroc (MAD)', val: amineMoroccoCash, color: '#15803d' },
+        { label: 'Nezha \u2014 Maroc (MAD)', val: nezhaCashMaroc, color: '#166534' },
       ]
     },
     {
-      label: 'Vehicules', color: '#4a5568',
+      label: 'Vehicules', color: '#64748b',
       total: amineVehicles,
       sub: [
-        { label: 'Porsche Cayenne', val: p.amine.vehicles.cayenne, color: '#4a5568' },
-        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#a0aec0' },
+        { label: 'Porsche Cayenne', val: p.amine.vehicles.cayenne, color: '#64748b' },
+        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#475569' },
       ]
     },
     {
-      label: 'Creances', color: '#cbd5e0',
+      label: 'Creances', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar,
       sub: [
-        { label: 'SAP & Tax (garanti)', val: amineRecvPro, color: '#38a169' },
-        { label: 'Creances perso Amine', val: amineRecvPersonal, color: '#e2e8f0' },
-        { label: 'Omar \u2014 Nezha', val: nezhaRecvOmar, color: '#9f7aea' },
+        { label: 'SAP & Tax (garanti)', val: amineRecvPro, color: '#ec4899' },
+        { label: 'Creances perso Amine', val: amineRecvPersonal, color: '#db2777' },
+        { label: 'Omar \u2014 Nezha', val: nezhaRecvOmar, color: '#be185d' },
       ]
     },
   ];
