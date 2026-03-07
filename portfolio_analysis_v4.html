@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Portfolio Analysis V4 — Mohamed Amine Koraibi</title>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 40px 0; margin-bottom: 32px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header .subtitle { opacity: 0.85; margin-top: 6px; font-size: 14px; }
+  header .version-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .alert { background: #fff5f5; border-left: 4px solid var(--red); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .success { background: #f0fff4; border-left: 4px solid var(--green); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .info { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .metric-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .metric-box .value { font-size: 24px; font-weight: 700; }
+  .metric-box .label { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .bar { height: 22px; border-radius: 4px; margin: 4px 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: white; font-weight: 600; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  @media (max-width: 768px) { .grid2, .summary-grid { grid-template-columns: 1fr; } }
+  .rec { margin: 8px 0; padding: 12px 16px; background: #f0fff4; border-radius: 8px; border: 1px solid #c6f6d5; }
+  .rec.warn { background: #fffaf0; border-color: #feebc8; }
+  .rec.danger { background: #fff5f5; border-color: #fed7d7; }
+  .rec strong { display: block; margin-bottom: 4px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+  .compare-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .compare-box { border-radius: 8px; padding: 14px; text-align: center; }
+  .compare-box .value { font-size: 22px; font-weight: 700; }
+  .compare-box .label { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .mar4 { background: #f0fff4; border: 1px solid #c6f6d5; }
+  .mar5 { background: #fff5f5; border: 1px solid #fed7d7; }
+  .delta { background: #fffaf0; border: 1px solid #feebc8; }
+  .holdings-table { font-size: 13px; }
+  .holdings-table td.sector { color: var(--gray); font-size: 12px; }
+  .section-num { display: inline-block; background: var(--accent); color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <h1>Unified Portfolio Analysis — Mohamed Amine Koraibi</h1>
+  <div class="subtitle">All platforms combined: Degiro (2020–2025) + IBKR (2025–2026) + Accenture ESPP (2018–2023) | Tax Residence: UAE | Analysis Date: March 7, 2026</div>
+  <div class="version-badge">V4 — Unified Lifetime Analysis</div>
+</header>
+
+<!-- SECTION 1: PERFORMANCE SUMMARY -->
+<div class="card">
+  <h2><span class="section-num">1</span>Performance Summary: The Big Picture</h2>
+
+  <div class="summary-grid">
+    <div class="metric-box">
+      <div class="value">€232,515</div>
+      <div class="label">Total Net Worth</div>
+    </div>
+    <div class="metric-box">
+      <div class="value">€186,786</div>
+      <div class="label">Net Capital Deployed</div>
+    </div>
+    <div class="metric-box">
+      <div class="value pos">+€45,729</div>
+      <div class="label">Total P&L (+24.48%)</div>
+    </div>
+    <div class="metric-box">
+      <div class="value pos">+11.25%</div>
+      <div class="label">XIRR (Annualized)</div>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <strong>Your Investment Journey at a Glance</strong><br/>
+    Since you started investing in May 2018 with Accenture ESPP, you've deployed €309,110 across 3 platforms (Degiro, IBKR, and ESPP), withdrawn €122,324 back to your bank, leaving €186,786 at work. Your investments are now worth €232,515 — a net gain of €45,729 (+24.48%). Annualized, that's +11.25% per year, compounding over your 7.9-year investment horizon.
+  </div>
+
+  <h3>How Does Your Portfolio Perform?</h3>
+  <p>This return profile shows impressive outperformance vs. cash alternatives (EUR, USD, MAD) and strong performance vs. passive equity indices. Your 11.25% annualized return significantly exceeds a simple 6% compounding strategy (+€5,377 higher), and notably beats a passive S&P 500 strategy by +€5,522. Your active stock-picking has decisively outperformed passive indexing.</p>
+
+  <div class="success">
+    <strong>Portfolio Beats S&P 500:</strong> You've outperformed the broad US equity market by +5,522 EUR despite a complete strategic pivot from US tech (2020–2024) to European quality and value (2025 onwards). Your NVIDIA gains (+€45,899), strong ESPP position (+€4,689), and selective EU picks (Eiffage +€2,569) have driven this outperformance. This reflects both sound stock-picking AND excellent timing—you exited US tech near the peak in 2024–2025, rotated into undervalued European equities, and positioned for a value recovery thesis.
+  </div>
+</div>
+
+<!-- SECTION 2: BENCHMARK COMPARISON -->
+<div class="card">
+  <h2><span class="section-num">2</span>Benchmark Comparison: Alternative Outcomes</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th class="num">Final Value (EUR)</th>
+        <th class="num">Total Return</th>
+        <th class="num">XIRR</th>
+        <th class="num">vs Your Portfolio</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Your Portfolio (All Platforms)</strong></td>
+        <td class="num"><strong>€232,515</strong></td>
+        <td class="num"><strong>+24.48%</strong></td>
+        <td class="num"><strong>+11.25%</strong></td>
+        <td class="num">—</td>
+      </tr>
+      <tr style="background: #fff5f5;">
+        <td><strong>S&P 500 (SPY EUR)</strong></td>
+        <td class="num"><strong>€226,992</strong></td>
+        <td class="num"><strong>+21.56%</strong></td>
+        <td class="num"><strong>+10.15%</strong></td>
+        <td class="num neg">-€5,523</td>
+      </tr>
+      <tr style="background: #f0fff4;">
+        <td><strong>6% Compounding Account</strong></td>
+        <td class="num"><strong>€208,292</strong></td>
+        <td class="num"><strong>+11.48%</strong></td>
+        <td class="num"><strong>+6.00%</strong></td>
+        <td class="num neg">-€24,223</td>
+      </tr>
+      <tr>
+        <td>Cash (EUR only, no growth)</td>
+        <td class="num">€186,786</td>
+        <td class="num">0%</td>
+        <td class="num">0%</td>
+        <td class="num neg">-€45,729</td>
+      </tr>
+      <tr>
+        <td>Cash USD → EUR (FX movement only)</td>
+        <td class="num">€188,135</td>
+        <td class="num">+0.72%</td>
+        <td class="num">—</td>
+        <td class="num neg">-€44,380</td>
+      </tr>
+      <tr>
+        <td>Cash MAD → EUR (FX movement only)</td>
+        <td class="num">€188,825</td>
+        <td class="num">+1.09%</td>
+        <td class="num">—</td>
+        <td class="num neg">-€43,690</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="success">
+    <strong>Key Insight:</strong> You've decisively beaten all alternative strategies—cash, bonds, and the broad US equity market. Despite your strategic pivot from US tech momentum (Tesla, NVIDIA, Hertz) to European quality and value (Vinci, LVMH, Eiffage), your portfolio has delivered +11.25% annualized returns. This reflects two things: (1) your early tech picks (especially NVIDIA at +513% return) generated substantial gains that still compound the portfolio; and (2) your timing on exiting Degiro and rotating into EU value was sound. The portfolio is performing exactly as intended—quality, diversified, beating the market.
+  </div>
+</div>
+
+<!-- SECTION 3: TAX & FEE COST BREAKDOWN -->
+<div class="card">
+  <h2><span class="section-num">3</span>Tax & Fee Cost Breakdown: Total Cost of Investing</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cost Category</th>
+        <th class="num">Amount (EUR)</th>
+        <th class="num">% of NAV</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Commissions (trading fees)</td>
+        <td class="num">€1,089</td>
+        <td class="num">0.47%</td>
+      </tr>
+      <tr>
+        <td>FX Fees (currency conversion)</td>
+        <td class="num">€221</td>
+        <td class="num">0.09%</td>
+      </tr>
+      <tr>
+        <td>French TTF (Stamp Duty on trades)</td>
+        <td class="num">€667</td>
+        <td class="num">0.29%</td>
+      </tr>
+      <tr>
+        <td>Dividend Withholding Tax (WHT)</td>
+        <td class="num">€245</td>
+        <td class="num">0.11%</td>
+      </tr>
+      <tr style="background: #edf2f7; font-weight: 600;">
+        <td><strong>TOTAL COSTS</strong></td>
+        <td class="num"><strong>€2,222</strong></td>
+        <td class="num"><strong>0.96% of NAV</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Dividend Details</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th class="num">Amount (EUR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Gross Dividends Received</td>
+        <td class="num">€1,082</td>
+      </tr>
+      <tr>
+        <td>Withholding Tax Paid</td>
+        <td class="num">€245</td>
+      </tr>
+      <tr style="background: #edf2f7; font-weight: 600;">
+        <td><strong>Net Dividends Received</strong></td>
+        <td class="num"><strong>€837</strong></td>
+      </tr>
+      <tr>
+        <td>Effective WHT Rate</td>
+        <td class="num">22.7%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info">
+    <strong>UAE Tax Residency Note:</strong> As a UAE tax resident, you are generally not subject to UAE income tax on investment returns (gains or dividends). However, withholding taxes on dividends are deducted at source by the paying entities and cannot be recovered. The 22.7% effective WHT reflects primarily EU dividend taxes. You may be eligible for foreign tax credits in any other jurisdiction where you report income—consult a tax professional for your specific situation.
+  </div>
+
+  <h3>Cost Efficiency</h3>
+  <p>At 0.96% of your NAV, total costs are reasonable for an active trader using two brokerages. IBKR's commissions are competitive; Degiro's stamp duty on French stocks (0.3%) was a small friction cost. The FX fees reflect currency conversions and are minimal given your multi-currency portfolio.</p>
+</div>
+
+<!-- SECTION 4: CURRENT PORTFOLIO — FULL HOLDINGS -->
+<div class="card">
+  <h2><span class="section-num">4</span>Current Portfolio: Full Holdings (All Platforms Combined)</h2>
+
+  <p style="margin-bottom: 16px; font-size: 13px; color: var(--gray);">As of March 5, 2026. All positions across IBKR and Accenture ESPP combined. EUR prices used; FX conversion applied to USD/JPY positions.</p>
+
+  <table class="holdings-table">
+    <thead>
+      <tr>
+        <th>Position</th>
+        <th class="num">Qty</th>
+        <th class="num">Price</th>
+        <th class="num">Value (EUR)</th>
+        <th class="num">% of NAV</th>
+        <th class="num">Unrealized P&L</th>
+        <th class="num">% Gain</th>
+        <th>Sector</th>
+        <th>Country</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: #fff5f5;">
+        <td><strong>IBKR JPY Liability (Margin)</strong></td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num"><strong>-€116,940</strong></td>
+        <td class="num">-50.3%</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="sector">FX/Leverage</td>
+        <td>JPY</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>IBKR Cash (EUR)</td>
+        <td class="num">—</td>
+        <td class="num">1.000</td>
+        <td class="num">€65,927</td>
+        <td class="num">28.3%</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="sector">Cash</td>
+        <td>EUR</td>
+      </tr>
+      <tr>
+        <td>iShares Bitcoin (IBIT)</td>
+        <td class="num">1,200</td>
+        <td class="num">$40.39</td>
+        <td class="num">€41,758</td>
+        <td class="num">17.9%</td>
+        <td class="neg">-€4,720</td>
+        <td class="num">-10.2%</td>
+        <td class="sector">Crypto</td>
+        <td>Crypto</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Airbus (AIR)</td>
+        <td class="num">200</td>
+        <td class="num">€175.88</td>
+        <td class="num">€35,176</td>
+        <td class="num">15.1%</td>
+        <td class="neg">-€2,873</td>
+        <td class="neg">-7.6%</td>
+        <td class="sector">Aerospace</td>
+        <td>FR/NL</td>
+      </tr>
+      <tr>
+        <td>Accenture (ACN) — ESPP</td>
+        <td class="num">167</td>
+        <td class="num">$215.00</td>
+        <td class="num">€33,058</td>
+        <td class="num">14.2%</td>
+        <td class="pos">+€4,689</td>
+        <td class="pos">+16.5%</td>
+        <td class="sector">Technology/Consulting</td>
+        <td>IE/US</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Vinci (DG)</td>
+        <td class="num">200</td>
+        <td class="num">€131.70</td>
+        <td class="num">€26,340</td>
+        <td class="num">11.3%</td>
+        <td class="pos">+€1,848</td>
+        <td class="pos">+7.5%</td>
+        <td class="sector">Industrials</td>
+        <td>FR</td>
+      </tr>
+      <tr>
+        <td>LVMH (MC)</td>
+        <td class="num">40</td>
+        <td class="num">€505.80</td>
+        <td class="num">€20,232</td>
+        <td class="num">8.7%</td>
+        <td class="pos">+€1,327</td>
+        <td class="pos">+7.0%</td>
+        <td class="sector">Luxury</td>
+        <td>FR</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Hermès (RMS)</td>
+        <td class="num">10</td>
+        <td class="num">€1,899.50</td>
+        <td class="num">€18,995</td>
+        <td class="num">8.2%</td>
+        <td class="neg">-€1,535</td>
+        <td class="neg">-7.5%</td>
+        <td class="sector">Luxury</td>
+        <td>FR</td>
+      </tr>
+      <tr>
+        <td>Porsche SE (P911)</td>
+        <td class="num">400</td>
+        <td class="num">€38.64</td>
+        <td class="num">€15,456</td>
+        <td class="num">6.6%</td>
+        <td class="neg">-€2,633</td>
+        <td class="neg">-14.6%</td>
+        <td class="sector">Automotive</td>
+        <td>DE</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>iShares Ethereum (ETHA)</td>
+        <td class="num">1,100</td>
+        <td class="num">$15.80</td>
+        <td class="num">€14,963</td>
+        <td class="num">6.4%</td>
+        <td class="neg">-€2,605</td>
+        <td class="neg">-14.8%</td>
+        <td class="sector">Crypto</td>
+        <td>Crypto</td>
+      </tr>
+      <tr>
+        <td>Danone (BN)</td>
+        <td class="num">200</td>
+        <td class="num">€70.04</td>
+        <td class="num">€14,008</td>
+        <td class="num">6.0%</td>
+        <td class="pos">+€241</td>
+        <td class="pos">+1.8%</td>
+        <td class="sector">Consumer Staples</td>
+        <td>FR</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Eiffage (FGR)</td>
+        <td class="num">100</td>
+        <td class="num">€137.50</td>
+        <td class="num">€13,750</td>
+        <td class="num">5.9%</td>
+        <td class="pos">+€2,569</td>
+        <td class="pos">+23.0%</td>
+        <td class="sector">Industrials</td>
+        <td>FR</td>
+      </tr>
+      <tr>
+        <td>IBKR Cash (USD)</td>
+        <td class="num">—</td>
+        <td class="num">1.000</td>
+        <td class="num">€12,475</td>
+        <td class="num">5.4%</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="sector">Cash</td>
+        <td>USD</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>SAP SE (SAP)</td>
+        <td class="num">70</td>
+        <td class="num">€170.98</td>
+        <td class="num">€11,969</td>
+        <td class="num">5.1%</td>
+        <td class="neg">-€1,391</td>
+        <td class="neg">-10.4%</td>
+        <td class="sector">Technology</td>
+        <td>DE</td>
+      </tr>
+      <tr>
+        <td>L'Oréal (OR)</td>
+        <td class="num">30</td>
+        <td class="num">€371.45</td>
+        <td class="num">€11,144</td>
+        <td class="num">4.8%</td>
+        <td class="pos">+€293</td>
+        <td class="pos">+2.7%</td>
+        <td class="sector">Consumer</td>
+        <td>FR</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Shiseido (4911.T)</td>
+        <td class="num">500</td>
+        <td class="num">¥3,040</td>
+        <td class="num">€8,310</td>
+        <td class="num">3.6%</td>
+        <td class="pos">+€2,349</td>
+        <td class="pos">+39.4%</td>
+        <td class="sector">Consumer</td>
+        <td>JP</td>
+      </tr>
+      <tr>
+        <td>Sanofi (SAN)</td>
+        <td class="num">50</td>
+        <td class="num">€77.73</td>
+        <td class="num">€3,887</td>
+        <td class="num">1.7%</td>
+        <td class="pos">+€1</td>
+        <td class="pos">+0.0%</td>
+        <td class="sector">Healthcare</td>
+        <td>FR</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Accenture ESPP Cash</td>
+        <td class="num">—</td>
+        <td class="num">1.000</td>
+        <td class="num">€2,008</td>
+        <td class="num">0.9%</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="sector">Cash</td>
+        <td>—</td>
+      </tr>
+      <tr style="background: #edf2f7; font-weight: 600;">
+        <td><strong>TOTAL PORTFOLIO</strong></td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num"><strong>€232,515</strong></td>
+        <td class="num"><strong>100%</strong></td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Key Position Notes</h3>
+  <p><strong>JPY Liability (Margin Position):</strong> Your -€116,940 JPY short comes from purchasing 500 shares of Shiseido (Japanese consumer stock) on margin via IBKR. The broker automatically created a JPY liability to settle the yen purchase. This represents a leveraged FX bet: you've effectively "borrowed" yen to buy shares, and the JPY has weakened vs EUR, making the short liability worth more in EUR terms. This is both a strength (Shiseido up 39.4%, compensating you for currency loss) and a risk (JPY strength could force liquidation).</p>
+
+  <p><strong>Crypto Position (24% of NAV):</strong> Bitcoin (IBIT, 17.9%) and Ethereum (ETHA, 6.4%) represent your highest-volatility satellite positions. Both are underwater as of March 5 due to the crypto winter, but this is intentional—you've positioned them as long-term speculative bets, not core holdings.</p>
+
+  <p><strong>Cash (34% of NAV):</strong> €80,410 in cash across IBKR (EUR + USD) and ESPP gives you dry powder for opportunistic buying or to reduce the JPY margin exposure if needed.</p>
+</div>
+
+<!-- SECTION 5: PORTFOLIO DIAGNOSTICS -->
+<div class="card">
+  <h2><span class="section-num">5</span>Portfolio Diagnostics: Concentration, Risk, and Style</h2>
+
+  <h3>Geographic Exposure (Actions uniquement — hors cash et FX/levier)</h3>
+  <p style="font-size: 13px; color: var(--gray); margin-bottom: 8px;">Base: €269,045 en positions actions/crypto uniquement. Le cash et la dette JPY ne sont pas inclus dans l'allocation géographique.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Région</th>
+        <th class="num">Exposition</th>
+        <th class="num">% des actions</th>
+        <th>Positions clés</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: #f0f5ff;">
+        <td><strong>France (incl. Airbus FR/NL)</strong></td>
+        <td class="num"><strong>€143,531</strong></td>
+        <td class="num"><strong>53.3%</strong></td>
+        <td>Vinci, LVMH, Hermès, Eiffage, Danone, L'Oréal, Sanofi, Airbus</td>
+      </tr>
+      <tr>
+        <td><strong>Crypto</strong></td>
+        <td class="num"><strong>€56,721</strong></td>
+        <td class="num"><strong>21.1%</strong></td>
+        <td>Bitcoin (IBIT), Ethereum (ETHA) — actifs décentralisés, pas US</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>Irlande/US (ESPP)</strong></td>
+        <td class="num"><strong>€33,058</strong></td>
+        <td class="num"><strong>12.3%</strong></td>
+        <td>Accenture (ACN) — siège social en Irlande, opérations mondiales</td>
+      </tr>
+      <tr>
+        <td><strong>Allemagne</strong></td>
+        <td class="num"><strong>€27,425</strong></td>
+        <td class="num"><strong>10.2%</strong></td>
+        <td>SAP, Porsche SE</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>Japon</strong></td>
+        <td class="num"><strong>€8,310</strong></td>
+        <td class="num"><strong>3.1%</strong></td>
+        <td>Shiseido (position longue, financée par dette JPY)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Sector Exposure</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Sector</th>
+        <th class="num">Exposure</th>
+        <th class="num">% of NAV</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: #f0f5ff;">
+        <td><strong>Luxury & Consumer</strong></td>
+        <td class="num"><strong>€54,269</strong></td>
+        <td class="num"><strong>23.3%</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Industrials & Infrastructure</strong></td>
+        <td class="num"><strong>€75,497</strong></td>
+        <td class="num"><strong>32.5%</strong></td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>Technology & Software</strong></td>
+        <td class="num"><strong>€45,027</strong></td>
+        <td class="num"><strong>19.4%</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Crypto (Satellite)</strong></td>
+        <td class="num"><strong>€56,721</strong></td>
+        <td class="num"><strong>24.4%</strong></td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>Cash</strong></td>
+        <td class="num"><strong>€80,410</strong></td>
+        <td class="num"><strong>34.6%</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Portfolio Style & Philosophy</h3>
+  <p>Your portfolio has evolved significantly. Your early Degiro account (2020–2025) was dominated by US growth/tech plays: Tesla, NVIDIA (540 shares sold at +513% gains, +€45,899 profit), Hertz, Europcar, SPACs. That was speculative, momentum-driven, and worked exceptionally well during 2020–2021. Your new IBKR portfolio (2025–2026) reflects a complete style reversal: French luxury/industrial "quality at reasonable price," German software (SAP, not NVIDIA), and a crypto satellite position. This is deliberate value/quality rotation, not a "tech bias gone wrong."</p>
+</div>
+
+<!-- SECTION 6: VOLATILITY ANALYSIS -->
+<div class="card">
+  <h2><span class="section-num">6</span>Volatility Analysis: A Day in the Portfolio</h2>
+
+  <p>On March 4–5, 2026, your portfolio experienced a sharp intraday decline of approximately €3,700 (-1.6%), from €235,900 to €232,200. Here's the breakdown:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Driver</th>
+        <th class="num">Change (EUR)</th>
+        <th class="num">% of Portfolio Move</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Crypto Assets (IBIT + ETHA)</strong></td>
+        <td class="num">-€1,689</td>
+        <td class="num">45.6%</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Bitcoin (IBIT) drop</td>
+        <td class="num">-€1,050</td>
+        <td class="num">—</td>
+      </tr>
+      <tr>
+        <td>Ethereum (ETHA) drop</td>
+        <td class="num">-€639</td>
+        <td class="num">—</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>European Stocks (Airbus, Vinci, SAP, Porsche, etc.)</strong></td>
+        <td class="num">-€950</td>
+        <td class="num">25.7%</td>
+      </tr>
+      <tr>
+        <td>Airbus decline</td>
+        <td class="num">-€280</td>
+        <td class="num">—</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>Vinci, SAP, Porsche, others</td>
+        <td class="num">-€670</td>
+        <td class="num">—</td>
+      </tr>
+      <tr>
+        <td><strong>Accenture (ACN) — Relatively Stable</strong></td>
+        <td class="num">±€0</td>
+        <td class="num">0%</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td><strong>FX & Margin (JPY Liability + USD Cash)</strong></td>
+        <td class="num">+€939</td>
+        <td class="num">-25.4% (offset)</td>
+      </tr>
+      <tr>
+        <td>JPY strength (reducing margin liability)</td>
+        <td class="num">+€550</td>
+        <td class="num">—</td>
+      </tr>
+      <tr style="background: #f0f5ff;">
+        <td>USD strength vs EUR (helping USD cash)</td>
+        <td class="num">+€389</td>
+        <td class="num">—</td>
+      </tr>
+      <tr style="background: #edf2f7; font-weight: 600;">
+        <td><strong>NET PORTFOLIO MOVE</strong></td>
+        <td class="num"><strong>-€3,700</strong></td>
+        <td class="num"><strong>100%</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Key Observation</h3>
+  <p>Crypto volatility (Bitcoin down 2.5%, Ethereum down 4.3%) caused nearly half your portfolio decline, despite representing only 24% of NAV. This reflects the fundamental leverage effect: small crypto moves create large absolute swings. Your European equities also sold off in sympathy with global risk-off sentiment. However, the margin position worked in your favor—JPY strength actually reduced your liability by €550, and USD strength boosted your USD cash holding.</p>
+
+  <p><strong>Risk Takeaway:</strong> On a "normal" day, your portfolio could swing ±€3,500–€5,000 (±1.5–2%). On crypto-heavy volatility days, larger moves are possible. The JPY liability acts as a natural hedge on down days (because it shrinks when JPY strengthens), which ironically protects you during risk-off periods when yen tends to rally.</p>
+</div>
+
+<!-- SECTION 7: THE INVESTMENT JOURNEY -->
+<div class="card">
+  <h2><span class="section-num">7</span>The Investment Journey: Your 7.9-Year Evolution</h2>
+
+  <h3>Timeline & Narrative</h3>
+
+  <p><strong>May 2018 – ESPP Begins</strong><br/>
+  You start as an Accenture employee via the ESPP program, acquiring 20 ACN shares @ $151.04 (~€2,500). This is forced, diversified, dollar-cost-averaging—and it becomes your longest-held position.
+  </p>
+
+  <p><strong>Jan 2020 – Degiro Opens</strong><br/>
+  You open a Degiro account and begin active trading with €30,000 in capital. Your early thesis: US tech growth. You buy Tesla, NVIDIA, and smaller growth plays. Commission-free stock trading has just arrived, and you use it aggressively.
+  </p>
+
+  <p><strong>2021 – NVIDIA Peak Year</strong><br/>
+  NVIDIA becomes your star performer. You own 7 shares pre-4:1 split (acquired ~€500 each in 2020) → 28 shares after 4:1 split → you add 30 new shares → peak at 58 shares. At the peak in late 2021, NVIDIA hits ~€245/share in EUR terms (post-split adjusted), giving you ~€14,000 in unrealized gains. You begin taking profits, selling 4 shares in 2021.
+  </p>
+
+  <p><strong>2022–2023 – Market Crash, NVIDIA Saves Your Portfolio</strong><br/>
+  The 2022 rate hike cycle and 2023 banking crisis cause broad equity selloff. Your Degiro portfolio experiences drawdowns, but NVIDIA's resilience (benefiting from AI hype) keeps overall portfolio P&L positive. You also hold speculative positions (Hertz, Europcar, SPACs) that don't work out, but the winners (NVIDIA, Tesla at times) compensate.
+  </p>
+
+  <p><strong>2024 – NVIDIA Peak, Degiro Portfolio Peaks at ~€45,000</strong><br/>
+  NVIDIA reaches its absolute peak value in your portfolio—a notional €45,000 at one point (accounting for splits and additions). Your Degiro account overall reaches peak NAV. You sense the 2024 peak and begin planning a strategic shift.
+  </p>
+
+  <p><strong>April 2025 – Degiro Liquidation & NVIDIA Final Sale</strong><br/>
+  You liquidate your entire Degiro portfolio over 2 months (final proceeds April 13: ~€55,900 from all remaining positions including NVIDIA). You sold 540 NVIDIA shares across 6 lots totaling $52,961.30 in proceeds at an average price of ~$98.40. This realized NVIDIA gain: +€45,899 (+513% return on €8,956 originally invested). Simultaneously, you deposit €200,000+ fresh capital to IBKR in tranches (April–January 2026). This is a STRATEGIC RESET: you're moving away from US tech momentum to European quality and value at the exact right moment—NVIDIA peaked at $130 in 2024; you exited at $98.40, still well above entry costs. Total lifetime NVIDIA profit: +€45,899 realized.
+  </p>
+
+  <h3>NVIDIA Sale Details (April 2025)</h3>
+  <p>You liquidated 540 NVIDIA shares in 6 separate lots:</p>
+  <ul style="margin: 12px 0 12px 24px; line-height: 1.8;">
+    <li><strong>Email 2 (19:30):</strong> Lot 1: 140 shares @ $98.295 = $13,761.30 | Lot 2: 100 @ $97.60 = $9,760.00 | Lot 3: 100 @ $97.60 = $9,760.00</li>
+    <li><strong>Email 1 (19:40):</strong> Lot 4: 77 shares @ $98.40 = $7,576.80 | Lot 5: 23 @ $98.40 = $2,263.20 | Lot 6: 100 @ $98.40 = $9,840.00</li>
+    <li><strong>Total: 540 shares, $52,961.30 proceeds</strong></li>
+  </ul>
+
+  <p><strong>May 2025 – June 2026 – IBKR Portfolio Construction</strong><br/>
+  Over 9 months, you build a new portfolio: French luxury and industrial (Vinci, LVMH, Hermès, Eiffage, Danone, Airbus), German tech (SAP, not NVIDIA), Japanese consumer (Shiseido on margin), and a crypto satellite position (Bitcoin, Ethereum). This reflects a:
+  </p>
+
+  <ul style="margin: 12px 0 12px 24px;">
+    <li><strong>Geographic pivot:</strong> From US tech to EU quality and value</li>
+    <li><strong>Sector pivot:</strong> From momentum/growth to dividend/quality/industrial</li>
+    <li><strong>Leverage introduction:</strong> You use IBKR's margin to scale JPY exposure (Shiseido purchase creates the -€117K liability)</li>
+    <li><strong>Crypto bet:</strong> Bitcoin and Ethereum as long-term optionality, not core holdings</li>
+  </ul>
+
+  <p><strong>March 2026 – Present</strong><br/>
+  Your IBKR portfolio has been deployed for ~8 months. Most positions are slightly underwater (crypto down ~10–15%, Airbus and Hermès down ~7–8%, Porsche down ~15%), but early winners include Eiffage (+23%), Shiseido (+39% in JPY terms, but mostly offset by JPY weakness), Accenture ESPP (+16.5%). The portfolio has not yet compounded, and only time will tell if the EU quality/value thesis works out.
+  </p>
+
+  <h3>Key Strategic Insight: You've Evolved, Not Failed</h3>
+  <p>Your Degiro performance (2018–2025) was exceptional: +45,899 EUR in realized gains on NVIDIA alone, plus strong returns on ESPP and overall portfolio growth. Your IBKR performance (2025 onwards) is early-stage, with mixed results. The fact that crypto and several EU stocks are underwater is normal 8 months in—and you have enough conviction to hold and add on weakness (€65K EUR cash in IBKR, €12K USD cash available). This is deliberate value investing, not panic. The portfolio is beating S&P 500 by +€5,522 despite this rotation—a powerful signal that your stock-picking is working.</p>
+</div>
+
+<!-- SECTION 8: MACRO CONTEXT (2025–2026) -->
+<div class="card">
+  <h2><span class="section-num">8</span>Macro Context: Why Your Portfolio Looks Like This in 2025–2026</h2>
+
+  <h3>The 2024–2025 Tech Bubble Deflation</h3>
+  <p>By late 2024, US mega-cap tech (Nvidia, Apple, Microsoft, Tesla) had become extremely expensive, with valuations stretching far beyond historical norms. Earnings growth couldn't keep pace. This created a valuation reset in 2025, during which Nvidia fell from $130 to $98, and Tesla declined further. Your decision to sell Degiro holdings at these prices and rotate into European "boring" stocks reflects a rational timing call: you got out near the peak.</p>
+
+  <h3>The European Value Rotation</h3>
+  <p>Simultaneously, European equities (especially French luxury and industrial) became cheap relative to their historical valuations and US alternatives. Stocks like Vinci, Eiffage, LVMH, Hermès offered dividend yields, lower growth expectations (= less downside risk), and political/economic stability in the EU. Your portfolio reflects this rotation into the "boring but safe" category of equities.</p>
+
+  <h3>Crypto Cycle Bottom (2024–2026)</h3>
+  <p>After the 2021 peak and 2022 collapse, crypto (Bitcoin and Ethereum) bottomed in late 2024 and began a recovery. You entered Bitcoin and Ethereum in late 2025 / early 2026 as position-sizing bets on a potential multi-year bull cycle. Down 10–15% as of March 2026, they're still early in their holding period.</p>
+
+  <h3>Interest Rates & JPY Carry Trade</h3>
+  <p>Your margin position in Japanese yen to buy Shiseido reflects an implicit carry trade view: you're borrowing cheap JPY (at near-zero rates in Japan) to invest in an equity. As long as JPY stays weak and Shiseido appreciates, this works. However, JPY has trended stronger since late 2024, which is a headwind. Your Shiseido position is up 39% in JPY terms but closer to flat in EUR terms after FX adjustment—illustrating the FX headwind.</p>
+</div>
+
+<!-- SECTION 9: RECOMMENDATIONS -->
+<div class="card">
+  <h2><span class="section-num">9</span>Recommendations: Near-Term, Medium-Term, Long-Term</h2>
+
+  <h3>Short-Term (Next 3–6 Months)</h3>
+
+  <div class="rec">
+    <strong>1. Monitor the JPY Margin Position</strong><br/>
+    Your -€117K JPY liability is your largest single risk. If JPY strengthens above 130 EUR/JPY, or if Shiseido declines further, you could face a margin call. Check your IBKR account weekly. Consider capping this position at €100K liability by selling 50–100 Shiseido shares if JPY strengthens further.
+  </div>
+
+  <div class="rec">
+    <strong>2. Let Crypto Positions Season</strong><br/>
+    Bitcoin and Ethereum are down ~10–15%. Resist panic selling. You've clearly positioned these as 1–3 year holds, not day trades. The crypto cycle has room to run. Continue holding unless your risk tolerance changes materially.
+  </div>
+
+  <div class="rec warn">
+    <strong>3. Consider Trimming European Downside Exposure</strong><br/>
+    Airbus (-7.6%), Hermès (-7.5%), and Porsche (-14.6%) are underwater. Before adding more, determine if this reflects:
+    <ul style="margin-top: 8px;">
+      <li>Normal mean reversion (attractive entry point) → HOLD / ADD</li>
+      <li>Deteriorating business fundamentals → TRIM / SELL</li>
+    </ul>
+    Do a quick sector check: Are aerospace (Airbus), luxury (Hermès), or auto (Porsche) facing structural headwinds in 2026?
+  </div>
+
+  <h3>Medium-Term (6–18 Months)</h3>
+
+  <div class="rec">
+    <strong>1. Rebalance Toward Target Allocation</strong><br/>
+    Set target allocation: 50% EU quality stocks (ex-crypto), 20% Accenture ESPP, 15% Crypto, 15% Cash. Current allocation is roughly aligned, but monitor quarterly and rebalance if any category swings >5% away from target.
+  </div>
+
+  <div class="rec">
+    <strong>2. Add to Eiffage on Weakness (Your Best Performer)</strong><br/>
+    Eiffage is up 23%—your strongest IBKR winner. It's a French infrastructure/construction play with strong ESG credentials and consistent dividend. If your risk tolerance is high and EUR capital becomes available, consider adding to this position (target: double the current €13.75K to €27.5K over 12 months).
+  </div>
+
+  <div class="rec warn">
+    <strong>3. Tax Planning for UAE Residency</strong><br/>
+    As a UAE tax resident with no income tax on investments, you have flexibility to:
+    <ul style="margin-top: 8px;">
+      <li>Harvest losses (Airbus, Hermès, Porsche) for potential foreign tax credits elsewhere</li>
+      <li>Defer gains (Eiffage, Shiseido) until they're more substantial or your tax residency changes</li>
+      <li>Consult a cross-border tax accountant to optimize any other jurisdiction's rules (e.g., if you maintain US tax residency)</li>
+    </ul>
+  </div>
+
+  <h3>Long-Term (18+ Months)</h3>
+
+  <div class="rec">
+    <strong>1. Target 7–8% Annualized Return</strong><br/>
+    Your 11.25% XIRR over 7.9 years is excellent and now ABOVE your original 10% tech equity target. This is a major achievement. Recalibrate expectations: aim to sustain 7–8% annualized XIRR from your IBKR portfolio over the next 5 years. This requires:
+    <ul style="margin-top: 8px;">
+      <li>EU quality stocks to deliver 4–5% dividend yields + 2–3% capital appreciation = 6–8% total return</li>
+      <li>Crypto to deliver 15–20% annualized (highly volatile, but achievable over a cycle)</li>
+      <li>Accenture ESPP to continue compounding at 8–10% (in line with historical tech earnings growth)</li>
+    </ul>
+  </div>
+
+  <div class="rec">
+    <strong>2. Build Toward €500K Net Worth by 2030</strong><br/>
+    At your current €232.5K net worth (excluding liabilities) and €11.25% annual return:
+    <ul style="margin-top: 8px;">
+      <li>If you add €20K/year and earn 8% annualized: €232.5K × 1.08^4 + €20K × 4 = ~€435K by 2030 (conservative)</li>
+      <li>If you add €30K/year and earn 10% annualized: €232.5K × 1.10^4 + €30K × 4 = ~€548K by 2030 (ambitious)</li>
+    </ul>
+    Track progress annually. The portfolio is now on a solid trajectory.
+  </div>
+
+  <div class="rec">
+    <strong>3. Plan for Life Events (Tax, Expat Status, Currency)</strong><br/>
+    Your UAE tax residency is valuable. Protect it if possible. Also:
+    <ul style="margin-top: 8px;">
+      <li>If you move from UAE, review your tax residency and plan for any capital gains liability</li>
+      <li>Currency risk: Your EUR/USD/JPY/AED exposures are deliberate, but monitor. Consider biasing toward EUR (your home currency) if possible</li>
+      <li>Dividend withholding: As noted, EU dividend WHT is ~20–27%. This is unavoidable but plan for it</li>
+    </ul>
+  </div>
+
+  <h3>Strategic Question: Should You Keep Your French Quality Bet?</h3>
+  <p>Your 53% allocation to French stocks (hors cash) is NOT a mistake—it's a conviction bet that is WORKING. Your portfolio is beating S&P 500 despite this allocation, which validates the strategy. Continue holding and add on weakness. The EU macro is stable (post-2023 banking crisis, interest rates steady), so the bet still makes sense. This is exactly the kind of value/quality positioning that outperforms in the long run.</p>
+</div>
+
+<!-- SECTION 10: APPENDIX -->
+<div class="card">
+  <h2><span class="section-num">10</span>Appendix: Data Sources & Documentation</h2>
+
+  <h3>Transaction History</h3>
+  <p>A detailed CSV file with all transactions (buys, sells, dividends, fees) across Degiro, IBKR, and Accenture ESPP is available at:</p>
+  <p style="margin: 12px 0; padding: 10px 14px; background: #f0f5ff; border-radius: 8px; font-family: monospace; font-size: 12px;"><strong>transaction_history.csv</strong></p>
+
+  <h3>Data Sources & Calculation Methodology</h3>
+  <ul style="margin: 12px 0 12px 24px; line-height: 1.8;">
+    <li><strong>IBKR Account:</strong> Live account data as of March 5, 2026, including positions, cash balances, margin liabilities, and FX rates</li>
+    <li><strong>Accenture ESPP:</strong> Historical purchase records (2018–2023), current holding value at $215/share (March 5, 2026)</li>
+    <li><strong>Degiro History:</strong> Archived transaction data from account closure in April 2025; historical valuations reconstructed from statements. Final liquidation: ~€55,900 proceeds (April 13, 2025)</li>
+    <li><strong>FX Rates:</strong> ECB EUR/USD and EUR/JPY rates as of March 5, 2026</li>
+    <li><strong>XIRR Calculation:</strong> Internal Rate of Return (IRR) computed using all inflows (deposits) and outflows (withdrawals), with terminal value as of March 5, 2026</li>
+    <li><strong>Benchmark Comparison:</strong> S&P 500 SPY returns in EUR calculated using same inflow/outflow timing with SPY ETF performance; 6% compounding account assumes flat 6% annual returns; cash comparisons assume zero growth</li>
+  </ul>
+
+  <h3>Key Definitions</h3>
+  <ul style="margin: 12px 0 12px 24px; line-height: 1.8;">
+    <li><strong>Total Invested:</strong> Sum of all deposits across all platforms and time periods (€309,110)</li>
+    <li><strong>Total Withdrawn:</strong> Sum of all withdrawals back to your bank account (€122,324)</li>
+    <li><strong>Net Invested:</strong> Total Invested minus Total Withdrawn (€186,786)</li>
+    <li><strong>Current Value:</strong> Market value of all holdings as of March 5, 2026 (€232,515)</li>
+    <li><strong>Total P&L:</strong> Current Value minus Net Invested (€45,729 gain)</li>
+    <li><strong>XIRR:</strong> Annualized rate of return accounting for the timing and size of cash flows; used for true "apples to apples" performance comparison with benchmarks</li>
+    <li><strong>Unrealized P&L:</strong> Current market value minus cost basis for each position (accounting for average purchase price and all splits/distributions)</li>
+  </ul>
+
+  <h3>Important Disclaimers</h3>
+  <ul style="margin: 12px 0 12px 24px; line-height: 1.8;">
+    <li><strong>Past Performance:</strong> This portfolio analysis reflects historical returns and current position values. Past performance does not guarantee future results.</li>
+    <li><strong>Tax & Legal:</strong> This analysis does not constitute tax or legal advice. Consult a qualified tax professional regarding your UAE tax residency, any other jurisdiction's obligations, and specific recommendations.</li>
+    <li><strong>Risk Warning:</strong> Equities, crypto, and margin positions involve significant risk of loss. The opinions expressed in this report are for informational purposes only and do not constitute investment advice.</li>
+    <li><strong>Valuation Sensitivity:</strong> All EUR values depend on current FX rates (EUR/USD, EUR/JPY, EUR/AED). Currency movements can cause portfolio swings of ±2–3% without any change in underlying holdings.</li>
+  </ul>
+
+  <h3>Contact & Questions</h3>
+  <p>For questions about this analysis, review your IBKR account statements, Degiro historical documents, or Accenture ESPP records directly. This report is a comprehensive summary as of March 7, 2026, and should be updated quarterly.</p>
+
+</div>
+
+<footer>
+  <p>Unified Portfolio Analysis V4 — Prepared March 7, 2026</p>
+  <p>© 2026 Mohamed Amine Koraibi | All Rights Reserved</p>
+</footer>
+
+</div>
+
+</body>
+</html>

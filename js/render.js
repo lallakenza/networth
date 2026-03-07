@@ -378,16 +378,18 @@ function setHTML(id, html) {
 
 function renderActionsView(state) {
   const av = state.actionsView;
-  // KPIs
+  // KPIs — cross-platform
   setEur('kpiActionsTotal', av.totalStocks);
-  const plCls = av.totalUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
-  const plSign = av.totalUnrealizedPL >= 0 ? '+' : '';
-  setText('kpiActionsUnrealizedPL', plSign + fmt(av.totalUnrealizedPL));
+  const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+  const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
+  setText('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
   document.getElementById('kpiActionsUnrealizedPL')?.classList.add(plCls);
-  setText('kpiActionsRealizedPL', '+' + fmt(av.realizedPL));
-  document.getElementById('kpiActionsRealizedPL')?.classList.add('pl-pos');
-  setText('kpiActionsTWR', '+' + av.twr.toFixed(1) + '%');
-  setText('kpiActionsDividends', fmt(av.dividends));
+  const rplCls = av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+  const rplSign = av.combinedRealizedPL >= 0 ? '+' : '';
+  setText('kpiActionsRealizedPL', rplSign + fmt(av.combinedRealizedPL));
+  document.getElementById('kpiActionsRealizedPL')?.classList.add(rplCls);
+  setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
+  setText('kpiActionsDividends', fmt(av.dividends) + ' | TWR +' + av.twr.toFixed(1) + '%');
 
   // Positions table
   const tbody = document.getElementById('actionsPositionsTbody');
@@ -446,17 +448,25 @@ function renderActionsView(state) {
     closedTbody.appendChild(tr);
   }
 
-  // Other actions (ESPP + SGTM)
+  // Other actions (ESPP + SGTM) with cost basis & P/L
   const otherTbody = document.getElementById('actionsOtherTbody');
   if (otherTbody) {
     otherTbody.innerHTML = '';
-    [
-      ['ESPP Accenture (' + av.esppShares + ' ACN @ $' + av.esppPrice + ')', av.esppVal],
-      ['SGTM Amine (32 actions)', av.sgtmAmineVal],
-      ['SGTM Nezha (32 actions)', av.sgtmNezhaVal],
-    ].forEach(([label, val]) => {
+    const esppPL = av.esppUnrealizedPL;
+    const esppPLcls = esppPL >= 0 ? 'pl-pos' : 'pl-neg';
+    const esppPLs = esppPL >= 0 ? '+' : '';
+    const rows = [
+      { label: 'ESPP Accenture (' + av.esppShares + ' ACN @ $' + av.esppPrice.toFixed(2) + ')', cost: av.esppCostBasisEUR, val: av.esppCurrentVal, pl: esppPL, plCls: esppPLcls, plS: esppPLs },
+      { label: 'ESPP Cash r\u00e9siduel', cost: av.esppCashEUR, val: av.esppCashEUR, pl: 0, plCls: '', plS: '' },
+      { label: 'SGTM Amine (32 actions)', cost: null, val: av.sgtmAmineVal, pl: null, plCls: '', plS: '' },
+      { label: 'SGTM Nezha (32 actions)', cost: null, val: av.sgtmNezhaVal, pl: null, plCls: '', plS: '' },
+    ];
+    rows.forEach(r => {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + label + '</td><td class="num">' + fmt(val) + '</td>';
+      tr.innerHTML = '<td>' + r.label + '</td>'
+        + '<td class="num">' + (r.cost !== null ? fmt(r.cost) : '—') + '</td>'
+        + '<td class="num">' + fmt(r.val) + '</td>'
+        + '<td class="num ' + r.plCls + '">' + (r.pl !== null ? r.plS + fmt(r.pl) : '—') + '</td>';
       otherTbody.appendChild(tr);
     });
   }
@@ -482,10 +492,36 @@ function renderActionsView(state) {
     cashTbody.appendChild(tr);
   }
 
+  // Degiro closed positions
+  const degiroTbody = document.getElementById('degiroClosedTbody');
+  if (degiroTbody) {
+    degiroTbody.innerHTML = '';
+    let totalDegiro = 0;
+    av.degiroClosedPositions.forEach(cp => {
+      totalDegiro += cp.pl;
+      const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
+      const s = cp.pl >= 0 ? '+' : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + cp.label + ' (' + cp.ticker + ')' + (cp.note ? ' <span style="font-size:10px;color:var(--gray)">' + cp.note + '</span>' : '') + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+      degiroTbody.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
+    tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
+    degiroTbody.appendChild(tr);
+  }
+
+  // Combined realized P/L
+  setText('actionsCombinedPL', '+' + fmt(av.combinedRealizedPL));
+  const combinedEl = document.getElementById('actionsCombinedPL');
+  if (combinedEl) combinedEl.classList.add('pl-pos');
+
   // Metrics
   setText('actionsCommissions', fmt(av.commissions));
   setText('actionsDeposits', fmt(av.deposits));
   setText('actionsNAV', fmt(av.ibkrNAV));
+  setText('actionsTWR', '+' + av.twr.toFixed(1) + '%');
 }
 
 function renderCashView(state) {

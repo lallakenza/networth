@@ -59,6 +59,7 @@ function computeIBKRPositions(portfolio, fx) {
  */
 function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp) {
   const ibkr = portfolio.amine.ibkr;
+  const espp = portfolio.amine.espp;
   const m = portfolio.market;
 
   // IBKR cash in EUR
@@ -67,51 +68,91 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrCashJPY = ibkr.cashJPY;
   const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx);
 
-  // Total positions value (excl cash)
+  // IBKR positions P/L
   const totalPositionsVal = ibkrPositions.reduce((s, p) => s + p.valEUR, 0);
   const totalCostBasis = ibkrPositions.reduce((s, p) => s + p.costEUR, 0);
   const totalUnrealizedPL = totalPositionsVal - totalCostBasis;
 
-  // Total all stocks (IBKR positions + cash + ESPP + SGTM)
+  // ESPP cost basis & P/L
+  const esppCostBasisUSD = espp.totalCostBasisUSD || 0;
+  const esppCostBasisEUR = toEUR(esppCostBasisUSD, 'USD', fx);
+  const esppCurrentVal = toEUR(espp.shares * m.acnPriceUSD, 'USD', fx);
+  const esppUnrealizedPL = esppCurrentVal - esppCostBasisEUR;
+
+  // Total all stocks (IBKR + ESPP + SGTM)
   const totalStocks = ibkrNAV + amineEspp + amineSgtm + nezhaSgtm;
 
-  // Geo allocation from positions
+  // Geo allocation from IBKR positions
   const geoAllocation = {};
   ibkrPositions.forEach(p => {
     const geo = p.geo || 'other';
     geoAllocation[geo] = (geoAllocation[geo] || 0) + p.valEUR;
   });
-  // Add ESPP to US, SGTM to morocco
   geoAllocation.us = (geoAllocation.us || 0) + amineEspp;
   geoAllocation.morocco = (geoAllocation.morocco || 0) + amineSgtm + nezhaSgtm;
 
-  // Sector allocation from positions
+  // Sector allocation from IBKR positions
   const sectorAllocation = {};
   ibkrPositions.forEach(p => {
     const sec = p.sector || 'other';
     sectorAllocation[sec] = (sectorAllocation[sec] || 0) + p.valEUR;
   });
+  sectorAllocation.tech = (sectorAllocation.tech || 0) + amineEspp; // ACN = tech/consulting
 
   const meta = ibkr.meta || {};
+
+  // Degiro (closed account)
+  const degiro = portfolio.amine.degiro || {};
+  const degiroClosedPositions = degiro.closedPositions || [];
+  const degiroRealizedPL = degiro.totalRealizedPL || 0;
+
+  // Combined realized P/L (IBKR + Degiro)
+  const ibkrRealizedPL = meta.realizedPL || 0;
+  const combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
+
+  // Cross-platform deposits
+  const ibkrDeposits = meta.deposits || 0;
+  const esppDeposits = esppCostBasisEUR; // employee paid this amount
+  const totalDeposits = ibkrDeposits + esppDeposits;
+
+  // Cross-platform combined unrealized P/L
+  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL;
+
+  // Cross-platform total current value (excl SGTM which is not a brokerage)
+  const totalCurrentValue = ibkrNAV + amineEspp;
 
   return {
     ibkrPositions,
     ibkrNAV,
     ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
     totalPositionsVal, totalCostBasis, totalUnrealizedPL,
+    // ESPP detail
     esppVal: amineEspp,
-    esppShares: portfolio.amine.espp.shares,
+    esppShares: espp.shares,
     esppPrice: m.acnPriceUSD,
+    esppCostBasisUSD, esppCostBasisEUR, esppCurrentVal, esppUnrealizedPL,
+    esppCashEUR: espp.cashEUR,
+    // SGTM
     sgtmAmineVal: amineSgtm,
     sgtmNezhaVal: nezhaSgtm,
     sgtmTotal: amineSgtm + nezhaSgtm,
+    // Totals
     totalStocks,
+    totalCurrentValue,
+    // IBKR metrics
     twr: meta.twr || 0,
-    realizedPL: meta.realizedPL || 0,
+    realizedPL: ibkrRealizedPL,
     dividends: meta.dividends || 0,
     commissions: meta.commissions || 0,
     closedPositions: meta.closedPositions || [],
-    deposits: meta.deposits || 0,
+    deposits: ibkrDeposits,
+    // Degiro
+    degiroClosedPositions,
+    degiroRealizedPL,
+    // Cross-platform
+    combinedRealizedPL,
+    combinedUnrealizedPL,
+    totalDeposits,
     geoAllocation,
     sectorAllocation,
   };

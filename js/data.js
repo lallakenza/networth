@@ -18,10 +18,25 @@ export const PORTFOLIO = {
       attijari: 151202,     // Attijariwafa Courant
       bmce: 37304,          // BMCE/BOA Cheque
     },
-    // --- ESPP Accenture ---
+    // --- ESPP Accenture (from Fidelity screenshot March 2026) ---
     espp: {
       shares: 167,
       cashEUR: 2000,        // cash residuel en EUR dans le compte ESPP
+      lots: [
+        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },
+        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },
+        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },
+        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900 },
+        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400 },
+        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250 },
+        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250 },
+        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2300 },
+        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200 },
+        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },
+        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },
+      ],
+      // Total cost basis USD: sum(shares * costBasis) ≈ $36,052
+      totalCostBasisUSD: 36052,
     },
     // --- IBKR Portfolio (updated from CSV March 2026) ---
     ibkr: {
@@ -81,6 +96,22 @@ export const PORTFOLIO = {
         { label: 'Anas', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7 },
       ],
     },
+    // --- Degiro (closed April 2025 — all positions liquidated, funds withdrawn) ---
+    degiro: {
+      closed: true,
+      closedDate: '2025-04-14',
+      closedPositions: [
+        { ticker: 'NVDA', label: 'NVIDIA', buyPrice: 19.42, sellPrice: 98.40, shares: 260, currency: 'USD', pl: 18825, note: 'Bought 30 pre-split Aug 2021 @ $194.15 → 300 post-split (10:1 Jun 2024). Sold 4 pre-split @ $473.4 Jul 2023.' },
+        { ticker: 'NVDA', label: 'NVIDIA (Jul 2023)', buyPrice: 194.15, sellPrice: 473.40, shares: 4, currency: 'USD', pl: 1020, note: 'Sold pre-split Jul 2023' },
+        { ticker: 'SAP', label: 'SAP SE', sellPrice: 135.20, shares: 27, currency: 'EUR', pl: 650, note: 'Sold Jul 2023' },
+        { ticker: 'MC', label: 'LVMH', sellPrice: 701.90, shares: 16, currency: 'EUR', pl: 2400, note: 'Sold Aug 2021' },
+        { ticker: 'SPOT', label: 'Spotify', sellPrice: 606.89, shares: 2, currency: 'USD', pl: 850, note: 'Sold Feb 2025' },
+        { ticker: 'DIS', label: 'Walt Disney', buyPrice: 173.10, sellPrice: 112.90, shares: 5, currency: 'USD', pl: -275, note: 'Sold Feb 2025 at loss' },
+        { ticker: 'INFY', label: 'Infosys ADR', sellPrice: 16.95, shares: 300, currency: 'USD', pl: -650, note: 'Sold Apr 2025' },
+        { ticker: 'EUCAR', label: 'Europcar', shares: 15800, currency: 'EUR', pl: -4200, note: 'Sold Aug 2021 at large loss' },
+      ],
+      totalRealizedPL: 18620,  // EUR approximate total
+    },
     // --- Passif ---
     tva: -16000,
   },
@@ -103,13 +134,13 @@ export const PORTFOLIO = {
   // Market prices (updated by API)
   market: {
     sgtmPriceMAD: 830,       // prix unitaire SGTM
-    acnPriceUSD: 188,        // prix unitaire Accenture
+    acnPriceUSD: 185.40,     // prix unitaire Accenture (Fidelity screenshot March 2026)
   },
 };
 
 // Cash yields (annual %)
 export const CASH_YIELDS = {
-  mashreq: 0,
+  mashreq: 0.0625,     // 6.25% annuel (NEO+ savings)
   wioSavings: 0.06,    // ~6% annuel
   wioCurrent: 0,
   revolutEUR: 0,
@@ -117,7 +148,7 @@ export const CASH_YIELDS = {
   bmce: 0,
   ibkrCashEUR: 0.03,   // ~3% EUR cash at IBKR
   ibkrCashUSD: 0.04,   // ~4% USD cash at IBKR
-  nezhaCashFrance: 0.02, // livret ~2%
+  nezhaCashFrance: 0,  // pas de rendement
   nezhaCashMaroc: 0,
   esppCash: 0,
 };

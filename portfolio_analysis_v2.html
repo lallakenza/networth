@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Analysis V2 (IBKR + Accenture ESPP) — Mohamed Amine Koraibi</title>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 40px 0; margin-bottom: 32px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header .subtitle { opacity: 0.85; margin-top: 6px; font-size: 14px; }
+  header .version-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .alert { background: #fff5f5; border-left: 4px solid var(--red); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .info { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .metric-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .metric-box .value { font-size: 24px; font-weight: 700; }
+  .metric-box .label { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .bar { height: 22px; border-radius: 4px; margin: 4px 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: white; font-weight: 600; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  @media (max-width: 768px) { .grid2, .summary-grid { grid-template-columns: 1fr; } }
+  .rec { margin: 8px 0; padding: 12px 16px; background: #f0fff4; border-radius: 8px; border: 1px solid #c6f6d5; }
+  .rec.warn { background: #fffaf0; border-color: #feebc8; }
+  .rec.danger { background: #fff5f5; border-color: #fed7d7; }
+  .rec strong { display: block; margin-bottom: 4px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+  .compare-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .compare-box { border-radius: 8px; padding: 14px; text-align: center; }
+  .compare-box .value { font-size: 22px; font-weight: 700; }
+  .compare-box .label { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .mar4 { background: #f0fff4; border: 1px solid #c6f6d5; }
+  .mar5 { background: #fff5f5; border: 1px solid #fed7d7; }
+  .delta { background: #fffaf0; border: 1px solid #feebc8; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>Portfolio Performance Analysis</h1>
+    <p class="subtitle">Mohamed Amine Koraibi &nbsp;|&nbsp; IBKR U18138426 + Accenture ESPP (UBS) &nbsp;|&nbsp; Base Currency: EUR &nbsp;|&nbsp; Tax Residence: UAE</p>
+    <span class="version-badge">V2.1 — IBKR valuation: March 4, 2026 &nbsp;|&nbsp; ESPP valuation: March 6, 2026</span>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ==================== NEW: 1-DAY VOLATILITY SECTION ==================== -->
+<div class="card" style="border: 2px solid #d69e2e;">
+  <h2 style="color:#d69e2e">Volatility Spotlight: What 24 Hours Does to This Portfolio</h2>
+  <p style="margin-bottom:16px">You asked what the report would look like on March 4 instead of March 5. The answer illustrates exactly why crypto concentration matters: <strong>a single day wiped €3,731 from the portfolio</strong> — turning a small gain into a meaningful loss.</p>
+
+  <div class="compare-row">
+    <div class="compare-box mar4"><div class="value" style="color:var(--green)">€200,856</div><div class="label">NAV on March 4</div></div>
+    <div class="compare-box mar5"><div class="value" style="color:var(--red)">€197,124</div><div class="label">NAV on March 5</div></div>
+    <div class="compare-box delta"><div class="value" style="color:var(--red)">−€3,731</div><div class="label">1-Day Change</div></div>
+  </div>
+
+  <div class="compare-row">
+    <div class="compare-box mar4"><div class="value" style="color:var(--green)">+0.99%</div><div class="label">XIRR (Mar 4)</div></div>
+    <div class="compare-box mar5"><div class="value" style="color:var(--red)">−2.90%</div><div class="label">XIRR (Mar 5)</div></div>
+    <div class="compare-box delta"><div class="value" style="color:var(--red)">−3.89%</div><div class="label">XIRR Swing</div></div>
+  </div>
+
+  <h3>What moved in 24 hours?</h3>
+  <table>
+    <tr><th>Position</th><th class="num">Mar 4 (EUR)</th><th class="num">Mar 5 (EUR)</th><th class="num">1-Day Δ</th><th class="num">% of Total Δ</th></tr>
+    <tr><td><strong>IBIT (Bitcoin ETF)</strong></td><td class="num">€42,869</td><td class="num">€41,653</td><td class="num neg">−€1,215</td><td class="num neg">32.6%</td></tr>
+    <tr><td><strong>ETHA (Ethereum ETF)</strong></td><td class="num">€15,409</td><td class="num">€14,936</td><td class="num neg">−€473</td><td class="num neg">12.7%</td></tr>
+    <tr style="font-weight:600;background:#fff5f5"><td>Crypto subtotal</td><td class="num">€58,278</td><td class="num">€56,590</td><td class="num neg">−€1,689</td><td class="num neg">45.3%</td></tr>
+    <tr><td>DG (Vinci)</td><td class="num">€26,830</td><td class="num">€26,340</td><td class="num neg">−€490</td><td class="num">13.1%</td></tr>
+    <tr><td>RMS (Hermès)</td><td class="num">€19,300</td><td class="num">€18,995</td><td class="num neg">−€305</td><td class="num">8.2%</td></tr>
+    <tr><td>FGR (Eiffage)</td><td class="num">€14,035</td><td class="num">€13,750</td><td class="num neg">−€285</td><td class="num">7.6%</td></tr>
+    <tr><td>P911 (Porsche)</td><td class="num">€15,724</td><td class="num">€15,456</td><td class="num neg">−€268</td><td class="num">7.2%</td></tr>
+    <tr><td>AIR (Airbus)</td><td class="num">€35,440</td><td class="num">€35,176</td><td class="num neg">−€264</td><td class="num">7.1%</td></tr>
+    <tr><td>SAP (positive!)</td><td class="num">€11,717</td><td class="num">€11,969</td><td class="num pos">+€252</td><td class="num pos">−6.8%</td></tr>
+    <tr><td>Other positions + FX</td><td class="num">—</td><td class="num">—</td><td class="num neg">−€701</td><td class="num">18.8%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>TOTAL</td><td class="num">€200,856</td><td class="num">€197,124</td><td class="num neg">−€3,731</td><td class="num">100%</td></tr>
+  </table>
+
+  <div class="alert">
+    <strong>The takeaway:</strong> Crypto alone accounted for 45% of the 1-day loss (−€1,689), despite being only ~29% of the portfolio. On March 4 your portfolio was in the green (+€970 total P/L, +0.99% XIRR). By March 5, it was solidly red (−€2,762 total P/L, −2.90% XIRR). A broad market pullback of ~1% on European stocks combined with a ~2.7% crypto drop created a €3,731 swing — nearly 1.9% of your NAV in a single day.
+  </div>
+
+  <h3>Benchmark comparison — both dates</h3>
+  <table>
+    <tr><th>Scenario</th><th class="num">Mar 4 Value</th><th class="num">Mar 4 XIRR</th><th class="num">Mar 5 Value</th><th class="num">Mar 5 XIRR</th><th class="num">1-Day Δ</th></tr>
+    <tr style="background:#f0fff4"><td><strong>IBKR Portfolio</strong></td><td class="num pos">€200,856</td><td class="num pos">+0.99%</td><td class="num neg">€197,124</td><td class="num neg">−2.90%</td><td class="num neg">−€3,731</td></tr>
+    <tr><td>S&P 500 (SPY)</td><td class="num">€212,198</td><td class="num pos">+13.28%</td><td class="num">€210,362</td><td class="num pos">+11.18%</td><td class="num neg">−€1,836</td></tr>
+    <tr><td>6% Account</td><td class="num">€205,549</td><td class="num pos">+6.00%</td><td class="num">€205,581</td><td class="num pos">+6.00%</td><td class="num pos">+€32</td></tr>
+    <tr><td>Cash EUR</td><td class="num">€199,886</td><td class="num">0.00%</td><td class="num">€199,886</td><td class="num">0.00%</td><td class="num">€0</td></tr>
+  </table>
+
+  <div class="info">
+    <strong>Volatility amplification:</strong> The S&P 500 lost €1,836 (−0.87%) on the same day, while your portfolio lost €3,731 (−1.86%) — more than <strong>2x the market's decline</strong>. This amplification comes from the crypto + leverage combination. The 6% account, by contrast, gained €32 — illustrating the power of compounding without mark-to-market volatility.
+  </div>
+</div>
+
+<!-- ==================== EXECUTIVE SUMMARY (Mar 4 based) ==================== -->
+<div class="card">
+  <h2>Executive Summary (March 2026)</h2>
+  <div class="summary-grid">
+    <div class="metric-box"><div class="value" style="color:var(--green)">€233,914</div><div class="label">Combined Net Worth</div></div>
+    <div class="metric-box"><div class="value">€200,856</div><div class="label">IBKR NAV (Mar 4)</div></div>
+    <div class="metric-box"><div class="value">€33,058</div><div class="label">Accenture ESPP (Mar 6)</div></div>
+    <div class="metric-box"><div class="value">€1,549</div><div class="label">Total IBKR Costs</div></div>
+  </div>
+  <p>Your combined portfolio across IBKR and the Accenture ESPP (held at UBS) totals approximately <strong>€233,914</strong>. The IBKR account stands at €200,856 (March 4 valuation), representing +€970 over the €199,886 net invested — an XIRR of +0.99% annualized, barely positive and entirely wiped out in 24 hours (down to €197,124 by March 5). The Accenture ESPP holds 167 shares at $215/share plus €2,008 cash, valued at €33,058 (per UBS). However, with a weighted average cost basis of $215.88/share, the ESPP stock position is essentially flat (−0.4% total return).</p>
+
+  <p>The crypto positions (IBIT + ETHA, ~25% of combined NAV) are a deliberate cyclical hold. BTC is −43% from ATH, ETH is −57%. If crypto recovers to 50% of previous highs, the combined portfolio approaches ~€260K. At full ATH, ~€285K. The thesis is to hold 6–12 months and sell into the recovery. The key risk to manage in the meantime is the JPY margin debt (€117K), which should be eliminated to make the crypto hold sustainable. The ESPP's underwater lots (6 of 11, bought 2020–2023 above current price) are a separate concentration risk worth managing.</p>
+</div>
+
+<!-- ==================== 1. PERFORMANCE ==================== -->
+<div class="card" id="performance">
+  <h2>1. Portfolio Performance</h2>
+
+  <h3>Return Metrics (March 4, 2026)</h3>
+  <table>
+    <tr><th>Metric</th><th class="num">Mar 4 Value</th><th class="num" style="color:var(--gray)">Mar 5 (ref)</th></tr>
+    <tr><td>Net Capital Invested</td><td class="num">€199,886</td><td class="num" style="color:var(--gray)">€199,886</td></tr>
+    <tr><td>Ending NAV</td><td class="num pos">€200,856</td><td class="num neg" style="opacity:0.6">€197,124</td></tr>
+    <tr><td>Total P/L</td><td class="num pos">+€970</td><td class="num neg" style="opacity:0.6">−€2,762</td></tr>
+    <tr><td>Total Return</td><td class="num pos">+0.49%</td><td class="num neg" style="opacity:0.6">−1.38%</td></tr>
+    <tr><td>Money-Weighted Return (XIRR, annualized)</td><td class="num pos">+0.99%</td><td class="num neg" style="opacity:0.6">−2.90%</td></tr>
+    <tr><td>Period Duration</td><td class="num">337 days (0.92 years)</td><td class="num" style="color:var(--gray)">338 days</td></tr>
+  </table>
+
+  <h3>Return Attribution</h3>
+  <table>
+    <tr><th>Component</th><th class="num">EUR</th></tr>
+    <tr><td>Mark-to-Market P/L</td><td class="num neg">−€1,537</td></tr>
+    <tr><td>Dividends Received</td><td class="num pos">+€649</td></tr>
+    <tr><td>Withholding Tax</td><td class="num neg">−€164</td></tr>
+    <tr><td>Net Interest</td><td class="num neg">−€512</td></tr>
+    <tr><td>Commissions</td><td class="num neg">−€206</td></tr>
+    <tr><td>Transaction Fees (French FTT)</td><td class="num neg">−€667</td></tr>
+    <tr><td>FX Translation & Accruals</td><td class="num neg">−€30</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>Total P/L (IBKR statement, Mar 5)</td><td class="num neg">−€2,409</td></tr>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px">Note: The return attribution above reflects the IBKR statement through March 5. On March 4, the M2M component was approximately €2,194 more favorable, yielding the +€970 total P/L.</p>
+
+  <h3>Realized vs Unrealized</h3>
+  <table>
+    <tr><th>Category</th><th class="num">EUR</th></tr>
+    <tr><td>Realized P/L (closed trades)</td><td class="num pos">+€5,980</td></tr>
+    <tr><td>Unrealized P/L — Stocks (Mar 4 prices)</td><td class="num neg">−€3,913</td></tr>
+    <tr><td>Unrealized P/L — FX</td><td class="num neg">−€1,097</td></tr>
+    <tr style="font-weight:700"><td>Net</td><td class="num pos">+€970</td></tr>
+  </table>
+
+  <div class="highlight">
+    <strong>Key insight:</strong> Your closed trades were profitable (+€5,980). On March 4, the unrealized losses were manageable enough that the portfolio was net positive. By March 5, a broad sell-off pushed it underwater. The fragility comes from the high beta of crypto positions and the JPY leverage.
+  </div>
+</div>
+
+<!-- ==================== 2. TAX & FEES (unchanged) ==================== -->
+<div class="card" id="tax-fees">
+  <h2>2. Tax & Fee Cost Breakdown</h2>
+
+  <h3>Dividend Withholding Tax</h3>
+  <table>
+    <tr><th>Stock</th><th>Country</th><th class="num">Gross Div.</th><th class="num">WHT</th><th class="num">Net Div.</th><th class="num">WHT Rate</th></tr>
+    <tr><td>GLE (Soc. Générale)</td><td>France</td><td class="num">€122.00</td><td class="num neg">€30.50</td><td class="num">€91.50</td><td class="num">25.0%</td></tr>
+    <tr><td>DG (Vinci)</td><td>France</td><td class="num">€210.00</td><td class="num neg">€52.49</td><td class="num">€157.51</td><td class="num">25.0%</td></tr>
+    <tr><td>MC (LVMH)</td><td>France</td><td class="num">€220.00</td><td class="num neg">€55.00</td><td class="num">€165.00</td><td class="num">25.0%</td></tr>
+    <tr><td>RMS (Hermès)</td><td>France</td><td class="num">€50.00</td><td class="num neg">€12.46</td><td class="num">€37.54</td><td class="num">24.9%</td></tr>
+    <tr><td>QQQM (Invesco)</td><td>USA</td><td class="num">$54.60</td><td class="num neg">$16.38</td><td class="num">$38.22</td><td class="num">30.0%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td colspan="2">Total (EUR eq.)</td><td class="num">€648.53</td><td class="num neg">€164.41</td><td class="num">€484.12</td><td class="num">25.4%</td></tr>
+  </table>
+
+  <div class="highlight">
+    <strong>UAE tax note:</strong> As a UAE tax resident, you pay no local taxes. However, France withholds 25% on dividends (treaty rate) and the US withholds 30% (no UAE-US tax treaty). You may be able to reclaim part of the French WHT down to 12.8% by filing Form 5000/5001 with the French tax authority.
+  </div>
+
+  <h3>French Financial Transaction Tax (0.30%)</h3>
+  <table>
+    <tr><th>Stock</th><th class="num">Purchase Value</th><th class="num">FTT Paid</th></tr>
+    <tr><td>EDEN (Edenred) — 2 purchases</td><td class="num">€45,296</td><td class="num neg">€181.18</td></tr>
+    <tr><td>DG (Vinci)</td><td class="num">€24,480</td><td class="num neg">€97.92</td></tr>
+    <tr><td>RMS (Hermès)</td><td class="num">€20,520</td><td class="num neg">€82.08</td></tr>
+    <tr><td>MC (LVMH)</td><td class="num">€18,896</td><td class="num neg">€75.58</td></tr>
+    <tr><td>BN (Danone)</td><td class="num">€13,760</td><td class="num neg">€55.04</td></tr>
+    <tr><td>FGR (Eiffage)</td><td class="num">€11,175</td><td class="num neg">€44.70</td></tr>
+    <tr><td>OR (L'Oréal)</td><td class="num">€10,845</td><td class="num neg">€43.38</td></tr>
+    <tr><td>GLE (Soc. Générale)</td><td class="num">€10,248</td><td class="num neg">€40.99</td></tr>
+    <tr><td>WLN (Worldline) — 2 purchases</td><td class="num">€7,618</td><td class="num neg">€30.47</td></tr>
+    <tr><td>SAN (Sanofi)</td><td class="num">€3,883</td><td class="num neg">€15.53</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>TOTAL</td><td class="num">~€166,721</td><td class="num neg">€666.87</td></tr>
+  </table>
+
+  <h3>Total Cost Summary</h3>
+  <table>
+    <tr><th>Category</th><th class="num">Cost (EUR)</th><th class="num">% of NAV</th></tr>
+    <tr><td>Dividend Withholding Tax</td><td class="num neg">€164.41</td><td class="num">0.08%</td></tr>
+    <tr><td>French FTT</td><td class="num neg">€666.87</td><td class="num">0.33%</td></tr>
+    <tr style="font-weight:600"><td>Total Taxes</td><td class="num neg">€831.28</td><td class="num">0.41%</td></tr>
+    <tr><td>Trading Commissions</td><td class="num neg">€205.58</td><td class="num">0.10%</td></tr>
+    <tr><td>Margin Interest (net)</td><td class="num neg">€512.34</td><td class="num">0.26%</td></tr>
+    <tr style="font-weight:600"><td>Total Fees</td><td class="num neg">€717.92</td><td class="num">0.36%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#fff5f5"><td>GRAND TOTAL</td><td class="num neg">€1,549.20</td><td class="num">0.77%</td></tr>
+  </table>
+  <p style="font-size:13px;margin-top:8px">Without these costs, the March 4 return would be approximately +1.76% XIRR instead of +0.99%.</p>
+</div>
+
+<!-- ==================== 3. BENCHMARKS ==================== -->
+<div class="card" id="benchmarks">
+  <h2>3. Benchmark Comparison (March 4 valuation)</h2>
+  <table>
+    <tr><th>Scenario</th><th class="num">Final Value (EUR)</th><th class="num">Total Return</th><th class="num">XIRR (Ann.)</th><th class="num">vs IBKR</th></tr>
+    <tr style="background:#f0fff4"><td><strong>IBKR Portfolio</strong></td><td class="num"><strong>€200,856</strong></td><td class="num pos"><strong>+0.49%</strong></td><td class="num pos"><strong>+0.99%</strong></td><td class="num">—</td></tr>
+    <tr><td><strong>S&P 500 (SPY)</strong></td><td class="num"><strong>€212,198</strong></td><td class="num pos"><strong>+6.16%</strong></td><td class="num pos"><strong>+13.28%</strong></td><td class="num pos"><strong>+€11,342</strong></td></tr>
+    <tr><td>6% Compounding Account</td><td class="num">€205,549</td><td class="num pos">+2.83%</td><td class="num pos">+6.00%</td><td class="num pos">+€4,693</td></tr>
+    <tr><td>Cash MAD</td><td class="num">€203,699</td><td class="num pos">+1.89%</td><td class="num pos">+2.04%</td><td class="num pos">+€2,843</td></tr>
+    <tr><td>Cash EUR (0% interest)</td><td class="num">€199,886</td><td class="num">0.00%</td><td class="num">0.00%</td><td class="num neg">−€970</td></tr>
+    <tr><td>Cash USD</td><td class="num">€187,696</td><td class="num neg">−6.11%</td><td class="num neg">−6.60%</td><td class="num neg">−€13,160</td></tr>
+  </table>
+
+  <div class="summary-grid" style="margin-top:20px">
+    <div class="metric-box"><div class="value neg">−12.29%</div><div class="label">Alpha vs S&P 500 (XIRR)</div></div>
+    <div class="metric-box"><div class="value neg">−5.01%</div><div class="label">Alpha vs 6% Benchmark</div></div>
+    <div class="metric-box"><div class="value neg">€11,342</div><div class="label">Opportunity Cost vs S&P 500</div></div>
+    <div class="metric-box"><div class="value neg">€4,693</div><div class="label">Opportunity Cost vs 6% Account</div></div>
+  </div>
+
+  <div class="highlight">
+    <strong>Even on the better day, the underperformance is significant.</strong> On March 4, your portfolio beat only Cash EUR and Cash USD. The S&P 500, 6% account, and even Cash MAD all outperformed. The alpha vs S&P 500 is −12.29% — slightly better than the −14.08% on March 5, but still deeply negative.
+  </div>
+</div>
+
+<!-- ==================== 4. POSITIONS (Mar 4 prices) ==================== -->
+<div class="card" id="positions">
+  <h2>4. Current Portfolio Positions (March 4 prices)</h2>
+  <table>
+    <tr><th>Symbol</th><th>Name</th><th>CCY</th><th class="num">Qty</th><th class="num">Cost (EUR)</th><th class="num">Value (EUR)</th><th class="num">P/L (EUR)</th><th class="num">P/L %</th></tr>
+    <tr><td>AIR</td><td>Airbus SE</td><td>EUR</td><td class="num">200</td><td class="num">38,049</td><td class="num">35,440</td><td class="num neg">−2,609</td><td class="num neg">−6.9%</td></tr>
+    <tr><td>BN</td><td>Danone</td><td>EUR</td><td class="num">200</td><td class="num">13,767</td><td class="num">14,188</td><td class="num pos">+421</td><td class="num pos">+3.1%</td></tr>
+    <tr><td>DG</td><td>Vinci SA</td><td>EUR</td><td class="num">200</td><td class="num">24,492</td><td class="num">26,830</td><td class="num pos">+2,338</td><td class="num pos">+9.5%</td></tr>
+    <tr><td>FGR</td><td>Eiffage</td><td>EUR</td><td class="num">100</td><td class="num">11,181</td><td class="num">14,035</td><td class="num pos">+2,854</td><td class="num pos">+25.5%</td></tr>
+    <tr><td>MC</td><td>LVMH</td><td>EUR</td><td class="num">40</td><td class="num">18,905</td><td class="num">20,296</td><td class="num pos">+1,391</td><td class="num pos">+7.4%</td></tr>
+    <tr><td>OR</td><td>L'Oréal</td><td>EUR</td><td class="num">30</td><td class="num">10,850</td><td class="num">11,229</td><td class="num pos">+379</td><td class="num pos">+3.5%</td></tr>
+    <tr><td>P911</td><td>Porsche AG</td><td>EUR</td><td class="num">400</td><td class="num">18,089</td><td class="num">15,724</td><td class="num neg">−2,365</td><td class="num neg">−13.1%</td></tr>
+    <tr><td>RMS</td><td>Hermès</td><td>EUR</td><td class="num">10</td><td class="num">20,530</td><td class="num">19,300</td><td class="num neg">−1,230</td><td class="num neg">−6.0%</td></tr>
+    <tr><td>SAN</td><td>Sanofi</td><td>EUR</td><td class="num">50</td><td class="num">3,886</td><td class="num">3,962</td><td class="num pos">+76</td><td class="num pos">+2.0%</td></tr>
+    <tr><td>SAP</td><td>SAP SE</td><td>EUR</td><td class="num">70</td><td class="num">13,360</td><td class="num">11,717</td><td class="num neg">−1,643</td><td class="num neg">−12.3%</td></tr>
+    <tr><td>4911.T</td><td>Shiseido</td><td>JPY</td><td class="num">500</td><td class="num">5,961</td><td class="num">8,204</td><td class="num pos">+2,243</td><td class="num pos">+37.6%</td></tr>
+    <tr><td>ETHA</td><td>iShares Ethereum ETF</td><td>USD</td><td class="num">1,100</td><td class="num">17,557</td><td class="num">15,409</td><td class="num neg">−2,148</td><td class="num neg">−12.2%</td></tr>
+    <tr><td>IBIT</td><td>iShares Bitcoin ETF</td><td>USD</td><td class="num">1,200</td><td class="num">46,488</td><td class="num">42,869</td><td class="num neg">−3,619</td><td class="num neg">−7.8%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td colspan="4">TOTAL STOCKS</td><td class="num">243,116</td><td class="num">239,203</td><td class="num neg">−3,913</td><td class="num"></td></tr>
+  </table>
+
+  <h3>Cash Balances</h3>
+  <table>
+    <tr><th>Currency</th><th class="num">Amount (Local)</th><th class="num">EUR Equivalent</th></tr>
+    <tr><td>EUR</td><td class="num">€65,927</td><td class="num">€65,927</td></tr>
+    <tr><td>USD</td><td class="num">$14,482</td><td class="num">€12,484</td></tr>
+    <tr><td>JPY</td><td class="num">¥−21,390,085</td><td class="num neg">−€116,758</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>Total Cash</td><td class="num"></td><td class="num neg">−€38,347</td></tr>
+  </table>
+</div>
+
+<!-- ==================== 5. DIAGNOSTICS ==================== -->
+<div class="card" id="diagnostics">
+  <h2>5. Portfolio Diagnostics</h2>
+
+  <div class="grid2">
+    <div>
+      <h3>Asset Allocation</h3>
+      <table>
+        <tr><th>Class</th><th class="num">EUR</th><th class="num">%</th></tr>
+        <tr><td>EUR Equities</td><td class="num">€173,004</td><td class="num">86.1%</td></tr>
+        <tr><td>JPY Equities</td><td class="num">€8,204</td><td class="num">4.1%</td></tr>
+        <tr><td>Crypto ETFs (USD)</td><td class="num">€58,278</td><td class="num">29.0%</td></tr>
+        <tr><td>Net Cash</td><td class="num neg">−€38,347</td><td class="num neg">−19.1%</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Geographic Exposure</h3>
+      <table>
+        <tr><th>Region</th><th class="num">%</th></tr>
+        <tr><td>France</td><td class="num">45.8%</td></tr>
+        <tr><td>Crypto (global)</td><td class="num">24.4%</td></tr>
+        <tr><td>Netherlands</td><td class="num">14.8%</td></tr>
+        <tr><td>Germany</td><td class="num">11.5%</td></tr>
+        <tr><td>Japan</td><td class="num">3.4%</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h3>Sector Exposure</h3>
+  <div style="max-width:600px">
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Industrials</span><div class="bar" style="width:319px;background:#2b6cb0">31.9%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Luxury & Consumer</span><div class="bar" style="width:249px;background:#4299e1">24.9%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Crypto</span><div class="bar" style="width:240px;background:#f6ad55">24.0%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Consumer Staples</span><div class="bar" style="width:76px;background:#68d391">7.6%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Automotive</span><div class="bar" style="width:65px;background:#fc8181">6.5%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Technology</span><div class="bar" style="width:51px;background:#b794f4">5.1%</div></div>
+  </div>
+
+  <h3>Currency Exposure</h3>
+  <table>
+    <tr><th>Currency</th><th class="num">Stocks</th><th class="num">Cash</th><th class="num">Net</th><th class="num">% of NAV</th></tr>
+    <tr><td>EUR</td><td class="num">€173,004</td><td class="num">€65,927</td><td class="num">€238,931</td><td class="num">119.0%</td></tr>
+    <tr><td>USD</td><td class="num">€58,278</td><td class="num">€12,484</td><td class="num">€70,762</td><td class="num">35.2%</td></tr>
+    <tr><td>JPY</td><td class="num">€8,204</td><td class="num neg">−€116,758</td><td class="num neg">−€108,554</td><td class="num neg">−54.0%</td></tr>
+  </table>
+
+  <div class="alert">
+    <strong>Leverage alert:</strong> Net 119% EUR + 35% USD − 54% JPY. You are effectively short ¥21.4M JPY via margin borrowing — a carry trade that exposes you to severe JPY strengthening risk.
+  </div>
+
+  <h3>Risk Flags</h3>
+  <table>
+    <tr><th>Flag</th><th>Details</th><th>Severity</th></tr>
+    <tr><td>JPY Margin Debt</td><td>¥21.4M (€117K) = 58% of NAV. Interest running at ~€40/month.</td><td class="neg">HIGH</td></tr>
+    <tr><td>Crypto Volatility</td><td>IBIT + ETHA = 29% of NAV. Caused 45% of 1-day loss. Deliberate hold — see recovery scenarios.</td><td style="color:#d69e2e;font-weight:600">ACCEPTED</td></tr>
+    <tr><td>Daily Volatility</td><td>1-day NAV swing of −1.86% (€3,731) observed Mar 4→5. ~2x market.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>France Country Risk</td><td>46% of equities in French stocks. Subject to FTT + 25% div WHT.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>Top 5 Concentration</td><td>60% of invested capital in 5 positions.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>Low Diversification</td><td>13 positions, no bonds, no global ETFs, no emerging markets.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+  </table>
+</div>
+
+<!-- ==================== CRYPTO RECOVERY SCENARIOS ==================== -->
+<div class="card" style="border: 2px solid #3182ce;" id="crypto-thesis">
+  <h2 style="color:#3182ce">Crypto Thesis: Recovery Scenarios (Hold 6–12 months)</h2>
+  <p style="margin-bottom:16px">The crypto allocation (IBIT + ETHA) is a deliberate cyclical bet. Both BTC and ETH are trading well below their recent highs, and the strategy is to hold through the drawdown and sell into the next recovery. Here's where things stand and what the upside looks like.</p>
+
+  <h3>Current Drawdown Position</h3>
+  <table>
+    <tr><th>Asset</th><th class="num">ATH</th><th class="num">Current</th><th class="num">Drawdown</th><th class="num">Your Entry</th><th class="num">Your P/L</th></tr>
+    <tr><td>BTC (via IBIT)</td><td class="num">$124,753</td><td class="num">$70,841</td><td class="num neg">−43.2%</td><td class="num">$44.97/sh</td><td class="num neg">−10.2%</td></tr>
+    <tr><td>ETH (via ETHA)</td><td class="num">$4,831</td><td class="num">$2,072</td><td class="num neg">−57.1%</td><td class="num">$18.53/sh</td><td class="num neg">−14.7%</td></tr>
+  </table>
+
+  <div class="info">
+    <strong>Cycle context:</strong> BTC is −43% from its October 2025 ATH ($124,753). ETH is −57% from its August 2025 ATH ($4,831). Historically, post-halving cycles have seen BTC recover to and exceed previous ATH levels within 12–18 months of major corrections. Your entry prices ($44.97 IBIT, $18.53 ETHA) are below the ATH peaks, meaning you don't need a full ATH recovery to profit.
+  </div>
+
+  <h3>What-If Recovery Scenarios</h3>
+  <table>
+    <tr><th>Scenario</th><th class="num">Crypto Value (USD)</th><th class="num">Crypto Gain (EUR)</th><th class="num">Portfolio NAV</th><th class="num">Total Return</th></tr>
+    <tr><td>Current (Mar 4 prices)</td><td class="num">$65,848</td><td class="num">—</td><td class="num">€200,856</td><td class="num">+0.49%</td></tr>
+    <tr style="background:#f0fff4"><td><strong>Full ATH recovery</strong></td><td class="num pos">$125,797</td><td class="num pos">+€51,556</td><td class="num pos"><strong>€252,412</strong></td><td class="num pos"><strong>+26.3%</strong></td></tr>
+    <tr style="background:#f0fff4"><td><strong>50% recovery toward ATH</strong></td><td class="num pos">$95,823</td><td class="num pos">+€25,778</td><td class="num pos"><strong>€226,634</strong></td><td class="num pos"><strong>+13.4%</strong></td></tr>
+    <tr><td>BTC recovers, ETH flat</td><td class="num pos">$103,228</td><td class="num pos">+€31,889</td><td class="num pos">€232,745</td><td class="num pos">+16.4%</td></tr>
+    <tr><td>Further drop (−30%)</td><td class="num neg">$46,094</td><td class="num neg">−€16,988</td><td class="num neg">€183,868</td><td class="num neg">−8.0%</td></tr>
+  </table>
+
+  <div class="compare-row">
+    <div class="compare-box mar4">
+      <div class="value" style="color:var(--green)">+76.5%</div>
+      <div class="label">IBIT upside to ATH</div>
+    </div>
+    <div class="compare-box mar4">
+      <div class="value" style="color:var(--green)">+131.6%</div>
+      <div class="label">ETHA upside to ATH</div>
+    </div>
+    <div class="compare-box delta">
+      <div class="value" style="color:var(--green)">€51,556</div>
+      <div class="label">Full recovery gain (EUR)</div>
+    </div>
+  </div>
+
+  <h3>IBIT vs ETHA: Where the Asymmetry Lies</h3>
+  <table>
+    <tr><th>Metric</th><th class="num">IBIT (Bitcoin)</th><th class="num">ETHA (Ethereum)</th></tr>
+    <tr><td>Your position size</td><td class="num">€42,869 (71% of crypto)</td><td class="num">€15,409 (29% of crypto)</td></tr>
+    <tr><td>Drawdown from ATH</td><td class="num">−43%</td><td class="num neg">−57%</td></tr>
+    <tr><td>Upside to ATH</td><td class="num pos">+76.5%</td><td class="num pos">+131.6%</td></tr>
+    <tr><td>Your P/L</td><td class="num">−10.2%</td><td class="num neg">−14.7%</td></tr>
+    <tr><td>Structural outlook</td><td class="num">Strong (ETF flows, halving)</td><td class="num" style="color:#d69e2e">Uncertain (L2 competition, Solana)</td></tr>
+  </table>
+
+  <div class="highlight">
+    <strong>Strategy note:</strong> ETHA has more upside to ATH (+131.6%) but also more structural risk. ETH has underperformed BTC for months and faces competition from Solana and L2s. IBIT is the safer recovery bet with clearer institutional demand. If you're considering adding to either position, IBIT has the better risk/reward. If you need to trim one later, ETHA would be the first candidate — sell into strength during a recovery, not now at the bottom.
+  </div>
+
+  <h3>Exit Strategy Targets</h3>
+  <table>
+    <tr><th>Target</th><th class="num">IBIT Price</th><th class="num">BTC Approx.</th><th class="num">Your IBIT Return</th><th class="num">Crypto P/L (EUR)</th></tr>
+    <tr><td>Break-even</td><td class="num">$44.97</td><td class="num">~$78,500</td><td class="num">0%</td><td class="num">+€4,960</td></tr>
+    <tr><td>+25% from entry</td><td class="num">$56.22</td><td class="num">~$98,000</td><td class="num pos">+25%</td><td class="num pos">+€16,520</td></tr>
+    <tr><td>Previous ATH</td><td class="num">$71.29</td><td class="num">~$125,000</td><td class="num pos">+58.5%</td><td class="num pos">+€31,889</td></tr>
+    <tr><td>New ATH (+20%)</td><td class="num">$85.55</td><td class="num">~$150,000</td><td class="num pos">+90.2%</td><td class="num pos">+€46,600</td></tr>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px">IBIT prices are approximate based on NAV tracking. EUR conversion at current ~0.86 rate. ETHA targets not shown — consider selling ETHA into any material ETH rally rather than holding for full ATH.</p>
+</div>
+
+<!-- ==================== ACCENTURE ESPP ANALYSIS ==================== -->
+<div class="card" id="espp" style="border: 2px solid #3182ce;">
+  <h2 style="color:#3182ce">Accenture ESPP Holdings (UBS Account)</h2>
+  <p style="margin-bottom:16px">Separate from your IBKR account, you hold 167 Accenture (ACN) shares acquired through the Employee Stock Purchase Plan, plus €2,008 cash, managed by UBS. As of March 6, 2026 the account is valued at <strong>€33,058</strong> (per UBS conversion).</p>
+
+  <div class="summary-grid">
+    <div class="metric-box"><div class="value">167</div><div class="label">Total Shares</div></div>
+    <div class="metric-box"><div class="value">$215.00</div><div class="label">ACN Price (Mar 6)</div></div>
+    <div class="metric-box"><div class="value neg">−$147</div><div class="label">Unrealized P&L (USD)</div></div>
+    <div class="metric-box"><div class="value neg">−0.4%</div><div class="label">Total Return</div></div>
+  </div>
+
+  <h3>Lot-by-Lot Analysis</h3>
+  <table>
+    <tr><th>Source</th><th>Acquisition</th><th class="num">Shares</th><th class="num">Cost/Share</th><th class="num">Total Cost</th><th class="num">Mkt Value</th><th class="num">P&L</th><th class="num">Return</th><th class="num">Years Held</th></tr>
+    <tr style="background:#fff5f5"><td>ESPP</td><td>May 2023</td><td class="num">17</td><td class="num">$236.88</td><td class="num">$4,027</td><td class="num">$3,655</td><td class="num neg">−$372</td><td class="num neg">−9.2%</td><td class="num">2.8</td></tr>
+    <tr style="background:#fff5f5"><td>FRAC</td><td>Aug 2022</td><td class="num">3</td><td class="num">$272.36</td><td class="num">$817</td><td class="num">$645</td><td class="num neg">−$172</td><td class="num neg">−21.1%</td><td class="num">3.6</td></tr>
+    <tr style="background:#fff5f5"><td>ESPP</td><td>May 2022</td><td class="num">12</td><td class="num">$305.89</td><td class="num">$3,671</td><td class="num">$2,580</td><td class="num neg">−$1,091</td><td class="num neg">−29.7%</td><td class="num">3.8</td></tr>
+    <tr style="background:#fff5f5"><td>ESPP</td><td>Nov 2021</td><td class="num">11</td><td class="num">$355.99</td><td class="num">$3,916</td><td class="num">$2,365</td><td class="num neg">−$1,551</td><td class="num neg">−39.6%</td><td class="num">4.3</td></tr>
+    <tr style="background:#fff5f5"><td>ESPP</td><td>Apr 2021</td><td class="num">15</td><td class="num">$289.64</td><td class="num">$4,345</td><td class="num">$3,225</td><td class="num neg">−$1,120</td><td class="num neg">−25.8%</td><td class="num">4.8</td></tr>
+    <tr style="background:#fff5f5"><td>ESPP</td><td>Oct 2020</td><td class="num">14</td><td class="num">$215.72</td><td class="num">$3,020</td><td class="num">$3,010</td><td class="num neg">−$10</td><td class="num neg">−0.3%</td><td class="num">5.3</td></tr>
+    <tr style="background:#f0fff4"><td>ESPP</td><td>May 2020</td><td class="num">19</td><td class="num">$181.12</td><td class="num">$3,441</td><td class="num">$4,085</td><td class="num pos">+$644</td><td class="num pos">+18.7%</td><td class="num">5.8</td></tr>
+    <tr style="background:#f0fff4"><td>ESPP</td><td>Nov 2019</td><td class="num">18</td><td class="num">$187.23</td><td class="num">$3,370</td><td class="num">$3,870</td><td class="num pos">+$500</td><td class="num pos">+14.8%</td><td class="num">6.3</td></tr>
+    <tr style="background:#f0fff4"><td>ESPP</td><td>May 2019</td><td class="num">17</td><td class="num">$182.32</td><td class="num">$3,099</td><td class="num">$3,655</td><td class="num pos">+$556</td><td class="num pos">+17.9%</td><td class="num">6.8</td></tr>
+    <tr style="background:#f0fff4"><td>ESPP</td><td>Nov 2018</td><td class="num">21</td><td class="num">$158.33</td><td class="num">$3,325</td><td class="num">$4,515</td><td class="num pos">+$1,190</td><td class="num pos">+35.8%</td><td class="num">7.3</td></tr>
+    <tr style="background:#f0fff4"><td>ESPP</td><td>May 2018</td><td class="num">20</td><td class="num">$151.04</td><td class="num">$3,021</td><td class="num">$4,300</td><td class="num pos">+$1,279</td><td class="num pos">+42.4%</td><td class="num">7.8</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td colspan="2">TOTAL</td><td class="num">167</td><td class="num">$215.88 avg</td><td class="num">$36,052</td><td class="num">$35,905</td><td class="num neg">−$147</td><td class="num neg">−0.4%</td><td class="num">—</td></tr>
+  </table>
+
+  <h3>Key Observations</h3>
+  <div class="grid2">
+    <div>
+      <div class="alert">
+        <strong>6 of 11 lots are underwater</strong><br>
+        72 shares (43% of holdings) were acquired between Oct 2020 and May 2023 at prices well above today's $215. The worst lot (Nov 2021, $355.99) is down −39.6%. Total unrealized losses on these lots: <strong>−$4,315</strong>.
+      </div>
+    </div>
+    <div>
+      <div class="info">
+        <strong>5 lots are profitable</strong><br>
+        95 shares (57% of holdings) were acquired between May 2018 and May 2020 at lower prices. Total unrealized gains: <strong>+$4,169</strong>. The oldest lots (2018) show +35–42% returns, but even these underperform the S&P 500 over the same 7–8 year period.
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <strong>ESPP Discount Benefit</strong><br>
+    The ESPP typically provides a 15% discount on the purchase price. While the stock itself is roughly flat at market prices, you effectively acquired these shares at ~85% of FMV. The estimated cumulative discount benefit across all lots is approximately <strong>$6,218</strong> — which means you're actually up in economic terms, even though the market price gain is near zero. The discount is the real return driver of this ESPP.
+  </div>
+
+  <h3>Single-Stock Concentration Risk</h3>
+  <p>The ESPP represents 100% Accenture stock — a single-stock, single-sector (IT consulting) bet worth €33,276. Key risks to consider:</p>
+  <table>
+    <tr><th>Risk Factor</th><th>Assessment</th></tr>
+    <tr><td>Company-specific risk</td><td>ACN is a large-cap, stable business with recurring revenue — lower risk than most single stocks. But not immune to disruption (AI replacing consulting hours, client spending cuts).</td></tr>
+    <tr><td>Sector correlation with employer</td><td style="color:var(--red)"><strong>HIGH</strong> — Your income comes from Accenture, and your ESPP is 100% ACN stock. A bad scenario (layoff + stock decline) would hit both simultaneously.</td></tr>
+    <tr><td>Price performance</td><td>ACN has been flat for ~3 years after a strong 2017–2021 run. The stock peaked around $400 in late 2021 and has not recovered. Current $215 is near 5-year lows.</td></tr>
+    <tr><td>Tax implications (UAE)</td><td>As a UAE tax resident, you owe no capital gains tax on sales. No tax friction to selling.</td></tr>
+  </table>
+
+  <h3>ESPP Strategy Recommendation</h3>
+  <div class="rec warn">
+    <strong>Consider selling the deeply underwater lots and reinvesting</strong><br>
+    The Nov 2021 ($356), May 2022 ($306), Apr 2021 ($290), and Aug 2022 ($272) lots are down 21–40%. As a UAE resident with zero capital gains tax, there's no tax loss harvesting benefit to holding these. Selling ~41 shares (~$8,815) from the worst lots and reallocating to a diversified index ETF would reduce your single-stock concentration from €33K to ~€24K, while the reinvested capital would start compounding in a broader market. If ACN recovers above your cost bases later, you've already missed the opportunity cost of broader market returns during the wait.
+  </div>
+  <div class="rec">
+    <strong>Continue ESPP participation for the discount</strong><br>
+    The 15% purchase discount is an immediate guaranteed return — always worth taking. But consider selling shares within 1–2 years of acquisition rather than accumulating indefinitely. The discount is the edge; long-term ACN stock holding is not.
+  </div>
+</div>
+
+<!-- ==================== COMBINED PORTFOLIO VIEW ==================== -->
+<div class="card" id="combined">
+  <h2>Combined Portfolio Overview (IBKR + ESPP)</h2>
+
+  <div class="summary-grid">
+    <div class="metric-box"><div class="value" style="color:var(--primary)">€233,914</div><div class="label">Total Net Worth</div></div>
+    <div class="metric-box"><div class="value">85.9%</div><div class="label">IBKR Weight</div></div>
+    <div class="metric-box"><div class="value">14.1%</div><div class="label">ESPP Weight</div></div>
+    <div class="metric-box"><div class="value">16</div><div class="label">Total Positions</div></div>
+  </div>
+
+  <h3>Combined Asset Allocation</h3>
+  <table>
+    <tr><th>Asset Class</th><th class="num">Value (EUR)</th><th class="num">% of Total</th><th>Source</th></tr>
+    <tr><td>European Equities (10 stocks)</td><td class="num">€86,700</td><td class="num">36.7%</td><td>IBKR</td></tr>
+    <tr><td>Crypto ETFs (IBIT + ETHA)</td><td class="num">€58,278</td><td class="num">24.7%</td><td>IBKR</td></tr>
+    <tr><td>Accenture (ACN) — Single Stock</td><td class="num">€31,050</td><td class="num">13.3%</td><td>ESPP</td></tr>
+    <tr><td>Japanese Equity (Shiseido)</td><td class="num">€5,024</td><td class="num">2.1%</td><td>IBKR</td></tr>
+    <tr><td>Cash (EUR + USD + ESPP)</td><td class="num">€53,862</td><td class="num">23.0%</td><td>Both</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>TOTAL</td><td class="num">€233,914</td><td class="num">100%</td><td></td></tr>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:4px">Note: JPY margin debt (−¥21.4M / ~€117K) is netted into the IBKR NAV. Cash includes IBKR EUR/USD balances and ESPP cash. IBKR values as of March 4; ESPP values as of March 6.</p>
+
+  <h3>Concentration Risks — Combined View</h3>
+  <div class="grid2">
+    <div>
+      <table>
+        <tr><th>Risk</th><th>Exposure</th></tr>
+        <tr><td>Top single position</td><td><strong>ACN (14.1%)</strong> — plus career income dependency</td></tr>
+        <tr><td>Crypto exposure</td><td><strong>24.7%</strong> — deliberate cyclical hold</td></tr>
+        <tr><td>France country risk</td><td><strong>~36%</strong> — 8 of 10 EUR stocks are French-listed</td></tr>
+        <tr><td>USD currency exposure</td><td><strong>~39%</strong> — crypto + ACN</td></tr>
+        <tr><td>JPY margin debt</td><td><strong>−€117K</strong> — carry trade risk</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="highlight">
+        <strong>The big picture:</strong> You have 4 concentrated bets running simultaneously — crypto recovery, French quality, single-stock Accenture, and a JPY carry trade. Each one individually is defensible; together they create correlated risk. The priority sequence should be: (1) eliminate JPY debt, (2) sell worst ESPP lots, (3) wait for crypto recovery, (4) gradually diversify into global ETFs.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 6. MACRO CONTEXT ==================== -->
+<div class="card" id="macro">
+  <h2>6. Macro Context (2025–2026)</h2>
+
+  <table>
+    <tr><th>Factor</th><th>Status</th><th>Impact on Your Portfolio</th></tr>
+    <tr><td>Global Interest Rates</td><td>ECB cutting toward 2.5%, Fed at ~4.5%</td><td>JPY carry trade still viable but BOJ tightening is a risk</td></tr>
+    <tr><td>Inflation</td><td>Moderating in EU (2–2.5%), sticky in US</td><td>Neutral. Luxury/consumer names benefit from pricing power</td></tr>
+    <tr><td>USD Strength</td><td>EUR has appreciated vs USD (~1.16 from 1.08)</td><td>Negative: USD crypto positions lose ~7% on FX alone</td></tr>
+    <tr><td>Equity Valuations</td><td>Europe moderate; US extended</td><td>European tilt reasonable on valuation grounds</td></tr>
+    <tr><td>Crypto</td><td>Post-halving cycle; BTC −43%, ETH −57% from ATH</td><td>29% allocation is a deliberate recovery bet. Historically strong setup for 6–12 month hold.</td></tr>
+    <tr><td>Geopolitical Risk</td><td>US tariffs, ME tensions, China slowdown</td><td>Airbus and luxury names have China exposure risk</td></tr>
+  </table>
+
+  <h3>Portfolio Character</h3>
+  <div class="metric-box" style="max-width:300px;margin:16px 0">
+    <div class="value" style="color:var(--red)">AGGRESSIVE</div>
+    <div class="label">Portfolio Risk Profile</div>
+  </div>
+  <p>JPY margin leverage + 29% crypto + single-country concentration = an aggressive portfolio. The crypto allocation is intentional (recovery bet), but the JPY carry trade adds unnecessary risk on top. Removing the JPY leverage would shift the profile from "aggressive + leveraged" to "aggressive but manageable."</p>
+</div>
+
+<!-- ==================== 7. RECOMMENDATIONS ==================== -->
+<div class="card" id="recommendations">
+  <h2>7. Strategic Recommendations</h2>
+  <p style="margin-bottom:12px">These recommendations respect the deliberate crypto hold strategy (IBIT + ETHA held for 6–12 month recovery) and focus on reducing <em>other</em> sources of risk and cost.</p>
+
+  <h3>Short Term (0–6 months)</h3>
+
+  <div class="rec danger">
+    <strong>1. Reduce or eliminate JPY margin debt — URGENT</strong>
+    The ¥21.4M JPY short costs ~€40/month in interest (~€480/year) and creates compounding FX risk on top of your already volatile crypto positions. Close Shiseido (up +38%, a strong realized gain) and repay the JPY debt. This removes interest drag, FX risk, and leverage in one move — making the crypto hold much safer to sustain without margin call risk.
+  </div>
+
+  <div class="rec warn">
+    <strong>2. Set crypto exit targets — don't hope, plan</strong>
+    The recovery thesis is sound, but you need a disciplined exit plan. Suggested triggers: sell 50% of IBIT at $56 (your +25% from entry, BTC ~$98K). Sell remaining IBIT at $65–71 (previous ATH zone). For ETHA, consider selling into any material ETH rally (+30–50% from here) rather than waiting for full ATH — ETH's structural outlook is weaker than BTC's.
+  </div>
+
+  <div class="rec warn">
+    <strong>3. Evaluate Porsche (P911) — down 13–15%</strong>
+    Porsche faces structural headwinds (EV transition, China weakness, VW governance). Consider rotating into a broader European auto/industrial ETF. Freeing up this €15K could be redeployed into IBIT at current lows if you want to double down on the crypto thesis, or into a cash buffer to reduce margin.
+  </div>
+
+  <h3>Medium Term (1–3 years)</h3>
+
+  <div class="rec">
+    <strong>4. Post-crypto exit: diversify into global ETFs</strong>
+    Once you sell crypto into the recovery, redeploy proceeds into VWCE/IWDA (Irish-domiciled global ETFs). This gives broad exposure with only 15% US WHT vs the 30% you paid on QQQM. Think of the crypto trade as funding your long-term core portfolio.
+  </div>
+
+  <div class="rec">
+    <strong>5. Optimize dividend WHT on French stocks</strong>
+    File French Form 5000/5001 to reclaim excess WHT (currently 25%, potentially reducible to 12.8%). On €602 of French dividends, this could save ~€73/year. Small but accumulative.
+  </div>
+
+  <div class="rec">
+    <strong>6. Add fixed income / cash buffer</strong>
+    €30–40K in XEON (Xtrackers EUR Overnight Rate ETF, ~3% yield) would generate ~€1,000/year in income, reduce portfolio volatility, and ensure you never need margin to hold positions through a drawdown. Especially important while holding crypto through a recovery.
+  </div>
+
+  <h3>Long Term (5+ years)</h3>
+
+  <div class="rec">
+    <strong>7. Core-satellite structure after crypto cycle</strong>
+    Target: Core (60–70%) in global equity ETFs + EUR bonds for steady compounding. Satellite (30–40%) for conviction plays — future crypto cycles, individual French quality names, thematic bets. This gives you the stability to hold volatile satellite positions with confidence.
+  </div>
+
+  <div class="rec">
+    <strong>8. Target 1.5–2% dividend yield</strong>
+    Current ~0.3% yield means almost no income generation. After the crypto exit, add dividend quality ETFs (VHYL, or Irish-domiciled equivalents) for cash flow that compounds independently of price swings.
+  </div>
+</div>
+
+<!-- ==================== APPENDIX ==================== -->
+<div class="card">
+  <h2>Appendix: Cash Flow Timeline</h2>
+  <table>
+    <tr><th>Date</th><th>Currency</th><th class="num">Amount</th><th>Type</th></tr>
+    <tr><td>2025-04-01</td><td>EUR</td><td class="num">€10,000</td><td>Deposit</td></tr>
+    <tr><td>2025-04-04</td><td>EUR</td><td class="num">€45,000</td><td>Deposit</td></tr>
+    <tr><td>2025-04-23</td><td>EUR</td><td class="num neg">−€45,000</td><td>Withdrawal</td></tr>
+    <tr><td>2025-08-11</td><td>EUR</td><td class="num">€20,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-19</td><td>EUR</td><td class="num">€25,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-26</td><td>EUR</td><td class="num">€25,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-27</td><td>EUR</td><td class="num">€34,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-28</td><td>EUR</td><td class="num">€4,000</td><td>Deposit</td></tr>
+    <tr><td>2025-09-16</td><td>EUR</td><td class="num">€3,000</td><td>Deposit</td></tr>
+    <tr><td>2025-09-24</td><td>EUR</td><td class="num">€1,500</td><td>Deposit</td></tr>
+    <tr><td>2025-10-22</td><td>AED</td><td class="num">AED 110,000</td><td>Deposit</td></tr>
+    <tr><td>2025-10-29</td><td>EUR</td><td class="num">€8,500</td><td>Deposit</td></tr>
+    <tr><td>2025-11-03</td><td>AED</td><td class="num">AED 85,000</td><td>Deposit</td></tr>
+    <tr><td>2025-11-04</td><td>EUR</td><td class="num">€5,000</td><td>Deposit</td></tr>
+    <tr><td>2025-12-19</td><td>EUR</td><td class="num">€15,000</td><td>Deposit</td></tr>
+    <tr><td>2026-01-09</td><td>EUR</td><td class="num">€3,000</td><td>Deposit</td></tr>
+  </table>
+</div>
+
+<footer>
+  <p>V2.1 Report generated March 7, 2026 &nbsp;|&nbsp; IBKR valuation: March 4, 2026 (with March 5 comparison) &nbsp;|&nbsp; ESPP valuation: March 6, 2026 &nbsp;|&nbsp; Data: IBKR Activity Statement + UBS ESPP screenshots + Yahoo Finance</p>
+  <p style="margin-top:4px">This analysis is for informational purposes only and does not constitute financial advice. Past performance does not guarantee future results.</p>
+</footer>
+
+</div>
+</body>
+</html>

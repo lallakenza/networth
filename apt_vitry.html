@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appartement Vitry-sur-Seine — Amine Koraibi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, #2d3748, #4a5568); color: white; padding: 40px 0; margin-bottom: 32px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header .subtitle { opacity: 0.85; margin-top: 6px; font-size: 14px; }
+  header .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .alert { background: #fff5f5; border-left: 4px solid var(--red); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .success { background: #f0fff4; border-left: 4px solid var(--green); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .info { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .metric-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .metric-box .value { font-size: 24px; font-weight: 700; }
+  .metric-box .label { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .chart-container { position: relative; height: 350px; margin: 20px 0; }
+  .section-num { display: inline-block; background: #4a5568; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+  @media (max-width: 768px) { .grid4, .grid3 { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <h1>Appartement Vitry-sur-Seine</h1>
+  <div class="subtitle">Vitry-sur-Seine, 94400 | 67.14 m² | Propriétaire : Mohamed Amine Koraibi</div>
+  <div class="badge">Analyse patrimoniale — Mars 2026</div>
+</header>
+
+<!-- SECTION 1: FICHE PROPRIETE -->
+<div class="card">
+  <h2><span class="section-num">1</span>Fiche Propriété</h2>
+  
+  <div class="grid4">
+    <div class="metric-box">
+      <div class="value">€275,000</div>
+      <div class="label">Prix d'achat TTC</div>
+    </div>
+    <div class="metric-box">
+      <div class="value">€4,096/m²</div>
+      <div class="label">Prix au m²</div>
+    </div>
+    <div class="metric-box">
+      <div class="value">67.14 m²</div>
+      <div class="label">Surface</div>
+    </div>
+    <div class="metric-box">
+      <div class="value" style="color: var(--green);">€24,097</div>
+      <div class="label">Equity actuelle (mars 2026)</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Détail</th><th class="num">Valeur</th></tr></thead>
+    <tbody>
+      <tr><td>Date d'achat (acte)</td><td class="num">16 janvier 2023</td></tr>
+      <tr><td>Type</td><td class="num">Appartement T3 — VEFA (TVA 5.5%)</td></tr>
+      <tr><td>Régime locatif</td><td class="num">Location nue (contraintes PTZ + AL + TVA)</td></tr>
+      <tr><td>Fiscalité</td><td class="num">Régime réel — impôt ~0€ (charges déductibles)</td></tr>
+      <tr><td>Appréciation estimée</td><td class="num">+2%/an (GPE Ligne 15)</td></tr>
+      <tr><td>Valeur estimée mars 2026</td><td class="num">€292,816</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SECTION 2: PRETS -->
+<div class="card">
+  <h2><span class="section-num">2</span>Détail des Prêts</h2>
+
+  <table>
+    <thead>
+      <tr><th>Prêt</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Action Logement</strong></td><td class="num">€40,000</td><td class="num">1.00%</td><td class="num">300 mois</td><td class="num">€145.20</td><td>Incl. assurance</td></tr>
+      <tr><td><strong>Riv'immo (BP)</strong></td><td class="num">€175,000</td><td class="num">2.10%</td><td class="num">300 mois</td><td class="num">€1,020.55</td><td>Prêt principal</td></tr>
+      <tr><td><strong>PTZ</strong></td><td class="num">€60,000</td><td class="num">0.00%</td><td class="num">300 mois</td><td class="num">€0</td><td>Différé total 60 mois, puis €250/mois</td></tr>
+      <tr style="background: #edf2f7; font-weight: 600;">
+        <td><strong>TOTAL</strong></td><td class="num"><strong>€275,000</strong></td><td class="num">~1.5% moy.</td><td class="num">25 ans</td><td class="num"><strong>€1,464/mois</strong></td><td>Coût total intérêts : €56,644</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info">
+    <strong>Effet de levier :</strong> Vous empruntez €275,000 à un taux moyen pondéré de ~1.5% pour un actif qui s'apprécie à 2%/an. Le spread positif de +0.5% génère de la richesse nette chaque mois. En 25 ans, le coût total des intérêts (€56,644) est largement compensé par l'appréciation de l'actif (+€196,511).
+  </div>
+</div>
+
+<!-- SECTION 3: CASH FLOW -->
+<div class="card">
+  <h2><span class="section-num">3</span>Cash Flow Mensuel</h2>
+
+  <div class="grid2">
+    <div>
+      <h3>Revenus</h3>
+      <table>
+        <tr><td>Loyer (bail + cash)</td><td class="num pos">€1,200</td></tr>
+        <tr><td>Parking (cash)</td><td class="num pos">€70</td></tr>
+        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total revenus</strong></td><td class="num pos"><strong>€1,270</strong></td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Charges</h3>
+      <table>
+        <tr><td>Mensualité prêts (AL+BP+PTZ)</td><td class="num neg">€1,317</td></tr>
+        <tr><td>Assurance crédit</td><td class="num neg">€30</td></tr>
+        <tr><td>PNO</td><td class="num neg">€15</td></tr>
+        <tr><td>Taxe foncière (/12)</td><td class="num neg">€75</td></tr>
+        <tr><td>Copro totale (/12)</td><td class="num neg">€150</td></tr>
+        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total charges</strong></td><td class="num neg"><strong>€1,587</strong></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin-top: 16px;">
+    <div class="metric-box">
+      <div class="value neg">-€317/mois</div>
+      <div class="label">Cash flow net</div>
+    </div>
+    <div class="metric-box">
+      <div class="value pos">+€1,017/mois</div>
+      <div class="label">Création de richesse (capital remboursé + appreciation)</div>
+    </div>
+    <div class="metric-box">
+      <div class="value">3.2x</div>
+      <div class="label">Ratio richesse / effort</div>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <strong>Création de valeur :</strong> Pour chaque €317 de cash flow négatif (effort mensuel), vous créez ~€1,017 de richesse nette (€560 de capital remboursé + €458 d'appréciation). C'est un ratio de 3.2x — chaque euro d'effort génère 3.2€ de patrimoine.<br>
+    <strong>Projection 2027 :</strong> Loyer prévu 1,400 + parking 70 = 1,470. Charges 1,587. CF = -117/mois (ratio 8.7x).
+  </div>
+</div>
+
+<!-- SECTION 4: PROJECTION EQUITY -->
+<div class="card">
+  <h2><span class="section-num">4</span>Projection : Equity & Valeur du Bien</h2>
+  <div class="chart-container">
+    <canvas id="equityChart"></canvas>
+  </div>
+  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Hypothèse : appréciation 2%/an. L'equity = valeur estimée du bien - capital restant dû (CRD). Au bout de 25 ans, le bien vaut ~€471K et l'equity = 100% (prêts soldés).</p>
+</div>
+
+<!-- SECTION 5: DECOMPOSITION MENSUALITE -->
+<div class="card">
+  <h2><span class="section-num">5</span>Décomposition de la Mensualité (10 premières années)</h2>
+  <div class="chart-container">
+    <canvas id="amortChart"></canvas>
+  </div>
+  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">La part d'intérêts diminue progressivement tandis que le capital remboursé augmente. Après 60 mois (2028), le PTZ sort du différé et la mensualité totale augmente de ~€250/mois.</p>
+</div>
+
+<!-- SECTION 6: PROJECTION RICHESSE -->
+<div class="card">
+  <h2><span class="section-num">6</span>Projection de Richesse dans l'Appartement</h2>
+  <div class="chart-container">
+    <canvas id="wealthChart"></canvas>
+  </div>
+  
+  <h3>Jalons clés</h3>
+  <table>
+    <thead><tr><th>Date</th><th class="num">Equity</th><th class="num">Valeur du bien</th><th class="num">CRD</th><th>Commentaire</th></tr></thead>
+    <tbody>
+      <tr><td>Jan 2023</td><td class="num">€0</td><td class="num">€275,000</td><td class="num">€275,000</td><td>Achat — 0% equity</td></tr>
+      <tr><td>Mars 2026</td><td class="num">€24,097</td><td class="num">€293,000</td><td class="num">€268,903</td><td>3.2 ans — 8.2% equity (CRD = Riv'immo 173,570 + PTZ 60,000 + AL 35,333)</td></tr>
+      <tr><td>Jan 2029</td><td class="num">€75,948</td><td class="num">€318,000</td><td class="num">€242,052</td><td>6 ans — Fin contrainte PTZ RP</td></tr>
+      <tr><td>Jan 2033</td><td class="num">€133,000</td><td class="num">€353,000</td><td class="num">€220,000</td><td>10 ans — Fin clause anti-spéculation</td></tr>
+      <tr><td>Jan 2038</td><td class="num">€218,000</td><td class="num">€410,000</td><td class="num">€192,000</td><td>15 ans — 53% equity</td></tr>
+      <tr><td>Jun 2048</td><td class="num">€471,511</td><td class="num">€471,511</td><td class="num">€0</td><td>25 ans — 100% equity, prêts soldés</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SECTION 7: CONTRAINTES -->
+<div class="card">
+  <h2><span class="section-num">7</span>Contraintes Réglementaires</h2>
+
+  <div class="alert">
+    <strong>Clause anti-spéculation (10 ans) :</strong> Revente avec remboursement différentiel si plus-value dans les 10 premières années (jusqu'en janvier 2033). Vente avant cette date = réduction significative du montant encaissé.
+  </div>
+
+  <div class="highlight">
+    <strong>PTZ — Résidence principale 6 ans :</strong> Le bien doit rester votre résidence principale jusqu'à janvier 2029. Après cette date, la mise en location est possible sans restriction PTZ.
+  </div>
+
+  <div class="highlight">
+    <strong>TVA 5.5% — Occupation 10 ans :</strong> Obligation de résidence principale pendant 10 ans à partir de juillet 2025 (date de livraison effective). En cas de revente avant juillet 2035, remboursement du différentiel de TVA.
+  </div>
+
+  <div class="info">
+    <strong>Action Logement :</strong> Occupation RP, revenus inférieurs au plafond PLS. La location actuelle se fait dans un cadre encadré (loyer plafonné à €500 HC).
+  </div>
+</div>
+
+<footer>
+  <p>Analyse Appartement Vitry-sur-Seine — Mars 2026</p>
+  <p>Données issues du tableau d'amortissement et de la structure de coûts</p>
+</footer>
+
+</div>
+
+<script>
+const ctxEquity = document.getElementById('equityChart').getContext('2d');
+new Chart(ctxEquity, {
+  type: 'line',
+  data: {
+    labels: ["2023-01", "2023-12", "2024-12", "2025-12", "2026-12", "2027-12", "2028-12", "2029-12", "2030-12", "2031-12", "2032-12", "2033-12", "2034-12", "2035-12", "2036-12", "2037-12", "2038-12", "2039-12", "2040-12", "2041-12", "2042-12", "2043-12", "2044-12", "2045-12", "2046-12", "2047-12", "2048-06"],
+    datasets: [
+      {
+        label: 'Valeur du bien (€)',
+        data: [300000, 300000, 300000, 301987, 308027, 314187, 320471, 326880, 333418, 340086, 346888, 353826, 360902, 368120, 375483, 382992, 390652, 398465, 406434, 414563, 422854, 431312, 439938, 448737, 457711, 466865, 471511],
+        borderColor: '#2b6cb0',
+        backgroundColor: 'rgba(43,108,176,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      },
+      {
+        label: 'Capital Restant Dû (€)',
+        data: [274875, 273494, 271981, 266155, 255881, 245413, 234755, 223966, 213059, 202031, 190878, 179600, 168193, 156655, 144982, 133173, 121225, 109134, 96899, 84515, 71980, 59284, 46360, 33189, 19766, 6086, 1],
+        borderColor: '#c53030',
+        backgroundColor: 'rgba(197,48,48,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      },
+      {
+        label: 'Equity (€)',
+        data: [25125, 26506, 28019, 35832, 52146, 68774, 85716, 102914, 120359, 138056, 156009, 174226, 192709, 211466, 230500, 249819, 269427, 289331, 309536, 330048, 350874, 372028, 393578, 415548, 437945, 460779, 471510],
+        borderColor: '#276749',
+        backgroundColor: 'rgba(39,103,73,0.15)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        borderWidth: 3,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: {
+        callbacks: {
+          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
+        }
+      }
+    },
+    scales: {
+      y: {
+        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
+      }
+    }
+  }
+});
+
+const ctxAmort = document.getElementById('amortChart').getContext('2d');
+new Chart(ctxAmort, {
+  type: 'bar',
+  data: {
+    labels: ["2023-01", "2023-04", "2023-07", "2023-10", "2024-01", "2024-04", "2024-07", "2024-10", "2025-01", "2025-04", "2025-07", "2025-10", "2026-01", "2026-04", "2026-07", "2026-10", "2027-01", "2027-04", "2027-07", "2027-10", "2028-01", "2028-04", "2028-07", "2028-10", "2029-01", "2029-04", "2029-07", "2029-10", "2030-01", "2030-04", "2030-07", "2030-10", "2031-01", "2031-04", "2031-07", "2031-10", "2032-01", "2032-04", "2032-07", "2032-10"],
+    datasets: [
+      {
+        label: 'Capital remboursé (€)',
+        data: [125.2, 125.4, 125.5, 125.7, 125.8, 126.0, 126.2, 126.3, 126.5, 126.6, 841.1, 845.0, 848.9, 852.9, 856.9, 860.8, 864.9, 868.9, 873.0, 877.0, 881.1, 885.3, 889.7, 892.1, 894.6, 897.0, 899.5, 901.9, 904.4, 906.8, 909.4, 911.9, 914.4, 916.9, 919.5, 922.0, 924.6, 927.2, 929.8, 932.4],
+        backgroundColor: '#276749',
+      },
+      {
+        label: 'Intérêts (€)',
+        data: [16.7, 16.5, 322.6, 322.4, 322.3, 322.1, 322.0, 321.8, 321.7, 321.5, 321.3, 317.4, 313.5, 309.5, 305.6, 301.6, 297.6, 293.5, 289.5, 285.4, 281.3, 277.2, 273.0, 270.6, 268.2, 265.8, 263.3, 260.8, 258.4, 255.9, 253.4, 250.9, 248.4, 245.8, 243.3, 240.7, 238.2, 235.6, 233.0, 230.4],
+        backgroundColor: '#c53030',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, ticks: { callback: function(v) { return '€' + v; } } }
+    }
+  }
+});
+
+// Wealth creation chart
+const ctxWealth = document.getElementById('wealthChart').getContext('2d');
+new Chart(ctxWealth, {
+  type: 'line',
+  data: {
+    labels: ["2023-01", "2023-12", "2024-12", "2025-12", "2026-12", "2027-12", "2028-12", "2029-12", "2030-12", "2031-12", "2032-12", "2033-12", "2034-12", "2035-12", "2036-12", "2037-12", "2038-12", "2039-12", "2040-12", "2041-12", "2042-12", "2043-12", "2044-12", "2045-12", "2046-12", "2047-12", "2048-06"],
+    datasets: [
+      {
+        label: 'Equity (€)',
+        data: [25125, 26506, 28019, 35832, 52146, 68774, 85716, 102914, 120359, 138056, 156009, 174226, 192709, 211466, 230500, 249819, 269427, 289331, 309536, 330048, 350874, 372028, 393578, 415548, 437945, 460779, 471510],
+        borderColor: '#276749',
+        backgroundColor: 'rgba(39,103,73,0.2)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        borderWidth: 3,
+      },
+      {
+        label: 'Capital remboursé cumulé (€)',
+        data: [125, 1506, 3019, 8845, 19119, 29587, 40245, 51034, 61941, 72969, 84122, 95400, 106807, 118345, 130018, 141827, 153775, 165866, 178101, 190485, 203020, 215716, 228640, 241811, 255234, 268914, 274999],
+        borderColor: '#2b6cb0',
+        borderDash: [5,5],
+        tension: 0.3,
+        pointRadius: 2,
+      },
+      {
+        label: 'Intérêts cumulés (€)',
+        data: [17, 2034, 5898, 9736, 13410, 16892, 20185, 23349, 26395, 29319, 32120, 34795, 37341, 39755, 42036, 44180, 46185, 48047, 49764, 51334, 52752, 54007, 55032, 55811, 56337, 56606, 56644],
+        borderColor: '#c53030',
+        borderDash: [5,5],
+        tension: 0.3,
+        pointRadius: 2,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: {
+        callbacks: {
+          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
+        }
+      }
+    },
+    scales: {
+      y: {
+        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>
