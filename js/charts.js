@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=3';
-import { getGrandTotal } from './engine.js?v=3';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=3';
+import { fmt, fmtAxis } from './render.js?v=4';
+import { getGrandTotal } from './engine.js?v=4';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=4';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -561,7 +561,11 @@ function buildCoupleTreemap(state) {
   const CATS = state.coupleCategories;
   const grandTotal = getGrandTotal(state);
 
-  // Build flat array — each item gets its own color
+  // Build category totals for dual % tooltip
+  const catTotals = {};
+  CATS.forEach(cat => { catTotals[cat.label] = cat.total; });
+
+  // Build flat data — each item carries its own color from engine.js
   const treeData = [];
   CATS.forEach(cat => {
     cat.sub.forEach(sub => {
@@ -570,22 +574,20 @@ function buildCoupleTreemap(state) {
           label: sub.label,
           category: cat.label,
           value: sub.val,
-          color: sub.color || cat.color,
+          color: sub.color,
+          catTotal: cat.total,
         });
       }
     });
   });
 
-  // Sort by value desc within each category for better layout
-  treeData.sort((a, b) => b.value - a.value);
-
-  // Build a color lookup: item label → color
+  // Lookup maps
   const colorMap = {};
   treeData.forEach(d => { colorMap[d.label] = d.color; });
 
-  // Category-level colors (semi-transparent for group headers)
-  const catColorMap = {};
-  CATS.forEach(c => { catColorMap[c.label] = c.color; });
+  // Category header background colors (very light tint)
+  const catHeaderBg = {};
+  CATS.forEach(c => { catHeaderBg[c.label] = c.color + '15'; }); // 8% opacity
 
   charts.coupleTreemap = new Chart(el, {
     type: 'treemap',
@@ -595,45 +597,55 @@ function buildCoupleTreemap(state) {
         key: 'value',
         groups: ['category', 'label'],
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.8)',
+        borderColor: '#ffffff',
         spacing: 2,
         backgroundColor: function(ctx) {
+          // Use ctx.type to distinguish group headers from leaf data
+          if (ctx.type !== 'data') return 'transparent';
           if (!ctx.raw || !ctx.raw._data) return '#e2e8f0';
           const d = ctx.raw._data;
+          // Group header node (has children)
           if (d.children && d.children.length > 0) {
-            // Group level — use category color at 25% opacity
-            const cc = catColorMap[d.label || ''];
-            return cc ? cc + '40' : '#e2e8f020';
+            return catHeaderBg[d.label] || 'rgba(0,0,0,0.03)';
           }
-          // Leaf level — use the item's vivid color
-          const leafLabel = d.label || '';
-          return colorMap[leafLabel] || '#a0aec0';
+          // Leaf node — use the vivid color from data
+          return colorMap[d.label] || d.color || '#94a3b8';
+        },
+        hoverBackgroundColor: function(ctx) {
+          if (ctx.type !== 'data') return 'transparent';
+          if (!ctx.raw || !ctx.raw._data) return '#e2e8f0';
+          const d = ctx.raw._data;
+          if (d.children && d.children.length > 0) return catHeaderBg[d.label] || 'rgba(0,0,0,0.05)';
+          const base = colorMap[d.label] || d.color || '#94a3b8';
+          return base + 'cc'; // slightly transparent on hover
         },
         labels: {
           display: true,
           align: 'left',
           position: 'top',
           overflow: 'fit',
+          padding: 6,
           color: function(ctx) {
-            // White text on colored blocks, dark text on group headers
             if (!ctx.raw || !ctx.raw._data) return '#333';
             const d = ctx.raw._data;
+            // Group headers = dark, leafs = white on colored bg
             if (d.children && d.children.length > 0) return '#1a202c';
-            return '#fff';
+            return '#ffffff';
           },
+          hoverColor: '#ffffff',
           font: [
-            { size: 13, weight: 'bold', lineHeight: 1.3 },
+            { size: 14, weight: 'bold', lineHeight: 1.3 },
             { size: 11, weight: 'normal' }
           ],
           formatter: function(ctx) {
             if (!ctx || !ctx.raw) return '';
             const v = ctx.raw.v || 0;
-            if (v < 500) return '';
-            const pct = (v / grandTotal * 100).toFixed(1);
+            if (v < 300) return '';
             const g = ctx.raw.g || '';
-            // For tiny items, just show label
-            if (v < grandTotal * 0.02) return g;
-            return g + '\n' + fmt(v, true) + ' (' + pct + '%)';
+            if (v < grandTotal * 0.012) return g;
+            const pctNW = (v / grandTotal * 100).toFixed(1);
+            const kStr = v >= 1000 ? (v / 1000).toFixed(0) + 'K' : Math.round(v);
+            return g + '\n€' + kStr + ' (' + pctNW + '%)';
           }
         }
       }]
@@ -644,6 +656,12 @@ function buildCoupleTreemap(state) {
         title: { display: false },
         legend: { display: false },
         tooltip: {
+          backgroundColor: 'rgba(15,23,42,0.95)',
+          titleFont: { size: 14, weight: 'bold' },
+          bodyFont: { size: 13 },
+          padding: 14,
+          cornerRadius: 8,
+          displayColors: false,
           callbacks: {
             title: items => {
               const raw = items[0]?.raw;
@@ -651,7 +669,17 @@ function buildCoupleTreemap(state) {
             },
             label: item => {
               const v = item.raw?.v || 0;
-              return fmt(v) + ' (' + (v / grandTotal * 100).toFixed(1) + '%)';
+              const d = item.raw?._data;
+              const pctNW = (v / grandTotal * 100).toFixed(1);
+              const lines = [fmt(v) + ' €  →  ' + pctNW + '% du patrimoine'];
+              if (d && !d.children) {
+                const catTot = d.catTotal || catTotals[d.category] || 0;
+                if (catTot > 0) {
+                  const pctCat = (v / catTot * 100).toFixed(1);
+                  lines.push(pctCat + '% de « ' + d.category + ' »');
+                }
+              }
+              return lines;
             }
           }
         }

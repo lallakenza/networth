@@ -127,7 +127,7 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     // VÉHICULES — valeur estimée revente
     // ──────────────────────────────────────────────────────
-    vehicles: { cayenne: 40000, mercedes: 15000 },
+    vehicles: { cayenne: 45000, mercedes: 10000 },   // mis à jour 8 Mar 2026
 
     // ──────────────────────────────────────────────────────
     // CRÉANCES — argent qu'on nous doit
@@ -388,4 +388,30 @@ export const DIV_YIELDS = {
   '4911.T': 0.020,    // Shiseido ~2.0%
   'IBIT': 0,          // Bitcoin ETF — pas de dividendes
   'ETHA': 0,          // Ethereum ETF — pas de dividendes
+};
+
+// ════════════════════════════════════════════════════════════
+// CALENDRIER DIVIDENDES — DPS (Dividend Per Share) + Ex-dates
+// Utilisé pour calculer la projection WHT et les deadlines de vente
+// Données: mis à jour 8 Mar 2026 (sources: stockanalysis.com, dividendmax.com)
+//
+// dps: dividende par action (dans la devise de l'action)
+// exDates: liste des ex-dividend dates à venir (YYYY-MM-DD)
+//   → vendre AVANT cette date pour éviter la WHT
+// frequency: 'annual' | 'semi-annual' | 'quarterly'
+// ════════════════════════════════════════════════════════════
+export const DIV_CALENDAR = {
+  'DG.PA':   { dps: 5.00,  exDates: ['2026-04-21'], frequency: 'semi-annual', note: 'Solde 3.95€ en avril + acompte ~1.05€ en nov' },
+  'FGR.PA':  { dps: 4.80,  exDates: ['2026-05-20'], frequency: 'annual' },
+  'BN.PA':   { dps: 2.25,  exDates: ['2026-05-04'], frequency: 'annual' },
+  'AIR.PA':  { dps: 2.00,  exDates: ['2026-04-22'], frequency: 'annual' },
+  'P911.DE': { dps: 0.82,  exDates: ['2026-05-22'], frequency: 'annual' },
+  'MC.PA':   { dps: 13.00, exDates: ['2026-04-28'], frequency: 'semi-annual', note: 'Solde 7.50€ avr + acompte 5.50€ déc' },
+  'OR.PA':   { dps: 7.20,  exDates: ['2026-04-29'], frequency: 'annual' },
+  'SAN.PA':  { dps: 4.12,  exDates: ['2026-05-04'], frequency: 'annual' },
+  'RMS.PA':  { dps: 16.00, exDates: ['2026-05-06'], frequency: 'semi-annual', note: 'Solde ~12€ mai + acompte ~4€ fév (déjà passé)' },
+  'SAP':     { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual' },
+  '4911.T':  { dps: 30,    exDates: ['2026-06-28'], frequency: 'semi-annual', note: 'Final ¥20 juin + interim ¥10 déc' },
+  'IBIT':    { dps: 0,     exDates: [], frequency: 'none' },
+  'ETHA':    { dps: 0,     exDates: [], frequency: 'none' },
 };

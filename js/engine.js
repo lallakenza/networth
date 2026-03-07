@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS } from './data.js?v=3';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR } from './data.js?v=4';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -826,12 +826,52 @@ function computeCreancesView(portfolio, fx) {
  * Compute dividend/WHT analysis for actions view
  */
 function computeDividendAnalysis(ibkrPositions, fx) {
+  const today = new Date();
+  const oneYearLater = new Date(today);
+  oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+
   const positions = ibkrPositions.map(pos => {
     const divYield = DIV_YIELDS[pos.ticker] || 0;
     const whtRate = WHT_RATES[pos.geo] || WHT_RATES[pos.geo === 'crypto' ? 'crypto' : 'france'] || 0;
     const annualDivGross = pos.valEUR * divYield;
     const whtAmount = annualDivGross * whtRate;
     const netDiv = annualDivGross - whtAmount;
+
+    // Calendar-based projection: DPS × shares → exact EUR amount
+    const cal = DIV_CALENDAR[pos.ticker];
+    let projectedDivEUR = 0;
+    let projectedWHT = 0;
+    let nextExDate = null;
+    let daysUntilEx = null;
+    let upcomingPayments = [];
+
+    let dpsNative = 0;
+    let dpsCurrency = pos.currency;
+
+    if (cal && cal.dps > 0) {
+      dpsNative = cal.dps;
+      // Compute projected dividend in EUR from DPS × shares
+      const totalDivNative = cal.dps * pos.shares;
+      projectedDivEUR = toEUR(totalDivNative, pos.currency, fx);
+      projectedWHT = projectedDivEUR * whtRate;
+
+      // Find next upcoming ex-date
+      const futureExDates = (cal.exDates || [])
+        .map(d => new Date(d + 'T00:00:00'))
+        .filter(d => d > today)
+        .sort((a, b) => a - b);
+
+      if (futureExDates.length > 0) {
+        nextExDate = futureExDates[0];
+        daysUntilEx = Math.ceil((nextExDate - today) / (1000 * 60 * 60 * 24));
+      }
+
+      // Build upcoming payments list
+      upcomingPayments = futureExDates.map(d => ({
+        exDate: d,
+        daysUntil: Math.ceil((d - today) / (1000 * 60 * 60 * 24)),
+      }));
+    }
 
     let recommendation = 'keep';
     let reason = '';
@@ -855,25 +895,49 @@ function computeDividendAnalysis(ibkrPositions, fx) {
       ticker: pos.ticker,
       label: pos.label,
       valEUR: pos.valEUR,
+      shares: pos.shares,
+      currency: pos.currency,
+      dpsNative,
+      dpsCurrency,
       divYield,
       annualDivGross,
       whtRate,
       whtAmount,
       netDiv,
+      projectedDivEUR,
+      projectedWHT,
+      nextExDate,
+      daysUntilEx,
+      upcomingPayments,
       recommendation,
       reason,
       alternativeETF,
     };
-  }).sort((a, b) => b.whtAmount - a.whtAmount);
+  }).sort((a, b) => {
+    // Sort by urgency: nearest ex-date first among SWITCHER, then by WHT impact
+    if (a.recommendation === 'switch' && b.recommendation !== 'switch') return -1;
+    if (a.recommendation !== 'switch' && b.recommendation === 'switch') return 1;
+    if (a.recommendation === 'switch' && b.recommendation === 'switch') {
+      // Both switch: sort by nearest deadline
+      if (a.daysUntilEx !== null && b.daysUntilEx !== null) return a.daysUntilEx - b.daysUntilEx;
+      if (a.daysUntilEx !== null) return -1;
+      if (b.daysUntilEx !== null) return 1;
+    }
+    return b.whtAmount - a.whtAmount;
+  });
 
   const totalAnnualDiv = positions.reduce((s, p) => s + p.annualDivGross, 0);
   const totalWHT = positions.reduce((s, p) => s + p.whtAmount, 0);
-  const savingsIfEliminated = totalWHT; // if all dividends eliminated, save all WHT
+  const totalProjectedDiv = positions.reduce((s, p) => s + p.projectedDivEUR, 0);
+  const totalProjectedWHT = positions.reduce((s, p) => s + p.projectedWHT, 0);
+  const savingsIfEliminated = totalProjectedWHT;
 
   return {
     positions,
     totalAnnualDiv,
     totalWHT,
+    totalProjectedDiv,
+    totalProjectedWHT,
     savingsIfEliminated,
   };
 }
@@ -1004,21 +1068,36 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
-      label: 'Actions & ETFs', color: '#2b6cb0',
-      total: amineIbkr + amineEspp + amineSgtm + nezhaSgtm,
+      label: 'Actions', color: '#2b6cb0',
+      total: (() => {
+        const nonCrypto = p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto');
+        const ibkrNonCryptoVal = nonCrypto.reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
+        const ibkrCash = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
+        return ibkrNonCryptoVal + ibkrCash + amineEspp + amineSgtm + nezhaSgtm;
+      })(),
       sub: [
-        // Individual IBKR positions
-        ...p.amine.ibkr.positions.map((pos, i) => {
-          const blueShades = ['#1a365d','#2a4365','#2b6cb0','#3182ce','#4299e1','#1e40af','#2563eb','#3b82f6','#60a5fa','#7c3aed','#6d28d9','#4f46e5','#4338ca'];
+        ...p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
+          const colors = ['#1e3a5f','#2563eb','#3b82f6','#0284c7','#0369a1','#1d4ed8','#4338ca','#6366f1','#7c3aed','#0891b2'];
           const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
-          return { label: pos.label, val: valEUR, color: blueShades[i % blueShades.length] };
+          return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
         }),
-        // IBKR cash
-        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#718096' },
+        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#475569' },
         { label: 'ESPP Accenture', val: amineEspp, color: '#7c3aed' },
-        { label: 'SGTM Amine', val: amineSgtm, color: '#ed8936' },
-        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#d69e2e' },
-      ].filter(s => s.val > 100) // filter out tiny positions
+        { label: 'SGTM Amine', val: amineSgtm, color: '#ea580c' },
+        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#d97706' },
+      ].filter(s => s.val > 100)
+    },
+    {
+      label: 'Crypto', color: '#f59e0b',
+      total: (() => {
+        return p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto')
+          .reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
+      })(),
+      sub: p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
+        const colors = ['#f59e0b','#ea580c'];
+        const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+        return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
+      })
     },
     {
       label: 'Cash', color: '#48bb78',
@@ -1034,8 +1113,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Vehicules', color: '#4a5568',
       total: amineVehicles,
       sub: [
-        { label: 'Porsche Cayenne', val: 40000, color: '#4a5568' },
-        { label: 'Mercedes A', val: 15000, color: '#a0aec0' },
+        { label: 'Porsche Cayenne', val: p.amine.vehicles.cayenne, color: '#4a5568' },
+        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#a0aec0' },
       ]
     },
     {
