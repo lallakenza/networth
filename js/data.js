@@ -161,9 +161,9 @@ export const CASH_YIELDS = {
   revolutEUR: 0,
   attijari: 0,
   nabd: 0,
-  ibkrCashEUR: 0.03,   // ~3% EUR cash at IBKR
-  ibkrCashUSD: 0.04,   // ~4% USD cash at IBKR
-  ibkrCashJPY: -0.025, // ~-2.5% coût emprunt JPY chez IBKR (on paie des intérêts)
+  ibkrCashEUR: 0.0153,  // 1.53% IBKR Pro (BM 2.03% - 0.5%), premiers 10K€ à 0%
+  ibkrCashUSD: 0.0314,  // 3.14% IBKR Pro (BM 3.64% - 0.5%), premiers 10K$ à 0%
+  ibkrCashJPY: -0.017,  // -1.70% coût emprunt JPY IBKR Pro tier 2 (BM 0.70% + 1%)
   nezhaCashFrance: 0,  // pas de rendement
   nezhaCashMaroc: 0,
   esppCash: 0,
