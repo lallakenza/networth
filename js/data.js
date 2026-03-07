@@ -163,6 +163,7 @@ export const CASH_YIELDS = {
   nabd: 0,
   ibkrCashEUR: 0.03,   // ~3% EUR cash at IBKR
   ibkrCashUSD: 0.04,   // ~4% USD cash at IBKR
+  ibkrCashJPY: -0.025, // ~-2.5% coût emprunt JPY chez IBKR (on paie des intérêts)
   nezhaCashFrance: 0,  // pas de rendement
   nezhaCashMaroc: 0,
   esppCash: 0,

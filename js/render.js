@@ -675,55 +675,92 @@ function renderCashView(state) {
   const tbody = document.getElementById('cashAccountsTbody');
   if (tbody) {
     tbody.innerHTML = '';
+    const REF_YIELD = 0.06; // 6% benchmark
     const owners = ['Amine', 'Nezha'];
+    let grandTotalYieldAnn = 0, grandTotalMissed = 0;
     owners.forEach(owner => {
       const ownerAccounts = cv.accounts.filter(a => a.owner === owner);
       if (ownerAccounts.length === 0) return;
-      const ownerTotal = ownerAccounts.reduce((s, a) => s + a.valEUR, 0);
+      const ownerPositive = ownerAccounts.filter(a => !a.isDebt);
+      const ownerTotal = ownerPositive.reduce((s, a) => s + a.valEUR, 0);
       const ownerColor = owner === 'Amine' ? '#ebf5fb' : '#fef9e7';
       const borderColor = owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
-      const REF_YIELD = 0.06; // 6% benchmark
       // Owner header row
       const hdr = document.createElement('tr');
       hdr.style.cssText = 'background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';';
       hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
       tbody.appendChild(hdr);
       // Account rows
-      let ownerMissed = 0;
+      let ownerYieldAnn = 0, ownerMissed = 0;
       ownerAccounts.forEach(a => {
-        const yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(0) + '%' : '0%';
-        const yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+        const isDebt = a.isDebt;
         const isNeg = a.valEUR < 0;
         const cls = isNeg ? ' class="pl-neg"' : '';
         const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
-        // Manque à gagner: (6% - actual yield) * valEUR, only for positive accounts
-        const missed = (!isNeg && a.valEUR > 0) ? a.valEUR * (REF_YIELD - (a.yield || 0)) : 0;
-        if (missed > 0) ownerMissed += missed;
-        const missedStr = isNeg ? '-' : (missed > 10 ? '<span class="pl-neg">-' + fmt(missed) + '</span>' : '-');
+        // Yield display
+        let yieldStr, yieldAnn;
+        if (isDebt) {
+          // Debt: show borrowing cost as negative yield
+          const costRate = Math.abs(a.yield || 0);
+          const costAnn = Math.abs(a.valEUR) * costRate;
+          yieldStr = '<span class="pl-neg">-' + (costRate * 100).toFixed(1) + '%</span>';
+          yieldAnn = '<span class="pl-neg">-' + fmt(costAnn) + '</span>';
+          ownerYieldAnn -= costAnn; // subtract interest cost from owner total
+        } else {
+          yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(1) + '%' : '0%';
+          yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+          ownerYieldAnn += a.valEUR * (a.yield || 0);
+        }
+        // Manque à gagner: (6% - actual yield) * valEUR for positive; interest cost for debt
+        let missed, missedStr;
+        if (isDebt) {
+          const costAnn = Math.abs(a.valEUR) * Math.abs(a.yield || 0);
+          missed = costAnn; // interest paid = opportunity cost
+          missedStr = '<span class="pl-neg">-' + fmt(missed) + '</span>';
+          ownerMissed += missed;
+        } else if (a.valEUR > 0) {
+          missed = a.valEUR * (REF_YIELD - (a.yield || 0));
+          missedStr = missed > 10 ? '<span class="pl-neg">-' + fmt(missed) + '</span>' : '-';
+          if (missed > 0) ownerMissed += missed;
+        } else {
+          missed = 0;
+          missedStr = '-';
+        }
         const tr = document.createElement('tr');
         tr.style.borderLeft = '3px solid ' + borderColor;
         if (isNeg) tr.style.background = '#fff5f5';
-        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (a.isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
           + '<td>' + a.owner + '</td>'
           + '<td>' + a.currency + '</td>'
           + '<td class="num"' + cls + '>' + nativeStr + '</td>'
           + '<td class="num"' + cls + '>' + fmt(a.valEUR) + '</td>'
-          + '<td class="num">' + (isNeg ? '-' : yieldStr) + '</td>'
-          + '<td class="num">' + (isNeg ? '-' : yieldAnn) + '</td>'
+          + '<td class="num">' + yieldStr + '</td>'
+          + '<td class="num">' + yieldAnn + '</td>'
           + '<td class="num">' + missedStr + '</td>';
         tbody.appendChild(tr);
       });
+      grandTotalYieldAnn += ownerYieldAnn;
+      grandTotalMissed += ownerMissed;
+      // Owner subtotal row
+      const ownerAvgYield = ownerTotal > 0 ? (ownerYieldAnn / ownerTotal * 100).toFixed(1) : '0.0';
+      const sub = document.createElement('tr');
+      sub.style.cssText = 'font-weight:600;background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';border-top:2px solid ' + borderColor + ';';
+      sub.innerHTML = '<td style="padding-left:20px;" colspan="4">Total ' + owner + '</td>'
+        + '<td class="num">' + fmt(ownerTotal) + '</td>'
+        + '<td class="num">' + ownerAvgYield + '%</td>'
+        + '<td class="num">' + fmt(ownerYieldAnn) + '</td>'
+        + '<td class="num pl-neg">-' + fmt(ownerMissed) + '</td>';
+      tbody.appendChild(sub);
     });
     // Grand total
-    const totalActualYield = cv.accounts.filter(a => a.valEUR > 0).reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
-    const totalMissedCalc = cv.accounts.filter(a => a.valEUR > 0).reduce((s, a) => s + a.valEUR * (0.06 - (a.yield || 0)), 0);
+    const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
     tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
       + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
-      + '<td class="num"><strong>' + (cv.weightedAvgYield * 100).toFixed(1) + '%</strong></td>'
-      + '<td class="num"><strong>' + fmt(totalActualYield) + '</strong></td>'
-      + '<td class="num pl-neg"><strong>-' + fmt(totalMissedCalc) + '</strong></td>';
+      + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
+      + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
+      + '<td class="num pl-neg"><strong>-' + fmt(grandTotalMissed) + '</strong></td>';
     tbody.appendChild(tr);
   }
 
@@ -759,8 +796,11 @@ function renderCashView(state) {
 
       let title = '', detail = '';
       if (d.category === 'inflation') {
-        title = '\uD83D\uDCC9 ' + d.account + ' \u2014 ' + fmt(d.amountEUR) + ' \u00e0 0% rendement';
-        detail = 'Perd ~' + fmt(d.annualLoss) + '/an en pouvoir d\'achat (' + d.inflationPct + '% inflation).';
+        const yieldLabel = d.currentYield > 0 ? (d.currentYield * 100).toFixed(0) + '%' : '0%';
+        title = '\uD83D\uDCC9 ' + d.account + ' \u2014 ' + fmt(d.amountEUR) + ' \u00e0 ' + yieldLabel + ' rendement';
+        detail = d.currentYield > 0
+          ? 'Rendement insuffisant (' + yieldLabel + ' < 3%). Manque \u00e0 gagner vs 6% : ~' + fmt(d.amountEUR * (0.06 - d.currentYield)) + '/an.'
+          : 'Perd ~' + fmt(d.annualLoss) + '/an en pouvoir d\'achat (' + d.inflationPct + '% inflation).';
       } else if (d.category === 'concentration') {
         title = '\u26A0\uFE0F Concentration ' + d.concentrationCur + ' : ' + d.concentrationPct.toFixed(0) + '% du cash total';
         detail = fmt(d.amountEUR) + ' en ' + d.concentrationCur + ' sur ' + fmt(d.totalCashEUR) + ' total.';
