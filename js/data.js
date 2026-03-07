@@ -137,12 +137,14 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     creances: {
       items: [
-        { label: 'SAP & Tax (20j x 910\u20ac)', amount: 18200, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 45 },
-        { label: 'Loyers impay\u00e9s (F\u00e9v + Mars)', amount: 2400, currency: 'EUR', guaranteed: false, probability: 0.7 },
-        { label: 'Kenza', amount: 200000, currency: 'MAD', guaranteed: true, probability: 1.0 },
-        { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7 },
-        { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: true, probability: 1.0 },
-        { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7 },
+        // status: en_cours | relancé | en_retard | recouvré | litige
+        // payments: historique des paiements partiels reçus
+        { label: 'SAP & Tax (20j x 910€)', amount: 18200, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 45, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-01', payments: [], notes: 'Facture envoyée, paiement sous 45j' },
+        { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', guaranteed: false, probability: 0.7, status: 'relancé', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' },
+        { label: 'Kenza', amount: 200000, currency: 'MAD', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
+        { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
+        { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-09-30', lastContact: '2026-02-20', payments: [], notes: '' },
+        { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7, status: 'en_retard', dueDate: '2026-01-31', lastContact: '2026-02-01', payments: [], notes: 'Pas de nouvelle depuis' },
         // Anas — remboursé le 7 mars 2026 → supprimé
       ],
     },
@@ -184,7 +186,7 @@ export const PORTFOLIO = {
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     creances: {
       items: [
-        { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7 },
+        { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-01-15', payments: [], notes: '' },
       ],
     },
     immo: {
@@ -278,4 +280,112 @@ export const IMMO_CONSTANTS = {
     rueilEnd: 2044,
     villejuifEnd: 2053,
   },
+  // ──────────────────────────────────────────────────────
+  // PRÊTS — Paramètres complets pour tableau d'amortissement
+  // principal: montant emprunté initial
+  // rate: taux annuel nominal (ex: 1.25% = 0.0125)
+  // startDate: 'YYYY-MM' — mois du premier versement
+  // durationMonths: durée totale en mois
+  // monthlyPayment: mensualité hors assurance
+  // insurance: assurance emprunteur mensuelle
+  // ──────────────────────────────────────────────────────
+  loans: {
+    vitry: {
+      principal: 293000,
+      rate: 0.0125,
+      startDate: '2023-03',
+      durationMonths: 300,   // 25 ans
+      monthlyPayment: 1317,
+      insurance: 30,
+    },
+    rueil: {
+      principal: 220000,
+      rate: 0.0375,
+      startDate: '2019-06',
+      durationMonths: 300,   // 25 ans
+      monthlyPayment: 907,
+      insurance: 25,
+    },
+    villejuif: {
+      principal: 360000,
+      rate: 0.0345,
+      startDate: '2025-09',
+      durationMonths: 336,   // 28 ans
+      monthlyPayment: 1669,
+      insurance: 51,
+    },
+  },
+  // ──────────────────────────────────────────────────────
+  // FISCALITÉ IMMOBILIÈRE
+  //
+  // ⚠️  Amine et Nezha sont RÉSIDENTS FISCAUX UAE
+  // → Pas d'IR français sur les revenus mondiaux
+  // → MAIS : les revenus fonciers de source FRANÇAISE restent
+  //   imposables en France (convention fiscale FR-UAE art. 6)
+  //
+  // Vitry (Amine) : location NUE → revenus fonciers
+  //   regime: 'micro-foncier' (abattement 30%) si loyers < 15K€/an
+  //   Partie du loyer reçue en cash (non déclarée) → exclue du calcul fiscal
+  //   En tant que non-résident : taux minimum 20% (pas de TMI progressive)
+  //   PS : 17.2% sur les revenus fonciers de source française
+  //
+  // Rueil + Villejuif (Nezha) : LMNP (meublé)
+  //   regime: 'micro-BIC' (abattement 50%) si recettes < 77 700€/an
+  //   ou régime réel simplifié (amortissement du bien)
+  //   Non-résident : taux minimum 20%
+  //   PS : 17.2%
+  // ──────────────────────────────────────────────────────
+  fiscalite: {
+    vitry:     { regime: 'micro-foncier', tmi: 0.20, ps: 0.172, cashNonDeclare: 0.30, type: 'nu' },
+    // cashNonDeclare: 30% du loyer reçu en cash → base imposable réduite
+    rueil:     { regime: 'micro-bic', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+    villejuif: { regime: 'micro-bic', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+// HISTORIQUE PATRIMOINE — Points manuels + dernier point live
+// Le dernier point (coupleNW/amineNW/nezhaNW = null) est rempli
+// dynamiquement par engine.js avec les valeurs actuelles.
+// Pour ajouter un point : insérer AVANT la dernière ligne.
+// ════════════════════════════════════════════════════════════
+export const NW_HISTORY = [
+  { date: '2024-01', coupleNW: 380000, amineNW: 240000, nezhaNW: 95000, note: 'Début tracking' },
+  { date: '2024-06', coupleNW: 450000, amineNW: 300000, nezhaNW: 105000 },
+  { date: '2024-12', coupleNW: 550000, amineNW: 370000, nezhaNW: 130000 },
+  { date: '2025-04', coupleNW: 600000, amineNW: 400000, nezhaNW: 150000, note: 'Signature Villejuif' },
+  { date: '2025-09', coupleNW: 650000, amineNW: 440000, nezhaNW: 160000 },
+  { date: '2026-03', coupleNW: null, amineNW: null, nezhaNW: null }, // ← rempli live
+];
+
+// ════════════════════════════════════════════════════════════
+// TAUX WHT (Withholding Tax) PAR PAYS
+// Applicable aux dividendes pour résident fiscal UAE
+// UAE : 0% income tax, mais WHT prélevé à la source par le pays émetteur
+// Plus-values : 0% WHT partout → objectif = éliminer les dividendes
+// ════════════════════════════════════════════════════════════
+export const WHT_RATES = {
+  france: 0.2575,     // 25.75% WHT dividendes France (pas de convention FR-UAE)
+  germany: 0.26375,   // 26.375% WHT dividendes Allemagne
+  us: 0.15,           // 15% WHT (convention US via W-8BEN)
+  japan: 0.15,        // 15% WHT (convention JP)
+  crypto: 0,          // ETFs crypto = pas de dividendes
+  morocco: 0.15,      // 15% WHT Maroc
+};
+
+// Dividend yields estimés par position (annualisé)
+export const DIV_YIELDS = {
+  'AIR.PA': 0.012,    // Airbus ~1.2%
+  'BN.PA': 0.034,     // Danone ~3.4%
+  'DG.PA': 0.038,     // Vinci ~3.8%
+  'FGR.PA': 0.045,    // Eiffage ~4.5%
+  'MC.PA': 0.017,     // LVMH ~1.7%
+  'OR.PA': 0.016,     // L'Oréal ~1.6%
+  'P911.DE': 0.024,   // Porsche ~2.4%
+  'RMS.PA': 0.008,    // Hermès ~0.8%
+  'SAN.PA': 0.041,    // Sanofi ~4.1%
+  'SAP': 0.010,       // SAP ~1.0%
+  '4911.T': 0.020,    // Shiseido ~2.0%
+  'IBIT': 0,          // Bitcoin ETF — pas de dividendes
+  'ETHA': 0,          // Ethereum ETF — pas de dividendes
 };
