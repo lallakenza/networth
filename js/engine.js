@@ -247,6 +247,35 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
  */
 function computeCashView(portfolio, fx) {
   const p = portfolio;
+
+  // IBKR effective yield helpers (account for zero-interest thresholds & tiered rates)
+  function ibkrEffectiveYield(native, nominalRate, threshold) {
+    // Premiers threshold units à 0%, le reste au taux nominal
+    if (native <= threshold) return 0;
+    return nominalRate * (native - threshold) / native;
+  }
+  function ibkrJPYBorrowCost(absJPY) {
+    // IBKR Pro tiered JPY margin rates (mars 2026)
+    // Tier 1: 0-11M JPY → BM+1.5% = 2.204%
+    // Tier 2: 11M-114M JPY → BM+1.0% = 1.704%
+    // Tier 3: 114M+ JPY → BM+0.75% = 1.454%
+    const tiers = [
+      { limit: 11000000, rate: 0.02204 },
+      { limit: 114000000, rate: 0.01704 },
+      { limit: Infinity, rate: 0.01454 },
+    ];
+    let remaining = absJPY, totalCost = 0, prev = 0;
+    for (const t of tiers) {
+      const slice = Math.min(remaining, t.limit - prev);
+      if (slice <= 0) break;
+      totalCost += slice * t.rate;
+      remaining -= slice;
+      prev = t.limit;
+    }
+    // Return effective blended rate (negative = cost)
+    return absJPY > 0 ? -(totalCost / absJPY) : 0;
+  }
+
   const accounts = [
     { label: 'Mashreq NEO+', native: p.amine.uae.mashreq, currency: 'AED', yield: CASH_YIELDS.mashreq, owner: 'Amine' },
     { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
@@ -254,9 +283,17 @@ function computeCashView(portfolio, fx) {
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
-    { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR', yield: CASH_YIELDS.ibkrCashEUR, owner: 'Amine' },
-    { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD', yield: CASH_YIELDS.ibkrCashUSD, owner: 'Amine' },
-    { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY', yield: CASH_YIELDS.ibkrCashJPY, owner: 'Amine', isDebt: true },
+    // IBKR: premiers 10K€/10K$ à 0%, le reste au taux IBKR Pro
+    { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR',
+      yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, 10000),
+      owner: 'Amine' },
+    { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD',
+      yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, 10000),
+      owner: 'Amine' },
+    // IBKR JPY short: taux par tranche (tiered margin rate)
+    { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY',
+      yield: ibkrJPYBorrowCost(Math.abs(p.amine.ibkr.cashJPY)),
+      owner: 'Amine', isDebt: true },
     { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
     { label: 'Cash France', native: p.nezha.cashFrance, currency: 'EUR', yield: CASH_YIELDS.nezhaCashFrance, owner: 'Nezha' },
     { label: 'Cash Maroc', native: p.nezha.cashMaroc, currency: 'MAD', yield: CASH_YIELDS.nezhaCashMaroc, owner: 'Nezha' },
