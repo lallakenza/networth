@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=13';
-import { IMMO_CONSTANTS } from './data.js?v=13';
+import { fmt, fmtAxis } from './render.js?v=14';
+import { IMMO_CONSTANTS } from './data.js?v=14';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -468,7 +468,7 @@ function runVitryFiscalSim() {
         + '<td class="num" style="font-weight:600">' + Math.round(totalDeductions).toLocaleString('fr-FR') + '</td>'
         + '<td class="num">' + loyerAnnuel.toLocaleString('fr-FR') + '</td>'
         + '<td class="num"' + (deficit > 0 ? ' style="color:var(--green)"' : '') + '>'
-          + (deficit > 0 ? '<span style="color:var(--green)">Déficit ' + Math.round(deficit).toLocaleString('fr-FR') + '</span>' : revenuImposable.toLocaleString('fr-FR'))
+          + (deficit > 0 ? '<span style="color:var(--green)">Déficit ' + Math.round(deficit).toLocaleString('fr-FR') + '</span>' : Math.round(revenuImposable).toLocaleString('fr-FR'))
         + '</td>'
         + '<td class="num"' + impotClass + ' style="font-weight:700">' + impot.toLocaleString('fr-FR') + ' <small>(' + impotMois + '/m)</small></td>'
         + '</tr>';
@@ -485,7 +485,7 @@ function runVitryFiscalSim() {
       summaryEl.innerHTML = '<strong>Résumé ' + startYear + ' :</strong> '
         + 'Loyer déclaré ' + loyerAnnuel.toLocaleString('fr-FR') + '€/an'
         + ' | Déductions ' + Math.round(yr1Ded).toLocaleString('fr-FR') + '€'
-        + ' | Revenu imposable ' + yr1Rev.toLocaleString('fr-FR') + '€'
+        + ' | Revenu imposable ' + Math.round(yr1Rev).toLocaleString('fr-FR') + '€'
         + ' | <strong' + (yr1Impot > 0 ? ' class="pl-neg"' : ' class="pl-pos"') + '>Impôt ' + yr1Impot.toLocaleString('fr-FR') + '€/an (' + Math.round(yr1Impot / 12) + '€/mois)</strong>';
     }
   }
