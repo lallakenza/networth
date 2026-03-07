@@ -579,6 +579,87 @@ function renderActionsView(state) {
   setText('actionsDeposits', fmt(av.deposits));
   setText('actionsNAV', fmt(av.ibkrNAV));
   setText('actionsTWR', '+' + av.twr.toFixed(1) + '%');
+
+  // Insights
+  const insightsContainer = document.getElementById('actionsInsights');
+  if (insightsContainer && av.insights) {
+    insightsContainer.innerHTML = '';
+    av.insights.forEach(ins => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;';
+      let html = '<h4 style="margin:0 0 10px 0;font-size:14px;color:var(--accent);">' + ins.title + '</h4>';
+
+      if (ins.type === 'track-record') {
+        const winColor = ins.winRate >= 60 ? 'var(--green)' : ins.winRate >= 50 ? '#dd6b20' : '#e53e3e';
+        html += '<div style="font-size:28px;font-weight:700;color:' + winColor + ';">' + ins.winRate.toFixed(0) + '% win rate</div>';
+        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">' + ins.winners + ' gagnantes / ' + ins.losers + ' perdantes sur ' + ins.totalTrades + ' trades</div>';
+        html += '<div style="font-size:13px;">Gains : <strong class="pl-pos">+' + fmt(ins.totalWins) + '</strong> | Pertes : <strong class="pl-neg">-' + fmt(ins.totalLosses) + '</strong></div>';
+        html += '<div style="font-size:13px;">Profit factor : <strong>' + (ins.profitFactor === Infinity ? '\u221e' : ins.profitFactor.toFixed(1)) + 'x</strong></div>';
+        if (ins.topWin) html += '<div style="font-size:12px;margin-top:6px;color:#718096;">Meilleur trade : ' + ins.topWin.label + ' (+' + fmt(ins.topWin.pl) + ')</div>';
+        if (ins.topLoss) html += '<div style="font-size:12px;color:#718096;">Pire trade : ' + ins.topLoss.label + ' (' + fmt(ins.topLoss.pl) + ')</div>';
+      }
+
+      else if (ins.type === 'concentration') {
+        html += '<div style="font-size:13px;margin-bottom:8px;">Top 3 = <strong>' + ins.top3Pct.toFixed(0) + '%</strong> du portefeuille (' + ins.totalPositions + ' positions)</div>';
+        ins.top3.forEach(p => {
+          html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #edf2f7;">'
+            + '<span>' + p.label + '</span><strong>' + p.pct.toFixed(1) + '%</strong></div>';
+        });
+        if (ins.top3Pct > 40) {
+          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">\u26A0 Concentration \u00e9lev\u00e9e. Envisager de r\u00e9\u00e9quilibrer vers des ETFs.</div>';
+        }
+      }
+
+      else if (ins.type === 'underperformers') {
+        html += '<div style="font-size:13px;margin-bottom:8px;">Perte latente totale : <strong class="pl-neg">' + fmt(ins.totalLossEUR) + '</strong></div>';
+        ins.positions.forEach(p => {
+          html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #edf2f7;">'
+            + '<span>' + p.label + '</span><span class="pl-neg">' + p.pctPL.toFixed(1) + '% (' + fmt(p.unrealizedPL) + ')</span></div>';
+        });
+        html += '<div style="font-size:12px;color:#718096;margin-top:8px;">\u2192 \u00c9valuer : couper les pertes ou moyenner \u00e0 la baisse ?</div>';
+      }
+
+      else if (ins.type === 'geo') {
+        html += '<div style="font-size:13px;">';
+        html += 'France : <strong>' + ins.francePct.toFixed(0) + '%</strong> | ';
+        html += 'US : <strong>' + ins.usPct.toFixed(0) + '%</strong> | ';
+        html += 'Crypto : <strong>' + ins.cryptoPct.toFixed(0) + '%</strong> | ';
+        html += 'Autres : <strong>' + ins.emergingPct.toFixed(0) + '%</strong></div>';
+        if (ins.francePct > 60) {
+          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">\u26A0 Biais domestique important (' + ins.francePct.toFixed(0) + '% France). Le CAC 40 ne repr\u00e9sente que ~3% de la capitalisation mondiale. Diversifier via un ETF World (IWDA/VWCE).</div>';
+        }
+      }
+
+      else if (ins.type === 'costs') {
+        html += '<div style="font-size:13px;">Commissions YTD : <strong>' + fmt(ins.commissions) + '</strong> (' + ins.commPct.toFixed(2) + '% du portefeuille)</div>';
+        html += '<div style="font-size:13px;">Dividendes YTD : <strong class="pl-pos">' + fmt(ins.dividends) + '</strong> (rendement ' + ins.divYield.toFixed(2) + '%)</div>';
+        if (ins.commPct > 0.3) {
+          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">Les commissions sont \u00e9lev\u00e9es. Le passage aux ETFs r\u00e9duirait drastiquement les frais de transaction.</div>';
+        }
+      }
+
+      else if (ins.type === 'recommendation') {
+        html += '<div style="font-size:13px;line-height:1.6;">';
+        html += '<div style="margin-bottom:6px;"><strong>\u2705 Points positifs :</strong></div>';
+        html += '<div style="margin-left:8px;margin-bottom:8px;">';
+        html += '- P/L r\u00e9alis\u00e9 cumul\u00e9 +' + fmt(ins.combinedRealizedPL) + ' montre un historique rentable<br>';
+        if (ins.twr > 10) html += '- TWR de +' + ins.twr.toFixed(1) + '% (correct mais comparer au MSCI World)<br>';
+        if (ins.winRate > 60) html += '- Win rate de ' + ins.winRate.toFixed(0) + '% montre un bon flair de s\u00e9lection<br>';
+        html += '</div>';
+        html += '<div style="margin-bottom:6px;"><strong>\u26A0 Axes d\'am\u00e9lioration :</strong></div>';
+        html += '<div style="margin-left:8px;">';
+        if (ins.francePct > 50) html += '- <strong>R\u00e9duire le biais France</strong> : allouer 50-70% en ETF World (IWDA) pour capturer la croissance US/Asie<br>';
+        html += '- <strong>Moins de stock picking</strong> : les 14 lignes g\u00e9n\u00e8rent du stress et des commissions. Un c\u0153ur ETF (80%) + satellites stock picking (20%) serait plus efficace<br>';
+        html += '- <strong>Strat\u00e9gie DCA</strong> : automatiser des versements mensuels sur 2-3 ETFs plut\u00f4t que du timing de march\u00e9<br>';
+        if (ins.currentLosersCount > 2) html += '- <strong>Couper les positions mortes</strong> : ' + ins.currentLosersCount + ' positions \u00e0 -10%+. \u00c9valuer si la th\u00e8se d\'investissement tient toujours<br>';
+        html += '- <strong>Pas de tech US directe</strong> : manque d\'exposition aux GAFAM/Magnificent 7 (seulement via ESPP Accenture)<br>';
+        html += '</div></div>';
+      }
+
+      card.innerHTML = html;
+      insightsContainer.appendChild(card);
+    });
+  }
 }
 
 function renderCashView(state) {
