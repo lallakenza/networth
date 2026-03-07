@@ -1007,11 +1007,18 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Actions & ETFs', color: '#2b6cb0',
       total: amineIbkr + amineEspp + amineSgtm + nezhaSgtm,
       sub: [
-        { label: 'IBKR Portfolio', val: amineIbkr, color: '#2b6cb0' },
-        { label: 'ESPP Accenture', val: amineEspp, color: '#63b3ed' },
-        { label: 'SGTM Amine (32 actions)', val: amineSgtm, color: '#ed8936' },
-        { label: 'SGTM Nezha (32 actions)', val: nezhaSgtm, color: '#d69e2e' },
-      ]
+        // Individual IBKR positions
+        ...p.amine.ibkr.positions.map((pos, i) => {
+          const blueShades = ['#1a365d','#2a4365','#2b6cb0','#3182ce','#4299e1','#1e40af','#2563eb','#3b82f6','#60a5fa','#7c3aed','#6d28d9','#4f46e5','#4338ca'];
+          const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+          return { label: pos.label, val: valEUR, color: blueShades[i % blueShades.length] };
+        }),
+        // IBKR cash
+        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#718096' },
+        { label: 'ESPP Accenture', val: amineEspp, color: '#7c3aed' },
+        { label: 'SGTM Amine', val: amineSgtm, color: '#ed8936' },
+        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#d69e2e' },
+      ].filter(s => s.val > 100) // filter out tiny positions
     },
     {
       label: 'Cash', color: '#48bb78',
