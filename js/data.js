@@ -88,11 +88,11 @@ export const PORTFOLIO = {
     creances: {
       items: [
         { label: 'SAP & Tax (20j x 910\u20ac)', amount: 18200, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 45 },
-        { label: 'Loyers impay\u00e9s (F\u00e9v + Mars)', amount: 2400, currency: 'EUR', guaranteed: true, probability: 1.0 },
-        { label: 'Kenza', amount: 200000, currency: 'MAD', guaranteed: false, probability: 0.6 },
+        { label: 'Loyers impay\u00e9s (F\u00e9v + Mars)', amount: 2400, currency: 'EUR', guaranteed: false, probability: 0.7 },
+        { label: 'Kenza', amount: 200000, currency: 'MAD', guaranteed: true, probability: 1.0 },
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7 },
-        { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: false, probability: 0.5 },
-        { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.8 },
+        { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: true, probability: 1.0 },
+        { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7 },
         // Anas — remboursé le 7 mars 2026 (1500 EUR + ventes) → supprimé
       ],
     },
@@ -137,7 +137,7 @@ export const PORTFOLIO = {
     sgtm: { shares: 32 },
     creances: {
       items: [
-        { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.6 },
+        { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7 },
       ],
     },
     immo: {

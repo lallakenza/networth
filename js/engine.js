@@ -121,6 +121,89 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Cross-platform total current value (excl SGTM which is not a brokerage)
   const totalCurrentValue = ibkrNAV + amineEspp;
 
+  // --- Investment Insights ---
+  const insights = [];
+
+  // 1. Stock picking track record
+  const allClosed = [...(meta.closedPositions || []), ...degiroClosedPositions];
+  const winners = allClosed.filter(p => p.pl > 0);
+  const losers = allClosed.filter(p => p.pl < 0);
+  const winRate = allClosed.length > 0 ? (winners.length / allClosed.length * 100) : 0;
+  const totalWins = winners.reduce((s, p) => s + p.pl, 0);
+  const totalLosses = Math.abs(losers.reduce((s, p) => s + p.pl, 0));
+  insights.push({
+    type: 'track-record',
+    title: 'Track Record Stock Picking',
+    winRate: winRate,
+    winners: winners.length,
+    losers: losers.length,
+    totalTrades: allClosed.length,
+    totalWins: totalWins,
+    totalLosses: totalLosses,
+    profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
+    topWin: winners.length > 0 ? winners.sort((a, b) => b.pl - a.pl)[0] : null,
+    topLoss: losers.length > 0 ? losers.sort((a, b) => a.pl - b.pl)[0] : null,
+  });
+
+  // 2. Concentration risk — top 3 positions weight
+  const sortedByWeight = [...ibkrPositions].sort((a, b) => b.valEUR - a.valEUR);
+  const top3Val = sortedByWeight.slice(0, 3).reduce((s, p) => s + p.valEUR, 0);
+  const top3Pct = totalPositionsVal > 0 ? top3Val / totalPositionsVal * 100 : 0;
+  insights.push({
+    type: 'concentration',
+    title: 'Concentration du Portefeuille',
+    top3: sortedByWeight.slice(0, 3).map(p => ({ label: p.label, pct: (p.valEUR / totalPositionsVal * 100) })),
+    top3Pct: top3Pct,
+    totalPositions: ibkrPositions.length,
+  });
+
+  // 3. Losers currently in portfolio
+  const currentLosers = ibkrPositions.filter(p => p.pctPL < -10).sort((a, b) => a.pctPL - b.pctPL);
+  if (currentLosers.length > 0) {
+    insights.push({
+      type: 'underperformers',
+      title: 'Positions en Souffrance (> -10%)',
+      positions: currentLosers.map(p => ({ label: p.label, pctPL: p.pctPL, unrealizedPL: p.unrealizedPL, valEUR: p.valEUR })),
+      totalLossEUR: currentLosers.reduce((s, p) => s + p.unrealizedPL, 0),
+    });
+  }
+
+  // 4. Geo diversification assessment
+  const totalGeo = Object.values(geoAllocation).reduce((s, v) => s + v, 0);
+  const francePct = totalGeo > 0 ? ((geoAllocation.france || 0) / totalGeo * 100) : 0;
+  insights.push({
+    type: 'geo',
+    title: 'Diversification G\u00e9ographique',
+    francePct: francePct,
+    usPct: totalGeo > 0 ? ((geoAllocation.us || 0) / totalGeo * 100) : 0,
+    cryptoPct: totalGeo > 0 ? ((geoAllocation.crypto || 0) / totalGeo * 100) : 0,
+    emergingPct: totalGeo > 0 ? (((geoAllocation.morocco || 0) + (geoAllocation.japan || 0)) / totalGeo * 100) : 0,
+  });
+
+  // 5. Cost efficiency
+  const commissions = Math.abs(meta.commissions || 0);
+  const commPct = totalPositionsVal > 0 ? commissions / totalPositionsVal * 100 : 0;
+  insights.push({
+    type: 'costs',
+    title: 'Co\u00fbts & Efficience',
+    commissions: commissions,
+    commPct: commPct,
+    dividends: meta.dividends || 0,
+    divYield: totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0,
+  });
+
+  // 6. Strategic recommendation
+  insights.push({
+    type: 'recommendation',
+    title: 'Recommandations Strat\u00e9giques',
+    twr: meta.twr || 0,
+    combinedRealizedPL: combinedRealizedPL,
+    totalDeposits: totalDeposits,
+    francePct: francePct,
+    currentLosersCount: currentLosers.length,
+    winRate: winRate,
+  });
+
   return {
     ibkrPositions,
     ibkrNAV,
@@ -155,6 +238,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     totalDeposits,
     geoAllocation,
     sectorAllocation,
+    insights,
   };
 }
 
