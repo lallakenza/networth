@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js?v=2';
 
 /**
  * Convert a foreign amount to EUR using FX rates
