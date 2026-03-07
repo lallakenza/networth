@@ -686,33 +686,41 @@ function buildCoupleTreemap(state) {
           padding: 14,
           cornerRadius: 8,
           displayColors: false,
-          filter: function(item) {
-            // Hide tooltip for category header rectangles — only show for leaf items
-            const d = item.raw?._data;
-            return !isCategoryHeader(d);
-          },
           callbacks: {
             title: items => {
+              // Find the leaf item (path contains '.'), skip category headers
+              const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
+              if (leaf) return leaf.raw._data.label || '';
+              // Fallback: category header
               const d = items[0]?.raw?._data;
-              if (!d) return '';
-              // d.label is the item label (e.g. "Airbus (AIR)")
-              return d.label || '';
+              return d?.label || '';
             },
-            label: item => {
-              const v = item.raw?.v || 0;
-              const d = item.raw?._data;
-              if (!d) return fmt(v);
+            beforeBody: items => {
+              // Find leaf item and render its info
+              const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
+              if (!leaf) {
+                // Category header only — show category total
+                const v = items[0]?.raw?.v || 0;
+                const pctNW = (v / grandTotal * 100).toFixed(1);
+                return [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
+              }
+              const v = leaf.raw.v || 0;
+              const d = leaf.raw._data;
               const pctNW = (v / grandTotal * 100).toFixed(1);
               const lines = [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
-              // Get category from the wrapped data child
+              // Get category from wrapped data child
               const child = d.children && d.children[0];
-              const category = (child && child.category) || d.category || '';
+              const category = (child && child.category) || '';
               const catTot = (child && child.catTotal) || catTotals[category] || 0;
               if (catTot > 0) {
                 const pctCat = (v / catTot * 100).toFixed(1);
                 lines.push(pctCat + '% de « ' + category + ' »');
               }
               return lines;
+            },
+            label: () => {
+              // All content rendered via beforeBody — suppress per-item labels
+              return null;
             }
           }
         }
