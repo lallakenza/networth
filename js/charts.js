@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=7';
-import { getGrandTotal } from './engine.js?v=7';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=7';
+import { fmt, fmtAxis } from './render.js?v=8';
+import { getGrandTotal } from './engine.js?v=8';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=8';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -634,13 +634,13 @@ function buildCoupleTreemap(state) {
             const area = w * h;
             const d = ctx.raw?._data;
             if (isCategoryHeader(d)) {
-              return [{ size: Math.min(16, Math.max(10, w / 8)), weight: 'bold' }];
+              return [{ size: Math.min(15, Math.max(10, w / 8)), weight: 'bold' }];
             }
-            // 4 lines: name-value (bold), owner (italic-ish), % cat, % total
-            if (area > 12000) return [{ size: 14, weight: 'bold' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }];
-            if (area > 6000) return [{ size: 12, weight: 'bold' }, { size: 9, weight: 'normal' }, { size: 9, weight: 'normal' }, { size: 9, weight: 'normal' }];
-            if (area > 3000) return [{ size: 11, weight: 'bold' }, { size: 8, weight: 'normal' }];
-            return [{ size: 9, weight: 'bold' }];
+            // Leaf: line 1 = name (bold), line 2 = value (lighter)
+            if (area > 6000) return [{ size: 14, weight: 'bold' }, { size: 11, weight: 'normal' }];
+            if (area > 3000) return [{ size: 12, weight: 'bold' }, { size: 10, weight: 'normal' }];
+            if (area > 1500) return [{ size: 10, weight: 'bold' }];
+            return [{ size: 8, weight: 'bold' }];
           },
           formatter: function(ctx) {
             if (!ctx || !ctx.raw) return '';
@@ -651,35 +651,23 @@ function buildCoupleTreemap(state) {
             const w = ctx.raw.w || 0;
             const h = ctx.raw.h || 0;
             const area = w * h;
-            if (isCategoryHeader(d)) {
+            if (isCategoryHeader(d)) return label;
+            // Tiny — hide
+            if (area < 600) return '';
+            // Very small — acronym / short
+            if (area < 1500) {
+              return label.length > 6 ? label.substring(0, 5) + '.' : label;
+            }
+            // Small — name only
+            if (area < 3000) {
+              if (w < 80 && label.length > 8) return label.substring(0, 7) + '.';
               return label;
             }
-            // Tiny boxes — nothing
-            if (area < 1200) return '';
-            // Very small — just short name
-            if (area < 2000) {
-              return label.length > 10 ? label.substring(0, 8) + '..' : label;
-            }
-
+            // Medium+ — name + value below (details in tooltip)
             const valK = v >= 1000 ? '€' + (v / 1000).toFixed(0) + 'K' : '€' + Math.round(v);
-            const child = d.children && d.children[0];
-            const category = (child && child.category) || '';
-            const catTot = (child && child.catTotal) || catTotals[category] || 0;
-            const owner = (child && child.owner) || '';
-            const pctNW = (v / grandTotal * 100).toFixed(1);
-            const pctCat = catTot > 0 ? (v / catTot * 100).toFixed(0) : '?';
-
-            // Line 1: Name - Value (always shown)
             let displayLabel = label;
-            if (w < 120 && label.length > 14) displayLabel = label.substring(0, 12) + '..';
-            const line1 = displayLabel + ' — ' + valK;
-
-            // Small-medium: 2 lines
-            if (area < 3000) return [line1, pctCat + '% cat · ' + pctNW + '% NW'];
-            // Medium: 2 lines
-            if (area < 6000) return [line1, pctCat + '% ' + category + ' · ' + pctNW + '% NW'];
-            // Large: 4 lines with owner
-            return [line1, owner, pctCat + '% de ' + category, pctNW + '% du patrimoine'];
+            if (w < 100 && label.length > 12) displayLabel = label.substring(0, 10) + '..';
+            return [displayLabel, valK];
           }
         }
       }]
