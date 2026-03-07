@@ -18,18 +18,24 @@ let stockSource = 'statique';
 let currentState = null;
 let simulatorsBound = false;
 
+const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
+
 // ---- Central refresh ----
 function refresh() {
   currentState = compute(PORTFOLIO, currentFX, stockSource);
   render(currentState, currentView, currentCurrency);
-  rebuildAllCharts(currentState);
-  buildCFProjection(currentState);
-  initSimulators(currentState);
+  rebuildAllCharts(currentState, currentView);
 
-  // Bind simulator slider events (only once, but with latest state ref)
-  if (!simulatorsBound) {
-    bindSimulatorEvents(currentState, refresh);
-    simulatorsBound = true;
+  // CF projection only for person views and immobilier
+  if (PERSON_VIEWS.includes(currentView)) {
+    buildCFProjection(currentState);
+    initSimulators(currentState);
+
+    // Bind simulator slider events (only once, but with latest state ref)
+    if (!simulatorsBound) {
+      bindSimulatorEvents(currentState, refresh);
+      simulatorsBound = true;
+    }
   }
 }
 

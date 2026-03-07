@@ -35,10 +35,12 @@
   .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
   .cur-btn:hover { color: white; }
 
-  .view-switcher { display: flex; gap: 0; margin: 0 0 32px; background: #2d3748; padding: 16px 0 0; justify-content: center; }
+  .view-switcher { display: flex; gap: 0; margin: 0 0 32px; background: #2d3748; padding: 16px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; }
   .view-btn { padding: 12px 32px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; }
   .view-btn:hover { color: rgba(255,255,255,0.9); }
   .view-btn.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
+  .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
+  .view-btn.asset-view-btn.active { border-bottom-color: #ed8936; }
 
   .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
   .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); }
@@ -100,7 +102,21 @@
   .breakdown-list .bl-label { color: #4a5568; }
   .breakdown-list .bl-val { font-weight: 600; color: var(--primary); }
 
-  @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr 1fr; } .sim-controls { grid-template-columns: 1fr 1fr !important; } .sim-result-strip { grid-template-columns: 1fr 1fr; } .cat-grid { grid-template-columns: 1fr 1fr; } .cat-expand-inner { grid-template-columns: 1fr !important; } }
+  .prop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+  .prop-card { background: white; border-radius: 12px; padding: 20px; border: 2px solid #e2e8f0; }
+  .prop-card.conditional { border-color: #fef3c7; background: #fffbeb; }
+  .prop-card h3 { font-size: 16px; color: var(--primary); margin-bottom: 4px; }
+  .prop-card .prop-owner { font-size: 12px; color: var(--gray); margin-bottom: 12px; }
+  .prop-card .prop-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .prop-card .prop-kpi { text-align: center; padding: 8px; background: #f7fafc; border-radius: 8px; }
+  .prop-card .prop-kpi .pk-val { font-size: 18px; font-weight: 700; }
+  .prop-card .prop-kpi .pk-label { font-size: 10px; color: var(--gray); text-transform: uppercase; }
+  .pl-pos { color: var(--green); }
+  .pl-neg { color: var(--red); }
+  .meter-bar { display: flex; height: 24px; border-radius: 12px; overflow: hidden; margin: 12px 0; }
+  .meter-bar .mb-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; min-width: 20px; }
+
+  @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr 1fr; } .sim-controls { grid-template-columns: 1fr 1fr !important; } .sim-result-strip { grid-template-columns: 1fr 1fr; } .cat-grid { grid-template-columns: 1fr 1fr; } .cat-expand-inner { grid-template-columns: 1fr !important; } .prop-grid { grid-template-columns: 1fr; } }
   @media (max-width: 600px) { .kpi-strip { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr; } .view-btn { padding: 10px 16px; font-size: 13px; } .sim-controls { grid-template-columns: 1fr; } .sim-result-strip { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -127,6 +143,11 @@
   <button class="view-btn active" data-view="couple">Couple</button>
   <button class="view-btn" data-view="amine">Amine</button>
   <button class="view-btn" data-view="nezha">Nezha</button>
+  <div class="view-sep"></div>
+  <button class="view-btn asset-view-btn" data-view="actions">&#x1F4C8; Actions</button>
+  <button class="view-btn asset-view-btn" data-view="cash">&#x1F4B0; Cash</button>
+  <button class="view-btn asset-view-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
+  <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
 </div>
 
 <div class="container">
@@ -659,6 +680,157 @@
         <td class="num"><strong>159,593</strong></td><td class="num"><strong>161,166</strong></td><td class="num"><strong>174,268</strong></td><td class="num"><strong>195,462</strong></td><td class="num"><strong>217,550</strong></td><td class="num"><strong>240,507</strong></td></tr>
     </tbody>
   </table>
+</div>
+
+<!-- ============ VUE ACTIONS ============ -->
+<div class="card hidden" data-view="actions">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
+  <div class="kpi-strip" id="kpi-actions" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi green"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label">Total Actions</div></div>
+    <div class="kpi"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute;</div></div>
+    <div class="kpi"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label">P/L R&eacute;alis&eacute;</div></div>
+    <div class="kpi gold"><div class="value" id="kpiActionsTWR">--</div><div class="label">TWR (12 mois)</div></div>
+    <div class="kpi"><div class="value" id="kpiActionsDividends">--</div><div class="label">Dividendes</div></div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h3>Positions IBKR — D&eacute;tail complet</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">Qte</th><th class="num">Prix</th><th class="num">Cost</th><th class="num">Valeur</th><th class="num">P/L</th><th class="num">%</th><th class="num">Poids</th></tr></thead>
+        <tbody id="actionsPositionsTbody"></tbody>
+      </table>
+
+      <h3 style="margin-top:20px;">Positions Ferm&eacute;es (12 mois)</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">P/L R&eacute;alis&eacute;</th></tr></thead>
+        <tbody id="actionsClosedTbody"></tbody>
+      </table>
+
+      <h3 style="margin-top:20px;">Autres Actions (hors IBKR)</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">Valeur</th></tr></thead>
+        <tbody id="actionsOtherTbody"></tbody>
+      </table>
+
+      <h3 style="margin-top:20px;">Cash IBKR Multi-devises</h3>
+      <table>
+        <thead><tr><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
+        <tbody id="actionsCashTbody"></tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Allocation G&eacute;ographique</h3>
+      <div class="chart-container" style="height: 280px;">
+        <canvas id="actionsGeoChart"></canvas>
+      </div>
+      <h3>Allocation Sectorielle</h3>
+      <div class="chart-container" style="height: 280px;">
+        <canvas id="actionsSectorChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>M&eacute;triques IBKR :</strong>
+    Commissions YTD : <strong id="actionsCommissions">--</strong> |
+    D&eacute;p&ocirc;ts totaux : <strong id="actionsDeposits">--</strong> |
+    NAV report&eacute;e : <strong id="actionsNAV">--</strong>
+  </div>
+</div>
+
+<!-- ============ VUE CASH ============ -->
+<div class="card hidden" data-view="cash">
+  <h2><span class="section-icon" style="background: #48bb78;">&#x1F4B0;</span>Tr&eacute;sorerie & Cash</h2>
+  <div class="kpi-strip" id="kpi-cash">
+    <div class="kpi green"><div class="value" id="kpiCashTotal" data-eur="0">--</div><div class="label">Cash Total</div></div>
+    <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement Moyen</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash Productif</div></div>
+  </div>
+
+  <h3>D&eacute;tail par Compte</h3>
+  <table>
+    <thead><tr><th>Compte</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Rendement</th><th class="num">Yield ann.</th></tr></thead>
+    <tbody id="cashAccountsTbody"></tbody>
+  </table>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div>
+      <h3>Cash Productif vs Dormant</h3>
+      <div id="cashYieldBar" class="meter-bar" style="height:32px;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-top:4px;">
+        <span>&#x1F7E2; Productif (&gt;0% yield)</span>
+        <span>&#x1F534; Dormant (0% yield, perd <span id="cashInflationPct">3</span>%/an)</span>
+      </div>
+    </div>
+    <div>
+      <h3>R&eacute;partition par Devise</h3>
+      <div class="chart-container" style="height: 250px;">
+        <canvas id="cashCurrencyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight" style="margin-top:14px;" id="cashJPYNote"></div>
+</div>
+
+<!-- ============ VUE IMMOBILIER ============ -->
+<div class="card hidden" data-view="immobilier">
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Portefeuille Immobilier</h2>
+  <div class="kpi-strip" id="kpi-immo" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi gold"><div class="value" id="kpiImmoViewEq" data-eur="0">--</div><div class="label">Equity Totale</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewVal" data-eur="0">--</div><div class="label">Valeur Totale</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewCRD" data-eur="0">--</div><div class="label">CRD Total</div></div>
+    <div class="kpi green"><div class="value" id="kpiImmoViewWealth">--</div><div class="label">Cr&eacute;ation Richesse /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF Net /mois</div></div>
+  </div>
+
+  <div class="prop-grid" id="propGrid"></div>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoViewEquityChart"></canvas>
+    </div>
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoViewProjectionChart"></canvas>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;">Synth&egrave;se Pr&ecirc;ts</h3>
+  <table>
+    <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Yield brut</th><th class="num">Yield net</th></tr></thead>
+    <tbody id="immoLoansTbody"></tbody>
+  </table>
+</div>
+
+<!-- ============ VUE CREANCES ============ -->
+<div class="card hidden" data-view="creances">
+  <h2><span class="section-icon" style="background: #cbd5e0;">&#x1F4CB;</span>Cr&eacute;ances & Recouvrements</h2>
+  <div class="kpi-strip" id="kpi-creances" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi"><div class="value" id="kpiCreancesNominal" data-eur="0">--</div><div class="label">Total Nominal</div></div>
+    <div class="kpi green"><div class="value" id="kpiCreancesExpected" data-eur="0">--</div><div class="label">Valeur Attendue</div></div>
+    <div class="kpi" style="border-top-color:var(--green)"><div class="value" id="kpiCreancesGuaranteed" data-eur="0">--</div><div class="label">Garanti</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCreancesUncertain" data-eur="0">--</div><div class="label">Incertain</div></div>
+    <div class="kpi"><div class="value" id="kpiCreancesInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
+  </div>
+
+  <h3>D&eacute;tail des Cr&eacute;ances</h3>
+  <table>
+    <thead><tr><th>Cr&eacute;ance</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Probabilit&eacute;</th><th class="num">Valeur attendue</th><th class="num">Inflation /mois</th></tr></thead>
+    <tbody id="creancesDetailTbody"></tbody>
+  </table>
+
+  <h3 style="margin-top:20px;">Garanti vs Incertain</h3>
+  <div id="creancesBar" class="meter-bar" style="height:32px;"></div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-top:4px;">
+    <span>&#x1F7E2; Garanti (recouvrement certain)</span>
+    <span>&#x1F534; Incertain (probabilit&eacute; &lt; 100%)</span>
+  </div>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>Analyse :</strong> Les cr&eacute;ances non-garanties perdent de la valeur chaque mois &agrave; cause de l'inflation. Plus le recouvrement tarde, plus le co&ucirc;t d'opportunit&eacute; augmente. Prioriser par montant x probabilit&eacute;.
+  </div>
 </div>
 
 <footer>

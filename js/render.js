@@ -45,33 +45,55 @@ export function render(state, view, currency) {
 
   renderHeader(state, view);
   renderKPIs(state, view);
-  renderCategoryCards(state, view);
-  renderCategoryPcts(state, view);
-  renderExpandSubs(state);
-  renderCoupleTable(state);
-  renderAmineTable(state);
-  renderNezhaTable(state);
-  renderIBKRPositions(state);
-  renderImmoKPIs(state);
+
+  if (PERSON_VIEWS.includes(view)) {
+    renderCategoryCards(state, view);
+    renderCategoryPcts(state, view);
+    renderExpandSubs(state);
+    renderCoupleTable(state);
+    renderAmineTable(state);
+    renderNezhaTable(state);
+    renderIBKRPositions(state);
+    renderImmoKPIs(state);
+    renderImmoPcts(state);
+  }
+
+  // Asset-type views
+  if (view === 'actions') renderActionsView(state);
+  if (view === 'cash') renderCashView(state);
+  if (view === 'immobilier') renderImmoView(state);
+  if (view === 'creances') renderCreancesView(state);
+
   renderBadges(state);
-  renderImmoPcts(state);
   updateAllDataEur();
 }
 
 // ---- Individual render functions ----
 
+const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances'];
+const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
+
 function renderHeader(state, view) {
   const v = state.views[view];
   const titleEl = document.getElementById('headerTitle');
   const subEl = document.getElementById('headerSub');
-  if (titleEl) titleEl.textContent = v.title;
-  if (subEl) subEl.textContent = v.subtitle;
+  if (v) {
+    if (titleEl) titleEl.textContent = v.title;
+    if (subEl) subEl.textContent = v.subtitle;
+  } else {
+    // Asset views
+    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements' };
+    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9' };
+    if (titleEl) titleEl.textContent = titles[view] || '';
+    if (subEl) subEl.textContent = subs[view] || '';
+  }
 }
 
 function renderKPIs(state, view) {
   const s = state;
+  const isAssetView = ASSET_VIEWS.includes(view);
 
-  // Show/hide KPI strips
+  // Show/hide KPI strips (person views)
   ['couple', 'amine', 'nezha'].forEach(v => {
     const el = document.getElementById('kpi-' + v);
     if (el) el.classList.toggle('hidden', v !== view);
@@ -82,6 +104,10 @@ function renderKPIs(state, view) {
     const views = el.dataset.view.split(' ');
     el.classList.toggle('hidden', !views.includes(view));
   });
+
+  // Hide cat-grid and expand sections for asset views
+  const catNav = document.getElementById('catNav');
+  if (catNav) catNav.classList.toggle('hidden', isAssetView);
 
   // Set KPI values
   setEur('kpiCoupleNW', s.couple.nw);
@@ -220,7 +246,7 @@ function renderAmineTable(state) {
     ['Immobilier Vitry (equity \u2014 val. appreciee 2%/an)', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', s.amine.recvPro],
-    ['Creances personnelles (' + Math.round(p.amine.creances.persoMAD).toLocaleString('fr-FR') + ' MAD + ' + p.amine.creances.persoEUR.toLocaleString('fr-FR') + ' EUR)', s.amine.recvPersonal],
+    ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
     ['TVA a payer', s.amine.tva],
   ];
   buildDetailTable('#amineDetailTable tbody', rows, 'Net Worth Amine');
@@ -233,8 +259,8 @@ function renderNezhaTable(state) {
   const rows = [
     ['Equity Rueil-Malmaison', s.nezha.rueilEquity],
     ['Cash France', s.nezha.cashFrance],
-    ['Cash Maroc (' + Math.round(p.nezha.cashMaroc).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc],
-    ['Creance Omar (' + Math.round(p.nezha.recvOmar).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
+    ['Cash Maroc (' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc],
+    ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
   ];
   const tbody = document.querySelector('#nezhaDetailTable tbody');
@@ -346,6 +372,276 @@ function setText(id, text) {
 function setHTML(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
+}
+
+// ---- ASSET VIEW RENDERERS ----
+
+function renderActionsView(state) {
+  const av = state.actionsView;
+  // KPIs
+  setEur('kpiActionsTotal', av.totalStocks);
+  const plCls = av.totalUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+  const plSign = av.totalUnrealizedPL >= 0 ? '+' : '';
+  setText('kpiActionsUnrealizedPL', plSign + fmt(av.totalUnrealizedPL));
+  document.getElementById('kpiActionsUnrealizedPL')?.classList.add(plCls);
+  setText('kpiActionsRealizedPL', '+' + fmt(av.realizedPL));
+  document.getElementById('kpiActionsRealizedPL')?.classList.add('pl-pos');
+  setText('kpiActionsTWR', '+' + av.twr.toFixed(1) + '%');
+  setText('kpiActionsDividends', fmt(av.dividends));
+
+  // Positions table
+  const tbody = document.getElementById('actionsPositionsTbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    let totalVal = 0, totalCost = 0;
+    av.ibkrPositions.forEach(pos => {
+      totalVal += pos.valEUR;
+      totalCost += pos.costEUR;
+      const plC = pos.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+      const plS = pos.unrealizedPL >= 0 ? '+' : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + pos.label + '</td>'
+        + '<td class="num">' + pos.shares + '</td>'
+        + '<td class="num">' + pos.priceLabel + '</td>'
+        + '<td class="num">' + fmt(pos.costEUR) + '</td>'
+        + '<td class="num">' + fmt(pos.valEUR) + '</td>'
+        + '<td class="num ' + plC + '">' + plS + fmt(pos.unrealizedPL) + '</td>'
+        + '<td class="num ' + plC + '">' + plS + pos.pctPL.toFixed(1) + '%</td>'
+        + '<td class="num">' + pos.weight.toFixed(1) + '%</td>';
+      tbody.appendChild(tr);
+    });
+    // Total row
+    const totalPL = totalVal - totalCost;
+    const totalPctPL = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
+    const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
+    const tPlS = totalPL >= 0 ? '+' : '';
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td><strong>Total Positions</strong></td><td></td><td></td>'
+      + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
+      + '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>'
+      + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
+      + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
+      + '<td class="num">100%</td>';
+    tbody.appendChild(tr);
+  }
+
+  // Closed positions
+  const closedTbody = document.getElementById('actionsClosedTbody');
+  if (closedTbody) {
+    closedTbody.innerHTML = '';
+    let totalClosed = 0;
+    av.closedPositions.forEach(cp => {
+      totalClosed += cp.pl;
+      const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
+      const s = cp.pl >= 0 ? '+' : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + cp.label + ' (' + cp.ticker + ')</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+      closedTbody.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
+    tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalClosed) + '</strong></td>';
+    closedTbody.appendChild(tr);
+  }
+
+  // Other actions (ESPP + SGTM)
+  const otherTbody = document.getElementById('actionsOtherTbody');
+  if (otherTbody) {
+    otherTbody.innerHTML = '';
+    [
+      ['ESPP Accenture (' + av.esppShares + ' ACN @ $' + av.esppPrice + ')', av.esppVal],
+      ['SGTM Amine (32 actions)', av.sgtmAmineVal],
+      ['SGTM Nezha (32 actions)', av.sgtmNezhaVal],
+    ].forEach(([label, val]) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + label + '</td><td class="num">' + fmt(val) + '</td>';
+      otherTbody.appendChild(tr);
+    });
+  }
+
+  // IBKR cash table
+  const cashTbody = document.getElementById('actionsCashTbody');
+  if (cashTbody) {
+    cashTbody.innerHTML = '';
+    const fx = state.fx;
+    [
+      ['EUR', av.ibkrCashEUR.toLocaleString('fr-FR'), fmt(av.ibkrCashEUR)],
+      ['USD', '$' + av.ibkrCashUSD.toLocaleString('en-US'), fmt(av.ibkrCashUSD / fx.USD)],
+      ['JPY', '\u00a5' + av.ibkrCashJPY.toLocaleString('ja-JP'), fmt(av.ibkrCashJPY / fx.JPY)],
+    ].forEach(([cur, native, eur]) => {
+      const tr = document.createElement('tr');
+      const cls = cur === 'JPY' ? 'pl-neg' : '';
+      tr.innerHTML = '<td>' + cur + '</td><td class="num ' + cls + '">' + native + '</td><td class="num ' + cls + '">' + eur + '</td>';
+      cashTbody.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td><strong>Total Cash IBKR</strong></td><td></td><td class="num"><strong>' + fmt(av.ibkrCashTotal) + '</strong></td>';
+    cashTbody.appendChild(tr);
+  }
+
+  // Metrics
+  setText('actionsCommissions', fmt(av.commissions));
+  setText('actionsDeposits', fmt(av.deposits));
+  setText('actionsNAV', fmt(av.ibkrNAV));
+}
+
+function renderCashView(state) {
+  const cv = state.cashView;
+  // KPIs
+  setEur('kpiCashTotal', cv.totalCash);
+  setText('kpiCashAvgYield', (cv.weightedAvgYield * 100).toFixed(1) + '%');
+  setText('kpiCashInflation', '-' + fmt(cv.monthlyInflationCost));
+  document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
+  setText('kpiCashProductive', fmt(cv.totalYielding));
+
+  // Accounts table
+  const tbody = document.getElementById('cashAccountsTbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    cv.accounts.forEach(a => {
+      const yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(0) + '%' : '0%';
+      const yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + a.label + '</td>'
+        + '<td>' + a.owner + '</td>'
+        + '<td>' + a.currency + '</td>'
+        + '<td class="num">' + Math.round(a.native).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + fmt(a.valEUR) + '</td>'
+        + '<td class="num">' + yieldStr + '</td>'
+        + '<td class="num">' + yieldAnn + '</td>';
+      tbody.appendChild(tr);
+    });
+    // Total
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
+      + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
+      + '<td class="num"><strong>' + (cv.weightedAvgYield * 100).toFixed(1) + '%</strong></td>'
+      + '<td></td>';
+    tbody.appendChild(tr);
+  }
+
+  // Yield bar
+  const bar = document.getElementById('cashYieldBar');
+  if (bar && cv.totalCash > 0) {
+    const pctProd = (cv.totalYielding / cv.totalCash * 100).toFixed(0);
+    const pctDorm = (100 - pctProd).toFixed(0);
+    bar.innerHTML = '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + pctProd + '% (' + fmt(cv.totalYielding, true) + ')</div>'
+      + '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + pctDorm + '% (' + fmt(cv.totalNonYielding, true) + ')</div>';
+  }
+
+  // JPY note
+  const jpyNote = document.getElementById('cashJPYNote');
+  if (jpyNote) {
+    jpyNote.innerHTML = '<strong>Note — Position JPY Short (IBKR) :</strong> ' + fmt(cv.jpyShortEUR)
+      + ' (emprunt \u00a5' + Math.abs(state.portfolio.amine.ibkr.cashJPY).toLocaleString('ja-JP') + '). '
+      + 'Ce n\'est pas du cash mais un levier devise. Non inclus dans le total cash ci-dessus. '
+      + 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(Math.abs(cv.jpyShortEUR) * 0.1) + '.';
+  }
+}
+
+function renderImmoView(state) {
+  const iv = state.immoView;
+  // KPIs
+  setEur('kpiImmoViewEq', iv.totalEquity);
+  setEur('kpiImmoViewVal', iv.totalValue);
+  setEur('kpiImmoViewCRD', iv.totalCRD);
+  setText('kpiImmoViewWealth', '+' + fmt(iv.totalWealthCreation) + '/mois');
+  const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
+  const cfSign = iv.totalCF >= 0 ? '+' : '';
+  setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
+  document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
+
+  // Property cards
+  const grid = document.getElementById('propGrid');
+  if (grid) {
+    grid.innerHTML = '';
+    iv.properties.forEach(prop => {
+      const card = document.createElement('div');
+      card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
+      const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
+      const cfSign = prop.cf >= 0 ? '+' : '';
+      card.innerHTML = '<h3>' + prop.name + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
+        + '<div class="prop-owner">' + prop.owner + '</div>'
+        + '<div class="prop-kpis">'
+        + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.crd) + '</div><div class="pk-label">CRD</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer</div></div>'
+        + '</div>';
+      grid.appendChild(card);
+    });
+  }
+
+  // Loans table
+  const loansTbody = document.getElementById('immoLoansTbody');
+  if (loansTbody) {
+    loansTbody.innerHTML = '';
+    iv.properties.forEach(prop => {
+      const tr = document.createElement('tr');
+      if (prop.conditional) tr.style.color = '#92400e';
+      tr.innerHTML = '<td>' + prop.name + '</td>'
+        + '<td class="num">' + prop.monthlyPayment + '/mois</td>'
+        + '<td class="num">' + (prop.monthlyPayment - (prop.charges - prop.monthlyPayment > 0 ? 0 : 0)) + '</td>'
+        + '<td class="num">' + prop.ltv.toFixed(1) + '%</td>'
+        + '<td class="num">' + prop.endYear + '</td>'
+        + '<td class="num">' + prop.yieldGross.toFixed(1) + '%</td>'
+        + '<td class="num ' + (prop.yieldNet >= 0 ? 'pl-pos' : 'pl-neg') + '">' + prop.yieldNet.toFixed(1) + '%</td>';
+      loansTbody.appendChild(tr);
+    });
+  }
+}
+
+function renderCreancesView(state) {
+  const crv = state.creancesView;
+  // KPIs
+  setEur('kpiCreancesNominal', crv.totalNominal);
+  setEur('kpiCreancesExpected', crv.totalExpected);
+  setEur('kpiCreancesGuaranteed', crv.totalGuaranteed);
+  setEur('kpiCreancesUncertain', crv.totalUncertain);
+  setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
+
+  // Detail table
+  const tbody = document.getElementById('creancesDetailTbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    crv.items.forEach(item => {
+      const tr = document.createElement('tr');
+      const probStyle = item.guaranteed ? 'color:var(--green);font-weight:600' : (item.probability >= 0.7 ? 'color:#d69e2e' : 'color:var(--red)');
+      tr.innerHTML = '<td>' + item.label + (item.guaranteed ? ' <span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749">GARANTI</span>' : '') + '</td>'
+        + '<td>' + item.owner + '</td>'
+        + '<td>' + item.currency + '</td>'
+        + '<td class="num">' + Math.round(item.amount).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + fmt(item.amountEUR) + '</td>'
+        + '<td class="num" style="' + probStyle + '">' + (item.probability * 100).toFixed(0) + '%</td>'
+        + '<td class="num">' + fmt(item.expectedValue) + '</td>'
+        + '<td class="num ' + (item.monthlyInflationCost > 0 ? 'pl-neg' : '') + '">' + (item.monthlyInflationCost > 0 ? '-' + fmt(item.monthlyInflationCost) : '-') + '</td>';
+      tbody.appendChild(tr);
+    });
+    // Totals
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
+      + '<td class="num"><strong>' + fmt(crv.totalNominal) + '</strong></td>'
+      + '<td></td>'
+      + '<td class="num"><strong>' + fmt(crv.totalExpected) + '</strong></td>'
+      + '<td class="num pl-neg"><strong>-' + fmt(crv.monthlyInflationCost) + '</strong></td>';
+    tbody.appendChild(tr);
+  }
+
+  // Garanti vs Incertain bar
+  const bar = document.getElementById('creancesBar');
+  if (bar && crv.totalNominal > 0) {
+    const pctG = (crv.totalGuaranteed / crv.totalNominal * 100).toFixed(0);
+    const pctU = (100 - pctG).toFixed(0);
+    bar.innerHTML = '<div class="mb-seg" style="width:' + pctG + '%;background:var(--green)">' + pctG + '% (' + fmt(crv.totalGuaranteed, true) + ')</div>'
+      + '<div class="mb-seg" style="width:' + pctU + '%;background:var(--red)">' + pctU + '% (' + fmt(crv.totalUncertain, true) + ')</div>';
+  }
 }
 
 function buildDetailTable(selector, rows, totalLabel) {

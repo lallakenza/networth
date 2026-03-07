@@ -16,16 +16,34 @@ export function destroyAllCharts() {
   charts = {};
 }
 
+const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
+
 // ============ MAIN ENTRY ============
-export function rebuildAllCharts(state) {
+export function rebuildAllCharts(state, view) {
   _state = state;
   destroyAllCharts();
-  buildCoupleDrillDown(state);
-  buildAmineDonut(state);
-  buildNezhaDonut(state);
-  buildGeoChart(state);
-  buildImmoEquityBar(state);
-  buildImmoProjection(state);
+  view = view || 'couple';
+
+  if (PERSON_VIEWS.includes(view)) {
+    buildCoupleDrillDown(state);
+    buildAmineDonut(state);
+    buildNezhaDonut(state);
+    buildGeoChart(state);
+    buildImmoEquityBar(state);
+    buildImmoProjection(state);
+  }
+
+  if (view === 'actions') {
+    buildActionsGeoDonut(state);
+    buildActionsSectorDonut(state);
+  }
+  if (view === 'cash') {
+    buildCashCurrencyDonut(state);
+  }
+  if (view === 'immobilier') {
+    buildImmoViewEquityBar(state);
+    buildImmoViewProjection(state);
+  }
 }
 
 // ============ COUPLE DRILL-DOWN DONUT ============
@@ -381,4 +399,108 @@ export function buildCFProjection(state) {
   const fn = document.createElement('tr');
   fn.innerHTML = '<td colspan="5" style="font-size:10px;color:var(--gray);padding-top:8px">* Augmentation loyer Vitry a 1,400. ** Debut remboursement + loyer Villejuif (loyers pre-2030 absorbent les travaux).</td>';
   tbody.appendChild(fn);
+}
+
+// ============ ACTIONS GEO DONUT ============
+function buildActionsGeoDonut(state) {
+  const el = document.getElementById('actionsGeoChart');
+  if (!el) return;
+  const geo = state.actionsView.geoAllocation;
+  const labels = { france: 'France', crypto: 'Crypto', us: 'US/Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
+  const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e' };
+  const entries = Object.entries(geo).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  const total = entries.reduce((s,[,v]) => s + v, 0);
+
+  charts.actionsGeo = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => labels[k] || k),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/total*100).toFixed(1) + '%)' } } } }
+  });
+}
+
+// ============ ACTIONS SECTOR DONUT ============
+function buildActionsSectorDonut(state) {
+  const el = document.getElementById('actionsSectorChart');
+  if (!el) return;
+  const sec = state.actionsView.sectorAllocation;
+  const labels = { luxury: 'Luxe', industrials: 'Industrie', tech: 'Tech', crypto: 'Crypto', consumer: 'Conso', healthcare: 'Sant\u00e9', automotive: 'Auto' };
+  const colors = { luxury: '#9f7aea', industrials: '#2b6cb0', tech: '#48bb78', crypto: '#ed8936', consumer: '#e53e3e', healthcare: '#38a169', automotive: '#4a5568' };
+  const entries = Object.entries(sec).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  const total = entries.reduce((s,[,v]) => s + v, 0);
+
+  charts.actionsSector = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => labels[k] || k),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/total*100).toFixed(1) + '%)' } } } }
+  });
+}
+
+// ============ CASH CURRENCY DONUT ============
+function buildCashCurrencyDonut(state) {
+  const el = document.getElementById('cashCurrencyChart');
+  if (!el) return;
+  const byCur = state.cashView.byCurrency;
+  const colors = { EUR: '#2b6cb0', AED: '#48bb78', MAD: '#ed8936', USD: '#9f7aea' };
+  const entries = Object.entries(byCur).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  const total = entries.reduce((s,[,v]) => s + v, 0);
+
+  charts.cashCurrency = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/total*100).toFixed(1) + '%)' } } } }
+  });
+}
+
+// ============ IMMO VIEW EQUITY BAR ============
+function buildImmoViewEquityBar(state) {
+  const el = document.getElementById('immoViewEquityChart');
+  if (!el) return;
+  const props = state.immoView.properties;
+  charts.immoViewEq = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: props.map(p => p.name + ' (' + p.owner + ')'),
+      datasets: [{ label: 'Equity', data: props.map(p => p.equity), backgroundColor: ['#4a5568','#2b6cb0','#2c7a7b'] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
+      scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
+// ============ IMMO VIEW PROJECTION ============
+function buildImmoViewProjection(state) {
+  const el = document.getElementById('immoViewProjectionChart');
+  if (!el) return;
+  charts.immoViewProj = new Chart(el, {
+    type: 'line',
+    data: {
+      labels: ['2027','2028','2029','2030','2031','2032'],
+      datasets: [
+        { label: 'Vitry', data: [36301,48505,60709,72913,85117,97321], borderColor: '#4a5568', backgroundColor: 'rgba(74,85,104,0.1)', fill: true, tension: 0.3 },
+        { label: 'Rueil', data: [85543,97707,110020,122468,135060,147799], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.1)', fill: true, tension: 0.3 },
+        { label: 'Villejuif', data: [0,0,11039,29706,48808,68307], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.1)', fill: true, tension: 0.3 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
 }

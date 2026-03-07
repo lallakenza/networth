@@ -3,6 +3,8 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js';
+
 /**
  * Convert a foreign amount to EUR using FX rates
  */
@@ -12,29 +14,289 @@ function toEUR(amount, currency, fx) {
 }
 
 /**
- * Compute IBKR NAV from individual positions
+ * Compute IBKR NAV from individual positions + multi-currency cash
  */
 function computeIBKR(portfolio, fx, stockSource) {
-  if (stockSource !== 'live') return portfolio.amine.ibkr.staticNAV;
-  let total = portfolio.amine.ibkr.cashEUR;
-  portfolio.amine.ibkr.positions.forEach(pos => {
-    total += toEUR(pos.shares * pos.price, pos.currency, fx);
+  const ibkr = portfolio.amine.ibkr;
+  if (stockSource !== 'live') return ibkr.staticNAV;
+  // Sum position values
+  let posTotal = 0;
+  ibkr.positions.forEach(pos => {
+    posTotal += toEUR(pos.shares * pos.price, pos.currency, fx);
   });
-  return total;
+  // Multi-currency cash
+  const cashTotal = ibkr.cashEUR
+    + toEUR(ibkr.cashUSD, 'USD', fx)
+    + toEUR(ibkr.cashJPY, 'JPY', fx);
+  return posTotal + cashTotal;
 }
 
 /**
- * Compute individual IBKR position values (for table display)
+ * Compute individual IBKR position values with P/L (for table display)
  */
 function computeIBKRPositions(portfolio, fx) {
-  return portfolio.amine.ibkr.positions.map(pos => {
+  const ibkr = portfolio.amine.ibkr;
+  const positions = ibkr.positions.map(pos => {
     const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+    const costEUR = toEUR(pos.shares * pos.costBasis, pos.currency, fx);
+    const unrealizedPL = valEUR - costEUR;
+    const pctPL = costEUR > 0 ? (unrealizedPL / costEUR * 100) : 0;
     let priceLabel = '';
     if (pos.currency === 'EUR') priceLabel = pos.price.toFixed(2) + ' EUR';
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
     else if (pos.currency === 'JPY') priceLabel = '\u00a5' + Math.round(pos.price);
-    return { ...pos, valEUR, priceLabel };
+    return { ...pos, valEUR, costEUR, unrealizedPL, pctPL, priceLabel };
   }).sort((a, b) => b.valEUR - a.valEUR);
+
+  // Compute weights
+  const totalVal = positions.reduce((s, p) => s + p.valEUR, 0);
+  positions.forEach(p => { p.weight = totalVal > 0 ? (p.valEUR / totalVal * 100) : 0; });
+  return positions;
+}
+
+/**
+ * Compute actions view data (stocks cockpit)
+ */
+function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp) {
+  const ibkr = portfolio.amine.ibkr;
+  const m = portfolio.market;
+
+  // IBKR cash in EUR
+  const ibkrCashEUR = ibkr.cashEUR;
+  const ibkrCashUSD = ibkr.cashUSD;
+  const ibkrCashJPY = ibkr.cashJPY;
+  const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx);
+
+  // Total positions value (excl cash)
+  const totalPositionsVal = ibkrPositions.reduce((s, p) => s + p.valEUR, 0);
+  const totalCostBasis = ibkrPositions.reduce((s, p) => s + p.costEUR, 0);
+  const totalUnrealizedPL = totalPositionsVal - totalCostBasis;
+
+  // Total all stocks (IBKR positions + cash + ESPP + SGTM)
+  const totalStocks = ibkrNAV + amineEspp + amineSgtm + nezhaSgtm;
+
+  // Geo allocation from positions
+  const geoAllocation = {};
+  ibkrPositions.forEach(p => {
+    const geo = p.geo || 'other';
+    geoAllocation[geo] = (geoAllocation[geo] || 0) + p.valEUR;
+  });
+  // Add ESPP to US, SGTM to morocco
+  geoAllocation.us = (geoAllocation.us || 0) + amineEspp;
+  geoAllocation.morocco = (geoAllocation.morocco || 0) + amineSgtm + nezhaSgtm;
+
+  // Sector allocation from positions
+  const sectorAllocation = {};
+  ibkrPositions.forEach(p => {
+    const sec = p.sector || 'other';
+    sectorAllocation[sec] = (sectorAllocation[sec] || 0) + p.valEUR;
+  });
+
+  const meta = ibkr.meta || {};
+
+  return {
+    ibkrPositions,
+    ibkrNAV,
+    ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
+    totalPositionsVal, totalCostBasis, totalUnrealizedPL,
+    esppVal: amineEspp,
+    esppShares: portfolio.amine.espp.shares,
+    esppPrice: m.acnPriceUSD,
+    sgtmAmineVal: amineSgtm,
+    sgtmNezhaVal: nezhaSgtm,
+    sgtmTotal: amineSgtm + nezhaSgtm,
+    totalStocks,
+    twr: meta.twr || 0,
+    realizedPL: meta.realizedPL || 0,
+    dividends: meta.dividends || 0,
+    commissions: meta.commissions || 0,
+    closedPositions: meta.closedPositions || [],
+    deposits: meta.deposits || 0,
+    geoAllocation,
+    sectorAllocation,
+  };
+}
+
+/**
+ * Compute cash view data
+ */
+function computeCashView(portfolio, fx) {
+  const p = portfolio;
+  const accounts = [
+    { label: 'Mashreq NEO+', native: p.amine.uae.mashreq, currency: 'AED', yield: CASH_YIELDS.mashreq, owner: 'Amine' },
+    { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
+    { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
+    { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
+    { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
+    { label: 'BMCE/BOA', native: p.amine.maroc.bmce, currency: 'MAD', yield: CASH_YIELDS.bmce, owner: 'Amine' },
+    { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR', yield: CASH_YIELDS.ibkrCashEUR, owner: 'Amine' },
+    { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD', yield: CASH_YIELDS.ibkrCashUSD, owner: 'Amine' },
+    { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
+    { label: 'Cash France', native: p.nezha.cashFrance, currency: 'EUR', yield: CASH_YIELDS.nezhaCashFrance, owner: 'Nezha' },
+    { label: 'Cash Maroc', native: p.nezha.cashMaroc, currency: 'MAD', yield: CASH_YIELDS.nezhaCashMaroc, owner: 'Nezha' },
+  ];
+
+  // Note: JPY short is NOT cash, it's a forex liability — exclude from cash view
+  // but mention it as a note
+
+  let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
+  let weightedYieldSum = 0;
+  const byCurrency = {};
+
+  accounts.forEach(a => {
+    a.valEUR = toEUR(a.native, a.currency, fx);
+    totalCash += a.valEUR;
+    if (a.yield > 0) {
+      totalYielding += a.valEUR;
+      weightedYieldSum += a.valEUR * a.yield;
+    } else {
+      totalNonYielding += a.valEUR;
+    }
+    byCurrency[a.currency] = (byCurrency[a.currency] || 0) + a.valEUR;
+  });
+
+  const weightedAvgYield = totalCash > 0 ? (weightedYieldSum / totalCash) : 0;
+  const monthlyInflationCost = totalNonYielding * INFLATION_RATE / 12;
+  const annualInflationCost = totalNonYielding * INFLATION_RATE;
+  const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
+
+  return {
+    accounts,
+    totalCash,
+    totalYielding,
+    totalNonYielding,
+    weightedAvgYield,
+    monthlyInflationCost,
+    annualInflationCost,
+    byCurrency,
+    jpyShortEUR,
+  };
+}
+
+/**
+ * Compute immo view data
+ */
+function computeImmoView(portfolio, fx) {
+  const IC = IMMO_CONSTANTS;
+  const properties = [];
+
+  // Vitry
+  const v = portfolio.amine.immo.vitry;
+  const vitryCharges = IC.charges.vitry.pret + IC.charges.vitry.assurance + IC.charges.vitry.pno + IC.charges.vitry.tf + IC.charges.vitry.copro;
+  const vitryLoyer = v.loyer + (v.parking || 0);
+  const vitryCF = vitryLoyer - vitryCharges;
+  properties.push({
+    name: 'Vitry-sur-Seine', owner: 'Amine',
+    value: v.value, crd: v.crd, equity: v.value - v.crd,
+    ltv: (v.crd / v.value * 100),
+    monthlyPayment: IC.charges.vitry.pret + IC.charges.vitry.assurance,
+    loyer: vitryLoyer, cf: vitryCF,
+    yieldGross: (vitryLoyer * 12 / v.value * 100),
+    yieldNet: (vitryCF * 12 / v.value * 100),
+    wealthCreation: IC.growth.vitry,
+    endYear: IC.prets.vitryEnd,
+    charges: vitryCharges,
+  });
+
+  // Rueil
+  const r = portfolio.nezha.immo.rueil;
+  const rueilCharges = IC.charges.rueil.pret + IC.charges.rueil.assurance + IC.charges.rueil.pno + IC.charges.rueil.tf + IC.charges.rueil.copro;
+  const rueilLoyer = r.loyer;
+  const rueilCF = rueilLoyer - rueilCharges;
+  properties.push({
+    name: 'Rueil-Malmaison', owner: 'Nezha',
+    value: r.value, crd: r.crd, equity: r.value - r.crd,
+    ltv: (r.crd / r.value * 100),
+    monthlyPayment: IC.charges.rueil.pret + IC.charges.rueil.assurance,
+    loyer: rueilLoyer, cf: rueilCF,
+    yieldGross: (rueilLoyer * 12 / r.value * 100),
+    yieldNet: (rueilCF * 12 / r.value * 100),
+    wealthCreation: IC.growth.rueil,
+    endYear: IC.prets.rueilEnd,
+    charges: rueilCharges,
+  });
+
+  // Villejuif
+  const vj = portfolio.nezha.immo.villejuif;
+  const vjCharges = IC.charges.villejuif.pret + IC.charges.villejuif.assurance + IC.charges.villejuif.pno + IC.charges.villejuif.tf + IC.charges.villejuif.copro;
+  const vjLoyer = vj.loyer;
+  const vjCF = vjLoyer - vjCharges;
+  properties.push({
+    name: 'Villejuif (VEFA)', owner: 'Nezha', conditional: true,
+    value: vj.value, crd: vj.crd, equity: vj.value - vj.crd,
+    ltv: (vj.crd / vj.value * 100),
+    monthlyPayment: IC.charges.villejuif.pret + IC.charges.villejuif.assurance,
+    loyer: vjLoyer, cf: vjCF,
+    yieldGross: (vjLoyer * 12 / vj.value * 100),
+    yieldNet: (vjCF * 12 / vj.value * 100),
+    wealthCreation: IC.growth.villejuif,
+    endYear: IC.prets.villejuifEnd,
+    charges: vjCharges,
+  });
+
+  const totalEquity = properties.reduce((s, p) => s + p.equity, 0);
+  const totalValue = properties.reduce((s, p) => s + p.value, 0);
+  const totalCRD = properties.reduce((s, p) => s + p.crd, 0);
+  const totalCF = properties.reduce((s, p) => s + p.cf, 0);
+  const totalWealthCreation = properties.reduce((s, p) => s + p.wealthCreation, 0);
+  const avgLTV = totalValue > 0 ? (totalCRD / totalValue * 100) : 0;
+
+  return {
+    properties,
+    totalEquity, totalValue, totalCRD,
+    totalCF, totalWealthCreation,
+    avgLTV,
+  };
+}
+
+/**
+ * Compute creances view data
+ */
+function computeCreancesView(portfolio, fx) {
+  const allItems = [];
+
+  // Amine creances
+  (portfolio.amine.creances.items || []).forEach(c => {
+    const amountEUR = toEUR(c.amount, c.currency, fx);
+    const expectedValue = amountEUR * (c.probability || 1);
+    const monthlyInflationCost = !c.guaranteed ? (amountEUR * INFLATION_RATE / 12) : 0;
+    allItems.push({
+      ...c,
+      amountEUR,
+      expectedValue,
+      monthlyInflationCost,
+      owner: 'Amine',
+    });
+  });
+
+  // Nezha creances
+  (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => {
+    const amountEUR = toEUR(c.amount, c.currency, fx);
+    const expectedValue = amountEUR * (c.probability || 1);
+    const monthlyInflationCost = !c.guaranteed ? (amountEUR * INFLATION_RATE / 12) : 0;
+    allItems.push({
+      ...c,
+      amountEUR,
+      expectedValue,
+      monthlyInflationCost,
+      owner: 'Nezha',
+    });
+  });
+
+  const totalNominal = allItems.reduce((s, i) => s + i.amountEUR, 0);
+  const totalExpected = allItems.reduce((s, i) => s + i.expectedValue, 0);
+  const totalGuaranteed = allItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const totalUncertain = allItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const monthlyInflationCost = allItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
+
+  return {
+    items: allItems,
+    totalNominal,
+    totalExpected,
+    totalGuaranteed,
+    totalUncertain,
+    monthlyInflationCost,
+  };
 }
 
 /**
@@ -54,8 +316,17 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineEspp = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx) + p.amine.espp.cashEUR;
   const amineVitryEquity = p.amine.immo.vitry.value - p.amine.immo.vitry.crd;
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
-  const amineRecvPro = p.amine.creances.sapTax;
-  const amineRecvPersonal = toEUR(p.amine.creances.persoMAD, 'MAD', fx) + p.amine.creances.persoEUR;
+
+  // Creances — backwards compatible aggregation
+  let amineRecvPro = 0, amineRecvPersonal = 0;
+  if (p.amine.creances.items) {
+    p.amine.creances.items.forEach(c => {
+      const val = toEUR(c.amount, c.currency, fx);
+      if (c.guaranteed) amineRecvPro += val;
+      else amineRecvPersonal += val;
+    });
+  }
+
   const amineTva = p.amine.tva;
   const amineTotalAssets = amineIbkr + amineEspp + amineUae + amineMoroccoCash + amineSgtm
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
@@ -86,7 +357,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaVillejuifEquity = p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd;
   const nezhaCashMaroc = toEUR(p.nezha.cashMaroc, 'MAD', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
-  const nezhaRecvOmar = toEUR(p.nezha.recvOmar, 'MAD', fx);
+  const nezhaRecvOmar = p.nezha.creances && p.nezha.creances.items
+    ? toEUR(p.nezha.creances.items[0].amount, p.nezha.creances.items[0].currency, fx)
+    : 0;
   const nezhaCash = p.nezha.cashFrance + nezhaCashMaroc;
   const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaRecvOmar;
 
@@ -104,7 +377,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     cashMarocMAD: p.nezha.cashMaroc,
     sgtm: nezhaSgtm,
     recvOmar: nezhaRecvOmar,
-    recvOmarMAD: p.nezha.recvOmar,
+    recvOmarMAD: p.nezha.creances && p.nezha.creances.items ? p.nezha.creances.items[0].amount : 40000,
     cash: nezhaCash,
   };
 
@@ -214,6 +487,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // ---- IBKR Positions sorted by value ----
   const ibkrPositions = computeIBKRPositions(p, fx);
 
+  // ---- NEW ASSET-TYPE VIEWS ----
+  const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp);
+  const cashView = computeCashView(p, fx);
+  const immoView = computeImmoView(p, fx);
+  const creancesView = computeCreancesView(p, fx);
+
   return {
     fx,
     stockSource,
@@ -225,6 +504,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     coupleCategories,
     views,
     ibkrPositions,
+    actionsView,
+    cashView,
+    immoView,
+    creancesView,
   };
 }
 
