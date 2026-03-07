@@ -558,16 +558,10 @@ function buildCoupleTreemap(state) {
   if (!el) return;
   if (charts.coupleTreemap) { charts.coupleTreemap.destroy(); delete charts.coupleTreemap; }
 
-  // Check if TreemapController is registered
-  if (typeof Chart.registry.controllers.get('treemap') === 'undefined') {
-    // treemap plugin not loaded, skip
-    return;
-  }
-
   const CATS = state.coupleCategories;
   const grandTotal = getGrandTotal(state);
 
-  // Build flat array for treemap
+  // Build flat array — each item gets its own color
   const treeData = [];
   CATS.forEach(cat => {
     cat.sub.forEach(sub => {
@@ -577,11 +571,21 @@ function buildCoupleTreemap(state) {
           category: cat.label,
           value: sub.val,
           color: sub.color || cat.color,
-          catColor: cat.color,
         });
       }
     });
   });
+
+  // Sort by value desc within each category for better layout
+  treeData.sort((a, b) => b.value - a.value);
+
+  // Build a color lookup: item label → color
+  const colorMap = {};
+  treeData.forEach(d => { colorMap[d.label] = d.color; });
+
+  // Category-level colors (semi-transparent for group headers)
+  const catColorMap = {};
+  CATS.forEach(c => { catColorMap[c.label] = c.color; });
 
   charts.coupleTreemap = new Chart(el, {
     type: 'treemap',
@@ -591,34 +595,45 @@ function buildCoupleTreemap(state) {
         key: 'value',
         groups: ['category', 'label'],
         borderWidth: 2,
-        borderColor: '#fff',
-        spacing: 1,
+        borderColor: 'rgba(255,255,255,0.8)',
+        spacing: 2,
         backgroundColor: function(ctx) {
-          if (!ctx.raw) return '#e2e8f0';
-          const item = ctx.raw;
-          // Find matching cat color
-          const catIdx = item._data?._level === 0 ? item._data.index : -1;
-          if (item._data && item._data.children) {
-            // group level
-            const catName = item._data.label || '';
-            const cat = CATS.find(c => c.label === catName);
-            return cat ? cat.color + '40' : '#e2e8f0';
+          if (!ctx.raw || !ctx.raw._data) return '#e2e8f0';
+          const d = ctx.raw._data;
+          if (d.children && d.children.length > 0) {
+            // Group level — use category color at 25% opacity
+            const cc = catColorMap[d.label || ''];
+            return cc ? cc + '40' : '#e2e8f020';
           }
-          // leaf level
-          const dataItem = treeData[item.dataIndex] || treeData.find(d => d.label === item.raw?.label);
-          return dataItem ? dataItem.color : '#a0aec0';
+          // Leaf level — use the item's vivid color
+          const leafLabel = d.label || '';
+          return colorMap[leafLabel] || '#a0aec0';
         },
         labels: {
           display: true,
           align: 'left',
           position: 'top',
-          color: '#fff',
-          font: { size: 11, weight: 'bold' },
+          overflow: 'fit',
+          color: function(ctx) {
+            // White text on colored blocks, dark text on group headers
+            if (!ctx.raw || !ctx.raw._data) return '#333';
+            const d = ctx.raw._data;
+            if (d.children && d.children.length > 0) return '#1a202c';
+            return '#fff';
+          },
+          font: [
+            { size: 13, weight: 'bold', lineHeight: 1.3 },
+            { size: 11, weight: 'normal' }
+          ],
           formatter: function(ctx) {
             if (!ctx || !ctx.raw) return '';
-            const v = ctx.raw.v || ctx.raw.value || 0;
+            const v = ctx.raw.v || 0;
+            if (v < 500) return '';
             const pct = (v / grandTotal * 100).toFixed(1);
-            return ctx.raw.g ? ctx.raw.g + '\n' + fmt(v, true) + ' (' + pct + '%)' : '';
+            const g = ctx.raw.g || '';
+            // For tiny items, just show label
+            if (v < grandTotal * 0.02) return g;
+            return g + '\n' + fmt(v, true) + ' (' + pct + '%)';
           }
         }
       }]
@@ -630,7 +645,10 @@ function buildCoupleTreemap(state) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            title: items => items[0]?.raw?.g || '',
+            title: items => {
+              const raw = items[0]?.raw;
+              return raw?.g || '';
+            },
             label: item => {
               const v = item.raw?.v || 0;
               return fmt(v) + ' (' + (v / grandTotal * 100).toFixed(1) + '%)';
