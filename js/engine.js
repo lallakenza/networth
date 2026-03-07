@@ -456,7 +456,8 @@ function computeCreancesView(portfolio, fx) {
   (portfolio.amine.creances.items || []).forEach(c => {
     const amountEUR = toEUR(c.amount, c.currency, fx);
     const expectedValue = amountEUR * (c.probability || 1);
-    const monthlyInflationCost = !c.guaranteed ? (amountEUR * INFLATION_RATE / 12) : 0;
+    // Inflation impacts all créances EXCEPT SAP & Tax (short payment term, not controllable)
+    const monthlyInflationCost = !c.delayDays ? (amountEUR * INFLATION_RATE / 12) : 0;
     allItems.push({
       ...c,
       amountEUR,
@@ -470,7 +471,7 @@ function computeCreancesView(portfolio, fx) {
   (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => {
     const amountEUR = toEUR(c.amount, c.currency, fx);
     const expectedValue = amountEUR * (c.probability || 1);
-    const monthlyInflationCost = !c.guaranteed ? (amountEUR * INFLATION_RATE / 12) : 0;
+    const monthlyInflationCost = !c.delayDays ? (amountEUR * INFLATION_RATE / 12) : 0;
     allItems.push({
       ...c,
       amountEUR,
