@@ -253,7 +253,7 @@ function computeCashView(portfolio, fx) {
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
-    { label: 'BMCE/BOA', native: p.amine.maroc.bmce, currency: 'MAD', yield: CASH_YIELDS.bmce, owner: 'Amine' },
+    { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR', yield: CASH_YIELDS.ibkrCashEUR, owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD', yield: CASH_YIELDS.ibkrCashUSD, owner: 'Amine' },
     { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
@@ -507,7 +507,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // ---- AMINE ----
   const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent;
   const amineUae = toEUR(amineUaeAED, 'AED', fx) + p.amine.uae.revolutEUR;
-  const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.bmce;
+  const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.nabd;
   const amineMoroccoCash = toEUR(amineMoroccoMAD, 'MAD', fx);
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);

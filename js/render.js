@@ -671,27 +671,42 @@ function renderCashView(state) {
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
   setText('kpiCashProductive', fmt(cv.totalYielding));
 
-  // Accounts table
+  // Accounts table — grouped by owner with subtotals
   const tbody = document.getElementById('cashAccountsTbody');
   if (tbody) {
     tbody.innerHTML = '';
-    cv.accounts.forEach(a => {
-      const yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(0) + '%' : '0%';
-      const yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + a.label + '</td>'
-        + '<td>' + a.owner + '</td>'
-        + '<td>' + a.currency + '</td>'
-        + '<td class="num">' + Math.round(a.native).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + fmt(a.valEUR) + '</td>'
-        + '<td class="num">' + yieldStr + '</td>'
-        + '<td class="num">' + yieldAnn + '</td>';
-      tbody.appendChild(tr);
+    const owners = ['Amine', 'Nezha'];
+    owners.forEach(owner => {
+      const ownerAccounts = cv.accounts.filter(a => a.owner === owner);
+      if (ownerAccounts.length === 0) return;
+      const ownerTotal = ownerAccounts.reduce((s, a) => s + a.valEUR, 0);
+      const ownerColor = owner === 'Amine' ? '#ebf5fb' : '#fef9e7';
+      const borderColor = owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
+      // Owner header row
+      const hdr = document.createElement('tr');
+      hdr.style.cssText = 'background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';';
+      hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="2" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
+      tbody.appendChild(hdr);
+      // Account rows
+      ownerAccounts.forEach(a => {
+        const yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(0) + '%' : '0%';
+        const yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+        const tr = document.createElement('tr');
+        tr.style.borderLeft = '3px solid ' + borderColor;
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + '</td>'
+          + '<td>' + a.owner + '</td>'
+          + '<td>' + a.currency + '</td>'
+          + '<td class="num">' + Math.round(a.native).toLocaleString('fr-FR') + '</td>'
+          + '<td class="num">' + fmt(a.valEUR) + '</td>'
+          + '<td class="num">' + yieldStr + '</td>'
+          + '<td class="num">' + yieldAnn + '</td>';
+        tbody.appendChild(tr);
+      });
     });
-    // Total
+    // Grand total
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
+    tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
       + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
       + '<td class="num"><strong>' + (cv.weightedAvgYield * 100).toFixed(1) + '%</strong></td>'
       + '<td></td>';

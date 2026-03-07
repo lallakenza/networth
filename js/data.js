@@ -16,7 +16,7 @@ export const PORTFOLIO = {
     // --- Cash Maroc (MAD) ---
     maroc: {
       attijari: 151202,     // Attijariwafa Courant
-      bmce: 37304,          // BMCE/BOA Cheque
+      nabd: 37304,          // Nabd (ex-Société Générale Maroc)
     },
     // --- ESPP Accenture (from Fidelity screenshot March 2026) ---
     espp: {
@@ -160,7 +160,7 @@ export const CASH_YIELDS = {
   wioCurrent: 0,
   revolutEUR: 0,
   attijari: 0,
-  bmce: 0,
+  nabd: 0,
   ibkrCashEUR: 0.03,   // ~3% EUR cash at IBKR
   ibkrCashUSD: 0.04,   // ~4% USD cash at IBKR
   nezhaCashFrance: 0,  // pas de rendement
