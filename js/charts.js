@@ -708,8 +708,12 @@ function buildCoupleTreemap(state) {
               const catTot = (child && child.catTotal) || catTotals[category] || 0;
               const pctNW = (v / grandTotal * 100).toFixed(1);
               const lines = [];
-              if (owner) lines.push(owner);
-              lines.push(fmt(v) + ' — ' + pctNW + '% du patrimoine');
+              if (owner) {
+                lines.push(owner + ' — ' + fmt(v));
+              } else {
+                lines.push(fmt(v));
+              }
+              lines.push(pctNW + '% du patrimoine');
               if (catTot > 0) {
                 const pctCat = (v / catTot * 100).toFixed(1);
                 lines.push(pctCat + '% de « ' + category + ' »');
