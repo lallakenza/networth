@@ -691,15 +691,19 @@ function renderCashView(state) {
       ownerAccounts.forEach(a => {
         const yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(0) + '%' : '0%';
         const yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+        const isNeg = a.valEUR < 0;
+        const cls = isNeg ? ' class="pl-neg"' : '';
+        const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
         const tr = document.createElement('tr');
         tr.style.borderLeft = '3px solid ' + borderColor;
-        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + '</td>'
+        if (isNeg) tr.style.background = '#fff5f5';
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (a.isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
           + '<td>' + a.owner + '</td>'
           + '<td>' + a.currency + '</td>'
-          + '<td class="num">' + Math.round(a.native).toLocaleString('fr-FR') + '</td>'
-          + '<td class="num">' + fmt(a.valEUR) + '</td>'
-          + '<td class="num">' + yieldStr + '</td>'
-          + '<td class="num">' + yieldAnn + '</td>';
+          + '<td class="num"' + cls + '>' + nativeStr + '</td>'
+          + '<td class="num"' + cls + '>' + fmt(a.valEUR) + '</td>'
+          + '<td class="num">' + (isNeg ? '-' : yieldStr) + '</td>'
+          + '<td class="num">' + (isNeg ? '-' : yieldAnn) + '</td>';
         tbody.appendChild(tr);
       });
     });

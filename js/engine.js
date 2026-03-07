@@ -256,13 +256,11 @@ function computeCashView(portfolio, fx) {
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR', yield: CASH_YIELDS.ibkrCashEUR, owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD', yield: CASH_YIELDS.ibkrCashUSD, owner: 'Amine' },
+    { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY', yield: 0, owner: 'Amine', isDebt: true },
     { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
     { label: 'Cash France', native: p.nezha.cashFrance, currency: 'EUR', yield: CASH_YIELDS.nezhaCashFrance, owner: 'Nezha' },
     { label: 'Cash Maroc', native: p.nezha.cashMaroc, currency: 'MAD', yield: CASH_YIELDS.nezhaCashMaroc, owner: 'Nezha' },
   ];
-
-  // Note: JPY short is NOT cash, it's a forex liability — exclude from cash view
-  // but mention it as a note
 
   let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
   let weightedYieldSum = 0;
