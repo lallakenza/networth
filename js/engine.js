@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR } from './data.js?v=9';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR } from './data.js?v=10';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1165,6 +1165,144 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
   };
 
+  // ---- AMINE TREEMAP CATEGORIES ----
+  const ibkrNonCryptoSubs = p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
+    const colors = ['#1e3a5f','#2563eb','#3b82f6','#0284c7','#0369a1','#1d4ed8','#4338ca','#6366f1','#7c3aed','#0891b2'];
+    const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+    const short = pos.label.replace(/\s*\(.*\)/, '');
+    return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'IBKR' };
+  }).filter(s => s.val > 100);
+  const ibkrCashVal = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
+  const cryptoSubs = p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
+    const colors = ['#f59e0b','#d97706'];
+    const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+    const short = pos.label.replace(/\s*\(.*\)/, '');
+    return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'IBKR' };
+  });
+
+  const amineCategories = [
+    {
+      label: 'Actions IBKR', color: '#2b6cb0',
+      total: ibkrNonCryptoSubs.reduce((s, p) => s + p.val, 0) + ibkrCashVal,
+      sub: [...ibkrNonCryptoSubs, ...(ibkrCashVal > 100 ? [{ label: 'Cash IBKR', val: ibkrCashVal, color: '#1e40af', owner: 'IBKR' }] : [])]
+    },
+    {
+      label: 'Crypto', color: '#f59e0b',
+      total: cryptoSubs.reduce((s, p) => s + p.val, 0),
+      sub: cryptoSubs
+    },
+    {
+      label: 'Autres Actions', color: '#6366f1',
+      total: amineEspp + amineSgtm,
+      sub: [
+        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1', owner: 'ESPP' },
+        { label: 'SGTM', val: amineSgtm, color: '#4f46e5', owner: 'Maroc' },
+      ].filter(s => s.val > 100)
+    },
+    {
+      label: 'Immobilier', color: '#b7791f',
+      total: amineVitryEquity,
+      sub: [{ label: 'Vitry', val: amineVitryEquity, color: '#b7791f', owner: 'Equity nette' }]
+    },
+    {
+      label: 'Cash', color: '#48bb78',
+      total: amineUae + amineMoroccoCash,
+      sub: [
+        { label: 'Cash UAE', val: amineUae, color: '#22c55e', owner: 'AED' },
+        { label: 'Cash Maroc', val: amineMoroccoCash, color: '#15803d', owner: 'MAD' },
+      ]
+    },
+    {
+      label: 'Vehicules', color: '#64748b',
+      total: amineVehicles,
+      sub: [
+        { label: 'Cayenne', val: p.amine.vehicles.cayenne, color: '#64748b', owner: '' },
+        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#475569', owner: '' },
+      ]
+    },
+    {
+      label: 'Creances', color: '#ec4899',
+      total: amineRecvPro + amineRecvPersonal,
+      sub: [
+        { label: 'SAP & Tax', val: amineRecvPro, color: '#ec4899', owner: 'Garanti' },
+        { label: 'Creances perso', val: amineRecvPersonal, color: '#db2777', owner: '' },
+      ].filter(s => s.val > 100)
+    },
+  ].filter(c => c.total > 0);
+
+  // ---- NEZHA TREEMAP CATEGORIES ----
+  const nezhaCategories = [
+    {
+      label: 'Immobilier', color: '#b7791f',
+      total: nezhaRueilEquity + nezhaVillejuifEquity,
+      sub: [
+        { label: 'Rueil', val: nezhaRueilEquity, color: '#e6a817', owner: 'Equity nette' },
+        { label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Conditionnel' },
+      ]
+    },
+    {
+      label: 'Cash', color: '#48bb78',
+      total: p.nezha.cashFrance + nezhaCashMaroc,
+      sub: [
+        { label: 'Cash France', val: p.nezha.cashFrance, color: '#16a34a', owner: 'EUR' },
+        { label: 'Cash Maroc', val: nezhaCashMaroc, color: '#166534', owner: 'MAD' },
+      ]
+    },
+    {
+      label: 'Actions', color: '#2b6cb0',
+      total: nezhaSgtm,
+      sub: [{ label: 'SGTM', val: nezhaSgtm, color: '#818cf8', owner: 'Maroc' }]
+    },
+    {
+      label: 'Creances', color: '#ec4899',
+      total: nezhaRecvOmar,
+      sub: [{ label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' }]
+    },
+  ].filter(c => c.total > 0);
+
+  // ---- ACTIONS TREEMAP CATEGORIES (by geo) ----
+  const geoLabels = { france: 'France', crypto: 'Crypto', us: 'US / Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
+  const geoColors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e' };
+  const geoColorSubs = {
+    france: ['#1e3a5f','#2563eb','#3b82f6','#0284c7','#0369a1','#1d4ed8','#4338ca','#60a5fa'],
+    crypto: ['#7c3aed','#a78bfa'],
+    us: ['#059669','#10b981'],
+    germany: ['#ea580c','#f97316'],
+    japan: ['#dc2626','#ef4444'],
+    morocco: ['#ca8a04','#eab308'],
+  };
+  const geoGroups = {};
+  p.amine.ibkr.positions.forEach((pos, i) => {
+    const geo = pos.geo || 'france';
+    if (!geoGroups[geo]) geoGroups[geo] = [];
+    const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+    const short = pos.label.replace(/\s*\(.*\)/, '');
+    const palIdx = geoGroups[geo].length;
+    const pal = geoColorSubs[geo] || ['#94a3b8'];
+    geoGroups[geo].push({ label: short, val: valEUR, color: pal[palIdx % pal.length], owner: 'IBKR', ticker: pos.ticker });
+  });
+  // Add ESPP to US
+  if (!geoGroups['us']) geoGroups['us'] = [];
+  geoGroups['us'].push({ label: 'ESPP Accenture', val: amineEspp, color: '#10b981', owner: 'ESPP' });
+  // Add SGTM to Morocco
+  if (!geoGroups['morocco']) geoGroups['morocco'] = [];
+  geoGroups['morocco'].push({ label: 'SGTM Amine', val: amineSgtm, color: '#ca8a04', owner: 'Maroc' });
+  geoGroups['morocco'].push({ label: 'SGTM Nezha', val: nezhaSgtm, color: '#eab308', owner: 'Maroc' });
+  // Add IBKR Cash
+  if (ibkrCashVal > 100) {
+    if (!geoGroups['cash']) geoGroups['cash'] = [];
+    // We'll put cash in its own category
+  }
+  const actionsCategories = Object.entries(geoGroups)
+    .map(([geo, subs]) => ({
+      label: geoLabels[geo] || geo,
+      color: geoColors[geo] || '#94a3b8',
+      total: subs.reduce((s, p) => s + p.val, 0),
+      sub: subs.filter(s => s.val > 100),
+    }))
+    .filter(c => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+
   // ---- IBKR Positions sorted by value ----
   const ibkrPositions = computeIBKRPositions(p, fx);
 
@@ -1189,6 +1327,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     couple,
     pools: { actions: actionsPool, cash: cashPool, totalLiquid, pctActions },
     coupleCategories,
+    amineCategories,
+    nezhaCategories,
+    actionsCategories,
     views,
     ibkrPositions,
     actionsView,

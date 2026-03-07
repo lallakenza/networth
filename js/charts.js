@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=9';
-import { getGrandTotal } from './engine.js?v=9';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=9';
+import { fmt, fmtAxis } from './render.js?v=10';
+import { getGrandTotal } from './engine.js?v=10';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=10';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -33,9 +33,17 @@ export function rebuildAllCharts(state, view) {
     buildImmoProjection(state);
   }
 
+  if (view === 'amine') {
+    buildAmineTreemap(state);
+  }
+  if (view === 'nezha') {
+    buildNezhaTreemap(state);
+  }
+
   if (view === 'actions') {
     buildActionsGeoDonut(state);
     buildActionsSectorDonut(state);
+    buildActionsTreemap(state);
   }
   if (view === 'cash') {
     buildCashCurrencyDonut(state);
@@ -552,76 +560,56 @@ function buildNWHistoryChart(state) {
   });
 }
 
-// ============ COUPLE TREEMAP ============
-function buildCoupleTreemap(state) {
-  const el = document.getElementById('coupleTreemap');
+// ============ GENERIC TREEMAP BUILDER ============
+function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel) {
+  const el = document.getElementById(canvasId);
   if (!el) return;
-  if (charts.coupleTreemap) { charts.coupleTreemap.destroy(); delete charts.coupleTreemap; }
+  if (charts[chartKey]) { charts[chartKey].destroy(); delete charts[chartKey]; }
+  if (!CATS || CATS.length === 0) return;
 
-  const CATS = state.coupleCategories;
-  const grandTotal = getGrandTotal(state);
-
-  // Category name set (to detect group headers vs leaves)
-  const catNames = new Set(CATS.map(c => c.label));
   const catTotals = {};
   CATS.forEach(cat => { catTotals[cat.label] = cat.total; });
 
-  // Build flat data — each item carries its own color from engine.js
   const treeData = [];
   CATS.forEach(cat => {
     cat.sub.forEach(sub => {
       if (sub.val > 0) {
         treeData.push({
-          label: sub.label,
-          category: cat.label,
-          value: sub.val,
-          color: sub.color,
-          catTotal: cat.total,
-          owner: sub.owner || '',
+          label: sub.label, category: cat.label,
+          value: sub.val, color: sub.color,
+          catTotal: cat.total, owner: sub.owner || '',
         });
       }
     });
   });
 
-  // Lookup: item label → color
   const colorMap = {};
   treeData.forEach(d => { colorMap[d.label] = d.color; });
 
-  // Use 2 group levels: category (header) → label (colored leaf)
-  // With 2 groups, every _data node has children (even leaves wrap 1 child).
-  // Path separator is '.' — category headers = "Cash", leaves = "Cash.Amine — UAE (AED)"
-  // Leaf color is at d.children[0].color (the actual data row inside the label group)
   const isCategoryHeader = (d) => d && d.path && !d.path.includes('.');
+  const pctLabel = tooltipLabel || 'du patrimoine';
 
-  charts.coupleTreemap = new Chart(el, {
+  charts[chartKey] = new Chart(el, {
     type: 'treemap',
     data: {
       datasets: [{
-        tree: treeData,
-        key: 'value',
+        tree: treeData, key: 'value',
         groups: ['category', 'label'],
-        borderWidth: 2,
-        borderColor: '#ffffff',
-        spacing: 1,
+        borderWidth: 2, borderColor: '#ffffff', spacing: 1,
         backgroundColor: function(ctx) {
           if (ctx.type !== 'data') return 'transparent';
           if (!ctx.raw || !ctx.raw._data) return '#e2e8f0';
           const d = ctx.raw._data;
           if (isCategoryHeader(d)) {
-            // Category header — very light tint
             const cat = CATS.find(c => c.label === d.label);
             return (cat ? cat.color : '#6b7280') + '18';
           }
-          // Leaf block — vivid color from the wrapped data row
           const leafColor = (d.children && d.children[0]?.color) || colorMap[d.label] || d.color;
           return leafColor || '#94a3b8';
         },
         labels: {
-          display: true,
-          align: 'center',
-          position: 'middle',
-          overflow: 'hidden',
-          padding: 3,
+          display: true, align: 'center', position: 'middle',
+          overflow: 'hidden', padding: 3,
           color: function(ctx) {
             if (!ctx.raw || !ctx.raw._data) return '#333';
             const d = ctx.raw._data;
@@ -629,14 +617,9 @@ function buildCoupleTreemap(state) {
             return '#ffffff';
           },
           font: function(ctx) {
-            const w = ctx.raw?.w || 100;
-            const h = ctx.raw?.h || 50;
-            const area = w * h;
-            const d = ctx.raw?._data;
-            if (isCategoryHeader(d)) {
-              return [{ size: Math.min(15, Math.max(10, w / 8)), weight: 'bold' }];
-            }
-            // Leaf: line 1 = name (bold), line 2 = value (lighter)
+            const w = ctx.raw?.w || 100; const h = ctx.raw?.h || 50;
+            const area = w * h; const d = ctx.raw?._data;
+            if (isCategoryHeader(d)) return [{ size: Math.min(15, Math.max(10, w / 8)), weight: 'bold' }];
             if (area > 6000) return [{ size: 14, weight: 'bold' }, { size: 11, weight: 'normal' }];
             if (area > 3000) return [{ size: 12, weight: 'bold' }, { size: 10, weight: 'normal' }];
             if (area > 1500) return [{ size: 10, weight: 'bold' }];
@@ -648,23 +631,16 @@ function buildCoupleTreemap(state) {
             if (v < 200) return '';
             const d = ctx.raw._data || {};
             const label = d.label || ctx.raw.g || '';
-            const w = ctx.raw.w || 0;
-            const h = ctx.raw.h || 0;
+            const w = ctx.raw.w || 0; const h = ctx.raw.h || 0;
             const area = w * h;
             if (isCategoryHeader(d)) return label;
-            // Tiny — hide
             if (area < 600) return '';
-            // Very small — acronym / short
-            if (area < 1500) {
-              return label.length > 6 ? label.substring(0, 5) + '.' : label;
-            }
-            // Small — name only
+            if (area < 1500) return label.length > 6 ? label.substring(0, 5) + '.' : label;
             if (area < 3000) {
               if (w < 80 && label.length > 8) return label.substring(0, 7) + '.';
               return label;
             }
-            // Medium+ — name + value below (details in tooltip)
-            const valK = v >= 1000 ? '€' + (v / 1000).toFixed(0) + 'K' : '€' + Math.round(v);
+            const valK = v >= 1000 ? '\u20ac' + (v / 1000).toFixed(0) + 'K' : '\u20ac' + Math.round(v);
             let displayLabel = label;
             if (w < 100 && label.length > 12) displayLabel = label.substring(0, 10) + '..';
             return [displayLabel, valK];
@@ -675,21 +651,16 @@ function buildCoupleTreemap(state) {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: false },
-        legend: { display: false },
+        title: { display: false }, legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15,23,42,0.95)',
           titleFont: { size: 14, weight: 'bold' },
-          bodyFont: { size: 13 },
-          padding: 14,
-          cornerRadius: 8,
-          displayColors: false,
+          bodyFont: { size: 13 }, padding: 14,
+          cornerRadius: 8, displayColors: false,
           callbacks: {
             title: items => {
-              // Find the leaf item (path contains '.'), skip category headers
               const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
               if (leaf) return leaf.raw._data.label || '';
-              // Fallback: category header
               const d = items[0]?.raw?._data;
               return d?.label || '';
             },
@@ -698,7 +669,7 @@ function buildCoupleTreemap(state) {
               if (!leaf) {
                 const v = items[0]?.raw?.v || 0;
                 const pctNW = (v / grandTotal * 100).toFixed(1);
-                return [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
+                return [fmt(v) + ' \u2014 ' + pctNW + '% ' + pctLabel];
               }
               const v = leaf.raw.v || 0;
               const d = leaf.raw._data;
@@ -708,27 +679,39 @@ function buildCoupleTreemap(state) {
               const catTot = (child && child.catTotal) || catTotals[category] || 0;
               const pctNW = (v / grandTotal * 100).toFixed(1);
               const lines = [];
-              if (owner) {
-                lines.push(owner + ' — ' + fmt(v));
-              } else {
-                lines.push(fmt(v));
-              }
-              lines.push(pctNW + '% du patrimoine');
+              if (owner) { lines.push(owner + ' \u2014 ' + fmt(v)); }
+              else { lines.push(fmt(v)); }
+              lines.push(pctNW + '% ' + pctLabel);
               if (catTot > 0) {
                 const pctCat = (v / catTot * 100).toFixed(1);
-                lines.push(pctCat + '% de « ' + category + ' »');
+                lines.push(pctCat + '% de \u00ab ' + category + ' \u00bb');
               }
               return lines;
             },
-            label: () => {
-              // All content rendered via beforeBody — suppress per-item labels
-              return null;
-            }
+            label: () => null
           }
         }
       }
     }
   });
+}
+
+// ============ TREEMAP WRAPPERS ============
+function buildCoupleTreemap(state) {
+  buildGenericTreemap('coupleTreemap', 'coupleTreemap', state.coupleCategories, getGrandTotal(state), 'du patrimoine');
+}
+function buildAmineTreemap(state) {
+  // Use totalAssets (positive only) for percentage base
+  const total = state.amineCategories.reduce((s, c) => s + c.total, 0);
+  buildGenericTreemap('amineTreemap', 'amineTreemap', state.amineCategories, total, 'du NW Amine');
+}
+function buildNezhaTreemap(state) {
+  const total = state.nezhaCategories.reduce((s, c) => s + c.total, 0);
+  buildGenericTreemap('nezhaTreemap', 'nezhaTreemap', state.nezhaCategories, total, 'du NW Nezha');
+}
+function buildActionsTreemap(state) {
+  const total = state.actionsCategories.reduce((s, c) => s + c.total, 0);
+  buildGenericTreemap('actionsTreemap', 'actionsTreemap', state.actionsCategories, total, 'du portefeuille');
 }
 
 // ============ AMORTIZATION CHART ============
