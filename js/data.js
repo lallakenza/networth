@@ -140,6 +140,7 @@ export const PORTFOLIO = {
         // status: en_cours | relancé | en_retard | recouvré | litige
         // payments: historique des paiements partiels reçus
         { label: 'SAP & Tax (20j x 910€)', amount: 18200, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 45, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-01', payments: [], notes: 'Facture envoyée, paiement sous 45j' },
+        { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-08', payments: [], notes: 'Note de frais déplacement NZ — Sourcing Desk L\'Oréal, livré 26 fév 2026' },
         { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', guaranteed: false, probability: 0.7, status: 'relancé', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' },
         { label: 'Kenza', amount: 200000, currency: 'MAD', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
