@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=12';
-import { IMMO_CONSTANTS } from './data.js?v=12';
+import { fmt, fmtAxis } from './render.js?v=13';
+import { IMMO_CONSTANTS } from './data.js?v=13';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -404,7 +404,7 @@ function runVitryFiscalSim() {
   const loyerValEl = document.getElementById('vitrySimLoyerVal');
   if (!container || !sliderEl) return;
 
-  const loans = IC.vitryLoans;
+  const loans = IC.loans && IC.loans.vitryLoans;
   if (!loans || loans.length === 0) return;
 
   // Compute amortization for each loan
@@ -417,7 +417,8 @@ function runVitryFiscalSim() {
   amorts.forEach(a => { a.yearlyInt = yearlyInterest(a.schedule, loans[0].startDate); });
 
   // Fixed charges (annual estimates)
-  const assuranceAPRIL = IC.vitryInsuranceAPRIL ? IC.vitryInsuranceAPRIL.annualTTC : 210;
+  const insAPRIL = IC.loans && IC.loans.vitryInsuranceAPRIL;
+  const assuranceAPRIL = insAPRIL ? insAPRIL.annualTTC : 210;
   const assuranceAL = loans[0].insuranceMonthly * 12; // 3.33 × 12 = 39.96
   const pnoAnnuel = IC.charges.vitry.pno * 12;        // 15 × 12 = 180
   const tfAnnuel = IC.charges.vitry.tf * 12;           // 75 × 12 = 900
