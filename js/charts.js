@@ -636,10 +636,9 @@ function buildCoupleTreemap(state) {
             if (isCategoryHeader(d)) {
               return [{ size: Math.min(16, Math.max(10, w / 8)), weight: 'bold' }];
             }
-            // Leaf nodes: 2 lines (name + value)
-            if (area > 15000) return [{ size: 14, weight: 'bold' }, { size: 11, weight: 'normal' }];
-            if (area > 6000) return [{ size: 12, weight: 'bold' }, { size: 9, weight: 'normal' }];
-            if (area > 2500) return [{ size: 10, weight: 'bold' }, { size: 8, weight: 'normal' }];
+            // Leaf nodes: line1 = bold name-value, line2+3 = smaller %
+            if (area > 6000) return [{ size: 13, weight: 'bold' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }];
+            if (area > 2500) return [{ size: 11, weight: 'bold' }, { size: 8, weight: 'normal' }];
             return [{ size: 9, weight: 'bold' }];
           },
           formatter: function(ctx) {
@@ -655,21 +654,30 @@ function buildCoupleTreemap(state) {
               return label;
             }
             // Tiny boxes — nothing
-            if (area < 1500) return '';
-            // Small boxes — just short name
+            if (area < 1200) return '';
+            // Very small — just short name
             if (area < 2500) {
-              // Truncate if needed
               return label.length > 12 ? label.substring(0, 10) + '..' : label;
             }
-            // Medium+ boxes — name on line 1, value on line 2
+            // Build: "Label - €XXK" on line 1, "XX% catégorie · XX% total" on line 2
+            const valK = '€' + (v / 1000).toFixed(0) + 'K';
             const pctNW = (v / grandTotal * 100).toFixed(1);
-            const valLine = '€' + (v / 1000).toFixed(0) + 'K (' + pctNW + '%)';
+            // Get category %
+            const child = d.children && d.children[0];
+            const category = (child && child.category) || '';
+            const catTot = (child && child.catTotal) || catTotals[category] || 0;
+            const pctCat = catTot > 0 ? (v / catTot * 100).toFixed(0) : '?';
             // Shorten label if box is narrow
             let displayLabel = label;
-            if (w < 120 && label.length > 18) {
-              displayLabel = label.substring(0, 16) + '..';
+            if (w < 130 && label.length > 16) {
+              displayLabel = label.substring(0, 14) + '..';
             }
-            return [displayLabel, valLine];
+            // Line 1: Name - Value
+            const line1 = displayLabel + ' - ' + valK;
+            // Small-medium: just 2 lines
+            if (area < 6000) return [line1, pctCat + '% cat · ' + pctNW + '% total'];
+            // Large: 3 lines
+            return [line1, pctCat + '% de ' + category, pctNW + '% du patrimoine'];
           }
         }
       }]
