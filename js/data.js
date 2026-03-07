@@ -8,7 +8,7 @@ export const PORTFOLIO = {
   amine: {
     // --- Cash UAE (AED) ---
     uae: {
-      mashreq: 413914,      // Mashreq NEO PLUS (310518 + 103396 SAP payment received in AED)
+      mashreq: 360734,      // Mashreq NEO PLUS — corrigé 7 Mar 2026
       wioSavings: 220000,   // Wio Savings (~6% rendement)
       wioCurrent: 4904,     // Wio Current
       revolutEUR: 5967,     // Revolut EUR balance (already EUR) — updated 7 Mar 2026 (Anas remboursement + ventes)
