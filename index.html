@@ -42,6 +42,12 @@
   .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
   .view-btn.asset-view-btn.active { border-bottom-color: #ed8936; }
 
+  .sortable { cursor: pointer; user-select: none; position: relative; }
+  .sortable:hover { background: #dce5f0; }
+  .sort-arrow { font-size: 10px; opacity: 0.4; margin-left: 2px; }
+  .sort-arrow.asc::after { content: ' \u25B2'; opacity: 1; }
+  .sort-arrow.desc::after { content: ' \u25BC'; opacity: 1; }
+
   .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
   .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); }
   .kpi.gold { border-top-color: var(--gold); }
@@ -696,8 +702,17 @@
   <div class="grid2">
     <div>
       <h3>Positions IBKR — D&eacute;tail complet</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">Qte</th><th class="num">Prix</th><th class="num">Cost</th><th class="num">Valeur</th><th class="num">P/L</th><th class="num">%</th><th class="num">Poids</th></tr></thead>
+      <table id="ibkrPositionsTable">
+        <thead><tr>
+          <th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="price">Prix <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="costEUR">Cost <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="valEUR">Valeur <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>
+          <th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>
+        </tr></thead>
         <tbody id="actionsPositionsTbody"></tbody>
       </table>
 
