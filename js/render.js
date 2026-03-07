@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=9';
-import { getGrandTotal } from './engine.js?v=9';
+import { CURRENCY_CONFIG } from './data.js?v=10';
+import { getGrandTotal } from './engine.js?v=10';
 
 // ---- Formatting helpers ----
 
