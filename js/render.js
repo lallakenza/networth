@@ -1092,6 +1092,11 @@ function renderCreancesView(state) {
 }
 
 // ---- WHT / Dividend render ----
+// ---- WHT SORT STATE ----
+let whtSortCol = null;
+let whtSortAsc = true;
+let whtPositionsCache = null;
+
 function renderWHTAnalysis(state) {
   const div = state.dividendAnalysis;
   if (!div) return;
@@ -1103,25 +1108,96 @@ function renderWHTAnalysis(state) {
   const switchCount = div.positions.filter(p => p.recommendation === 'switch').length;
   setText('kpiWhtPositions', switchCount + ' position' + (switchCount > 1 ? 's' : ''));
 
+  // Cache positions for sorting
+  whtPositionsCache = div.positions.filter(p => p.divYield !== 0 || p.projectedWHT !== 0);
+
+  // Setup sortable headers (once)
+  setupWHTSortHeaders();
+
+  // Render rows
+  renderWHTRows();
+}
+
+function setupWHTSortHeaders() {
+  const thead = document.querySelector('#whtTbody')?.closest('table')?.querySelector('thead');
+  if (!thead || thead.dataset.sortBound) return;
+  thead.dataset.sortBound = 'true';
+
+  const cols = [
+    { key: 'label', idx: 0 },
+    { key: 'valEUR', idx: 1 },
+    { key: 'dpsNative', idx: 2 },
+    { key: 'projectedDivEUR', idx: 3 },
+    { key: 'whtRate', idx: 4 },
+    { key: 'projectedWHT', idx: 5 },
+    { key: 'daysUntilEx', idx: 6 },
+    { key: 'recommendation', idx: 7 },
+    { key: 'alternativeETF', idx: 8 },
+  ];
+
+  const ths = thead.querySelectorAll('th');
+  cols.forEach(col => {
+    const th = ths[col.idx];
+    if (!th) return;
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.style.position = 'relative';
+    const origText = th.textContent;
+    th.addEventListener('click', () => {
+      if (whtSortCol === col.key) {
+        whtSortAsc = !whtSortAsc;
+      } else {
+        whtSortCol = col.key;
+        whtSortAsc = true;
+      }
+      // Update header indicators
+      ths.forEach(t => {
+        const base = t.textContent.replace(/ [▲▼]$/, '');
+        t.textContent = base;
+      });
+      const arrow = whtSortAsc ? ' ▲' : ' ▼';
+      th.textContent = origText.replace(/ [▲▼]$/, '') + arrow;
+
+      renderWHTRows();
+    });
+  });
+}
+
+function renderWHTRows() {
   const tbody = document.getElementById('whtTbody');
-  if (!tbody) return;
+  if (!tbody || !whtPositionsCache) return;
+
+  // Sort
+  let sorted = [...whtPositionsCache];
+  if (whtSortCol) {
+    sorted.sort((a, b) => {
+      let va = a[whtSortCol], vb = b[whtSortCol];
+      // Handle dates (daysUntilEx: lower = sooner deadline = first)
+      if (whtSortCol === 'daysUntilEx') {
+        va = va ?? 9999; vb = vb ?? 9999;
+      }
+      // Handle strings
+      if (typeof va === 'string') return whtSortAsc ? va.localeCompare(vb || '') : (vb || '').localeCompare(va);
+      // Handle numbers / null
+      va = va ?? -Infinity; vb = vb ?? -Infinity;
+      return whtSortAsc ? va - vb : vb - va;
+    });
+  }
+
   tbody.innerHTML = '';
-  div.positions.forEach(p => {
-    if (p.divYield === 0 && p.projectedWHT === 0) return; // skip zero-div positions
+  sorted.forEach(p => {
     const tr = document.createElement('tr');
     const recBg = p.recommendation === 'switch' ? 'background:#fff5f5;' : '';
     const recBadge = p.recommendation === 'switch'
       ? '<span style="background:#fed7d7;color:#c53030;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">SWITCHER</span>'
       : '<span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749">GARDER</span>';
 
-    // Format DPS with currency symbol
     const currSymbols = { EUR: '€', USD: '$', JPY: '¥', MAD: 'DH' };
     const currSym = currSymbols[p.dpsCurrency] || p.dpsCurrency;
     const dpsText = p.dpsNative > 0
       ? (p.dpsCurrency === 'JPY' ? currSym + Math.round(p.dpsNative) : currSym + p.dpsNative.toFixed(2))
       : '-';
 
-    // Format deadline
     let deadlineHtml = '-';
     if (p.nextExDate) {
       const d = p.nextExDate;

@@ -366,7 +366,7 @@ export const NW_HISTORY = [
 // Plus-values : 0% WHT partout → objectif = éliminer les dividendes
 // ════════════════════════════════════════════════════════════
 export const WHT_RATES = {
-  france: 0.2575,     // 25.75% WHT dividendes France (pas de convention FR-UAE)
+  france: 0.30,       // 30% WHT dividendes France (pas de convention FR-UAE, taux de droit commun)
   germany: 0.26375,   // 26.375% WHT dividendes Allemagne
   us: 0.15,           // 15% WHT (convention US via W-8BEN)
   japan: 0.15,        // 15% WHT (convention JP)
