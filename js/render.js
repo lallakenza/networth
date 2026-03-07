@@ -904,7 +904,8 @@ function renderImmoView(state) {
       const fiscLine = f ? '<div class="prop-kpi"><div class="pk-val pl-neg">' + f.monthlyImpot + '</div><div class="pk-label">Impot /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</div><div class="pk-label">Yield net fiscal</div></div>'
         : '';
-      const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + (f.type === 'lmnp' ? 'LMNP' : 'NU') + ' ' + f.regime + '</span>' : '';
+      const regimeDisplay = f ? (f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime) : '';
+      const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + regimeDisplay + '</span>' : '';
       card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
         + '<div class="prop-owner">' + prop.owner + '</div>'
         + '<div class="prop-kpis">'
@@ -985,11 +986,14 @@ function renderImmoView(state) {
       totalImpot += f.totalImpot;
       const tr = document.createElement('tr');
       if (prop.conditional) tr.style.color = '#92400e';
-      const regimeLabel = f.type === 'lmnp' ? 'LMNP ' + f.regime : f.regime;
+      const regimeLabel = f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime;
+      const deductionCol = f.deductions != null
+        ? f.deductions.toLocaleString('fr-FR') + ' (réel)'
+        : f.abattement.toLocaleString('fr-FR') + ' (' + f.abattementPct + '%)';
       tr.innerHTML = '<td>' + prop.name + '</td>'
         + '<td>' + regimeLabel + '</td>'
         + '<td class="num">' + f.loyerDeclare.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + f.abattement.toLocaleString('fr-FR') + ' (' + f.abattementPct + '%)</td>'
+        + '<td class="num">' + deductionCol + '</td>'
         + '<td class="num">' + f.revenuImposable.toLocaleString('fr-FR') + '</td>'
         + '<td class="num">' + f.ir.toLocaleString('fr-FR') + '</td>'
         + '<td class="num">' + f.ps.toLocaleString('fr-FR') + '</td>'

@@ -644,6 +644,22 @@ function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) 
     };
   }
 
+  if (f.regime === 'lmnp-amort') {
+    // LMNP réel avec amortissement du bien
+    // L'amortissement couvre largement le revenu net → impôt = 0
+    return {
+      regime: 'lmnp-amort', type: 'lmnp',
+      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      abattement: 0, abattementPct: 0,
+      revenuImposable: 0,
+      ir: 0, ps: 0,
+      totalImpot: 0,
+      monthlyImpot: 0,
+      tauxEffectif: 0,
+      note: 'Amortissement du bien > revenu net',
+    };
+  }
+
   // Régime réel (foncier ou BIC)
   const deductions = (charges * 12) + loanInterestAnnuel;
   const revenuImposable = Math.max(0, loyerDeclare - deductions);
@@ -694,8 +710,10 @@ function computeImmoView(portfolio, fx) {
     const loanInterestAnnuel = amort
       ? amort.schedule.slice(amort.currentIdx, amort.currentIdx + 12).reduce((s, r) => s + r.interest, 0)
       : 0;
+    // Charges déductibles : PNO + TF + copro + assurance emprunteur (pour régime réel)
+    const deductibleCharges = chargesConfig.pno + chargesConfig.tf + chargesConfig.copro + chargesConfig.assurance;
     const fisc = IC.fiscalite && IC.fiscalite[loanKey]
-      ? computeFiscalite(loyerAnnuel, chargesConfig.pno + chargesConfig.tf + chargesConfig.copro, IC.fiscalite[loanKey], loanInterestAnnuel)
+      ? computeFiscalite(loyerAnnuel, deductibleCharges, IC.fiscalite[loanKey], loanInterestAnnuel)
       : null;
 
     const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;

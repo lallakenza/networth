@@ -337,10 +337,13 @@ export const IMMO_CONSTANTS = {
   //   PS : 17.2%
   // ──────────────────────────────────────────────────────
   fiscalite: {
-    vitry:     { regime: 'micro-foncier', tmi: 0.20, ps: 0.172, cashNonDeclare: 0.30, type: 'nu' },
+    vitry:     { regime: 'reel-foncier', tmi: 0.20, ps: 0.172, cashNonDeclare: 0.30, type: 'nu' },
     // cashNonDeclare: 30% du loyer reçu en cash → base imposable réduite
-    rueil:     { regime: 'micro-bic', tmi: 0.20, ps: 0.172, type: 'lmnp' },
-    villejuif: { regime: 'micro-bic', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+    // Régime réel : on déduit intérêts d'emprunt, assurance, PNO, TF, copro
+    // TMI 20% + PS 17.2% = taux effectif ~37% sur le revenu net
+    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+    // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
   },
 };
 
