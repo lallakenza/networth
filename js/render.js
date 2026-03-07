@@ -551,19 +551,21 @@ function renderActionsView(state) {
   const degiroTbody = document.getElementById('degiroClosedTbody');
   if (degiroTbody) {
     degiroTbody.innerHTML = '';
-    let totalDegiro = 0;
+    let totalCost = 0, totalProceeds = 0, totalDegiro = 0;
     av.degiroClosedPositions.forEach(cp => {
+      totalCost += (cp.costEUR || 0);
+      totalProceeds += (cp.proceedsEUR || 0);
       totalDegiro += cp.pl;
       const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
       const s = cp.pl >= 0 ? '+' : '';
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + cp.label + ' (' + cp.ticker + ')' + (cp.note ? ' <span style="font-size:10px;color:var(--gray)">' + cp.note + '</span>' : '') + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+      tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
       degiroTbody.appendChild(tr);
     });
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
     const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
-    tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
+    tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
     degiroTbody.appendChild(tr);
   }
 

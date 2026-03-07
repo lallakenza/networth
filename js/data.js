@@ -97,20 +97,35 @@ export const PORTFOLIO = {
       ],
     },
     // --- Degiro (closed April 2025 — all positions liquidated, funds withdrawn) ---
+    // P/L computed from Gmail trade confirmations (avis d'opéré)
+    // NVIDIA splits: 4:1 (Jul 2021) + 10:1 (Jun 2024)
     degiro: {
       closed: true,
       closedDate: '2025-04-14',
       closedPositions: [
-        { ticker: 'NVDA', label: 'NVIDIA', buyPrice: 19.42, sellPrice: 98.40, shares: 260, currency: 'USD', pl: 18825, note: 'Bought 30 pre-split Aug 2021 @ $194.15 → 300 post-split (10:1 Jun 2024). Sold 4 pre-split @ $473.4 Jul 2023.' },
-        { ticker: 'NVDA', label: 'NVIDIA (Jul 2023)', buyPrice: 194.15, sellPrice: 473.40, shares: 4, currency: 'USD', pl: 1020, note: 'Sold pre-split Jul 2023' },
-        { ticker: 'SAP', label: 'SAP SE', sellPrice: 135.20, shares: 27, currency: 'EUR', pl: 650, note: 'Sold Jul 2023' },
-        { ticker: 'MC', label: 'LVMH', sellPrice: 701.90, shares: 16, currency: 'EUR', pl: 2400, note: 'Sold Aug 2021' },
-        { ticker: 'SPOT', label: 'Spotify', sellPrice: 606.89, shares: 2, currency: 'USD', pl: 850, note: 'Sold Feb 2025' },
-        { ticker: 'DIS', label: 'Walt Disney', buyPrice: 173.10, sellPrice: 112.90, shares: 5, currency: 'USD', pl: -275, note: 'Sold Feb 2025 at loss' },
-        { ticker: 'INFY', label: 'Infosys ADR', sellPrice: 16.95, shares: 300, currency: 'USD', pl: -650, note: 'Sold Apr 2025' },
-        { ticker: 'EUCAR', label: 'Europcar', shares: 15800, currency: 'EUR', pl: -4200, note: 'Sold Aug 2021 at large loss' },
+        // NVIDIA — Biggest winner. 3 buys, 2 sells across splits.
+        // Buys: 5 @ €419 (Jul 2020) + 2 @ €518 (Sep 2020) + 30 @ $194.15 (Aug 2021)
+        // After 4:1 (Jul 2021): 7 Euronext → 28. Then +30 NASDAQ = 58 total
+        // Sold 4 pre-10:1 (Jul 2023) → 54 remaining × 10 = 540 post-split
+        // Sold all 540 in Apr 2025 (200 @ $98.40 + 140 @ $98.30 + 200 @ $97.60)
+        { ticker: 'NVDA', label: 'NVIDIA (540 post-split)', costEUR: 8067, proceedsEUR: 48264, shares: 540, currency: 'EUR', pl: 40197, note: 'Apr 2025 liquidation. Net EUR from Degiro emails.' },
+        { ticker: 'NVDA', label: 'NVIDIA (Jul 2023)', costEUR: 539, proceedsEUR: 1721, shares: 4, currency: 'EUR', pl: 1182, note: '4 pre-10:1 split @ $473.40. EUR approx.' },
+        // LVMH — Buy 4 @ €386 (Aug 2020) + ~12 unknown buys. Sell 16 @ €701.90
+        { ticker: 'MC', label: 'LVMH', costEUR: 6104, proceedsEUR: 11230, shares: 16, currency: 'EUR', pl: 5126, note: 'Sold Aug 2021. 4 buys confirmed, 12 estimated ~€380.' },
+        // SAP — Buy 20 ADS @ $127.30 (Dec 2020) + ~7 unknown. Sell 27 @ €135.20
+        { ticker: 'SAP', label: 'SAP SE', costEUR: 2804, proceedsEUR: 3650, shares: 27, currency: 'EUR', pl: 846, note: 'Sold Jul 2023. 20 buys confirmed, 7 estimated.' },
+        // Europcar — Multiple buys (€0.32-0.44), sells @ €0.463 + €0.498
+        { ticker: 'EUCAR', label: 'Europcar', costEUR: 7422, proceedsEUR: 9489, shares: 19300, currency: 'EUR', pl: 2067, note: 'Sold Jun-Aug 2021. 11800 buys confirmed, ~7500 estimated.' },
+        // Spotify — No buy email found. Estimated buy ~€250
+        { ticker: 'SPOT', label: 'Spotify', costEUR: 500, proceedsEUR: 1214, shares: 2, currency: 'EUR', pl: 714, note: 'Sold Feb 2025 @ €606.89. Buy price estimated.' },
+        // Walt Disney — Buy 20 @ $173.10 + ~15 unknown. Sell 30 @ $175.45 + 5 @ $112.90
+        { ticker: 'DIS', label: 'Walt Disney', costEUR: 5614, proceedsEUR: 5379, shares: 35, currency: 'EUR', pl: -235, note: '30 sold Sep 2021, 5 sold Feb 2025. Some buys estimated.' },
+        // Infosys — Buy 200 @ $16.19 + ~100 unknown. Sell 300 @ $16.95
+        { ticker: 'INFY', label: 'Infosys ADR', costEUR: 4433, proceedsEUR: 4708, shares: 300, currency: 'EUR', pl: 182, note: 'Sold Apr 2025. 200 buys confirmed, 100 estimated.' },
+        // Minor positions (pre-2021 trades: FedEx, IBM, Fitbit, Juventus, Tortoise, etc.)
+        { ticker: 'MISC', label: 'Autres (FedEx, IBM, Fitbit, Juve...)', costEUR: 0, proceedsEUR: 1000, shares: 0, currency: 'EUR', pl: 1000, note: 'Net ~€1000 sur positions mineures (Philip Morris, Nike, Boeing, etc.)' },
       ],
-      totalRealizedPL: 18620,  // EUR approximate total
+      totalRealizedPL: 51079,  // EUR — computed from Gmail trade confirmations
     },
     // --- Passif ---
     tva: -16000,
