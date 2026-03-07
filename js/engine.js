@@ -248,21 +248,28 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 function computeCashView(portfolio, fx) {
   const p = portfolio;
 
-  // IBKR effective yield helpers (account for zero-interest thresholds & tiered rates)
+  // ── IBKR Rendement effectif ──────────────────────────────
+  // EUR/USD : IBKR ne paie 0% sur les premiers 10K€/10K$
+  // → on calcule le yield effectif = nominal × (solde-10K)/solde
+  // Source : interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php
   function ibkrEffectiveYield(native, nominalRate, threshold) {
-    // Premiers threshold units à 0%, le reste au taux nominal
     if (native <= threshold) return 0;
     return nominalRate * (native - threshold) / native;
   }
+
+  // ── IBKR JPY Emprunt (margin) — taux par tranche ──────
+  // Source : interactivebrokers.com/en/trading/margin-rates.php
+  // IBKR Pro — Benchmark (BM) JPY = 0.704% (mars 2026)
+  //
+  // ⚠️  POUR METTRE À JOUR : modifier les taux ci-dessous
+  //     Tier 1: 0 → ¥11M    = BM + 1.5%  (actuellement 2.204%)
+  //     Tier 2: ¥11M → ¥114M = BM + 1.0%  (actuellement 1.704%)
+  //     Tier 3: > ¥114M      = BM + 0.75% (actuellement 1.454%)
   function ibkrJPYBorrowCost(absJPY) {
-    // IBKR Pro tiered JPY margin rates (mars 2026)
-    // Tier 1: 0-11M JPY → BM+1.5% = 2.204%
-    // Tier 2: 11M-114M JPY → BM+1.0% = 1.704%
-    // Tier 3: 114M+ JPY → BM+0.75% = 1.454%
     const tiers = [
-      { limit: 11000000, rate: 0.02204 },
-      { limit: 114000000, rate: 0.01704 },
-      { limit: Infinity, rate: 0.01454 },
+      { limit: 11000000, rate: 0.02204 },   // ← Tier 1 : modifier ce taux si BM change
+      { limit: 114000000, rate: 0.01704 },   // ← Tier 2
+      { limit: Infinity, rate: 0.01454 },     // ← Tier 3
     ];
     let remaining = absJPY, totalCost = 0, prev = 0;
     for (const t of tiers) {

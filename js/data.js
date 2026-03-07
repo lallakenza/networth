@@ -3,26 +3,51 @@
 // ============================================================
 // All amounts are in their NATIVE currency (AED, MAD, USD, EUR, JPY)
 // Never converted here. Engine does all conversions.
+//
+// ╔══════════════════════════════════════════════════════════╗
+// ║  GUIDE MISE À JOUR RAPIDE                               ║
+// ║                                                          ║
+// ║  1. SOLDES BANCAIRES : modifier les montants dans        ║
+// ║     PORTFOLIO.amine.uae / maroc / ibkr                   ║
+// ║  2. IBKR POSITIONS : mettre à jour price + shares        ║
+// ║     dans PORTFOLIO.amine.ibkr.positions[]                ║
+// ║  3. TAUX D'INTÉRÊTS : modifier CASH_YIELDS               ║
+// ║     → Les taux IBKR par tranche sont dans engine.js      ║
+// ║       (fonction ibkrJPYBorrowCost)                       ║
+// ║  4. TAUX DE CHANGE : modifier FX_STATIC (fallback)       ║
+// ║     → Les taux live sont récupérés automatiquement        ║
+// ║  5. IMMOBILIER : valeurs + CRD dans amine.immo / nezha   ║
+// ║  6. CRÉANCES : ajouter/supprimer dans creances.items[]   ║
+// ╚══════════════════════════════════════════════════════════╝
 
 export const PORTFOLIO = {
   amine: {
-    // --- Cash UAE (AED) ---
+    // ──────────────────────────────────────────────────────
+    // CASH UAE (en AED) — se connecter à Mashreq/Wio app
+    // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 360734,      // Mashreq NEO PLUS — corrigé 7 Mar 2026
+      mashreq: 360734,      // Mashreq NEO PLUS — mis à jour 7 Mar 2026
       wioSavings: 220000,   // Wio Savings (~6% rendement)
-      wioCurrent: 4904,     // Wio Current
-      revolutEUR: 5967,     // Revolut EUR balance (already EUR) — updated 7 Mar 2026 (Anas remboursement + ventes)
+      wioCurrent: 4904,     // Wio Current (compte courant, 0% rendement)
+      revolutEUR: 5967,     // Revolut EUR balance (déjà en EUR) — mis à jour 7 Mar 2026
     },
-    // --- Cash Maroc (MAD) ---
+
+    // ──────────────────────────────────────────────────────
+    // CASH MAROC (en MAD) — se connecter à Attijari/Nabd app
+    // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 151202,     // Attijariwafa Courant
-      nabd: 37304,          // Nabd (ex-Société Générale Maroc)
+      attijari: 151202,     // Attijariwafa Courant (0% rendement)
+      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement)
     },
-    // --- ESPP Accenture (from Fidelity screenshot March 2026) ---
+
+    // ──────────────────────────────────────────────────────
+    // ESPP ACCENTURE — voir Fidelity NetBenefits
+    // ──────────────────────────────────────────────────────
     espp: {
-      shares: 167,
-      cashEUR: 2000,        // cash residuel en EUR dans le compte ESPP
+      shares: 167,          // Nombre d'actions ACN détenues
+      cashEUR: 2000,        // Cash résiduel en EUR dans le compte ESPP
       lots: [
+        // { date, source, shares, costBasis (USD/action) }
         { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },
         { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },
         { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },
@@ -35,13 +60,22 @@ export const PORTFOLIO = {
         { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },
         { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },
       ],
-      // Total cost basis USD: sum(shares * costBasis) ≈ $36,052
       totalCostBasisUSD: 36052,
     },
-    // --- IBKR Portfolio (updated from CSV March 2026) ---
+
+    // ──────────────────────────────────────────────────────
+    // IBKR — Télécharger le CSV "Net Asset Value" depuis
+    //        Interactive Brokers > Performance & Reports
+    //
+    // Positions : mettre à jour price (cours) et shares (nb)
+    // Cash : mettre à jour cashEUR, cashUSD, cashJPY
+    // cashJPY est NÉGATIF = emprunt (short JPY pour levier)
+    // ──────────────────────────────────────────────────────
     ibkr: {
-      staticNAV: 197477,    // reported NAV from CSV (was 204156)
+      staticNAV: 197477,    // NAV totale du rapport CSV (pour vérification)
       positions: [
+        // { ticker, shares, price (cours actuel), costBasis (PRU), currency, label, sector, geo }
+        // Cours mis à jour automatiquement par l'API Yahoo Finance
         { ticker: 'AIR.PA',  shares: 200,  price: 175.88, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
         { ticker: 'BN.PA',   shares: 200,  price: 70.04,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france' },
         { ticker: 'DG.PA',   shares: 200,  price: 131.70, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france' },
@@ -56,10 +90,10 @@ export const PORTFOLIO = {
         { ticker: 'IBIT',    shares: 1200, price: 40.39,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
         { ticker: 'ETHA',    shares: 1100, price: 15.80,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
       ],
-      // Multi-currency cash from CSV
-      cashEUR: 65927,
-      cashUSD: 14482,
-      cashJPY: -21390085,
+      // ⬇️ Cash multi-devises (depuis rapport IBKR)
+      cashEUR: 65927,       // Solde EUR chez IBKR
+      cashUSD: 14482,       // Solde USD chez IBKR
+      cashJPY: -21390085,   // Solde JPY chez IBKR (NÉGATIF = emprunt margin)
       // Performance metrics from CSV (April 2025 - March 2026)
       meta: {
         twr: 26.94,            // Time-Weighted Return %
@@ -76,15 +110,31 @@ export const PORTFOLIO = {
         ],
       },
     },
-    // --- SGTM (Bourse Casablanca) ---
-    sgtm: { shares: 32 },
-    // --- Immobilier ---
+
+    // ──────────────────────────────────────────────────────
+    // SGTM (Bourse Casablanca) — voir cours sur casablanca-bourse.com
+    // ──────────────────────────────────────────────────────
+    sgtm: { shares: 32 },   // prix unitaire dans market.sgtmPriceMAD
+
+    // ──────────────────────────────────────────────────────
+    // IMMOBILIER — mettre à jour valeur estimée + CRD mensuel
+    // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
+    // ──────────────────────────────────────────────────────
     immo: {
       vitry: { value: 293000, crd: 268903, loyer: 1200, parking: 70 },
     },
-    // --- Vehicules ---
+
+    // ──────────────────────────────────────────────────────
+    // VÉHICULES — valeur estimée revente
+    // ──────────────────────────────────────────────────────
     vehicles: { cayenne: 40000, mercedes: 15000 },
-    // --- Creances (detailed) ---
+
+    // ──────────────────────────────────────────────────────
+    // CRÉANCES — argent qu'on nous doit
+    // guaranteed: true = certain, false = incertain
+    // probability: 0.7 = 70% de chances de récupérer
+    // delayDays: délai avant paiement (ex: 45j pour SAP)
+    // ──────────────────────────────────────────────────────
     creances: {
       items: [
         { label: 'SAP & Tax (20j x 910\u20ac)', amount: 18200, currency: 'EUR', guaranteed: true, probability: 1.0, delayDays: 45 },
@@ -93,86 +143,106 @@ export const PORTFOLIO = {
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7 },
         { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: true, probability: 1.0 },
         { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7 },
-        // Anas — remboursé le 7 mars 2026 (1500 EUR + ventes) → supprimé
+        // Anas — remboursé le 7 mars 2026 → supprimé
       ],
     },
-    // --- Degiro (closed April 2025 — all positions liquidated, funds withdrawn) ---
-    // P/L computed from Gmail trade confirmations (avis d'opéré)
-    // NVIDIA splits: 4:1 (Jul 2021) + 10:1 (Jun 2024)
+
+    // ──────────────────────────────────────────────────────
+    // DEGIRO (fermé avril 2025 — toutes positions liquidées)
+    // P/L calculé depuis les emails de confirmation Gmail
+    // ──────────────────────────────────────────────────────
     degiro: {
       closed: true,
       closedDate: '2025-04-14',
       closedPositions: [
-        // NVIDIA — Biggest winner. 3 buys, 2 sells across splits.
-        // Buys: 5 @ €419 (Jul 2020) + 2 @ €518 (Sep 2020) + 30 @ $194.15 (Aug 2021)
-        // After 4:1 (Jul 2021): 7 Euronext → 28. Then +30 NASDAQ = 58 total
-        // Sold 4 pre-10:1 (Jul 2023) → 54 remaining × 10 = 540 post-split
-        // Sold all 540 in Apr 2025 (200 @ $98.40 + 140 @ $98.30 + 200 @ $97.60)
+        // { ticker, label, costEUR (coût total), proceedsEUR (vente totale), shares, pl (P/L) }
         { ticker: 'NVDA', label: 'NVIDIA (540 post-split)', costEUR: 8067, proceedsEUR: 48264, shares: 540, currency: 'EUR', pl: 40197, note: 'Apr 2025 liquidation. Net EUR from Degiro emails.' },
         { ticker: 'NVDA', label: 'NVIDIA (Jul 2023)', costEUR: 539, proceedsEUR: 1721, shares: 4, currency: 'EUR', pl: 1182, note: '4 pre-10:1 split @ $473.40. EUR approx.' },
-        // LVMH — Buy 4 @ €386 (Aug 2020) + ~12 unknown buys. Sell 16 @ €701.90
-        { ticker: 'MC', label: 'LVMH', costEUR: 6104, proceedsEUR: 11230, shares: 16, currency: 'EUR', pl: 5126, note: 'Sold Aug 2021. 4 buys confirmed, 12 estimated ~€380.' },
-        // SAP — Buy 20 ADS @ $127.30 (Dec 2020) + ~7 unknown. Sell 27 @ €135.20
-        { ticker: 'SAP', label: 'SAP SE', costEUR: 2804, proceedsEUR: 3650, shares: 27, currency: 'EUR', pl: 846, note: 'Sold Jul 2023. 20 buys confirmed, 7 estimated.' },
-        // Europcar — Multiple buys (€0.32-0.44), sells @ €0.463 + €0.498
-        { ticker: 'EUCAR', label: 'Europcar', costEUR: 7422, proceedsEUR: 9489, shares: 19300, currency: 'EUR', pl: 2067, note: 'Sold Jun-Aug 2021. 11800 buys confirmed, ~7500 estimated.' },
-        // Spotify — No buy email found. Estimated buy ~€250
-        { ticker: 'SPOT', label: 'Spotify', costEUR: 500, proceedsEUR: 1214, shares: 2, currency: 'EUR', pl: 714, note: 'Sold Feb 2025 @ €606.89. Buy price estimated.' },
-        // Walt Disney — Buy 20 @ $173.10 + ~15 unknown. Sell 30 @ $175.45 + 5 @ $112.90
-        { ticker: 'DIS', label: 'Walt Disney', costEUR: 5614, proceedsEUR: 5379, shares: 35, currency: 'EUR', pl: -235, note: '30 sold Sep 2021, 5 sold Feb 2025. Some buys estimated.' },
-        // Infosys — Buy 200 @ $16.19 + ~100 unknown. Sell 300 @ $16.95
-        { ticker: 'INFY', label: 'Infosys ADR', costEUR: 4433, proceedsEUR: 4708, shares: 300, currency: 'EUR', pl: 182, note: 'Sold Apr 2025. 200 buys confirmed, 100 estimated.' },
-        // Minor positions (pre-2021 trades: FedEx, IBM, Fitbit, Juventus, Tortoise, etc.)
-        { ticker: 'MISC', label: 'Autres (FedEx, IBM, Fitbit, Juve...)', costEUR: 0, proceedsEUR: 1000, shares: 0, currency: 'EUR', pl: 1000, note: 'Net ~€1000 sur positions mineures (Philip Morris, Nike, Boeing, etc.)' },
+        { ticker: 'MC', label: 'LVMH', costEUR: 6104, proceedsEUR: 11230, shares: 16, currency: 'EUR', pl: 5126, note: 'Sold Aug 2021.' },
+        { ticker: 'SAP', label: 'SAP SE', costEUR: 2804, proceedsEUR: 3650, shares: 27, currency: 'EUR', pl: 846, note: 'Sold Jul 2023.' },
+        { ticker: 'EUCAR', label: 'Europcar', costEUR: 7422, proceedsEUR: 9489, shares: 19300, currency: 'EUR', pl: 2067, note: 'Sold Jun-Aug 2021.' },
+        { ticker: 'SPOT', label: 'Spotify', costEUR: 500, proceedsEUR: 1214, shares: 2, currency: 'EUR', pl: 714, note: 'Sold Feb 2025 @ €606.89.' },
+        { ticker: 'DIS', label: 'Walt Disney', costEUR: 5614, proceedsEUR: 5379, shares: 35, currency: 'EUR', pl: -235, note: '30 sold Sep 2021, 5 sold Feb 2025.' },
+        { ticker: 'INFY', label: 'Infosys ADR', costEUR: 4433, proceedsEUR: 4708, shares: 300, currency: 'EUR', pl: 182, note: 'Sold Apr 2025.' },
+        { ticker: 'MISC', label: 'Autres (FedEx, IBM, Fitbit, Juve...)', costEUR: 0, proceedsEUR: 1000, shares: 0, currency: 'EUR', pl: 1000, note: 'Net ~€1000 sur positions mineures.' },
       ],
-      totalRealizedPL: 51079,  // EUR — computed from Gmail trade confirmations
+      totalRealizedPL: 51079,  // EUR total P/L Degiro
     },
-    // --- Passif ---
-    tva: -16000,
+
+    // ──────────────────────────────────────────────────────
+    // PASSIF — dettes / obligations
+    // ──────────────────────────────────────────────────────
+    tva: -16000,             // TVA à payer (négatif = dette)
   },
 
+  // ════════════════════════════════════════════════════════
+  // NEZHA
+  // ════════════════════════════════════════════════════════
   nezha: {
-    cashFrance: 85000,       // EUR
-    cashMaroc: 100000,       // MAD
-    sgtm: { shares: 32 },
+    cashFrance: 85000,       // EUR — compte bancaire France (0% rendement)
+    cashMaroc: 100000,       // MAD — compte bancaire Maroc (0% rendement)
+    sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     creances: {
       items: [
         { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7 },
       ],
     },
     immo: {
+      // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
       rueil:     { value: 272000, crd: 196516, loyer: 1300 },
       villejuif: { value: 360000, crd: 318470, loyer: 1700 },
     },
   },
 
-  // Market prices (updated by API)
+  // ════════════════════════════════════════════════════════
+  // PRIX DE MARCHÉ (mis à jour automatiquement par API)
+  // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 830,       // prix unitaire SGTM
-    acnPriceUSD: 185.40,     // prix unitaire Accenture (Fidelity screenshot March 2026)
+    sgtmPriceMAD: 830,       // Cours SGTM en MAD (casablanca-bourse.com)
+    acnPriceUSD: 185.40,     // Cours Accenture en USD (Fidelity)
   },
 };
 
-// Cash yields (annual %)
+// ════════════════════════════════════════════════════════════
+// TAUX DE RENDEMENT CASH (annuels)
+//
+// ⚠️  Pour IBKR : les taux ci-dessous sont les taux NOMINAUX
+//     (avant seuil 10K). Le rendement EFFECTIF est calculé
+//     dans engine.js en tenant compte de :
+//     - EUR/USD : premiers 10 000 à 0% (seuil IBKR)
+//     - JPY : taux par tranche (voir ibkrJPYBorrowCost)
+//
+// Source : https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php
+// Dernière vérification : 7 mars 2026
+// ════════════════════════════════════════════════════════════
 export const CASH_YIELDS = {
-  mashreq: 0.0625,     // 6.25% annuel (NEO+ savings)
-  wioSavings: 0.06,    // ~6% annuel
-  wioCurrent: 0,
-  revolutEUR: 0,
-  attijari: 0,
-  nabd: 0,
-  ibkrCashEUR: 0.0153,  // 1.53% IBKR Pro (BM 2.03% - 0.5%), premiers 10K€ à 0%
-  ibkrCashUSD: 0.0314,  // 3.14% IBKR Pro (BM 3.64% - 0.5%), premiers 10K$ à 0%
-  ibkrCashJPY: -0.017,  // -1.70% coût emprunt JPY IBKR Pro tier 2 (BM 0.70% + 1%)
-  nezhaCashFrance: 0,  // pas de rendement
-  nezhaCashMaroc: 0,
-  esppCash: 0,
+  // --- UAE ---
+  mashreq: 0.0625,     // 6.25% Mashreq NEO+ Savings (taux fixe)
+  wioSavings: 0.06,    // 6.00% Wio Savings (taux affiché dans l'app)
+  wioCurrent: 0,       // Compte courant, pas de rendement
+  // --- Revolut ---
+  revolutEUR: 0,       // Pas de rendement (pas de coffre activé)
+  // --- Maroc ---
+  attijari: 0,         // Compte courant, pas de rendement
+  nabd: 0,             // Compte courant, pas de rendement
+  // --- IBKR (taux IBKR Pro = Benchmark - 0.5%) ---
+  ibkrCashEUR: 0.0153,  // 1.53% = BM 2.03% - 0.50% commission IBKR
+  ibkrCashUSD: 0.0314,  // 3.14% = BM 3.64% - 0.50% commission IBKR
+  ibkrCashJPY: -0.017,  // NON UTILISÉ DIRECTEMENT — calcul par tranche dans engine.js
+  // --- Autres ---
+  nezhaCashFrance: 0,  // Pas de livret / pas de rendement
+  nezhaCashMaroc: 0,   // Pas de rendement
+  esppCash: 0,         // Cash résiduel ESPP, pas de rendement
 };
 
-// Inflation rate assumption for erosion calc
+// Taux d'inflation annuel (pour calcul érosion cash dormant)
 export const INFLATION_RATE = 0.03; // 3% annuel
 
-// Static FX rates as fallback (1 EUR = X foreign)
+// ════════════════════════════════════════════════════════════
+// TAUX DE CHANGE STATIQUES (fallback si API indisponible)
+// Format : 1 EUR = X devises étrangères
+// Source : xe.com — Dernière vérification : mars 2026
+// ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,
   AED: 4.3259,
@@ -181,27 +251,30 @@ export const FX_STATIC = {
   JPY: 161.50,
 };
 
-// Currency display config
+// Symboles devises pour affichage
 export const CURRENCY_CONFIG = {
   symbols: { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$', JPY: '\u00a5' },
   symbolAfter: { MAD: true },
 };
 
-// Immo constants for simulations
+// ════════════════════════════════════════════════════════════
+// IMMOBILIER — constantes pour simulations
+// ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
   growth: {
-    vitry: 1017,       // EUR/month wealth creation (capital repayment + appreciation)
+    vitry: 1017,       // EUR/mois création de richesse (remboursement capital + appréciation)
     rueil: 838,
     villejuif: 813,
   },
-  villejuifStartMonth: 40, // Ete 2029 ~ 40 months from March 2026
+  villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
   charges: {
+    // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     vitry:     { pret: 1317, assurance: 30, pno: 15, tf: 75, copro: 150 },
     rueil:     { pret: 907, assurance: 25, pno: 12, tf: 67, copro: 80 },
     villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
   },
   prets: {
-    vitryEnd: 2048,
+    vitryEnd: 2048,      // Année fin du prêt
     rueilEnd: 2044,
     villejuifEnd: 2053,
   },
