@@ -1062,9 +1062,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Immobilier', color: '#b7791f',
       total: coupleImmoEquity,
       sub: [
-        { label: 'Vitry (Amine)', val: amineVitryEquity, color: '#b7791f' },
-        { label: 'Rueil (Nezha)', val: nezhaRueilEquity, color: '#e6a817' },
-        { label: 'Villejuif VEFA (Nezha)', val: nezhaVillejuifEquity, color: '#805a10' },
+        { label: 'Vitry', val: amineVitryEquity, color: '#b7791f', owner: 'Amine' },
+        { label: 'Rueil', val: nezhaRueilEquity, color: '#e6a817', owner: 'Nezha' },
+        { label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Nezha' },
       ]
     },
     {
@@ -1079,12 +1079,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
           const colors = ['#1e3a5f','#2563eb','#3b82f6','#0284c7','#0369a1','#1d4ed8','#4338ca','#6366f1','#7c3aed','#0891b2'];
           const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
-          return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
+          // Short label = company name without ticker
+          const short = pos.label.replace(/\s*\(.*\)/, '');
+          return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR', ticker: pos.ticker };
         }),
-        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af' },
-        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1' },
-        { label: 'SGTM Amine', val: amineSgtm, color: '#4f46e5' },
-        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#818cf8' },
+        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af', owner: 'Amine — IBKR' },
+        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1', owner: 'Amine — ESPP' },
+        { label: 'SGTM Amine', val: amineSgtm, color: '#4f46e5', owner: 'Amine — Maroc' },
+        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#818cf8', owner: 'Nezha — Maroc' },
       ].filter(s => s.val > 100)
     },
     {
@@ -1096,34 +1098,35 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       sub: p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
         const colors = ['#f59e0b','#d97706'];
         const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
-        return { label: pos.label, val: valEUR, color: colors[i % colors.length] };
+        const short = pos.label.replace(/\s*\(.*\)/, '');
+        return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR' };
       })
     },
     {
       label: 'Cash', color: '#48bb78',
       total: p.nezha.cashFrance + nezhaCashMaroc + amineUae + amineMoroccoCash,
       sub: [
-        { label: 'Amine \u2014 UAE (AED)', val: amineUae, color: '#22c55e' },
-        { label: 'Nezha \u2014 France (EUR)', val: p.nezha.cashFrance, color: '#16a34a' },
-        { label: 'Amine \u2014 Maroc (MAD)', val: amineMoroccoCash, color: '#15803d' },
-        { label: 'Nezha \u2014 Maroc (MAD)', val: nezhaCashMaroc, color: '#166534' },
+        { label: 'Cash UAE', val: amineUae, color: '#22c55e', owner: 'Amine' },
+        { label: 'Cash France', val: p.nezha.cashFrance, color: '#16a34a', owner: 'Nezha' },
+        { label: 'Cash Maroc', val: amineMoroccoCash, color: '#15803d', owner: 'Amine' },
+        { label: 'Cash Maroc', val: nezhaCashMaroc, color: '#166534', owner: 'Nezha' },
       ]
     },
     {
       label: 'Vehicules', color: '#64748b',
       total: amineVehicles,
       sub: [
-        { label: 'Porsche Cayenne', val: p.amine.vehicles.cayenne, color: '#64748b' },
-        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#475569' },
+        { label: 'Cayenne', val: p.amine.vehicles.cayenne, color: '#64748b', owner: 'Amine' },
+        { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#475569', owner: 'Amine' },
       ]
     },
     {
       label: 'Creances', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar,
       sub: [
-        { label: 'SAP & Tax (garanti)', val: amineRecvPro, color: '#ec4899' },
-        { label: 'Creances perso Amine', val: amineRecvPersonal, color: '#db2777' },
-        { label: 'Omar \u2014 Nezha', val: nezhaRecvOmar, color: '#be185d' },
+        { label: 'SAP & Tax', val: amineRecvPro, color: '#ec4899', owner: 'Amine — garanti' },
+        { label: 'Creances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Amine' },
+        { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: 'Nezha' },
       ]
     },
   ];

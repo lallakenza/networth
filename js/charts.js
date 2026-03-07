@@ -577,6 +577,7 @@ function buildCoupleTreemap(state) {
           value: sub.val,
           color: sub.color,
           catTotal: cat.total,
+          owner: sub.owner || '',
         });
       }
     });
@@ -628,7 +629,6 @@ function buildCoupleTreemap(state) {
             return '#ffffff';
           },
           font: function(ctx) {
-            // Adapt font size to box dimensions
             const w = ctx.raw?.w || 100;
             const h = ctx.raw?.h || 50;
             const area = w * h;
@@ -636,9 +636,10 @@ function buildCoupleTreemap(state) {
             if (isCategoryHeader(d)) {
               return [{ size: Math.min(16, Math.max(10, w / 8)), weight: 'bold' }];
             }
-            // Leaf nodes: line1 = bold name-value, line2+3 = smaller %
-            if (area > 6000) return [{ size: 13, weight: 'bold' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }];
-            if (area > 2500) return [{ size: 11, weight: 'bold' }, { size: 8, weight: 'normal' }];
+            // 4 lines: name-value (bold), owner (italic-ish), % cat, % total
+            if (area > 12000) return [{ size: 14, weight: 'bold' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }, { size: 10, weight: 'normal' }];
+            if (area > 6000) return [{ size: 12, weight: 'bold' }, { size: 9, weight: 'normal' }, { size: 9, weight: 'normal' }, { size: 9, weight: 'normal' }];
+            if (area > 3000) return [{ size: 11, weight: 'bold' }, { size: 8, weight: 'normal' }];
             return [{ size: 9, weight: 'bold' }];
           },
           formatter: function(ctx) {
@@ -656,28 +657,29 @@ function buildCoupleTreemap(state) {
             // Tiny boxes — nothing
             if (area < 1200) return '';
             // Very small — just short name
-            if (area < 2500) {
-              return label.length > 12 ? label.substring(0, 10) + '..' : label;
+            if (area < 2000) {
+              return label.length > 10 ? label.substring(0, 8) + '..' : label;
             }
-            // Build: "Label - €XXK" on line 1, "XX% catégorie · XX% total" on line 2
-            const valK = '€' + (v / 1000).toFixed(0) + 'K';
-            const pctNW = (v / grandTotal * 100).toFixed(1);
-            // Get category %
+
+            const valK = v >= 1000 ? '€' + (v / 1000).toFixed(0) + 'K' : '€' + Math.round(v);
             const child = d.children && d.children[0];
             const category = (child && child.category) || '';
             const catTot = (child && child.catTotal) || catTotals[category] || 0;
+            const owner = (child && child.owner) || '';
+            const pctNW = (v / grandTotal * 100).toFixed(1);
             const pctCat = catTot > 0 ? (v / catTot * 100).toFixed(0) : '?';
-            // Shorten label if box is narrow
+
+            // Line 1: Name - Value (always shown)
             let displayLabel = label;
-            if (w < 130 && label.length > 16) {
-              displayLabel = label.substring(0, 14) + '..';
-            }
-            // Line 1: Name - Value
-            const line1 = displayLabel + ' - ' + valK;
-            // Small-medium: just 2 lines
-            if (area < 6000) return [line1, pctCat + '% cat · ' + pctNW + '% total'];
-            // Large: 3 lines
-            return [line1, pctCat + '% de ' + category, pctNW + '% du patrimoine'];
+            if (w < 120 && label.length > 14) displayLabel = label.substring(0, 12) + '..';
+            const line1 = displayLabel + ' — ' + valK;
+
+            // Small-medium: 2 lines
+            if (area < 3000) return [line1, pctCat + '% cat · ' + pctNW + '% NW'];
+            // Medium: 2 lines
+            if (area < 6000) return [line1, pctCat + '% ' + category + ' · ' + pctNW + '% NW'];
+            // Large: 4 lines with owner
+            return [line1, owner, pctCat + '% de ' + category, pctNW + '% du patrimoine'];
           }
         }
       }]
@@ -704,22 +706,22 @@ function buildCoupleTreemap(state) {
               return d?.label || '';
             },
             beforeBody: items => {
-              // Find leaf item and render its info
               const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
               if (!leaf) {
-                // Category header only — show category total
                 const v = items[0]?.raw?.v || 0;
                 const pctNW = (v / grandTotal * 100).toFixed(1);
                 return [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
               }
               const v = leaf.raw.v || 0;
               const d = leaf.raw._data;
-              const pctNW = (v / grandTotal * 100).toFixed(1);
-              const lines = [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
-              // Get category from wrapped data child
               const child = d.children && d.children[0];
+              const owner = (child && child.owner) || '';
               const category = (child && child.category) || '';
               const catTot = (child && child.catTotal) || catTotals[category] || 0;
+              const pctNW = (v / grandTotal * 100).toFixed(1);
+              const lines = [];
+              if (owner) lines.push(owner);
+              lines.push(fmt(v) + ' — ' + pctNW + '% du patrimoine');
               if (catTot > 0) {
                 const pctCat = (v / catTot * 100).toFixed(1);
                 lines.push(pctCat + '% de « ' + category + ' »');
