@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Patrimonial — Amine & Nezha</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; --gold: #b7791f; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, #1a202c, #2d3748, #4a5568); color: white; padding: 48px 0 24px; }
+  header h1 { font-size: 32px; font-weight: 700; }
+  header .subtitle { opacity: 0.85; margin-top: 6px; font-size: 15px; }
+  header .badge { display: inline-block; background: rgba(255,255,255,0.15); padding: 4px 14px; border-radius: 20px; font-size: 12px; margin-top: 10px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .success { background: #f0fff4; border-left: 4px solid var(--green); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .info { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+
+  .currency-bar { display: flex; gap: 0; justify-content: flex-end; margin-top: 12px; }
+  .cur-btn { padding: 6px 16px; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); transition: all 0.2s; }
+  .cur-btn:first-child { border-radius: 6px 0 0 6px; }
+  .cur-btn:last-child { border-radius: 0 6px 6px 0; }
+  .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .cur-btn:hover { color: white; }
+
+  .view-switcher { display: flex; gap: 0; margin: 0 0 32px; background: #2d3748; padding: 16px 0 0; justify-content: center; }
+  .view-btn { padding: 12px 32px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; }
+  .view-btn:hover { color: rgba(255,255,255,0.9); }
+  .view-btn.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); }
+  .kpi.gold { border-top-color: var(--gold); }
+  .kpi.green { border-top-color: var(--green); }
+  .kpi .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
+  .kpi .label { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .cat-card { background: white; border-radius: 12px; padding: 22px 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0; transition: all 0.2s; cursor: pointer; position: relative; }
+  .cat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); border-color: #cbd5e0; }
+  .cat-card.active-cat { border-color: var(--accent); box-shadow: 0 4px 12px rgba(43,108,176,0.15); }
+  .cat-card .cat-icon { font-size: 28px; margin-bottom: 6px; }
+  .cat-card .cat-title { font-weight: 700; font-size: 15px; color: var(--primary); }
+  .cat-card .cat-amount { font-size: 20px; font-weight: 700; color: var(--green); margin: 6px 0 2px; }
+  .cat-card .cat-sub { font-size: 11px; color: var(--gray); }
+  .cat-card .cat-pct { position: absolute; top: 10px; right: 12px; font-size: 11px; font-weight: 600; color: var(--gray); background: #edf2f7; padding: 2px 8px; border-radius: 10px; }
+
+  .cat-expand { overflow: hidden; max-height: 0; transition: max-height 0.4s ease, padding 0.3s ease, opacity 0.3s ease; opacity: 0; margin-top: 0; }
+  .cat-expand.open { max-height: 800px; opacity: 1; margin-top: 16px; }
+  .cat-expand-inner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 20px; background: #f7fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .sub-card { background: white; border-radius: 10px; padding: 18px; text-decoration: none; color: inherit; border: 1px solid #e2e8f0; transition: all 0.15s; display: block; }
+  .sub-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
+  .sub-card .sub-icon { font-size: 24px; margin-bottom: 6px; }
+  .sub-card .sub-title { font-weight: 700; font-size: 13px; color: var(--primary); }
+  .sub-card .sub-detail { font-size: 12px; color: var(--gray); margin-top: 4px; line-height: 1.5; }
+  .sub-card .sub-equity { font-size: 16px; font-weight: 700; margin-top: 6px; }
+  .sub-card .sub-equity.pos { color: var(--green); }
+  .sub-card .sub-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-top: 6px; }
+
+  .link-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .link-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); transition: transform 0.15s, box-shadow 0.15s; text-decoration: none; color: inherit; border: 1px solid #e2e8f0; }
+  .link-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+  .link-card .icon { font-size: 32px; margin-bottom: 8px; }
+  .link-card .link-title { font-weight: 700; font-size: 14px; color: var(--primary); }
+  .link-card .link-sub { font-size: 11px; color: var(--gray); margin-top: 4px; }
+
+  .chart-container { position: relative; height: 320px; margin: 16px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .section-icon { display: inline-block; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; color: white; }
+  .badge-tag { display: inline-block; background: #feebc8; color: #b7791f; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+  .hidden { display: none !important; }
+
+  .sim-controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; align-items: end; }
+  .sim-field label { display: block; font-size: 12px; color: var(--gray); margin-bottom: 4px; font-weight: 600; }
+  .sim-field input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--accent); }
+  .sim-field .range-val { font-size: 18px; font-weight: 700; color: var(--primary); text-align: center; }
+  .sim-result-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .sim-result { background: #f0f5ff; border-radius: 8px; padding: 14px; text-align: center; }
+  .sim-result .sr-val { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .sim-result .sr-label { font-size: 11px; color: var(--gray); margin-top: 2px; }
+  .sim-result.green-r { background: #f0fff4; }
+  .sim-result.green-r .sr-val { color: var(--green); }
+
+  .breakdown-list { list-style: none; padding: 0; margin: 6px 0 0; }
+  .breakdown-list li { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; border-bottom: 1px dashed #e2e8f0; }
+  .breakdown-list li:last-child { border-bottom: none; }
+  .breakdown-list .bl-label { color: #4a5568; }
+  .breakdown-list .bl-val { font-weight: 600; color: var(--primary); }
+
+  @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr 1fr; } .sim-controls { grid-template-columns: 1fr 1fr !important; } .sim-result-strip { grid-template-columns: 1fr 1fr; } .cat-grid { grid-template-columns: 1fr 1fr; } .cat-expand-inner { grid-template-columns: 1fr !important; } }
+  @media (max-width: 600px) { .kpi-strip { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr; } .view-btn { padding: 10px 16px; font-size: 13px; } .sim-controls { grid-template-columns: 1fr; } .sim-result-strip { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1 id="headerTitle">Dashboard Patrimonial</h1>
+    <div class="subtitle" id="headerSub">Amine (33 ans) & Nezha (34 ans) Koraibi — Vue consolidee</div>
+    <div class="badge">Donnees au 27 fevrier 2026</div>
+    <div class="currency-bar">
+      <button class="cur-btn active" data-cur="EUR">EUR &euro;</button>
+      <button class="cur-btn" data-cur="AED">AED &#1583;.&#1573;</button>
+      <button class="cur-btn" data-cur="MAD">MAD DH</button>
+      <button class="cur-btn" data-cur="USD">USD $</button>
+    </div>
+    <div style="font-size:10px;color:var(--gray);margin-top:4px;">
+      <span id="fxBadge">Taux FX : chargement...</span> &nbsp;|&nbsp; <span id="stockBadge">Actions : chargement...</span>
+    </div>
+  </div>
+</header>
+
+<div class="view-switcher">
+  <button class="view-btn active" data-view="couple">Couple</button>
+  <button class="view-btn" data-view="amine">Amine</button>
+  <button class="view-btn" data-view="nezha">Nezha</button>
+</div>
+
+<div class="container">
+
+<!-- KPIs COUPLE -->
+<div id="kpi-couple" class="kpi-strip">
+  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
+  <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
+  <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
+  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label">Equity Immo (3 biens) *</div></div>
+</div>
+
+<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;">* incl. Villejuif VEFA — <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">conditionnel</span> acte notarie non signe</p>
+
+<!-- KPIs AMINE -->
+<div id="kpi-amine" class="kpi-strip hidden">
+  <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
+  <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR+ESPP)</div></div>
+  <div class="kpi"><div class="value" data-eur-pct="31.04" data-type="pct">--</div><div class="label">TWR IBKR</div></div>
+  <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">Equity Vitry</div></div>
+</div>
+
+<!-- KPIs NEZHA -->
+<div id="kpi-nezha" class="kpi-strip hidden">
+  <div class="kpi" style="border-top-color: #d69e2e;"><div class="value" id="kpiNzNW" data-eur="0">--</div><div class="label">Net Worth (actuel)</div></div>
+  <div class="kpi"><div class="value" id="kpiNzRueil" data-eur="0">--</div><div class="label">Equity Rueil</div></div>
+  <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiNzVillejuif" data-eur="0">--</div><div class="label">Equity Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div></div>
+  <div class="kpi"><div class="value" id="kpiNzCash" data-eur="0">--</div><div class="label">Cash + Creances</div></div>
+</div>
+
+<!-- INSIGHTS GLOBAUX -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F4A1;</span>Vue d'ensemble & Insights</h2>
+  <div class="grid2">
+    <div>
+      <div class="success">
+        <strong>Points forts du couple :</strong><br>
+        - NW combine de 736K a 33 et 34 ans — excellent rythme de constitution patrimoniale pour un couple.<br>
+        - Revenus diversifies : salaire Amine (Dubai) + patrimoine locatif Nezha (France). Deux pays, deux sources de revenus.<br>
+        - Cash couple total ~249K (Amine 172K + Nezha 94K dont 85K EUR + 9K MAD) reparti sur 2 devises et plusieurs banques. Bonne resilience en cas de blocage bancaire.<br>
+        - Zero dette consommation. Les 784K de dette sont 100% adosses a des actifs immo productifs (925K de valeur).<br>
+        - <strong>Objectif 1M NW couple : atteignable en ~3-4 ans avec le rythme actuel d'epargne + creation immo.</strong>
+      </div>
+    </div>
+    <div>
+      <div class="highlight">
+        <strong>Risques & points d'attention couple :</strong><br>
+        - <strong>Concentration immo IDF :</strong> 3 biens, 925K de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -93K d'equity couple.<br>
+        - <strong>Exposition devise :</strong> Le couple est multi-devise — ~172K en AED/USD (Amine) + ~94K en EUR/MAD (Nezha 85K EUR + 9K MAD). Le risque USD/EUR est reel (~35% du cash total en AED).<br>
+        - <strong>Charge immo post-2028 :</strong> Apres livraison Villejuif, les mensualites totales passeront a ~3,893/mois (Vitry 1,317 + Rueil 907 + Villejuif ~1,669). La tresorerie Nezha (~94K) sera reduite par l'apport Villejuif (~28K restant), laissant ~66K de reserve pour absorber le CF negatif initial.<br>
+        - <strong>Creances (49K) :</strong> SAP&Tax 18K (garanti, delai de paiement 45 jours — quasi-cash) + creances perso 31K (recouvrement incertain). Ne compter que les 18K SAP dans la planification.<br>
+        - <strong>Levier JPY (Amine) :</strong> Emprunt -116K JPY sur IBKR. Une appreciation du yen de 10% couterait ~12K au couple.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NAVIGATION PAR CATEGORIE -->
+<div class="card" id="catNav">
+  <h2>Patrimoine par Categorie</h2>
+  <div class="cat-grid" id="catGrid">
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctStocks">--</div>
+      <div class="cat-icon">&#x1F4C8;</div>
+      <div class="cat-title">Actions & Crypto</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">IBKR + ESPP + SGTM</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctCash">--</div>
+      <div class="cat-icon">&#x1F4B0;</div>
+      <div class="cat-title">Cash & Epargne</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">UAE + Maroc + Revolut</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctImmo">--</div>
+      <div class="cat-icon">&#x1F3E0;</div>
+      <div class="cat-title">Immobilier</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">3 biens — Equity nette</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctOther">--</div>
+      <div class="cat-icon">&#x1F4CB;</div>
+      <div class="cat-title">Autres Actifs</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">Vehicules + Creances - TVA</div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Stocks -->
+  <div class="cat-expand" id="expand-stocks">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="portfolio_analysis_v4.html" class="sub-card">
+        <div class="sub-icon">&#x1F4CA;</div>
+        <div class="sub-title">IBKR Portfolio</div>
+        <div class="sub-detail">12 actions EU + 1 JP<br>2 crypto ETFs + multi-devise</div>
+        <div class="sub-equity pos" id="subIBKR" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#c6f6d5;color:#276749">TWR +31.04%</div>
+      </a>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F4BC;</div>
+        <div class="sub-title">ESPP Accenture</div>
+        <div class="sub-detail" id="subESPPDetail">--</div>
+        <div class="sub-equity pos" id="subESPP" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#ebf8ff;color:#2b6cb0">ESPP -15%</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
+        <div class="sub-title">SGTM (Casablanca)</div>
+        <div class="sub-detail" id="subSGTMDetail">--</div>
+        <div class="sub-equity pos" id="subSGTM" data-eur="0">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Cash -->
+  <div class="cat-expand" id="expand-cash">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1E6;&#x1F1EA;</div>
+        <div class="sub-title">Cash UAE</div>
+        <div class="sub-equity pos" id="subUAE" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">Mashreq NEO PLUS</span><span class="bl-val">AED 310,518 <span style="color:var(--gray);font-size:11px">(71,781)</span></span></li>
+          <li><span class="bl-label">Wio Savings</span><span class="bl-val">AED 220,000 <span style="color:var(--gray);font-size:11px">(50,856)</span></span></li>
+          <li><span class="bl-label">Revolut (EUR)</span><span class="bl-val">4,267</span></li>
+          <li><span class="bl-label">Wio Current</span><span class="bl-val">AED 4,904 <span style="color:var(--gray);font-size:11px">(1,134)</span></span></li>
+          <li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total Excel</span><span class="bl-val">128,039</span></li>
+          <li><span class="bl-label" style="font-style:italic;color:var(--green)">+ Paiement 21j SAP&Tax recu</span><span class="bl-val" style="color:var(--green)">+23,910</span></li>
+        </ul>
+        <div class="sub-badge" style="background:#f0fff4;color:#276749">~6% rendement epargne</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
+        <div class="sub-title">Cash Maroc</div>
+        <div class="sub-equity pos" id="subMarocCash" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">Attijariwafa Courant</span><span class="bl-val">MAD 151,202</span></li>
+          <li><span class="bl-label">BMCE/BOA Cheque</span><span class="bl-val">MAD 37,304</span></li>
+        </ul>
+        <div class="sub-detail" style="margin-top:6px;font-style:italic" id="subMarocFXNote">--</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;">
+        <strong>Insights Cash :</strong><br>
+        - <span style="color:var(--green)">169K de cash = 6 mois de matelas de securite meme en cas d'arret total d'activite.</span><br>
+        - Le rendement de 6% sur l'epargne UAE (Wio Savings) est tres competitif — continuer a maximiser ce placement.<br>
+        - Cash Maroc peu rentable (~1-2%). Considerer un rapatriement progressif vers UAE ou investissement en actions.<br>
+        - <span style="color:var(--red)">Risque FX :</span> 89% du cash est en AED (peg USD). Un affaiblissement du dollar impacterait la valeur en EUR.
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Immo -->
+  <div class="cat-expand" id="expand-immo">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="apt_vitry.html" class="sub-card">
+        <div class="sub-icon">&#x1F3E0;</div>
+        <div class="sub-title">Vitry-sur-Seine</div>
+        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span data-eur="293000">--</span> (2%/an)<br>CRD <span data-eur="268903">--</span></div>
+        <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#fed7d7;color:#c53030">CF -317/mois</div>
+      </a>
+      <a href="apt_rueil.html" class="sub-card">
+        <div class="sub-icon">&#x1F3E1;</div>
+        <div class="sub-title">Rueil-Malmaison</div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span data-eur="272000">--</span><br>CRD <span data-eur="196516">--</span></div>
+        <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#c6f6d5;color:#276749">CF +209/mois</div>
+      </a>
+      <a href="apt_villejuif.html" class="sub-card">
+        <div class="sub-icon">&#x1F3D7;&#xFE0F;</div>
+        <div class="sub-title">VEFA Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div>
+        <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span data-eur="360000">--</span><br>CRD <span data-eur="318470">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3K payee</span></div>
+        <div class="sub-equity pos" id="subVillejuifEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#fef3c7;color:#92400e">Conditionnel — Pas de permis d'habiter</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Other -->
+  <div class="cat-expand" id="expand-other">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F697;</div>
+        <div class="sub-title">Vehicules</div>
+        <div class="sub-detail">Porsche Cayenne 45K<br>Mercedes Class A 10K</div>
+        <div class="sub-equity" style="color:var(--primary);" data-eur="55000">--</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F4C4;</div>
+        <div class="sub-title">Creances</div>
+        <div class="sub-equity" style="color:var(--primary);" id="subCreances" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">SAP & Tax (20j x 910)</span><span class="bl-val">18,200</span></li>
+          <li style="padding-top:4px;border-top:1px solid #cbd5e0;font-weight:600"><span class="bl-label">Creances personnelles</span><span class="bl-val">30,551</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Kenza Kabbaj (200K MAD)</span><span class="bl-val">18,492</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Abdelkader (55K MAD)</span><span class="bl-val">5,085</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Mehdi Akanour (30K MAD)</span><span class="bl-val">2,774</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Akram</span><span class="bl-val">1,500</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Akram & Abdelkader (loyer)</span><span class="bl-val">1,200</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Anas (Thermomix)</span><span class="bl-val">1,500</span></li>
+        </ul>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F3DB;&#xFE0F;</div>
+        <div class="sub-title">TVA a payer</div>
+        <div class="sub-detail">Passif fiscal<br>Provision estimee</div>
+        <div class="sub-equity neg" data-eur="16000" data-sign="-">--</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;">
+        <strong>Insights Autres :</strong><br>
+        - <span style="color:var(--green)">48,751 de creances dont 18K SAP&Tax garanties (delai 45j).</span> Les creances perso (~31K) sont a prioriser par montant (Kenza 18K, Abdelkader 5K).<br>
+        - Vehicules (55K) sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>
+        - TVA (-16K) est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>
+        - <span style="color:var(--red)">Risque :</span> Les creances personnelles (~31K) sont difficilement recouvrables a court terme. Ne pas les compter dans la tresorerie operationnelle. Les 18K SAP&Tax sont garantis (delai paiement 45j) et assimilables a du cash.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COUPLE: PATRIMOINE CONSOLIDE -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F46B;</span>Patrimoine Couple — Detail consolide</h2>
+  <div class="grid2">
+    <div>
+      <table id="coupleDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div style="text-align:center;margin-bottom:4px;">
+        <span id="coupleChartTitle" style="font-weight:600;font-size:14px;color:var(--primary)">Repartition par categorie</span>
+        <button id="coupleChartBack" onclick="coupleChartZoomOut()" style="display:none;margin-left:8px;font-size:11px;padding:2px 10px;border:1px solid #cbd5e0;border-radius:4px;background:#f7fafc;cursor:pointer;color:var(--accent)">&larr; Retour</button>
+      </div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="coupleAllocChart"></canvas>
+      </div>
+      <p id="coupleChartHint" style="font-size:11px;color:var(--gray);text-align:center;margin-top:4px">Cliquez sur une tranche pour voir le detail</p>
+    </div>
+  </div>
+</div>
+
+<!-- AMINE: PATRIMOINE DETAIL -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">A</span>Patrimoine Amine — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table id="amineDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="amineAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="highlight" style="margin-top: 14px;">
+    <strong>Immobilier Amine :</strong><br>
+    - <span style="color:var(--green)">Vitry genere +1,017/mois de creation de richesse</span> (560 capital rembourse + 458 appreciation). Excellent levier malgre le CF negatif.<br>
+    - <strong>CF = -317/mois</strong> (revenus 1,270 vs charges 1,587). Ratio richesse/effort de 3.2x. Augmentation loyer a 1,400 debut 2027 &rarr; CF = -117.<br>
+    - Explorer le passage en LMNP reel — les charges deductibles pourraient reduire l'imposition a zero.
+  </div>
+</div>
+
+<!-- AMINE: RESUME ACTIONS -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Actions & Crypto — Amine</h2>
+  <div class="kpi-strip">
+    <div class="kpi green"><div class="value" id="kpiAmIBKR" data-eur="0">--</div><div class="label">IBKR NAV</div></div>
+    <div class="kpi green"><div class="value" data-eur-pct="31.04" data-type="pct">--</div><div class="label">TWR (Time-Weighted)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmESPP" data-eur="0">--</div><div class="label" id="kpiAmESPPLabel">ESPP (167 ACN)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmSGTM" data-eur="0">--</div><div class="label">SGTM (32 actions)</div></div>
+  </div>
+  <div class="grid2">
+    <div>
+      <h3>Allocation Geographique (actions, hors cash)</h3>
+      <div class="chart-container" style="height: 250px;">
+        <canvas id="geoChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h3>Top Positions IBKR</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">Qte</th><th class="num">Valeur</th></tr></thead>
+        <tbody id="ibkrPositionsTbody"></tbody>
+      </table>
+      <div class="success" style="margin-top: 14px;">
+        <strong>IBKR :</strong> NAV <span id="ibkrNAVLabel">--</span>, depots 199,886. TWR 31.04% depuis ouverture.
+      </div>
+      <div class="highlight" style="margin-top: 10px;">
+        <strong>Insights Actions :</strong><br>
+        - TWR de 31% est excellent — bien au-dessus du CAC40 (~20% sur la meme periode).<br>
+        - <strong>Diversification geo :</strong> 53% France, 21% Crypto — risque de concentration sur le marche francais. Considerer plus d'exposition US/Monde.<br>
+        - Bitcoin (IBIT) represente 20% du portefeuille avec un P&L de -4,720 : position a surveiller, mais horizon long terme favorable.<br>
+        - <span style="color:var(--green)">A 7% annuel + 7K/mois d'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>
+        - <span style="color:var(--red)">Risque :</span> Levier JPY (-115K) amplifie les mouvements. Un renforcement du yen de 10% couterait ~12K.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NEZHA: PATRIMOINE DETAIL -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">N</span>Patrimoine Nezha — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table id="nezhaDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="info" style="margin-top: 14px;">
+        <strong>Profil :</strong> Patrimoine 100% immobilier + cash. 85K en France (dont une partie pour apport Villejuif — 3K payes en reservation). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>
+        <strong>Insights Nezha :</strong><br>
+        - <span style="color:var(--green)">NW de 176K dont 75K en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>
+        - <span style="color:var(--green)">Rueil : auto-finance (+209/mois de CF positif)</span>. 838/mois de creation de richesse, zero effort financier.<br>
+        - Cash total ~94K (85K France + 9K Maroc). ~28K restent pour l'apport Villejuif. Creance Omar 40K MAD (~4K) a recuperer.<br>
+        - <strong>Franchise totale 3 ans :</strong> Nezha ne paye rien pendant la franchise. Les interets se capitalisent (~24K). Le surplus de Rueil (+209/mois) peut etre epargne pour la tresorerie post-franchise.<br>
+        - <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~2,576/mois de mensualites (Rueil 907 + Villejuif ~1,669). Tresorerie libre ~66K a conserver.<br>
+        - <span style="color:var(--green)">Apres livraison :</span> 2 biens = +1,651/mois de creation de richesse (~20K/an). Objectif loyer Villejuif : 1,600-1,800 meuble.
+      </div>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="nezhaAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IMMOBILIER -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Resume Immobilier</h2>
+  <div class="kpi-strip">
+    <div class="kpi gold"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label">Equity Totale (3 biens)</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimee des biens</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoCRD" data-eur="0">--</div><div class="label">Capital Restant Du</div></div>
+    <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">+1,855/mois</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4">Ete 2029 : <span style="color:var(--green);font-weight:700">+2,668/mois</span></div></div>
+  </div>
+
+  <table id="immoTable">
+    <thead>
+      <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Equity</th><th class="num">CF /mois</th><th>Statut</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Vitry-sur-Seine</strong><br><span style="font-size:12px;color:var(--gray)">67 m2 — loyer 1,200 + parking 70 cash</span></td>
+        <td>Amine</td>
+        <td class="num" data-eur="293000">--</td><td class="num" data-eur="268903">--</td><td class="num pos" data-eur="24097">--</td>
+        <td class="num neg">-317</td>
+        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
+      </tr>
+      <tr style="background:#f0f5ff">
+        <td><strong>Rueil-Malmaison</strong><br><span style="font-size:12px;color:var(--gray)">56 m2 — loyer 1,300 HC + 150 charges (bail oct 2025)</span></td>
+        <td>Nezha</td>
+        <td class="num" data-eur="272000">--</td><td class="num" data-eur="196516">--</td><td class="num pos" data-eur="75484">--</td>
+        <td class="num pos">+209</td>
+        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
+      </tr>
+      <tr>
+        <td><strong>Villejuif (VEFA)</strong><br><span style="font-size:12px;color:#92400e">Conditionnel — acte non signe</span></td>
+        <td>Nezha</td>
+        <td class="num" data-eur="360000">--</td><td class="num" data-eur="318470">--</td><td class="num pos" data-eur="41530">--</td>
+        <td class="num" style="color:var(--gray)">--</td>
+        <td><span style="background:#fef3c7;padding:2px 8px;border-radius:10px;font-size:12px;color:#92400e">Conditionnel</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px">Villejuif : Prets LCL — P1 286,670 @ 3.27% + P2 31,800 @ 0.90%. Franchise totale 36 mois, capitalisation annuelle. Vitry : valeur appreciee 2%/an depuis achat (275K &rarr; 293K). Rueil : bail meuble oct 2025 (1,300 HC + 150 charges).</p>
+
+  <div class="info" style="margin-top:10px; font-size:13px;">
+    <strong>Villejuif — Simulation banque vs estimation realiste :</strong><br>
+    La banque simule un deblocage integral du credit au jour 1. En realite, les fonds VEFA se debloquent progressivement (appels de fonds : 35% fondations, 70% hors d'eau, 80% hors d'air, 95% achevement, 100% livraison). L'apport (~31K) est utilise en premier.<br><br>
+    <table style="font-size:12px;margin:8px 0">
+      <tr><th></th><th class="num">Simulation banque</th><th class="num">Estimation realiste</th><th class="num">Economie</th></tr>
+      <tr><td>Interets capitalises (36 mois)</td><td class="num">29,918</td><td class="num" style="color:var(--green);font-weight:600">~24,150</td><td class="num pos">~5,750 (-19%)</td></tr>
+      <tr><td>CRD apres franchise</td><td class="num">348,388</td><td class="num" style="color:var(--green);font-weight:600">~342,620</td><td class="num pos">~5,750</td></tr>
+      <tr><td>Mensualite post-franchise</td><td class="num">1,698/mois</td><td class="num" style="color:var(--green);font-weight:600">~1,669/mois</td><td class="num pos">~29/mois</td></tr>
+      <tr><td>Cout total sur 291 mois</td><td class="num">494,112</td><td class="num" style="color:var(--green);font-weight:600">~485,800</td><td class="num pos">~8,300</td></tr>
+    </table>
+    <span style="font-size:11px;color:var(--gray)">Hypothese : fondations M0, hors d'eau M6, hors d'air M9, achevement M15, livraison M18. Apport utilise en priorite. Assurance 51/mois non incluse dans la mensualite ci-dessus.</span>
+  </div>
+
+  <div class="highlight" style="margin-top: 14px;">
+    <strong>Strategie Immo Couple :</strong><br>
+    - <strong>Bilan consolide :</strong> 925K de patrimoine immo, 784K de dette, 141K d'equity. Le couple detient 3 biens en IDF avec un taux d'endettement immo de ~85%. La strategie repose sur le levier credit pour construire de l'equity via le remboursement.<br>
+    - <strong>Cash flow consolide : -108/mois</strong> aujourd'hui. Le portefeuille immo coute 1,296/an au couple. C'est absorbable par les revenus d'Amine, mais la marge est mince. Apres augmentation Vitry debut 2027, le CF passe a <span style="color:var(--green)">+92/mois</span> — le portefeuille devient auto-finance.<br>
+    - <strong>Creation de richesse : +1,855/mois</strong> (22K/an) via le remboursement du capital + appreciation. Chaque mois, le patrimoine net du couple progresse malgre le CF negatif. C'est l'essence de la strategie.<br>
+    - <strong>Horizon ete 2029 :</strong> Avec Villejuif livre, le couple passera a +2,668/mois de creation de richesse (32K/an).<br>
+    - <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~93K d'equity.<br>
+    - <span style="color:var(--green)">Trajectoire :</span> A 5 ans, equity immo estimee > 300K (vs 141K ajd).
+  </div>
+
+  <div class="grid2" style="margin-top: 20px;">
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoEquityChart"></canvas>
+    </div>
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoProjectionChart"></canvas>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 24px;">Analyse d'autofinancement — Cash Flow reel</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Revenus = loyer percu + parking. Charges = tout ce que le proprietaire paye (pret, copro, assurance, PNO, TF). Cash flow = revenus - charges.</p>
+  <table style="margin-top:10px;">
+    <thead>
+      <tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Revenus CC + parking</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Vitry</strong><br><span style="font-size:11px;color:var(--gray)">Loyer 1,200 + parking 70</span><br><span style="font-size:10px;color:#92400e">2027 : loyer prevu 1,400 → CF -117/mois</span></td>
+        <td class="num">1,317</td><td class="num">30</td><td class="num">15</td><td class="num">75</td><td class="num">150</td>
+        <td class="num" style="font-weight:600">1,587</td><td class="num">1,270</td><td class="num neg" style="font-weight:700">-317</td>
+      </tr>
+      <tr style="background:#f0f5ff">
+        <td><strong>Rueil</strong><br><span style="font-size:11px;color:var(--gray)">Loyer 1,450 CC (1,300 HC + 150 provisions)</span></td>
+        <td class="num">907</td><td class="num">25</td><td class="num">12</td><td class="num">67</td><td class="num">80</td>
+        <td class="num" style="font-weight:600">1,091</td><td class="num">1,300<br><span style="font-size:10px;color:var(--gray)">(HC, copro recup via provisions)</span></td><td class="num pos" style="font-weight:700">+209</td>
+      </tr>
+      <tr>
+        <td><strong>Villejuif</strong><br><span style="font-size:11px;color:#92400e">VEFA — livraison ete 2029 (credit fin 2026, 3 ans franchise)</span></td>
+        <td class="num">1,669</td><td class="num">51</td><td class="num">15</td><td class="num">83</td><td class="num">110</td>
+        <td class="num" style="font-weight:600">1,928</td><td class="num" style="color:var(--gray)">TBD</td><td class="num" style="color:var(--gray)">--</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:var(--gray);margin-top:4px">Vitry : copro 150/mois (a charge du proprietaire, non incluse dans le loyer). Rueil : copro non-recup ~80/mois (provisions 150 recuperees via locataire). Villejuif : assurance = 46.10 + 5.19 = 51.29 (offre LCL), mensualite = P1 1,572.79 + P2 124.99, copro estimee 110/mois.</p>
+
+  <div class="success" style="margin-top: 14px;">
+    <strong>Analyse :</strong> Rueil est largement autofinance (+209/mois grace au bail meuble oct 2025 a 1,300 HC). Vitry a un deficit de -317/mois (1,270 de revenus loyer+parking vs 1,587 de charges). L'augmentation prevue a 1,400 debut 2027 reduira le deficit a -117/mois.
+    <br><span style="color:var(--red)">Attention Villejuif :</span> Si loyer &lt; 1,700, le cash-flow negatif sera de ~260/mois soit ~3,1K/an a couvrir.
+  </div>
+
+  <!-- CF PROJECTION 10 ANS -->
+  <h3 style="margin-top: 28px;">Projection Cash Flow — 10 ans</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Cash flow mensuel net par appartement et total combine.</p>
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="cfProjectionChart"></canvas>
+  </div>
+  <table id="cfProjectionTable" style="margin-top:14px;font-size:12px;">
+    <thead>
+      <tr><th>Annee</th><th class="num">Vitry</th><th class="num">Rueil</th><th class="num">Villejuif</th><th class="num" style="background:#f0fff4;color:var(--green)">Total</th></tr>
+    </thead>
+    <tbody id="cfProjectionBody"></tbody>
+  </table>
+</div>
+
+<!-- SIMULATEUR COUPLE -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F3AF;</span>Simulateur — Net Worth Couple</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha).<br>
+  <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field"><label>Epargne mensuelle (Amine)</label><input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="cplSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="cplSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="cplSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="20" step="0.5" value="3"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="cplSimHorizonVal">10 ans</div></div>
+  </div>
+  <div id="cplSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="cplSimStopBannerText"></span></div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="cplSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="cplSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="cplSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="cplSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="cplSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (3 biens)</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="cplSimChart"></canvas></div>
+  <div class="highlight" id="cplSimInsight">--</div>
+</div>
+
+<!-- SIMULATEUR AMINE -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3AF;</span>Simulateur — Net Worth Amine</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine d'Amine seul.<br>
+  <strong style="color:var(--gold)">Aujourd'hui : Vitry represente <span id="amImmoPct">--</span>% du NW Amine (<span id="amImmoVal">--</span> d'equity).</strong></p>
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field"><label>Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="7000"><div class="range-val" id="amSimSavingsVal">7,000</div></div>
+    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="60"><div class="range-val" id="amSimPctActionsVal">60%</div></div>
+    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="7"><div class="range-val" id="amSimReturnActionsVal">7.0%</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="20" step="0.5" value="0"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">Jamais</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="amSimHorizonVal">10 ans</div></div>
+  </div>
+  <div id="amSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="amSimStopBannerText"></span></div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="amSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="amSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="amSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="amSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="amSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (Vitry)</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="amSimChart"></canvas></div>
+  <div class="highlight" id="amSimInsight">--</div>
+</div>
+
+<!-- SIMULATEUR NEZHA -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">&#x1F3AF;</span>Simulateur — Patrimoine Nezha</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine immobilier de Nezha. Pas d'actions — uniquement Rueil (loue) et Villejuif (apres livraison Q4 2028).</p>
+  <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-field"><label>Appreciation immobiliere annuelle</label><input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1"><div class="range-val" id="nzSimAppreciationVal">1.0%</div></div>
+    <div class="sim-field"><label>Rendement Cash Nezha</label><input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2"><div class="range-val" id="nzSimCashReturnVal">2.0%</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="nzSimHorizonVal">10 ans</div></div>
+  </div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="nzSimNW">--</div><div class="sr-label">NW Final Nezha</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="nzSimRueil" style="color:var(--accent);">--</div><div class="sr-label">Equity Rueil</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="nzSimVillejuif" style="color:var(--gold);">--</div><div class="sr-label">Equity Villejuif</div></div>
+    <div class="sim-result"><div class="sr-val" id="nzSimCash">--</div><div class="sr-label">Cash</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="nzSimChart"></canvas></div>
+  <div class="highlight" id="nzSimInsight">--</div>
+
+  <h3 style="margin-top:20px;">Projection detaillee</h3>
+  <table>
+    <thead><tr><th></th><th class="num">Jan 2027</th><th class="num">Jan 2028</th><th class="num">Jan 2029</th><th class="num">Jan 2030</th><th class="num">Jan 2031</th><th class="num">Jan 2032</th></tr></thead>
+    <tbody>
+      <tr><td>Equity Rueil</td><td class="num">85,543</td><td class="num">97,707</td><td class="num">110,020</td><td class="num">122,468</td><td class="num">135,060</td><td class="num">147,799</td></tr>
+      <tr><td>Equity Villejuif</td><td class="num">0</td><td class="num">0</td><td class="num">11,039</td><td class="num">29,706</td><td class="num">48,808</td><td class="num">68,307</td></tr>
+      <tr><td>Cash</td><td class="num">74,050</td><td class="num">63,459</td><td class="num">53,209</td><td class="num">43,288</td><td class="num">33,682</td><td class="num">24,401</td></tr>
+      <tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>
+        <td class="num"><strong>159,593</strong></td><td class="num"><strong>161,166</strong></td><td class="num"><strong>174,268</strong></td><td class="num"><strong>195,462</strong></td><td class="num"><strong>217,550</strong></td><td class="num"><strong>240,507</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
+  <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
+  <p style="font-size:11px;margin-top:4px;">Taux de change : 1 EUR = <span id="fxDisplay">4.3259 AED | 10.8154 MAD | 1.0850 USD</span></p>
+</footer>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>
