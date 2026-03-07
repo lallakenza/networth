@@ -374,6 +374,94 @@ function setHTML(id, html) {
   if (el) el.innerHTML = html;
 }
 
+// ---- SORTABLE IBKR POSITIONS ----
+
+let _ibkrSortKey = null;
+let _ibkrSortDir = 'desc';
+
+function renderIBKRPositions(positions, sortKey, sortDir) {
+  const sorted = [...positions];
+  if (sortKey) {
+    sorted.sort((a, b) => {
+      let va = a[sortKey], vb = b[sortKey];
+      if (sortKey === 'label') {
+        va = (va || '').toLowerCase();
+        vb = (vb || '').toLowerCase();
+        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (sortKey === 'price') {
+        va = a.price || 0;
+        vb = b.price || 0;
+      }
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
+  const tbody = document.getElementById('actionsPositionsTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  let totalVal = 0, totalCost = 0;
+  sorted.forEach(pos => {
+    totalVal += pos.valEUR;
+    totalCost += pos.costEUR;
+    const plC = pos.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+    const plS = pos.unrealizedPL >= 0 ? '+' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + pos.label + '</td>'
+      + '<td class="num">' + pos.shares + '</td>'
+      + '<td class="num">' + pos.priceLabel + '</td>'
+      + '<td class="num">' + fmt(pos.costEUR) + '</td>'
+      + '<td class="num">' + fmt(pos.valEUR) + '</td>'
+      + '<td class="num ' + plC + '">' + plS + fmt(pos.unrealizedPL) + '</td>'
+      + '<td class="num ' + plC + '">' + plS + pos.pctPL.toFixed(1) + '%</td>'
+      + '<td class="num">' + pos.weight.toFixed(1) + '%</td>';
+    tbody.appendChild(tr);
+  });
+  const totalPL = totalVal - totalCost;
+  const totalPctPL = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
+  const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
+  const tPlS = totalPL >= 0 ? '+' : '';
+  const tr = document.createElement('tr');
+  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+  tr.innerHTML = '<td><strong>Total Positions</strong></td><td></td><td></td>'
+    + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
+    + '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>'
+    + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
+    + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
+    + '<td class="num">100%</td>';
+  tbody.appendChild(tr);
+
+  // Update arrow indicators
+  const table = document.getElementById('ibkrPositionsTable');
+  if (table) {
+    table.querySelectorAll('.sort-arrow').forEach(a => { a.className = 'sort-arrow'; });
+    if (sortKey) {
+      const active = table.querySelector('th[data-sort="' + sortKey + '"] .sort-arrow');
+      if (active) active.className = 'sort-arrow ' + sortDir;
+    }
+  }
+}
+
+function setupPositionsSort(positions) {
+  const table = document.getElementById('ibkrPositionsTable');
+  if (!table) return;
+  // Remove old listeners by replacing thead
+  const thead = table.querySelector('thead');
+  const newThead = thead.cloneNode(true);
+  thead.parentNode.replaceChild(newThead, thead);
+  newThead.querySelectorAll('.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (_ibkrSortKey === key) {
+        _ibkrSortDir = _ibkrSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        _ibkrSortKey = key;
+        _ibkrSortDir = key === 'label' ? 'asc' : 'desc';
+      }
+      renderIBKRPositions(positions, _ibkrSortKey, _ibkrSortDir);
+    });
+  });
+}
+
 // ---- ASSET VIEW RENDERERS ----
 
 function renderActionsView(state) {
@@ -391,42 +479,9 @@ function renderActionsView(state) {
   setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
   setText('kpiActionsDividends', fmt(av.dividends) + ' | TWR +' + av.twr.toFixed(1) + '%');
 
-  // Positions table
-  const tbody = document.getElementById('actionsPositionsTbody');
-  if (tbody) {
-    tbody.innerHTML = '';
-    let totalVal = 0, totalCost = 0;
-    av.ibkrPositions.forEach(pos => {
-      totalVal += pos.valEUR;
-      totalCost += pos.costEUR;
-      const plC = pos.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
-      const plS = pos.unrealizedPL >= 0 ? '+' : '';
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + pos.label + '</td>'
-        + '<td class="num">' + pos.shares + '</td>'
-        + '<td class="num">' + pos.priceLabel + '</td>'
-        + '<td class="num">' + fmt(pos.costEUR) + '</td>'
-        + '<td class="num">' + fmt(pos.valEUR) + '</td>'
-        + '<td class="num ' + plC + '">' + plS + fmt(pos.unrealizedPL) + '</td>'
-        + '<td class="num ' + plC + '">' + plS + pos.pctPL.toFixed(1) + '%</td>'
-        + '<td class="num">' + pos.weight.toFixed(1) + '%</td>';
-      tbody.appendChild(tr);
-    });
-    // Total row
-    const totalPL = totalVal - totalCost;
-    const totalPctPL = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
-    const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
-    const tPlS = totalPL >= 0 ? '+' : '';
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td><strong>Total Positions</strong></td><td></td><td></td>'
-      + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
-      + '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>'
-      + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
-      + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
-      + '<td class="num">100%</td>';
-    tbody.appendChild(tr);
-  }
+  // Positions table — sortable
+  renderIBKRPositions(av.ibkrPositions, null, null);
+  setupPositionsSort(av.ibkrPositions);
 
   // Closed positions
   const closedTbody = document.getElementById('actionsClosedTbody');
