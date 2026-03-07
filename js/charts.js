@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=5';
-import { getGrandTotal } from './engine.js?v=5';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=5';
+import { fmt, fmtAxis } from './render.js?v=6';
+import { getGrandTotal } from './engine.js?v=6';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=6';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -617,34 +617,59 @@ function buildCoupleTreemap(state) {
         },
         labels: {
           display: true,
-          align: 'left',
-          position: 'top',
-          overflow: 'fit',
-          padding: 5,
+          align: 'center',
+          position: 'middle',
+          overflow: 'hidden',
+          padding: 3,
           color: function(ctx) {
             if (!ctx.raw || !ctx.raw._data) return '#333';
             const d = ctx.raw._data;
             if (isCategoryHeader(d)) return '#1a202c';
             return '#ffffff';
           },
-          font: [
-            { size: 13, weight: 'bold', lineHeight: 1.2 },
-            { size: 10, weight: 'normal' }
-          ],
+          font: function(ctx) {
+            // Adapt font size to box dimensions
+            const w = ctx.raw?.w || 100;
+            const h = ctx.raw?.h || 50;
+            const area = w * h;
+            const d = ctx.raw?._data;
+            if (isCategoryHeader(d)) {
+              return [{ size: Math.min(16, Math.max(10, w / 8)), weight: 'bold' }];
+            }
+            // Leaf nodes: 2 lines (name + value)
+            if (area > 15000) return [{ size: 14, weight: 'bold' }, { size: 11, weight: 'normal' }];
+            if (area > 6000) return [{ size: 12, weight: 'bold' }, { size: 9, weight: 'normal' }];
+            if (area > 2500) return [{ size: 10, weight: 'bold' }, { size: 8, weight: 'normal' }];
+            return [{ size: 9, weight: 'bold' }];
+          },
           formatter: function(ctx) {
             if (!ctx || !ctx.raw) return '';
             const v = ctx.raw.v || 0;
             if (v < 200) return '';
             const d = ctx.raw._data || {};
             const label = d.label || ctx.raw.g || '';
+            const w = ctx.raw.w || 0;
+            const h = ctx.raw.h || 0;
+            const area = w * h;
             if (isCategoryHeader(d)) {
-              // Category header label
               return label;
             }
-            // Leaf label
-            if (v < grandTotal * 0.015) return label;
+            // Tiny boxes — nothing
+            if (area < 1500) return '';
+            // Small boxes — just short name
+            if (area < 2500) {
+              // Truncate if needed
+              return label.length > 12 ? label.substring(0, 10) + '..' : label;
+            }
+            // Medium+ boxes — name on line 1, value on line 2
             const pctNW = (v / grandTotal * 100).toFixed(1);
-            return label + '\n€' + (v / 1000).toFixed(0) + 'K (' + pctNW + '%)';
+            const valLine = '€' + (v / 1000).toFixed(0) + 'K (' + pctNW + '%)';
+            // Shorten label if box is narrow
+            let displayLabel = label;
+            if (w < 120 && label.length > 18) {
+              displayLabel = label.substring(0, 16) + '..';
+            }
+            return [displayLabel, valLine];
           }
         }
       }]
@@ -661,25 +686,31 @@ function buildCoupleTreemap(state) {
           padding: 14,
           cornerRadius: 8,
           displayColors: false,
+          filter: function(item) {
+            // Hide tooltip for category header rectangles — only show for leaf items
+            const d = item.raw?._data;
+            return !isCategoryHeader(d);
+          },
           callbacks: {
             title: items => {
               const d = items[0]?.raw?._data;
-              return d?.label || '';
+              if (!d) return '';
+              // d.label is the item label (e.g. "Airbus (AIR)")
+              return d.label || '';
             },
             label: item => {
               const v = item.raw?.v || 0;
               const d = item.raw?._data;
+              if (!d) return fmt(v);
               const pctNW = (v / grandTotal * 100).toFixed(1);
-              if (isCategoryHeader(d)) {
-                return [fmt(v) + ' € — ' + pctNW + '% du patrimoine'];
-              }
-              const lines = [fmt(v) + ' € — ' + pctNW + '% du patrimoine'];
-              if (d) {
-                const catTot = d.catTotal || catTotals[d.category] || 0;
-                if (catTot > 0) {
-                  const pctCat = (v / catTot * 100).toFixed(1);
-                  lines.push(pctCat + '% de « ' + (d.category || '') + ' »');
-                }
+              const lines = [fmt(v) + ' — ' + pctNW + '% du patrimoine'];
+              // Get category from the wrapped data child
+              const child = d.children && d.children[0];
+              const category = (child && child.category) || d.category || '';
+              const catTot = (child && child.catTotal) || catTotals[category] || 0;
+              if (catTot > 0) {
+                const pctCat = (v / catTot * 100).toFixed(1);
+                lines.push(pctCat + '% de « ' + category + ' »');
               }
               return lines;
             }
