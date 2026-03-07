@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBKR Portfolio Analysis — Mohamed Amine Koraibi</title>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 40px 0; margin-bottom: 32px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header p { opacity: 0.85; margin-top: 6px; font-size: 14px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .alert { background: #fff5f5; border-left: 4px solid var(--red); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .metric-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .metric-box .value { font-size: 24px; font-weight: 700; }
+  .metric-box .label { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .bar { height: 22px; border-radius: 4px; margin: 4px 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: white; font-weight: 600; }
+  .toc { columns: 2; list-style: none; }
+  .toc li { padding: 4px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  @media (max-width: 768px) { .grid2, .summary-grid { grid-template-columns: 1fr; } }
+  .rec { margin: 8px 0; padding: 12px 16px; background: #f0fff4; border-radius: 8px; border: 1px solid #c6f6d5; }
+  .rec.warn { background: #fffaf0; border-color: #feebc8; }
+  .rec.danger { background: #fff5f5; border-color: #fed7d7; }
+  .rec strong { display: block; margin-bottom: 4px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>Portfolio Performance Analysis</h1>
+    <p>Account: U18138426 — Mohamed Amine Koraibi &nbsp;|&nbsp; Period: April 1, 2025 → March 5, 2026 &nbsp;|&nbsp; Base Currency: EUR &nbsp;|&nbsp; Tax Residence: UAE</p>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ==================== EXECUTIVE SUMMARY ==================== -->
+<div class="card">
+  <h2>Executive Summary</h2>
+  <div class="summary-grid">
+    <div class="metric-box"><div class="value neg">€197,477</div><div class="label">Portfolio NAV</div></div>
+    <div class="metric-box"><div class="value neg">−1.22%</div><div class="label">Total Return</div></div>
+    <div class="metric-box"><div class="value neg">−2.53%</div><div class="label">XIRR (Annualized)</div></div>
+    <div class="metric-box"><div class="value">€1,549</div><div class="label">Total Costs (Tax + Fees)</div></div>
+  </div>
+  <p>Over the 11-month period, you invested a net €199,886 and the portfolio ended at €197,477 — a loss of approximately €2,409. The money-weighted return (XIRR) is <strong>−2.53% annualized</strong>. Unrealized losses on crypto ETFs (−€7,325 combined) and several European equities more than offset realized gains from closed positions (Société Générale, QQQM, Edenred). The portfolio carries significant JPY margin debt (~€117K) and 29% crypto exposure, making it aggressive in character.</p>
+
+  <p>Note on IBKR's reported TWR of 26.9%: IBKR's time-weighted return calculation isolates pure investment skill from the timing/size of cash flows. It can diverge significantly from your actual money-weighted experience when large deposits occur near periods of losses — which is the case here, as most capital was deployed in Aug–Nov 2025 just before market pullbacks in early 2026.</p>
+</div>
+
+<!-- ==================== 1. PERFORMANCE ==================== -->
+<div class="card" id="performance">
+  <h2>1. Portfolio Performance</h2>
+
+  <h3>Return Metrics</h3>
+  <table>
+    <tr><th>Metric</th><th class="num">Value</th></tr>
+    <tr><td>Net Capital Invested</td><td class="num">€199,886</td></tr>
+    <tr><td>Ending NAV (Mar 5, 2026)</td><td class="num">€197,477</td></tr>
+    <tr><td>Total P/L</td><td class="num neg">−€2,409</td></tr>
+    <tr><td>Total Return</td><td class="num neg">−1.22%</td></tr>
+    <tr><td>Money-Weighted Return (XIRR, annualized)</td><td class="num neg">−2.53%</td></tr>
+    <tr><td>IBKR Time-Weighted Return (period)</td><td class="num pos">+26.94%</td></tr>
+    <tr><td>IBKR TWR (annualized)</td><td class="num pos">+29.40%</td></tr>
+    <tr><td>Period Duration</td><td class="num">338 days (0.93 years)</td></tr>
+  </table>
+
+  <h3>Return Attribution</h3>
+  <table>
+    <tr><th>Component</th><th class="num">EUR</th></tr>
+    <tr><td>Mark-to-Market P/L</td><td class="num neg">−€1,537</td></tr>
+    <tr><td>Dividends Received</td><td class="num pos">+€649</td></tr>
+    <tr><td>Withholding Tax</td><td class="num neg">−€164</td></tr>
+    <tr><td>Net Interest</td><td class="num neg">−€512</td></tr>
+    <tr><td>Commissions</td><td class="num neg">−€206</td></tr>
+    <tr><td>Transaction Fees (French FTT)</td><td class="num neg">−€667</td></tr>
+    <tr><td>FX Translation & Accruals</td><td class="num neg">−€30</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>Total P/L</td><td class="num neg">−€2,409</td></tr>
+  </table>
+
+  <h3>Realized vs Unrealized</h3>
+  <table>
+    <tr><th>Category</th><th class="num">EUR</th></tr>
+    <tr><td>Realized P/L (closed trades)</td><td class="num pos">+€5,980</td></tr>
+    <tr><td>Unrealized P/L (stocks)</td><td class="num neg">−€7,130</td></tr>
+    <tr><td>Unrealized P/L (FX)</td><td class="num neg">−€1,271</td></tr>
+    <tr style="font-weight:700"><td>Net</td><td class="num neg">−€2,421</td></tr>
+  </table>
+
+  <div class="highlight">
+    <strong>Key insight:</strong> Your closed trades (GLE +€4,807, QQQM +€3,185, NXI +€400, EDEN +€570) were profitable, netting +€5,980. The current loss comes entirely from unrealized positions — particularly crypto ETFs and the JPY/FX carry trade.
+  </div>
+</div>
+
+<!-- ==================== 2. TAX & FEES ==================== -->
+<div class="card" id="tax-fees">
+  <h2>2. Tax & Fee Cost Breakdown</h2>
+
+  <h3>Dividend Withholding Tax</h3>
+  <table>
+    <tr><th>Stock</th><th>Country</th><th class="num">Gross Div.</th><th class="num">WHT</th><th class="num">Net Div.</th><th class="num">WHT Rate</th></tr>
+    <tr><td>GLE (Soc. Générale)</td><td>France</td><td class="num">€122.00</td><td class="num neg">€30.50</td><td class="num">€91.50</td><td class="num">25.0%</td></tr>
+    <tr><td>DG (Vinci)</td><td>France</td><td class="num">€210.00</td><td class="num neg">€52.49</td><td class="num">€157.51</td><td class="num">25.0%</td></tr>
+    <tr><td>MC (LVMH)</td><td>France</td><td class="num">€220.00</td><td class="num neg">€55.00</td><td class="num">€165.00</td><td class="num">25.0%</td></tr>
+    <tr><td>RMS (Hermès)</td><td>France</td><td class="num">€50.00</td><td class="num neg">€12.46</td><td class="num">€37.54</td><td class="num">24.9%</td></tr>
+    <tr><td>QQQM (Invesco)</td><td>USA</td><td class="num">$54.60</td><td class="num neg">$16.38</td><td class="num">$38.22</td><td class="num">30.0%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td colspan="2">Total (EUR eq.)</td><td class="num">€648.53</td><td class="num neg">€164.41</td><td class="num">€484.12</td><td class="num">25.4%</td></tr>
+  </table>
+
+  <div class="highlight">
+    <strong>UAE tax note:</strong> As a UAE tax resident, you pay no local taxes. However, France withholds 25% on dividends (treaty rate) and the US withholds 30% (no UAE-US tax treaty). You may be able to reclaim part of the French WHT down to 12.8% by filing Form 5000/5001 with the French tax authority.
+  </div>
+
+  <h3>French Financial Transaction Tax (0.30%)</h3>
+  <table>
+    <tr><th>Stock</th><th class="num">Purchase Value</th><th class="num">FTT Paid</th></tr>
+    <tr><td>EDEN (Edenred) — 2 purchases</td><td class="num">€45,296</td><td class="num neg">€181.18</td></tr>
+    <tr><td>DG (Vinci)</td><td class="num">€24,480</td><td class="num neg">€97.92</td></tr>
+    <tr><td>RMS (Hermès)</td><td class="num">€20,520</td><td class="num neg">€82.08</td></tr>
+    <tr><td>MC (LVMH)</td><td class="num">€18,896</td><td class="num neg">€75.58</td></tr>
+    <tr><td>BN (Danone)</td><td class="num">€13,760</td><td class="num neg">€55.04</td></tr>
+    <tr><td>FGR (Eiffage)</td><td class="num">€11,175</td><td class="num neg">€44.70</td></tr>
+    <tr><td>OR (L'Oréal)</td><td class="num">€10,845</td><td class="num neg">€43.38</td></tr>
+    <tr><td>GLE (Soc. Générale)</td><td class="num">€10,248</td><td class="num neg">€40.99</td></tr>
+    <tr><td>WLN (Worldline) — 2 purchases</td><td class="num">€7,618</td><td class="num neg">€30.47</td></tr>
+    <tr><td>SAN (Sanofi)</td><td class="num">€3,883</td><td class="num neg">€15.53</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>TOTAL</td><td class="num">~€166,721</td><td class="num neg">€666.87</td></tr>
+  </table>
+
+  <h3>Total Cost Summary</h3>
+  <table>
+    <tr><th>Category</th><th class="num">Cost (EUR)</th><th class="num">% of NAV</th></tr>
+    <tr><td>Dividend Withholding Tax</td><td class="num neg">€164.41</td><td class="num">0.08%</td></tr>
+    <tr><td>French FTT</td><td class="num neg">€666.87</td><td class="num">0.34%</td></tr>
+    <tr style="font-weight:600"><td>Total Taxes</td><td class="num neg">€831.28</td><td class="num">0.42%</td></tr>
+    <tr><td>Trading Commissions</td><td class="num neg">€205.58</td><td class="num">0.10%</td></tr>
+    <tr><td>Margin Interest (net)</td><td class="num neg">€512.34</td><td class="num">0.26%</td></tr>
+    <tr style="font-weight:600"><td>Total Fees</td><td class="num neg">€717.92</td><td class="num">0.36%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#fff5f5"><td>GRAND TOTAL</td><td class="num neg">€1,549.20</td><td class="num">0.78%</td></tr>
+  </table>
+</div>
+
+<!-- ==================== 3. BENCHMARKS ==================== -->
+<div class="card" id="benchmarks">
+  <h2>3. Benchmark Comparison</h2>
+  <table>
+    <tr><th>Scenario</th><th class="num">Final Value (EUR)</th><th class="num">Total Return</th><th class="num">XIRR (Ann.)</th><th class="num">vs IBKR</th></tr>
+    <tr style="background:#fff5f5"><td><strong>IBKR Portfolio</strong></td><td class="num"><strong>€197,477</strong></td><td class="num neg"><strong>−1.22%</strong></td><td class="num neg"><strong>−2.53%</strong></td><td class="num">—</td></tr>
+    <tr style="background:#f0fff4"><td><strong>S&P 500 (SPY)</strong></td><td class="num"><strong>€210,369</strong></td><td class="num pos"><strong>+5.23%</strong></td><td class="num pos"><strong>+11.19%</strong></td><td class="num pos"><strong>+€12,892</strong></td></tr>
+    <tr><td>6% Compounding Account</td><td class="num">€205,581</td><td class="num pos">+2.83%</td><td class="num pos">+6.00%</td><td class="num pos">+€8,104</td></tr>
+    <tr><td>Cash MAD</td><td class="num">€203,699</td><td class="num pos">+1.89%</td><td class="num pos">+2.04%</td><td class="num pos">+€6,222</td></tr>
+    <tr><td>Cash EUR (0% interest)</td><td class="num">€199,915</td><td class="num">0.00%</td><td class="num">0.00%</td><td class="num pos">+€2,438</td></tr>
+    <tr><td>Cash USD</td><td class="num">€187,696</td><td class="num neg">−6.11%</td><td class="num neg">−6.60%</td><td class="num neg">−€9,781</td></tr>
+  </table>
+
+  <div class="summary-grid" style="margin-top:20px">
+    <div class="metric-box"><div class="value neg">−13.72%</div><div class="label">Alpha vs S&P 500 (XIRR)</div></div>
+    <div class="metric-box"><div class="value neg">−8.53%</div><div class="label">Alpha vs 6% Benchmark</div></div>
+    <div class="metric-box"><div class="value neg">€12,892</div><div class="label">Opportunity Cost vs S&P 500</div></div>
+    <div class="metric-box"><div class="value neg">€8,104</div><div class="label">Opportunity Cost vs 6% Account</div></div>
+  </div>
+
+  <h3>S&P 500 Scenario Details</h3>
+  <p>This scenario assumes each deposit was converted to USD at the actual EUR/USD rate on that date, then used to buy SPY shares at the actual closing price that day. Withdrawals sell a proportional number of shares. Final value converted back to EUR at the Mar 5, 2026 rate (EUR/USD 1.1636).</p>
+  <table>
+    <tr><th>Metric</th><th class="num">Value</th></tr>
+    <tr><td>Total SPY shares accumulated</td><td class="num">359.27</td></tr>
+    <tr><td>SPY price on Mar 5, 2026</td><td class="num">$681.31</td></tr>
+    <tr><td>Final USD value</td><td class="num">$244,777</td></tr>
+    <tr><td>Final EUR value (at 1.1636)</td><td class="num pos">€210,369</td></tr>
+    <tr><td>Total return (EUR)</td><td class="num pos">+5.23%</td></tr>
+    <tr><td>XIRR (annualized)</td><td class="num pos">+11.19%</td></tr>
+  </table>
+
+  <div class="alert" style="margin-top:16px">
+    <strong>Reality check:</strong> Simply buying and holding the S&P 500 with every deposit would have produced <strong>€12,892 more</strong> than your current portfolio — a +11.19% annualized return vs your −2.53%. Even plain EUR cash (0% interest) would have outperformed by €2,438. The 6% benchmark would have yielded €8,104 more. The only scenario that underperformed is holding USD cash, due to EUR appreciation vs USD during the period.
+  </div>
+</div>
+
+<!-- ==================== 4. POSITIONS ==================== -->
+<div class="card" id="positions">
+  <h2>4. Current Portfolio Positions</h2>
+  <table>
+    <tr><th>Symbol</th><th>Name</th><th>CCY</th><th class="num">Qty</th><th class="num">Cost (EUR)</th><th class="num">Value (EUR)</th><th class="num">P/L (EUR)</th><th class="num">P/L %</th></tr>
+    <tr><td>AIR</td><td>Airbus SE</td><td>EUR</td><td class="num">200</td><td class="num">38,049</td><td class="num">35,176</td><td class="num neg">−2,873</td><td class="num neg">−7.6%</td></tr>
+    <tr><td>BN</td><td>Danone</td><td>EUR</td><td class="num">200</td><td class="num">13,767</td><td class="num">14,008</td><td class="num pos">+241</td><td class="num pos">+1.8%</td></tr>
+    <tr><td>DG</td><td>Vinci SA</td><td>EUR</td><td class="num">200</td><td class="num">24,492</td><td class="num">26,340</td><td class="num pos">+1,848</td><td class="num pos">+7.5%</td></tr>
+    <tr><td>FGR</td><td>Eiffage</td><td>EUR</td><td class="num">100</td><td class="num">11,181</td><td class="num">13,750</td><td class="num pos">+2,569</td><td class="num pos">+23.0%</td></tr>
+    <tr><td>MC</td><td>LVMH</td><td>EUR</td><td class="num">40</td><td class="num">18,905</td><td class="num">20,232</td><td class="num pos">+1,327</td><td class="num pos">+7.0%</td></tr>
+    <tr><td>OR</td><td>L'Oréal</td><td>EUR</td><td class="num">30</td><td class="num">10,850</td><td class="num">11,144</td><td class="num pos">+293</td><td class="num pos">+2.7%</td></tr>
+    <tr><td>P911</td><td>Porsche AG</td><td>EUR</td><td class="num">400</td><td class="num">18,089</td><td class="num">15,456</td><td class="num neg">−2,633</td><td class="num neg">−14.6%</td></tr>
+    <tr><td>RMS</td><td>Hermès</td><td>EUR</td><td class="num">10</td><td class="num">20,530</td><td class="num">18,995</td><td class="num neg">−1,535</td><td class="num neg">−7.5%</td></tr>
+    <tr><td>SAN</td><td>Sanofi</td><td>EUR</td><td class="num">50</td><td class="num">3,886</td><td class="num">3,887</td><td class="num pos">+1</td><td class="num">0.0%</td></tr>
+    <tr><td>SAP</td><td>SAP SE</td><td>EUR</td><td class="num">70</td><td class="num">13,360</td><td class="num">11,969</td><td class="num neg">−1,391</td><td class="num neg">−10.4%</td></tr>
+    <tr><td>4911.T</td><td>Shiseido</td><td>JPY</td><td class="num">500</td><td class="num">5,961</td><td class="num">8,310</td><td class="num pos">+2,349</td><td class="num pos">+39.4%</td></tr>
+    <tr><td>ETHA</td><td>iShares Ethereum ETF</td><td>USD</td><td class="num">1,100</td><td class="num">17,557</td><td class="num">14,971</td><td class="num neg">−2,586</td><td class="num neg">−14.7%</td></tr>
+    <tr><td>IBIT</td><td>iShares Bitcoin ETF</td><td>USD</td><td class="num">1,200</td><td class="num">46,488</td><td class="num">41,750</td><td class="num neg">−4,739</td><td class="num neg">−10.2%</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td colspan="4">TOTAL STOCKS</td><td class="num">243,116</td><td class="num">235,986</td><td class="num neg">−7,130</td><td class="num"></td></tr>
+  </table>
+
+  <h3>Cash Balances</h3>
+  <table>
+    <tr><th>Currency</th><th class="num">Amount (Local)</th><th class="num">EUR Equivalent</th></tr>
+    <tr><td>EUR</td><td class="num">€65,927</td><td class="num">€65,927</td></tr>
+    <tr><td>USD</td><td class="num">$14,482</td><td class="num">€12,475</td></tr>
+    <tr><td>JPY</td><td class="num">¥−21,390,085</td><td class="num neg">−€116,940</td></tr>
+    <tr style="font-weight:700;border-top:2px solid #cbd5e0"><td>Total Cash</td><td class="num"></td><td class="num neg">−€38,538</td></tr>
+  </table>
+</div>
+
+<!-- ==================== 5. DIAGNOSTICS ==================== -->
+<div class="card" id="diagnostics">
+  <h2>5. Portfolio Diagnostics</h2>
+
+  <div class="grid2">
+    <div>
+      <h3>Asset Allocation</h3>
+      <table>
+        <tr><th>Class</th><th class="num">EUR</th><th class="num">%</th></tr>
+        <tr><td>EUR Equities</td><td class="num">€170,956</td><td class="num">86.6%</td></tr>
+        <tr><td>JPY Equities</td><td class="num">€8,310</td><td class="num">4.2%</td></tr>
+        <tr><td>Crypto ETFs (USD)</td><td class="num">€56,721</td><td class="num">28.7%</td></tr>
+        <tr><td>Net Cash</td><td class="num neg">−€38,538</td><td class="num neg">−19.5%</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Geographic Exposure</h3>
+      <table>
+        <tr><th>Region</th><th class="num">%</th></tr>
+        <tr><td>France</td><td class="num">45.9%</td></tr>
+        <tr><td>Crypto (global)</td><td class="num">24.0%</td></tr>
+        <tr><td>Netherlands</td><td class="num">14.9%</td></tr>
+        <tr><td>Germany</td><td class="num">11.6%</td></tr>
+        <tr><td>Japan</td><td class="num">3.5%</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h3>Sector Exposure</h3>
+  <div style="max-width:600px">
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Industrials</span><div class="bar" style="width:319px;background:#2b6cb0">31.9%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Luxury & Consumer</span><div class="bar" style="width:249px;background:#4299e1">24.9%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Crypto</span><div class="bar" style="width:240px;background:#f6ad55">24.0%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Consumer Staples</span><div class="bar" style="width:76px;background:#68d391">7.6%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Automotive</span><div class="bar" style="width:65px;background:#fc8181">6.5%</div></div>
+    <div style="display:flex;align-items:center;margin:6px 0"><span style="width:140px;font-size:13px">Technology</span><div class="bar" style="width:51px;background:#b794f4">5.1%</div></div>
+  </div>
+
+  <h3>Currency Exposure</h3>
+  <table>
+    <tr><th>Currency</th><th class="num">Stocks</th><th class="num">Cash</th><th class="num">Net</th><th class="num">% of NAV</th></tr>
+    <tr><td>EUR</td><td class="num">€170,956</td><td class="num">€65,927</td><td class="num">€236,882</td><td class="num">120.0%</td></tr>
+    <tr><td>USD</td><td class="num">€56,721</td><td class="num">€12,475</td><td class="num">€69,196</td><td class="num">35.0%</td></tr>
+    <tr><td>JPY</td><td class="num">€8,310</td><td class="num neg">−€116,940</td><td class="num neg">−€108,630</td><td class="num neg">−55.0%</td></tr>
+  </table>
+
+  <div class="alert">
+    <strong>Leverage alert:</strong> The portfolio is net 100% long but achieves this through 120% EUR + 35% USD − 55% JPY. You are effectively short ¥21.4M JPY via margin borrowing. This is a carry trade that works when JPY weakens but exposes you to severe risk if JPY strengthens (e.g., a risk-off event or BOJ rate hikes).
+  </div>
+
+  <h3>Risk Flags</h3>
+  <table>
+    <tr><th>Flag</th><th>Details</th><th>Severity</th></tr>
+    <tr><td>JPY Margin Debt</td><td>¥21.4M (€117K) = 59% of NAV. Interest running at ~€40/month.</td><td class="neg">HIGH</td></tr>
+    <tr><td>Crypto Concentration</td><td>IBIT + ETHA = 29% of NAV. Both deeply underwater.</td><td class="neg">HIGH</td></tr>
+    <tr><td>France Country Risk</td><td>46% of equities in French stocks. Subject to FTT + 25% div WHT.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>Top 5 Concentration</td><td>60.4% of invested capital in 5 positions.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>Low Diversification</td><td>13 positions, no bonds, no global ETFs, no emerging markets.</td><td style="color:#d69e2e;font-weight:600">MEDIUM</td></tr>
+    <tr><td>Low Dividend Yield</td><td>~0.30% gross yield. Portfolio is not income-generating.</td><td>LOW</td></tr>
+  </table>
+</div>
+
+<!-- ==================== 6. MACRO CONTEXT ==================== -->
+<div class="card" id="macro">
+  <h2>6. Macro Context (2025–2026)</h2>
+
+  <h3>Current Environment</h3>
+  <table>
+    <tr><th>Factor</th><th>Status</th><th>Impact on Your Portfolio</th></tr>
+    <tr><td>Global Interest Rates</td><td>ECB cutting toward 2.5%, Fed at ~4.5%</td><td>Favorable for EUR equities; JPY carry trade still viable but BOJ tightening is a risk</td></tr>
+    <tr><td>Inflation</td><td>Moderating in EU (2–2.5%), sticky in US</td><td>Neutral. Your luxury/consumer names benefit from pricing power</td></tr>
+    <tr><td>USD Strength</td><td>EUR has appreciated vs USD (~1.16 from 1.08)</td><td>Negative: Your USD crypto positions lose ~7% on FX alone</td></tr>
+    <tr><td>Equity Valuations</td><td>European equities at moderate valuations; US extended</td><td>European tilt is reasonable on valuation grounds</td></tr>
+    <tr><td>AI/Tech Cycle</td><td>SAP benefiting from enterprise AI; broader tech rotation risk</td><td>Underweight tech. SAP position is small.</td></tr>
+    <tr><td>Geopolitical Risk</td><td>US tariffs, Middle East tensions, China slowdown</td><td>Airbus and luxury names have China exposure risk</td></tr>
+    <tr><td>Crypto</td><td>Post-halving cycle; regulatory clarity improving but volatile</td><td>29% crypto is aggressive. Could be very rewarding or very painful.</td></tr>
+  </table>
+
+  <h3>Portfolio Character Assessment</h3>
+  <div class="metric-box" style="max-width:300px;margin:16px 0">
+    <div class="value" style="color:var(--red)">AGGRESSIVE</div>
+    <div class="label">Portfolio Risk Profile</div>
+  </div>
+  <p>The combination of JPY margin leverage, 29% crypto allocation, single-country concentration, and negative cash balance makes this an aggressive portfolio. It suits a high risk tolerance investor with a long time horizon, but the current structure has too many correlated risk factors (crypto + leverage + FX).</p>
+</div>
+
+<!-- ==================== 7. RECOMMENDATIONS ==================== -->
+<div class="card" id="recommendations">
+  <h2>7. Strategic Recommendations</h2>
+
+  <h3>Short Term (0–6 months)</h3>
+
+  <div class="rec danger">
+    <strong>1. Reduce or eliminate JPY margin debt</strong>
+    The ¥21.4M JPY short is your most dangerous position. You pay ~€40/month in interest, have a -€1,444 unrealized FX loss, and face asymmetric BOJ risk. Consider closing the Shiseido position (which is up 39% — a strong gain) and repaying the JPY debt. Net savings: ~€500/year in interest + elimination of JPY FX risk.
+  </div>
+
+  <div class="rec warn">
+    <strong>2. Trim crypto to 15–20% maximum</strong>
+    At 29% of NAV, crypto is too large for a portfolio that also uses leverage. Consider trimming ETHA (Ethereum, more volatile, deeper loss) by half. This frees up ~€7K in USD that can reduce margin or diversify.
+  </div>
+
+  <div class="rec warn">
+    <strong>3. Evaluate Porsche (P911) — down 14.6%</strong>
+    Porsche faces structural headwinds (EV transition, China weakness, VW governance). If you don't have high conviction, consider tax-loss harvesting (realize the loss) and rotating into a European auto ETF or broader industrial exposure.
+  </div>
+
+  <h3>Medium Term (1–3 years)</h3>
+
+  <div class="rec">
+    <strong>4. Diversify beyond France</strong>
+    46% France is heavy. Consider adding exposure to: US equities via VWCE/IWDA (global ETFs domiciled in Ireland — 15% WHT vs 30%), Nordic quality stocks, or emerging market ETFs. Irish-domiciled UCITS ETFs are optimal for UAE residents as they pay only 15% US WHT on US dividends.
+  </div>
+
+  <div class="rec">
+    <strong>5. Optimize dividend WHT</strong>
+    For French stocks, file Form 5000/5001 to reclaim the excess WHT above the treaty rate (if UAE-France treaty applies). For US exposure, use Ireland-domiciled UCITS ETFs (CSPX, IWDA) instead of US-listed ETFs — this cuts US WHT from 30% to 15%. Replace QQQM/IBIT positions with Irish equivalents when available.
+  </div>
+
+  <div class="rec">
+    <strong>6. Add fixed income / cash buffer</strong>
+    With ECB rates at 2.5%, EUR money market funds or short-term bond ETFs yield ~3%. A €30–40K allocation would provide income, reduce volatility, and eliminate the need for margin borrowing. Consider XEON (Xtrackers EUR Overnight Rate ETF).
+  </div>
+
+  <h3>Long Term (5+ years)</h3>
+
+  <div class="rec">
+    <strong>7. Build a core-satellite structure</strong>
+    Core (60–70%): Global equity ETF (VWCE or IWDA) + EUR bond allocation. This provides diversification, low fees, and efficient tax treatment. Satellite (30–40%): Individual conviction picks (your French luxury names, crypto, Japan). This structure dramatically reduces concentration risk while maintaining alpha potential.
+  </div>
+
+  <div class="rec">
+    <strong>8. Currency diversification strategy</strong>
+    As a UAE resident earning in AED/USD, your deposits are already USD-linked. Your EUR portfolio creates natural currency diversification. Maintain this balance but avoid additional leveraged FX bets (like the JPY carry trade).
+  </div>
+
+  <div class="rec">
+    <strong>9. Target a 1.5–2% dividend yield</strong>
+    Your current 0.3% yield means the portfolio generates almost no income. Adding dividend aristocrats or high-quality dividend ETFs (VHYL, SPYD in Irish domicile) would improve cash flow and reduce reliance on capital gains.
+  </div>
+</div>
+
+<!-- ==================== APPENDIX ==================== -->
+<div class="card" id="appendix">
+  <h2>Appendix: Cash Flow Timeline</h2>
+  <table>
+    <tr><th>Date</th><th>Currency</th><th class="num">Amount</th><th>Type</th></tr>
+    <tr><td>2025-04-01</td><td>EUR</td><td class="num">€10,000</td><td>Deposit</td></tr>
+    <tr><td>2025-04-04</td><td>EUR</td><td class="num">€45,000</td><td>Deposit</td></tr>
+    <tr><td>2025-04-23</td><td>EUR</td><td class="num neg">−€45,000</td><td>Withdrawal</td></tr>
+    <tr><td>2025-08-11</td><td>EUR</td><td class="num">€20,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-19</td><td>EUR</td><td class="num">€25,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-26</td><td>EUR</td><td class="num">€25,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-27</td><td>EUR</td><td class="num">€34,000</td><td>Deposit</td></tr>
+    <tr><td>2025-08-28</td><td>EUR</td><td class="num">€4,000</td><td>Deposit</td></tr>
+    <tr><td>2025-09-16</td><td>EUR</td><td class="num">€3,000</td><td>Deposit</td></tr>
+    <tr><td>2025-09-24</td><td>EUR</td><td class="num">€1,500</td><td>Deposit</td></tr>
+    <tr><td>2025-10-22</td><td>AED</td><td class="num">AED 110,000</td><td>Deposit</td></tr>
+    <tr><td>2025-10-29</td><td>EUR</td><td class="num">€8,500</td><td>Deposit</td></tr>
+    <tr><td>2025-11-03</td><td>AED</td><td class="num">AED 85,000</td><td>Deposit</td></tr>
+    <tr><td>2025-11-04</td><td>EUR</td><td class="num">€5,000</td><td>Deposit</td></tr>
+    <tr><td>2025-12-19</td><td>EUR</td><td class="num">€15,000</td><td>Deposit</td></tr>
+    <tr><td>2026-01-09</td><td>EUR</td><td class="num">€3,000</td><td>Deposit</td></tr>
+  </table>
+</div>
+
+<footer>
+  <p>Report generated March 7, 2026 &nbsp;|&nbsp; Data source: Interactive Brokers Activity Statement (Apr 2025 – Mar 2026) &nbsp;|&nbsp; All values in EUR unless noted</p>
+  <p style="margin-top:4px">This analysis is for informational purposes only and does not constitute financial advice. Past performance does not guarantee future results.</p>
+</footer>
+
+</div>
+</body>
+</html>

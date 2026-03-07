@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Patrimonial — Amine & Nezha</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; --gold: #b7791f; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #2d3748; line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  header { background: linear-gradient(135deg, #1a202c, #2d3748, #4a5568); color: white; padding: 48px 0 24px; }
+  header h1 { font-size: 32px; font-weight: 700; }
+  header .subtitle { opacity: 0.85; margin-top: 6px; font-size: 15px; }
+  header .badge { display: inline-block; background: rgba(255,255,255,0.15); padding: 4px 14px; border-radius: 20px; font-size: 12px; margin-top: 10px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 20px; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .card h3 { font-size: 16px; color: var(--accent); margin: 18px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: #edf2f7; color: var(--primary); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid #cbd5e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:hover { background: #f0f5ff; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight { background: #fffbeb; border-left: 4px solid #d69e2e; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .success { background: #f0fff4; border-left: 4px solid var(--green); padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .info { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+
+  /* Currency switcher */
+  .currency-bar { display: flex; gap: 0; justify-content: flex-end; margin-top: 12px; }
+  .cur-btn { padding: 6px 16px; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); transition: all 0.2s; }
+  .cur-btn:first-child { border-radius: 6px 0 0 6px; }
+  .cur-btn:last-child { border-radius: 0 6px 6px 0; }
+  .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .cur-btn:hover { color: white; }
+
+  /* View switcher */
+  .view-switcher { display: flex; gap: 0; margin: 0 0 32px; background: #2d3748; padding: 16px 0 0; justify-content: center; }
+  .view-btn { padding: 12px 32px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; }
+  .view-btn:hover { color: rgba(255,255,255,0.9); }
+  .view-btn.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); }
+  .kpi.gold { border-top-color: var(--gold); }
+  .kpi.green { border-top-color: var(--green); }
+  .kpi .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
+  .kpi .label { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .cat-card { background: white; border-radius: 12px; padding: 22px 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0; transition: all 0.2s; cursor: pointer; position: relative; }
+  .cat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); border-color: #cbd5e0; }
+  .cat-card.active-cat { border-color: var(--accent); box-shadow: 0 4px 12px rgba(43,108,176,0.15); }
+  .cat-card .cat-icon { font-size: 28px; margin-bottom: 6px; }
+  .cat-card .cat-title { font-weight: 700; font-size: 15px; color: var(--primary); }
+  .cat-card .cat-amount { font-size: 20px; font-weight: 700; color: var(--green); margin: 6px 0 2px; }
+  .cat-card .cat-sub { font-size: 11px; color: var(--gray); }
+  .cat-card .cat-pct { position: absolute; top: 10px; right: 12px; font-size: 11px; font-weight: 600; color: var(--gray); background: #edf2f7; padding: 2px 8px; border-radius: 10px; }
+
+  .cat-expand { overflow: hidden; max-height: 0; transition: max-height 0.4s ease, padding 0.3s ease, opacity 0.3s ease; opacity: 0; margin-top: 0; }
+  .cat-expand.open { max-height: 800px; opacity: 1; margin-top: 16px; }
+  .cat-expand-inner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 20px; background: #f7fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .sub-card { background: white; border-radius: 10px; padding: 18px; text-decoration: none; color: inherit; border: 1px solid #e2e8f0; transition: all 0.15s; display: block; }
+  .sub-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
+  .sub-card .sub-icon { font-size: 24px; margin-bottom: 6px; }
+  .sub-card .sub-title { font-weight: 700; font-size: 13px; color: var(--primary); }
+  .sub-card .sub-detail { font-size: 12px; color: var(--gray); margin-top: 4px; line-height: 1.5; }
+  .sub-card .sub-equity { font-size: 16px; font-weight: 700; margin-top: 6px; }
+  .sub-card .sub-equity.pos { color: var(--green); }
+  .sub-card .sub-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-top: 6px; }
+
+  .link-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .link-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); transition: transform 0.15s, box-shadow 0.15s; text-decoration: none; color: inherit; border: 1px solid #e2e8f0; }
+  .link-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+  .link-card .icon { font-size: 32px; margin-bottom: 8px; }
+  .link-card .link-title { font-weight: 700; font-size: 14px; color: var(--primary); }
+  .link-card .link-sub { font-size: 11px; color: var(--gray); margin-top: 4px; }
+
+  .chart-container { position: relative; height: 320px; margin: 16px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .section-icon { display: inline-block; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; color: white; }
+  .badge-tag { display: inline-block; background: #feebc8; color: #b7791f; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+  footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+  .hidden { display: none !important; }
+
+  /* Simulator */
+  .sim-controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; align-items: end; }
+  .sim-field label { display: block; font-size: 12px; color: var(--gray); margin-bottom: 4px; font-weight: 600; }
+  .sim-field input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--accent); }
+  .sim-field .range-val { font-size: 18px; font-weight: 700; color: var(--primary); text-align: center; }
+  .sim-result-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .sim-result { background: #f0f5ff; border-radius: 8px; padding: 14px; text-align: center; }
+  .sim-result .sr-val { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .sim-result .sr-label { font-size: 11px; color: var(--gray); margin-top: 2px; }
+  .sim-result.green-r { background: #f0fff4; }
+  .sim-result.green-r .sr-val { color: var(--green); }
+
+  /* Breakdown detail list */
+  .breakdown-list { list-style: none; padding: 0; margin: 6px 0 0; }
+  .breakdown-list li { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; border-bottom: 1px dashed #e2e8f0; }
+  .breakdown-list li:last-child { border-bottom: none; }
+  .breakdown-list .bl-label { color: #4a5568; }
+  .breakdown-list .bl-val { font-weight: 600; color: var(--primary); }
+
+  @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr 1fr; } .sim-controls { grid-template-columns: 1fr 1fr !important; } .sim-result-strip { grid-template-columns: 1fr 1fr; } .cat-grid { grid-template-columns: 1fr 1fr; } .cat-expand-inner { grid-template-columns: 1fr !important; } }
+  @media (max-width: 600px) { .kpi-strip { grid-template-columns: 1fr; } .link-grid { grid-template-columns: 1fr; } .view-btn { padding: 10px 16px; font-size: 13px; } .sim-controls { grid-template-columns: 1fr; } .sim-result-strip { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1 id="headerTitle">Dashboard Patrimonial</h1>
+    <div class="subtitle" id="headerSub">Amine (33 ans) & Nezha (34 ans) Koraibi — Vue consolidee</div>
+    <div class="badge">Donnees au 27 fevrier 2026</div>
+    <div class="currency-bar">
+      <button class="cur-btn active" onclick="setCurrency('EUR')">EUR €</button>
+      <button class="cur-btn" onclick="setCurrency('AED')">AED د.إ</button>
+      <button class="cur-btn" onclick="setCurrency('MAD')">MAD DH</button>
+      <button class="cur-btn" onclick="setCurrency('USD')">USD $</button>
+    </div>
+    <div style="font-size:10px;color:var(--gray);margin-top:4px;">
+      <span id="fxBadge">Taux FX : chargement...</span> &nbsp;|&nbsp; <span id="stockBadge">Actions : chargement...</span>
+    </div>
+  </div>
+</header>
+
+<div class="view-switcher">
+  <button class="view-btn active" onclick="switchView('couple')">Couple</button>
+  <button class="view-btn" onclick="switchView('amine')">Amine</button>
+  <button class="view-btn" onclick="switchView('nezha')">Nezha</button>
+</div>
+
+<div class="container">
+
+<!-- ============ KPIs — COUPLE ============ -->
+<div id="kpi-couple" class="kpi-strip">
+  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
+  <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
+  <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
+  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label">Equity Immo (3 biens) *</div></div>
+</div>
+
+<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;">* incl. Villejuif VEFA — <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">conditionnel</span> acte notarie non signe</p>
+
+<!-- ============ KPIs — AMINE ============ -->
+<div id="kpi-amine" class="kpi-strip hidden">
+  <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
+  <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR+ESPP)</div></div>
+  <div class="kpi"><div class="value" data-eur-pct="31.04" data-type="pct">--</div><div class="label">TWR IBKR</div></div>
+  <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">Equity Vitry</div></div>
+</div>
+
+<!-- ============ KPIs — NEZHA ============ -->
+<div id="kpi-nezha" class="kpi-strip hidden">
+  <div class="kpi" style="border-top-color: #d69e2e;"><div class="value" id="kpiNzNW" data-eur="0">--</div><div class="label">Net Worth (actuel)</div></div>
+  <div class="kpi"><div class="value" id="kpiNzRueil" data-eur="0">--</div><div class="label">Equity Rueil</div></div>
+  <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiNzVillejuif" data-eur="0">--</div><div class="label">Equity Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div></div>
+  <div class="kpi"><div class="value" id="kpiNzCash" data-eur="0">--</div><div class="label">Cash + Creances</div></div>
+</div>
+
+<!-- ============ INSIGHTS GLOBAUX ============ -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">💡</span>Vue d'ensemble & Insights</h2>
+  <div class="grid2">
+    <div>
+      <div class="success">
+        <strong>Points forts du couple :</strong><br>
+        - NW combine de 736K a 33 et 34 ans — excellent rythme de constitution patrimoniale pour un couple.<br>
+        - Revenus diversifies : salaire Amine (Dubai) + patrimoine locatif Nezha (France). Deux pays, deux sources de revenus.<br>
+        - Cash couple total ~249K (Amine 172K + Nezha 94K dont 85K EUR + 9K MAD) reparti sur 2 devises et plusieurs banques. Bonne resilience en cas de blocage bancaire.<br>
+        - Zero dette consommation. Les 784K de dette sont 100% adosses a des actifs immo productifs (925K de valeur).<br>
+        - <strong>Objectif 1M NW couple : atteignable en ~3-4 ans avec le rythme actuel d'epargne + creation immo.</strong>
+      </div>
+    </div>
+    <div>
+      <div class="highlight">
+        <strong>Risques & points d'attention couple :</strong><br>
+        - <strong>Concentration immo IDF :</strong> 3 biens, 925K de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -93K d'equity couple.<br>
+        - <strong>Exposition devise :</strong> Le couple est multi-devise — ~172K en AED/USD (Amine) + ~94K en EUR/MAD (Nezha 85K EUR + 9K MAD). Le risque USD/EUR est reel (~35% du cash total en AED).<br>
+        - <strong>Charge immo post-2028 :</strong> Apres livraison Villejuif, les mensualites totales passeront a ~3,893/mois (Vitry 1,317 + Rueil 907 + Villejuif ~1,669). La tresorerie Nezha (~94K) sera reduite par l'apport Villejuif (~28K restant), laissant ~66K de reserve pour absorber le CF negatif initial.<br>
+        - <strong>Creances (49K) :</strong> SAP&Tax 18K (garanti, delai de paiement 45 jours — quasi-cash) + creances perso 31K (recouvrement incertain). Ne compter que les 18K SAP dans la planification.<br>
+        - <strong>Levier JPY (Amine) :</strong> Emprunt -116K JPY sur IBKR. Une appreciation du yen de 10% couterait ~12K au couple.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NAVIGATION PAR CATEGORIE ============ -->
+<div class="card" id="catNav">
+  <h2>Patrimoine par Categorie</h2>
+  <div class="cat-grid" id="catGrid">
+
+    <div class="cat-card" onclick="toggleCat('stocks')" data-cat-owner="amine">
+      <div class="cat-pct" id="catPctStocks">--</div>
+      <div class="cat-icon">📈</div>
+      <div class="cat-title">Actions & Crypto</div>
+      <div class="cat-amount" data-eur="237511" class="cur-inline">--</div>
+      <div class="cat-sub">IBKR + ESPP + SGTM</div>
+    </div>
+
+    <div class="cat-card" onclick="toggleCat('cash')" data-cat-owner="amine">
+      <div class="cat-pct" id="catPctCash">--</div>
+      <div class="cat-icon">💰</div>
+      <div class="cat-title">Cash & Epargne</div>
+      <div class="cat-amount" data-eur="169378" class="cur-inline">--</div>
+      <div class="cat-sub">UAE + Maroc + Revolut</div>
+    </div>
+
+    <div class="cat-card" onclick="toggleCat('immo')">
+      <div class="cat-pct" id="catPctImmo">--</div>
+      <div class="cat-icon">🏠</div>
+      <div class="cat-title">Immobilier</div>
+      <div class="cat-amount" data-eur="141111" class="cur-inline">--</div>
+      <div class="cat-sub">3 biens — Equity nette</div>
+    </div>
+
+    <div class="cat-card" onclick="toggleCat('other')" data-cat-owner="amine">
+      <div class="cat-pct" id="catPctOther">--</div>
+      <div class="cat-icon">📋</div>
+      <div class="cat-title">Autres Actifs</div>
+      <div class="cat-amount" data-eur="87751" class="cur-inline">--</div>
+      <div class="cat-sub">Vehicules + Creances - TVA</div>
+    </div>
+
+  </div>
+
+  <!-- EXPANDABLE: Stocks -->
+  <div class="cat-expand" id="expand-stocks">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="portfolio_analysis_v4.html" class="sub-card">
+        <div class="sub-icon">📊</div>
+        <div class="sub-title">IBKR Portfolio</div>
+        <div class="sub-detail">12 actions EU + 1 JP<br>2 crypto ETFs + multi-devise</div>
+        <div class="sub-equity pos" id="subIBKR" data-eur="204156">--</div>
+        <div class="sub-badge" style="background:#c6f6d5;color:#276749">TWR +31.04%</div>
+      </a>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">💼</div>
+        <div class="sub-title">ESPP Accenture</div>
+        <div class="sub-detail" id="subESPPDetail">167 actions ACN<br>+ cash ~2,000 EUR</div>
+        <div class="sub-equity pos" id="subESPP" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#ebf8ff;color:#2b6cb0">ESPP -15%</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">🇲🇦</div>
+        <div class="sub-title">SGTM (Casablanca)</div>
+        <div class="sub-detail" id="subSGTMDetail">32 actions SGTM<br>Bourse de Casablanca</div>
+        <div class="sub-equity pos" id="subSGTM" data-eur="0">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Cash — detailed breakdown -->
+  <div class="cat-expand" id="expand-cash">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">🇦🇪</div>
+        <div class="sub-title">Cash UAE</div>
+        <div class="sub-equity pos" id="subUAE" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">Mashreq NEO PLUS</span><span class="bl-val">AED 310,518 <span style="color:var(--gray);font-size:11px">(71,781)</span></span></li>
+          <li><span class="bl-label">Wio Savings</span><span class="bl-val">AED 220,000 <span style="color:var(--gray);font-size:11px">(50,856)</span></span></li>
+          <li><span class="bl-label">Revolut (EUR)</span><span class="bl-val">4,267</span></li>
+          <li><span class="bl-label">Wio Current</span><span class="bl-val">AED 4,904 <span style="color:var(--gray);font-size:11px">(1,134)</span></span></li>
+          <li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total Excel</span><span class="bl-val">128,039</span></li>
+          <li><span class="bl-label" style="font-style:italic;color:var(--green)">+ Paiement 21j SAP&Tax recu</span><span class="bl-val" style="color:var(--green)">+23,910</span></li>
+        </ul>
+        <div class="sub-badge" style="background:#f0fff4;color:#276749">~6% rendement epargne</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">🇲🇦</div>
+        <div class="sub-title">Cash Maroc</div>
+        <div class="sub-equity pos" id="subMarocCash" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">Attijariwafa Courant</span><span class="bl-val">MAD 151,202</span></li>
+          <li><span class="bl-label">BMCE/BOA Cheque</span><span class="bl-val">MAD 37,304</span></li>
+        </ul>
+        <div class="sub-detail" style="margin-top:6px;font-style:italic" id="subMarocFXNote">Total MAD 188,506</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;">
+        <strong>Insights Cash :</strong><br>
+        - <span style="color:var(--green)">169K de cash = 6 mois de matelas de securite meme en cas d'arret total d'activite.</span><br>
+        - Le rendement de 6% sur l'epargne UAE (Wio Savings) est tres competitif — continuer a maximiser ce placement.<br>
+        - Cash Maroc peu rentable (~1-2%). Considerer un rapatriement progressif vers UAE ou investissement en actions.<br>
+        - <span style="color:var(--red)">Risque FX :</span> 89% du cash est en AED (peg USD). Un affaiblissement du dollar impacterait la valeur en EUR.
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Immo (interactive) -->
+  <div class="cat-expand" id="expand-immo">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="apt_vitry.html" class="sub-card">
+        <div class="sub-icon">🏠</div>
+        <div class="sub-title">Vitry-sur-Seine</div>
+        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span data-eur="293000" class="cur-inline">--</span> (2%/an)<br>CRD <span data-eur="268903" class="cur-inline">--</span></div>
+        <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#fed7d7;color:#c53030">CF -317/mois</div>
+      </a>
+      <a href="apt_rueil.html" class="sub-card">
+        <div class="sub-icon">🏡</div>
+        <div class="sub-title">Rueil-Malmaison</div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span data-eur="272000" class="cur-inline">--</span><br>CRD <span data-eur="196516" class="cur-inline">--</span></div>
+        <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#c6f6d5;color:#276749">CF +209/mois</div>
+      </a>
+      <a href="apt_villejuif.html" class="sub-card">
+        <div class="sub-icon">🏗️</div>
+        <div class="sub-title">VEFA Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div>
+        <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span data-eur="360000" class="cur-inline">--</span><br>CRD <span data-eur="318470" class="cur-inline">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3K payee</span></div>
+        <div class="sub-equity pos" id="subVillejuifEq" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#fef3c7;color:#92400e">Conditionnel — Pas de permis d'habiter</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Other — detailed breakdown -->
+  <div class="cat-expand" id="expand-other">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">🚗</div>
+        <div class="sub-title">Vehicules</div>
+        <div class="sub-detail">Porsche Cayenne 45K<br>Mercedes Class A 10K</div>
+        <div class="sub-equity" style="color:var(--primary);" data-eur="55000">--</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">📄</div>
+        <div class="sub-title">Creances</div>
+        <div class="sub-equity" style="color:var(--primary);" id="subCreances" data-eur="0">--</div>
+        <ul class="breakdown-list">
+          <li><span class="bl-label">SAP & Tax (20j x 910)</span><span class="bl-val">18,200</span></li>
+          <li style="padding-top:4px;border-top:1px solid #cbd5e0;font-weight:600"><span class="bl-label">Creances personnelles</span><span class="bl-val">30,551</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Kenza Kabbaj (200K MAD)</span><span class="bl-val">18,492</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Abdelkader (55K MAD)</span><span class="bl-val">5,085</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Mehdi Akanour (30K MAD)</span><span class="bl-val">2,774</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Akram</span><span class="bl-val">1,500</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Akram & Abdelkader (loyer)</span><span class="bl-val">1,200</span></li>
+          <li><span class="bl-label">&nbsp;&nbsp;Anas (Thermomix)</span><span class="bl-val">1,500</span></li>
+        </ul>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">🏛️</div>
+        <div class="sub-title">TVA a payer</div>
+        <div class="sub-detail">Passif fiscal<br>Provision estimee</div>
+        <div class="sub-equity neg" data-eur="16000" data-sign="-">--</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;">
+        <strong>Insights Autres :</strong><br>
+        - <span style="color:var(--green)">48,751 de creances dont 18K SAP&Tax garanties (delai 45j).</span> Les creances perso (~31K) sont a prioriser par montant (Kenza 18K, Abdelkader 5K).<br>
+        - Vehicules (55K) sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>
+        - TVA (-16K) est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>
+        - <span style="color:var(--red)">Risque :</span> Les creances personnelles (~31K) sont difficilement recouvrables a court terme. Ne pas les compter dans la tresorerie operationnelle. Les 18K SAP&Tax sont garantis (delai paiement 45j) et assimilables a du cash.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ COUPLE: PATRIMOINE CONSOLIDE ============ -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">👫</span>Patrimoine Couple — Detail consolide</h2>
+  <div class="grid2">
+    <div>
+      <table id="coupleDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div style="text-align:center;margin-bottom:4px;">
+        <span id="coupleChartTitle" style="font-weight:600;font-size:14px;color:var(--primary)">Repartition par categorie</span>
+        <button id="coupleChartBack" onclick="coupleChartZoomOut()" style="display:none;margin-left:8px;font-size:11px;padding:2px 10px;border:1px solid #cbd5e0;border-radius:4px;background:#f7fafc;cursor:pointer;color:var(--accent)">&larr; Retour</button>
+      </div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="coupleAllocChart"></canvas>
+      </div>
+      <p id="coupleChartHint" style="font-size:11px;color:var(--gray);text-align:center;margin-top:4px">Cliquez sur une tranche pour voir le detail</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AMINE: PATRIMOINE DETAIL ============ -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">A</span>Patrimoine Amine — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table id="amineDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="amineAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="highlight" style="margin-top: 14px;">
+    <strong>Immobilier Amine :</strong><br>
+    - <span style="color:var(--green)">Vitry genere +1,017/mois de creation de richesse</span> (560 capital rembourse + 458 appreciation). Excellent levier malgre le CF negatif.<br>
+    - <strong>CF = -317/mois</strong> (revenus 1,270 vs charges 1,587). Ratio richesse/effort de 3.2x. Augmentation loyer a 1,400 debut 2027 &rarr; CF = -117.<br>
+    - Explorer le passage en LMNP reel — les charges deductibles pourraient reduire l'imposition a zero.
+  </div>
+</div>
+
+<!-- ============ AMINE: RESUME ACTIONS ============ -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">📈</span>Actions & Crypto — Amine</h2>
+  <div class="kpi-strip">
+    <div class="kpi green"><div class="value" id="kpiAmIBKR" data-eur="0">--</div><div class="label">IBKR NAV</div></div>
+    <div class="kpi green"><div class="value" data-eur-pct="31.04" data-type="pct">--</div><div class="label">TWR (Time-Weighted)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmESPP" data-eur="0">--</div><div class="label" id="kpiAmESPPLabel">ESPP (167 ACN)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmSGTM" data-eur="0">--</div><div class="label">SGTM (32 actions)</div></div>
+  </div>
+  <div class="grid2">
+    <div>
+      <h3>Allocation Geographique (actions, hors cash)</h3>
+      <div class="chart-container" style="height: 250px;">
+        <canvas id="geoChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h3>Top Positions IBKR</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">Qte</th><th class="num">Valeur</th></tr></thead>
+        <tbody id="ibkrPositionsTbody">
+          <!-- Built dynamically -->
+        </tbody>
+      </table>
+      <div class="success" style="margin-top: 14px;">
+        <strong>IBKR :</strong> NAV <span id="ibkrNAVLabel">--</span>, depots 199,886. TWR 31.04% depuis ouverture.
+      </div>
+      <div class="highlight" style="margin-top: 10px;">
+        <strong>Insights Actions :</strong><br>
+        - TWR de 31% est excellent — bien au-dessus du CAC40 (~20% sur la meme periode).<br>
+        - <strong>Diversification geo :</strong> 53% France, 21% Crypto — risque de concentration sur le marche francais. Considerer plus d'exposition US/Monde.<br>
+        - Bitcoin (IBIT) represente 20% du portefeuille avec un P&L de -4,720 : position a surveiller, mais horizon long terme favorable.<br>
+        - <span style="color:var(--green)">A 7% annuel + 7K/mois d'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>
+        - <span style="color:var(--red)">Risque :</span> Levier JPY (-115K) amplifie les mouvements. Un renforcement du yen de 10% couterait ~12K.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NEZHA: PATRIMOINE DETAIL ============ -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">N</span>Patrimoine Nezha — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table>
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody id="nezhaDetailTbody">
+          <!-- Built dynamically by buildNezhaTable() -->
+        </tbody>
+      </table>
+      <div class="info" style="margin-top: 14px;">
+        <strong>Profil :</strong> Patrimoine 100% immobilier + cash. 85K en France (dont une partie pour apport Villejuif — 3K payes en reservation). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>
+        <strong>Insights Nezha :</strong><br>
+        - <span style="color:var(--green)">NW de 176K dont 75K en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>
+        - <span style="color:var(--green)">Rueil : auto-finance (+209/mois de CF positif)</span>. 838/mois de creation de richesse, zero effort financier.<br>
+        - Cash total ~94K (85K France + 9K Maroc). ~28K restent pour l'apport Villejuif. Creance Omar 40K MAD (~4K) a recuperer.<br>
+        - <strong>Franchise totale 3 ans :</strong> Nezha ne paye rien pendant la franchise. Les interets se capitalisent (~24K). Le surplus de Rueil (+209/mois) peut etre epargne pour la tresorerie post-franchise.<br>
+        - <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~2,576/mois de mensualites (Rueil 907 + Villejuif ~1,669). Tresorerie libre ~66K a conserver.<br>
+        - <span style="color:var(--green)">Apres livraison :</span> 2 biens = +1,651/mois de creation de richesse (~20K/an). Objectif loyer Villejuif : 1,600-1,800 meuble.
+      </div>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="nezhaAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ IMMOBILIER ============ -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--gold);">🏠</span>Resume Immobilier</h2>
+  <div class="kpi-strip">
+    <div class="kpi gold" id="immoKpi1"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label">Equity Totale (3 biens)</div></div>
+    <div class="kpi" id="immoKpi2"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimee des biens</div></div>
+    <div class="kpi" id="immoKpi3"><div class="value" id="kpiImmoCRD" data-eur="0">--</div><div class="label">Capital Restant Du</div></div>
+    <div class="kpi green" id="immoKpi4"><div class="value" id="immoWealthVal" style="font-size:22px">+1,855/mois</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4">Ete 2029 : <span style="color:var(--green);font-weight:700">+2,668/mois</span></div></div>
+  </div>
+
+  <table id="immoTable">
+    <thead>
+      <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Equity</th><th class="num">CF /mois</th><th>Statut</th></tr>
+    </thead>
+    <tbody>
+      <tr data-owner="amine">
+        <td><strong>Vitry-sur-Seine</strong><br><span style="font-size:12px;color:var(--gray)">67 m2 — loyer 1,200 + parking 70 cash</span></td>
+        <td>Amine</td>
+        <td class="num" data-eur="293000">--</td><td class="num" data-eur="268903">--</td><td class="num pos" data-eur="24097">--</td>
+        <td class="num neg">-317</td>
+        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
+      </tr>
+      <tr data-owner="nezha" style="background:#f0f5ff">
+        <td><strong>Rueil-Malmaison</strong><br><span style="font-size:12px;color:var(--gray)">56 m2 — loyer 1,300 HC + 150 charges (bail oct 2025)</span></td>
+        <td>Nezha</td>
+        <td class="num" data-eur="272000">--</td><td class="num" data-eur="196516">--</td><td class="num pos" data-eur="75484">--</td>
+        <td class="num pos">+209</td>
+        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
+      </tr>
+      <tr data-owner="nezha">
+        <td><strong>Villejuif (VEFA)</strong><br><span style="font-size:12px;color:#92400e">Conditionnel — acte non signe</span></td>
+        <td>Nezha</td>
+        <td class="num" data-eur="360000">--</td><td class="num" data-eur="318470">--</td><td class="num pos" data-eur="41530">--</td>
+        <td class="num" style="color:var(--gray)">--</td>
+        <td><span style="background:#fef3c7;padding:2px 8px;border-radius:10px;font-size:12px;color:#92400e">Conditionnel</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px">Villejuif : Prets LCL — P1 286,670 @ 3.27% + P2 31,800 @ 0.90%. Franchise totale 36 mois, capitalisation annuelle. Vitry : valeur appreciee 2%/an depuis achat (275K &rarr; 293K). Rueil : bail meuble oct 2025 (1,300 HC + 150 charges).</p>
+
+  <div class="info" style="margin-top:10px; font-size:13px;">
+    <strong>Villejuif — Simulation banque vs estimation realiste :</strong><br>
+    La banque simule un deblocage integral du credit au jour 1. En realite, les fonds VEFA se debloquent progressivement (appels de fonds : 35% fondations, 70% hors d'eau, 80% hors d'air, 95% achevement, 100% livraison). L'apport (~31K) est utilise en premier.<br><br>
+    <table style="font-size:12px;margin:8px 0">
+      <tr><th></th><th class="num">Simulation banque</th><th class="num">Estimation realiste</th><th class="num">Economie</th></tr>
+      <tr><td>Interets capitalises (36 mois)</td><td class="num">29,918</td><td class="num" style="color:var(--green);font-weight:600">~24,150</td><td class="num pos">~5,750 (-19%)</td></tr>
+      <tr><td>CRD apres franchise</td><td class="num">348,388</td><td class="num" style="color:var(--green);font-weight:600">~342,620</td><td class="num pos">~5,750</td></tr>
+      <tr><td>Mensualite post-franchise</td><td class="num">1,698/mois</td><td class="num" style="color:var(--green);font-weight:600">~1,669/mois</td><td class="num pos">~29/mois</td></tr>
+      <tr><td>Cout total sur 291 mois</td><td class="num">494,112</td><td class="num" style="color:var(--green);font-weight:600">~485,800</td><td class="num pos">~8,300</td></tr>
+    </table>
+    <span style="font-size:11px;color:var(--gray)">Hypothese : fondations M0, hors d'eau M6, hors d'air M9, achevement M15, livraison M18. Apport utilise en priorite. Assurance 51/mois non incluse dans la mensualite ci-dessus.</span>
+  </div>
+
+  <!-- INSIGHTS COUPLE -->
+  <div class="highlight" style="margin-top: 14px;" id="immoInsightsCouple">
+    <strong>Strategie Immo Couple :</strong><br>
+    - <strong>Bilan consolide :</strong> 925K de patrimoine immo, 784K de dette, 141K d'equity. Le couple detient 3 biens en IDF avec un taux d'endettement immo de ~85%. La strategie repose sur le levier credit pour construire de l'equity via le remboursement.<br>
+    - <strong>Cash flow consolide : -108/mois</strong> aujourd'hui. Le portefeuille immo coute 1,296/an au couple. C'est absorbable par les revenus d'Amine, mais la marge est mince. Apres augmentation Vitry debut 2027, le CF passe a <span style="color:var(--green)">+92/mois</span> — le portefeuille devient auto-finance.<br>
+    - <strong>Creation de richesse : +1,855/mois</strong> (22K/an) via le remboursement du capital + appreciation. Chaque mois, le patrimoine net du couple progresse malgre le CF negatif. C'est l'essence de la strategie.<br>
+    - <strong>Horizon ete 2029 :</strong> Avec Villejuif livre, le couple passera a +2,668/mois de creation de richesse (32K/an). Credit debloque fin 2026, franchise 3 ans &rarr; mensualites fin 2029. Fenetre favorable : ~6 mois de loyer avant les premieres mensualites. Mais ensuite la charge totale atteindra ~3,893/mois (1,317 + 907 + ~1,669).<br>
+    - <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~93K d'equity. Le couple n'a pas de bien hors IDF pour amortir ce choc.<br>
+    - <span style="color:var(--green)">Trajectoire :</span> A 5 ans, equity immo estimee > 300K (vs 141K ajd). Rueil solde en ~2044 (18 ans), Vitry en ~2048 (22 ans), Villejuif en ~2052 (24 ans apres franchise). A terme, 3 biens = 0 dette + revenus locatifs nets.
+  </div>
+
+
+  <div class="grid2" style="margin-top: 20px;">
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoEquityChart"></canvas>
+    </div>
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoProjectionChart"></canvas>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 24px;">Analyse d'autofinancement — Cash Flow reel</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Revenus = loyer percu + parking. Charges = tout ce que le proprietaire paye (pret, copro, assurance, PNO, TF). Cash flow = revenus - charges.</p>
+  <table style="margin-top:10px;">
+    <thead>
+      <tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Revenus CC + parking</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Vitry</strong><br><span style="font-size:11px;color:var(--gray)">Loyer 1,200 + parking 70</span></td>
+        <td class="num">1,317</td>
+        <td class="num">30</td>
+        <td class="num">15</td>
+        <td class="num">75</td>
+        <td class="num">150</td>
+        <td class="num" style="font-weight:600">1,587</td>
+        <td class="num">1,270</td>
+        <td class="num neg" style="font-weight:700">-317</td>
+      </tr>
+      <tr style="background:#fffbeb">
+        <td><strong>Vitry 2027</strong><br><span style="font-size:11px;color:#92400e">Loyer prevu 1,400 + parking 70</span></td>
+        <td class="num">1,317</td>
+        <td class="num">30</td>
+        <td class="num">15</td>
+        <td class="num">75</td>
+        <td class="num">150</td>
+        <td class="num" style="font-weight:600">1,587</td>
+        <td class="num">1,470</td>
+        <td class="num neg" style="font-weight:700">-117</td>
+      </tr>
+      <tr style="background:#f0f5ff">
+        <td><strong>Rueil</strong><br><span style="font-size:11px;color:var(--gray)">Loyer 1,450 CC (1,300 HC + 150 provisions)</span></td>
+        <td class="num">907</td>
+        <td class="num">25</td>
+        <td class="num">12</td>
+        <td class="num">67</td>
+        <td class="num">80</td>
+        <td class="num" style="font-weight:600">1,091</td>
+        <td class="num">1,300<br><span style="font-size:10px;color:var(--gray)">(HC, copro recup via provisions)</span></td>
+        <td class="num pos" style="font-weight:700">+209</td>
+      </tr>
+      <tr>
+        <td><strong>Villejuif</strong><br><span style="font-size:11px;color:#92400e">VEFA — livraison ete 2029 (credit fin 2026, 3 ans franchise)</span></td>
+        <td class="num">1,669</td>
+        <td class="num">51</td>
+        <td class="num">15</td>
+        <td class="num">83</td>
+        <td class="num">110</td>
+        <td class="num" style="font-weight:600">1,928</td>
+        <td class="num" style="color:var(--gray)">TBD</td>
+        <td class="num" style="color:var(--gray)">--</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:var(--gray);margin-top:4px">Vitry : copro 150/mois (a charge du proprietaire, non incluse dans le loyer). Rueil : copro non-recup ~80/mois (provisions 150 recuperees via locataire). Villejuif : assurance = 46.10 + 5.19 = 51.29 (offre LCL), mensualite = P1 1,572.79 + P2 124.99, copro estimee 110/mois.</p>
+
+  <div class="success" style="margin-top: 14px;">
+    <strong>Analyse :</strong> Rueil est largement autofinance (+209/mois grace au bail meuble oct 2025 a 1,300 HC). Vitry a un deficit de -317/mois (1,270 de revenus loyer+parking vs 1,587 de charges). L'augmentation prevue a 1,400 debut 2027 reduira le deficit a -117/mois. Pour Villejuif (estimation realiste), viser un loyer de ~1,930 minimum pour l'autofinancement (marche Villejuif 69m2 : ~1,200-1,400 en nu, ~1,600-1,800 en meuble).
+    <br><span style="color:var(--red)">Attention Villejuif :</span> Si loyer &lt; 1,700, le cash-flow negatif sera de ~260/mois soit ~3,1K/an a couvrir.
+  </div>
+
+  <!-- ========== PROJECTION CASH FLOW 20 ANS ========== -->
+  <h3 style="margin-top: 28px;">Projection Cash Flow — 10 ans</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Cash flow mensuel net par appartement et total combine. Hypotheses : loyer Vitry +200 en 2027, Villejuif loyer estime 1,700 meuble (debut en meme temps que le remboursement, fin 2029 — les loyers anterieurs financent les travaux). Revalorisation loyers +1.5%/an (IRL). Prets : Rueil ~2044, Vitry ~2048, Villejuif ~2053.</p>
+
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="cfProjectionChart"></canvas>
+  </div>
+
+  <table id="cfProjectionTable" style="margin-top:14px;font-size:12px;">
+    <thead>
+      <tr><th>Annee</th><th class="num">Vitry</th><th class="num">Rueil</th><th class="num">Villejuif</th><th class="num" style="background:#f0fff4;color:var(--green)">Total</th></tr>
+    </thead>
+    <tbody id="cfProjectionBody"></tbody>
+  </table>
+  <p style="font-size:11px;color:var(--gray);margin-top:4px">CF = Revenus (loyer + parking) − Charges (pret + assurance + PNO + TF + copro). Apres fin de pret, la mensualite et l'assurance tombent a zero. Revalorisation loyers : +1.5%/an (IRL moyen).</p>
+
+</div>
+
+<!-- ============ SIMULATEUR COUPLE ============ -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">🎯</span>Simulateur — Net Worth Couple</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha). Les 3 biens immobiliers croissent via le remboursement des prets. Les creances sont traitees comme du cash investissable. Les vehicules sont statiques.<br>
+  <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
+
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field">
+      <label>Epargne mensuelle (Amine)</label>
+      <input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000">
+      <div class="range-val" id="cplSimSavingsVal">8,000</div>
+    </div>
+    <div class="sim-field">
+      <label>% en Actions (reste en Cash 6%)</label>
+      <input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100">
+      <div class="range-val" id="cplSimPctActionsVal">100%</div>
+    </div>
+    <div class="sim-field">
+      <label>Rendement Actions annuel</label>
+      <input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10">
+      <div class="range-val" id="cplSimReturnActionsVal">10.0%</div>
+    </div>
+    <div class="sim-field">
+      <label>Fin de contribution</label>
+      <input type="range" id="cplSimStopYear" min="0" max="20" step="0.5" value="3">
+      <div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div>
+    </div>
+    <div class="sim-field">
+      <label>Horizon (annees)</label>
+      <input type="range" id="cplSimHorizon" min="1" max="20" step="1" value="10">
+      <div class="range-val" id="cplSimHorizonVal">10 ans</div>
+    </div>
+  </div>
+
+  <div id="cplSimStopBanner" class="info" style="display:none; margin-bottom:16px;">
+    <strong>Mode arret de contribution :</strong> <span id="cplSimStopBannerText"></span>
+  </div>
+
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="cplSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="cplSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="cplSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="cplSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="cplSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (3 biens)</div></div>
+  </div>
+
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="cplSimChart"></canvas>
+  </div>
+
+  <div class="highlight" id="cplSimInsight">--</div>
+</div>
+
+<!-- ============ SIMULATEUR AMINE ============ -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">🎯</span>Simulateur — Net Worth Amine</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine d'Amine seul. Inclut le portefeuille actions, cash (6% rendement), et l'immobilier Vitry.<br>
+  <strong style="color:var(--gold)">Aujourd'hui : Vitry represente <span id="amImmoPct">--</span>% du NW Amine (<span id="amImmoVal">--</span> d'equity).</strong></p>
+
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field">
+      <label>Epargne mensuelle</label>
+      <input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="7000">
+      <div class="range-val" id="amSimSavingsVal">7,000</div>
+    </div>
+    <div class="sim-field">
+      <label>% en Actions (reste en Cash 6%)</label>
+      <input type="range" id="amSimPctActions" min="0" max="100" step="5" value="60">
+      <div class="range-val" id="amSimPctActionsVal">60%</div>
+    </div>
+    <div class="sim-field">
+      <label>Rendement Actions annuel</label>
+      <input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="7">
+      <div class="range-val" id="amSimReturnActionsVal">7.0%</div>
+    </div>
+    <div class="sim-field">
+      <label>Fin de contribution</label>
+      <input type="range" id="amSimStopYear" min="0" max="20" step="0.5" value="0">
+      <div class="range-val" id="amSimStopYearVal" style="font-size:15px;">Jamais</div>
+    </div>
+    <div class="sim-field">
+      <label>Horizon (annees)</label>
+      <input type="range" id="amSimHorizon" min="1" max="20" step="1" value="10">
+      <div class="range-val" id="amSimHorizonVal">10 ans</div>
+    </div>
+  </div>
+
+  <div id="amSimStopBanner" class="info" style="display:none; margin-bottom:16px;">
+    <strong>Mode arret de contribution :</strong> <span id="amSimStopBannerText"></span>
+  </div>
+
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="amSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="amSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="amSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="amSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="amSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (Vitry)</div></div>
+  </div>
+
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="amSimChart"></canvas>
+  </div>
+
+  <div class="highlight" id="amSimInsight">--</div>
+</div>
+
+<!-- ============ SIMULATEUR NEZHA ============ -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">🎯</span>Simulateur — Patrimoine Nezha</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine immobilier de Nezha. Pas d'actions — uniquement Rueil (loue) et Villejuif (apres livraison Q4 2028).</p>
+
+  <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-field">
+      <label>Appreciation immobiliere annuelle</label>
+      <input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1">
+      <div class="range-val" id="nzSimAppreciationVal">1.0%</div>
+    </div>
+    <div class="sim-field">
+      <label>Rendement Cash Nezha</label>
+      <input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2">
+      <div class="range-val" id="nzSimCashReturnVal">2.0%</div>
+    </div>
+    <div class="sim-field">
+      <label>Horizon (annees)</label>
+      <input type="range" id="nzSimHorizon" min="1" max="20" step="1" value="10">
+      <div class="range-val" id="nzSimHorizonVal">10 ans</div>
+    </div>
+  </div>
+
+  <div class="sim-result-strip" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="nzSimNW">--</div><div class="sr-label">NW Final Nezha</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="nzSimRueil" style="color:var(--accent);">--</div><div class="sr-label">Equity Rueil</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="nzSimVillejuif" style="color:var(--gold);">--</div><div class="sr-label">Equity Villejuif</div></div>
+    <div class="sim-result"><div class="sr-val" id="nzSimCash">--</div><div class="sr-label">Cash</div></div>
+  </div>
+
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="nzSimChart"></canvas>
+  </div>
+
+  <div class="highlight" id="nzSimInsight">--</div>
+
+  <!-- Nezha projection table -->
+  <h3 style="margin-top:20px;">Projection detaillee</h3>
+  <table id="nezhaProjectionTable">
+    <thead><tr><th></th><th class="num">Jan 2027</th><th class="num">Jan 2028</th><th class="num">Jan 2029</th><th class="num">Jan 2030</th><th class="num">Jan 2031</th><th class="num">Jan 2032</th></tr></thead>
+    <tbody>
+      <tr><td>Equity Rueil</td><td class="num">85,543</td><td class="num">97,707</td><td class="num">110,020</td><td class="num">122,468</td><td class="num">135,060</td><td class="num">147,799</td></tr>
+      <tr><td>Equity Villejuif</td><td class="num">0</td><td class="num">0</td><td class="num">11,039</td><td class="num">29,706</td><td class="num">48,808</td><td class="num">68,307</td></tr>
+      <tr><td>Cash</td><td class="num">74,050</td><td class="num">63,459</td><td class="num">53,209</td><td class="num">43,288</td><td class="num">33,682</td><td class="num">24,401</td></tr>
+      <tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>
+        <td class="num"><strong>159,593</strong></td><td class="num"><strong>161,166</strong></td><td class="num"><strong>174,268</strong></td><td class="num"><strong>195,462</strong></td><td class="num"><strong>217,550</strong></td><td class="num"><strong>240,507</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
+  <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
+  <p style="font-size:11px;margin-top:4px;">Taux de change : 1 EUR = <span id="fxDisplay">4.3259 AED | 10.8154 MAD | 1.0850 USD</span></p>
+</footer>
+
+</div>
+
+<script>
+// ============ CORE DATA — NATIVE CURRENCIES ============
+// FX rates: 1 EUR = X foreign. Fallback static rates (Feb 27 2026) — overwritten by live API
+const FX = { EUR: 1, AED: 4.3259, MAD: 10.8154, USD: 1.0850, JPY: 161.50 };
+const SYMBOLS = { EUR: '\u20ac', AED: 'د.إ', MAD: 'DH', USD: '$' };
+const SYM_AFTER = { MAD: true };
+let currentCurrency = 'EUR';
+let fxSource = 'statique (27 fev 2026)';
+let currentView = 'couple';
+
+// ---- Native currency amounts (raw, never changed) ----
+const NATIVE = {
+  // Amine — AED accounts
+  amineUAE_AED: 638818,       // Wio + Mashreq + SAP payment received (AED)
+  amineUAE_EUR: 4267,          // Revolut EUR balance in UAE
+  // Amine — MAD accounts
+  amineMoroccoCash_MAD: 188506, // BMCE 37,280 + Attijari 151,226
+  amineSGTM_MAD: 26562,         // 32 actions SGTM (Bourse Casablanca)
+  amineRecvPerso_MAD: 285000,   // Kenza 200K + Abdelkader 55K + Mehdi 30K
+  amineRecvPerso_EUR: 4200,     // Akram 1,500 + loyer 1,200 + Anas 1,500
+  // Amine — ESPP (EUR-denominated account, but shares priced in USD)
+  amineESPP_cashEUR: 2000,      // cash residuel en EUR dans le compte ESPP
+  // Amine — IBKR positions (mix of EUR + USD stocks)
+  // Top positions with share counts for live price updates:
+  ibkrPositions: [
+    { ticker: 'IBIT', shares: 315, priceUSD: 52.74, currency: 'USD', label: 'iShares Bitcoin (IBIT)' },
+    { ticker: 'AIR.PA', shares: 215, priceEUR: 163.61, currency: 'EUR', label: 'Airbus (AIR)' },
+    { ticker: 'DG.PA', shares: 270, priceEUR: 97.56, currency: 'EUR', label: 'Vinci (DG)' },
+    { ticker: 'MC.PA', shares: 33, priceEUR: 613.40, currency: 'EUR', label: 'LVMH (MC)' },
+    { ticker: 'ETHE', shares: 880, priceUSD: 18.92, currency: 'USD', label: 'iShares Ethereum (ETHE)' },
+    { ticker: 'SAP', shares: 75, priceEUR: 271.10, currency: 'EUR', label: 'SAP SE' },
+    { ticker: 'SIE.DE', shares: 80, priceEUR: 221.55, currency: 'EUR', label: 'Siemens (SIE)' },
+    { ticker: 'SAN.PA', shares: 180, priceEUR: 43.90, currency: 'EUR', label: 'Sanofi (SAN)' },
+    { ticker: 'BNP.PA', shares: 100, priceEUR: 72.48, currency: 'EUR', label: 'BNP Paribas' },
+    { ticker: 'TTE.PA', shares: 155, priceEUR: 55.70, currency: 'EUR', label: 'TotalEnergies (TTE)' },
+    { ticker: 'OR.PA', shares: 28, priceEUR: 370.75, currency: 'EUR', label: "L'Oreal (OR)" },
+    { ticker: '7203.T', shares: 50, priceJPY: 2815, currency: 'JPY', label: 'Toyota (7203)' },
+  ],
+  ibkrCash_EUR: 2500,           // cash residuel dans IBKR
+  // amineIBKR_EUR is now COMPUTED from ibkrPositions + ibkrCash
+  amineIBKR_EUR: 204156,        // fallback static value, overwritten by computeIBKR()
+  amineVitryValue_EUR: 293000,
+  amineVitryCRD_EUR: 268903,
+  amineVehicles_EUR: 55000,
+  amineRecvPro_EUR: 18200,      // SAP & Tax: 20j x 910
+  amineTVA_EUR: -16000,
+  // Nezha — MAD
+  nezhaCashMaroc_MAD: 100000,
+  nezhaSGTM_MAD: 26562,         // 32 actions SGTM (same as Amine)
+  nezhaRecvOmar_MAD: 40000,
+  // Nezha — EUR
+  nezhaCashFrance_EUR: 85000,
+  nezhaRueilValue_EUR: 272000,
+  nezhaRueilCRD_EUR: 196516,
+  nezhaVillejuifValue_EUR: 360000,
+  nezhaVillejuifCRD_EUR: 318470,
+  // Stock prices (for SGTM & ESPP live updates)
+  sgtmShares: 32,               // nombre d'actions SGTM par personne
+  sgtmPriceMAD: 830,            // prix unitaire SGTM (MAD) — updated by API
+  acnShares: 167,               // nombre d'actions Accenture dans ESPP
+  acnPriceUSD: 188,             // prix unitaire ACN dans le compte ESPP (~173 EUR) — updated by API
+  // NOTE: acnPriceUSD represents the ESPP account valuation price, not necessarily market price
+  // The API will update with market price if available
+};
+let stockSource = 'statique';
+
+// Helper: convert foreign amount to EUR
+function toEUR(amount, currency) {
+  if (currency === 'EUR') return amount;
+  return amount / FX[currency];
+}
+
+// ---- Mutable EUR values, recomputed from NATIVE + FX ----
+const AMINE = {};
+const NEZHA = {};
+let actionsPool = 0, cashPool = 0, totalLiquid = 0, currentPctActions = 0;
+
+function computeIBKR() {
+  // If stock prices are live, compute from positions
+  // Otherwise use the reported static NAV
+  if (stockSource !== 'live') return NATIVE.amineIBKR_EUR;
+  let total = NATIVE.ibkrCash_EUR;
+  NATIVE.ibkrPositions.forEach(pos => {
+    if (pos.currency === 'EUR') total += pos.shares * (pos.priceEUR || 0);
+    else if (pos.currency === 'USD') total += toEUR(pos.shares * (pos.priceUSD || 0), 'USD');
+    else if (pos.currency === 'JPY') total += toEUR(pos.shares * (pos.priceJPY || 0), 'JPY');
+  });
+  return total;
+}
+
+function recomputeFromFX() {
+  // Amine
+  AMINE.ibkr = computeIBKR();
+  AMINE.espp = toEUR(NATIVE.acnShares * NATIVE.acnPriceUSD, 'USD') + NATIVE.amineESPP_cashEUR;
+  AMINE.sgtm = toEUR(NATIVE.sgtmShares * NATIVE.sgtmPriceMAD, 'MAD');
+  AMINE.uae = toEUR(NATIVE.amineUAE_AED, 'AED') + NATIVE.amineUAE_EUR;
+  AMINE.moroccoCash = toEUR(NATIVE.amineMoroccoCash_MAD, 'MAD');
+  AMINE.morocco = AMINE.moroccoCash + AMINE.sgtm;
+  AMINE.vitryValue = NATIVE.amineVitryValue_EUR;
+  AMINE.vitryCRD = NATIVE.amineVitryCRD_EUR;
+  AMINE.vitryEquity = AMINE.vitryValue - AMINE.vitryCRD;
+  AMINE.vehicles = NATIVE.amineVehicles_EUR;
+  AMINE.recvPro = NATIVE.amineRecvPro_EUR;
+  AMINE.recvPersonal = toEUR(NATIVE.amineRecvPerso_MAD, 'MAD') + NATIVE.amineRecvPerso_EUR;
+  AMINE.tva = NATIVE.amineTVA_EUR;
+  AMINE.totalAssets = AMINE.ibkr + AMINE.espp + AMINE.uae + AMINE.morocco + AMINE.vitryEquity + AMINE.vehicles + AMINE.recvPro + AMINE.recvPersonal;
+  AMINE.nw = AMINE.totalAssets + AMINE.tva;
+
+  // Nezha
+  NEZHA.rueilValue = NATIVE.nezhaRueilValue_EUR;
+  NEZHA.rueilCRD = NATIVE.nezhaRueilCRD_EUR;
+  NEZHA.rueilEquity = NEZHA.rueilValue - NEZHA.rueilCRD;
+  NEZHA.villejuifValue = NATIVE.nezhaVillejuifValue_EUR;
+  NEZHA.villejuifCRD = NATIVE.nezhaVillejuifCRD_EUR;
+  NEZHA.villejuifEquity = NEZHA.villejuifValue - NEZHA.villejuifCRD;
+  NEZHA.cashFrance = NATIVE.nezhaCashFrance_EUR;
+  NEZHA.cashMaroc = toEUR(NATIVE.nezhaCashMaroc_MAD, 'MAD');
+  NEZHA.recvOmar = toEUR(NATIVE.nezhaRecvOmar_MAD, 'MAD');
+  NEZHA.sgtm = toEUR(NATIVE.sgtmShares * NATIVE.sgtmPriceMAD, 'MAD');
+  NEZHA.cash = NEZHA.cashFrance + NEZHA.cashMaroc;
+  NEZHA.nw = NEZHA.rueilEquity + NEZHA.cash + NEZHA.sgtm + NEZHA.recvOmar;
+
+  // Pools
+  actionsPool = AMINE.ibkr + AMINE.espp + AMINE.sgtm;
+  cashPool = AMINE.uae + AMINE.moroccoCash;
+  totalLiquid = actionsPool + cashPool;
+  currentPctActions = totalLiquid > 0 ? Math.round(actionsPool / totalLiquid * 100) : 0;
+
+  // Update COUPLE_CATEGORIES totals if already defined
+  if (typeof COUPLE_CATEGORIES !== 'undefined') {
+    COUPLE_CATEGORIES[0].total = AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity;
+    COUPLE_CATEGORIES[0].sub[0].val = AMINE.vitryEquity;
+    COUPLE_CATEGORIES[0].sub[1].val = NEZHA.rueilEquity;
+    COUPLE_CATEGORIES[0].sub[2].val = NEZHA.villejuifEquity;
+    COUPLE_CATEGORIES[1].total = AMINE.ibkr + AMINE.espp + AMINE.sgtm + NEZHA.sgtm;
+    COUPLE_CATEGORIES[1].sub[0].val = AMINE.ibkr;
+    COUPLE_CATEGORIES[1].sub[1].val = AMINE.espp;
+    COUPLE_CATEGORIES[1].sub[2].val = AMINE.sgtm;
+    COUPLE_CATEGORIES[1].sub[3].val = NEZHA.sgtm;
+    COUPLE_CATEGORIES[2].total = NEZHA.cashFrance + NEZHA.cashMaroc + AMINE.uae + AMINE.moroccoCash;
+    COUPLE_CATEGORIES[2].sub[0].val = AMINE.uae;
+    COUPLE_CATEGORIES[2].sub[1].val = NEZHA.cashFrance;
+    COUPLE_CATEGORIES[2].sub[2].val = AMINE.moroccoCash;
+    COUPLE_CATEGORIES[2].sub[3].val = NEZHA.cashMaroc;
+    COUPLE_CATEGORIES[3].total = AMINE.vehicles;
+    COUPLE_CATEGORIES[3].sub[0].val = 40000;
+    COUPLE_CATEGORIES[3].sub[1].val = 15000;
+    COUPLE_CATEGORIES[4].total = AMINE.recvPro + AMINE.recvPersonal + NEZHA.recvOmar;
+    COUPLE_CATEGORIES[4].sub[0].val = AMINE.recvPro;
+    COUPLE_CATEGORIES[4].sub[1].val = AMINE.recvPersonal;
+    COUPLE_CATEGORIES[4].sub[2].val = NEZHA.recvOmar;
+  }
+}
+
+// Initial computation with static rates
+recomputeFromFX();
+
+// ---- Fetch live FX rates ----
+(async function fetchLiveFX() {
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/EUR');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.result === 'success' && data.rates) {
+      FX.AED = data.rates.AED || FX.AED;
+      FX.MAD = data.rates.MAD || FX.MAD;
+      FX.USD = data.rates.USD || FX.USD;
+      FX.JPY = data.rates.JPY || FX.JPY;
+      fxSource = 'live (' + new Date().toLocaleDateString('fr-FR') + ')';
+      recomputeFromFX();
+      refreshAll();
+      const badge = document.getElementById('fxBadge');
+      if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+      // Update footer FX display
+      const fxDisp = document.getElementById('fxDisplay');
+      if (fxDisp) fxDisp.textContent = FX.AED.toFixed(4) + ' AED | ' + FX.MAD.toFixed(4) + ' MAD | ' + FX.USD.toFixed(4) + ' USD | ' + FX.JPY.toFixed(2) + ' JPY';
+      console.log('FX live:', FX);
+    }
+  } catch (e) {
+    console.warn('FX API indisponible, taux statiques:', e.message);
+    const badge = document.getElementById('fxBadge');
+    if (badge) badge.textContent = 'Taux FX ' + fxSource;
+  }
+})();
+
+// ---- Fetch live stock prices (ACN via Yahoo Finance, SGTM static) ----
+async function fetchStockPrice(symbol) {
+  // Try Yahoo Finance chart API directly
+  try {
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d');
+    if (r.ok) {
+      const d = await r.json();
+      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if (p && p > 0) return p;
+    }
+  } catch(e) {}
+  // Fallback: CORS proxy
+  try {
+    const url = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d');
+    const r = await fetch('https://api.allorigins.win/raw?url=' + url);
+    if (r.ok) {
+      const d = await r.json();
+      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if (p && p > 0) return p;
+    }
+  } catch(e) {}
+  return null;
+}
+
+(async function fetchLiveStocks() {
+  let updated = false;
+  // Fetch all IBKR positions + ACN in parallel
+  const tickers = NATIVE.ibkrPositions.map(p => p.ticker).concat(['ACN']);
+  const prices = {};
+  await Promise.all(tickers.map(async (ticker) => {
+    const price = await fetchStockPrice(ticker);
+    if (price) prices[ticker] = price;
+  }));
+  // Update IBKR positions
+  NATIVE.ibkrPositions.forEach(pos => {
+    if (prices[pos.ticker]) {
+      if (pos.currency === 'EUR') pos.priceEUR = prices[pos.ticker];
+      else if (pos.currency === 'USD') pos.priceUSD = prices[pos.ticker];
+      else if (pos.currency === 'JPY') pos.priceJPY = prices[pos.ticker];
+      updated = true;
+    }
+  });
+  // Update ACN (ESPP)
+  if (prices['ACN']) {
+    NATIVE.acnPriceUSD = prices['ACN'];
+    updated = true;
+  }
+  if (updated) {
+    stockSource = 'live';
+    recomputeFromFX();
+    refreshAll();
+  }
+  // Update badge
+  const sBadge = document.getElementById('stockBadge');
+  if (sBadge) {
+    const liveCount = Object.keys(prices).length;
+    const totalTickers = tickers.length;
+    const statusLabel = liveCount > 0 ? liveCount + '/' + totalTickers + ' live' : 'statique';
+    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + NATIVE.sgtmPriceMAD + ' DH (statique)';
+    if (liveCount > 0) sBadge.style.color = 'var(--green)';
+  }
+})();
+
+// Central refresh helper
+function refreshAll() {
+  if (typeof updateDynamicKPIs === 'function') updateDynamicKPIs();
+  if (typeof updateAllCurrencyValues === 'function') updateAllCurrencyValues();
+  if (typeof rebuildCharts === 'function') rebuildCharts();
+  if (typeof buildCFProjection === 'function') buildCFProjection();
+  if (typeof updateImmoPcts === 'function') updateImmoPcts();
+  if (typeof runAllSimulators === 'function') runAllSimulators();
+  if (typeof buildAmineTable === 'function') buildAmineTable();
+  if (typeof buildCoupleTable === 'function') buildCoupleTable();
+  if (typeof buildNezhaTable === 'function') buildNezhaTable();
+  // Re-trigger view to update category cards
+  if (typeof switchViewInternal === 'function') switchViewInternal(currentView);
+}
+
+// Immo monthly wealth creation rates (EUR/month)
+const IMMO_GROWTH = {
+  vitry: 1017,       // capital repayment + appreciation
+  rueil: 838,        // capital repayment (from projection data)
+  villejuif: 813,    // capital repayment after franchise ends
+};
+const VILLEJUIF_START_MONTH = 40; // Ete 2029 ~ 40 months from March 2026
+
+// ============ CURRENCY FORMATTING ============
+function fmt(eurVal, compact) {
+  const val = eurVal * FX[currentCurrency];
+  const sym = SYMBOLS[currentCurrency];
+  const after = SYM_AFTER[currentCurrency];
+  let num;
+  if (compact && Math.abs(val) >= 1000000) {
+    num = (val / 1000000).toFixed(2) + 'M';
+  } else if (compact && Math.abs(val) >= 10000) {
+    num = (val / 1000).toFixed(0) + 'K';
+  } else {
+    num = Math.round(val).toLocaleString('fr-FR');
+  }
+  return after ? num + ' ' + sym : sym + ' ' + num;
+}
+function fmtAxis(v) {
+  const cv = v * FX[currentCurrency];
+  const sym = SYMBOLS[currentCurrency];
+  const after = SYM_AFTER[currentCurrency];
+  const num = Math.abs(cv) >= 1e6 ? (cv/1e6).toFixed(1)+'M' : (cv/1e3).toFixed(0)+'K';
+  return after ? num + ' ' + sym : sym + ' ' + num;
+}
+
+function updateAllCurrencyValues() {
+  document.querySelectorAll('[data-eur]').forEach(el => {
+    if (el.dataset.type === 'pct') {
+      el.textContent = '+' + el.dataset.eurPct + '%';
+      return;
+    }
+    const eurVal = parseFloat(el.dataset.eur);
+    const sign = el.dataset.sign || '';
+    el.textContent = sign + fmt(eurVal);
+  });
+  document.querySelectorAll('.cur-inline[data-eur]').forEach(el => {
+    el.textContent = fmt(parseFloat(el.dataset.eur));
+  });
+  updateCatPcts();
+}
+
+// ============ SINGLE SOURCE OF TRUTH: push computed values to DOM ============
+function updateDynamicKPIs() {
+  function setEur(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.dataset.eur = val;
+  }
+  const coupleImmo = AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity;
+  const coupleNW = AMINE.nw + NEZHA.nw + NEZHA.villejuifEquity;
+  const nzNWWithVJ = NEZHA.nw + NEZHA.villejuifEquity;
+
+  // Couple KPIs
+  setEur('kpiCoupleNW', coupleNW);
+  setEur('kpiCoupleAmNW', AMINE.nw);
+  setEur('kpiCoupleNzNW', nzNWWithVJ);
+  setEur('kpiCoupleImmo', coupleImmo);
+  // Amine KPIs
+  setEur('kpiAmNW', AMINE.nw);
+  setEur('kpiAmPortfolio', AMINE.ibkr + AMINE.espp);
+  setEur('kpiAmVitry', AMINE.vitryEquity);
+  // Nezha KPIs
+  setEur('kpiNzNW', NEZHA.nw);
+  setEur('kpiNzRueil', NEZHA.rueilEquity);
+  setEur('kpiNzVillejuif', NEZHA.villejuifEquity);
+  setEur('kpiNzCash', NEZHA.cash + NEZHA.recvOmar);
+  // Sub-items in expand cards
+  setEur('subIBKR', AMINE.ibkr);
+  setEur('subESPP', AMINE.espp);
+  setEur('subSGTM', AMINE.sgtm);
+  setEur('subUAE', AMINE.uae);
+  setEur('subMarocCash', AMINE.moroccoCash);
+  setEur('subVitryEq', AMINE.vitryEquity);
+  setEur('subRueilEq', NEZHA.rueilEquity);
+  setEur('subVillejuifEq', NEZHA.villejuifEquity);
+  setEur('subCreances', AMINE.recvPro + AMINE.recvPersonal);
+  setEur('topACN', AMINE.espp);
+  // Immo KPIs
+  const immoVal = AMINE.vitryValue + NEZHA.rueilValue + NEZHA.villejuifValue;
+  const immoCRD = AMINE.vitryCRD + NEZHA.rueilCRD + NEZHA.villejuifCRD;
+  setEur('kpiImmoEq', coupleImmo);
+  setEur('kpiImmoVal', immoVal);
+  setEur('kpiImmoCRD', immoCRD);
+  // ESPP detail label
+  const esppDet = document.getElementById('subESPPDetail');
+  if (esppDet) {
+    const srcLabel = stockSource === 'live' ? ' (live)' : ' (statique)';
+    esppDet.innerHTML = NATIVE.acnShares + ' actions ACN @ $' + NATIVE.acnPriceUSD.toFixed(0) + srcLabel + '<br>+ cash ~' + NATIVE.amineESPP_cashEUR.toLocaleString('fr-FR') + ' EUR';
+  }
+  // SGTM detail label
+  const sgtmDet = document.getElementById('subSGTMDetail');
+  if (sgtmDet) sgtmDet.innerHTML = NATIVE.sgtmShares + ' actions @ ' + NATIVE.sgtmPriceMAD + ' DH (statique)<br>Bourse de Casablanca';
+  // Maroc FX note
+  const marocNote = document.getElementById('subMarocFXNote');
+  if (marocNote) marocNote.textContent = 'Total MAD ' + NATIVE.amineMoroccoCash_MAD.toLocaleString('fr-FR') + ' / ' + FX.MAD.toFixed(4);
+  // Amine detail KPIs
+  setEur('kpiAmIBKR', AMINE.ibkr);
+  setEur('kpiAmESPP', AMINE.espp);
+  setEur('kpiAmSGTM', AMINE.sgtm);
+  // IBKR NAV label
+  const ibkrLabel = document.getElementById('ibkrNAVLabel');
+  if (ibkrLabel) ibkrLabel.textContent = fmt(AMINE.ibkr);
+  // Build IBKR positions table
+  buildIBKRTable();
+}
+
+// ============ IBKR POSITIONS TABLE (dynamic) ============
+function buildIBKRTable() {
+  const tbody = document.getElementById('ibkrPositionsTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  // Compute values for each position and sort by value desc
+  const posWithVal = NATIVE.ibkrPositions.map(pos => {
+    let val = 0;
+    let priceLabel = '';
+    if (pos.currency === 'EUR') { val = pos.shares * (pos.priceEUR || 0); priceLabel = (pos.priceEUR||0).toFixed(2) + ' EUR'; }
+    else if (pos.currency === 'USD') { val = toEUR(pos.shares * (pos.priceUSD || 0), 'USD'); priceLabel = '$' + (pos.priceUSD||0).toFixed(2); }
+    else if (pos.currency === 'JPY') { val = toEUR(pos.shares * (pos.priceJPY || 0), 'JPY'); priceLabel = '¥' + Math.round(pos.priceJPY||0); }
+    return { ...pos, valEUR: val, priceLabel };
+  }).sort((a, b) => b.valEUR - a.valEUR);
+  // Show top 6
+  posWithVal.slice(0, 6).forEach(pos => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + pos.label + ' <span style="color:var(--gray);font-size:11px">@ ' + pos.priceLabel + '</span></td>'
+      + '<td class="num">' + pos.shares + '</td>'
+      + '<td class="num">' + fmt(pos.valEUR) + '</td>';
+    tbody.appendChild(tr);
+  });
+  // Total + cash
+  const totalPos = posWithVal.reduce((s, p) => s + p.valEUR, 0);
+  if (NATIVE.ibkrCash_EUR > 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="color:var(--gray)">Cash IBKR</td><td class="num">—</td><td class="num">' + fmt(NATIVE.ibkrCash_EUR) + '</td>';
+    tbody.appendChild(tr);
+  }
+  const totalRow = document.createElement('tr');
+  totalRow.style.fontWeight = '700'; totalRow.style.background = '#edf2f7';
+  totalRow.innerHTML = '<td><strong>NAV Total</strong></td><td></td><td class="num"><strong>' + fmt(AMINE.ibkr) + '</strong></td>';
+  tbody.appendChild(totalRow);
+}
+
+// ============ NEZHA DETAIL TABLE (dynamic) ============
+function buildNezhaTable() {
+  const tbody = document.getElementById('nezhaDetailTbody');
+  if (!tbody) return;
+  const sgtmLabel = NATIVE.sgtmShares + ' actions SGTM @ ' + NATIVE.sgtmPriceMAD + ' DH';
+  const rows = [
+    ['Equity Rueil-Malmaison', NEZHA.rueilEquity],
+    ['Cash France', NEZHA.cashFrance],
+    ['Cash Maroc (' + Math.round(NATIVE.nezhaCashMaroc_MAD).toLocaleString('fr-FR') + ' MAD)', NEZHA.cashMaroc],
+    ['Creance Omar (' + Math.round(NATIVE.nezhaRecvOmar_MAD).toLocaleString('fr-FR') + ' MAD)', NEZHA.recvOmar],
+    ['SGTM (' + sgtmLabel + ')', NEZHA.sgtm],
+  ];
+  tbody.innerHTML = '';
+  let total = 0;
+  rows.forEach(([label, val]) => {
+    total += val;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + label + '</td><td class="num">' + fmt(val) + '</td>';
+    tbody.appendChild(tr);
+  });
+  // NW actuel
+  let tr = document.createElement('tr');
+  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+  tr.innerHTML = '<td><strong>Net Worth Nezha (actuel)</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
+  tbody.appendChild(tr);
+  // Villejuif conditionnel
+  tr = document.createElement('tr');
+  tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL — acte non signe</span></strong></td>';
+  tbody.appendChild(tr);
+  tr = document.createElement('tr');
+  tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(NEZHA.villejuifEquity) + '</td>';
+  tbody.appendChild(tr);
+  tr = document.createElement('tr');
+  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+  tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + NEZHA.villejuifEquity) + '</strong></td>';
+  tbody.appendChild(tr);
+}
+
+// ============ CATEGORY NAVIGATION ============
+let openCat = null;
+
+function toggleCat(cat) {
+  const allExpands = document.querySelectorAll('.cat-expand');
+  const allCards = document.querySelectorAll('.cat-card');
+
+  if (openCat === cat) {
+    document.getElementById('expand-' + cat).classList.remove('open');
+    allCards.forEach(c => c.classList.remove('active-cat'));
+    openCat = null;
+    return;
+  }
+
+  allExpands.forEach(e => e.classList.remove('open'));
+  allCards.forEach(c => c.classList.remove('active-cat'));
+
+  document.getElementById('expand-' + cat).classList.add('open');
+  const idx = ['stocks','cash','immo','other'].indexOf(cat);
+  if (idx >= 0) {
+    const visCards = document.querySelectorAll('.cat-card:not(.hidden)');
+    // Find the correct card based on visible index
+    let count = 0;
+    document.querySelectorAll('.cat-card').forEach(c => {
+      if (!c.classList.contains('hidden')) {
+        if (['stocks','cash','immo','other'][Array.from(document.querySelectorAll('.cat-card')).indexOf(c)] === cat) {
+          c.classList.add('active-cat');
+        }
+      }
+    });
+  }
+  openCat = cat;
+}
+
+function updateCatPcts() {
+  // Dynamic from recomputed values
+  const cats = {
+    stocks: actionsPool + NEZHA.sgtm,
+    cash: cashPool + NEZHA.cashFrance + NEZHA.cashMaroc,
+    immo: AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity,
+    other: AMINE.vehicles + AMINE.recvPro + AMINE.recvPersonal + AMINE.tva + NEZHA.recvOmar
+  };
+  const total = cats.stocks + cats.cash + cats.immo + cats.other;
+  Object.keys(cats).forEach(k => {
+    const el = document.getElementById('catPct' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) el.textContent = Math.round(cats[k] / total * 100) + '%';
+  });
+}
+
+function setCurrency(cur) {
+  currentCurrency = cur;
+  document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  refreshAll();
+}
+
+// ============ AMINE DETAIL TABLE ============
+function buildAmineTable() {
+  const acnPrice = '$' + NATIVE.acnPriceUSD.toFixed(0);
+  const sgtmPrice = NATIVE.sgtmPriceMAD.toFixed(0) + ' DH';
+  const rows = [
+    ['Portefeuille IBKR (actions + ETFs + cash)', AMINE.ibkr],
+    ['ESPP Accenture (' + NATIVE.acnShares + ' ACN @ ' + acnPrice + ')', AMINE.espp],
+    ['SGTM (' + NATIVE.sgtmShares + ' actions @ ' + sgtmPrice + ')', AMINE.sgtm],
+    ['Cash UAE (' + Math.round(NATIVE.amineUAE_AED).toLocaleString('fr-FR') + ' AED + ' + NATIVE.amineUAE_EUR.toLocaleString('fr-FR') + ' EUR)', AMINE.uae],
+    ['Cash Maroc (' + Math.round(NATIVE.amineMoroccoCash_MAD).toLocaleString('fr-FR') + ' MAD)', AMINE.moroccoCash],
+    ['Immobilier Vitry (equity — val. appreciee 2%/an)', AMINE.vitryEquity],
+    ['Vehicules (Porsche Cayenne + Mercedes A)', AMINE.vehicles],
+    ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', AMINE.recvPro],
+    ['Creances personnelles (' + Math.round(NATIVE.amineRecvPerso_MAD).toLocaleString('fr-FR') + ' MAD + ' + NATIVE.amineRecvPerso_EUR.toLocaleString('fr-FR') + ' EUR)', AMINE.recvPersonal],
+    ['TVA a payer', AMINE.tva],
+  ];
+  const tbody = document.querySelector('#amineDetailTable tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  rows.forEach(([label, val]) => {
+    total += val;
+    const tr = document.createElement('tr');
+    const cls = val < 0 ? 'neg' : '';
+    tr.innerHTML = '<td>' + label + '</td><td class="num ' + cls + '">' + fmt(val) + '</td>';
+    tbody.appendChild(tr);
+  });
+  const totalRow = document.createElement('tr');
+  totalRow.style.fontWeight = '700';
+  totalRow.style.background = '#edf2f7';
+  totalRow.innerHTML = '<td><strong>Net Worth Amine</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
+  tbody.appendChild(totalRow);
+}
+
+// ============ COUPLE CONSOLIDATED TABLE ============
+function buildCoupleTable() {
+  const rows = [
+    ['Actions & ETFs (IBKR + ' + NATIVE.acnShares + ' ACN + ' + (NATIVE.sgtmShares*2) + ' SGTM)', AMINE.ibkr + AMINE.espp + AMINE.sgtm + NEZHA.sgtm],
+    ['Cash EUR (Nezha France 85K)', NEZHA.cashFrance],
+    ['Cash MAD (Nezha 100K + Amine 189K MAD)', NEZHA.cashMaroc + AMINE.moroccoCash],
+    ['Cash AED/USD (Amine UAE)', AMINE.uae],
+    ['Equity Immo — Vitry (Amine)', AMINE.vitryEquity],
+    ['Equity Immo — Rueil (Nezha)', NEZHA.rueilEquity],
+    ['Equity Immo — Villejuif VEFA (Nezha) [conditionnel]', NEZHA.villejuifEquity],
+    ['Vehicules (Porsche Cayenne + Mercedes A)', AMINE.vehicles],
+    ['Creances SAP & Tax (garanti, 45j)', AMINE.recvPro],
+    ['Creances personnelles Amine (recouvrement incertain)', AMINE.recvPersonal],
+    ['Creance Omar — Nezha (40K MAD)', NEZHA.recvOmar],
+    ['TVA a payer (Amine)', AMINE.tva],
+  ];
+  const tbody = document.querySelector('#coupleDetailTable tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  let total = 0;
+  rows.forEach(([label, val]) => {
+    total += val;
+    const tr = document.createElement('tr');
+    const cls = val < 0 ? 'neg' : '';
+    const cond = label.includes('conditionnel') ? ' style="color:#92400e;font-style:italic"' : '';
+    tr.innerHTML = '<td' + cond + '>' + label + '</td><td class="num ' + cls + '">' + fmt(val) + '</td>';
+    tbody.appendChild(tr);
+  });
+  const totalRow = document.createElement('tr');
+  totalRow.style.fontWeight = '700';
+  totalRow.style.background = '#edf2f7';
+  totalRow.innerHTML = '<td><strong>Net Worth Couple</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
+  tbody.appendChild(totalRow);
+}
+
+// ============ VIEW SWITCHING ============
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) event.target.classList.add('active');
+  else document.querySelectorAll('.view-btn').forEach(b => { if (b.textContent.toLowerCase().includes(view === 'couple' ? 'couple' : view)) b.classList.add('active'); });
+  switchViewInternal(view);
+}
+function switchViewInternal(view) {
+  const titles = { couple: 'Dashboard Patrimonial', amine: 'Dashboard — Amine Koraibi', nezha: 'Dashboard — Nezha Kabbaj' };
+  const subs = { couple: 'Amine (33 ans) & Nezha (34 ans) Koraibi — Vue consolidee', amine: 'Amine Koraibi, 33 ans — Actions, Crypto, Immobilier, Cash', nezha: 'Nezha Kabbaj, 34 ans — Immobilier' };
+  document.getElementById('headerTitle').textContent = titles[view];
+  document.getElementById('headerSub').textContent = subs[view];
+
+  ['couple','amine','nezha'].forEach(v => {
+    document.getElementById('kpi-' + v).classList.toggle('hidden', v !== view);
+  });
+
+  document.querySelectorAll('[data-view]').forEach(el => {
+    const views = el.dataset.view.split(' ');
+    el.classList.toggle('hidden', !views.includes(view));
+  });
+
+  // Category cards: update for current view
+  const catCards = document.querySelectorAll('.cat-card');
+  const catStocks = catCards[0], catCash = catCards[1], catImmo = catCards[2], catOther = catCards[3];
+
+  if (view === 'couple') {
+    catStocks.classList.remove('hidden');
+    catCash.classList.remove('hidden');
+    catOther.classList.remove('hidden');
+    catStocks.querySelector('.cat-amount').dataset.eur = AMINE.ibkr + AMINE.espp + AMINE.sgtm + NEZHA.sgtm;
+    catStocks.querySelector('.cat-sub').textContent = 'IBKR + ESPP + SGTM x2';
+    catCash.querySelector('.cat-amount').dataset.eur = AMINE.uae + AMINE.moroccoCash + NEZHA.cashFrance + NEZHA.cashMaroc;
+    catCash.querySelector('.cat-sub').textContent = 'UAE + France + Maroc';
+    catImmo.querySelector('.cat-amount').dataset.eur = AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity;
+    catImmo.querySelector('.cat-sub').textContent = '3 biens — Equity nette';
+    catOther.querySelector('.cat-amount').dataset.eur = AMINE.vehicles + AMINE.recvPro + AMINE.recvPersonal + AMINE.tva + NEZHA.recvOmar;
+    catOther.querySelector('.cat-sub').textContent = 'Vehicules + Creances - TVA';
+    catOther.querySelector('.cat-title').textContent = 'Autres Actifs';
+  } else if (view === 'amine') {
+    catStocks.classList.remove('hidden');
+    catCash.classList.remove('hidden');
+    catOther.classList.remove('hidden');
+    catStocks.querySelector('.cat-amount').dataset.eur = AMINE.ibkr + AMINE.espp + AMINE.sgtm;
+    catStocks.querySelector('.cat-sub').textContent = 'IBKR + ESPP + SGTM';
+    catCash.querySelector('.cat-amount').dataset.eur = AMINE.uae + AMINE.moroccoCash;
+    catCash.querySelector('.cat-sub').textContent = 'UAE + Maroc';
+    catImmo.querySelector('.cat-amount').dataset.eur = AMINE.vitryEquity;
+    catImmo.querySelector('.cat-sub').textContent = '1 bien — Vitry';
+    catOther.querySelector('.cat-amount').dataset.eur = AMINE.vehicles + AMINE.recvPro + AMINE.recvPersonal + AMINE.tva;
+    catOther.querySelector('.cat-sub').textContent = 'Vehicules + Creances - TVA';
+    catOther.querySelector('.cat-title').textContent = 'Autres Actifs';
+  } else if (view === 'nezha') {
+    catStocks.classList.remove('hidden'); // Nezha a SGTM = actions
+    catCash.classList.remove('hidden');
+    catOther.classList.remove('hidden');
+    catStocks.querySelector('.cat-amount').dataset.eur = NEZHA.sgtm;
+    catStocks.querySelector('.cat-sub').textContent = 'SGTM (32 actions)';
+    catCash.querySelector('.cat-amount').dataset.eur = NEZHA.cashFrance + NEZHA.cashMaroc;
+    catCash.querySelector('.cat-sub').textContent = '85K France + 9K Maroc';
+    catImmo.querySelector('.cat-amount').dataset.eur = NEZHA.rueilEquity + NEZHA.villejuifEquity;
+    catImmo.querySelector('.cat-sub').textContent = '2 biens — Rueil + Villejuif';
+    catOther.querySelector('.cat-amount').dataset.eur = NEZHA.recvOmar;
+    catOther.querySelector('.cat-sub').textContent = 'Creance Omar (40K MAD)';
+    catOther.querySelector('.cat-title').textContent = 'Creances';
+  }
+
+  // Update % badges
+  const nwRef = view === 'couple' ? (AMINE.nw + NEZHA.nw + NEZHA.villejuifEquity) :
+                view === 'amine' ? AMINE.nw : (NEZHA.nw + NEZHA.villejuifEquity);
+  catCards.forEach(card => {
+    if (card.classList.contains('hidden')) return;
+    const amt = parseFloat(card.querySelector('.cat-amount').dataset.eur);
+    const pctEl = card.querySelector('.cat-pct');
+    if (pctEl && nwRef > 0) pctEl.textContent = (amt / nwRef * 100).toFixed(0) + '%';
+  });
+
+  // Close any open expand on view switch
+  document.querySelectorAll('.cat-expand').forEach(e => e.classList.remove('open'));
+  document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('active-cat'));
+  openCat = null;
+  // Adjust grid columns
+  const visCats = document.querySelectorAll('.cat-card:not(.hidden)').length;
+  document.getElementById('catGrid').style.gridTemplateColumns = 'repeat(' + Math.min(visCats, 4) + ', 1fr)';
+
+  // Immo section is now couple-only, no row filtering or KPI switching needed
+  updateAllCurrencyValues();
+}
+
+// ============ GENERIC SIMULATOR ENGINE ============
+// Model: NW = Immo (equity) + Base (capital investi + vehicules + TVA) + Gains (rendements marche)
+// Immo grows via mortgage repayment, base grows via savings, gains grow via market returns
+// Receivables treated as investable cash, vehicles static (no returns)
+function runSimulatorGeneric(config) {
+  const {
+    prefix, monthlySavings, pctActions, returnActions, returnCash,
+    horizonYears, stopYears,
+    startNW,                // total NW at t=0
+    startImmoEquity,        // immo equity at t=0
+    startPoolActions,       // actions pool at t=0
+    startPoolCash,          // cash pool at t=0 (includes receivables as cash)
+    staticAssets,           // vehicles + TVA (no returns)
+    immoGrowthFn,           // function(month) => monthly immo growth
+    existingGains,          // existing P&L (market gains already embedded in portfolio)
+  } = config;
+
+  const months = horizonYears * 12;
+  const stopMonth = stopYears > 0 ? Math.round(stopYears * 12) : Infinity;
+  const eg = existingGains || 0;
+  const startLiquidBase = startPoolActions + startPoolCash + staticAssets - eg;
+
+  // Update display values
+  if (document.getElementById(prefix + 'SavingsVal'))
+    document.getElementById(prefix + 'SavingsVal').textContent = fmt(monthlySavings);
+  if (document.getElementById(prefix + 'PctActionsVal'))
+    document.getElementById(prefix + 'PctActionsVal').textContent = Math.round(pctActions * 100) + '%';
+  if (document.getElementById(prefix + 'ReturnActionsVal'))
+    document.getElementById(prefix + 'ReturnActionsVal').textContent = (returnActions * 100).toFixed(1) + '%';
+  if (document.getElementById(prefix + 'HorizonVal'))
+    document.getElementById(prefix + 'HorizonVal').textContent = horizonYears + ' ans';
+
+  // Stop year display
+  const stopBanner = document.getElementById(prefix + 'StopBanner');
+  const stopYearValEl = document.getElementById(prefix + 'StopYearVal');
+  if (stopYears > 0) {
+    const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
+    const stopLabel = stopDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    if (stopYearValEl) { stopYearValEl.textContent = stopLabel; stopYearValEl.style.color = 'var(--red)'; }
+    if (stopBanner) {
+      stopBanner.style.display = 'block';
+      document.getElementById(prefix + 'StopBannerText').textContent =
+        'Contributions de ' + fmt(monthlySavings) + '/mois pendant ' + stopYears + ' an' + (stopYears > 1 ? 's' : '') + ' (jusqu\'a ' + stopLabel + '), puis le portefeuille travaille seul.';
+    }
+  } else {
+    if (stopYearValEl) { stopYearValEl.textContent = 'Jamais'; stopYearValEl.style.color = ''; }
+    if (stopBanner) stopBanner.style.display = 'none';
+  }
+
+  let poolActions = startPoolActions;
+  let poolCash = startPoolCash;
+  let poolActionsNS = startPoolActions;
+  let poolCashNS = startPoolCash;
+
+  const monthlyReturnActions = returnActions / 12;
+  const monthlyReturnCash = returnCash / 12;
+
+  let cumContributions = 0;
+  let cumImmoReturns = 0;
+
+  const dataLabels = [];
+  const dataNW = [];
+  const dataImmo = [];    // Layer 1 (bottom): immo equity
+  const dataBase = [];     // Layer 2 (middle): capital investi + contributions
+  const dataGains = [];    // Layer 3 (top): market/cash gains
+  const dataNWNoStop = [];
+  let month1M = -1;
+  let stopChartIdx = -1;
+
+  for (let m = 0; m <= months; m++) {
+    const immoNow = startImmoEquity + cumImmoReturns;
+    const liquidNow = poolActions + poolCash + staticAssets;
+    const totalNW = immoNow + liquidNow;
+    const liquidNS = poolActionsNS + poolCashNS + staticAssets;
+    const totalNWns = immoNow + liquidNS;
+    const isContributing = m < stopMonth;
+
+    // Decompose: Gains = current liquid - what was put in
+    const gainsNow = liquidNow - startLiquidBase - cumContributions;
+
+    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+      const date = new Date(2026, 2 + m, 1);
+      dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
+      dataNW.push(Math.round(totalNW));
+
+      // Stacked: Immo (bottom) | Base+Contrib (middle) | Gains (top)
+      dataImmo.push(Math.round(immoNow));
+      dataBase.push(Math.round(immoNow + startLiquidBase + cumContributions));
+      dataGains.push(Math.round(immoNow + startLiquidBase + cumContributions + gainsNow));
+      // dataGains should equal totalNW
+
+      dataNWNoStop.push(Math.round(totalNWns));
+      if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
+    }
+
+    if (totalNW >= 1000000 && month1M === -1) month1M = m;
+
+    // Grow immo
+    const immoGrowth = immoGrowthFn(m);
+    cumImmoReturns += immoGrowth;
+
+    // Grow liquid pools
+    poolActions *= (1 + monthlyReturnActions);
+    poolCash *= (1 + monthlyReturnCash);
+    poolActionsNS *= (1 + monthlyReturnActions);
+    poolCashNS *= (1 + monthlyReturnCash);
+
+    // Add savings
+    if (isContributing) {
+      poolActions += monthlySavings * pctActions;
+      poolCash += monthlySavings * (1 - pctActions);
+      cumContributions += monthlySavings;
+    }
+    poolActionsNS += monthlySavings * pctActions;
+    poolCashNS += monthlySavings * (1 - pctActions);
+  }
+
+  const finalNW = dataNW[dataNW.length - 1];
+  const finalNWns = dataNWNoStop[dataNWNoStop.length - 1];
+  const totalGrowth = finalNW - startNW;
+  const finalGains = dataGains[dataGains.length - 1] - dataBase[dataBase.length - 1];
+  const finalImmoGrowth = cumImmoReturns;
+
+  document.getElementById(prefix + 'NW').textContent = fmt(finalNW, true);
+  document.getElementById(prefix + 'Contrib').textContent = '+' + fmt(Math.round(cumContributions), true);
+  document.getElementById(prefix + 'Market').textContent = '+' + fmt(Math.round(finalGains), true);
+  document.getElementById(prefix + 'Immo').textContent = '+' + fmt(Math.round(finalImmoGrowth), true);
+
+  const m1MEl = document.getElementById(prefix + '1M');
+  if (m1MEl) {
+    if (month1M >= 0) {
+      const d1m = new Date(2026, 2 + month1M, 1);
+      m1MEl.textContent = d1m.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+      m1MEl.style.color = 'var(--green)';
+    } else {
+      m1MEl.textContent = '> ' + horizonYears + ' ans';
+      m1MEl.style.color = 'var(--red)';
+    }
+  }
+
+  // Insight: show % decomposition of growth
+  const pctContrib = totalGrowth > 0 ? Math.round(cumContributions / totalGrowth * 100) : 0;
+  const pctMarket = totalGrowth > 0 ? Math.round(finalGains / totalGrowth * 100) : 0;
+  const pctImmo = totalGrowth > 0 ? Math.round(finalImmoGrowth / totalGrowth * 100) : 0;
+  // Show % immo of final NW
+  const finalImmoTotal = startImmoEquity + cumImmoReturns;
+  const pctImmoFinalNW = (finalImmoTotal / finalNW * 100).toFixed(1);
+
+  let insightHtml;
+  if (stopYears > 0) {
+    const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
+    const stopLabel = stopDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const costOfStopping = finalNWns - finalNW;
+    insightHtml =
+      '<strong>Scenario arret :</strong> Contributions pendant <strong>' + stopYears + ' an' + (stopYears > 1 ? 's' : '') + '</strong> (jusqu\'a ' + stopLabel + ').<br>' +
+      'NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> (+' + fmt(Math.round(totalGrowth)) + '). ' +
+      'Croissance : contributions ' + pctContrib + '% | gains marche ' + pctMarket + '% | immo ' + pctImmo + '%.<br>' +
+      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').<br>' +
+      '<span style="color:var(--red)">Cout de l\'arret : ' + fmt(Math.round(costOfStopping)) + '</span>. ' +
+      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '<span style="color:var(--red)">1M non atteint.</span>');
+  } else {
+    insightHtml =
+      '<strong>Resume :</strong> NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> en ' + horizonYears + ' ans (+' + fmt(Math.round(totalGrowth)) + ').<br>' +
+      'Croissance : contributions ' + pctContrib + '% (' + fmt(Math.round(cumContributions)) + ') | gains marche ' + pctMarket + '% (' + fmt(Math.round(finalGains)) + ') | immo ' + pctImmo + '% (' + fmt(Math.round(finalImmoGrowth)) + ').<br>' +
+      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + '). ' +
+      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '1M non atteint dans cet horizon.');
+  }
+  document.getElementById(prefix + 'Insight').innerHTML = insightHtml;
+
+  return { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears };
+}
+
+function buildSimChart(canvasId, chartKey, result) {
+  const { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears } = result;
+
+  const datasets = [
+    {
+      label: 'Gains Marche (cumul)',
+      data: dataGains,
+      borderColor: '#276749',
+      backgroundColor: 'rgba(39,103,73,0.25)',
+      fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 3
+    },
+    {
+      label: 'Capital Investi + Contributions',
+      data: dataBase,
+      borderColor: '#2b6cb0',
+      backgroundColor: 'rgba(43,108,176,0.2)',
+      fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 2
+    },
+    {
+      label: 'Immobilier (equity)',
+      data: dataImmo,
+      borderColor: '#b7791f',
+      backgroundColor: 'rgba(183,121,31,0.35)',
+      fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 1
+    },
+    {
+      label: 'Net Worth Total',
+      data: dataNW,
+      borderColor: '#1a202c',
+      backgroundColor: 'transparent',
+      fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, order: 0
+    },
+  ];
+
+  if (stopYears > 0) {
+    datasets.push({
+      label: 'NW sans arret',
+      data: dataNWNoStop,
+      borderColor: 'rgba(39,103,73,0.35)',
+      borderDash: [4,6], tension: 0.3, pointRadius: 0, borderWidth: 2, fill: false, order: 0
+    });
+  }
+
+  if (window[chartKey]) window[chartKey].destroy();
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  window[chartKey] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: dataLabels, datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => fmtAxis(v) },
+          suggestedMin: 0
+        }
+      }
+    },
+    plugins: stopChartIdx >= 0 ? [{
+      id: 'stopLine',
+      afterDraw(chart) {
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        const x = xScale.getPixelForValue(stopChartIdx);
+        const ctx2 = chart.ctx;
+        ctx2.save();
+        ctx2.beginPath();
+        ctx2.moveTo(x, yScale.top);
+        ctx2.lineTo(x, yScale.bottom);
+        ctx2.lineWidth = 2;
+        ctx2.strokeStyle = 'rgba(197, 48, 48, 0.6)';
+        ctx2.setLineDash([6, 4]);
+        ctx2.stroke();
+        ctx2.fillStyle = 'rgba(197, 48, 48, 0.85)';
+        ctx2.font = 'bold 11px sans-serif';
+        ctx2.textAlign = 'center';
+        ctx2.fillText('Fin contributions', x, yScale.top + 14);
+        ctx2.restore();
+      }
+    }] : []
+  });
+}
+
+// ============ COUPLE SIMULATOR ============
+function runCoupleSimulator() {
+  const monthlySavings = parseInt(document.getElementById('cplSimSavings').value);
+  const pctActions = parseInt(document.getElementById('cplSimPctActions').value) / 100;
+  const returnActions = parseFloat(document.getElementById('cplSimReturnActions').value) / 100;
+  const horizonYears = parseInt(document.getElementById('cplSimHorizon').value);
+  const stopYears = parseFloat(document.getElementById('cplSimStopYear').value);
+
+  // Couple: all 3 immo equities + liquid pools + receivables as cash + Nezha cash + SGTM
+  const coupleImmo = AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity;
+  const couplePoolActions = actionsPool + NEZHA.sgtm;
+  const couplePoolCash = cashPool + AMINE.recvPro + AMINE.recvPersonal + NEZHA.cash;
+  const coupleStatic = AMINE.vehicles + AMINE.tva;
+  const coupleNW = coupleImmo + couplePoolActions + couplePoolCash + coupleStatic;
+
+  const result = runSimulatorGeneric({
+    prefix: 'cplSim',
+    monthlySavings, pctActions, returnActions,
+    returnCash: 0.06,
+    horizonYears, stopYears,
+    startNW: coupleNW,
+    startImmoEquity: coupleImmo,
+    startPoolActions: couplePoolActions,
+    startPoolCash: couplePoolCash,
+    staticAssets: coupleStatic,
+    existingGains: 45000, // P&L existant dans le portefeuille IBKR
+    immoGrowthFn: (m) => {
+      let growth = IMMO_GROWTH.vitry + IMMO_GROWTH.rueil;
+      if (m >= VILLEJUIF_START_MONTH) growth += IMMO_GROWTH.villejuif;
+      return growth;
+    }
+  });
+
+  buildSimChart('cplSimChart', 'cplSimChartObj', result);
+}
+
+// ============ AMINE SIMULATOR ============
+function runAmineSimulator() {
+  const monthlySavings = parseInt(document.getElementById('amSimSavings').value);
+  const pctActions = parseInt(document.getElementById('amSimPctActions').value) / 100;
+  const returnActions = parseFloat(document.getElementById('amSimReturnActions').value) / 100;
+  const horizonYears = parseInt(document.getElementById('amSimHorizon').value);
+  const stopYears = parseFloat(document.getElementById('amSimStopYear').value);
+
+  // Amine: Vitry immo + liquid pools + receivables as cash
+  const aminePoolCash = cashPool + AMINE.recvPro + AMINE.recvPersonal;
+  const amineStatic = AMINE.vehicles + AMINE.tva;
+
+  const result = runSimulatorGeneric({
+    prefix: 'amSim',
+    monthlySavings, pctActions, returnActions,
+    returnCash: 0.06,
+    horizonYears, stopYears,
+    startNW: AMINE.nw,
+    startImmoEquity: AMINE.vitryEquity,
+    startPoolActions: actionsPool,
+    startPoolCash: aminePoolCash,
+    staticAssets: amineStatic,
+    existingGains: 45000, // P&L existant dans le portefeuille IBKR
+    immoGrowthFn: (m) => IMMO_GROWTH.vitry
+  });
+
+  buildSimChart('amSimChart', 'amSimChartObj', result);
+}
+
+// ============ NEZHA SIMULATOR ============
+function runNezhaSimulator() {
+  const appreciation = parseFloat(document.getElementById('nzSimAppreciation').value) / 100;
+  const cashReturn = parseFloat(document.getElementById('nzSimCashReturn').value) / 100;
+  const horizonYears = parseInt(document.getElementById('nzSimHorizon').value);
+  const months = horizonYears * 12;
+
+  document.getElementById('nzSimAppreciationVal').textContent = (appreciation * 100).toFixed(1) + '%';
+  document.getElementById('nzSimCashReturnVal').textContent = (cashReturn * 100).toFixed(1) + '%';
+  document.getElementById('nzSimHorizonVal').textContent = horizonYears + ' ans';
+
+  let rueilEq = NEZHA.rueilEquity;
+  let villejuifEq = NEZHA.villejuifEquity;
+  let cashNz = NEZHA.cash; // SGTM is actions, grows via appreciation not cash return
+  let sgtmNz = NEZHA.sgtm;
+
+  const monthlyApprecRueil = NEZHA.rueilValue * appreciation / 12;
+  const monthlyApprecVillejuif = NEZHA.villejuifValue * appreciation / 12;
+  const monthlyCashReturn = cashReturn / 12;
+
+  const dataLabels = [];
+  const dataRueil = [];
+  const dataVillejuif = [];
+  const dataCash = [];
+  const dataTotal = [];
+
+  for (let m = 0; m <= months; m++) {
+    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+      const date = new Date(2026, 2 + m, 1);
+      const lbl = date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+      dataLabels.push(lbl);
+      dataRueil.push(Math.round(rueilEq));
+      dataVillejuif.push(Math.round(villejuifEq));
+      dataCash.push(Math.round(cashNz + sgtmNz));
+      dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
+    }
+
+    // Rueil: always growing (capital repayment + appreciation)
+    rueilEq += IMMO_GROWTH.rueil + monthlyApprecRueil;
+
+    // Villejuif: after delivery only
+    if (m >= VILLEJUIF_START_MONTH) {
+      villejuifEq += IMMO_GROWTH.villejuif + monthlyApprecVillejuif;
+    }
+
+    // Cash: grows with interest (franchise totale = 0 paiement pendant franchise)
+    cashNz *= (1 + monthlyCashReturn);
+    // SGTM: grows at ~7%/an (stock market)
+    sgtmNz *= (1 + 0.07 / 12);
+  }
+
+  const finalNW = dataTotal[dataTotal.length - 1];
+  const finalRueil = dataRueil[dataRueil.length - 1];
+  const finalVillejuif = dataVillejuif[dataVillejuif.length - 1];
+  const finalCash = dataCash[dataCash.length - 1];
+
+  document.getElementById('nzSimNW').textContent = fmt(finalNW, true);
+  document.getElementById('nzSimRueil').textContent = fmt(finalRueil, true);
+  document.getElementById('nzSimVillejuif').textContent = fmt(finalVillejuif, true);
+  document.getElementById('nzSimCash').textContent = fmt(finalCash, true);
+
+  const totalGrowth = finalNW - NEZHA.nw;
+  document.getElementById('nzSimInsight').innerHTML =
+    '<strong>Resume :</strong> NW Nezha : <strong>' + fmt(NEZHA.nw) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> en ' + horizonYears + ' ans (+' + fmt(Math.round(totalGrowth)) + ').<br>' +
+    'Rueil : ' + fmt(finalRueil) + ' | Villejuif : ' + fmt(finalVillejuif) + ' | Cash : ' + fmt(finalCash) + '.<br>' +
+    '<strong>Croissance moyenne : +' + fmt(Math.round(totalGrowth / horizonYears)) + '/an</strong> via remboursement des prets' +
+    (appreciation > 0 ? ' + appreciation ' + (appreciation * 100).toFixed(1) + '%/an.' : '.');
+
+  // Chart: stacked area for Nezha
+  if (window.nzSimChartObj) window.nzSimChartObj.destroy();
+  const ctx = document.getElementById('nzSimChart').getContext('2d');
+  window.nzSimChartObj = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dataLabels,
+      datasets: [
+        {
+          label: 'NW Total Nezha',
+          data: dataTotal,
+          borderColor: '#d69e2e',
+          backgroundColor: 'transparent',
+          fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, order: 0
+        },
+        {
+          label: 'Equity Rueil',
+          data: dataRueil,
+          borderColor: '#2b6cb0',
+          backgroundColor: 'rgba(43,108,176,0.15)',
+          fill: true, tension: 0.3, borderWidth: 1.5, pointRadius: 0, order: 2
+        },
+        {
+          label: 'Equity Villejuif',
+          data: dataVillejuif,
+          borderColor: '#2c7a7b',
+          backgroundColor: 'rgba(44,122,123,0.15)',
+          fill: true, tension: 0.3, borderWidth: 1.5, pointRadius: 0, order: 1
+        },
+        {
+          label: 'Cash + Creances',
+          data: dataCash,
+          borderColor: '#a0aec0',
+          backgroundColor: 'rgba(160,174,192,0.1)',
+          fill: true, tension: 0.3, borderWidth: 1, pointRadius: 0, borderDash: [4,3], order: 3
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => fmtAxis(v) },
+          suggestedMin: 0
+        }
+      }
+    },
+    plugins: [{
+      id: 'villejuifLine',
+      afterDraw(chart) {
+        // Draw vertical line at Villejuif delivery
+        const labels = chart.data.labels;
+        let idx = -1;
+        for (let i = 0; i < labels.length; i++) {
+          const d = new Date(2026, 2 + VILLEJUIF_START_MONTH, 1);
+          const lbl = d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+          if (labels[i] === lbl) { idx = i; break; }
+        }
+        if (idx < 0) return;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        const x = xScale.getPixelForValue(idx);
+        const ctx2 = chart.ctx;
+        ctx2.save();
+        ctx2.beginPath();
+        ctx2.moveTo(x, yScale.top);
+        ctx2.lineTo(x, yScale.bottom);
+        ctx2.lineWidth = 2;
+        ctx2.strokeStyle = 'rgba(183,121,31, 0.5)';
+        ctx2.setLineDash([6, 4]);
+        ctx2.stroke();
+        ctx2.fillStyle = 'rgba(183,121,31, 0.85)';
+        ctx2.font = 'bold 11px sans-serif';
+        ctx2.textAlign = 'center';
+        ctx2.fillText('Livraison Villejuif', x, yScale.top + 14);
+        ctx2.restore();
+      }
+    }]
+  });
+}
+
+function runAllSimulators() {
+  runCoupleSimulator();
+  runAmineSimulator();
+  runNezhaSimulator();
+}
+
+// Simulator event listeners
+['cplSimSavings','cplSimPctActions','cplSimReturnActions','cplSimStopYear','cplSimHorizon'].forEach(id => {
+  document.getElementById(id).addEventListener('input', runCoupleSimulator);
+});
+['amSimSavings','amSimPctActions','amSimReturnActions','amSimStopYear','amSimHorizon'].forEach(id => {
+  document.getElementById(id).addEventListener('input', runAmineSimulator);
+});
+['nzSimAppreciation','nzSimCashReturn','nzSimHorizon'].forEach(id => {
+  document.getElementById(id).addEventListener('input', runNezhaSimulator);
+});
+
+// ============ COUPLE DRILL-DOWN CHART ============
+const COUPLE_CATEGORIES = [
+  {
+    label: 'Immobilier', color: '#b7791f', total: AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity,
+    sub: [
+      { label: 'Vitry (Amine)', val: AMINE.vitryEquity, color: '#b7791f' },
+      { label: 'Rueil (Nezha)', val: NEZHA.rueilEquity, color: '#e6a817' },
+      { label: 'Villejuif VEFA (Nezha)', val: NEZHA.villejuifEquity, color: '#805a10' },
+    ]
+  },
+  {
+    label: 'Actions & ETFs', color: '#2b6cb0', total: AMINE.ibkr + AMINE.espp + AMINE.sgtm + NEZHA.sgtm,
+    sub: [
+      { label: 'IBKR Portfolio', val: AMINE.ibkr, color: '#2b6cb0' },
+      { label: 'ESPP Accenture', val: AMINE.espp, color: '#63b3ed' },
+      { label: 'SGTM Amine (32 actions)', val: AMINE.sgtm, color: '#ed8936' },
+      { label: 'SGTM Nezha (32 actions)', val: NEZHA.sgtm, color: '#d69e2e' },
+    ]
+  },
+  {
+    label: 'Cash', color: '#48bb78', total: NEZHA.cashFrance + NEZHA.cashMaroc + AMINE.uae + AMINE.moroccoCash,
+    sub: [
+      { label: 'Amine — UAE (AED)', val: AMINE.uae, color: '#38a169' },
+      { label: 'Nezha — France (EUR)', val: NEZHA.cashFrance, color: '#e53e3e' },
+      { label: 'Amine — Maroc (MAD)', val: AMINE.moroccoCash, color: '#d69e2e' },
+      { label: 'Nezha — Maroc (MAD)', val: NEZHA.cashMaroc, color: '#9f7aea' },
+    ]
+  },
+  {
+    label: 'Vehicules', color: '#4a5568', total: AMINE.vehicles,
+    sub: [
+      { label: 'Porsche Cayenne', val: 40000, color: '#4a5568' },
+      { label: 'Mercedes A', val: 15000, color: '#a0aec0' },
+    ]
+  },
+  {
+    label: 'Creances', color: '#cbd5e0', total: AMINE.recvPro + AMINE.recvPersonal + NEZHA.recvOmar,
+    sub: [
+      { label: 'SAP & Tax (garanti)', val: AMINE.recvPro, color: '#38a169' },
+      { label: 'Creances perso Amine', val: AMINE.recvPersonal, color: '#e2e8f0' },
+      { label: 'Omar — Nezha', val: NEZHA.recvOmar, color: '#9f7aea' },
+    ]
+  },
+];
+
+let coupleSelectedCat = null;
+function getCoupleGrandTotal() { return COUPLE_CATEGORIES.reduce((s, c) => s + c.total, 0); }
+
+function buildCoupleDrillDown(clickedIdx) {
+  const el = document.getElementById('coupleAllocChart');
+  if (!el) return;
+  if (charts.coupleAlloc) { charts.coupleAlloc.destroy(); delete charts.coupleAlloc; }
+
+  const titleEl = document.getElementById('coupleChartTitle');
+  const backBtn = document.getElementById('coupleChartBack');
+  const hintEl = document.getElementById('coupleChartHint');
+
+  // Toggle: click same slice = deselect
+  if (clickedIdx !== undefined && clickedIdx !== null && clickedIdx === coupleSelectedCat) clickedIdx = null;
+  coupleSelectedCat = (clickedIdx !== undefined && clickedIdx !== null) ? clickedIdx : null;
+
+  const hasSel = coupleSelectedCat !== null;
+  const selCat = hasSel ? COUPLE_CATEGORIES[coupleSelectedCat] : null;
+
+  if (hasSel) {
+    titleEl.textContent = selCat.label + ' — ' + fmt(selCat.total) + ' (' + (selCat.total / getCoupleGrandTotal() * 100).toFixed(1) + '%)';
+    backBtn.style.display = 'inline';
+    hintEl.style.display = 'none';
+  } else {
+    titleEl.textContent = 'Repartition par categorie';
+    backBtn.style.display = 'none';
+    hintEl.style.display = '';
+  }
+
+  // === INNER RING (small): always the 5 categories ===
+  const innerData = COUPLE_CATEGORIES.map(c => c.total);
+  const innerColors = COUPLE_CATEGORIES.map((c, i) => {
+    if (!hasSel) return c.color;
+    return i === coupleSelectedCat ? c.color : c.color + '30';
+  });
+
+  // === OUTER RING (big): sub-items of selected category, rest transparent ===
+  let outerLabels = [], outerData = [], outerColors = [], outerBorderW = [], outerBorderC = [];
+  if (hasSel && selCat.sub.length > 1) {
+    COUPLE_CATEGORIES.forEach((cat, i) => {
+      if (i === coupleSelectedCat) {
+        cat.sub.forEach(s => {
+          outerLabels.push(s.label);
+          outerData.push(s.val);
+          outerColors.push(s.color);
+          outerBorderW.push(2);
+          outerBorderC.push('#fff');
+        });
+      } else {
+        outerLabels.push('');
+        outerData.push(cat.total);
+        outerColors.push('transparent');
+        outerBorderW.push(0);
+        outerBorderC.push('transparent');
+      }
+    });
+  }
+
+  const datasets = [];
+
+  // Inner ring = categories (thinner)
+  datasets.push({
+    label: 'Categories',
+    data: innerData,
+    backgroundColor: innerColors,
+    borderWidth: 2,
+    borderColor: '#fff',
+    hoverBorderWidth: 3,
+    weight: 1.2
+  });
+
+  // Outer ring = breakdown (thicker, only when selected)
+  if (outerData.length > 0) {
+    datasets.push({
+      label: 'Detail',
+      data: outerData,
+      backgroundColor: outerColors,
+      borderWidth: outerBorderW,
+      borderColor: outerBorderC,
+      hoverBorderWidth: 2,
+      weight: 2.5
+    });
+  }
+
+  charts.coupleAlloc = new Chart(el, {
+    type: 'doughnut',
+    data: { datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '45%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11 }, padding: 8, usePointStyle: true, pointStyle: 'circle',
+            generateLabels: function() {
+              if (hasSel && selCat.sub.length > 1) {
+                // Show ONLY sub-categories when drilled down
+                return selCat.sub.map((s, si) => ({
+                  text: s.label + '  ' + fmt(s.val) + ' (' + (s.val / getCoupleGrandTotal() * 100).toFixed(1) + '%)',
+                  fillStyle: s.color,
+                  strokeStyle: '#fff',
+                  lineWidth: 1,
+                  hidden: false,
+                  index: si
+                }));
+              }
+              // Default: show categories
+              return COUPLE_CATEGORIES.map((c, i) => ({
+                text: c.label + '  ' + fmt(c.total) + ' (' + (c.total / getCoupleGrandTotal() * 100).toFixed(1) + '%)',
+                fillStyle: c.color,
+                strokeStyle: '#fff',
+                lineWidth: 1,
+                hidden: false,
+                index: i
+              }));
+            }
+          },
+          onClick: function(evt, item) {
+            if (!hasSel && item.index >= 0 && item.index < COUPLE_CATEGORIES.length) {
+              buildCoupleDrillDown(item.index);
+            }
+          }
+        },
+        tooltip: {
+          filter: function(item) {
+            if (item.datasetIndex === 1) {
+              return outerColors[item.dataIndex] !== 'transparent';
+            }
+            return true;
+          },
+          callbacks: {
+            label: function(c) {
+              const val = c.parsed;
+              let lbl = '';
+              if (c.datasetIndex === 0) {
+                lbl = COUPLE_CATEGORIES[c.dataIndex].label;
+              } else {
+                lbl = outerLabels[c.dataIndex] || '';
+              }
+              return lbl + ': ' + fmt(val) + ' (' + (val / getCoupleGrandTotal() * 100).toFixed(1) + '%)';
+            }
+          }
+        }
+      },
+      onClick: function(evt, elements) {
+        if (elements.length > 0 && elements[0].datasetIndex === 0) {
+          buildCoupleDrillDown(elements[0].index);
+        } else if (elements.length === 0 && hasSel) {
+          buildCoupleDrillDown(null);
+        }
+      },
+      onHover: function(evt, elements) {
+        const clickable = elements.length > 0 && elements[0].datasetIndex === 0;
+        evt.native.target.style.cursor = clickable ? 'pointer' : 'default';
+      },
+      animation: { animateRotate: true, animateScale: false, duration: 400 }
+    }
+  });
+}
+
+function coupleChartZoomOut() {
+  buildCoupleDrillDown(null);
+}
+
+// ============ CHARTS ============
+let charts = {};
+
+function rebuildCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  // Couple drill-down allocation donut
+  buildCoupleDrillDown();
+
+  // Amine allocation donut (dynamic)
+  const amineItems = [
+    { label: 'IBKR (' + fmt(AMINE.ibkr, true) + ')', val: AMINE.ibkr, color: '#2b6cb0' },
+    { label: 'ESPP (' + NATIVE.acnShares + ' ACN)', val: AMINE.espp, color: '#3182ce' },
+    { label: 'SGTM (' + NATIVE.sgtmShares + ' actions)', val: AMINE.sgtm, color: '#ed8936' },
+    { label: 'Cash UAE', val: AMINE.uae, color: '#48bb78' },
+    { label: 'Cash Maroc', val: AMINE.moroccoCash, color: '#9ae6b4' },
+    { label: 'Immo Vitry', val: AMINE.vitryEquity, color: '#b7791f' },
+    { label: 'Vehicules', val: AMINE.vehicles, color: '#4a5568' },
+    { label: 'Creances', val: AMINE.recvPro + AMINE.recvPersonal, color: '#cbd5e0' },
+  ];
+  charts.amineAlloc = new Chart(document.getElementById('amineAllocChart'), {
+    type: 'doughnut',
+    data: {
+      labels: amineItems.map(i => i.label),
+      datasets: [{ data: amineItems.map(i => i.val), backgroundColor: amineItems.map(i => i.color), borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 6 } },
+      tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
+  });
+
+  // Nezha allocation donut (dynamic from recomputed values)
+  charts.nezhaAlloc = new Chart(document.getElementById('nezhaAllocChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Equity Rueil','Equity Villejuif','Cash France','Cash Maroc (100K MAD)','SGTM (actions)','Creance Omar (40K MAD)'],
+      datasets: [{ data: [NEZHA.rueilEquity, NEZHA.villejuifEquity, NEZHA.cashFrance, NEZHA.cashMaroc, NEZHA.sgtm, NEZHA.recvOmar], backgroundColor: ['#2b6cb0','#2c7a7b','#48bb78','#9ae6b4','#ed8936','#cbd5e0'], borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+      tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
+  });
+
+  // Geo chart (IBKR breakdown is approximate — use dynamic ESPP/SGTM)
+  const geoIBKR = AMINE.ibkr; // breakdown: France ~53%, Crypto ~21%, DE ~10%, JP ~3%, Other ~13%
+  const geoTotal = geoIBKR + AMINE.espp + AMINE.sgtm + NEZHA.sgtm;
+  charts.geo = new Chart(document.getElementById('geoChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['France','Crypto','Irlande/US (ACN)','Allemagne','Japon','Maroc (SGTM)'],
+      datasets: [{ data: [Math.round(geoIBKR*0.53), Math.round(geoIBKR*0.21), Math.round(AMINE.espp), Math.round(geoIBKR*0.10), Math.round(geoIBKR*0.03), Math.round(AMINE.sgtm+NEZHA.sgtm)], backgroundColor: ['#2b6cb0','#9f7aea','#48bb78','#ed8936','#e53e3e','#d69e2e'], borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+      tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a,b)=>a+b,0); return c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/t*100).toFixed(1) + '%)'; } } } } }
+  });
+
+  // Immo equity bar (dynamic)
+  charts.immoEq = new Chart(document.getElementById('immoEquityChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Vitry (Amine)','Rueil (Nezha)','Villejuif (Nezha)'],
+      datasets: [{ label: 'Equity', data: [AMINE.vitryEquity, NEZHA.rueilEquity, NEZHA.villejuifEquity], backgroundColor: ['#4a5568','#2b6cb0','#2c7a7b'] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
+      scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+
+  // Immo projection
+  charts.immoProj = new Chart(document.getElementById('immoProjectionChart'), {
+    type: 'line',
+    data: {
+      labels: ['2027','2028','2029','2030','2031','2032'],
+      datasets: [
+        { label: 'Vitry', data: [36301,48505,60709,72913,85117,97321], borderColor: '#4a5568', backgroundColor: 'rgba(74,85,104,0.1)', fill: true, tension: 0.3 },
+        { label: 'Rueil', data: [85543,97707,110020,122468,135060,147799], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.1)', fill: true, tension: 0.3 },
+        { label: 'Villejuif', data: [0,0,11039,29706,48808,68307], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.1)', fill: true, tension: 0.3 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
+// ============ CF PROJECTION 20 ANS ============
+function buildCFProjection() {
+  const START_YEAR = 2026;
+  const YEARS = 10;
+  const RENT_GROWTH = 0.015; // IRL ~1.5%/an
+
+  // Vitry: CF -317 now, loyer 1200+parking 70, charges 1587, loyer -> 1400 in 2027, pret ends ~2048 (25 ans from 2023)
+  // Rueil: CF +209 now, loyer HC 1300, charges 1091, pret ends ~2044 (25 ans from Nov 2019)
+  // Villejuif: credit debloque fin 2026, franchise totale 3 ans -> mensualites fin 2029
+  //   Livraison ete 2029 -> loyer des mi-2029, mais mensualites aussi fin 2029
+  //   2029 = ~6 mois loyer SANS mensualite (fenetre positive) + ~0-1 mois avec mensualite
+  //   2030 = premiere annee pleine avec loyer ET mensualites
+  //   Pret ~24.25 ans post-franchise -> fin ~2053
+
+  const vitryChargesBase = { pret: 1317, assurance: 30, pno: 15, tf: 75, copro: 150 };
+  const rueilChargesBase = { pret: 907, assurance: 25, pno: 12, tf: 67, copro: 80 };
+  const villejuifChargesBase = { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 };
+
+  const labels = [];
+  const vitryData = [], rueilData = [], villejuifData = [], totalData = [];
+
+  let vitryLoyer = 1200, vitryParking = 70;
+  let rueilLoyer = 1300;
+  let villejuifLoyer = 1700;
+
+  for (let i = 0; i < YEARS; i++) {
+    const year = START_YEAR + i;
+    labels.push(String(year));
+
+    // Vitry loyer increase 2027
+    if (year === 2027) vitryLoyer = 1400;
+    // Annual rent growth after initial year
+    if (year > 2027) vitryLoyer *= (1 + RENT_GROWTH);
+    if (year > 2026) rueilLoyer *= (1 + RENT_GROWTH);
+    if (year > 2030) villejuifLoyer *= (1 + RENT_GROWTH); // first full year = 2030
+
+    // Vitry CF
+    const vitryRev = vitryLoyer + vitryParking;
+    let vitryCharges = vitryChargesBase.pno + vitryChargesBase.tf + vitryChargesBase.copro;
+    if (year < 2048) vitryCharges += vitryChargesBase.pret + vitryChargesBase.assurance;
+    const vitryCF = Math.round(vitryRev - vitryCharges);
+
+    // Rueil CF
+    const rueilRev = rueilLoyer;
+    let rueilCharges = rueilChargesBase.pno + rueilChargesBase.tf + rueilChargesBase.copro;
+    if (year < 2044) rueilCharges += rueilChargesBase.pret + rueilChargesBase.assurance;
+    const rueilCF = Math.round(rueilRev - rueilCharges);
+
+    // Villejuif CF
+    // Before 2030: pas de loyer (franchise + travaux absorbent les loyers pre-remboursement)
+    // 2030+: loyer plein + mensualites pleines (debut remboursement = debut loyer)
+    let villejuifCF = 0;
+    if (year >= 2030) {
+      const vjRev = villejuifLoyer;
+      let vjCharges = villejuifChargesBase.pno + villejuifChargesBase.tf + villejuifChargesBase.copro;
+      if (year < 2053) vjCharges += villejuifChargesBase.pret + villejuifChargesBase.assurance;
+      villejuifCF = Math.round(vjRev - vjCharges);
+    }
+
+    vitryData.push(vitryCF);
+    rueilData.push(rueilCF);
+    villejuifData.push(villejuifCF);
+    totalData.push(vitryCF + rueilCF + villejuifCF);
+  }
+
+  // Build chart
+  const ctx = document.getElementById('cfProjectionChart');
+  if (!ctx) return;
+  // Zero-line dataset for visual reference
+  const zeroLine = new Array(YEARS).fill(0);
+
+  charts.cfProj = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Equilibre (0)', data: zeroLine, borderColor: '#e53e3e', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
+        { label: 'Vitry', data: vitryData, borderColor: '#4a5568', backgroundColor: 'rgba(74,85,104,0.05)', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+        { label: 'Rueil', data: rueilData, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.05)', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+        { label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.05)', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+        { label: 'Total 3 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: 'Projection Cash Flow mensuel — 10 ans', font: { size: 14 } },
+        legend: { labels: { filter: item => item.text !== 'Equilibre (0)', font: { size: 11 } } },
+        tooltip: {
+          filter: item => item.dataset.label !== 'Equilibre (0)',
+          callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y + '/mois' }
+        }
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'CF mensuel (EUR)', font: { size: 11 } },
+          ticks: { callback: v => (v >= 0 ? '+' : '') + v }
+        }
+      }
+    }
+  });
+
+  // Build table
+  const tbody = document.getElementById('cfProjectionBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  for (let i = 0; i < YEARS; i++) {
+    const tr = document.createElement('tr');
+    const year = START_YEAR + i;
+    const isKey = year === 2027 || year === 2030;
+    if (isKey) tr.style.background = '#fffbeb';
+
+    let note = '';
+    if (year === 2027) note = ' *';
+    if (year === 2030) note = ' **';
+
+    const cfClass = v => v >= 0 ? 'num pos' : 'num neg';
+    const cfFmt = v => (v >= 0 ? '+' : '') + v.toLocaleString('fr-FR');
+
+    tr.innerHTML = '<td><strong>' + year + '</strong>' + note + '</td>'
+      + '<td class="' + cfClass(vitryData[i]) + '">' + cfFmt(vitryData[i]) + '</td>'
+      + '<td class="' + cfClass(rueilData[i]) + '">' + cfFmt(rueilData[i]) + '</td>'
+      + '<td class="' + cfClass(villejuifData[i]) + '">' + (year < 2030 ? '<span style="color:var(--gray)">—</span>' : cfFmt(villejuifData[i])) + '</td>'
+      + '<td class="' + cfClass(totalData[i]) + '" style="font-weight:700;background:#f0fff4">' + cfFmt(totalData[i]) + '</td>';
+    tbody.appendChild(tr);
+  }
+  // Add footnotes row
+  const fn = document.createElement('tr');
+  fn.innerHTML = '<td colspan="5" style="font-size:10px;color:var(--gray);padding-top:8px">* Augmentation loyer Vitry a 1,400. ** Debut remboursement + loyer Villejuif (loyers pre-2030 absorbent les travaux).</td>';
+  tbody.appendChild(fn);
+}
+
+// ============ IMMO % DISPLAY ============
+function updateImmoPcts() {
+  const coupleImmo = AMINE.vitryEquity + NEZHA.rueilEquity + NEZHA.villejuifEquity;
+  const coupleNW = AMINE.nw + NEZHA.nw + NEZHA.villejuifEquity;
+  const cplPct = (coupleImmo / coupleNW * 100).toFixed(1);
+  if (document.getElementById('cplImmoPct')) document.getElementById('cplImmoPct').textContent = cplPct;
+  if (document.getElementById('cplImmoVal')) document.getElementById('cplImmoVal').textContent = fmt(coupleImmo);
+
+  const amImmo = AMINE.vitryEquity;
+  const amPct = (amImmo / AMINE.nw * 100).toFixed(1);
+  if (document.getElementById('amImmoPct')) document.getElementById('amImmoPct').textContent = amPct;
+  if (document.getElementById('amImmoVal')) document.getElementById('amImmoVal').textContent = fmt(amImmo);
+}
+
+// ============ INIT ============
+recomputeFromFX(); // ensure values are fresh
+updateDynamicKPIs();
+updateAllCurrencyValues();
+buildAmineTable();
+buildCoupleTable();
+buildNezhaTable();
+rebuildCharts();
+buildCFProjection();
+updateImmoPcts();
+runAllSimulators();
+</script>
+
+</body>
+</html>
