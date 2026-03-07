@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=3';
-import { getGrandTotal } from './engine.js?v=3';
+import { CURRENCY_CONFIG } from './data.js?v=4';
+import { getGrandTotal } from './engine.js?v=4';
 
 // ---- Formatting helpers ----
 
@@ -1096,8 +1096,8 @@ function renderWHTAnalysis(state) {
   const div = state.dividendAnalysis;
   if (!div) return;
 
-  setText('kpiWhtTotalDiv', fmt(div.totalAnnualDiv) + '/an');
-  setText('kpiWhtTotal', '-' + fmt(div.totalWHT) + '/an');
+  setText('kpiWhtTotalDiv', fmt(div.totalProjectedDiv) + '/an');
+  setText('kpiWhtTotal', '-' + fmt(div.totalProjectedWHT) + '/an');
   document.getElementById('kpiWhtTotal')?.classList.add('pl-neg');
   setText('kpiWhtSavings', '+' + fmt(div.savingsIfEliminated) + '/an');
   const switchCount = div.positions.filter(p => p.recommendation === 'switch').length;
@@ -1107,19 +1107,39 @@ function renderWHTAnalysis(state) {
   if (!tbody) return;
   tbody.innerHTML = '';
   div.positions.forEach(p => {
-    if (p.divYield === 0 && p.whtAmount === 0) return; // skip zero-div positions
+    if (p.divYield === 0 && p.projectedWHT === 0) return; // skip zero-div positions
     const tr = document.createElement('tr');
     const recBg = p.recommendation === 'switch' ? 'background:#fff5f5;' : '';
     const recBadge = p.recommendation === 'switch'
       ? '<span style="background:#fed7d7;color:#c53030;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">SWITCHER</span>'
       : '<span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749">GARDER</span>';
+
+    // Format DPS with currency symbol
+    const currSymbols = { EUR: '€', USD: '$', JPY: '¥', MAD: 'DH' };
+    const currSym = currSymbols[p.dpsCurrency] || p.dpsCurrency;
+    const dpsText = p.dpsNative > 0
+      ? (p.dpsCurrency === 'JPY' ? currSym + Math.round(p.dpsNative) : currSym + p.dpsNative.toFixed(2))
+      : '-';
+
+    // Format deadline
+    let deadlineHtml = '-';
+    if (p.nextExDate) {
+      const d = p.nextExDate;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+      const dateStr = day + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+      const urgency = p.daysUntilEx <= 30 ? 'color:#c53030;font-weight:700;' : p.daysUntilEx <= 60 ? 'color:#c05621;font-weight:600;' : 'color:var(--gray);';
+      deadlineHtml = '<span style="' + urgency + '">' + dateStr + '</span><br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + '</span>';
+    }
+
     tr.style.cssText = recBg;
-    tr.innerHTML = '<td>' + p.label + '</td>'
+    tr.innerHTML = '<td><strong>' + p.label + '</strong><br><span style="font-size:10px;color:var(--gray)">' + p.shares + ' × ' + (p.divYield * 100).toFixed(1) + '% yield</span></td>'
       + '<td class="num">' + fmt(p.valEUR) + '</td>'
-      + '<td class="num">' + (p.divYield * 100).toFixed(1) + '%</td>'
-      + '<td class="num">' + fmt(p.annualDivGross) + '</td>'
+      + '<td class="num" style="font-size:11px">' + dpsText + '</td>'
+      + '<td class="num">' + (p.projectedDivEUR > 0 ? fmt(p.projectedDivEUR) : '-') + '</td>'
       + '<td class="num">' + (p.whtRate * 100).toFixed(1) + '%</td>'
-      + '<td class="num pl-neg">' + (p.whtAmount > 0 ? '-' + fmt(p.whtAmount) : '-') + '</td>'
+      + '<td class="num pl-neg">' + (p.projectedWHT > 0 ? '-' + fmt(p.projectedWHT) : '-') + '</td>'
+      + '<td class="num">' + deadlineHtml + '</td>'
       + '<td>' + recBadge + '</td>'
       + '<td style="font-size:11px;color:var(--gray)">' + (p.alternativeETF || '-') + '</td>';
     tbody.appendChild(tr);
