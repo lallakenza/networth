@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=14';
-import { compute } from './engine.js?v=14';
-import { render } from './render.js?v=14';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=14';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=14';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=14';
+import { PORTFOLIO, FX_STATIC } from './data.js?v=15';
+import { compute } from './engine.js?v=15';
+import { render } from './render.js?v=15';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=15';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=15';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=15';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -100,6 +100,14 @@ document.querySelectorAll('.cat-card').forEach((card, i) => {
 
 // Couple chart zoom out
 window.coupleChartZoomOut = coupleChartZoomOut;
+
+// ---- Dynamic date badge ----
+(function() {
+  var d = new Date();
+  var label = 'Donnees au ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  var badge = document.getElementById('dateBadge');
+  if (badge) badge.textContent = label;
+})();
 
 // ---- INIT ----
 refresh();
