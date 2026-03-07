@@ -634,6 +634,44 @@ function renderCashView(state) {
       + 'Ce n\'est pas du cash mais un levier devise. Non inclus dans le total cash ci-dessus. '
       + 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(Math.abs(cv.jpyShortEUR) * 0.1) + '.';
   }
+
+  // Diagnostics
+  const diagContainer = document.getElementById('cashDiagnostics');
+  if (diagContainer && cv.diagnostics) {
+    diagContainer.innerHTML = '';
+    cv.diagnostics.forEach(d => {
+      const isUrgent = d.severity === 'urgent';
+      const borderColor = isUrgent ? '#e53e3e' : '#dd6b20';
+      const bgColor = isUrgent ? '#fff5f5' : '#fffaf0';
+      const badge = isUrgent
+        ? '<span style="background:#e53e3e;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">URGENT</span>'
+        : '<span style="background:#dd6b20;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">ATTENTION</span>';
+
+      let title = '', detail = '';
+      if (d.category === 'inflation') {
+        title = '\uD83D\uDCC9 ' + d.account + ' \u2014 ' + fmt(d.amountEUR) + ' \u00e0 0% rendement';
+        detail = 'Perd ~' + fmt(d.annualLoss) + '/an en pouvoir d\'achat (' + d.inflationPct + '% inflation).';
+      } else if (d.category === 'concentration') {
+        title = '\u26A0\uFE0F Concentration ' + d.concentrationCur + ' : ' + d.concentrationPct.toFixed(0) + '% du cash total';
+        detail = fmt(d.amountEUR) + ' en ' + d.concentrationCur + ' sur ' + fmt(d.totalCashEUR) + ' total.';
+      } else if (d.category === 'forex') {
+        title = '\uD83D\uDCB1 Risque JPY Short : ' + fmt(d.jpyShortEUR) + ' d\'exposition';
+        detail = 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(d.riskAmount) + '.';
+      } else if (d.category === 'erosion') {
+        title = '\uD83D\uDD25 \u00c9rosion totale : -' + fmt(d.annualLoss) + '/an sur cash dormant';
+        detail = fmt(d.amountEUR) + ' de cash \u00e0 0% rendement perd ' + fmt(d.monthlyLoss) + '/mois. Potentiel si plac\u00e9 \u00e0 4% : +' + fmt(d.potentialGain) + '/an.';
+      }
+
+      const card = document.createElement('div');
+      card.style.cssText = 'border-left:4px solid ' + borderColor + ';background:' + bgColor + ';padding:14px 18px;border-radius:6px;';
+      card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+        + badge + ' <strong style="font-size:14px;">' + title + '</strong></div>'
+        + '<div style="font-size:13px;color:#4a5568;margin-bottom:8px;">' + detail + '</div>'
+        + '<div style="font-size:13px;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:4px;">'
+        + '<strong style="color:' + borderColor + ';">\u27A1 Action :</strong> ' + d.action + '</div>';
+      diagContainer.appendChild(card);
+    });
+  }
 }
 
 function renderImmoView(state) {

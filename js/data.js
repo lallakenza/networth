@@ -11,7 +11,7 @@ export const PORTFOLIO = {
       mashreq: 413914,      // Mashreq NEO PLUS (310518 + 103396 SAP payment received in AED)
       wioSavings: 220000,   // Wio Savings (~6% rendement)
       wioCurrent: 4904,     // Wio Current
-      revolutEUR: 4267,     // Revolut EUR balance (already EUR)
+      revolutEUR: 5967,     // Revolut EUR balance (already EUR) — updated 7 Mar 2026 (Anas remboursement + ventes)
     },
     // --- Cash Maroc (MAD) ---
     maroc: {
@@ -93,7 +93,7 @@ export const PORTFOLIO = {
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', guaranteed: false, probability: 0.7 },
         { label: 'Mehdi', amount: 30000, currency: 'MAD', guaranteed: false, probability: 0.5 },
         { label: 'Akram', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.8 },
-        { label: 'Anas', amount: 1500, currency: 'EUR', guaranteed: false, probability: 0.7 },
+        // Anas — remboursé le 7 mars 2026 (1500 EUR + ventes) → supprimé
       ],
     },
     // --- Degiro (closed April 2025 — all positions liquidated, funds withdrawn) ---

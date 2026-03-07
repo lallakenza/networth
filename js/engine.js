@@ -201,6 +201,77 @@ function computeCashView(portfolio, fx) {
   const annualInflationCost = totalNonYielding * INFLATION_RATE;
   const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
 
+  // --- Cash Diagnostic: urgent actions (raw data, formatted in render.js) ---
+  const diagnostics = [];
+
+  // 1. Dormant cash losing to inflation
+  const dormantAccounts = accounts.filter(a => a.yield === 0 && a.valEUR > 1000);
+  dormantAccounts.forEach(a => {
+    const erosion = a.valEUR * INFLATION_RATE;
+    diagnostics.push({
+      severity: a.valEUR > 10000 ? 'urgent' : 'warning',
+      category: 'inflation',
+      account: a.label,
+      owner: a.owner,
+      amountEUR: a.valEUR,
+      annualLoss: erosion,
+      currency: a.currency,
+      inflationPct: INFLATION_RATE * 100,
+      action: a.currency === 'AED' ? 'Transférer vers Wio Savings (6%) ou Mashreq NEO+ (6.25%)'
+        : a.currency === 'MAD' ? 'Ouvrir un DAT ou OPCVM monétaire au Maroc (3-4%)'
+        : a.currency === 'EUR' && a.label.includes('Revolut') ? 'Activer le coffre Revolut ou transférer vers un livret (2-3%)'
+        : a.currency === 'EUR' && a.label.includes('ESPP') ? 'Transférer vers compte rémunéré ou investir'
+        : a.currency === 'EUR' ? 'Placer sur livret, fonds euro, ou OPCVM monétaire'
+        : 'Chercher un placement rémunéré dans cette devise',
+    });
+  });
+
+  // 2. Concentration risk by currency
+  const currencyEntries = Object.entries(byCurrency).map(([cur, val]) => ({ cur, val, pct: val / totalCash * 100 }));
+  currencyEntries.filter(c => c.pct > 50).forEach(c => {
+    diagnostics.push({
+      severity: 'warning',
+      category: 'concentration',
+      amountEUR: c.val,
+      totalCashEUR: totalCash,
+      concentrationPct: c.pct,
+      concentrationCur: c.cur,
+      action: 'Diversifier progressivement vers EUR ou USD pour réduire le risque devise.',
+    });
+  });
+
+  // 3. JPY short risk
+  if (jpyShortEUR < -5000) {
+    const riskAmount = Math.abs(jpyShortEUR) * 0.10;
+    diagnostics.push({
+      severity: 'warning',
+      category: 'forex',
+      amountEUR: Math.abs(jpyShortEUR),
+      jpyShortEUR: jpyShortEUR,
+      riskAmount: riskAmount,
+      action: 'Surveiller le JPY/EUR. Définir un stop-loss ou couvrir partiellement si le yen se renforce.',
+    });
+  }
+
+  // 4. Total inflation cost summary
+  if (annualInflationCost > 2000) {
+    diagnostics.push({
+      severity: 'urgent',
+      category: 'erosion',
+      amountEUR: totalNonYielding,
+      annualLoss: annualInflationCost,
+      monthlyLoss: monthlyInflationCost,
+      potentialGain: totalNonYielding * 0.04,
+      action: 'Priorité #1 : placer le cash dormant pour stopper l\'érosion.',
+    });
+  }
+
+  // Sort: urgent first, then by amount
+  diagnostics.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'urgent' ? -1 : 1;
+    return (b.amountEUR || 0) - (a.amountEUR || 0);
+  });
+
   return {
     accounts,
     totalCash,
@@ -211,6 +282,7 @@ function computeCashView(portfolio, fx) {
     annualInflationCost,
     byCurrency,
     jpyShortEUR,
+    diagnostics,
   };
 }
 
