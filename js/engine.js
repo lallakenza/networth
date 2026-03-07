@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS } from './data.js?v=3';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS } from './data.js?v=3';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -537,65 +537,190 @@ function computeCashView(portfolio, fx) {
 }
 
 /**
+ * Compute amortization schedule for a single loan
+ * Returns: { schedule: [{month, date, payment, interest, principal, remainingCRD}], ...aggregates }
+ */
+function computeAmortizationSchedule(loan) {
+  const schedule = [];
+  let crd = loan.principal;
+  const monthlyRate = loan.rate / 12;
+  const [startY, startM] = loan.startDate.split('-').map(Number);
+
+  for (let i = 0; i < loan.durationMonths && crd > 0.01; i++) {
+    const interest = crd * monthlyRate;
+    const principalPart = Math.min(loan.monthlyPayment - interest, crd);
+    crd -= principalPart;
+    const y = startY + Math.floor((startM - 1 + i) / 12);
+    const m = ((startM - 1 + i) % 12) + 1;
+    schedule.push({
+      month: i + 1,
+      date: y + '-' + String(m).padStart(2, '0'),
+      payment: loan.monthlyPayment,
+      interest: Math.round(interest * 100) / 100,
+      principal: Math.round(principalPart * 100) / 100,
+      remainingCRD: Math.max(0, Math.round(crd * 100) / 100),
+    });
+  }
+
+  // Find current month index (how many months elapsed since start)
+  const now = new Date();
+  const nowY = now.getFullYear();
+  const nowM = now.getMonth() + 1;
+  const monthsElapsed = (nowY - startY) * 12 + (nowM - startM);
+  const currentIdx = Math.max(0, Math.min(monthsElapsed, schedule.length - 1));
+
+  const interestPaid = schedule.slice(0, currentIdx + 1).reduce((s, r) => s + r.interest, 0);
+  const interestRemaining = schedule.slice(currentIdx + 1).reduce((s, r) => s + r.interest, 0);
+  const totalInterest = schedule.reduce((s, r) => s + r.interest, 0);
+  const totalCost = totalInterest + loan.insurance * loan.durationMonths;
+
+  // Milestones
+  const halfCRD = loan.principal / 2;
+  const halfCRDMonth = schedule.find(r => r.remainingCRD <= halfCRD);
+  const crossoverMonth = schedule.find(r => r.principal >= r.interest);
+
+  return {
+    schedule,
+    currentIdx,
+    interestPaid: Math.round(interestPaid),
+    interestRemaining: Math.round(interestRemaining),
+    totalInterest: Math.round(totalInterest),
+    totalCost: Math.round(totalCost),
+    milestones: {
+      halfCRDDate: halfCRDMonth ? halfCRDMonth.date : null,
+      crossoverDate: crossoverMonth ? crossoverMonth.date : null,
+    },
+  };
+}
+
+/**
+ * Compute fiscalité for a property
+ * Handles: micro-foncier (nu), micro-BIC (LMNP), réel foncier, réel BIC
+ * Non-résident UAE : taux minimum 20% + PS 17.2%
+ */
+function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) {
+  const f = fiscConfig;
+
+  // Si une partie est reçue en cash non déclaré, on réduit la base
+  const cashPct = f.cashNonDeclare || 0;
+  const loyerDeclare = loyerAnnuel * (1 - cashPct);
+  const loyerCash = loyerAnnuel * cashPct;
+
+  if (f.regime === 'micro-foncier') {
+    // Location NUE — abattement forfaitaire 30%
+    const revenuImposable = loyerDeclare * 0.70;
+    const ir = revenuImposable * f.tmi;
+    const ps = revenuImposable * f.ps;
+    const totalImpot = ir + ps;
+    return {
+      regime: 'micro-foncier', type: f.type || 'nu',
+      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+      abattement: Math.round(loyerDeclare * 0.30),
+      abattementPct: 30,
+      revenuImposable: Math.round(revenuImposable),
+      ir: Math.round(ir), ps: Math.round(ps),
+      totalImpot: Math.round(totalImpot),
+      monthlyImpot: Math.round(totalImpot / 12),
+      tauxEffectif: loyerDeclare > 0 ? (totalImpot / loyerDeclare * 100) : 0,
+    };
+  }
+
+  if (f.regime === 'micro-bic') {
+    // LMNP micro-BIC — abattement forfaitaire 50%
+    const revenuImposable = loyerDeclare * 0.50;
+    const ir = revenuImposable * f.tmi;
+    const ps = revenuImposable * f.ps;
+    const totalImpot = ir + ps;
+    return {
+      regime: 'micro-bic', type: 'lmnp',
+      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      abattement: Math.round(loyerDeclare * 0.50),
+      abattementPct: 50,
+      revenuImposable: Math.round(revenuImposable),
+      ir: Math.round(ir), ps: Math.round(ps),
+      totalImpot: Math.round(totalImpot),
+      monthlyImpot: Math.round(totalImpot / 12),
+      tauxEffectif: loyerDeclare > 0 ? (totalImpot / loyerDeclare * 100) : 0,
+    };
+  }
+
+  // Régime réel (foncier ou BIC)
+  const deductions = (charges * 12) + loanInterestAnnuel;
+  const revenuImposable = Math.max(0, loyerDeclare - deductions);
+  const deficit = loyerDeclare - deductions < 0 ? Math.abs(loyerDeclare - deductions) : 0;
+  const deficitImputable = Math.min(deficit, 10700);
+  const ir = revenuImposable * f.tmi;
+  const ps = revenuImposable * f.ps;
+  const totalImpot = ir + ps;
+  return {
+    regime: f.regime, type: f.type || 'nu',
+    loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+    deductions: Math.round(deductions),
+    revenuImposable: Math.round(revenuImposable),
+    deficit: Math.round(deficit),
+    deficitImputable: Math.round(deficitImputable),
+    ir: Math.round(ir), ps: Math.round(ps),
+    totalImpot: Math.round(totalImpot),
+    monthlyImpot: Math.round(totalImpot / 12),
+    tauxEffectif: loyerDeclare > 0 ? (totalImpot / loyerDeclare * 100) : 0,
+  };
+}
+
+/**
  * Compute immo view data
  */
 function computeImmoView(portfolio, fx) {
   const IC = IMMO_CONSTANTS;
   const properties = [];
+  const loanKeys = ['vitry', 'rueil', 'villejuif'];
 
-  // Vitry
-  const v = portfolio.amine.immo.vitry;
-  const vitryCharges = IC.charges.vitry.pret + IC.charges.vitry.assurance + IC.charges.vitry.pno + IC.charges.vitry.tf + IC.charges.vitry.copro;
-  const vitryLoyer = v.loyer + (v.parking || 0);
-  const vitryCF = vitryLoyer - vitryCharges;
-  properties.push({
-    name: 'Vitry-sur-Seine', owner: 'Amine',
-    value: v.value, crd: v.crd, equity: v.value - v.crd,
-    ltv: (v.crd / v.value * 100),
-    monthlyPayment: IC.charges.vitry.pret + IC.charges.vitry.assurance,
-    loyer: vitryLoyer, cf: vitryCF,
-    yieldGross: (vitryLoyer * 12 / v.value * 100),
-    yieldNet: (vitryCF * 12 / v.value * 100),
-    wealthCreation: IC.growth.vitry,
-    endYear: IC.prets.vitryEnd,
-    charges: vitryCharges,
-  });
+  // Compute amortization schedules
+  const amortSchedules = {};
+  for (const key of loanKeys) {
+    if (IC.loans && IC.loans[key]) {
+      amortSchedules[key] = computeAmortizationSchedule(IC.loans[key]);
+    }
+  }
 
-  // Rueil
-  const r = portfolio.nezha.immo.rueil;
-  const rueilCharges = IC.charges.rueil.pret + IC.charges.rueil.assurance + IC.charges.rueil.pno + IC.charges.rueil.tf + IC.charges.rueil.copro;
-  const rueilLoyer = r.loyer;
-  const rueilCF = rueilLoyer - rueilCharges;
-  properties.push({
-    name: 'Rueil-Malmaison', owner: 'Nezha',
-    value: r.value, crd: r.crd, equity: r.value - r.crd,
-    ltv: (r.crd / r.value * 100),
-    monthlyPayment: IC.charges.rueil.pret + IC.charges.rueil.assurance,
-    loyer: rueilLoyer, cf: rueilCF,
-    yieldGross: (rueilLoyer * 12 / r.value * 100),
-    yieldNet: (rueilCF * 12 / r.value * 100),
-    wealthCreation: IC.growth.rueil,
-    endYear: IC.prets.rueilEnd,
-    charges: rueilCharges,
-  });
+  // Helper to build property with fiscal data
+  function buildProperty(name, owner, propData, chargesConfig, loanKey, conditional) {
+    const charges = chargesConfig.pret + chargesConfig.assurance + chargesConfig.pno + chargesConfig.tf + chargesConfig.copro;
+    const loyer = propData.loyer + (propData.parking || 0);
+    const cf = loyer - charges;
+    const loyerAnnuel = loyer * 12;
+    const amort = amortSchedules[loanKey];
 
-  // Villejuif
-  const vj = portfolio.nezha.immo.villejuif;
-  const vjCharges = IC.charges.villejuif.pret + IC.charges.villejuif.assurance + IC.charges.villejuif.pno + IC.charges.villejuif.tf + IC.charges.villejuif.copro;
-  const vjLoyer = vj.loyer;
-  const vjCF = vjLoyer - vjCharges;
-  properties.push({
-    name: 'Villejuif (VEFA)', owner: 'Nezha', conditional: true,
-    value: vj.value, crd: vj.crd, equity: vj.value - vj.crd,
-    ltv: (vj.crd / vj.value * 100),
-    monthlyPayment: IC.charges.villejuif.pret + IC.charges.villejuif.assurance,
-    loyer: vjLoyer, cf: vjCF,
-    yieldGross: (vjLoyer * 12 / vj.value * 100),
-    yieldNet: (vjCF * 12 / vj.value * 100),
-    wealthCreation: IC.growth.villejuif,
-    endYear: IC.prets.villejuifEnd,
-    charges: vjCharges,
-  });
+    // Fiscal calculation
+    const loanInterestAnnuel = amort
+      ? amort.schedule.slice(amort.currentIdx, amort.currentIdx + 12).reduce((s, r) => s + r.interest, 0)
+      : 0;
+    const fisc = IC.fiscalite && IC.fiscalite[loanKey]
+      ? computeFiscalite(loyerAnnuel, chargesConfig.pno + chargesConfig.tf + chargesConfig.copro, IC.fiscalite[loanKey], loanInterestAnnuel)
+      : null;
+
+    const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;
+
+    return {
+      name, owner, conditional: conditional || false,
+      value: propData.value, crd: propData.crd, equity: propData.value - propData.crd,
+      ltv: (propData.crd / propData.value * 100),
+      monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
+      loyer, cf,
+      yieldGross: (loyer * 12 / propData.value * 100),
+      yieldNet: (cf * 12 / propData.value * 100),
+      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / propData.value * 100) : null,
+      wealthCreation: IC.growth[loanKey],
+      endYear: IC.prets[loanKey + 'End'],
+      charges,
+      loanKey,
+      fiscalite: fisc,
+      cfNetFiscal,
+    };
+  }
+
+  properties.push(buildProperty('Vitry-sur-Seine', 'Amine', portfolio.amine.immo.vitry, IC.charges.vitry, 'vitry'));
+  properties.push(buildProperty('Rueil-Malmaison', 'Nezha', portfolio.nezha.immo.rueil, IC.charges.rueil, 'rueil'));
+  properties.push(buildProperty('Villejuif (VEFA)', 'Nezha', portfolio.nezha.immo.villejuif, IC.charges.villejuif, 'villejuif', true));
 
   const totalEquity = properties.reduce((s, p) => s + p.equity, 0);
   const totalValue = properties.reduce((s, p) => s + p.value, 0);
@@ -604,11 +729,26 @@ function computeImmoView(portfolio, fx) {
   const totalWealthCreation = properties.reduce((s, p) => s + p.wealthCreation, 0);
   const avgLTV = totalValue > 0 ? (totalCRD / totalValue * 100) : 0;
 
+  // Fiscal totals
+  const totalImpotAnnuel = properties.reduce((s, p) => s + (p.fiscalite ? p.fiscalite.totalImpot : 0), 0);
+  const totalLoyerAnnuel = properties.reduce((s, p) => s + p.loyer * 12, 0);
+  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.cfNetFiscal || p.cf), 0);
+
+  // Amortization totals
+  const totalInterestPaid = Object.values(amortSchedules).reduce((s, a) => s + a.interestPaid, 0);
+  const totalInterestRemaining = Object.values(amortSchedules).reduce((s, a) => s + a.interestRemaining, 0);
+
   return {
     properties,
     totalEquity, totalValue, totalCRD,
     totalCF, totalWealthCreation,
     avgLTV,
+    amortSchedules,
+    totalInterestPaid,
+    totalInterestRemaining,
+    totalImpotAnnuel,
+    totalLoyerAnnuel,
+    totalCFNetFiscal,
   };
 }
 
@@ -617,41 +757,57 @@ function computeImmoView(portfolio, fx) {
  */
 function computeCreancesView(portfolio, fx) {
   const allItems = [];
+  const today = new Date();
+
+  function processCreance(c, owner) {
+    const amountEUR = toEUR(c.amount, c.currency, fx);
+    const paymentsTotal = (c.payments || []).reduce((s, p) => s + toEUR(p.amount, c.currency, fx), 0);
+    const remainingEUR = amountEUR - paymentsTotal;
+    const expectedValue = remainingEUR * (c.probability || 1);
+    const monthlyInflationCost = !c.delayDays ? (remainingEUR * INFLATION_RATE / 12) : 0;
+
+    // Recouvrement tracking
+    let daysOverdue = 0;
+    if (c.dueDate) {
+      const due = new Date(c.dueDate);
+      if (today > due) daysOverdue = Math.floor((today - due) / 86400000);
+    }
+    let daysSinceContact = 0;
+    if (c.lastContact) {
+      daysSinceContact = Math.floor((today - new Date(c.lastContact)) / 86400000);
+    }
+    const needsFollowUp = daysSinceContact > 30 && c.status !== 'recouvré';
+    const recoveryPct = amountEUR > 0 ? (paymentsTotal / amountEUR * 100) : 0;
+
+    return {
+      ...c,
+      amountEUR,
+      paymentsTotal,
+      remainingEUR,
+      expectedValue,
+      monthlyInflationCost,
+      daysOverdue,
+      daysSinceContact,
+      needsFollowUp,
+      recoveryPct,
+      owner,
+    };
+  }
 
   // Amine creances
-  (portfolio.amine.creances.items || []).forEach(c => {
-    const amountEUR = toEUR(c.amount, c.currency, fx);
-    const expectedValue = amountEUR * (c.probability || 1);
-    // Inflation impacts all créances EXCEPT SAP & Tax (short payment term, not controllable)
-    const monthlyInflationCost = !c.delayDays ? (amountEUR * INFLATION_RATE / 12) : 0;
-    allItems.push({
-      ...c,
-      amountEUR,
-      expectedValue,
-      monthlyInflationCost,
-      owner: 'Amine',
-    });
-  });
+  (portfolio.amine.creances.items || []).forEach(c => allItems.push(processCreance(c, 'Amine')));
 
   // Nezha creances
-  (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => {
-    const amountEUR = toEUR(c.amount, c.currency, fx);
-    const expectedValue = amountEUR * (c.probability || 1);
-    const monthlyInflationCost = !c.delayDays ? (amountEUR * INFLATION_RATE / 12) : 0;
-    allItems.push({
-      ...c,
-      amountEUR,
-      expectedValue,
-      monthlyInflationCost,
-      owner: 'Nezha',
-    });
-  });
+  (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => allItems.push(processCreance(c, 'Nezha')));
 
   const totalNominal = allItems.reduce((s, i) => s + i.amountEUR, 0);
   const totalExpected = allItems.reduce((s, i) => s + i.expectedValue, 0);
   const totalGuaranteed = allItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
   const totalUncertain = allItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
   const monthlyInflationCost = allItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
+  const totalRecovered = allItems.reduce((s, i) => s + i.paymentsTotal, 0);
+  const totalOverdue = allItems.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.remainingEUR, 0);
+  const needsFollowUpCount = allItems.filter(i => i.needsFollowUp).length;
 
   return {
     items: allItems,
@@ -660,7 +816,79 @@ function computeCreancesView(portfolio, fx) {
     totalGuaranteed,
     totalUncertain,
     monthlyInflationCost,
+    totalRecovered,
+    totalOverdue,
+    needsFollowUpCount,
   };
+}
+
+/**
+ * Compute dividend/WHT analysis for actions view
+ */
+function computeDividendAnalysis(ibkrPositions, fx) {
+  const positions = ibkrPositions.map(pos => {
+    const divYield = DIV_YIELDS[pos.ticker] || 0;
+    const whtRate = WHT_RATES[pos.geo] || WHT_RATES[pos.geo === 'crypto' ? 'crypto' : 'france'] || 0;
+    const annualDivGross = pos.valEUR * divYield;
+    const whtAmount = annualDivGross * whtRate;
+    const netDiv = annualDivGross - whtAmount;
+
+    let recommendation = 'keep';
+    let reason = '';
+    let alternativeETF = '';
+
+    if (divYield > 0.02 && whtRate > 0.15) {
+      recommendation = 'switch';
+      reason = 'Div yield élevé + WHT élevée → switch vers ETF capitalisant';
+      if (pos.geo === 'france') alternativeETF = 'Amundi CAC 40 UCITS ETF Acc (C40)';
+      else if (pos.geo === 'germany') alternativeETF = 'iShares Core DAX UCITS ETF Acc';
+      else alternativeETF = 'ETF capitalisant équivalent';
+    } else if (divYield > 0 && divYield <= 0.02 && whtRate > 0) {
+      recommendation = 'keep';
+      reason = 'Div yield faible — impact WHT limité';
+    } else if (divYield === 0) {
+      recommendation = 'keep';
+      reason = 'Pas de dividendes — aucune WHT';
+    }
+
+    return {
+      ticker: pos.ticker,
+      label: pos.label,
+      valEUR: pos.valEUR,
+      divYield,
+      annualDivGross,
+      whtRate,
+      whtAmount,
+      netDiv,
+      recommendation,
+      reason,
+      alternativeETF,
+    };
+  }).sort((a, b) => b.whtAmount - a.whtAmount);
+
+  const totalAnnualDiv = positions.reduce((s, p) => s + p.annualDivGross, 0);
+  const totalWHT = positions.reduce((s, p) => s + p.whtAmount, 0);
+  const savingsIfEliminated = totalWHT; // if all dividends eliminated, save all WHT
+
+  return {
+    positions,
+    totalAnnualDiv,
+    totalWHT,
+    savingsIfEliminated,
+  };
+}
+
+/**
+ * Compute NW history with live current values
+ */
+function computeNWHistory(coupleNW, amineNW, nezhaNW) {
+  const history = NW_HISTORY.map(h => {
+    if (h.coupleNW === null) {
+      return { ...h, coupleNW: coupleNW, amineNW: amineNW, nezhaNW: nezhaNW };
+    }
+    return { ...h };
+  });
+  return history;
 }
 
 /**
@@ -857,6 +1085,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const immoView = computeImmoView(p, fx);
   const creancesView = computeCreancesView(p, fx);
 
+  // ---- DIVIDEND / WHT ANALYSIS ----
+  const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);
+
+  // ---- NW HISTORY (live current point) ----
+  const nwHistory = computeNWHistory(coupleNW, amineNW, nezhaNW + nezhaVillejuifEquity);
+
   return {
     fx,
     stockSource,
@@ -872,6 +1106,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     cashView,
     immoView,
     creancesView,
+    dividendAnalysis,
+    nwHistory,
   };
 }
 

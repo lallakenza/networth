@@ -59,7 +59,7 @@ export function render(state, view, currency) {
   }
 
   // Asset-type views
-  if (view === 'actions') renderActionsView(state);
+  if (view === 'actions') { renderActionsView(state); renderWHTAnalysis(state); }
   if (view === 'cash') renderCashView(state);
   if (view === 'immobilier') renderImmoView(state);
   if (view === 'creances') renderCreancesView(state);
@@ -891,7 +891,7 @@ function renderImmoView(state) {
   setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
   document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
 
-  // Property cards
+  // Property cards with fiscal data
   const grid = document.getElementById('propGrid');
   if (grid) {
     grid.innerHTML = '';
@@ -900,7 +900,12 @@ function renderImmoView(state) {
       card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
       const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
       const cfSign = prop.cf >= 0 ? '+' : '';
-      card.innerHTML = '<h3>' + prop.name + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
+      const f = prop.fiscalite;
+      const fiscLine = f ? '<div class="prop-kpi"><div class="pk-val pl-neg">' + f.monthlyImpot + '</div><div class="pk-label">Impot /mois</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</div><div class="pk-label">Yield net fiscal</div></div>'
+        : '';
+      const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + (f.type === 'lmnp' ? 'LMNP' : 'NU') + ' ' + f.regime + '</span>' : '';
+      card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
         + '<div class="prop-owner">' + prop.owner + '</div>'
         + '<div class="prop-kpis">'
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity</div></div>'
@@ -909,6 +914,7 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer</div></div>'
+        + fiscLine
         + '</div>';
       grid.appendChild(card);
     });
@@ -931,6 +937,87 @@ function renderImmoView(state) {
       loansTbody.appendChild(tr);
     });
   }
+
+  // Amortization KPIs
+  setEur('kpiAmortInterestPaid', iv.totalInterestPaid);
+  setEur('kpiAmortInterestRemaining', iv.totalInterestRemaining);
+
+  // Milestones
+  const schedules = iv.amortSchedules || {};
+  const crossovers = Object.entries(schedules).filter(([,a]) => a.milestones.crossoverDate).map(([k,a]) => a.milestones.crossoverDate);
+  setText('kpiAmortMilestone1', crossovers.length > 0 ? crossovers.sort()[Math.floor(crossovers.length/2)] : '-');
+  const halfCRDs = Object.entries(schedules).filter(([,a]) => a.milestones.halfCRDDate).map(([k,a]) => a.milestones.halfCRDDate);
+  setText('kpiAmortMilestone2', halfCRDs.length > 0 ? halfCRDs.sort()[0] : '-');
+
+  // Amortization summary table
+  const amortTbody = document.getElementById('amortSummaryTbody');
+  if (amortTbody) {
+    amortTbody.innerHTML = '';
+    const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+    for (const [key, amort] of Object.entries(schedules)) {
+      const loan = state.portfolio ? null : null; // loan data is in the schedule
+      const first = amort.schedule[0];
+      const current = amort.schedule[amort.currentIdx] || amort.schedule[amort.schedule.length - 1];
+      const principal = amort.schedule.length > 0 ? Math.round(amort.schedule.reduce((s,r) => s + r.principal, 0) + amort.schedule[0].remainingCRD + amort.schedule[0].interest - amort.schedule[0].payment) : 0;
+      const totalPrincipal = Math.round(amort.totalInterest + amort.schedule[amort.schedule.length-1].remainingCRD + amort.schedule.reduce((s,r)=>s+r.principal,0) - amort.schedule.reduce((s,r)=>s+r.principal,0));
+      const rate = amort.schedule.length > 1 ? (first.interest / (first.remainingCRD + first.principal) * 12 * 100).toFixed(2) : '-';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (loanNames[key] || key) + '</td>'
+        + '<td class="num">' + fmt(amort.schedule[0].remainingCRD + amort.schedule[0].principal) + '</td>'
+        + '<td class="num">' + rate + '%</td>'
+        + '<td class="num">' + Math.round(amort.schedule.length / 12) + ' ans</td>'
+        + '<td class="num">' + first.payment + '/mois</td>'
+        + '<td class="num">' + fmt(current.remainingCRD) + '</td>'
+        + '<td class="num">' + fmt(amort.interestPaid) + '</td>'
+        + '<td class="num">' + fmt(amort.interestRemaining) + '</td>';
+      amortTbody.appendChild(tr);
+    }
+  }
+
+  // Fiscal table
+  const fiscTbody = document.getElementById('fiscalTbody');
+  if (fiscTbody) {
+    fiscTbody.innerHTML = '';
+    let totalImpot = 0;
+    iv.properties.forEach(prop => {
+      const f = prop.fiscalite;
+      if (!f) return;
+      totalImpot += f.totalImpot;
+      const tr = document.createElement('tr');
+      if (prop.conditional) tr.style.color = '#92400e';
+      const regimeLabel = f.type === 'lmnp' ? 'LMNP ' + f.regime : f.regime;
+      tr.innerHTML = '<td>' + prop.name + '</td>'
+        + '<td>' + regimeLabel + '</td>'
+        + '<td class="num">' + f.loyerDeclare.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + f.abattement.toLocaleString('fr-FR') + ' (' + f.abattementPct + '%)</td>'
+        + '<td class="num">' + f.revenuImposable.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + f.ir.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + f.ps.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num pl-neg">' + f.totalImpot.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num ' + (prop.yieldNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</td>';
+      fiscTbody.appendChild(tr);
+    });
+    // Total row
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td colspan="7"><strong>Total</strong></td>'
+      + '<td class="num pl-neg"><strong>' + totalImpot.toLocaleString('fr-FR') + '/an</strong></td>'
+      + '<td></td>';
+    fiscTbody.appendChild(tr);
+  }
+
+  // Fiscal summary
+  const fiscSummary = document.getElementById('fiscalSummary');
+  if (fiscSummary) {
+    const loyerAn = iv.totalLoyerAnnuel;
+    const impotAn = iv.totalImpotAnnuel;
+    const cashNonDeclare = iv.properties.reduce((s, p) => s + (p.fiscalite && p.fiscalite.loyerCash ? p.fiscalite.loyerCash : 0), 0);
+    fiscSummary.innerHTML = '<strong>Synthese fiscale :</strong> '
+      + 'Loyers declares ' + Math.round(loyerAn - cashNonDeclare).toLocaleString('fr-FR') + '/an'
+      + (cashNonDeclare > 0 ? ' (+ ' + Math.round(cashNonDeclare).toLocaleString('fr-FR') + ' non declare)' : '')
+      + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
+      + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (iv.totalCFNetFiscal >= 0 ? '+' : '') + iv.totalCFNetFiscal + '/mois</strong>';
+  }
 }
 
 function renderCreancesView(state) {
@@ -942,14 +1029,29 @@ function renderCreancesView(state) {
   setEur('kpiCreancesUncertain', crv.totalUncertain);
   setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
 
-  // Detail table
+  // Detail table with recouvrement
   const tbody = document.getElementById('creancesDetailTbody');
   if (tbody) {
     tbody.innerHTML = '';
     crv.items.forEach(item => {
       const tr = document.createElement('tr');
       const probStyle = item.guaranteed ? 'color:var(--green);font-weight:600' : (item.probability >= 0.7 ? 'color:#d69e2e' : 'color:var(--red)');
-      tr.innerHTML = '<td>' + item.label + (item.guaranteed ? ' <span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749">GARANTI</span>' : '') + '</td>'
+
+      // Status badge
+      const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
+      const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
+      const st = item.status || 'en_cours';
+      const statusBadge = '<span style="background:' + (statusColors[st] || '#718096') + ';color:white;padding:1px 6px;border-radius:4px;font-size:10px">' + (statusLabels[st] || st.toUpperCase()) + '</span>';
+      const followUpIcon = item.needsFollowUp ? ' <span title="Relancer ! Dernier contact il y a ' + item.daysSinceContact + 'j" style="color:var(--red);font-weight:700;cursor:help">⚠</span>' : '';
+      const overdueTxt = item.daysOverdue > 0 ? ' <span style="color:var(--red);font-size:11px">(' + item.daysOverdue + 'j retard)</span>' : '';
+
+      // Recovery progress bar
+      const recovPct = Math.min(100, item.recoveryPct);
+      const recovBar = item.paymentsTotal > 0
+        ? '<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:4px"><div style="background:var(--green);height:100%;border-radius:4px;width:' + recovPct + '%"></div></div>'
+        : '';
+
+      tr.innerHTML = '<td>' + item.label + ' ' + statusBadge + followUpIcon + overdueTxt + recovBar + '</td>'
         + '<td>' + item.owner + '</td>'
         + '<td>' + item.currency + '</td>'
         + '<td class="num">' + Math.round(item.amount).toLocaleString('fr-FR') + '</td>'
@@ -978,6 +1080,50 @@ function renderCreancesView(state) {
     bar.innerHTML = '<div class="mb-seg" style="width:' + pctG + '%;background:var(--green)">' + pctG + '% (' + fmt(crv.totalGuaranteed, true) + ')</div>'
       + '<div class="mb-seg" style="width:' + pctU + '%;background:var(--red)">' + pctU + '% (' + fmt(crv.totalUncertain, true) + ')</div>';
   }
+
+  // Follow-up alert
+  if (crv.needsFollowUpCount > 0) {
+    const alertEl = document.getElementById('creancesAlert');
+    if (alertEl) {
+      alertEl.innerHTML = '<strong style="color:var(--red)">⚠ ' + crv.needsFollowUpCount + ' creance(s) a relancer</strong> — Dernier contact > 30 jours';
+      alertEl.style.display = '';
+    }
+  }
+}
+
+// ---- WHT / Dividend render ----
+function renderWHTAnalysis(state) {
+  const div = state.dividendAnalysis;
+  if (!div) return;
+
+  setText('kpiWhtTotalDiv', fmt(div.totalAnnualDiv) + '/an');
+  setText('kpiWhtTotal', '-' + fmt(div.totalWHT) + '/an');
+  document.getElementById('kpiWhtTotal')?.classList.add('pl-neg');
+  setText('kpiWhtSavings', '+' + fmt(div.savingsIfEliminated) + '/an');
+  const switchCount = div.positions.filter(p => p.recommendation === 'switch').length;
+  setText('kpiWhtPositions', switchCount + ' position' + (switchCount > 1 ? 's' : ''));
+
+  const tbody = document.getElementById('whtTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  div.positions.forEach(p => {
+    if (p.divYield === 0 && p.whtAmount === 0) return; // skip zero-div positions
+    const tr = document.createElement('tr');
+    const recBg = p.recommendation === 'switch' ? 'background:#fff5f5;' : '';
+    const recBadge = p.recommendation === 'switch'
+      ? '<span style="background:#fed7d7;color:#c53030;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">SWITCHER</span>'
+      : '<span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749">GARDER</span>';
+    tr.style.cssText = recBg;
+    tr.innerHTML = '<td>' + p.label + '</td>'
+      + '<td class="num">' + fmt(p.valEUR) + '</td>'
+      + '<td class="num">' + (p.divYield * 100).toFixed(1) + '%</td>'
+      + '<td class="num">' + fmt(p.annualDivGross) + '</td>'
+      + '<td class="num">' + (p.whtRate * 100).toFixed(1) + '%</td>'
+      + '<td class="num pl-neg">' + (p.whtAmount > 0 ? '-' + fmt(p.whtAmount) : '-') + '</td>'
+      + '<td>' + recBadge + '</td>'
+      + '<td style="font-size:11px;color:var(--gray)">' + (p.alternativeETF || '-') + '</td>';
+    tbody.appendChild(tr);
+  });
 }
 
 function buildDetailTable(selector, rows, totalLabel) {

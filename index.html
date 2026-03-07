@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Patrimonial — Amine & Nezha</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.0/dist/chartjs-chart-treemap.min.js"></script>
 <style>
   :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; --gold: #b7791f; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -403,6 +404,18 @@
   </div>
 </div>
 
+<!-- NW HISTORY -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F4C8;</span>Evolution du Patrimoine</h2>
+  <div class="chart-container" style="height:320px"><canvas id="nwHistoryChart"></canvas></div>
+</div>
+
+<!-- TREEMAP -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F5FA;</span>Treemap Patrimonial</h2>
+  <div class="chart-container" style="height:380px"><canvas id="coupleTreemap"></canvas></div>
+</div>
+
 <!-- AMINE: PATRIMOINE DETAIL -->
 <div class="card" data-view="amine">
   <h2><span class="section-icon" style="background: var(--accent);">A</span>Patrimoine Amine — Detail</h2>
@@ -768,6 +781,25 @@
     <h3>&#x1F4A1; Analyse &amp; Recommandations Investissement</h3>
     <div id="actionsInsights" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
   </div>
+
+  <!-- WHT / DIVIDENDS ANALYSIS -->
+  <div style="margin-top:24px;">
+    <h3>&#x1F4B8; Strat&eacute;gie Dividendes & WHT (Withholding Tax)</h3>
+    <div class="info" style="font-size:12px;margin-bottom:12px;">
+      <strong>R&eacute;sident UAE</strong> &mdash; 0% income tax, mais WHT pr&eacute;lev&eacute;e &agrave; la source sur les dividendes par le pays &eacute;metteur.
+      Plus-values : 0% WHT partout &rarr; <strong>objectif : &eacute;liminer les dividendes et privil&eacute;gier les ETFs capitalisants.</strong>
+    </div>
+    <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+      <div class="kpi"><div class="value" id="kpiWhtTotalDiv">--</div><div class="label">Dividendes Bruts Estim&eacute;s /an</div></div>
+      <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiWhtTotal">--</div><div class="label">WHT Pay&eacute;e /an</div></div>
+      <div class="kpi green"><div class="value" id="kpiWhtSavings">--</div><div class="label">&Eacute;conomie si 100% Capitalisant</div></div>
+      <div class="kpi"><div class="value" id="kpiWhtPositions">--</div><div class="label">Positions &agrave; Switcher</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Position</th><th class="num">Valeur</th><th class="num">Div Yield</th><th class="num">Div/an</th><th class="num">WHT Rate</th><th class="num">WHT/an</th><th>Recommandation</th><th>Alternative ETF</th></tr></thead>
+      <tbody id="whtTbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ============ VUE CASH ============ -->
@@ -838,6 +870,35 @@
     <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Yield brut</th><th class="num">Yield net</th></tr></thead>
     <tbody id="immoLoansTbody"></tbody>
   </table>
+
+  <!-- TABLEAU D'AMORTISSEMENT -->
+  <h3 style="margin-top:24px;">&#x1F4CA; Tableau d'Amortissement</h3>
+  <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+    <div class="kpi"><div class="value" id="kpiAmortInterestPaid" data-eur="0">--</div><div class="label">Int&eacute;r&ecirc;ts D&eacute;j&agrave; Pay&eacute;s</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiAmortInterestRemaining" data-eur="0">--</div><div class="label">Int&eacute;r&ecirc;ts Restants</div></div>
+    <div class="kpi green"><div class="value" id="kpiAmortMilestone1">--</div><div class="label">Crossover Int&eacute;r&ecirc;t/Capital</div></div>
+    <div class="kpi"><div class="value" id="kpiAmortMilestone2">--</div><div class="label">50% CRD Rembours&eacute;</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Bien</th><th class="num">Capital emprunt&eacute;</th><th class="num">Taux</th><th class="num">Dur&eacute;e</th><th class="num">Mensualit&eacute;</th><th class="num">CRD actuel</th><th class="num">Int. pay&eacute;s</th><th class="num">Int. restants</th></tr></thead>
+    <tbody id="amortSummaryTbody"></tbody>
+  </table>
+  <div class="grid2" style="margin-top:16px;">
+    <div class="chart-container" style="height: 300px;"><canvas id="amortChart"></canvas></div>
+    <div></div>
+  </div>
+
+  <!-- FISCALITE -->
+  <h3 style="margin-top:24px;">&#x1F4B0; Fiscalit&eacute; Immobili&egrave;re</h3>
+  <div class="info" style="font-size:12px;margin-bottom:12px;">
+    <strong>R&eacute;sidents fiscaux UAE</strong> — Revenus fonciers de source fran&ccedil;aise : taux minimum 20% (non-r&eacute;sident) + PS 17.2%.<br>
+    Vitry : location nue (micro-foncier, abattement 30%). Rueil + Villejuif : LMNP (micro-BIC, abattement 50%).
+  </div>
+  <table>
+    <thead><tr><th>Bien</th><th>R&eacute;gime</th><th class="num">Loyer d&eacute;clar&eacute;</th><th class="num">Abattement</th><th class="num">Rev. imposable</th><th class="num">IR (20%)</th><th class="num">PS (17.2%)</th><th class="num">Total imp&ocirc;t/an</th><th class="num">Yield net fiscal</th></tr></thead>
+    <tbody id="fiscalTbody"></tbody>
+  </table>
+  <div id="fiscalSummary" class="highlight" style="margin-top:12px;"></div>
 </div>
 
 <!-- ============ VUE CREANCES ============ -->
@@ -850,6 +911,8 @@
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCreancesUncertain" data-eur="0">--</div><div class="label">Incertain</div></div>
     <div class="kpi"><div class="value" id="kpiCreancesInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
   </div>
+
+  <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
 
   <h3>D&eacute;tail des Cr&eacute;ances</h3>
   <table>

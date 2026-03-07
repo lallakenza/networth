@@ -5,7 +5,7 @@
 
 import { fmt, fmtAxis } from './render.js?v=3';
 import { getGrandTotal } from './engine.js?v=3';
-import { IMMO_CONSTANTS } from './data.js?v=3';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=3';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -43,6 +43,12 @@ export function rebuildAllCharts(state, view) {
   if (view === 'immobilier') {
     buildImmoViewEquityBar(state);
     buildImmoViewProjection(state);
+    buildAmortChart(state);
+  }
+
+  if (PERSON_VIEWS.includes(view)) {
+    buildNWHistoryChart(state);
+    buildCoupleTreemap(state);
   }
 }
 
@@ -481,6 +487,235 @@ function buildImmoViewEquityBar(state) {
       plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
         tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
       scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
+// ============ NW HISTORY LINE CHART ============
+function buildNWHistoryChart(state) {
+  const el = document.getElementById('nwHistoryChart');
+  if (!el) return;
+  if (charts.nwHistory) { charts.nwHistory.destroy(); delete charts.nwHistory; }
+
+  const history = state.nwHistory;
+  if (!history || history.length === 0) return;
+
+  const labels = history.map(h => {
+    const [y, m] = h.date.split('-');
+    const months = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
+    return months[parseInt(m) - 1] + ' ' + y;
+  });
+
+  const annotations = history.filter(h => h.note).map(h => {
+    const idx = history.indexOf(h);
+    return { idx, note: h.note };
+  });
+
+  charts.nwHistory = new Chart(el, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Couple', data: history.map(h => h.coupleNW), borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.1)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#48bb78' },
+        { label: 'Amine', data: history.map(h => h.amineNW), borderColor: '#2b6cb0', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3, borderDash: [5, 3] },
+        { label: 'Nezha', data: history.map(h => h.nezhaNW), borderColor: '#d69e2e', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3, borderDash: [5, 3] },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: 'Evolution du Net Worth', font: { size: 14 } },
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const val = c.parsed.y;
+              const prev = c.dataIndex > 0 ? c.dataset.data[c.dataIndex - 1] : null;
+              let pctChange = '';
+              if (prev && prev > 0) {
+                const pct = ((val - prev) / prev * 100).toFixed(1);
+                pctChange = ' (' + (val > prev ? '+' : '') + pct + '%)';
+              }
+              return c.dataset.label + ': ' + fmt(val) + pctChange;
+            },
+            afterBody: (items) => {
+              const idx = items[0]?.dataIndex;
+              const h = history[idx];
+              return h && h.note ? [h.note] : [];
+            }
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => fmtAxis(v) } }
+      }
+    }
+  });
+}
+
+// ============ COUPLE TREEMAP ============
+function buildCoupleTreemap(state) {
+  const el = document.getElementById('coupleTreemap');
+  if (!el) return;
+  if (charts.coupleTreemap) { charts.coupleTreemap.destroy(); delete charts.coupleTreemap; }
+
+  // Check if TreemapController is registered
+  if (typeof Chart.registry.controllers.get('treemap') === 'undefined') {
+    // treemap plugin not loaded, skip
+    return;
+  }
+
+  const CATS = state.coupleCategories;
+  const grandTotal = getGrandTotal(state);
+
+  // Build flat array for treemap
+  const treeData = [];
+  CATS.forEach(cat => {
+    cat.sub.forEach(sub => {
+      if (sub.val > 0) {
+        treeData.push({
+          label: sub.label,
+          category: cat.label,
+          value: sub.val,
+          color: sub.color || cat.color,
+          catColor: cat.color,
+        });
+      }
+    });
+  });
+
+  charts.coupleTreemap = new Chart(el, {
+    type: 'treemap',
+    data: {
+      datasets: [{
+        tree: treeData,
+        key: 'value',
+        groups: ['category', 'label'],
+        borderWidth: 2,
+        borderColor: '#fff',
+        spacing: 1,
+        backgroundColor: function(ctx) {
+          if (!ctx.raw) return '#e2e8f0';
+          const item = ctx.raw;
+          // Find matching cat color
+          const catIdx = item._data?._level === 0 ? item._data.index : -1;
+          if (item._data && item._data.children) {
+            // group level
+            const catName = item._data.label || '';
+            const cat = CATS.find(c => c.label === catName);
+            return cat ? cat.color + '40' : '#e2e8f0';
+          }
+          // leaf level
+          const dataItem = treeData[item.dataIndex] || treeData.find(d => d.label === item.raw?.label);
+          return dataItem ? dataItem.color : '#a0aec0';
+        },
+        labels: {
+          display: true,
+          align: 'left',
+          position: 'top',
+          color: '#fff',
+          font: { size: 11, weight: 'bold' },
+          formatter: function(ctx) {
+            if (!ctx || !ctx.raw) return '';
+            const v = ctx.raw.v || ctx.raw.value || 0;
+            const pct = (v / grandTotal * 100).toFixed(1);
+            return ctx.raw.g ? ctx.raw.g + '\n' + fmt(v, true) + ' (' + pct + '%)' : '';
+          }
+        }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: false },
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.raw?.g || '',
+            label: item => {
+              const v = item.raw?.v || 0;
+              return fmt(v) + ' (' + (v / grandTotal * 100).toFixed(1) + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============ AMORTIZATION CHART ============
+function buildAmortChart(state) {
+  const el = document.getElementById('amortChart');
+  if (!el) return;
+  if (charts.amortChart) { charts.amortChart.destroy(); delete charts.amortChart; }
+
+  const iv = state.immoView;
+  if (!iv || !iv.amortSchedules) return;
+
+  // Build stacked area: show CRD evolution over time for each loan
+  const schedules = iv.amortSchedules;
+  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+
+  // Find the longest schedule and sample yearly
+  let maxMonths = 0;
+  for (const [, amort] of Object.entries(schedules)) {
+    maxMonths = Math.max(maxMonths, amort.schedule.length);
+  }
+
+  // Sample every 12 months
+  const yearStep = 12;
+  const labels = [];
+  const datasets = {};
+  for (const key of Object.keys(schedules)) {
+    datasets[key] = [];
+  }
+
+  for (let m = 0; m < maxMonths; m += yearStep) {
+    const firstSched = Object.values(schedules)[0];
+    if (firstSched.schedule[m]) {
+      labels.push(firstSched.schedule[m].date || ('M' + m));
+    } else {
+      labels.push('M' + m);
+    }
+    for (const [key, amort] of Object.entries(schedules)) {
+      const row = amort.schedule[Math.min(m, amort.schedule.length - 1)];
+      datasets[key].push(Math.round(row.remainingCRD));
+    }
+  }
+
+  const chartDatasets = Object.entries(datasets).map(([key, data]) => ({
+    label: loanNames[key] || key,
+    data,
+    borderColor: loanColors[key] || '#a0aec0',
+    backgroundColor: (loanColors[key] || '#a0aec0') + '20',
+    fill: true,
+    tension: 0.3,
+    borderWidth: 2,
+    pointRadius: 2,
+  }));
+
+  charts.amortChart = new Chart(el, {
+    type: 'line',
+    data: { labels, datasets: chartDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: 'Evolution CRD par pret', font: { size: 14 } },
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: c => c.dataset.label + ': ' + fmt(c.parsed.y)
+          }
+        }
+      },
+      scales: {
+        y: {
+          stacked: false,
+          ticks: { callback: v => fmtAxis(v) },
+          title: { display: true, text: 'CRD (EUR)', font: { size: 11 } }
+        }
+      }
+    }
   });
 }
 
