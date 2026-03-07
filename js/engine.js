@@ -256,7 +256,7 @@ function computeCashView(portfolio, fx) {
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR', yield: CASH_YIELDS.ibkrCashEUR, owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD', yield: CASH_YIELDS.ibkrCashUSD, owner: 'Amine' },
-    { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY', yield: 0, owner: 'Amine', isDebt: true },
+    { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY', yield: CASH_YIELDS.ibkrCashJPY, owner: 'Amine', isDebt: true },
     { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
     { label: 'Cash France', native: p.nezha.cashFrance, currency: 'EUR', yield: CASH_YIELDS.nezhaCashFrance, owner: 'Nezha' },
     { label: 'Cash Maroc', native: p.nezha.cashMaroc, currency: 'MAD', yield: CASH_YIELDS.nezhaCashMaroc, owner: 'Nezha' },
@@ -270,12 +270,13 @@ function computeCashView(portfolio, fx) {
     a.valEUR = toEUR(a.native, a.currency, fx);
     if (a.isDebt) return; // exclude debt (JPY short) from cash totals
     totalCash += a.valEUR;
-    if (a.yield > 0) {
+    const PRODUCTIVE_THRESHOLD = 0.03; // ≥3% = productif, <3% = dormant
+    if (a.yield >= PRODUCTIVE_THRESHOLD) {
       totalYielding += a.valEUR;
-      weightedYieldSum += a.valEUR * a.yield;
     } else {
       totalNonYielding += a.valEUR;
     }
+    weightedYieldSum += a.valEUR * (a.yield || 0);
     byCurrency[a.currency] = (byCurrency[a.currency] || 0) + a.valEUR;
   });
 
@@ -288,7 +289,8 @@ function computeCashView(portfolio, fx) {
   const diagnostics = [];
 
   // 1. Dormant cash losing to inflation
-  const dormantAccounts = accounts.filter(a => a.yield === 0 && a.valEUR > 1000);
+  const PRODUCTIVE_THRESHOLD = 0.03;
+  const dormantAccounts = accounts.filter(a => !a.isDebt && (a.yield || 0) < PRODUCTIVE_THRESHOLD && a.valEUR > 1000);
   dormantAccounts.forEach(a => {
     const erosion = a.valEUR * INFLATION_RATE;
     diagnostics.push({
@@ -298,12 +300,14 @@ function computeCashView(portfolio, fx) {
       owner: a.owner,
       amountEUR: a.valEUR,
       annualLoss: erosion,
+      currentYield: a.yield || 0,
       currency: a.currency,
       inflationPct: INFLATION_RATE * 100,
       action: a.currency === 'AED' ? 'Transférer vers Wio Savings (6%) ou Mashreq NEO+ (6.25%)'
         : a.currency === 'MAD' ? 'Ouvrir un DAT ou OPCVM monétaire au Maroc (3-4%)'
         : a.currency === 'EUR' && a.label.includes('Revolut') ? 'Activer le coffre Revolut ou transférer vers un livret (2-3%)'
         : a.currency === 'EUR' && a.label.includes('ESPP') ? 'Transférer vers compte rémunéré ou investir'
+        : a.currency === 'EUR' && a.label.includes('France') ? 'Placer sur livret A, fonds euro, ou assurance-vie'
         : a.currency === 'EUR' ? 'Placer sur livret, fonds euro, ou OPCVM monétaire'
         : 'Chercher un placement rémunéré dans cette devise',
     });
