@@ -53,7 +53,7 @@ export function render(state, view, currency) {
     renderCoupleTable(state);
     renderAmineTable(state);
     renderNezhaTable(state);
-    renderIBKRPositions(state);
+    renderIBKRPositionsSimple(state);
     renderImmoKPIs(state);
     renderImmoPcts(state);
   }
@@ -291,7 +291,7 @@ function renderNezhaTable(state) {
   tbody.appendChild(tr);
 }
 
-function renderIBKRPositions(state) {
+function renderIBKRPositionsSimple(state) {
   const tbody = document.getElementById('ibkrPositionsTbody');
   if (!tbody) return;
   tbody.innerHTML = '';
