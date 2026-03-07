@@ -268,6 +268,7 @@ function computeCashView(portfolio, fx) {
 
   accounts.forEach(a => {
     a.valEUR = toEUR(a.native, a.currency, fx);
+    if (a.isDebt) return; // exclude debt (JPY short) from cash totals
     totalCash += a.valEUR;
     if (a.yield > 0) {
       totalYielding += a.valEUR;
