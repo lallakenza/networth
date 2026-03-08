@@ -189,11 +189,12 @@ function buildSimChart(canvasId, chartKey, result) {
     data: { labels: dataLabels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         tooltip: {
+          mode: 'index', intersect: false,
           callbacks: {
             label: c => {
-              // Show actual (non-cumulative) value in tooltip
               const ds = c.dataset;
               const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
               return ds.label + ': ' + fmt(actual);
@@ -398,8 +399,10 @@ function runNezhaSimulator(state) {
     data: { labels: dataLabels, datasets: nzDatasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         tooltip: {
+          mode: 'index', intersect: false,
           callbacks: {
             label: c => {
               const ds = c.dataset;
