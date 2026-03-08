@@ -313,8 +313,8 @@ function renderExpandSubs(state) {
     if (immoTbody) {
       let html = '';
       const propMeta = {
-        vitry: { desc: '67 m2 \u2014 loyer 1,200 + parking 70 cash', owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
-        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC + 150 charges (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
+        vitry: { desc: '67 m2 \u2014 loyer 1,050 HC + 150 charges + 70 parking', owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
+        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
         villejuif: { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
       };
       iv.properties.forEach(prop => {
@@ -1187,7 +1187,7 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.crd) + '</div><div class="pk-label">CRD</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
       grid.appendChild(card);
@@ -1469,7 +1469,7 @@ function renderBudgetView(state) {
         html += '<span style="font-size:13px;color:var(--gray)"><em>VEFA \u2014 seule assurance pr\u00eat (' + fmt(prop.currentCharges) + ')</em></span>';
       } else {
         if (prop.loyer > 0) {
-          html += '<span style="font-size:13px;color:var(--gray)">Loyer : <strong style="color:var(--green)">' + fmt(prop.loyer) + '</strong></span>';
+          html += '<span style="font-size:13px;color:var(--gray)">Loyer HC : <strong style="color:var(--green)">' + fmt(prop.loyer) + '</strong></span>';
         } else {
           html += '<span style="font-size:13px;color:var(--gray)">Loyer : <em>pas encore lou\u00e9</em></span>';
         }

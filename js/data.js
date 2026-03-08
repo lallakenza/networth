@@ -121,7 +121,11 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 293000, crd: 268903, loyer: 1200, parking: 70 },
+      vitry: { value: 293000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
+      // loyerHC: 500€ bail HC + 550€ cash = 1050€ HC total
+      // chargesLocataire: 150€ provision charges (offsets copro)
+      // parking: 70€ cash
+      // Total reçu: 1050 + 150 + 70 = 1270€/mois
     },
 
     // ──────────────────────────────────────────────────────
@@ -432,8 +436,8 @@ export const IMMO_CONSTANTS = {
   //   PS : 17.2%
   // ──────────────────────────────────────────────────────
   fiscalite: {
-    vitry:     { regime: 'reel-foncier', tmi: 0.20, ps: 0.172, cashNonDeclare: 0.30, type: 'nu' },
-    // cashNonDeclare: 30% du loyer reçu en cash → base imposable réduite
+    vitry:     { regime: 'reel-foncier', tmi: 0.20, ps: 0.172, type: 'nu' },
+    // Vitry : loyerDeclare (500€/mois) est dans portfolio.amine.immo.vitry
     // Régime réel : on déduit intérêts d'emprunt, assurance, PNO, TF, copro
     // TMI 20% + PS 17.2% = taux effectif ~37% sur le revenu net
     rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },

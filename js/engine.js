@@ -777,13 +777,13 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
  * Handles: micro-foncier (nu), micro-BIC (LMNP), réel foncier, réel BIC
  * Non-résident UAE : taux minimum 20% + PS 17.2%
  */
-function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) {
+function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscConfig, loanInterestAnnuel) {
   const f = fiscConfig;
 
-  // Si une partie est reçue en cash non déclaré, on réduit la base
-  const cashPct = f.cashNonDeclare || 0;
-  const loyerDeclare = loyerAnnuel * (1 - cashPct);
-  const loyerCash = loyerAnnuel * cashPct;
+  // loyerDeclareAnnuel = revenu déclaré (bail officiel)
+  // loyerTotalAnnuel = revenu total (HC + parking + charges locataire)
+  const loyerDeclare = loyerDeclareAnnuel;
+  const loyerCash = loyerTotalAnnuel - loyerDeclareAnnuel;
 
   if (f.regime === 'micro-foncier') {
     // Location NUE — abattement forfaitaire 30%
@@ -793,7 +793,7 @@ function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) 
     const totalImpot = ir + ps;
     return {
       regime: 'micro-foncier', type: f.type || 'nu',
-      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
       abattement: Math.round(loyerDeclare * 0.30),
       abattementPct: 30,
       revenuImposable: Math.round(revenuImposable),
@@ -812,7 +812,7 @@ function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) 
     const totalImpot = ir + ps;
     return {
       regime: 'micro-bic', type: 'lmnp',
-      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
       abattement: Math.round(loyerDeclare * 0.50),
       abattementPct: 50,
       revenuImposable: Math.round(revenuImposable),
@@ -828,7 +828,7 @@ function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) 
     // L'amortissement couvre largement le revenu net → impôt = 0
     return {
       regime: 'lmnp-amort', type: 'lmnp',
-      loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
       abattement: 0, abattementPct: 0,
       revenuImposable: 0,
       ir: 0, ps: 0,
@@ -849,7 +849,7 @@ function computeFiscalite(loyerAnnuel, charges, fiscConfig, loanInterestAnnuel) 
   const totalImpot = ir + ps;
   return {
     regime: f.regime, type: f.type || 'nu',
-    loyerAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+    loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
     deductions: Math.round(deductions),
     revenuImposable: Math.round(revenuImposable),
     deficit: Math.round(deficit),
@@ -886,10 +886,20 @@ function computeImmoView(portfolio, fx) {
   // Helper to build property with fiscal data
   function buildProperty(name, owner, propData, chargesConfig, loanKey, conditional) {
     const charges = chargesConfig.pret + chargesConfig.assurance + chargesConfig.pno + chargesConfig.tf + chargesConfig.copro;
-    const loyer = propData.loyer + (propData.parking || 0);
-    const cf = loyer - charges;
-    const loyerAnnuel = loyer * 12;
+    // loyerHC: rent portion (excluding tenant charges provision)
+    const loyerHC = propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0);
+    const parking = propData.parking || 0;
+    const chargesLoc = propData.chargesLocataire || 0;
+    const loyer = loyerHC + parking;        // HC display value
+    const totalRevenue = loyer + chargesLoc; // full revenue (charges provision offsets copro)
+    const cf = totalRevenue - charges;
     const amort = amortSchedules[loanKey];
+
+    // Fiscal: use explicit declared amount if available, else all rent is declared
+    const loyerDeclareAnnuel = propData.loyerDeclare
+      ? propData.loyerDeclare * 12
+      : loyerHC * 12;
+    const loyerTotalAnnuel = totalRevenue * 12;
 
     // Fiscal calculation
     const loanInterestAnnuel = amort
@@ -898,7 +908,7 @@ function computeImmoView(portfolio, fx) {
     // Charges déductibles : PNO + TF + copro + assurance emprunteur (pour régime réel)
     const deductibleCharges = chargesConfig.pno + chargesConfig.tf + chargesConfig.copro + chargesConfig.assurance;
     const fisc = IC.fiscalite && IC.fiscalite[loanKey]
-      ? computeFiscalite(loyerAnnuel, deductibleCharges, IC.fiscalite[loanKey], loanInterestAnnuel)
+      ? computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, deductibleCharges, IC.fiscalite[loanKey], loanInterestAnnuel)
       : null;
 
     const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;
@@ -915,8 +925,8 @@ function computeImmoView(portfolio, fx) {
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
       monthlyPret: chargesConfig.pret,
       monthlyAssurance: chargesConfig.assurance,
-      loyer, cf,
-      yieldGross: (loyer * 12 / propData.value * 100),
+      loyer, totalRevenue, cf,
+      yieldGross: (totalRevenue * 12 / propData.value * 100),
       yieldNet: (cf * 12 / propData.value * 100),
       yieldNetFiscal: fisc ? (cfNetFiscal * 12 / propData.value * 100) : null,
       wealthCreation: IC.growth[loanKey],
@@ -941,7 +951,7 @@ function computeImmoView(portfolio, fx) {
 
   // Fiscal totals
   const totalImpotAnnuel = properties.reduce((s, p) => s + (p.fiscalite ? p.fiscalite.totalImpot : 0), 0);
-  const totalLoyerAnnuel = properties.reduce((s, p) => s + p.loyer * 12, 0);
+  const totalLoyerAnnuel = properties.reduce((s, p) => s + (p.totalRevenue || p.loyer) * 12, 0);
   const totalCFNetFiscal = properties.reduce((s, p) => s + (p.cfNetFiscal || p.cf), 0);
 
   // Amortization totals
@@ -1088,10 +1098,11 @@ function computeBudgetView(portfolio, fx) {
       }
     });
 
-    // Get loyer from portfolio data
+    // Get loyer from portfolio data (total revenue including charges provision)
     let loyer = 0;
     if (prop === 'vitry' && p.amine && p.amine.immo && p.amine.immo.vitry) {
-      loyer = (p.amine.immo.vitry.loyer || 0) + (p.amine.immo.vitry.parking || 0);
+      const v = p.amine.immo.vitry;
+      loyer = (v.loyerHC || v.loyer || 0) + (v.parking || 0) + (v.chargesLocataire || 0);
     } else if (p.nezha && p.nezha.immo && p.nezha.immo[prop]) {
       loyer = p.nezha.immo[prop].loyer || 0;
     }

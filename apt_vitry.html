@@ -185,7 +185,7 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=37';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=40';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
@@ -297,7 +297,7 @@ const wealthCreation = currentCapPerMonth + monthlyAppreciation;
 
 // Cash flow
 const totalCharges = charges.pret + charges.assurance + charges.pno + charges.tf + charges.copro;
-const totalRevenue = immo.loyer + immo.parking;
+const totalRevenue = (immo.loyerHC || immo.loyer || 0) + (immo.parking || 0) + (immo.chargesLocataire || 0);
 const cfNet = totalRevenue - totalCharges;
 const wealthRatio = Math.abs(cfNet) > 0 ? (wealthCreation / Math.abs(cfNet)).toFixed(1) : 'inf';
 
@@ -363,8 +363,9 @@ document.getElementById('cfTables').innerHTML = `
   <div>
     <h3>Revenus</h3>
     <table>
-      <tr><td>Loyer (bail + cash)</td><td class="num pos">${fmt(immo.loyer)}</td></tr>
-      <tr><td>Parking (cash)</td><td class="num pos">${fmt(immo.parking)}</td></tr>
+      <tr><td>Loyer HC (bail 500 + cash 550)</td><td class="num pos">${fmt(immo.loyerHC || immo.loyer || 0)}</td></tr>
+      <tr><td>Charges locataire (provision copro)</td><td class="num pos">${fmt(immo.chargesLocataire || 0)}</td></tr>
+      <tr><td>Parking (cash)</td><td class="num pos">${fmt(immo.parking || 0)}</td></tr>
       <tr style="background:#edf2f7;font-weight:600"><td><strong>Total revenus</strong></td><td class="num pos"><strong>${fmt(totalRevenue)}</strong></td></tr>
     </table>
   </div>
