@@ -50,11 +50,15 @@
   .sort-arrow.desc::after { content: ' \u25BC'; opacity: 1; }
 
   .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-  .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); }
+  .kpi { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--accent); transition: transform 0.15s, box-shadow 0.15s; cursor: default; }
+  .kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
   .kpi.gold { border-top-color: var(--gold); }
   .kpi.green { border-top-color: var(--green); }
   .kpi .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
   .kpi .label { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .sub { font-size: 12px; color: var(--gray); margin-top: 2px; font-weight: 600; }
+  .kpi-insight-bar { max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease; background: #f7fafc; border-left: 4px solid var(--accent); border-radius: 8px; margin: -12px 0 20px; font-size: 13px; color: #4a5568; line-height: 1.5; }
+  .kpi-insight-bar.visible { max-height: 100px; opacity: 1; padding: 12px 16px; }
 
   .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
   .cat-card { background: white; border-radius: 12px; padding: 22px 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 2px solid #e2e8f0; transition: all 0.2s; cursor: pointer; position: relative; }
@@ -166,6 +170,7 @@
   <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
   <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label">Equity Immo (3 biens) *</div></div>
 </div>
+<div class="kpi-insight-bar" id="insight-couple"></div>
 
 <p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;">* incl. Villejuif VEFA — <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">conditionnel</span> acte notarie non signe</p>
 
@@ -173,9 +178,10 @@
 <div id="kpi-amine" class="kpi-strip hidden">
   <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
   <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR+ESPP)</div></div>
-  <div class="kpi"><div class="value" data-eur-pct="31.04" data-type="pct">--</div><div class="label">TWR IBKR</div></div>
+  <div class="kpi"><div class="value" id="kpiAmTWR">--</div><div class="label">TWR IBKR</div></div>
   <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">Equity Vitry</div></div>
 </div>
+<div class="kpi-insight-bar hidden" id="insight-amine"></div>
 
 <!-- KPIs NEZHA -->
 <div id="kpi-nezha" class="kpi-strip hidden">
@@ -184,6 +190,7 @@
   <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiNzVillejuif" data-eur="0">--</div><div class="label">Equity Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div></div>
   <div class="kpi"><div class="value" id="kpiNzCash" data-eur="0">--</div><div class="label">Cash + Creances</div></div>
 </div>
+<div class="kpi-insight-bar hidden" id="insight-nezha"></div>
 
 <!-- INSIGHTS GLOBAUX -->
 <!-- TREEMAP -->
@@ -648,8 +655,9 @@
     <div class="kpi"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute; (IBKR + ESPP)</div></div>
     <div class="kpi"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
     <div class="kpi gold"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label">Total D&eacute;pos&eacute; (IBKR + ESPP)</div></div>
-    <div class="kpi"><div class="value" id="kpiActionsDividends">--</div><div class="label">Dividendes + TWR</div></div>
+    <div class="kpi"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
   </div>
+  <div class="kpi-insight-bar" id="insight-actions"></div>
 
   <div class="grid2">
     <div>
@@ -755,6 +763,7 @@
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
     <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash Productif</div></div>
   </div>
+  <div class="kpi-insight-bar" id="insight-cash"></div>
 
   <h3>D&eacute;tail par Compte</h3>
   <table>
@@ -797,6 +806,7 @@
     <div class="kpi green"><div class="value" id="kpiImmoViewWealth">--</div><div class="label">Cr&eacute;ation Richesse /mois</div></div>
     <div class="kpi"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF Net /mois</div></div>
   </div>
+  <div class="kpi-insight-bar" id="insight-immo"></div>
 
   <div class="prop-grid" id="propGrid"></div>
 
@@ -926,6 +936,7 @@
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCreancesUncertain" data-eur="0">--</div><div class="label">Incertain</div></div>
     <div class="kpi"><div class="value" id="kpiCreancesInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
   </div>
+  <div class="kpi-insight-bar" id="insight-creances"></div>
 
   <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
 
@@ -955,7 +966,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=19"></script>
+<script type="module" src="js/app.js?v=20"></script>
 
 </body>
 </html>
