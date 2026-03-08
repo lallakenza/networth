@@ -313,37 +313,29 @@ export const IMMO_CONSTANTS = {
   // insurance: assurance emprunteur mensuelle
   // ──────────────────────────────────────────────────────
   loans: {
-    // ── VITRY : 3 prêts ──
-    // Combined approximation for CRD chart (somme des 3 prêts)
-    vitry: {
-      principal: 275000,     // 175K BP + 60K PTZ + 40K AL
-      rate: 0.016,           // taux moyen pondéré approx
-      startDate: '2023-03',
-      durationMonths: 300,   // 25 ans (BP le plus long)
-      monthlyPayment: 1317,
-      insurance: 17.48,      // APRIL : 209.76€/an = 17.48/mois
-    },
-    // ── Détail des 3 prêts Vitry (simulation fiscale) ──
+    // ── VITRY : 3 prêts — CRD calculé dynamiquement depuis vitryLoans ──
+    // Le champ 'vitry' est généré par computeMultiLoanSchedule(vitryLoans)
+    // insurance APRIL : 209.76€/an = 17.48€/mois (externe, non incluse dans sub-loans)
+    vitryInsurance: 17.48,
     vitryLoans: [
       {
         name: 'Action Logement',
         principal: 40000,
         rate: 0.005,           // 0.50%
-        startDate: '2023-03',
-        durationMonths: 300,   // 25 ans
+        startDate: '2023-03',  // 1ère échéance 05/03/2023
+        durationMonths: 300,   // 25 ans — fin fév 2048
         monthlyPayment: 145.20,
-        insuranceMonthly: 3.33,  // assurance AL intégrée
+        insuranceMonthly: 3.33,  // assurance AL intégrée dans l'échéance
       },
       {
         name: 'PTZ (via Banque Populaire)',
         principal: 60000,
         rate: 0,               // 0% — Prêt à Taux Zéro
-        startDate: '2023-03',
-        durationMonths: 240,   // 20 ans
-        // 2 périodes :
+        startDate: '2023-12',  // 1ère échéance 06/12/2023
+        durationMonths: 240,   // 20 ans — fin nov 2043
         periods: [
-          { months: 60, payment: 0 },        // P1 : franchise 5 ans
-          { months: 180, payment: 333.33 },   // P2 : amortissement constant
+          { months: 60, payment: 0 },        // P1 : différé total 5 ans (déc 2023 – nov 2028)
+          { months: 180, payment: 333.33 },   // P2 : amortissement constant (déc 2028 – nov 2043)
         ],
         insuranceMonthly: 0,
       },
@@ -351,16 +343,15 @@ export const IMMO_CONSTANTS = {
         name: 'Banque Populaire (Riv\'immo)',
         principal: 175000,
         rate: 0.021,           // 2.10%
-        startDate: '2023-03',
-        durationMonths: 300,   // 25 ans
-        // 4 périodes :
+        startDate: '2025-08',  // 1ère échéance 06/08/2025 (réalisation 10/11/2023)
+        durationMonths: 281,   // 281 échéances — fin déc 2048
         periods: [
-          { months: 24, payment: 306.25 },    // P1 : franchise capital
-          { months: 36, payment: 1020.55 },   // P2 : échéances constantes
-          { months: 180, payment: 687.55 },   // P3 : échéances constantes
-          { months: 60, payment: 1020.58 },   // P4 : échéances constantes
+          { months: 5, payment: 306.25 },     // P1 : intérêts seuls (août–déc 2025)
+          { months: 36, payment: 1020.55 },   // P2 : jan 2026 – déc 2028
+          { months: 180, payment: 687.55 },   // P3 : jan 2029 – déc 2043
+          { months: 60, payment: 1020.58 },   // P4 : jan 2044 – déc 2048
         ],
-        insuranceMonthly: 0,
+        insuranceMonthly: 0,   // assurance APRIL séparée
       },
     ],
     // Assurance emprunteur APRIL (couvre PTZ + BP Riv'immo)
@@ -380,42 +371,38 @@ export const IMMO_CONSTANTS = {
       monthlyPayment: 969.62, // contrat notarié 5 nov 2019
       insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
     },
-    villejuif: {
-      principal: 318470,     // 286,670 + 31,800
-      rate: 0.0303,          // taux moyen pondéré approx
-      startDate: '2025-08',  // franchise début août 2025
-      durationMonths: 327,   // 36 mois franchise + 291 mois amortissement
-      monthlyPayment: 1698,  // 1572.79 + 124.99
-      insurance: 51.29,      // 46.10 + 5.19
-    },
-    // ── Détail des 2 prêts Villejuif (LCL Rueil Buzenval) ──
+    // ── VILLEJUIF : 2 prêts — CRD calculé dynamiquement depuis villejuifLoans ──
+    villejuifInsurance: 51.29,   // 46.10 + 5.19
     villejuifLoans: [
       {
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
         rate: 0.0327,          // 3.27%
-        amortMonths: 291,      // mois d'amortissement (après franchise)
-        payment: 1572.79,
-        taeg: 0.0373,
+        startDate: '2025-08',  // début franchise août 2025
+        durationMonths: 327,   // 36 franchise + 291 amort
+        periods: [
+          { months: 36, payment: 0 },       // Franchise totale — intérêts capitalisés
+          { months: 291, payment: 1572.79 }, // Amortissement
+        ],
         insuranceMonthly: 46.10,
-        // Coûts totaux (offre de prêt)
-        totalInterest: 142199,
-        deferredInterest: 19055,
-        totalInsurance: 14936,
-        garantie: 3498,
+        taeg: 0.0373,
+        totalInterestRef: 142199,  // coût total intérêts (offre de prêt, pour ref)
+        deferredInterestRef: 19055,
       },
       {
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
         rate: 0.009,           // 0.90%
-        amortMonths: 291,
-        payment: 124.99,
-        taeg: 0.0139,
+        startDate: '2025-08',
+        durationMonths: 327,
+        periods: [
+          { months: 36, payment: 0 },       // Franchise totale
+          { months: 291, payment: 124.99 },  // Amortissement
+        ],
         insuranceMonthly: 5.19,
-        totalInterest: 3791,
-        deferredInterest: 575,
-        totalInsurance: 1682,
-        garantie: 672,
+        taeg: 0.0139,
+        totalInterestRef: 3791,
+        deferredInterestRef: 575,
       },
     ],
     villejuifFranchise: {
