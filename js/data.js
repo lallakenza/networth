@@ -193,7 +193,7 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
       rueil:     { value: 272000, crd: 195275, loyer: 1300 },
-      villejuif: { value: 360000, crd: 318470, loyer: 1700 },
+      villejuif: { value: 360000, crd: 318470, loyer: 1700, signed: false, reservationFees: 3000 },
     },
   },
 
