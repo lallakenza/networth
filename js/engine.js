@@ -745,6 +745,12 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
   const halfCRDMonth = schedule.find(r => r.remainingCRD <= halfCRD);
   const crossoverMonth = schedule.find(r => r.principal >= r.interest);
 
+  // Summary metadata for display
+  const currentRow = schedule[currentIdx] || schedule[schedule.length - 1];
+  const weightedRate = combinedPrincipal > 0
+    ? subLoans.reduce((s, l) => s + l.principal * l.rate, 0) / combinedPrincipal
+    : 0;
+
   return {
     schedule,
     currentIdx,
@@ -757,6 +763,12 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
       crossoverDate: crossoverMonth ? crossoverMonth.date : null,
     },
     subSchedules: subSchedules.map(s => ({ name: s.loan.name, schedule: s.schedule })),
+    // Multi-loan summary for display
+    isMultiLoan: true,
+    combinedPrincipal: Math.round(combinedPrincipal),
+    weightedRate,
+    currentMonthlyPayment: currentRow ? currentRow.payment : 0,
+    nbLoans: subLoans.length,
   };
 }
 
