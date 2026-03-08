@@ -290,26 +290,30 @@ function buildSimChart(canvasId, chartKey, result) {
                 }
               });
 
-              // If only Immo selected and breakdown available → add stacked sub-lines per apartment
+              // If only Immo selected and breakdown available → add stacked filled bands per apartment
               if (selected.size === 1 && selected.has(0) && immoBreakdownResult) {
-                const subColors = ['#c05621', '#2b6cb0', '#2c7a7b'];
+                const subBorders = ['#c05621', '#2b6cb0', '#2c7a7b'];
+                const subBgs = ['rgba(192,86,33,0.4)', 'rgba(43,108,176,0.35)', 'rgba(44,122,123,0.3)'];
                 let cumSub = new Array(len).fill(0);
+                const firstSubIdx = chart.data.datasets.length; // index of first sub-dataset
                 immoBreakdownResult.forEach((b, bi) => {
                   const stackedData = b.data.map((v, j) => cumSub[j] + v);
                   cumSub = [...stackedData];
                   chart.data.datasets.push({
-                    label: '  ↳ ' + b.label,
+                    label: '  ' + b.label,
                     data: stackedData,
-                    borderColor: subColors[bi % subColors.length],
-                    backgroundColor: 'transparent',
-                    fill: false,
+                    borderColor: subBorders[bi % subBorders.length],
+                    backgroundColor: subBgs[bi % subBgs.length],
+                    fill: bi === 0 ? 'origin' : firstSubIdx + bi - 1,
                     tension: 0.3,
-                    borderWidth: 1.5,
-                    borderDash: [4, 3],
+                    borderWidth: 1,
                     pointRadius: 0,
                     _actual: b.data,
+                    _subLabel: b.label,
                   });
                 });
+                // Hide the main Immo area fill (sub-bands replace it)
+                chart.data.datasets[0].backgroundColor = 'transparent';
               }
             }
             chart.update();
@@ -318,21 +322,53 @@ function buildSimChart(canvasId, chartKey, result) {
       },
       scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
     },
-    plugins: stopChartIdx >= 0 ? [{
-      id: 'stopLine',
-      afterDraw(chart) {
-        const xScale = chart.scales.x;
-        const yScale = chart.scales.y;
-        const x = xScale.getPixelForValue(stopChartIdx);
-        const ctx2 = chart.ctx;
-        ctx2.save();
-        ctx2.beginPath(); ctx2.moveTo(x, yScale.top); ctx2.lineTo(x, yScale.bottom);
-        ctx2.lineWidth = 2; ctx2.strokeStyle = 'rgba(197, 48, 48, 0.6)'; ctx2.setLineDash([6, 4]); ctx2.stroke();
-        ctx2.fillStyle = 'rgba(197, 48, 48, 0.85)'; ctx2.font = 'bold 11px sans-serif'; ctx2.textAlign = 'center';
-        ctx2.fillText('Fin contributions', x, yScale.top + 14);
-        ctx2.restore();
+    plugins: [
+      // Stop line plugin
+      ...(stopChartIdx >= 0 ? [{
+        id: 'stopLine',
+        afterDraw(chart) {
+          const xScale = chart.scales.x;
+          const yScale = chart.scales.y;
+          const x = xScale.getPixelForValue(stopChartIdx);
+          const ctx2 = chart.ctx;
+          ctx2.save();
+          ctx2.beginPath(); ctx2.moveTo(x, yScale.top); ctx2.lineTo(x, yScale.bottom);
+          ctx2.lineWidth = 2; ctx2.strokeStyle = 'rgba(197, 48, 48, 0.6)'; ctx2.setLineDash([6, 4]); ctx2.stroke();
+          ctx2.fillStyle = 'rgba(197, 48, 48, 0.85)'; ctx2.font = 'bold 11px sans-serif'; ctx2.textAlign = 'center';
+          ctx2.fillText('Fin contributions', x, yScale.top + 14);
+          ctx2.restore();
+        }
+      }] : []),
+      // Band labels for immo breakdown sub-datasets
+      {
+        id: 'bandLabels',
+        afterDraw(chart) {
+          // Sub-datasets are added dynamically beyond origData.length
+          if (chart.data.datasets.length <= origData.length) return;
+          const ctx2 = chart.ctx;
+          const xScale = chart.scales.x;
+          const yScale = chart.scales.y;
+          // Place label at ~60% of the x-axis for readability
+          const labelIdx = Math.round(chart.data.labels.length * 0.6);
+          ctx2.save();
+          ctx2.font = 'bold 12px sans-serif';
+          ctx2.textAlign = 'left';
+          let prevY = yScale.getPixelForValue(0);
+          for (let si = origData.length; si < chart.data.datasets.length; si++) {
+            const ds = chart.data.datasets[si];
+            if (ds.hidden) continue;
+            const val = ds.data[labelIdx];
+            const yTop = yScale.getPixelForValue(val);
+            const yMid = (prevY + yTop) / 2;
+            const x = xScale.getPixelForValue(labelIdx) + 8;
+            ctx2.fillStyle = ds.borderColor;
+            ctx2.fillText(ds.label.replace(/^\s+/, ''), x, yMid + 4);
+            prevY = yTop;
+          }
+          ctx2.restore();
+        }
       }
-    }] : []
+    ]
   });
 }
 
