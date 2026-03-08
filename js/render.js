@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=25';
-import { getGrandTotal } from './engine.js?v=25';
+import { CURRENCY_CONFIG } from './data.js?v=26';
+import { getGrandTotal } from './engine.js?v=26';
 
 // ---- Formatting helpers ----
 
@@ -1164,24 +1164,34 @@ function renderBudgetView(state) {
   const bv = state.budgetView;
   if (!bv) return;
 
-  // KPIs
-  setEur('kpiBudgetTotal', bv.totalMonthly);
+  // ── KPIs PERSONAL ──
+  setEur('kpiBudgetTotal', bv.personalTotal);
   setEur('kpiBudgetYearly', bv.totalYearly);
-  setEur('kpiBudgetFrance', bv.byZone['France'] || 0);
-  setEur('kpiBudgetDubai', (bv.byZone['Dubai'] || 0) + (bv.byZone['Digital'] || 0));
+  setEur('kpiBudgetDubai', bv.personalByZone['Dubai'] || 0);
+  setEur('kpiBudgetDigital', (bv.personalByZone['Digital'] || 0) + (bv.personalByZone['France'] || 0));
 
-  // Detail table
+  // ── KPIs INVEST ──
+  setEur('kpiBudgetInvestTotal', bv.investTotal);
+  setEur('kpiBudgetInvestLoyer', bv.investLoyerTotal);
+  const cfSign = bv.investCFTotal >= 0 ? '+' : '';
+  setText('kpiBudgetInvestCF', cfSign + fmt(bv.investCFTotal) + '/mois');
+  const cfEl = document.getElementById('kpiBudgetInvestCF');
+  if (cfEl) cfEl.style.color = bv.investCFTotal >= 0 ? 'var(--green)' : 'var(--red)';
+  // Grand total = personal + net CF from investments (if negative, adds to expenses)
+  const grandTotal = bv.personalTotal + Math.max(0, -bv.investCFTotal);
+  setEur('kpiBudgetGrandTotal', grandTotal);
+
+  // ── PERSONAL TABLE ──
   const tbody = document.getElementById('budgetDetailTbody');
   if (tbody) {
     tbody.innerHTML = '';
-
     const zoneColors = { Dubai: '#d69e2e', France: '#2b6cb0', Digital: '#805ad5' };
     const typeColors = { Logement: '#e53e3e', 'Crédits': '#2b6cb0', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
     const freqLabels = { monthly: '/mois', quarterly: '/trim.', yearly: '/an' };
 
-    bv.items.forEach(item => {
+    bv.personal.forEach(item => {
       const tr = document.createElement('tr');
-      const pct = bv.totalMonthly > 0 ? (item.monthlyEUR / bv.totalMonthly * 100) : 0;
+      const pct = bv.personalTotal > 0 ? (item.monthlyEUR / bv.personalTotal * 100) : 0;
       const nativeStr = Math.round(item.amountNative).toLocaleString('fr-FR');
       const sym = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' }[item.currency] || item.currency;
       const nativeDisplay = item.currency === 'EUR' ? sym + ' ' + nativeStr : nativeStr + ' ' + sym;
@@ -1204,10 +1214,61 @@ function renderBudgetView(state) {
     // Total row
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="5"><strong>Total</strong></td>'
-      + '<td class="num"><strong>' + fmt(bv.totalMonthly) + '</strong></td>'
+    tr.innerHTML = '<td colspan="5"><strong>Total Personnel</strong></td>'
+      + '<td class="num"><strong>' + fmt(bv.personalTotal) + '</strong></td>'
       + '<td class="num"><strong>100%</strong></td>';
     tbody.appendChild(tr);
+  }
+
+  // ── INVEST DETAIL (per property cards) ──
+  const investDiv = document.getElementById('budgetInvestDetail');
+  if (investDiv) {
+    let html = '';
+    bv.investProperties.forEach(prop => {
+      const cfClass = prop.cf >= 0 ? 'pos' : 'neg';
+      const cfSign2 = prop.cf >= 0 ? '+' : '';
+      html += '<div style="background:#f7fafc;border-radius:10px;padding:16px 20px;margin-bottom:12px;border-left:4px solid #2b6cb0">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+      html += '<strong style="font-size:15px;color:var(--primary)">' + prop.name + '</strong>';
+      html += '<div style="display:flex;gap:16px;align-items:center">';
+      if (prop.loyer > 0) {
+        html += '<span style="font-size:13px;color:var(--gray)">Loyer : <strong style="color:var(--green)">' + fmt(prop.loyer) + '</strong></span>';
+      } else {
+        html += '<span style="font-size:13px;color:var(--gray)">Loyer : <em>pas encore lou\u00e9</em></span>';
+      }
+      html += '<span style="font-size:13px;font-weight:700" class="' + cfClass + '">CF : ' + cfSign2 + fmt(prop.cf) + '/mois</span>';
+      html += '</div></div>';
+
+      // Charges table
+      html += '<table style="margin:0;font-size:12px"><tbody>';
+      prop.charges.forEach(ch => {
+        html += '<tr><td style="padding:4px 12px">' + ch.label + '</td>'
+          + '<td class="num" style="padding:4px 12px">' + fmt(ch.monthlyEUR) + '</td></tr>';
+      });
+      html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0"><td style="padding:4px 12px">Total charges</td>'
+        + '<td class="num" style="padding:4px 12px">' + fmt(prop.totalCharges) + '</td></tr>';
+      html += '</tbody></table></div>';
+    });
+
+    // Summary bar
+    const barPctLoyer = bv.investTotal > 0 ? Math.min(100, bv.investLoyerTotal / bv.investTotal * 100) : 0;
+    html += '<div style="margin-top:12px">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px">';
+    html += '<span>Charges totales : ' + fmt(bv.investTotal) + '/mois</span>';
+    html += '<span>Loyers totaux : ' + fmt(bv.investLoyerTotal) + '/mois</span>';
+    html += '</div>';
+    html += '<div class="meter-bar" style="height:28px">';
+    html += '<div class="mb-seg" style="width:' + Math.min(barPctLoyer, 100).toFixed(0) + '%;background:var(--green)">' + fmt(bv.investLoyerTotal) + '</div>';
+    if (barPctLoyer < 100) {
+      html += '<div class="mb-seg" style="width:' + (100 - barPctLoyer).toFixed(0) + '%;background:var(--red)">' + fmt(bv.investTotal - bv.investLoyerTotal) + '</div>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray);margin-top:4px">';
+    html += '<span>\ud83d\udfe2 Couvert par les loyers</span>';
+    html += '<span>\ud83d\udd34 Effort d\u2019\u00e9pargne</span>';
+    html += '</div></div>';
+
+    investDiv.innerHTML = html;
   }
 }
 

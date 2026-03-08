@@ -965,12 +965,12 @@
 
 <!-- ============ VUE BUDGET ============ -->
 <div class="card hidden" data-view="budget">
-  <h2><span class="section-icon" style="background: #e53e3e;">&#x1F4B8;</span>Budget Mensuel &mdash; D&eacute;penses Fixes</h2>
+  <h2><span class="section-icon" style="background: #e53e3e;">&#x1F4B8;</span>D&eacute;penses Personnelles</h2>
   <div class="kpi-strip" id="kpi-budget">
-    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetTotal" data-eur="0">--</div><div class="label">Total /mois</div></div>
-    <div class="kpi"><div class="value" id="kpiBudgetYearly" data-eur="0">--</div><div class="label">Total /an</div></div>
-    <div class="kpi" style="border-top-color:#2b6cb0;"><div class="value" id="kpiBudgetFrance" data-eur="0">--</div><div class="label">France (Cr&eacute;dits)</div></div>
-    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiBudgetDubai" data-eur="0">--</div><div class="label">Dubai + Digital</div></div>
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetTotal" data-eur="0">--</div><div class="label">Total Perso /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiBudgetYearly" data-eur="0">--</div><div class="label">Total Perso /an</div></div>
+    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiBudgetDubai" data-eur="0">--</div><div class="label">Dubai</div></div>
+    <div class="kpi" style="border-top-color:#805ad5;"><div class="value" id="kpiBudgetDigital" data-eur="0">--</div><div class="label">Digital + France</div></div>
   </div>
 
   <div class="grid2" style="margin-bottom:20px;">
@@ -984,14 +984,31 @@
     </div>
   </div>
 
-  <h3>D&eacute;tail des D&eacute;penses</h3>
+  <h3>D&eacute;tail des D&eacute;penses Personnelles</h3>
   <table>
     <thead><tr><th>D&eacute;pense</th><th>Zone</th><th>Type</th><th class="num">Montant natif</th><th>Fr&eacute;quence</th><th class="num">EUR /mois</th><th class="num">% du total</th></tr></thead>
     <tbody id="budgetDetailTbody"></tbody>
   </table>
 
   <div class="highlight" style="margin-top:14px;">
-    <strong>Analyse :</strong> Ce budget repr&eacute;sente vos d&eacute;penses fixes incompressibles. En cas de perte de revenu, c'est le montant minimum &agrave; couvrir chaque mois. Les cr&eacute;dits immobiliers sont g&eacute;n&eacute;r&eacute;s automatiquement depuis les donn&eacute;es du portefeuille.
+    <strong>Analyse :</strong> Ce budget repr&eacute;sente vos d&eacute;penses personnelles fixes. En cas de perte de revenu, c'est le montant minimum &agrave; couvrir chaque mois (hors investissements immo).
+  </div>
+</div>
+
+<!-- ============ VUE BUDGET — INVESTISSEMENT IMMO ============ -->
+<div class="card hidden" data-view="budget">
+  <h2><span class="section-icon" style="background: #2b6cb0;">&#x1F3E0;</span>Charges Investissement Immobilier</h2>
+  <div class="kpi-strip" id="kpi-budget-invest" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetInvestTotal" data-eur="0">--</div><div class="label">Charges /mois</div></div>
+    <div class="kpi green"><div class="value" id="kpiBudgetInvestLoyer" data-eur="0">--</div><div class="label">Loyers /mois</div></div>
+    <div class="kpi" style="border-top-color:var(--green);"><div class="value" id="kpiBudgetInvestCF">--</div><div class="label">Cash-Flow Net</div></div>
+    <div class="kpi"><div class="value" id="kpiBudgetGrandTotal" data-eur="0">--</div><div class="label">Budget Total (perso + immo net)</div></div>
+  </div>
+
+  <div id="budgetInvestDetail"></div>
+
+  <div class="info" style="margin-top:14px;">
+    <strong>Note :</strong> Les charges immo sont couvertes par les loyers. Le cash-flow net repr&eacute;sente ce qui reste apr&egrave;s d&eacute;duction des loyers. Si un bien se retrouve vacant, les charges compl&egrave;tes s'ajoutent &agrave; vos d&eacute;penses.
   </div>
 </div>
 
@@ -1003,7 +1020,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=25"></script>
+<script type="module" src="js/app.js?v=26"></script>
 
 </body>
 </html>
