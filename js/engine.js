@@ -1386,12 +1386,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineVitryEquity = p.amine.immo.vitry.value - amineVitryCRD;
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
 
-  // Creances — backwards compatible aggregation
+  // Creances — split by type: pro (factures clients) vs perso (prêts famille/amis)
   let amineRecvPro = 0, amineRecvPersonal = 0;
   if (p.amine.creances.items) {
     p.amine.creances.items.forEach(c => {
       const val = toEUR(c.amount, c.currency, fx);
-      if (c.guaranteed) amineRecvPro += val;
+      if (c.type === 'pro') amineRecvPro += val;
       else amineRecvPersonal += val;
     });
   }
@@ -1566,8 +1566,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Creances', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar + nezhaVillejuifReservation,
       sub: [
-        { label: 'SAP & Tax', val: amineRecvPro, color: '#ec4899', owner: 'Amine — garanti' },
-        { label: 'Creances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Amine' },
+        { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'Amine — SAP, Malt, Loyers' },
+        { label: 'Créances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Amine — Kenza, Mehdi, etc.' },
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: 'Nezha' },
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Nezha — remboursable' }] : []),
       ]
@@ -1676,8 +1676,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Creances', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal,
       sub: [
-        { label: 'SAP & Tax', val: amineRecvPro, color: '#ec4899', owner: 'Garanti' },
-        { label: 'Creances perso', val: amineRecvPersonal, color: '#db2777', owner: '' },
+        { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'SAP, Malt, Loyers' },
+        { label: 'Créances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Kenza, Mehdi, etc.' },
       ].filter(s => s.val > 100)
     },
   ].filter(c => c.total > 0);
