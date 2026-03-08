@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG } from './data.js?v=20';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=25';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -843,6 +843,70 @@ function computeCreancesView(portfolio, fx) {
 }
 
 /**
+ * Compute budget view — monthly expenses breakdown
+ */
+function computeBudgetView(fx) {
+  const IC = IMMO_CONSTANTS;
+
+  // Frequency → monthly divisor
+  const freqDiv = { monthly: 1, quarterly: 3, yearly: 12 };
+
+  // Start with manual expenses from BUDGET_EXPENSES
+  const items = BUDGET_EXPENSES.map(e => {
+    const div = freqDiv[e.freq] || 1;
+    const monthlyNative = e.amount / div;
+    const monthlyEUR = monthlyNative / (fx[e.currency] || 1);
+    return {
+      label: e.label,
+      amountNative: e.amount,
+      currency: e.currency,
+      freq: e.freq,
+      monthlyNative,
+      monthlyEUR,
+      zone: e.zone,
+      type: e.type,
+    };
+  });
+
+  // Auto-generate immo credit lines from IMMO_CONSTANTS.charges
+  const propLabels = { vitry: 'Crédit Vitry', rueil: 'Crédit Rueil', villejuif: 'Crédit Villejuif' };
+  Object.entries(IC.charges).forEach(([prop, ch]) => {
+    const monthly = (ch.pret || 0) + (ch.assurance || 0);
+    items.push({
+      label: propLabels[prop] || ('Crédit ' + prop),
+      amountNative: monthly,
+      currency: 'EUR',
+      freq: 'monthly',
+      monthlyNative: monthly,
+      monthlyEUR: monthly,
+      zone: 'France',
+      type: 'Crédits',
+    });
+  });
+
+  // Sort by monthly EUR descending
+  items.sort((a, b) => b.monthlyEUR - a.monthlyEUR);
+
+  // Totals
+  const totalMonthly = items.reduce((s, i) => s + i.monthlyEUR, 0);
+  const totalYearly = totalMonthly * 12;
+
+  // By zone
+  const byZone = {};
+  items.forEach(i => {
+    byZone[i.zone] = (byZone[i.zone] || 0) + i.monthlyEUR;
+  });
+
+  // By type
+  const byType = {};
+  items.forEach(i => {
+    byType[i.type] = (byType[i.type] || 0) + i.monthlyEUR;
+  });
+
+  return { items, totalMonthly, totalYearly, byZone, byType };
+}
+
+/**
  * Compute dividend/WHT analysis for actions view
  */
 function computeDividendAnalysis(ibkrPositions, fx) {
@@ -1331,6 +1395,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const cashView = computeCashView(p, fx);
   const immoView = computeImmoView(p, fx);
   const creancesView = computeCreancesView(p, fx);
+  const budgetView = computeBudgetView(fx);
 
   // ---- DIVIDEND / WHT ANALYSIS ----
   const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);
@@ -1356,6 +1421,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     cashView,
     immoView,
     creancesView,
+    budgetView,
     dividendAnalysis,
     nwHistory,
   };

@@ -561,3 +561,25 @@ export const DIV_CALENDAR = {
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none' },
   'ETHA':    { dps: 0,     exDates: [], frequency: 'none' },
 };
+
+// ════════════════════════════════════════════════════════════
+// BUDGET — Dépenses mensuelles fixes
+// freq: 'monthly' | 'quarterly' | 'yearly'
+// zone: 'Dubai' | 'France' | 'Digital'
+// type: 'Logement' | 'Crédits' | 'Utilities' | 'Abonnements'
+// Les crédits immo sont générés dynamiquement par engine.js depuis IMMO_CONSTANTS.charges
+// ════════════════════════════════════════════════════════════
+export const BUDGET_EXPENSES = [
+  { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
+  { label: 'Électricité',     amount: 840,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Fibre Internet',  amount: 360,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Gaz',             amount: 120,    currency: 'AED', freq: 'quarterly', zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Téléphone',       amount: 1669,   currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Abonnements' },
+  { label: 'Claude (AI)',     amount: 100,    currency: 'USD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+  { label: 'Spotify',         amount: 75,     currency: 'MAD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+  { label: 'Assurance Classe A', amount: 114,  currency: 'EUR', freq: 'monthly',   zone: 'France',  type: 'Assurance' },
+  { label: 'Assurance Porsche Cayenne', amount: 8000, currency: 'AED', freq: 'yearly', zone: 'Dubai', type: 'Assurance' },
+  { label: 'Amex Platinum',   amount: 720,    currency: 'EUR', freq: 'yearly',    zone: 'France',  type: 'Abonnements' },
+  { label: 'On/Off',          amount: 58.99,  currency: 'EUR', freq: 'yearly',    zone: 'Digital', type: 'Abonnements' },
+  { label: 'YouTube Premium', amount: 110,    currency: 'MAD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+];

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=20';
-import { getGrandTotal } from './engine.js?v=20';
+import { CURRENCY_CONFIG } from './data.js?v=25';
+import { getGrandTotal } from './engine.js?v=25';
 
 // ---- Formatting helpers ----
 
@@ -63,6 +63,7 @@ export function render(state, view, currency) {
   if (view === 'cash') renderCashView(state);
   if (view === 'immobilier') renderImmoView(state);
   if (view === 'creances') renderCreancesView(state);
+  if (view === 'budget') renderBudgetView(state);
 
   renderBadges(state);
   updateAllDataEur();
@@ -70,7 +71,7 @@ export function render(state, view, currency) {
 
 // ---- Individual render functions ----
 
-const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances'];
+const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances', 'budget'];
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 
 function renderHeader(state, view) {
@@ -82,8 +83,8 @@ function renderHeader(state, view) {
     if (subEl) subEl.textContent = v.subtitle;
   } else {
     // Asset views
-    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements' };
-    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9' };
+    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel' };
+    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital' };
     if (titleEl) titleEl.textContent = titles[view] || '';
     if (subEl) subEl.textContent = subs[view] || '';
   }
@@ -1155,6 +1156,58 @@ function renderCreancesView(state) {
       alertEl.innerHTML = '<strong style="color:var(--red)">⚠ ' + crv.needsFollowUpCount + ' creance(s) a relancer</strong> — Dernier contact > 30 jours';
       alertEl.style.display = '';
     }
+  }
+}
+
+// ---- BUDGET VIEW ----
+function renderBudgetView(state) {
+  const bv = state.budgetView;
+  if (!bv) return;
+
+  // KPIs
+  setEur('kpiBudgetTotal', bv.totalMonthly);
+  setEur('kpiBudgetYearly', bv.totalYearly);
+  setEur('kpiBudgetFrance', bv.byZone['France'] || 0);
+  setEur('kpiBudgetDubai', (bv.byZone['Dubai'] || 0) + (bv.byZone['Digital'] || 0));
+
+  // Detail table
+  const tbody = document.getElementById('budgetDetailTbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+
+    const zoneColors = { Dubai: '#d69e2e', France: '#2b6cb0', Digital: '#805ad5' };
+    const typeColors = { Logement: '#e53e3e', 'Crédits': '#2b6cb0', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
+    const freqLabels = { monthly: '/mois', quarterly: '/trim.', yearly: '/an' };
+
+    bv.items.forEach(item => {
+      const tr = document.createElement('tr');
+      const pct = bv.totalMonthly > 0 ? (item.monthlyEUR / bv.totalMonthly * 100) : 0;
+      const nativeStr = Math.round(item.amountNative).toLocaleString('fr-FR');
+      const sym = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' }[item.currency] || item.currency;
+      const nativeDisplay = item.currency === 'EUR' ? sym + ' ' + nativeStr : nativeStr + ' ' + sym;
+
+      const zoneBg = zoneColors[item.zone] || '#718096';
+      const typeBg = typeColors[item.type] || '#718096';
+      const zoneBadge = '<span style="background:' + zoneBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.zone + '</span>';
+      const typeBadge = '<span style="background:' + typeBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.type + '</span>';
+
+      tr.innerHTML = '<td style="font-weight:600">' + item.label + '</td>'
+        + '<td>' + zoneBadge + '</td>'
+        + '<td>' + typeBadge + '</td>'
+        + '<td class="num">' + nativeDisplay + '</td>'
+        + '<td>' + (freqLabels[item.freq] || item.freq) + '</td>'
+        + '<td class="num" style="font-weight:700;">' + fmt(item.monthlyEUR) + '</td>'
+        + '<td class="num">' + pct.toFixed(1) + '%</td>';
+      tbody.appendChild(tr);
+    });
+
+    // Total row
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td colspan="5"><strong>Total</strong></td>'
+      + '<td class="num"><strong>' + fmt(bv.totalMonthly) + '</strong></td>'
+      + '<td class="num"><strong>100%</strong></td>';
+    tbody.appendChild(tr);
   }
 }
 
