@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=15';
-import { compute } from './engine.js?v=15';
-import { render } from './render.js?v=15';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=15';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=15';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=15';
+import { PORTFOLIO, FX_STATIC } from './data.js?v=16';
+import { compute } from './engine.js?v=16';
+import { render } from './render.js?v=16';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=16';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=16';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=16';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -26,9 +26,11 @@ function refresh() {
   render(currentState, currentView, currentCurrency);
   rebuildAllCharts(currentState, currentView);
 
-  // CF projection only for person views and immobilier
-  if (PERSON_VIEWS.includes(currentView)) {
+  // CF projection for person views and immobilier
+  if (PERSON_VIEWS.includes(currentView) || currentView === 'immobilier') {
     buildCFProjection(currentState);
+  }
+  if (PERSON_VIEWS.includes(currentView)) {
     initSimulators(currentState);
 
     // Bind simulator slider events (only once, but with latest state ref)
