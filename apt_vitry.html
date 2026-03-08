@@ -185,7 +185,7 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=22';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=35';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
@@ -213,10 +213,18 @@ const PROP = {
 // ═══ DATA FROM data.js ═══
 const immo = PORTFOLIO.amine.immo.vitry;
 const charges = IC.charges.vitry;
-const loanCombined = IC.loans.vitry;
 const vitryLoans = IC.loans.vitryLoans;
 const fiscal = IC.fiscalite.vitry;
 const insuranceAPRIL = IC.loans.vitryInsuranceAPRIL;
+
+// Compute combined loan metadata from sub-loans (replaces removed IC.loans.vitry)
+const earliestStartDate = vitryLoans.map(l => l.startDate).sort()[0]; // earliest start
+const maxDurationMonths = Math.max(...vitryLoans.map(l => {
+  const [sy, sm] = l.startDate.split('-').map(Number);
+  const [ey, em] = earliestStartDate.split('-').map(Number);
+  const offsetMonths = (sy - ey) * 12 + (sm - em);
+  return offsetMonths + l.durationMonths;
+}));
 
 const d = new Date();
 const moisFR = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -276,7 +284,7 @@ for (let m = 0; m < maxMonths; m++) {
 }
 
 // Start date parsing
-const [startY, startM] = loanCombined.startDate.split('-').map(Number);
+const [startY, startM] = earliestStartDate.split('-').map(Number);
 const monthsElapsed = (d.getFullYear() - startY) * 12 + (d.getMonth() + 1 - startM);
 const currentIdx = Math.max(0, Math.min(monthsElapsed - 1, combinedSchedule.length - 1));
 const currentCRD = combinedSchedule[currentIdx] ? combinedSchedule[currentIdx].crd : 0;
@@ -336,7 +344,7 @@ pretsHTML += `<tr style="background:#edf2f7;font-weight:600"><td><strong>TOTAL</
   <td>Co\u00fbt total int\u00e9r\u00eats : ${fmt(totalInterestCost)}</td></tr>`;
 document.getElementById('pretsTable').innerHTML = pretsHTML;
 
-const endValue = Math.round(PROP.purchasePrice * Math.pow(1 + PROP.appreciation, loanCombined.durationMonths / 12));
+const endValue = Math.round(PROP.purchasePrice * Math.pow(1 + PROP.appreciation, maxDurationMonths / 12));
 const totalAppreciation = endValue - PROP.purchasePrice;
 document.getElementById('leverageInfo').innerHTML =
   `<strong>Effet de levier :</strong> Emprunt ${fmt(totalPrincipal)} \u00e0 un taux moyen pond\u00e9r\u00e9 de ~1.5% pour un actif qui s'appr\u00e9cie \u00e0 ${(PROP.appreciation*100).toFixed(0)}%/an. Le spread positif g\u00e9n\u00e8re de la richesse nette chaque mois. En 25 ans, le co\u00fbt total des int\u00e9r\u00eats (${fmt(totalInterestCost)}) est largement compens\u00e9 par l'appr\u00e9ciation de l'actif (+${fmt(totalAppreciation)}).`;
@@ -375,7 +383,7 @@ document.getElementById('cfSummary').innerHTML =
 
 // ═══ SECTION 4: EQUITY CHART ═══
 const eqLabels = [], eqValue = [], eqCRD = [], eqEquity = [];
-for (let m = 0; m <= loanCombined.durationMonths; m += 6) {
+for (let m = 0; m <= maxDurationMonths; m += 6) {
   const date = new Date(startY, startM - 1 + m, 1);
   const years = m / 12;
   const val = Math.round(PROP.purchasePrice * Math.pow(1 + PROP.appreciation, years));
@@ -421,7 +429,7 @@ document.getElementById('amortNote').textContent =
 
 // ═══ SECTION 6: WEALTH CHART + MILESTONES ═══
 const wLabels = [], wEquity = [], wCapCumul = [], wIntCumul = [];
-for (let m = 0; m <= loanCombined.durationMonths; m += 12) {
+for (let m = 0; m <= maxDurationMonths; m += 12) {
   const date = new Date(startY, startM - 1 + m, 1);
   const years = m / 12;
   const val = Math.round(PROP.purchasePrice * Math.pow(1 + PROP.appreciation, years));
@@ -452,7 +460,7 @@ const milestones = [
   { month: 72, label: 'Jan 2029', comment: '6 ans \u2014 Fin contrainte PTZ RP' },
   { month: 120, label: 'Jan 2033', comment: '10 ans \u2014 Fin clause anti-sp\u00e9culation' },
   { month: 180, label: 'Jan 2038', comment: '15 ans' },
-  { month: loanCombined.durationMonths, label: 'Jun 2048', comment: '25 ans \u2014 100% equity, pr\u00eats sold\u00e9s' },
+  { month: maxDurationMonths, label: 'Jun 2048', comment: '25 ans \u2014 100% equity, pr\u00eats sold\u00e9s' },
 ];
 let msHTML = '';
 for (const ms of milestones) {
@@ -507,19 +515,19 @@ document.getElementById('fiscalRevenueBox').innerHTML =
 document.getElementById('fiscalFootnote').textContent =
   `* Int\u00e9r\u00eats calcul\u00e9s d'apr\u00e8s les tableaux d'amortissement r\u00e9els. PNO estim\u00e9e ~${pnoAnnuel}\u20ac/an. TF estim\u00e9e ~${tfAnnuel}\u20ac/an (exon\u00e9r\u00e9e 2026-${tfExemptionEndYear}). Assurance APRIL ${insuranceAPRIL.annualTTC}\u20ac/an + AL ${assuranceAL_annual.toFixed(0)}\u20ac/an. Charges copropri\u00e9t\u00e9 = ${coproMensuel}\u20ac/mois (non d\u00e9ductible en location nue sauf provisions r\u00e9gularis\u00e9es).`;
 
-// Compute yearly interest from each loan schedule
-function yearlyInterestFromSchedules(schedules, startDate) {
-  const [sy, sm] = startDate.split('-').map(Number);
+// Compute yearly interest from each loan schedule (each loan has its own start date)
+function yearlyInterestFromSchedules(schedules, loans) {
   const yearly = {};
-  for (const sch of schedules) {
-    for (let i = 0; i < sch.length; i++) {
+  for (let k = 0; k < schedules.length; k++) {
+    const [sy, sm] = loans[k].startDate.split('-').map(Number);
+    for (let i = 0; i < schedules[k].length; i++) {
       const y = sy + Math.floor((sm - 1 + i) / 12);
-      yearly[y] = (yearly[y] || 0) + sch[i].interest;
+      yearly[y] = (yearly[y] || 0) + schedules[k][i].interest;
     }
   }
   return yearly;
 }
-const yearlyInt = yearlyInterestFromSchedules(loanSchedules, loanCombined.startDate);
+const yearlyInt = yearlyInterestFromSchedules(loanSchedules, vitryLoans);
 
 const slider = document.getElementById('vitrySimLoyer');
 const valEl = document.getElementById('vitrySimLoyerVal');
