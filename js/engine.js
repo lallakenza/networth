@@ -1267,6 +1267,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const p = portfolio;
   const m = p.market;
 
+  // ---- IMMO VIEW (computed early so CRDs are available for NW) ----
+  const immoView = computeImmoView(p, fx);
+  // Extract computed CRDs from amort schedules (more accurate than static snapshots)
+  const immoCRDs = {};
+  immoView.properties.forEach(prop => { immoCRDs[prop.loanKey] = prop.crd; });
+
   // ---- AMINE ----
   const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent;
   const amineUae = toEUR(amineUaeAED, 'AED', fx) + p.amine.uae.revolutEUR;
@@ -1275,7 +1281,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);
   const amineEspp = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx) + p.amine.espp.cashEUR;
-  const amineVitryEquity = p.amine.immo.vitry.value - p.amine.immo.vitry.crd;
+  const amineVitryCRD = immoCRDs.vitry ?? p.amine.immo.vitry.crd;
+  const amineVitryEquity = p.amine.immo.vitry.value - amineVitryCRD;
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
 
   // Creances — backwards compatible aggregation
@@ -1304,7 +1311,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     moroccoMAD: amineMoroccoMAD,
     morocco: amineMoroccoCash + amineSgtm,
     vitryValue: p.amine.immo.vitry.value,
-    vitryCRD: p.amine.immo.vitry.crd,
+    vitryCRD: amineVitryCRD,
     vitryEquity: amineVitryEquity,
     vehicles: amineVehicles,
     recvPro: amineRecvPro,
@@ -1314,13 +1321,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   };
 
   // ---- NEZHA ----
-  const nezhaRueilEquity = p.nezha.immo.rueil.value - p.nezha.immo.rueil.crd;
+  const nezhaRueilCRD = immoCRDs.rueil ?? p.nezha.immo.rueil.crd;
+  const nezhaRueilEquity = p.nezha.immo.rueil.value - nezhaRueilCRD;
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
+  const nezhaVillejuifCRD = immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd;
   // Si pas signé : on ne compte que les frais de réservation (récupérables)
   const nezhaVillejuifEquity = villejuifSigned
-    ? (p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd)
+    ? (p.nezha.immo.villejuif.value - nezhaVillejuifCRD)
     : 0;
-  const nezhaVillejuifFutureEquity = p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd;
+  const nezhaVillejuifFutureEquity = p.nezha.immo.villejuif.value - nezhaVillejuifCRD;
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   const nezhaCashMaroc = toEUR(p.nezha.cashMaroc, 'MAD', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
@@ -1334,10 +1343,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nw: nezhaNW,
     nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
-    rueilCRD: p.nezha.immo.rueil.crd,
+    rueilCRD: nezhaRueilCRD,
     rueilEquity: nezhaRueilEquity,
     villejuifValue: p.nezha.immo.villejuif.value,
-    villejuifCRD: p.nezha.immo.villejuif.crd,
+    villejuifCRD: nezhaVillejuifCRD,
     villejuifEquity: nezhaVillejuifEquity,
     villejuifFutureEquity: nezhaVillejuifFutureEquity,
     villejuifSigned: villejuifSigned,
@@ -1629,7 +1638,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // ---- NEW ASSET-TYPE VIEWS ----
   const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp);
   const cashView = computeCashView(p, fx);
-  const immoView = computeImmoView(p, fx);
+  // immoView already computed at top of function (needed for CRDs in NW calculations)
   const creancesView = computeCreancesView(p, fx);
   const budgetView = computeBudgetView(p, fx);
 
