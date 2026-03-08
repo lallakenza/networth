@@ -246,7 +246,7 @@ function renderExpandSubs(state, view) {
   setEur('subIBKR', s.amine.ibkr);
   setEur('subESPP', s.amine.espp);
   setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
-  setEur('subUAE', s.amine.uae);
+  setEur('subUAE', s.amine.uae + s.amine.revolutEUR);
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
@@ -409,9 +409,9 @@ function renderCoupleTable(state) {
   const p = state.portfolio;
   const rows = [
     ['Actions & ETFs (IBKR + ' + p.amine.espp.shares + ' ACN + ' + (p.amine.sgtm.shares * 2) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm],
-    ['Cash EUR (Nezha France 85K)', s.nezha.cashFrance],
+    ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
     ['Cash MAD (Nezha 100K + Amine 189K MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
-    ['Cash AED/USD (Amine UAE)', s.amine.uae],
+    ['Cash AED (Amine UAE — Mashreq + Wio)', s.amine.uae],
     ['Equity Immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['Equity Immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
     ['Equity Immo \u2014 Villejuif VEFA (Nezha) [conditionnel]', s.nezha.villejuifEquity],
@@ -433,7 +433,8 @@ function renderAmineTable(state) {
     ['Portefeuille IBKR (actions + ETFs + cash)', s.amine.ibkr],
     ['ESPP Accenture (' + p.amine.espp.shares + ' ACN @ ' + acnPrice + ')', s.amine.espp],
     ['SGTM (' + p.amine.sgtm.shares + ' actions @ ' + sgtmPrice + ')', s.amine.sgtm],
-    ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED + ' + p.amine.uae.revolutEUR.toLocaleString('fr-FR') + ' EUR)', s.amine.uae],
+    ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED)', s.amine.uae],
+    ['Revolut EUR', s.amine.revolutEUR],
     ['Cash Maroc (' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.amine.moroccoCash],
     ['Immobilier Vitry (equity \u2014 val. appreciee 2%/an)', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
@@ -1749,14 +1750,14 @@ function attachKPIInsights(state, view) {
   // ── Couple view ──
   const immoEq = s.couple.immoEquity;
   const stocksTotal = s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm;
-  const cashTotal = s.amine.uae + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
+  const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Objectif 1M\u20ac atteint en ~1.7 ans.';
-  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
+  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
   insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cashFrance + s.nezha.cashMaroc) + '. Patrimoine 100% France/Maroc.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
 
   // ── Amine view ──
-  insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 rend 6%/an sur Wio/Mashreq.';
+  insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
   insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkr) + ' + ESPP \u20ac' + f(s.amine.espp) + '. Concentration top 3 = 43% du portefeuille. Diversifier vers des ETFs.';
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
   insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac1,017/mois.';

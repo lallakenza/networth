@@ -918,6 +918,22 @@ function computeImmoView(portfolio, fx) {
       ? amort.schedule[amort.currentIdx]?.remainingCRD ?? propData.crd
       : propData.crd;
 
+    // Loan details for detail panel
+    const subLoansKey = loanKey + 'Loans';
+    let loanDetails = [];
+    if (IC.loans && IC.loans[subLoansKey]) {
+      loanDetails = IC.loans[subLoansKey].map(l => ({
+        name: l.name, principal: l.principal, rate: l.rate,
+        durationMonths: l.durationMonths, monthlyPayment: l.monthlyPayment || (l.periods ? l.periods.find(p => p.payment > 0)?.payment : 0),
+        insuranceMonthly: l.insuranceMonthly || 0,
+      }));
+    } else if (IC.loans && IC.loans[loanKey]) {
+      const l = IC.loans[loanKey];
+      loanDetails = [{ name: 'Prêt principal', principal: l.principal, rate: l.rate,
+        durationMonths: l.durationMonths, monthlyPayment: l.monthlyPayment,
+        insuranceMonthly: l.insurance || 0 }];
+    }
+
     return {
       name, owner, conditional: conditional || false,
       value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
@@ -925,22 +941,94 @@ function computeImmoView(portfolio, fx) {
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
       monthlyPret: chargesConfig.pret,
       monthlyAssurance: chargesConfig.assurance,
-      loyer, totalRevenue, cf,
+      loyer, loyerHC, chargesLoc, parking, totalRevenue, cf,
       yieldGross: (totalRevenue * 12 / propData.value * 100),
       yieldNet: (cf * 12 / propData.value * 100),
       yieldNetFiscal: fisc ? (cfNetFiscal * 12 / propData.value * 100) : null,
       wealthCreation: IC.growth[loanKey],
       endYear: IC.prets[loanKey + 'End'],
       charges,
+      chargesDetail: { ...chargesConfig },
       loanKey,
+      loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
+      propertyMeta: IC.properties[loanKey] || {},
+      loanInterestAnnuel,
+      deductibleChargesAnnuel: deductibleCharges * 12,
+      loyerDeclareAnnuel,
     };
   }
 
   properties.push(buildProperty('Vitry-sur-Seine', 'Amine', portfolio.amine.immo.vitry, IC.charges.vitry, 'vitry'));
   properties.push(buildProperty('Rueil-Malmaison', 'Nezha', portfolio.nezha.immo.rueil, IC.charges.rueil, 'rueil'));
   properties.push(buildProperty('Villejuif (VEFA)', 'Nezha', portfolio.nezha.immo.villejuif, IC.charges.villejuif, 'villejuif', true));
+
+  // ── Yearly interest schedule per loan (for fiscal simulation) ──
+  function yearlyInterestFromSchedule(amortObj) {
+    const yearly = {};
+    if (!amortObj) return yearly;
+    if (amortObj.subSchedules) {
+      // Multi-loan: iterate sub-schedules
+      const subLoans = amortObj.subSchedules;
+      for (let k = 0; k < subLoans.length; k++) {
+        const sub = subLoans[k];
+        for (let i = 0; i < sub.schedule.length; i++) {
+          const y = sub.startYear + Math.floor((sub.startMonth - 1 + i) / 12);
+          yearly[y] = (yearly[y] || 0) + sub.schedule[i].interest;
+        }
+      }
+    } else {
+      // Single loan
+      const startDate = amortObj.startDate || '2020-01';
+      const [sy, sm] = startDate.split('-').map(Number);
+      for (let i = 0; i < amortObj.schedule.length; i++) {
+        const y = sy + Math.floor((sm - 1 + i) / 12);
+        yearly[y] = (yearly[y] || 0) + amortObj.schedule[i].interest;
+      }
+    }
+    return yearly;
+  }
+
+  const yearlyInterest = {};
+  for (const key of loanKeys) {
+    yearlyInterest[key] = yearlyInterestFromSchedule(amortSchedules[key]);
+  }
+
+  // Attach yearlyInterest and fiscal sim config to properties
+  properties.forEach(prop => {
+    prop.yearlyInterest = yearlyInterest[prop.loanKey] || {};
+    // Vitry-specific fiscal simulation config
+    if (prop.loanKey === 'vitry') {
+      const propMeta = IC.properties.vitry || {};
+      const april = IC.loans.vitryInsuranceAPRIL || {};
+      const alInsurance = (IC.loans.vitryLoans && IC.loans.vitryLoans[0]) ? IC.loans.vitryLoans[0].insuranceMonthly * 12 : 0;
+      prop.fiscalSimConfig = {
+        loyerTotalMensuel: propMeta.loyerObjectif || (prop.loyerHC + prop.chargesLoc + prop.parking),
+        contractStartMonth: 4,    // Location effective starts April 2026
+        tfExemptionEndYear: 2027, // TF exonerated for new construction
+        startYear: 2026,
+        nYears: 10,
+        totalRate: (IC.fiscalite.vitry.tmi + IC.fiscalite.vitry.ps),
+        totalAssuranceAnnuel: (april.annualTTC || 0) + alInsurance,
+        pnoAnnuel: IC.charges.vitry.pno * 12,
+        tfAnnuel: IC.charges.vitry.tf * 12,
+        coproMensuel: IC.charges.vitry.copro,
+      };
+    }
+    // Villejuif VEFA timeline
+    if (prop.loanKey === 'villejuif') {
+      const franchise = IC.loans.villejuifFranchise || {};
+      const propMeta = IC.properties.villejuif || {};
+      prop.vefaConfig = {
+        franchiseMonths: franchise.months || 36,
+        franchiseStart: franchise.startDate || '2025-08',
+        deliveryDate: propMeta.deliveryDate || '2029-06',
+        totalOperation: propMeta.totalOperation || 0,
+        fraisDossier: franchise.fraisDossier || 0,
+      };
+    }
+  });
 
   const totalEquity = properties.reduce((s, p) => s + p.equity, 0);
   const totalValue = properties.reduce((s, p) => s + p.value, 0);
@@ -1289,9 +1377,21 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- AMINE ----
   const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent;
-  const amineUae = toEUR(amineUaeAED, 'AED', fx) + p.amine.uae.revolutEUR;
+  const amineUae = toEUR(amineUaeAED, 'AED', fx);  // UAE = AED accounts only
+  const amineRevolutEUR = p.amine.uae.revolutEUR;   // Revolut = French account (EUR)
+  // Weighted average yield for Cash UAE bucket (AED accounts only)
+  const amineUaeYield = amineUae > 0
+    ? (toEUR(p.amine.uae.mashreq, 'AED', fx) * CASH_YIELDS.mashreq
+      + toEUR(p.amine.uae.wioSavings, 'AED', fx) * CASH_YIELDS.wioSavings
+      + toEUR(p.amine.uae.wioCurrent, 'AED', fx) * CASH_YIELDS.wioCurrent) / amineUae
+    : 0;
+  const amineRevolutYield = CASH_YIELDS.revolutEUR;
   const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.nabd;
   const amineMoroccoCash = toEUR(amineMoroccoMAD, 'MAD', fx);
+  const amineMoroccoYield = amineMoroccoCash > 0
+    ? (toEUR(p.amine.maroc.attijari, 'MAD', fx) * CASH_YIELDS.attijari
+      + toEUR(p.amine.maroc.nabd, 'MAD', fx) * CASH_YIELDS.nabd) / amineMoroccoCash
+    : 0;
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);
   const amineEspp = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx) + p.amine.espp.cashEUR;
@@ -1310,7 +1410,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   }
 
   const amineTva = p.amine.tva;
-  const amineTotalAssets = amineIbkr + amineEspp + amineUae + amineMoroccoCash + amineSgtm
+  const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash;
+  const amineTotalAssets = amineIbkr + amineEspp + amineCashTotal + amineSgtm
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
   const amineNW = amineTotalAssets + amineTva;
 
@@ -1321,6 +1422,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     sgtm: amineSgtm,
     uae: amineUae,
     uaeAED: amineUaeAED,
+    revolutEUR: amineRevolutEUR,
     moroccoCash: amineMoroccoCash,
     moroccoMAD: amineMoroccoMAD,
     morocco: amineMoroccoCash + amineSgtm,
@@ -1391,9 +1493,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- POOLS (for simulators) ----
   const actionsPool = amineIbkr + amineEspp + amineSgtm;
-  const cashPool = amineUae + amineMoroccoCash;
+  const cashPool = amineUae + amineRevolutEUR + amineMoroccoCash;
   const totalLiquid = actionsPool + cashPool;
   const pctActions = totalLiquid > 0 ? Math.round(actionsPool / totalLiquid * 100) : 0;
+
+  // Cash color helper: green if yield >= 4%, red if < 4%
+  const cashColor = (yld) => yld >= 0.04 ? '#22c55e' : '#ef4444';
+  const nezhaCashFranceYield = CASH_YIELDS.nezhaCashFrance;
+  const nezhaCashMarocYield = CASH_YIELDS.nezhaCashMaroc;
 
   // ---- COUPLE CATEGORIES (for drill-down donut) ----
   const coupleCategories = [
@@ -1443,12 +1550,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash', color: '#48bb78',
-      total: p.nezha.cashFrance + nezhaCashMaroc + amineUae + amineMoroccoCash,
+      total: p.nezha.cashFrance + nezhaCashMaroc + amineCashTotal,
       sub: [
-        { label: 'Cash UAE', val: amineUae, color: '#22c55e', owner: 'Amine' },
-        { label: 'Cash France', val: p.nezha.cashFrance, color: '#16a34a', owner: 'Nezha' },
-        { label: 'Cash Maroc', val: amineMoroccoCash, color: '#15803d', owner: 'Amine' },
-        { label: 'Cash Maroc', val: nezhaCashMaroc, color: '#166534', owner: 'Nezha' },
+        { label: 'Mashreq NEO+', val: toEUR(p.amine.uae.mashreq, 'AED', fx), color: cashColor(CASH_YIELDS.mashreq), owner: 'Amine — 6.25%' },
+        { label: 'Wio Savings', val: toEUR(p.amine.uae.wioSavings, 'AED', fx), color: cashColor(CASH_YIELDS.wioSavings), owner: 'Amine — 6%' },
+        ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: cashColor(CASH_YIELDS.wioCurrent), owner: 'Amine — 0%' }] : []),
+        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: cashColor(amineRevolutYield), owner: 'Amine — 0%' }] : []),
+        { label: 'Cash France', val: p.nezha.cashFrance, color: cashColor(nezhaCashFranceYield), owner: 'Nezha — 0%' },
+        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: cashColor(amineMoroccoYield), owner: 'Amine — 0%' }] : []),
+        ...(nezhaCashMaroc > 0 ? [{ label: 'Cash Maroc', val: nezhaCashMaroc, color: cashColor(nezhaCashMarocYield), owner: 'Nezha — 0%' }] : []),
       ]
     },
     {
@@ -1477,7 +1587,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       title: 'Dashboard Patrimonial',
       subtitle: 'Amine (33 ans) & Nezha (34 ans) Koraibi \u2014 Vue consolidee',
       stocks:    { val: amineIbkr + amineEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP + SGTM x2' },
-      cash:      { val: amineUae + amineMoroccoCash + p.nezha.cashFrance + nezhaCashMaroc, sub: 'UAE + France + Maroc' },
+      cash:      { val: amineCashTotal + p.nezha.cashFrance + nezhaCashMaroc, sub: 'UAE + France + Maroc' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
       nwRef: coupleNW,
@@ -1487,7 +1597,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       title: 'Dashboard \u2014 Amine Koraibi',
       subtitle: 'Amine Koraibi, 33 ans \u2014 Actions, Crypto, Immobilier, Cash',
       stocks:    { val: amineIbkr + amineEspp + amineSgtm, sub: 'IBKR + ESPP + SGTM' },
-      cash:      { val: amineUae + amineMoroccoCash, sub: 'UAE + Maroc' },
+      cash:      { val: amineCashTotal, sub: 'UAE + Revolut + Maroc' },
       immo:      { val: amineVitryEquity, sub: '1 bien \u2014 Vitry' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
       nwRef: amineNW,
@@ -1546,10 +1656,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash', color: '#48bb78',
-      total: amineUae + amineMoroccoCash,
+      total: amineCashTotal,
       sub: [
-        { label: 'Cash UAE', val: amineUae, color: '#22c55e', owner: 'AED' },
-        { label: 'Cash Maroc', val: amineMoroccoCash, color: '#15803d', owner: 'MAD' },
+        { label: 'Mashreq NEO+', val: toEUR(p.amine.uae.mashreq, 'AED', fx), color: cashColor(CASH_YIELDS.mashreq), owner: '6.25%' },
+        { label: 'Wio Savings', val: toEUR(p.amine.uae.wioSavings, 'AED', fx), color: cashColor(CASH_YIELDS.wioSavings), owner: '6%' },
+        ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: cashColor(CASH_YIELDS.wioCurrent), owner: '0%' }] : []),
+        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: cashColor(amineRevolutYield), owner: '0%' }] : []),
+        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: cashColor(amineMoroccoYield), owner: '0%' }] : []),
       ]
     },
     {
@@ -1584,8 +1697,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Cash', color: '#48bb78',
       total: p.nezha.cashFrance + nezhaCashMaroc,
       sub: [
-        { label: 'Cash France', val: p.nezha.cashFrance, color: '#16a34a', owner: 'EUR' },
-        { label: 'Cash Maroc', val: nezhaCashMaroc, color: '#166534', owner: 'MAD' },
+        { label: 'Cash France', val: p.nezha.cashFrance, color: cashColor(nezhaCashFranceYield), owner: 'EUR' },
+        { label: 'Cash Maroc', val: nezhaCashMaroc, color: cashColor(nezhaCashMarocYield), owner: 'MAD' },
       ]
     },
     {
