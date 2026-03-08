@@ -649,6 +649,23 @@
   </table>
 </div>
 
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">&#x1F4B8;</span>Cout reel d'un achat — Manque a gagner</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Combien coute reellement un achat aujourd'hui si cet argent etait investi ? Un achat de 10 000 EUR aujourd'hui, c'est potentiellement beaucoup plus dans 20 ans.</p>
+  <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-field"><label>Montant de l'achat (EUR)</label><input type="number" id="oppCostAmount" value="10000" min="100" max="1000000" step="100" style="width:100%;padding:8px;border:1px solid #cbd5e0;border-radius:6px;font-size:15px;text-align:center;"></div>
+    <div class="sim-field"><label>Retour annuel des marches</label><input type="range" id="oppCostReturn" min="1" max="15" step="0.5" value="10"><div class="range-val" id="oppCostReturnVal">10.0%</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="oppCostHorizon" min="1" max="40" step="1" value="20"><div class="range-val" id="oppCostHorizonVal">20 ans</div></div>
+  </div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-result" style="background:#fff5f5;"><div class="sr-val" id="oppCostFuture" style="color:#c53030;font-size:28px;">--</div><div class="sr-label">Cout reel dans le futur</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="oppCostLost" style="color:#b7791f;">--</div><div class="sr-label">Manque a gagner</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="oppCostMultiplier" style="color:var(--accent);">--</div><div class="sr-label">Multiplicateur</div></div>
+  </div>
+  <div id="oppCostTable" style="margin-top:16px;"></div>
+  <div class="highlight" id="oppCostInsight" style="margin-top:12px;">--</div>
+</div>
+
 <!-- ============ VUE ACTIONS ============ -->
 <div class="card hidden" data-view="actions">
   <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
@@ -1020,7 +1037,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=30"></script>
+<script type="module" src="js/app.js?v=31"></script>
 
 </body>
 </html>
