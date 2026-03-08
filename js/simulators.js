@@ -205,6 +205,15 @@ function buildSimChart(canvasId, chartKey, result) {
       plugins: {
         tooltip: {
           mode: 'index', intersect: false,
+          filter: function(tooltipItem) {
+            // Always hide "NW sans arret" from tooltip
+            if (tooltipItem.dataset.label === 'NW sans arret') return false;
+            return true;
+          },
+          itemSort: function(a, b) {
+            // Reverse order: NW Total first, then Gains, Capital, Immo last
+            return b.datasetIndex - a.datasetIndex;
+          },
           callbacks: {
             label: c => {
               const ds = c.dataset;
@@ -212,13 +221,13 @@ function buildSimChart(canvasId, chartKey, result) {
               return ' ' + ds.label + ': ' + fmt(actual);
             },
             afterBody: function(contexts) {
-              // Show immo breakdown when Immo line is visible
+              // Show immo breakdown ONLY when Immo is isolated
               if (!immoBreakdownResult) return '';
-              const immoCtx = contexts.find(c => c.dataset.label === 'Immobilier (equity)' && !c.dataset.hidden);
+              if (!(selected.size === 1 && selected.has(0))) return '';
+              const immoCtx = contexts.find(c => c.dataset.label === 'Immobilier (equity)');
               if (!immoCtx) return '';
               const idx = immoCtx.dataIndex;
-              const lines = immoBreakdownResult.map(b => '    ↳ ' + b.label + ': ' + fmt(b.data[idx]));
-              return lines;
+              return immoBreakdownResult.map(b => '    ↳ ' + b.label + ': ' + fmt(b.data[idx]));
             }
           }
         },
@@ -244,6 +253,11 @@ function buildSimChart(canvasId, chartKey, result) {
               selected.add(idx);
             }
 
+            // Remove any previous immo sub-lines
+            while (chart.data.datasets.length > origData.length) {
+              chart.data.datasets.pop();
+            }
+
             if (selected.size === 0) {
               // Reset: show all datasets with original stacked data
               chart.data.datasets.forEach((ds, i) => {
@@ -254,18 +268,44 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.hidden = false;
               });
             } else {
-              // Show selected datasets with actual values, hide others
+              // Stack selected datasets: cumulate actual values bottom-to-top
+              const sortedSel = [...selected].sort((a, b) => a - b);
+              const len = dataLabels.length;
+              let cumulative = new Array(len).fill(0);
+
               chart.data.datasets.forEach((ds, i) => {
                 if (selected.has(i)) {
-                  ds.data = [...ds._actual];
-                  ds.fill = 'origin';
+                  const selOrder = sortedSel.indexOf(i);
+                  const newData = ds._actual.map((v, j) => cumulative[j] + v);
+                  cumulative = [...newData];
+                  ds.data = newData;
+                  ds.fill = selOrder === 0 ? 'origin' : sortedSel[selOrder - 1];
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
-                  ds.borderWidth = 2;
+                  ds.borderWidth = 1.5;
                   ds.hidden = false;
                 } else {
                   ds.hidden = true;
                 }
               });
+
+              // If only Immo selected and breakdown available → add sub-lines per apartment
+              if (selected.size === 1 && selected.has(0) && immoBreakdownResult) {
+                const subColors = ['#c05621', '#2b6cb0', '#2c7a7b'];
+                immoBreakdownResult.forEach((b, bi) => {
+                  chart.data.datasets.push({
+                    label: '  ↳ ' + b.label,
+                    data: [...b.data],
+                    borderColor: subColors[bi % subColors.length],
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 1.5,
+                    borderDash: [4, 3],
+                    pointRadius: 0,
+                    _actual: b.data,
+                  });
+                });
+              }
             }
             chart.update();
           }
@@ -459,11 +499,18 @@ function runNezhaSimulator(state) {
                 ds.backgroundColor = nzOrigData[i].backgroundColor; ds.borderWidth = nzOrigData[i].borderWidth; ds.hidden = false;
               });
             } else {
+              const sortedSel = [...nzSelected].sort((a, b) => a - b);
+              const len = dataLabels.length;
+              let cumulative = new Array(len).fill(0);
               chart.data.datasets.forEach((ds, i) => {
                 if (nzSelected.has(i)) {
-                  ds.data = [...ds._actual]; ds.fill = 'origin';
+                  const selOrder = sortedSel.indexOf(i);
+                  const newData = ds._actual.map((v, j) => cumulative[j] + v);
+                  cumulative = [...newData];
+                  ds.data = newData;
+                  ds.fill = selOrder === 0 ? 'origin' : sortedSel[selOrder - 1];
                   ds.backgroundColor = nzOrigData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
-                  ds.borderWidth = 2; ds.hidden = false;
+                  ds.borderWidth = 1.5; ds.hidden = false;
                 } else { ds.hidden = true; }
               });
             }
