@@ -162,7 +162,7 @@ function renderKPIs(state, view) {
   // Set KPI values
   setEur('kpiCoupleNW', s.couple.nw);
   setEur('kpiCoupleAmNW', s.amine.nw);
-  setEur('kpiCoupleNzNW', s.nezha.nwWithVillejuif);
+  setEur('kpiCoupleNzNW', s.nezha.nw);
   setEur('kpiCoupleImmo', s.couple.immoEquity);
 
   setEur('kpiAmNW', s.amine.nw);
@@ -1698,7 +1698,7 @@ function attachKPIInsights(state, view) {
   const cashTotal = s.amine.uae + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Objectif 1M\u20ac atteint en ~1.7 ans.';
   insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
-  insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity + s.nezha.villejuifEquity) + ' (dominante) + Cash \u20ac' + f(s.nezha.cashFrance + s.nezha.cashMaroc) + '. Patrimoine 100% France/Maroc.';
+  insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cashFrance + s.nezha.cashMaroc) + '. Patrimoine 100% France/Maroc.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
 
   // ── Amine view ──
@@ -1708,7 +1708,8 @@ function attachKPIInsights(state, view) {
   insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac1,017/mois.';
 
   // ── Nezha view ──
-  insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac209/mois).';
+  const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
+  insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
   insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac838/mois de richesse.';
   insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison \u00e9t\u00e9 2029. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
   insights['kpiNzCash'] = 'Cash France \u20ac' + f(s.nezha.cashFrance) + ' (0% rendement) + Cash Maroc + Cr\u00e9ance Omar 40K MAD. Optimiser : placer sur livret/assurance-vie.';
