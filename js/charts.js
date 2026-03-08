@@ -271,7 +271,9 @@ function buildGeoChart(state) {
 
 // ============ IMMO EQUITY BAR ============
 function buildImmoEquityBar(state) {
-  charts.immoEq = new Chart(document.getElementById('immoEquityChart'), {
+  const el = document.getElementById('immoEquityChart');
+  if (!el) return;
+  charts.immoEq = new Chart(el, {
     type: 'bar',
     data: {
       labels: ['Vitry (Amine)','Rueil (Nezha)','Villejuif (Nezha)'],
@@ -286,7 +288,9 @@ function buildImmoEquityBar(state) {
 
 // ============ IMMO PROJECTION ============
 function buildImmoProjection(state) {
-  charts.immoProj = new Chart(document.getElementById('immoProjectionChart'), {
+  const el = document.getElementById('immoProjectionChart');
+  if (!el) return;
+  charts.immoProj = new Chart(el, {
     type: 'line',
     data: {
       labels: ['2027','2028','2029','2030','2031','2032'],
