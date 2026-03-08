@@ -185,7 +185,7 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=36';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=37';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
@@ -544,6 +544,8 @@ const tbody = document.getElementById('vitryFiscalSimBody');
 const summaryEl = document.getElementById('vitryFiscalSummary');
 const detailEl = document.getElementById('vitryDeductionDetail');
 
+let selectedYear = simStartYear; // track which year is selected for deduction detail
+
 function updateFiscal() {
   const loyerDeclare = parseInt(slider.value);
   valEl.textContent = loyerDeclare + ' \u20ac/mois';
@@ -551,6 +553,8 @@ function updateFiscal() {
 
   let html = '';
   let totalImpot10 = 0, totalRevenuNet10 = 0;
+  let sumLoyerTotal = 0, sumLoyerDecl = 0, sumCash = 0, sumDed = 0, sumRevImp = 0, sumRevNet = 0;
+  const yearData = []; // store per-year data for deduction detail
 
   for (let y = 0; y < simNYears; y++) {
     const year = simStartYear + y;
@@ -575,10 +579,21 @@ function updateFiscal() {
 
     totalImpot10 += impotDeclare;
     totalRevenuNet10 += revenuNetAn;
+    sumLoyerTotal += loyerTotalAn;
+    sumLoyerDecl += loyerDeclareAn;
+    sumCash += loyerCashAn;
+    sumDed += totalDeductions;
+    sumRevImp += revenuImposable;
+    sumRevNet += (revenuNetAn - impotDeclare);
 
-    const rowBg = year <= tfExemptionEndYear ? ' style="background:#f0fff4;"' : '';
+    // Store per-year deduction breakdown
+    yearData.push({ year, moisLoyer, totalInterets, assuranceAnnee, pnoAnnee, tfAnnee, totalDeductions });
 
-    html += '<tr' + rowBg + '>'
+    const isSelected = year === selectedYear;
+    const rowBg = isSelected ? 'background:#e2e8f0;' : (year <= tfExemptionEndYear ? 'background:#f0fff4;' : '');
+    const cursor = 'cursor:pointer;';
+
+    html += '<tr style="' + rowBg + cursor + '" data-year="' + year + '" data-idx="' + y + '">'
       + '<td><strong>' + year + '</strong></td>'
       + '<td class="num">' + loyerTotalAn.toLocaleString('fr-FR') + moisNote + '</td>'
       + '<td class="num">' + loyerDeclareAn.toLocaleString('fr-FR') + '</td>'
@@ -591,36 +606,64 @@ function updateFiscal() {
       + '<td class="num">' + tauxEff + '%</td>'
       + '</tr>';
   }
+
+  // ── TOTAL ROW ──
+  const tauxEffTotal = sumRevNet + totalImpot10 > 0 ? (totalImpot10 / (sumRevNet + totalImpot10) * 100).toFixed(1) : '0.0';
+  html += '<tr style="font-weight:700;border-top:3px solid #2d3748;background:#edf2f7;">'
+    + '<td>TOTAL 10 ans</td>'
+    + '<td class="num">' + Math.round(sumLoyerTotal).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num">' + Math.round(sumLoyerDecl).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num" style="color:#718096;">' + Math.round(sumCash).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num">' + Math.round(sumDed).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num">' + Math.round(sumRevImp).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num" style="color:#c53030;">' + totalImpot10.toLocaleString('fr-FR') + ' <small>(' + Math.round(totalImpot10 / 12 / simNYears) + '/m moy.)</small></td>'
+    + '<td class="num" style="color:#276749;">' + Math.round(sumRevNet).toLocaleString('fr-FR') + '</td>'
+    + '<td class="num">' + tauxEffTotal + '%</td>'
+    + '</tr>';
+
   tbody.innerHTML = html;
 
-  // Summary year 1
-  const m1 = 12 - contractStartMonth + 1;
-  const loyer1Total = loyerTotalMensuel * m1;
-  const loyer1Decl = loyerDeclare * m1;
-  const loyer1Cash = loyerCashMensuel * m1;
-  const copro1 = coproMensuel * m1;
-  const revNet1 = loyer1Total - copro1;
-  const int1 = yearlyInt[simStartYear] || 0;
-  const pr1 = m1 / 12;
-  const ded1 = int1 + totalAssurance * pr1 + pnoAnnuel * pr1;
-  const rev1 = Math.max(0, loyer1Decl - ded1);
-  const imp1 = Math.round(rev1 * totalRate);
+  // ── Click handler on rows to show deduction detail ──
+  tbody.querySelectorAll('tr[data-year]').forEach(tr => {
+    tr.addEventListener('click', function() {
+      selectedYear = parseInt(this.dataset.year);
+      updateDeductionDetail(yearData[parseInt(this.dataset.idx)]);
+      // Highlight selected row
+      tbody.querySelectorAll('tr[data-year]').forEach(r => {
+        const yr = parseInt(r.dataset.year);
+        r.style.background = yr === selectedYear ? '#e2e8f0' : (yr <= tfExemptionEndYear ? '#f0fff4' : '');
+      });
+    });
+  });
 
-  summaryEl.innerHTML = '<strong>R\u00e9sum\u00e9 ' + simStartYear + ' (' + m1 + ' mois, TF exon\u00e9r\u00e9e) :</strong> '
-    + 'Loyer total ' + loyer1Total.toLocaleString('fr-FR') + '\u20ac (d\u00e9clar\u00e9 ' + loyer1Decl.toLocaleString('fr-FR') + '\u20ac + cash ' + loyer1Cash.toLocaleString('fr-FR') + '\u20ac)'
-    + ' | D\u00e9ductions ' + Math.round(ded1).toLocaleString('fr-FR') + '\u20ac'
-    + ' | <strong style="' + (imp1 > 0 ? 'color:#c53030;' : 'color:#276749;') + '">Imp\u00f4t ' + imp1.toLocaleString('fr-FR') + '\u20ac/an (' + Math.round(imp1 / m1) + '\u20ac/mois)</strong>'
-    + ' | Revenu net apr\u00e8s imp\u00f4t : <strong style="color:#276749;">' + Math.round(revNet1 - imp1).toLocaleString('fr-FR') + '\u20ac</strong>';
+  // Summary
+  summaryEl.innerHTML = '<strong>Total 10 ans :</strong> '
+    + 'Loyer total ' + Math.round(sumLoyerTotal).toLocaleString('fr-FR') + '\u20ac'
+    + ' | Imp\u00f4t total <strong style="color:#c53030;">' + totalImpot10.toLocaleString('fr-FR') + '\u20ac</strong>'
+    + ' (' + Math.round(totalImpot10 / 12 / simNYears) + '\u20ac/mois en moyenne)'
+    + ' | <strong style="color:#276749;">Revenu net apr\u00e8s imp\u00f4t : ' + Math.round(sumRevNet).toLocaleString('fr-FR') + '\u20ac</strong>';
 
-  detailEl.innerHTML = '<details style="font-size:0.82rem;color:#4a5568;">'
-    + '<summary style="cursor:pointer;font-weight:600;">D\u00e9tail d\u00e9ductions ' + simStartYear + '</summary>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;max-width:500px;">'
-    + '<span>Int\u00e9r\u00eats (3 pr\u00eats)</span><span class="num">' + Math.round(int1).toLocaleString('fr-FR') + ' \u20ac</span>'
-    + '<span>Assurance (APRIL+AL)</span><span class="num">' + Math.round(totalAssurance * pr1).toLocaleString('fr-FR') + ' \u20ac</span>'
-    + '<span>PNO</span><span class="num">' + Math.round(pnoAnnuel * pr1).toLocaleString('fr-FR') + ' \u20ac</span>'
-    + '<span>Taxe fonci\u00e8re</span><span class="num" style="color:#276749;">0 \u20ac (exon\u00e9r\u00e9e)</span>'
-    + '<span style="font-weight:700;">Total d\u00e9ductions</span><span class="num" style="font-weight:700;">' + Math.round(ded1).toLocaleString('fr-FR') + ' \u20ac</span>'
-    + '</div></details>';
+  // Show deduction detail for selected year
+  const selIdx = selectedYear - simStartYear;
+  if (selIdx >= 0 && selIdx < yearData.length) {
+    updateDeductionDetail(yearData[selIdx]);
+  }
+}
+
+function updateDeductionDetail(yd) {
+  const tfLabel = yd.tfAnnee > 0
+    ? Math.round(yd.tfAnnee).toLocaleString('fr-FR') + ' \u20ac'
+    : '0 \u20ac <span style="color:#276749;">(exon\u00e9r\u00e9e)</span>';
+
+  detailEl.innerHTML = '<div style="font-size:0.82rem;color:#4a5568;margin-top:8px;padding:12px 16px;background:#f7fafc;border-radius:8px;border-left:3px solid #4299e1;">'
+    + '<strong style="font-size:0.9rem;">\u25BC D\u00e9tail d\u00e9ductions ' + yd.year + (yd.moisLoyer < 12 ? ' (' + yd.moisLoyer + ' mois)' : '') + '</strong>'
+    + '<div style="display:grid;grid-template-columns:1fr auto;gap:6px 16px;margin-top:8px;max-width:400px;">'
+    + '<span>Int\u00e9r\u00eats (3 pr\u00eats)</span><span class="num">' + Math.round(yd.totalInterets).toLocaleString('fr-FR') + ' \u20ac</span>'
+    + '<span>Assurance (APRIL+AL)</span><span class="num">' + Math.round(yd.assuranceAnnee).toLocaleString('fr-FR') + ' \u20ac</span>'
+    + '<span>PNO</span><span class="num">' + Math.round(yd.pnoAnnee).toLocaleString('fr-FR') + ' \u20ac</span>'
+    + '<span>Taxe fonci\u00e8re</span><span class="num">' + tfLabel + '</span>'
+    + '<span style="font-weight:700;border-top:1px solid #cbd5e0;padding-top:4px;">Total d\u00e9ductions</span><span class="num" style="font-weight:700;border-top:1px solid #cbd5e0;padding-top:4px;">' + Math.round(yd.totalDeductions).toLocaleString('fr-FR') + ' \u20ac</span>'
+    + '</div></div>';
 }
 
 slider.addEventListener('input', updateFiscal);
