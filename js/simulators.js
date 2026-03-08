@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=30';
-import { IMMO_CONSTANTS } from './data.js?v=30';
+import { fmt, fmtAxis } from './render.js?v=31';
+import { IMMO_CONSTANTS } from './data.js?v=31';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -588,11 +588,63 @@ function runNezhaSimulator(state) {
   });
 }
 
+// ============ OPPORTUNITY COST SIMULATOR ============
+function runOpportunityCostSim() {
+  const amount = parseFloat(document.getElementById('oppCostAmount')?.value) || 10000;
+  const annualReturn = parseFloat(document.getElementById('oppCostReturn')?.value) || 10;
+  const horizon = parseInt(document.getElementById('oppCostHorizon')?.value) || 20;
+
+  // Update labels
+  const setV = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  setV('oppCostReturnVal', annualReturn.toFixed(1) + '%');
+  setV('oppCostHorizonVal', horizon + ' ans');
+
+  const r = annualReturn / 100;
+  const futureValue = amount * Math.pow(1 + r, horizon);
+  const lost = futureValue - amount;
+  const multiplier = futureValue / amount;
+
+  setV('oppCostFuture', fmt(Math.round(futureValue)) + ' EUR');
+  setV('oppCostLost', '+' + fmt(Math.round(lost)) + ' EUR');
+  setV('oppCostMultiplier', 'x' + multiplier.toFixed(1));
+
+  // Build milestone table
+  const milestones = [1, 3, 5, 10, 15, 20, 25, 30, 40].filter(y => y <= horizon);
+  if (!milestones.includes(horizon)) milestones.push(horizon);
+  milestones.sort((a, b) => a - b);
+
+  let tableHTML = '<table><thead><tr><th>Annee</th><th class="num">Valeur future</th><th class="num">Manque a gagner</th><th class="num">Multiplicateur</th></tr></thead><tbody>';
+  milestones.forEach(y => {
+    const fv = amount * Math.pow(1 + r, y);
+    const mg = fv - amount;
+    const mult = fv / amount;
+    const isFinal = y === horizon;
+    const style = isFinal ? ' style="font-weight:700;background:#edf2f7"' : '';
+    tableHTML += '<tr' + style + '><td>' + y + ' ans</td>'
+      + '<td class="num" style="color:#c53030">' + fmt(Math.round(fv)) + ' EUR</td>'
+      + '<td class="num" style="color:#b7791f">+' + fmt(Math.round(mg)) + ' EUR</td>'
+      + '<td class="num" style="color:var(--accent)">x' + mult.toFixed(1) + '</td></tr>';
+  });
+  tableHTML += '</tbody></table>';
+
+  const tableEl = document.getElementById('oppCostTable');
+  if (tableEl) tableEl.innerHTML = tableHTML;
+
+  // Insight
+  const insight = 'Un achat de <strong>' + fmt(amount) + ' EUR</strong> aujourd\'hui, c\'est <strong style="color:#c53030">'
+    + fmt(Math.round(futureValue)) + ' EUR</strong> de manque a gagner dans ' + horizon + ' ans '
+    + '(x' + multiplier.toFixed(1) + ') avec un retour de ' + annualReturn.toFixed(1) + '%/an. '
+    + 'Chaque euro depense est un euro qui ne compose plus.';
+  const insightEl = document.getElementById('oppCostInsight');
+  if (insightEl) insightEl.innerHTML = insight;
+}
+
 // ============ INIT SIMULATORS ============
 export function initSimulators(state) {
   runCoupleSimulator(state);
   runAmineSimulator(state);
   runNezhaSimulator(state);
+  runOpportunityCostSim();
 }
 
 export function bindSimulatorEvents(state, refreshFn) {
@@ -607,6 +659,10 @@ export function bindSimulatorEvents(state, refreshFn) {
   // Nezha
   ['nzSimAppreciation','nzSimCashReturn','nzSimHorizon'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => runNezhaSimulator(state));
+  });
+  // Opportunity cost
+  ['oppCostAmount','oppCostReturn','oppCostHorizon'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => runOpportunityCostSim());
   });
   // Vitry fiscal sim (slider already bound in runVitryFiscalSim)
 }
