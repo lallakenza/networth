@@ -294,7 +294,7 @@ export const IMMO_CONSTANTS = {
   villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
-    vitry:     { pret: 1317, assurance: 30, pno: 15, tf: 75, copro: 150 },
+    vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // pret: AL 145.20 + BP 1020.55 + PTZ 0 ≈ 1166, ass: APRIL 17.48 ≈ 17
     rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 80 },  // pret: 969.62, ass: 17.99 (2026)
     villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
   },
