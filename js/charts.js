@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=20';
-import { getGrandTotal } from './engine.js?v=20';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=20';
+import { fmt, fmtAxis } from './render.js?v=25';
+import { getGrandTotal } from './engine.js?v=25';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=25';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -52,6 +52,10 @@ export function rebuildAllCharts(state, view) {
     buildImmoViewEquityBar(state);
     buildImmoViewProjection(state);
     buildAmortChart(state);
+  }
+  if (view === 'budget') {
+    buildBudgetZoneDonut(state);
+    buildBudgetTypeDonut(state);
   }
 
   if (PERSON_VIEWS.includes(view)) {
@@ -883,5 +887,58 @@ function buildImmoViewProjection(state) {
       plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
       scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
+// ============ BUDGET DONUTS ============
+function buildBudgetZoneDonut(state) {
+  const el = document.getElementById('budgetZoneChart');
+  if (!el) return;
+  if (charts.budgetZone) { charts.budgetZone.destroy(); delete charts.budgetZone; }
+  const bv = state.budgetView;
+  if (!bv) return;
+
+  const zoneColors = { Dubai: '#d69e2e', France: '#2b6cb0', Digital: '#805ad5' };
+  const entries = Object.entries(bv.byZone).sort((a, b) => b[1] - a[1]);
+  const labels = entries.map(e => e[0]);
+  const data = entries.map(e => Math.round(e[1]));
+  const colors = labels.map(l => zoneColors[l] || '#94a3b8');
+
+  charts.budgetZone = new Chart(el, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / bv.totalMonthly * 100).toFixed(0) + '%)' } }
+      }
+    }
+  });
+}
+
+function buildBudgetTypeDonut(state) {
+  const el = document.getElementById('budgetTypeChart');
+  if (!el) return;
+  if (charts.budgetType) { charts.budgetType.destroy(); delete charts.budgetType; }
+  const bv = state.budgetView;
+  if (!bv) return;
+
+  const typeColors = { Logement: '#e53e3e', 'Crédits': '#2b6cb0', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
+  const entries = Object.entries(bv.byType).sort((a, b) => b[1] - a[1]);
+  const labels = entries.map(e => e[0]);
+  const data = entries.map(e => Math.round(e[1]));
+  const colors = labels.map(l => typeColors[l] || '#94a3b8');
+
+  charts.budgetType = new Chart(el, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / bv.totalMonthly * 100).toFixed(0) + '%)' } }
+      }
+    }
   });
 }

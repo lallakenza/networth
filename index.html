@@ -159,6 +159,7 @@
   <button class="view-btn asset-view-btn" data-view="cash">&#x1F4B0; Cash</button>
   <button class="view-btn asset-view-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
   <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
+  <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
 </div>
 
 <div class="container">
@@ -962,6 +963,38 @@
   </div>
 </div>
 
+<!-- ============ VUE BUDGET ============ -->
+<div class="card hidden" data-view="budget">
+  <h2><span class="section-icon" style="background: #e53e3e;">&#x1F4B8;</span>Budget Mensuel &mdash; D&eacute;penses Fixes</h2>
+  <div class="kpi-strip" id="kpi-budget">
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetTotal" data-eur="0">--</div><div class="label">Total /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiBudgetYearly" data-eur="0">--</div><div class="label">Total /an</div></div>
+    <div class="kpi" style="border-top-color:#2b6cb0;"><div class="value" id="kpiBudgetFrance" data-eur="0">--</div><div class="label">France (Cr&eacute;dits)</div></div>
+    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiBudgetDubai" data-eur="0">--</div><div class="label">Dubai + Digital</div></div>
+  </div>
+
+  <div class="grid2" style="margin-bottom:20px;">
+    <div>
+      <h3>R&eacute;partition par Zone</h3>
+      <div class="chart-container" style="height:260px;"><canvas id="budgetZoneChart"></canvas></div>
+    </div>
+    <div>
+      <h3>R&eacute;partition par Type</h3>
+      <div class="chart-container" style="height:260px;"><canvas id="budgetTypeChart"></canvas></div>
+    </div>
+  </div>
+
+  <h3>D&eacute;tail des D&eacute;penses</h3>
+  <table>
+    <thead><tr><th>D&eacute;pense</th><th>Zone</th><th>Type</th><th class="num">Montant natif</th><th>Fr&eacute;quence</th><th class="num">EUR /mois</th><th class="num">% du total</th></tr></thead>
+    <tbody id="budgetDetailTbody"></tbody>
+  </table>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>Analyse :</strong> Ce budget repr&eacute;sente vos d&eacute;penses fixes incompressibles. En cas de perte de revenu, c'est le montant minimum &agrave; couvrir chaque mois. Les cr&eacute;dits immobiliers sont g&eacute;n&eacute;r&eacute;s automatiquement depuis les donn&eacute;es du portefeuille.
+  </div>
+</div>
+
 <footer>
   <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
   <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
@@ -970,7 +1003,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=24"></script>
+<script type="module" src="js/app.js?v=25"></script>
 
 </body>
 </html>
