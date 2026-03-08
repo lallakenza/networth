@@ -180,7 +180,7 @@ function buildSimChart(canvasId, chartKey, result) {
   // Datasets ordered bottom-to-top for proper stacking with fill: '-1'
   const coreCount = 4; // Immo, Capital, Gains, NW Total (before optional NW sans arret)
   const datasets = [
-    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo, _isImmo: true },
+    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo },
     { label: 'Capital Investi + Contributions', data: [...dataBase], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
     { label: 'Gains Marche (cumul)', data: [...dataGains], borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualGains },
     { label: 'Net Worth Total', data: [...dataNW], borderColor: '#1a202c', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
@@ -214,7 +214,7 @@ function buildSimChart(canvasId, chartKey, result) {
             afterBody: function(contexts) {
               // Show immo breakdown when Immo line is visible
               if (!immoBreakdownResult) return '';
-              const immoCtx = contexts.find(c => c.dataset._isImmo && !c.dataset.hidden);
+              const immoCtx = contexts.find(c => c.dataset.label === 'Immobilier (equity)' && !c.dataset.hidden);
               if (!immoCtx) return '';
               const idx = immoCtx.dataIndex;
               const lines = immoBreakdownResult.map(b => '    ↳ ' + b.label + ': ' + fmt(b.data[idx]));
