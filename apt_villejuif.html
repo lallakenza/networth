@@ -375,7 +375,7 @@ document.getElementById('cfTables').innerHTML = `
       <tr><td>Pr\u00eat LCL 1 (${(PRET1.rate*100).toFixed(2)}%)</td><td class="num neg">${fmtDec(PRET1.payment, 2)}</td></tr>
       <tr><td>Pr\u00eat LCL 2 (${(PRET2.rate*100).toFixed(2)}%)</td><td class="num neg">${fmtDec(PRET2.payment, 2)}</td></tr>
       <tr><td>Assurance pr\u00eats</td><td class="num neg">${fmtDec(totalInsurance, 2)}</td></tr>
-      <tr><td>Syndic (net de CC)</td><td class="num neg">${fmt(charges.copro - chargesLocataire)}</td></tr>
+      <tr><td>Copropri\u00e9t\u00e9 (/12)</td><td class="num neg">${fmt(charges.copro)}</td></tr>
       <tr><td>Taxe fonci\u00e8re (/12)</td><td class="num neg">${fmt(charges.tf)}</td></tr>
       <tr style="background:#edf2f7;font-weight:600"><td><strong>Total charges</strong></td><td class="num neg"><strong>${fmt(totalChargesAfter)}</strong></td></tr>
     </table>
