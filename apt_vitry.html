@@ -37,6 +37,20 @@
   .chart-container { position: relative; height: 350px; margin: 20px 0; }
   .section-num { display: inline-block; background: #4a5568; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; }
   footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+
+  .apt-nav { display: flex; gap: 0; background: #2d3748; padding: 12px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; margin-bottom: 28px; }
+  .apt-nav a { padding: 10px 24px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; text-decoration: none; }
+  .apt-nav a:hover { color: rgba(255,255,255,0.9); }
+  .apt-nav a.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
+  .apt-nav .nav-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 8px 8px; }
+  .apt-nav a.back-link { color: rgba(255,255,255,0.5); font-size: 12px; }
+  .apt-nav a.back-link:hover { color: rgba(255,255,255,0.9); }
+  .currency-bar { display: flex; gap: 0; justify-content: flex-end; margin-top: 12px; }
+  .cur-btn { padding: 5px 14px; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); transition: all 0.2s; }
+  .cur-btn:first-child { border-radius: 6px 0 0 6px; }
+  .cur-btn:last-child { border-radius: 0 6px 6px 0; }
+  .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .cur-btn:hover { color: white; }
   @media (max-width: 768px) { .grid4, .grid3 { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -45,10 +59,28 @@
 <div class="container">
 
 <header>
-  <h1>Appartement Vitry-sur-Seine</h1>
-  <div class="subtitle">Vitry-sur-Seine, 94400 | 67.14 m² | Propriétaire : Mohamed Amine Koraibi</div>
-  <div class="badge" id="dateBadgeVitry">Analyse patrimoniale — --</div>
+  <div class="container" style="padding-bottom:0;">
+    <h1>Appartement Vitry-sur-Seine</h1>
+    <div class="subtitle">Vitry-sur-Seine, 94400 | 67.14 m² | Propriétaire : Mohamed Amine Koraibi</div>
+    <div class="badge" id="dateBadgeApt">Analyse patrimoniale — --</div>
+    <div class="currency-bar">
+      <button class="cur-btn active" data-cur="EUR">EUR &euro;</button>
+      <button class="cur-btn" data-cur="AED">AED &#1583;.&#1573;</button>
+      <button class="cur-btn" data-cur="MAD">MAD DH</button>
+      <button class="cur-btn" data-cur="USD">USD $</button>
+    </div>
+  </div>
 </header>
+<div class="apt-nav">
+  <a href="index.html" class="back-link">&larr; Dashboard</a>
+  <div class="nav-sep"></div>
+  <a href="index.html#immobilier" class="back-link">&#x1F3E0; Vue Immobilier</a>
+  <div class="nav-sep"></div>
+  <a href="apt_vitry.html" class="active">Vitry-sur-Seine</a>
+  <a href="apt_rueil.html">Rueil-Malmaison</a>
+  <a href="apt_villejuif.html">Villejuif VEFA</a>
+</div>
+
 
 <!-- SECTION 1: FICHE PROPRIETE -->
 <div class="card">
@@ -68,8 +100,8 @@
       <div class="label">Surface</div>
     </div>
     <div class="metric-box">
-      <div class="value" style="color: var(--green);">€24,097</div>
-      <div class="label">Equity actuelle (mars 2026)</div>
+      <div class="value" style="color: var(--green);" data-eur="24097">€ 24 097</div>
+      <div class="label">Equity actuelle</div>
     </div>
   </div>
 
@@ -602,6 +634,39 @@ new Chart(ctxWealth, {
 
   slider.addEventListener('input', update);
   update();
+})();
+</script>
+
+
+<script>
+// Currency conversion
+(function() {
+  const RATES = { EUR: 1, AED: 3.98, MAD: 10.80, USD: 1.08 };
+  const SYMBOLS = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' };
+  let currentCur = 'EUR';
+
+  document.querySelectorAll('.cur-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentCur = this.dataset.cur;
+      const rate = RATES[currentCur];
+      const sym = SYMBOLS[currentCur];
+      document.querySelectorAll('[data-eur]').forEach(el => {
+        const eurVal = parseFloat(el.dataset.eur);
+        const converted = Math.round(eurVal * rate);
+        el.textContent = sym + ' ' + converted.toLocaleString('fr-FR');
+      });
+    });
+  });
+})();
+
+// Dynamic date
+(function() {
+  var d = new Date();
+  var label = 'Analyse patrimoniale — ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  var badge = document.getElementById('dateBadgeApt');
+  if (badge) badge.textContent = label;
 })();
 </script>
 
