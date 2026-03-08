@@ -1175,6 +1175,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     immoEquity: coupleImmoEquity,
     immoValue: coupleImmoValue,
     immoCRD: coupleImmoCRD,
+    nbBiens: nbBiens,
   };
 
   // ---- POOLS (for simulators) ----

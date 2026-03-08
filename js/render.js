@@ -399,6 +399,10 @@ function renderImmoKPIs(state) {
   setEur('kpiImmoEq', state.couple.immoEquity);
   setEur('kpiImmoVal', state.couple.immoValue);
   setEur('kpiImmoCRD', state.couple.immoCRD);
+  // Dynamic label with nb biens
+  const nb = state.couple.nbBiens || 3;
+  setText('kpiCoupleImmoLabel', 'Equity Immo (' + nb + ' biens) *');
+  setText('kpiImmoEqLabel', 'Equity Totale (' + nb + ' biens)');
   // Wealth creation from immoView
   if (state.immoView) {
     const wc = state.immoView.totalWealthCreation;

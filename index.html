@@ -169,11 +169,11 @@
   <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
   <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
   <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
-  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label">Equity Immo (3 biens) *</div></div>
+  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label" id="kpiCoupleImmoLabel">Equity Immo *</div></div>
 </div>
 <div class="kpi-insight-bar" id="insight-couple"></div>
 
-<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;">* incl. Villejuif VEFA — <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">conditionnel</span> acte notarie non signe</p>
+<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;" id="villejuifNote">* Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">non signe</span> — seuls 3 000 EUR de reservation comptes (remboursables)</p>
 
 <!-- KPIs AMINE -->
 <div id="kpi-amine" class="kpi-strip hidden">
@@ -396,7 +396,7 @@
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Resume Immobilier</h2>
   <div class="kpi-strip">
-    <div class="kpi gold"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label">Equity Totale (3 biens)</div></div>
+    <div class="kpi gold"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label" id="kpiImmoEqLabel">Equity Totale</div></div>
     <div class="kpi"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimee des biens</div></div>
     <div class="kpi"><div class="value" id="kpiImmoCRD" data-eur="0">--</div><div class="label">Capital Restant Du</div></div>
     <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">--</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4"></div></div>
