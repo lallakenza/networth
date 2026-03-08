@@ -268,20 +268,30 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.hidden = false;
               });
             } else {
-              // Stack selected datasets: cumulate actual values bottom-to-top
-              const sortedSel = [...selected].sort((a, b) => a - b);
+              // Indices 0-2 are stackable bands (Immo, Capital, Gains)
+              // Indices 3+ are overlay lines (NW Total, NW sans arret) — never stacked
+              const stackable = new Set([...selected].filter(i => i < 3));
+              const sortedStack = [...stackable].sort((a, b) => a - b);
               const len = dataLabels.length;
               let cumulative = new Array(len).fill(0);
 
               chart.data.datasets.forEach((ds, i) => {
-                if (selected.has(i)) {
-                  const selOrder = sortedSel.indexOf(i);
+                if (stackable.has(i)) {
+                  // Stackable band: cumulate actual values
+                  const selOrder = sortedStack.indexOf(i);
                   const newData = ds._actual.map((v, j) => cumulative[j] + v);
                   cumulative = [...newData];
                   ds.data = newData;
-                  ds.fill = selOrder === 0 ? 'origin' : sortedSel[selOrder - 1];
+                  ds.fill = selOrder === 0 ? 'origin' : sortedStack[selOrder - 1];
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
                   ds.borderWidth = 1.5;
+                  ds.hidden = false;
+                } else if (selected.has(i) && i >= 3) {
+                  // Overlay line (NW Total, NW sans arret): show as-is, no stacking
+                  ds.data = [...ds._actual];
+                  ds.fill = false;
+                  ds.backgroundColor = 'transparent';
+                  ds.borderWidth = origData[i].borderWidth;
                   ds.hidden = false;
                 } else {
                   ds.hidden = true;
@@ -502,18 +512,23 @@ function runNezhaSimulator(state) {
                 ds.backgroundColor = nzOrigData[i].backgroundColor; ds.borderWidth = nzOrigData[i].borderWidth; ds.hidden = false;
               });
             } else {
-              const sortedSel = [...nzSelected].sort((a, b) => a - b);
+              // Indices 0-2 are stackable (Rueil, Villejuif, Cash), index 3 = NW Total (line only)
+              const stackable = new Set([...nzSelected].filter(i => i < 3));
+              const sortedStack = [...stackable].sort((a, b) => a - b);
               const len = dataLabels.length;
               let cumulative = new Array(len).fill(0);
               chart.data.datasets.forEach((ds, i) => {
-                if (nzSelected.has(i)) {
-                  const selOrder = sortedSel.indexOf(i);
+                if (stackable.has(i)) {
+                  const selOrder = sortedStack.indexOf(i);
                   const newData = ds._actual.map((v, j) => cumulative[j] + v);
                   cumulative = [...newData];
                   ds.data = newData;
-                  ds.fill = selOrder === 0 ? 'origin' : sortedSel[selOrder - 1];
+                  ds.fill = selOrder === 0 ? 'origin' : sortedStack[selOrder - 1];
                   ds.backgroundColor = nzOrigData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
                   ds.borderWidth = 1.5; ds.hidden = false;
+                } else if (nzSelected.has(i) && i >= 3) {
+                  ds.data = [...ds._actual]; ds.fill = false;
+                  ds.backgroundColor = 'transparent'; ds.borderWidth = nzOrigData[i].borderWidth; ds.hidden = false;
                 } else { ds.hidden = true; }
               });
             }
