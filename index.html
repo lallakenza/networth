@@ -54,7 +54,7 @@
   .kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
   .kpi.gold { border-top-color: var(--gold); }
   .kpi.green { border-top-color: var(--green); }
-  .kpi .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
+  .kpi .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kpi .label { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
   .kpi .sub { font-size: 12px; color: var(--gray); margin-top: 2px; font-weight: 600; }
   .kpi-insight-bar { max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease; background: #f7fafc; border-left: 4px solid var(--accent); border-radius: 8px; margin: -12px 0 20px; font-size: 13px; color: #4a5568; line-height: 1.5; }
@@ -255,6 +255,7 @@
         <div class="sub-title">SGTM (Casablanca)</div>
         <div class="sub-detail" id="subSGTMDetail">--</div>
         <div class="sub-equity pos" id="subSGTM" data-eur="0">--</div>
+        <div class="sub-badge" id="subSGTMBadge" style="background:#c6f6d5;color:#276749">--</div>
       </div>
     </div>
   </div>
@@ -966,7 +967,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=20"></script>
+<script type="module" src="js/app.js?v=21"></script>
 
 </body>
 </html>
