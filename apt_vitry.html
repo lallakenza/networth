@@ -325,23 +325,32 @@ document.getElementById('ficheTable').innerHTML = `
 
 // ═══ SECTION 2: PRETS ═══
 const totalPrincipal = vitryLoans.reduce((s, l) => s + l.principal, 0);
-const totalPayment = charges.pret; // combined monthly payment from charges
 const totalInterestCost = propMeta.totalInterestCost; // from loan offers, stored in data.js
+
+// Current monthly payments per loan
+const alPayment = vitryLoans[0].monthlyPayment;        // 145.20
+const bpCurrentPayment = vitryLoans[2].periods[1].payment; // 1020.55 (current period)
+const ptzCurrentPayment = 0;                             // still in différé
+const totalLoanPayment = Math.round(alPayment + bpCurrentPayment + ptzCurrentPayment);
+const assuranceEmprunteur = charges.assurance;           // assurance crédit mensuelle
+
 let pretsHTML = '';
 const loanDisplayData = [
-  { name: 'Action Logement', principal: vitryLoans[0].principal, rate: vitryLoans[0].rate, months: vitryLoans[0].durationMonths, payment: vitryLoans[0].monthlyPayment, note: 'Incl. assurance' },
-  { name: "Riv'immo (BP)", principal: vitryLoans[2].principal, rate: vitryLoans[2].rate, months: vitryLoans[2].durationMonths || 300, payment: vitryLoans[2].periods[1].payment, note: 'Pr\u00eat principal' },
-  { name: 'PTZ', principal: vitryLoans[1].principal, rate: vitryLoans[1].rate, months: vitryLoans[1].durationMonths, payment: 0, note: 'Diff\u00e9r\u00e9 total 60 mois, puis ' + fmt(vitryLoans[1].periods[1].payment) + '/mois' },
+  { name: 'Action Logement', principal: vitryLoans[0].principal, rate: vitryLoans[0].rate, months: vitryLoans[0].durationMonths, payment: alPayment, note: 'Mensualit\u00e9 constante (incl. ass. AL 3\u20ac)' },
+  { name: "Riv'immo (BP)", principal: vitryLoans[2].principal, rate: vitryLoans[2].rate, months: vitryLoans[2].durationMonths, payment: bpCurrentPayment, note: 'P\u00e9riode 2/4 (jan 2026\u2013d\u00e9c 2028)' },
+  { name: 'PTZ', principal: vitryLoans[1].principal, rate: vitryLoans[1].rate, months: vitryLoans[1].durationMonths, payment: ptzCurrentPayment, note: 'Diff\u00e9r\u00e9 total 60 mois, puis ' + fmt(vitryLoans[1].periods[1].payment) + '/mois' },
 ];
 for (const l of loanDisplayData) {
   pretsHTML += `<tr><td><strong>${l.name}</strong></td><td class="num">${fmt(l.principal)}</td>
     <td class="num">${(l.rate*100).toFixed(2)}%</td><td class="num">${l.months} mois</td>
     <td class="num">${fmt(l.payment)}</td><td>${l.note}</td></tr>`;
 }
+pretsHTML += `<tr style="background:#f7fafc;"><td>Assurance emprunteur (APRIL)</td><td class="num" colspan="3"></td>
+  <td class="num">${fmt(assuranceEmprunteur)}</td><td>Couvre PTZ + BP</td></tr>`;
 pretsHTML += `<tr style="background:#edf2f7;font-weight:600"><td><strong>TOTAL</strong></td>
   <td class="num"><strong>${fmt(totalPrincipal)}</strong></td><td class="num">~1.5% moy.</td>
-  <td class="num">25 ans</td><td class="num"><strong>${fmt(totalPayment)}/mois</strong></td>
-  <td>Co\u00fbt total int\u00e9r\u00eats : ${fmt(totalInterestCost)}</td></tr>`;
+  <td class="num">25 ans</td><td class="num"><strong>${fmt(totalLoanPayment + assuranceEmprunteur)}/mois</strong></td>
+  <td>Pr\u00eats ${fmt(totalLoanPayment)} + assurance ${fmt(assuranceEmprunteur)} | Co\u00fbt int\u00e9r\u00eats : ${fmt(totalInterestCost)}</td></tr>`;
 document.getElementById('pretsTable').innerHTML = pretsHTML;
 
 const endValue = Math.round(PROP.purchasePrice * Math.pow(1 + PROP.appreciation, maxDurationMonths / 12));
