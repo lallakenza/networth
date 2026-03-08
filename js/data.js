@@ -359,12 +359,47 @@ export const IMMO_CONSTANTS = {
       insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
     },
     villejuif: {
-      principal: 360000,
-      rate: 0.0345,
-      startDate: '2025-09',
-      durationMonths: 336,   // 28 ans
-      monthlyPayment: 1669,
-      insurance: 51,
+      principal: 318470,     // 286,670 + 31,800
+      rate: 0.0303,          // taux moyen pondéré approx
+      startDate: '2025-08',  // franchise début août 2025
+      durationMonths: 327,   // 36 mois franchise + 291 mois amortissement
+      monthlyPayment: 1698,  // 1572.79 + 124.99
+      insurance: 51.29,      // 46.10 + 5.19
+    },
+    // ── Détail des 2 prêts Villejuif (LCL Rueil Buzenval) ──
+    villejuifLoans: [
+      {
+        name: 'LCL Prêt 1 — Immo Taux Fixe',
+        principal: 286669.95,
+        rate: 0.0327,          // 3.27%
+        amortMonths: 291,      // mois d'amortissement (après franchise)
+        payment: 1572.79,
+        taeg: 0.0373,
+        insuranceMonthly: 46.10,
+        // Coûts totaux (offre de prêt)
+        totalInterest: 142199,
+        deferredInterest: 19055,
+        totalInsurance: 14936,
+        garantie: 3498,
+      },
+      {
+        name: 'LCL Prêt 2 — Immo Taux Fixe',
+        principal: 31800,
+        rate: 0.009,           // 0.90%
+        amortMonths: 291,
+        payment: 124.99,
+        taeg: 0.0139,
+        insuranceMonthly: 5.19,
+        totalInterest: 3791,
+        deferredInterest: 575,
+        totalInsurance: 1682,
+        garantie: 672,
+      },
+    ],
+    villejuifFranchise: {
+      months: 36,              // Aug 2025 – Aug 2028
+      startDate: '2025-08',
+      fraisDossier: 1500,
     },
   },
   // ──────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Appartement Rueil-Malmaison — Amine Koraibi</title>
+<title>Appartement Rueil-Malmaison — Koraibi</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root { --primary: #1a365d; --accent: #2b6cb0; --red: #c53030; --green: #276749; --gray: #718096; --bg: #f7fafc; --card: #fff; }
@@ -37,7 +37,6 @@
   .chart-container { position: relative; height: 350px; margin: 20px 0; }
   .section-num { display: inline-block; background: #4a5568; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; }
   footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
-
   .apt-nav { display: flex; gap: 0; background: #2d3748; padding: 12px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; margin-bottom: 28px; }
   .apt-nav a { padding: 10px 24px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; text-decoration: none; }
   .apt-nav a:hover { color: rgba(255,255,255,0.9); }
@@ -81,422 +80,292 @@
   <a href="apt_villejuif.html">Villejuif VEFA</a>
 </div>
 
+<!-- All content below is populated dynamically by the script -->
 
 <!-- SECTION 1: FICHE PROPRIETE -->
 <div class="card">
   <h2><span class="section-num">1</span>Fiche Propriété</h2>
-
-  <div class="grid4">
-    <div class="metric-box">
-      <div class="value">€255,000</div>
-      <div class="label">Prix d'achat TTC</div>
-    </div>
-    <div class="metric-box">
-      <div class="value">€4,312/m²</div>
-      <div class="label">Prix au m²</div>
-    </div>
-    <div class="metric-box">
-      <div class="value">55.66 m²</div>
-      <div class="label">Surface</div>
-    </div>
-    <div class="metric-box">
-      <div class="value" style="color: var(--green);" data-eur="76725">€ 76 725</div>
-      <div class="label">Equity actuelle</div>
-    </div>
-  </div>
-
-  <table>
-    <thead><tr><th>Détail</th><th class="num">Valeur</th></tr></thead>
-    <tbody>
-      <tr><td>Date d'achat (acte)</td><td class="num">5 novembre 2019</td></tr>
-      <tr><td>Type</td><td class="num">Appartement T3 meublé — LMNP</td></tr>
-      <tr><td>Régime locatif</td><td class="num">Location meublée (LMNP)</td></tr>
-      <tr><td>Fiscalité</td><td class="num">Régime réel — impôt ~0€ (amortissement)</td></tr>
-      <tr><td>Appréciation estimée</td><td class="num">+1%/an (conservateur IDF)</td></tr>
-      <tr><td>Valeur estimée mars 2026</td><td class="num">€272,000</td></tr>
-    </tbody>
+  <div class="grid4" id="ficheKPIs"></div>
+  <table><thead><tr><th>Détail</th><th class="num">Valeur</th></tr></thead>
+    <tbody id="ficheTable"></tbody>
   </table>
 </div>
 
 <!-- SECTION 2: PRETS -->
 <div class="card">
   <h2><span class="section-num">2</span>Détail des Prêts</h2>
-
   <table>
-    <thead>
-      <tr><th>Prêt</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th>Notes</th></tr>
-    </thead>
-    <tbody>
-      <tr><td><strong>Crédit Mutuel</strong></td><td class="num">€251,200</td><td class="num">1.20%</td><td class="num">300 mois</td><td class="num">€969.62</td><td>Prêt MODULIMMO (hors assurance)</td></tr>
-      <tr style="background: #edf2f7; font-weight: 600;">
-        <td><strong>TOTAL</strong></td><td class="num"><strong>€251,200</strong></td><td class="num">1.20%</td><td class="num">25 ans</td><td class="num"><strong>€970/mois</strong></td><td>+ assurance €25/mois. TAEG 1.41%</td></tr>
-    </tbody>
+    <thead><tr><th>Prêt</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th>Notes</th></tr></thead>
+    <tbody id="pretsTable"></tbody>
   </table>
-
-  <div class="info">
-    <strong>Effet de levier :</strong> Vous empruntez €251,200 à 1.20% (TAEG 1.41%) pour un actif qui s'apprécie à ~1%/an. Le cash flow positif (+€146/mois) en fait un investissement auto-financé.
-  </div>
+  <div class="info" id="leverageInfo"></div>
 </div>
 
 <!-- SECTION 3: CASH FLOW -->
 <div class="card">
   <h2><span class="section-num">3</span>Cash Flow Mensuel</h2>
-
-  <div class="grid2">
-    <div>
-      <h3>Revenus</h3>
-      <table>
-        <tr><td>Loyer HC (LMNP meublé)</td><td class="num pos">€1,300</td></tr>
-        <tr><td>Provisions charges</td><td class="num pos">€150</td></tr>
-        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total revenus</strong></td><td class="num pos"><strong>€1,450</strong></td></tr>
-      </table>
-    </div>
-    <div>
-      <h3>Charges</h3>
-      <table>
-        <tr><td>Prêt Crédit Mutuel</td><td class="num neg">€970</td></tr>
-        <tr><td>Assurance crédit (ACM VIE)</td><td class="num neg">€18</td></tr>
-        <tr><td>PNO</td><td class="num neg">€12</td></tr>
-        <tr><td>Taxe foncière (/12)</td><td class="num neg">€67</td></tr>
-        <tr><td>Copro non-récupérable</td><td class="num neg">€80</td></tr>
-        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total charges</strong></td><td class="num neg"><strong>€1,147</strong></td></tr>
-      </table>
-    </div>
-  </div>
-
-  <div class="grid3" style="margin-top: 16px;">
-    <div class="metric-box">
-      <div class="value pos">+€153/mois</div>
-      <div class="label">Cash flow net</div>
-    </div>
-    <div class="metric-box">
-      <div class="value pos">€1,001/mois</div>
-      <div class="label">Création de richesse (capital + appreciation)</div>
-    </div>
-    <div class="metric-box">
-      <div class="value" style="color:var(--green)">Auto-financé</div>
-      <div class="label">CF positif, 0 effort</div>
-    </div>
-  </div>
-
-  <div class="success">
-    <strong>Auto-financé :</strong> Cash flow positif de +€153/mois (loyer HC 1,300 - charges 1,147). Vous créez ~€1,001 de richesse nette par mois (capital remboursé + appréciation) sans aucun effort financier. Bail meublé depuis oct 2025 (locataires Marouane El Mejjati &amp; Myriem Kadri Hassani).
-  </div>
+  <div class="grid2" id="cfTables"></div>
+  <div class="grid3" style="margin-top: 16px;" id="cfKPIs"></div>
+  <div class="success" id="cfSummary"></div>
 </div>
 
 <!-- SECTION 4: PROJECTION EQUITY -->
 <div class="card">
-  <h2><span class="section-num">4</span>Projection : Equity & Valeur du Bien</h2>
-  <div class="chart-container">
-    <canvas id="equityChart"></canvas>
-  </div>
-  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Hypothèse : appréciation 1%/an. L'equity = valeur estimée du bien - capital restant dû (CRD). Au bout de 25 ans, le bien vaut ~€356K et l'equity = 100% (prêt soldé).</p>
+  <h2><span class="section-num">4</span>Projection : Equity &amp; Valeur du Bien</h2>
+  <div class="chart-container"><canvas id="equityChart"></canvas></div>
+  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;" id="equityNote"></p>
 </div>
 
 <!-- SECTION 5: DECOMPOSITION MENSUALITE -->
 <div class="card">
-  <h2><span class="section-num">5</span>Décomposition de la Mensualité (Premiers Paiements)</h2>
-  <div class="chart-container">
-    <canvas id="amortChart"></canvas>
-  </div>
-  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">La part d'intérêts diminue progressivement tandis que le capital remboursé augmente. Avec un taux bas de 1.20%, le remboursement du capital s'accélère rapidement.</p>
+  <h2><span class="section-num">5</span>Décomposition de la Mensualité</h2>
+  <div class="chart-container"><canvas id="amortChart"></canvas></div>
+  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;" id="amortNote"></p>
 </div>
 
 <!-- SECTION 6: PROJECTION RICHESSE -->
 <div class="card">
   <h2><span class="section-num">6</span>Projection de Richesse dans l'Appartement</h2>
-  <div class="chart-container">
-    <canvas id="wealthChart"></canvas>
-  </div>
-
+  <div class="chart-container"><canvas id="wealthChart"></canvas></div>
   <h3>Jalons clés</h3>
   <table>
     <thead><tr><th>Date</th><th class="num">Equity</th><th class="num">Valeur du bien</th><th class="num">CRD</th><th>Commentaire</th></tr></thead>
-    <tbody>
-      <tr><td>Nov 2019</td><td class="num">€3,800</td><td class="num">€255,000</td><td class="num">€251,200</td><td>Achat — 1.5% equity</td></tr>
-      <tr><td>Mars 2026</td><td class="num">€76,725</td><td class="num">€272,000</td><td class="num">€195,275</td><td>6.3 ans — 28.2% equity</td></tr>
-      <tr><td>Jan 2027</td><td class="num">€85,543</td><td class="num">€275,000</td><td class="num">€189,457</td><td>7.2 ans — 31.1% equity</td></tr>
-      <tr><td>Jan 2028</td><td class="num">€97,707</td><td class="num">€278,000</td><td class="num">€180,293</td><td>8.2 ans — 35.1% equity</td></tr>
-      <tr><td>Jan 2029</td><td class="num">€110,020</td><td class="num">€281,000</td><td class="num">€170,980</td><td>9.2 ans — 39.1% equity</td></tr>
-      <tr><td>Jan 2030</td><td class="num">€122,468</td><td class="num">€284,000</td><td class="num">€161,532</td><td>10.2 ans — 43.1% equity</td></tr>
-      <tr><td>Nov 2044</td><td class="num">€356,000</td><td class="num">€356,000</td><td class="num">€0</td><td>25 ans — 100% equity, prêt soldé</td></tr>
-    </tbody>
+    <tbody id="milestonesTable"></tbody>
   </table>
 </div>
 
-<footer>
-  <p>Analyse Appartement Rueil-Malmaison — Mars 2026</p>
-  <p>Données issues du tableau d'amortissement et de la structure de coûts (LMNP meublé)</p>
-</footer>
+<footer id="pageFooter"></footer>
 
 </div>
 
-<script>
-// Calculate amortization schedule
-function calculateAmortization(principal, monthlyRate, months) {
+<script type="module">
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=18';
+
+// ═══ HELPERS ═══
+const fmt = v => '€' + Math.round(v).toLocaleString('fr-FR');
+const fmtK = v => '€' + (v/1000).toFixed(0) + 'K';
+const pct = (v, total) => (total > 0 ? (v / total * 100).toFixed(1) : '0') + '%';
+
+// ═══ DATA ═══
+const loan = IC.loans.rueil;
+const charges = IC.charges.rueil;
+const immo = PORTFOLIO.nezha.immo.rueil;
+const appreciation = 0.01; // 1%/an conservateur IDF
+const surface = 55.66;
+const prixAchatTTC = 255000; // prix + frais notaire
+const prixAchatM2 = Math.round(prixAchatTTC / surface);
+
+// ═══ AMORTIZATION SCHEDULE ═══
+function computeAmort(principal, annualRate, months, payment) {
+  const r = annualRate / 12;
   let crd = principal;
   const schedule = [];
-  for (let i = 0; i < months; i++) {
-    const interest = crd * monthlyRate;
-    const capital = 907 - interest;
-    crd -= capital;
-    schedule.push({ month: i + 1, capital: capital, interest: interest, crd: Math.max(0, crd) });
+  for (let i = 0; i < months && crd > 0.01; i++) {
+    const interest = crd * r;
+    const cap = Math.min(payment - interest, crd);
+    crd -= cap;
+    schedule.push({ month: i + 1, capital: cap, interest: interest, crd: Math.max(0, crd) });
   }
   return schedule;
 }
 
-const monthlyRate = 0.012 / 12; // 1.20% annual
-const amortSchedule = calculateAmortization(251200, monthlyRate, 300);
+const amortSchedule = computeAmort(loan.principal, loan.rate, loan.durationMonths, loan.monthlyPayment);
 
-// Equity projection chart data
-const equityLabels = [];
-const equityData = [];
-const crdData = [];
-const valueData = [];
+// Current month index
+const [startY, startM] = loan.startDate.split('-').map(Number);
+const now = new Date();
+const monthsElapsed = (now.getFullYear() - startY) * 12 + (now.getMonth() + 1 - startM);
+const currentIdx = Math.max(0, Math.min(monthsElapsed, amortSchedule.length - 1));
+const currentCRD = amortSchedule[currentIdx] ? amortSchedule[currentIdx].crd : 0;
+const equity = immo.value - currentCRD;
 
-let currentDate = new Date(2019, 10, 1); // Nov 2019
-const startPrice = 255000;
+// Current monthly capital repaid + appreciation
+const currentCapitalPerMonth = amortSchedule[currentIdx] ? amortSchedule[currentIdx].capital : 0;
+const monthlyAppreciation = immo.value * appreciation / 12;
+const wealthCreation = currentCapitalPerMonth + monthlyAppreciation;
 
-for (let month = 0; month <= 300; month++) {
-  const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + month, 1);
-  const monthsElapsed = month;
+// Cash flow
+const totalCharges = charges.pret + charges.assurance + charges.pno + charges.tf + charges.copro;
+const revenuNet = immo.loyer;
+const cfNet = revenuNet - totalCharges;
 
-  // Value with 1% annual appreciation
-  const yearsElapsed = monthsElapsed / 12;
-  const value = Math.round(startPrice * Math.pow(1.01, yearsElapsed));
+// ═══ SECTION 1: FICHE ═══
+document.getElementById('ficheKPIs').innerHTML = `
+  <div class="metric-box"><div class="value">${fmt(prixAchatTTC)}</div><div class="label">Prix d'achat TTC</div></div>
+  <div class="metric-box"><div class="value">${fmt(prixAchatM2)}/m²</div><div class="label">Prix au m²</div></div>
+  <div class="metric-box"><div class="value">${surface} m²</div><div class="label">Surface</div></div>
+  <div class="metric-box"><div class="value" style="color:var(--green)" data-eur="${Math.round(equity)}">${fmt(equity)}</div><div class="label">Equity actuelle</div></div>`;
 
-  // CRD from amortization schedule
-  let crd = 251200;
-  for (let i = 0; i < monthsElapsed && i < amortSchedule.length; i++) {
-    crd = amortSchedule[i].crd;
-  }
+const d = new Date();
+const moisFR = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+document.getElementById('ficheTable').innerHTML = `
+  <tr><td>Date d'achat (acte)</td><td class="num">5 novembre 2019</td></tr>
+  <tr><td>Type</td><td class="num">Appartement T3 meublé — LMNP</td></tr>
+  <tr><td>Régime locatif</td><td class="num">Location meublée (LMNP)</td></tr>
+  <tr><td>Fiscalité</td><td class="num">Régime réel — impôt ~0€ (amortissement)</td></tr>
+  <tr><td>Appréciation estimée</td><td class="num">+${(appreciation*100).toFixed(0)}%/an (conservateur IDF)</td></tr>
+  <tr><td>Valeur estimée ${moisFR}</td><td class="num">${fmt(immo.value)}</td></tr>
+  <tr><td>CRD actuel</td><td class="num">${fmt(currentCRD)}</td></tr>`;
 
-  const equity = value - crd;
+// ═══ SECTION 2: PRÊTS ═══
+document.getElementById('pretsTable').innerHTML = `
+  <tr><td><strong>Crédit Mutuel</strong></td><td class="num">${fmt(loan.principal)}</td><td class="num">${(loan.rate*100).toFixed(2)}%</td>
+      <td class="num">${loan.durationMonths} mois</td><td class="num">${fmt(loan.monthlyPayment)}</td><td>Prêt MODULIMMO (hors assurance)</td></tr>
+  <tr style="background:#edf2f7;font-weight:600">
+      <td><strong>TOTAL</strong></td><td class="num"><strong>${fmt(loan.principal)}</strong></td><td class="num">${(loan.rate*100).toFixed(2)}%</td>
+      <td class="num">${Math.round(loan.durationMonths/12)} ans</td><td class="num"><strong>${fmt(Math.round(loan.monthlyPayment))}/mois</strong></td>
+      <td>+ assurance €${Math.round(loan.insurance)}/mois</td></tr>`;
 
-  equityLabels.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
-  valueData.push(value);
-  crdData.push(crd);
-  equityData.push(equity);
+document.getElementById('leverageInfo').innerHTML =
+  `<strong>Effet de levier :</strong> Emprunt ${fmt(loan.principal)} à ${(loan.rate*100).toFixed(2)}% pour un actif qui s'apprécie à ~${(appreciation*100).toFixed(0)}%/an. Cash flow ${cfNet >= 0 ? 'positif (+' + fmt(cfNet) + '/mois)' : 'négatif (' + fmt(cfNet) + '/mois)'} — investissement ${cfNet >= 0 ? 'auto-financé' : 'avec effort mensuel'}.`;
+
+// ═══ SECTION 3: CASH FLOW ═══
+document.getElementById('cfTables').innerHTML = `
+  <div>
+    <h3>Revenus</h3>
+    <table>
+      <tr><td>Loyer HC (LMNP meublé)</td><td class="num pos">${fmt(immo.loyer)}</td></tr>
+      <tr><td>Provisions charges</td><td class="num pos">€150</td></tr>
+      <tr style="background:#edf2f7;font-weight:600"><td><strong>Total revenus</strong></td><td class="num pos"><strong>${fmt(immo.loyer + 150)}</strong></td></tr>
+    </table>
+  </div>
+  <div>
+    <h3>Charges</h3>
+    <table>
+      <tr><td>Prêt Crédit Mutuel</td><td class="num neg">${fmt(charges.pret)}</td></tr>
+      <tr><td>Assurance crédit</td><td class="num neg">${fmt(charges.assurance)}</td></tr>
+      <tr><td>PNO</td><td class="num neg">${fmt(charges.pno)}</td></tr>
+      <tr><td>Taxe foncière (/12)</td><td class="num neg">${fmt(charges.tf)}</td></tr>
+      <tr><td>Copro non-récupérable</td><td class="num neg">${fmt(charges.copro)}</td></tr>
+      <tr style="background:#edf2f7;font-weight:600"><td><strong>Total charges</strong></td><td class="num neg"><strong>${fmt(totalCharges)}</strong></td></tr>
+    </table>
+  </div>`;
+
+const cfClass = cfNet >= 0 ? 'pos' : 'neg';
+const cfSign = cfNet >= 0 ? '+' : '';
+document.getElementById('cfKPIs').innerHTML = `
+  <div class="metric-box"><div class="value ${cfClass}">${cfSign}${fmt(cfNet)}/mois</div><div class="label">Cash flow net</div></div>
+  <div class="metric-box"><div class="value pos">${fmt(Math.round(wealthCreation))}/mois</div><div class="label">Création de richesse (capital + appreciation)</div></div>
+  <div class="metric-box"><div class="value" style="color:var(--green)">${cfNet >= 0 ? 'Auto-financé' : 'Effort mensuel'}</div><div class="label">${cfNet >= 0 ? 'CF positif, 0 effort' : fmt(Math.abs(cfNet)) + '/mois d\'effort'}</div></div>`;
+
+document.getElementById('cfSummary').innerHTML =
+  `<strong>${cfNet >= 0 ? 'Auto-financé' : 'Effort mensuel'} :</strong> Cash flow ${cfSign}${fmt(cfNet)}/mois (loyer HC ${fmt(immo.loyer)} - charges ${fmt(totalCharges)}). Création de richesse ~${fmt(Math.round(wealthCreation))}/mois (capital remboursé + appréciation). Bail meublé depuis oct 2025.`;
+
+// ═══ SECTION 4: EQUITY CHART ═══
+const eqLabels = [], eqValue = [], eqCRD = [], eqEquity = [];
+for (let m = 0; m <= loan.durationMonths; m += 3) {
+  const date = new Date(startY, startM - 1 + m, 1);
+  const years = m / 12;
+  const val = Math.round(prixAchatTTC * Math.pow(1 + appreciation, years));
+  const crd = m === 0 ? loan.principal : (m <= amortSchedule.length ? amortSchedule[Math.min(m - 1, amortSchedule.length - 1)].crd : 0);
+  eqLabels.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
+  eqValue.push(val); eqCRD.push(Math.round(crd)); eqEquity.push(val - Math.round(crd));
 }
-
-const ctxEquity = document.getElementById('equityChart').getContext('2d');
-new Chart(ctxEquity, {
+new Chart(document.getElementById('equityChart'), {
   type: 'line',
-  data: {
-    labels: equityLabels,
-    datasets: [
-      {
-        label: 'Valeur du bien (€)',
-        data: valueData,
-        borderColor: '#2b6cb0',
-        backgroundColor: 'rgba(43,108,176,0.08)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 2,
-      },
-      {
-        label: 'Capital Restant Dû (€)',
-        data: crdData,
-        borderColor: '#c53030',
-        backgroundColor: 'rgba(197,48,48,0.08)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 2,
-      },
-      {
-        label: 'Equity (€)',
-        data: equityData,
-        borderColor: '#276749',
-        backgroundColor: 'rgba(39,103,73,0.15)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 2,
-        borderWidth: 3,
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
-        }
-      }
-    },
-    scales: {
-      y: {
-        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
-      }
-    }
+  data: { labels: eqLabels, datasets: [
+    { label: 'Valeur du bien (€)', data: eqValue, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.08)', fill: true, tension: 0.3, pointRadius: 1 },
+    { label: 'CRD (€)', data: eqCRD, borderColor: '#c53030', backgroundColor: 'rgba(197,48,48,0.08)', fill: true, tension: 0.3, pointRadius: 1 },
+    { label: 'Equity (€)', data: eqEquity, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.15)', fill: true, tension: 0.3, pointRadius: 1, borderWidth: 3 }
+  ]},
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.parsed.y) }}},
+    scales: { y: { ticks: { callback: v => fmtK(v) }}}
   }
 });
+const endValue = Math.round(prixAchatTTC * Math.pow(1 + appreciation, loan.durationMonths / 12));
+document.getElementById('equityNote').textContent = `Hypothèse : appréciation ${(appreciation*100).toFixed(0)}%/an. Au bout de ${Math.round(loan.durationMonths/12)} ans, le bien vaut ~${fmtK(endValue)} et l'equity = 100% (prêt soldé).`;
 
-// Amortization decomposition chart (first 12 months)
-const amortLabels = [];
-const amortCapital = [];
-const amortInterest = [];
-
-for (let i = 0; i < Math.min(12, amortSchedule.length); i++) {
-  const date = new Date(2019, 10 + i, 1);
-  amortLabels.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
-  amortCapital.push(Math.round(amortSchedule[i].capital));
-  amortInterest.push(Math.round(amortSchedule[i].interest));
+// ═══ SECTION 5: AMORTIZATION CHART ═══
+const aLabels = [], aCap = [], aInt = [];
+for (let i = 0; i < Math.min(24, amortSchedule.length); i++) {
+  const date = new Date(startY, startM - 1 + i, 1);
+  aLabels.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
+  aCap.push(Math.round(amortSchedule[i].capital));
+  aInt.push(Math.round(amortSchedule[i].interest));
 }
-
-const ctxAmort = document.getElementById('amortChart').getContext('2d');
-new Chart(ctxAmort, {
+new Chart(document.getElementById('amortChart'), {
   type: 'bar',
-  data: {
-    labels: amortLabels,
-    datasets: [
-      {
-        label: 'Capital remboursé (€)',
-        data: amortCapital,
-        backgroundColor: '#276749',
-      },
-      {
-        label: 'Intérêts (€)',
-        data: amortInterest,
-        backgroundColor: '#c53030',
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { position: 'top' } },
-    scales: {
-      x: { stacked: true },
-      y: { stacked: true, ticks: { callback: function(v) { return '€' + v; } } }
-    }
-  }
+  data: { labels: aLabels, datasets: [
+    { label: 'Capital remboursé (€)', data: aCap, backgroundColor: '#276749' },
+    { label: 'Intérêts (€)', data: aInt, backgroundColor: '#c53030' }
+  ]},
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }},
+    scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => '€' + v }}}}
 });
+document.getElementById('amortNote').textContent = `La part d'intérêts diminue progressivement. Avec un taux bas de ${(loan.rate*100).toFixed(2)}%, le remboursement du capital s'accélère rapidement.`;
 
-// Wealth creation chart
-const wealthLabels = [];
-const wealthEquity = [];
-const wealthCapitalCumul = [];
-const wealthInterestCumul = [];
-
-let cumulCapital = 0;
-let cumulInterest = 0;
-
-for (let month = 0; month <= 300; month += 12) {
-  const date = new Date(2019, 10 + month, 1);
-
-  // Calculate equity
-  const yearsElapsed = month / 12;
-  const value = Math.round(startPrice * Math.pow(1.01, yearsElapsed));
-
-  let crd = 251200;
-  for (let i = 0; i < month && i < amortSchedule.length; i++) {
-    crd = amortSchedule[i].crd;
-  }
-
-  const equity = value - crd;
-
-  // Calculate cumulative capital and interest
-  cumulCapital = 0;
-  cumulInterest = 0;
-  for (let i = 0; i < month && i < amortSchedule.length; i++) {
-    cumulCapital += amortSchedule[i].capital;
-    cumulInterest += amortSchedule[i].interest;
-  }
-
-  wealthLabels.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
-  wealthEquity.push(equity);
-  wealthCapitalCumul.push(Math.round(cumulCapital));
-  wealthInterestCumul.push(Math.round(cumulInterest));
+// ═══ SECTION 6: WEALTH CHART + MILESTONES ═══
+const wLabels = [], wEquity = [], wCapCumul = [], wIntCumul = [];
+for (let m = 0; m <= loan.durationMonths; m += 12) {
+  const date = new Date(startY, startM - 1 + m, 1);
+  const years = m / 12;
+  const val = Math.round(prixAchatTTC * Math.pow(1 + appreciation, years));
+  const crd = m === 0 ? loan.principal : amortSchedule[Math.min(m - 1, amortSchedule.length - 1)].crd;
+  let cumCap = 0, cumInt = 0;
+  for (let i = 0; i < m && i < amortSchedule.length; i++) { cumCap += amortSchedule[i].capital; cumInt += amortSchedule[i].interest; }
+  wLabels.push(date.getFullYear());
+  wEquity.push(val - Math.round(crd)); wCapCumul.push(Math.round(cumCap)); wIntCumul.push(Math.round(cumInt));
 }
-
-const ctxWealth = document.getElementById('wealthChart').getContext('2d');
-new Chart(ctxWealth, {
+new Chart(document.getElementById('wealthChart'), {
   type: 'line',
-  data: {
-    labels: wealthLabels,
-    datasets: [
-      {
-        label: 'Equity (€)',
-        data: wealthEquity,
-        borderColor: '#276749',
-        backgroundColor: 'rgba(39,103,73,0.2)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        borderWidth: 3,
-      },
-      {
-        label: 'Capital remboursé cumulé (€)',
-        data: wealthCapitalCumul,
-        borderColor: '#2b6cb0',
-        borderDash: [5,5],
-        tension: 0.3,
-        pointRadius: 2,
-      },
-      {
-        label: 'Intérêts cumulés (€)',
-        data: wealthInterestCumul,
-        borderColor: '#c53030',
-        borderDash: [5,5],
-        tension: 0.3,
-        pointRadius: 2,
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
-        }
-      }
-    },
-    scales: {
-      y: {
-        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
-      }
-    }
-  }
+  data: { labels: wLabels, datasets: [
+    { label: 'Equity (€)', data: wEquity, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.2)', fill: true, tension: 0.3, pointRadius: 3, borderWidth: 3 },
+    { label: 'Capital remboursé cumulé (€)', data: wCapCumul, borderColor: '#2b6cb0', borderDash: [5,5], tension: 0.3, pointRadius: 2 },
+    { label: 'Intérêts cumulés (€)', data: wIntCumul, borderColor: '#c53030', borderDash: [5,5], tension: 0.3, pointRadius: 2 }
+  ]},
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.parsed.y) }}},
+    scales: { y: { ticks: { callback: v => fmtK(v) }}}}
 });
-</script>
 
+// Milestones table — generated dynamically
+const milestones = [
+  { month: 0, label: 'Nov 2019', comment: 'Achat' },
+  { month: monthsElapsed, label: d.toLocaleDateString('fr-FR', {month:'short', year:'numeric'}), comment: `${(monthsElapsed/12).toFixed(1)} ans` },
+];
+// Add yearly milestones
+for (let y = 1; y <= 5; y++) {
+  const m = monthsElapsed + y * 12;
+  if (m < loan.durationMonths) {
+    const dt = new Date(now.getFullYear() + y, now.getMonth(), 1);
+    milestones.push({ month: m, label: 'Jan ' + dt.getFullYear(), comment: `${(m/12).toFixed(1)} ans` });
+  }
+}
+milestones.push({ month: loan.durationMonths, label: 'Nov 2044', comment: `${Math.round(loan.durationMonths/12)} ans — prêt soldé` });
 
-<script>
-// Currency conversion
-(function() {
-  const RATES = { EUR: 1, AED: 3.98, MAD: 10.80, USD: 1.08 };
-  const SYMBOLS = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' };
-  let currentCur = 'EUR';
+let msHTML = '';
+for (const ms of milestones) {
+  const yrs = ms.month / 12;
+  const val = Math.round(prixAchatTTC * Math.pow(1 + appreciation, yrs));
+  const crd = ms.month === 0 ? loan.principal : (ms.month >= amortSchedule.length ? 0 : amortSchedule[Math.min(ms.month - 1, amortSchedule.length - 1)].crd);
+  const eq = val - Math.round(crd);
+  const eqPct = (eq / val * 100).toFixed(1);
+  msHTML += `<tr><td>${ms.label}</td><td class="num">${fmt(eq)}</td><td class="num">${fmt(val)}</td><td class="num">${fmt(Math.round(crd))}</td><td>${ms.comment} — ${eqPct}% equity</td></tr>`;
+}
+document.getElementById('milestonesTable').innerHTML = msHTML;
 
-  document.querySelectorAll('.cur-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      currentCur = this.dataset.cur;
-      const rate = RATES[currentCur];
-      const sym = SYMBOLS[currentCur];
-      document.querySelectorAll('[data-eur]').forEach(el => {
-        const eurVal = parseFloat(el.dataset.eur);
-        const converted = Math.round(eurVal * rate);
-        el.textContent = sym + ' ' + converted.toLocaleString('fr-FR');
-      });
+// ═══ FOOTER ═══
+document.getElementById('pageFooter').innerHTML = `<p>Analyse Appartement Rueil-Malmaison — ${moisFR}</p><p>Données issues de data.js — calculs dynamiques</p>`;
+
+// ═══ DATE BADGE ═══
+document.getElementById('dateBadgeApt').textContent = 'Analyse patrimoniale — ' + d.getDate() + ' ' + moisFR;
+
+// ═══ CURRENCY SWITCHER ═══
+const RATES = { EUR: 1, AED: FX_STATIC.AED, MAD: FX_STATIC.MAD, USD: FX_STATIC.USD };
+const SYMBOLS = { EUR: '€', AED: 'د.إ', MAD: 'DH', USD: '$' };
+document.querySelectorAll('.cur-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const cur = this.dataset.cur;
+    const rate = RATES[cur];
+    const sym = SYMBOLS[cur];
+    document.querySelectorAll('[data-eur]').forEach(el => {
+      el.textContent = sym + ' ' + Math.round(parseFloat(el.dataset.eur) * rate).toLocaleString('fr-FR');
     });
   });
-})();
-
-// Dynamic date
-(function() {
-  var d = new Date();
-  var label = 'Analyse patrimoniale — ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-  var badge = document.getElementById('dateBadgeApt');
-  if (badge) badge.textContent = label;
-})();
+});
 </script>
 
 </body>

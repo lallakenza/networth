@@ -43,7 +43,6 @@
   .timeline-item .phase { font-weight: 700; color: var(--primary); margin-bottom: 4px; }
   .timeline-item .date { font-size: 12px; color: var(--gray); }
   .timeline-item.active { background: #d1fae5; }
-
   .apt-nav { display: flex; gap: 0; background: #2d3748; padding: 12px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; margin-bottom: 28px; }
   .apt-nav a { padding: 10px 24px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; text-decoration: none; }
   .apt-nav a:hover { color: rgba(255,255,255,0.9); }
@@ -67,7 +66,7 @@
 <header>
   <div class="container" style="padding-bottom:0;">
     <h1>Appartement Villejuif VEFA</h1>
-    <div class="subtitle">167 Boulevard Maxime Gorki, 94800 Villejuif | 68.92 m² | Propriétaire : Nezha Kabbaj</div>
+    <div class="subtitle" id="headerSubtitle"></div>
     <div class="badge" id="dateBadgeApt">Analyse patrimoniale VEFA — --</div>
     <div class="currency-bar">
       <button class="cur-btn active" data-cur="EUR">EUR &euro;</button>
@@ -87,180 +86,60 @@
   <a href="apt_villejuif.html" class="active">Villejuif VEFA</a>
 </div>
 
+<!-- All content below is populated dynamically -->
 
 <!-- SECTION 1: FICHE PROPRIETE -->
 <div class="card">
-  <h2><span class="section-num">1</span>Fiche Propriété</h2>
-
-  <div class="grid4">
-    <div class="metric-box">
-      <div class="value">€349,456</div>
-      <div class="label">Montant total opération</div>
-    </div>
-    <div class="metric-box">
-      <div class="value">€5,072/m²</div>
-      <div class="label">Prix au m²</div>
-    </div>
-    <div class="metric-box">
-      <div class="value">68.92 m²</div>
-      <div class="label">Surface</div>
-    </div>
-    <div class="metric-box">
-      <div class="value" style="color: var(--green);" data-eur="41530">€ 41 530</div>
-      <div class="label">Equity actuelle</div>
-    </div>
-  </div>
-
-  <table>
-    <thead><tr><th>Détail</th><th class="num">Valeur</th></tr></thead>
-    <tbody>
-      <tr><td>Programme</td><td class="num">VEFA Villejuif — 167 Bd Maxime Gorki</td></tr>
-      <tr><td>Type</td><td class="num">Appartement T3 — VEFA (TVA 5.5%)</td></tr>
-      <tr><td>Régime locatif</td><td class="num">LMNP meublé — fiscalité allégée</td></tr>
-      <tr><td>Fiscalité</td><td class="num">Régime simplifié — impôts ~0€</td></tr>
-      <tr><td>Appréciation estimée</td><td class="num">+1%/an (marché local)</td></tr>
-      <tr><td>Valeur estimée mars 2026</td><td class="num">€360,000 (conservateur — marché ~€5,220/m²)</td></tr>
-      <tr><td>Equity estimée</td><td class="num">€41,530 (360K - CRD 318,470)</td></tr>
-      <tr><td>Total emprunté</td><td class="num">€318,470 (2 prêts LCL)</td></tr>
-    </tbody>
+  <h2><span class="section-num">1</span>Fiche Propri&eacute;t&eacute;</h2>
+  <div class="grid4" id="ficheKPIs"></div>
+  <table><thead><tr><th>D&eacute;tail</th><th class="num">Valeur</th></tr></thead>
+    <tbody id="ficheTable"></tbody>
   </table>
 </div>
 
 <!-- SECTION 2: TIMELINE VEFA -->
 <div class="card">
   <h2><span class="section-num">2</span>Timeline — Phases VEFA</h2>
-
-  <div class="timeline">
-    <div class="timeline-item active">
-      <div class="phase">Réservation</div>
-      <div class="date">Juil 2025</div>
-      <p style="font-size: 12px; margin-top: 6px;">Offre de prêt acceptée chez LCL, dossier validé</p>
-    </div>
-    <div class="timeline-item">
-      <div class="phase">Franchise (36 mois)</div>
-      <div class="date">Août 2025 – Août 2028</div>
-      <p style="font-size: 12px; margin-top: 6px;">Différé total : 0€ de remboursement, intérêts capitalisés</p>
-    </div>
-    <div class="timeline-item">
-      <div class="phase">Livraison & Amortissement</div>
-      <div class="date">Sep 2028</div>
-      <p style="font-size: 12px; margin-top: 6px;">Début remboursement : 1 697,78€/mois hors assurance</p>
-    </div>
-    <div class="timeline-item">
-      <div class="phase">Location</div>
-      <div class="date">Q4 2028+</div>
-      <p style="font-size: 12px; margin-top: 6px;">Mise en location meublée LMNP</p>
-    </div>
-  </div>
-
-  <div class="highlight">
-    <strong>Période de franchise (36 mois) :</strong> Aucun remboursement de capital ou d'intérêts. Les intérêts sont capitalisés annuellement, faisant passer le CRD de €318,470 à ~€348,388 (+€29,918 d'intérêts différés). Seule l'assurance de €51,29/mois est due pendant cette période.
-  </div>
+  <div id="timelineContent"></div>
+  <div class="highlight" id="franchiseInfo"></div>
 </div>
 
 <!-- SECTION 3: PRETS -->
 <div class="card">
-  <h2><span class="section-num">3</span>Détail des Prêts — LCL Rueil Buzenval</h2>
-
+  <h2><span class="section-num">3</span>D&eacute;tail des Pr&ecirc;ts — LCL Rueil Buzenval</h2>
   <table>
-    <thead>
-      <tr><th>Prêt</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">TAEG</th></tr>
-    </thead>
-    <tbody>
-      <tr><td><strong>LCL Prêt 1</strong> — Immo Taux Fixe</td><td class="num">€286,670</td><td class="num">3.27%</td><td class="num">324 mois (dont 24 UP + 36 franchise)</td><td class="num">€1,572.79</td><td class="num">3.73%</td></tr>
-      <tr><td><strong>LCL Prêt 2</strong> — Immo Taux Fixe</td><td class="num">€31,800</td><td class="num">0.90%</td><td class="num">324 mois (dont 24 UP + 36 franchise)</td><td class="num">€124.99</td><td class="num">1.39%</td></tr>
-      <tr style="background: #edf2f7; font-weight: 600;">
-        <td><strong>TOTAL</strong></td><td class="num"><strong>€318,470</strong></td><td class="num">~3.03% moy.</td><td class="num">291 échéances</td><td class="num"><strong>€1,697.78/mois</strong></td><td class="num">—</td></tr>
-    </tbody>
+    <thead><tr><th>Pr&ecirc;t</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Dur&eacute;e</th><th class="num">Mensualit&eacute;</th><th class="num">TAEG</th></tr></thead>
+    <tbody id="pretsTable"></tbody>
   </table>
-
-  <h3>Coûts détaillés</h3>
+  <h3>Co&ucirc;ts d&eacute;taill&eacute;s</h3>
   <table>
-    <thead><tr><th>Poste</th><th class="num">Prêt 1</th><th class="num">Prêt 2</th><th class="num">Total</th></tr></thead>
-    <tbody>
-      <tr><td>Capital emprunté</td><td class="num">€286,670</td><td class="num">€31,800</td><td class="num">€318,470</td></tr>
-      <tr><td>Intérêts</td><td class="num">€142,199</td><td class="num">€3,791</td><td class="num">€145,990</td></tr>
-      <tr><td>Intérêts différés capitalisés</td><td class="num">€19,055</td><td class="num">€575</td><td class="num">€19,630</td></tr>
-      <tr><td>Assurance emprunteur</td><td class="num">€14,936</td><td class="num">€1,682</td><td class="num">€16,618</td></tr>
-      <tr><td>Frais de dossier</td><td class="num" colspan="2">€1,500</td><td class="num">€1,500</td></tr>
-      <tr><td>Frais de garantie (Crédit Logement)</td><td class="num">€3,498</td><td class="num">€672</td><td class="num">€4,170</td></tr>
-      <tr style="background: #edf2f7; font-weight: 600;">
-        <td><strong>Coût total des prêts</strong></td><td class="num"><strong>€181,188</strong></td><td class="num"><strong>€6,719</strong></td><td class="num"><strong>€187,907</strong></td></tr>
-    </tbody>
+    <thead><tr><th>Poste</th><th class="num">Pr&ecirc;t 1</th><th class="num">Pr&ecirc;t 2</th><th class="num">Total</th></tr></thead>
+    <tbody id="costsTable"></tbody>
   </table>
-
-  <div class="info">
-    <strong>Assurance :</strong> Prêt 1 = €46,10/mois | Prêt 2 = €5,19/mois → Total €51,29/mois (payable dès la franchise). Contrat CACI Ass Emp Immo DPTIA + AT, quotité 100%.
-  </div>
+  <div class="info" id="insuranceInfo"></div>
 </div>
 
-<!-- SECTION 4: CASH FLOW APRES LIVRAISON -->
+<!-- SECTION 4: CASH FLOW -->
 <div class="card">
-  <h2><span class="section-num">4</span>Cash Flow Mensuel — Après Livraison (Q4 2028+)</h2>
-
-  <div class="grid2">
-    <div>
-      <h3>Revenus</h3>
-      <table>
-        <tr><td>Loyer meublé brut</td><td class="num pos">€1,550</td></tr>
-        <tr><td>Charges locataire (CC)</td><td class="num pos">€150</td></tr>
-        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total revenus</strong></td><td class="num pos"><strong>€1,700</strong></td></tr>
-      </table>
-    </div>
-    <div>
-      <h3>Charges</h3>
-      <table>
-        <tr><td>Prêt LCL 1 (3.27%)</td><td class="num neg">€1,572.79</td></tr>
-        <tr><td>Prêt LCL 2 (0.90%)</td><td class="num neg">€124.99</td></tr>
-        <tr><td>Assurance prêts</td><td class="num neg">€51.29</td></tr>
-        <tr><td>Syndic (net de CC)</td><td class="num neg">€18</td></tr>
-        <tr><td>Taxe foncière (/12)</td><td class="num neg">€45</td></tr>
-        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total charges</strong></td><td class="num neg"><strong>€1,812.07</strong></td></tr>
-      </table>
-    </div>
-  </div>
-
-  <div class="grid3" style="margin-top: 16px;">
-    <div class="metric-box">
-      <div class="value neg">-€112/mois</div>
-      <div class="label">Cash flow net</div>
-    </div>
-    <div class="metric-box">
-      <div class="value pos" id="wealthCreation">—</div>
-      <div class="label">Création de richesse (capital remboursé + appréciation)</div>
-    </div>
-    <div class="metric-box">
-      <div class="value" id="wealthRatio">—</div>
-      <div class="label">Ratio richesse / effort</div>
-    </div>
-  </div>
-
-  <div class="success" id="wealthExplanation">
-    <strong>Création de valeur :</strong> Calcul en cours...
-  </div>
-
-  <div class="highlight">
-    <strong>Pendant la franchise (2025–2028) :</strong> Cash flow = -€51,29/mois (assurance uniquement). Aucun revenu locatif pendant cette période.
-  </div>
+  <h2><span class="section-num">4</span>Cash Flow Mensuel — Apr&egrave;s Livraison (Q4 2028+)</h2>
+  <div class="grid2" id="cfTables"></div>
+  <div class="grid3" style="margin-top: 16px;" id="cfKPIs"></div>
+  <div class="success" id="wealthExplanation"></div>
+  <div class="highlight" id="franchiseCFNote"></div>
 </div>
 
 <!-- SECTION 5: PROJECTION EQUITY -->
 <div class="card">
-  <h2><span class="section-num">5</span>Projection : Equity & Valeur du Bien</h2>
-  <div class="chart-container">
-    <canvas id="equityChart"></canvas>
-  </div>
-  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Hypothèse : appréciation 1%/an. Pendant la franchise (36 mois), le CRD augmente (intérêts capitalisés). Après Sep 2028, les prêts s'amortissent à €1,697.78/mois. L'equity = valeur estimée - CRD total.</p>
+  <h2><span class="section-num">5</span>Projection : Equity &amp; Valeur du Bien</h2>
+  <div class="chart-container"><canvas id="equityChart"></canvas></div>
+  <p style="font-size: 13px; color: var(--gray); margin-top: 8px;" id="equityNote"></p>
 </div>
 
 <!-- SECTION 6: PROJECTION RICHESSE -->
 <div class="card">
   <h2><span class="section-num">6</span>Projection de Richesse dans l'Appartement</h2>
-  <div class="chart-container">
-    <canvas id="wealthChart"></canvas>
-  </div>
-
-  <h3>Jalons clés</h3>
+  <div class="chart-container"><canvas id="wealthChart"></canvas></div>
+  <h3>Jalons cl&eacute;s</h3>
   <table id="milestonesTable">
     <thead><tr><th>Date</th><th class="num">Equity</th><th class="num">Valeur du bien</th><th class="num">CRD total</th><th>Commentaire</th></tr></thead>
     <tbody></tbody>
@@ -269,56 +148,58 @@
 
 <!-- SECTION 7: SYNTHESE VEFA -->
 <div class="card">
-  <h2><span class="section-num">7</span>Avantages & Contraintes VEFA</h2>
-
-  <div class="success">
-    <strong>Avantages VEFA :</strong>
-    <ul style="margin-top: 8px; margin-left: 20px;">
-      <li>Décote de -10% vs marché (~€349K au lieu de ~€389K au prix marché).</li>
-      <li>TVA 5.5% au lieu de 20% (économie ~€50K).</li>
-      <li>Différé total des prêts 36 mois — seule l'assurance (€51/mois) est due.</li>
-      <li>LMNP meublé = régime fiscal avantageux, impôts ~0€.</li>
-      <li>Prêt 2 à 0.90% = quasi-gratuit, optimise le coût global.</li>
-    </ul>
-  </div>
-
-  <div class="alert">
-    <strong>Attention — Intérêts capitalisés :</strong> Pendant les 36 mois de franchise, ~€29,918 d'intérêts sont capitalisés, faisant passer le CRD de €318,470 à €348,388. C'est le "prix" du différé total.
-  </div>
-
-  <div class="highlight">
-    <strong>Risque construction :</strong> Retard de livraison fréquent en VEFA. Livraison théorique = 31/03/2028 + délai légal = Q4 2028. Pire scénario : 12–18 mois de retard. Les prêts restent en différé, allongeant la période sans revenus.
-  </div>
-
-  <div class="info">
-    <strong>Stratégie de sortie :</strong> À partir de 2029, revente possible sans pénalité. Plus-value estimée à 5 ans (~2031) = ~€60K. Le bien reste un excellent investissement long terme avec un effort mensuel contenu.
-  </div>
+  <h2><span class="section-num">7</span>Avantages &amp; Contraintes VEFA</h2>
+  <div id="syntheseContent"></div>
 </div>
 
-<footer>
-  <p>Analyse Appartement Villejuif VEFA — Mars 2026</p>
-  <p>Données issues des offres de prêt LCL et tableaux d'amortissement provisoires</p>
-</footer>
+<footer id="pageFooter"></footer>
 
 </div>
 
-<script>
-// === LOAN PARAMETERS (from actual LCL loan offers) ===
-const PRET1 = { capital: 286669.95, rate: 3.27, months: 291, payment: 1572.79 };
-const PRET2 = { capital: 31800.00, rate: 0.90, months: 291, payment: 124.99 };
-const FRANCHISE_MONTHS = 36; // Aug 2025 to Aug 2028
-const PROPERTY_VALUE_2026_03 = 360000; // estimated value Mar 2026 (conservateur)
-const APPRECIATION = 0.01; // 1% per year
-const LOAN_START = new Date(2025, 7, 30); // Aug 30, 2025
+<script type="module">
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=18';
 
-// Compute CRD during franchise (interest capitalized annually)
+// ═══ HELPERS ═══
+const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
+const fmtK = v => '\u20ac' + (v/1000).toFixed(0) + 'K';
+const fmtDec = (v, d) => '\u20ac' + v.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+
+// ═══ PROPERTY-SPECIFIC CONSTANTS ═══
+const PROP = {
+  surface: 68.92,
+  totalOperation: 349456,   // montant total opération
+  address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
+  owner: 'Nezha Kabbaj',
+  appreciation: 0.01,        // 1%/an (marché local)
+  deliveryDate: 'Q4 2028',
+  reservationDate: 'Juil 2025',
+};
+
+// ═══ DATA FROM data.js ═══
+const immo = PORTFOLIO.nezha.immo.villejuif;
+const charges = IC.charges.villejuif;
+const loanCombined = IC.loans.villejuif;
+const loans = IC.loans.villejuifLoans;
+const franchise = IC.loans.villejuifFranchise;
+
+const d = new Date();
+const moisFR = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+// ═══ LOAN COMPUTATIONS ═══
+const PRET1 = loans[0];
+const PRET2 = loans[1];
+const FRANCHISE_MONTHS = franchise.months;
+const totalPrincipal = PRET1.principal + PRET2.principal;
+const totalPayment = PRET1.payment + PRET2.payment;
+const totalInsurance = PRET1.insuranceMonthly + PRET2.insuranceMonthly;
+
+// CRD during franchise (interest capitalized annually)
 function computeFranchiseCRD(capital, annualRate, month) {
-  const monthlyRate = annualRate / 100 / 12;
+  const monthlyRate = annualRate / 12;
   let crd = capital;
   let accruedInterest = 0;
   for (let m = 1; m <= month; m++) {
     accruedInterest += crd * monthlyRate;
-    // Annual capitalization (every 12 months)
     if (m % 12 === 0 || m === FRANCHISE_MONTHS) {
       crd += accruedInterest;
       accruedInterest = 0;
@@ -327,9 +208,9 @@ function computeFranchiseCRD(capital, annualRate, month) {
   return crd;
 }
 
-// Compute CRD during amortization
+// CRD during amortization
 function computeAmortCRD(startCRD, annualRate, payment, monthsElapsed) {
-  const monthlyRate = annualRate / 100 / 12;
+  const monthlyRate = annualRate / 12;
   let crd = startCRD;
   for (let m = 0; m < monthsElapsed; m++) {
     const interest = crd * monthlyRate;
@@ -340,248 +221,293 @@ function computeAmortCRD(startCRD, annualRate, payment, monthsElapsed) {
   return crd;
 }
 
-// Compute total CRD at any month from loan start
+// Total CRD at any month from loan start
 function totalCRD(monthFromStart) {
   let crd1, crd2;
   if (monthFromStart <= FRANCHISE_MONTHS) {
-    crd1 = computeFranchiseCRD(PRET1.capital, PRET1.rate, monthFromStart);
-    crd2 = computeFranchiseCRD(PRET2.capital, PRET2.rate, monthFromStart);
+    crd1 = computeFranchiseCRD(PRET1.principal, PRET1.rate, monthFromStart);
+    crd2 = computeFranchiseCRD(PRET2.principal, PRET2.rate, monthFromStart);
   } else {
     const amortMonths = monthFromStart - FRANCHISE_MONTHS;
-    const crd1Start = computeFranchiseCRD(PRET1.capital, PRET1.rate, FRANCHISE_MONTHS);
-    const crd2Start = computeFranchiseCRD(PRET2.capital, PRET2.rate, FRANCHISE_MONTHS);
+    const crd1Start = computeFranchiseCRD(PRET1.principal, PRET1.rate, FRANCHISE_MONTHS);
+    const crd2Start = computeFranchiseCRD(PRET2.principal, PRET2.rate, FRANCHISE_MONTHS);
     crd1 = computeAmortCRD(crd1Start, PRET1.rate, PRET1.payment, amortMonths);
     crd2 = computeAmortCRD(crd2Start, PRET2.rate, PRET2.payment, amortMonths);
   }
   return crd1 + crd2;
 }
 
-// Property value at a given date
-function propertyValue(monthFromMar2026) {
-  return PROPERTY_VALUE_2026_03 * Math.pow(1 + APPRECIATION / 12, monthFromMar2026);
+// Property value at months from Mar 2026
+function propertyValue(monthsFromMar2026) {
+  return immo.value * Math.pow(1 + PROP.appreciation / 12, monthsFromMar2026);
 }
 
-// Month offset: Mar 2026 = month 7 from loan start (Aug 2025)
-const MAR2026_OFFSET = 7;
+// Parse franchise start date
+const [fStartY, fStartM] = franchise.startDate.split('-').map(Number);
+// Month offset: Mar 2026 relative to franchise start (Aug 2025)
+const MAR2026_OFFSET = (2026 - fStartY) * 12 + (3 - fStartM);
 
-// Generate data points (every 6 months from Mar 2026 to Dec 2052)
-const labels = [];
-const valueData = [];
-const crdData = [];
-const equityData = [];
-const capitalRepaidData = [];
-const appreciationData = [];
+// Current CRD
+const currentMonthFromStart = (d.getFullYear() - fStartY) * 12 + (d.getMonth() + 1 - fStartM);
+const currentCRD = Math.round(totalCRD(currentMonthFromStart));
+const equity = immo.value - currentCRD;
 
-const initialCRD = PRET1.capital + PRET2.capital; // 318,470
+// CRD after franchise (for cash flow computation)
+const crd1AfterFranchise = computeFranchiseCRD(PRET1.principal, PRET1.rate, FRANCHISE_MONTHS);
+const crd2AfterFranchise = computeFranchiseCRD(PRET2.principal, PRET2.rate, FRANCHISE_MONTHS);
+const totalCRDAfterFranchise = crd1AfterFranchise + crd2AfterFranchise;
+const deferredInterest = totalCRDAfterFranchise - totalPrincipal;
 
+// Capital repaid first month after franchise
+const interest1First = crd1AfterFranchise * (PRET1.rate / 12);
+const capital1First = PRET1.payment - interest1First;
+const interest2First = crd2AfterFranchise * (PRET2.rate / 12);
+const capital2First = PRET2.payment - interest2First;
+const totalCapitalRepaidMonth = capital1First + capital2First;
+const monthlyAppreciation = immo.value * PROP.appreciation / 12;
+const totalWealthCreation = totalCapitalRepaidMonth + monthlyAppreciation;
+
+// Cash flow after delivery
+const totalChargesAfter = charges.pret + charges.assurance + charges.pno + charges.tf + charges.copro;
+const cfNet = immo.loyer - totalChargesAfter;
+const wealthRatio = Math.abs(cfNet) > 0 ? (totalWealthCreation / Math.abs(cfNet)).toFixed(1) : 'inf';
+
+// ═══ HEADER ═══
+document.getElementById('headerSubtitle').textContent =
+  `${PROP.address} | ${PROP.surface} m\u00b2 | Propri\u00e9taire : ${PROP.owner}`;
+document.getElementById('dateBadgeApt').textContent =
+  'Analyse patrimoniale VEFA \u2014 ' + d.getDate() + ' ' + moisFR;
+
+// ═══ SECTION 1: FICHE ═══
+const pricePerM2 = Math.round(PROP.totalOperation / PROP.surface);
+document.getElementById('ficheKPIs').innerHTML = `
+  <div class="metric-box"><div class="value">${fmt(PROP.totalOperation)}</div><div class="label">Montant total op\u00e9ration</div></div>
+  <div class="metric-box"><div class="value">${fmt(pricePerM2)}/m\u00b2</div><div class="label">Prix au m\u00b2</div></div>
+  <div class="metric-box"><div class="value">${PROP.surface} m\u00b2</div><div class="label">Surface</div></div>
+  <div class="metric-box"><div class="value" style="color:var(--green)" data-eur="${Math.round(equity)}">${fmt(equity)}</div><div class="label">Equity actuelle</div></div>`;
+
+document.getElementById('ficheTable').innerHTML = `
+  <tr><td>Programme</td><td class="num">VEFA Villejuif \u2014 167 Bd Maxime Gorki</td></tr>
+  <tr><td>Type</td><td class="num">Appartement T3 \u2014 VEFA (TVA 5.5%)</td></tr>
+  <tr><td>R\u00e9gime locatif</td><td class="num">LMNP meubl\u00e9 \u2014 fiscalit\u00e9 all\u00e9g\u00e9e</td></tr>
+  <tr><td>Fiscalit\u00e9</td><td class="num">R\u00e9gime simplifi\u00e9 \u2014 imp\u00f4ts ~0\u20ac</td></tr>
+  <tr><td>Appr\u00e9ciation estim\u00e9e</td><td class="num">+${(PROP.appreciation*100).toFixed(0)}%/an (march\u00e9 local)</td></tr>
+  <tr><td>Valeur estim\u00e9e ${moisFR}</td><td class="num">${fmt(immo.value)} (conservateur \u2014 march\u00e9 ~\u20ac${pricePerM2 + 150}/m\u00b2)</td></tr>
+  <tr><td>Equity estim\u00e9e</td><td class="num">${fmt(equity)} (${fmt(immo.value)} - CRD ${fmt(currentCRD)})</td></tr>
+  <tr><td>Total emprunt\u00e9</td><td class="num">${fmt(totalPrincipal)} (2 pr\u00eats LCL)</td></tr>`;
+
+// ═══ SECTION 2: TIMELINE ═══
+document.getElementById('timelineContent').innerHTML = `
+  <div class="timeline">
+    <div class="timeline-item active">
+      <div class="phase">R\u00e9servation</div>
+      <div class="date">${PROP.reservationDate}</div>
+      <p style="font-size:12px;margin-top:6px;">Offre de pr\u00eat accept\u00e9e chez LCL, dossier valid\u00e9</p>
+    </div>
+    <div class="timeline-item">
+      <div class="phase">Franchise (${FRANCHISE_MONTHS} mois)</div>
+      <div class="date">Ao\u00fbt 2025 \u2013 Ao\u00fbt 2028</div>
+      <p style="font-size:12px;margin-top:6px;">Diff\u00e9r\u00e9 total : 0\u20ac de remboursement, int\u00e9r\u00eats capitalis\u00e9s</p>
+    </div>
+    <div class="timeline-item">
+      <div class="phase">Livraison &amp; Amortissement</div>
+      <div class="date">Sep 2028</div>
+      <p style="font-size:12px;margin-top:6px;">D\u00e9but remboursement : ${fmtDec(totalPayment, 2)}/mois hors assurance</p>
+    </div>
+    <div class="timeline-item">
+      <div class="phase">Location</div>
+      <div class="date">${PROP.deliveryDate}+</div>
+      <p style="font-size:12px;margin-top:6px;">Mise en location meubl\u00e9e LMNP</p>
+    </div>
+  </div>`;
+
+document.getElementById('franchiseInfo').innerHTML =
+  `<strong>P\u00e9riode de franchise (${FRANCHISE_MONTHS} mois) :</strong> Aucun remboursement de capital ou d'int\u00e9r\u00eats. Les int\u00e9r\u00eats sont capitalis\u00e9s annuellement, faisant passer le CRD de ${fmt(totalPrincipal)} \u00e0 ~${fmt(Math.round(totalCRDAfterFranchise))} (+${fmt(Math.round(deferredInterest))} d'int\u00e9r\u00eats diff\u00e9r\u00e9s). Seule l'assurance de ${fmtDec(totalInsurance, 2)}/mois est due pendant cette p\u00e9riode.`;
+
+// ═══ SECTION 3: PRETS ═══
+let pretsHTML = '';
+pretsHTML += `<tr><td><strong>${PRET1.name}</strong></td><td class="num">${fmt(PRET1.principal)}</td>
+  <td class="num">${(PRET1.rate*100).toFixed(2)}%</td><td class="num">${PRET1.amortMonths + 24 + FRANCHISE_MONTHS} mois (dont 24 UP + ${FRANCHISE_MONTHS} franchise)</td>
+  <td class="num">${fmtDec(PRET1.payment, 2)}</td><td class="num">${(PRET1.taeg*100).toFixed(2)}%</td></tr>`;
+pretsHTML += `<tr><td><strong>${PRET2.name}</strong></td><td class="num">${fmt(PRET2.principal)}</td>
+  <td class="num">${(PRET2.rate*100).toFixed(2)}%</td><td class="num">${PRET2.amortMonths + 24 + FRANCHISE_MONTHS} mois (dont 24 UP + ${FRANCHISE_MONTHS} franchise)</td>
+  <td class="num">${fmtDec(PRET2.payment, 2)}</td><td class="num">${(PRET2.taeg*100).toFixed(2)}%</td></tr>`;
+pretsHTML += `<tr style="background:#edf2f7;font-weight:600"><td><strong>TOTAL</strong></td><td class="num"><strong>${fmt(totalPrincipal)}</strong></td>
+  <td class="num">~${((PRET1.principal * PRET1.rate + PRET2.principal * PRET2.rate) / totalPrincipal * 100).toFixed(2)}% moy.</td>
+  <td class="num">${PRET1.amortMonths} \u00e9ch\u00e9ances</td><td class="num"><strong>${fmtDec(totalPayment, 2)}/mois</strong></td><td class="num">\u2014</td></tr>`;
+document.getElementById('pretsTable').innerHTML = pretsHTML;
+
+// Costs table
+const totalInterestBoth = PRET1.totalInterest + PRET2.totalInterest;
+const totalDeferredBoth = PRET1.deferredInterest + PRET2.deferredInterest;
+const totalInsuranceBoth = PRET1.totalInsurance + PRET2.totalInsurance;
+const totalGarantieBoth = PRET1.garantie + PRET2.garantie;
+const totalCostBoth = totalInterestBoth + totalDeferredBoth + totalInsuranceBoth + franchise.fraisDossier + totalGarantieBoth;
+document.getElementById('costsTable').innerHTML = `
+  <tr><td>Capital emprunt\u00e9</td><td class="num">${fmt(PRET1.principal)}</td><td class="num">${fmt(PRET2.principal)}</td><td class="num">${fmt(totalPrincipal)}</td></tr>
+  <tr><td>Int\u00e9r\u00eats</td><td class="num">${fmt(PRET1.totalInterest)}</td><td class="num">${fmt(PRET2.totalInterest)}</td><td class="num">${fmt(totalInterestBoth)}</td></tr>
+  <tr><td>Int\u00e9r\u00eats diff\u00e9r\u00e9s capitalis\u00e9s</td><td class="num">${fmt(PRET1.deferredInterest)}</td><td class="num">${fmt(PRET2.deferredInterest)}</td><td class="num">${fmt(totalDeferredBoth)}</td></tr>
+  <tr><td>Assurance emprunteur</td><td class="num">${fmt(PRET1.totalInsurance)}</td><td class="num">${fmt(PRET2.totalInsurance)}</td><td class="num">${fmt(totalInsuranceBoth)}</td></tr>
+  <tr><td>Frais de dossier</td><td class="num" colspan="2">${fmt(franchise.fraisDossier)}</td><td class="num">${fmt(franchise.fraisDossier)}</td></tr>
+  <tr><td>Frais de garantie (Cr\u00e9dit Logement)</td><td class="num">${fmt(PRET1.garantie)}</td><td class="num">${fmt(PRET2.garantie)}</td><td class="num">${fmt(totalGarantieBoth)}</td></tr>
+  <tr style="background:#edf2f7;font-weight:600"><td><strong>Co\u00fbt total des pr\u00eats</strong></td>
+    <td class="num"><strong>${fmt(PRET1.totalInterest + PRET1.deferredInterest + PRET1.totalInsurance + PRET1.garantie)}</strong></td>
+    <td class="num"><strong>${fmt(PRET2.totalInterest + PRET2.deferredInterest + PRET2.totalInsurance + PRET2.garantie)}</strong></td>
+    <td class="num"><strong>${fmt(totalCostBoth)}</strong></td></tr>`;
+
+document.getElementById('insuranceInfo').innerHTML =
+  `<strong>Assurance :</strong> Pr\u00eat 1 = ${fmtDec(PRET1.insuranceMonthly, 2)}/mois | Pr\u00eat 2 = ${fmtDec(PRET2.insuranceMonthly, 2)}/mois \u2192 Total ${fmtDec(totalInsurance, 2)}/mois (payable d\u00e8s la franchise). Contrat CACI Ass Emp Immo DPTIA + AT, quotit\u00e9 100%.`;
+
+// ═══ SECTION 4: CASH FLOW ═══
+const chargesLocataire = 150; // Charges CC from tenant
+document.getElementById('cfTables').innerHTML = `
+  <div>
+    <h3>Revenus</h3>
+    <table>
+      <tr><td>Loyer meubl\u00e9 brut</td><td class="num pos">${fmt(immo.loyer - chargesLocataire)}</td></tr>
+      <tr><td>Charges locataire (CC)</td><td class="num pos">${fmt(chargesLocataire)}</td></tr>
+      <tr style="background:#edf2f7;font-weight:600"><td><strong>Total revenus</strong></td><td class="num pos"><strong>${fmt(immo.loyer)}</strong></td></tr>
+    </table>
+  </div>
+  <div>
+    <h3>Charges</h3>
+    <table>
+      <tr><td>Pr\u00eat LCL 1 (${(PRET1.rate*100).toFixed(2)}%)</td><td class="num neg">${fmtDec(PRET1.payment, 2)}</td></tr>
+      <tr><td>Pr\u00eat LCL 2 (${(PRET2.rate*100).toFixed(2)}%)</td><td class="num neg">${fmtDec(PRET2.payment, 2)}</td></tr>
+      <tr><td>Assurance pr\u00eats</td><td class="num neg">${fmtDec(totalInsurance, 2)}</td></tr>
+      <tr><td>Syndic (net de CC)</td><td class="num neg">${fmt(charges.copro - chargesLocataire)}</td></tr>
+      <tr><td>Taxe fonci\u00e8re (/12)</td><td class="num neg">${fmt(charges.tf)}</td></tr>
+      <tr style="background:#edf2f7;font-weight:600"><td><strong>Total charges</strong></td><td class="num neg"><strong>${fmt(totalChargesAfter)}</strong></td></tr>
+    </table>
+  </div>`;
+
+const cfClass = cfNet >= 0 ? 'pos' : 'neg';
+const cfSign = cfNet >= 0 ? '+' : '';
+document.getElementById('cfKPIs').innerHTML = `
+  <div class="metric-box"><div class="value neg">${cfSign}${fmt(cfNet)}/mois</div><div class="label">Cash flow net</div></div>
+  <div class="metric-box"><div class="value pos">+${fmt(Math.round(totalWealthCreation))}/mois</div><div class="label">Cr\u00e9ation de richesse (capital rembours\u00e9 + appr\u00e9ciation)</div></div>
+  <div class="metric-box"><div class="value">${wealthRatio}x</div><div class="label">Ratio richesse / effort</div></div>`;
+
+document.getElementById('wealthExplanation').innerHTML =
+  `<strong>Cr\u00e9ation de valeur :</strong> Pour chaque ${fmt(Math.abs(cfNet))} d'effort mensuel (charge r\u00e9siduelle), vous cr\u00e9ez ~${fmt(Math.round(totalWealthCreation))} de richesse nette (~${fmt(Math.round(totalCapitalRepaidMonth))} de capital rembours\u00e9 + ${fmt(Math.round(monthlyAppreciation))} d'appr\u00e9ciation du bien). C'est un ratio de ${wealthRatio}x \u2014 chaque euro d'effort g\u00e9n\u00e8re ${Math.round(parseFloat(wealthRatio))}\u20ac de patrimoine.` +
+  `<br><br><em style="font-size:12px;color:var(--gray)">D\u00e9tail : Pr\u00eat 1 \u2014 int\u00e9r\u00eat ${fmt(Math.round(interest1First))} + capital ${fmt(Math.round(capital1First))} | Pr\u00eat 2 \u2014 int\u00e9r\u00eat ${fmt(Math.round(interest2First))} + capital ${fmt(Math.round(capital2First))}</em>`;
+
+document.getElementById('franchiseCFNote').innerHTML =
+  `<strong>Pendant la franchise (2025\u20132028) :</strong> Cash flow = -${fmtDec(totalInsurance, 2)}/mois (assurance uniquement). Aucun revenu locatif pendant cette p\u00e9riode.`;
+
+// ═══ SECTION 5: EQUITY CHART ═══
+const labels = [], valueData = [], crdData = [], equityData = [], capitalRepaidData = [], appreciationData = [];
 for (let year = 2026; year <= 2052; year++) {
-  const months = (year === 2026) ? [3] : [12]; // Mar for 2026, Dec for others
+  const months = (year === 2026) ? [3] : [12];
   for (const mo of months) {
     const monthsFromMar2026 = (year - 2026) * 12 + (mo - 3);
     const monthFromLoanStart = MAR2026_OFFSET + monthsFromMar2026;
-
     const val = Math.round(propertyValue(monthsFromMar2026));
     const crd = Math.round(totalCRD(monthFromLoanStart));
     const eq = val - crd;
-    const capitalRepaid = initialCRD - Math.min(crd, initialCRD);
-    const appr = val - PROPERTY_VALUE_2026_03;
-
+    const capitalRepaid = totalPrincipal - Math.min(crd, totalPrincipal);
+    const appr = val - immo.value;
     labels.push(year + '-' + String(mo).padStart(2, '0'));
-    valueData.push(val);
-    crdData.push(crd);
-    equityData.push(Math.round(eq));
+    valueData.push(val); crdData.push(crd); equityData.push(Math.round(eq));
     capitalRepaidData.push(Math.round(capitalRepaid < 0 ? 0 : capitalRepaid));
     appreciationData.push(Math.round(appr));
   }
 }
 
-// Equity chart
-const ctxEquity = document.getElementById('equityChart').getContext('2d');
-new Chart(ctxEquity, {
+new Chart(document.getElementById('equityChart'), {
   type: 'line',
-  data: {
-    labels: labels,
-    datasets: [
-      {
-        label: 'Valeur du bien (€)',
-        data: valueData,
-        borderColor: '#2b6cb0',
-        backgroundColor: 'rgba(43,108,176,0.08)',
-        fill: true, tension: 0.3, pointRadius: 2,
-      },
-      {
-        label: 'Capital Restant Dû (€)',
-        data: crdData,
-        borderColor: '#c53030',
-        backgroundColor: 'rgba(197,48,48,0.08)',
-        fill: true, tension: 0.3, pointRadius: 2,
-      },
-      {
-        label: 'Equity (€)',
-        data: equityData,
-        borderColor: '#276749',
-        backgroundColor: 'rgba(39,103,73,0.15)',
-        fill: true, tension: 0.3, pointRadius: 2, borderWidth: 3,
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
-        }
-      }
-    },
-    scales: {
-      y: {
-        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
-      }
-    }
-  }
+  data: { labels, datasets: [
+    { label: 'Valeur du bien (\u20ac)', data: valueData, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.08)', fill: true, tension: 0.3, pointRadius: 2 },
+    { label: 'Capital Restant D\u00fb (\u20ac)', data: crdData, borderColor: '#c53030', backgroundColor: 'rgba(197,48,48,0.08)', fill: true, tension: 0.3, pointRadius: 2 },
+    { label: 'Equity (\u20ac)', data: equityData, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.15)', fill: true, tension: 0.3, pointRadius: 2, borderWidth: 3 }
+  ]},
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.parsed.y) }}},
+    scales: { y: { ticks: { callback: v => fmtK(v) }}}}
+});
+document.getElementById('equityNote').textContent =
+  `Hypoth\u00e8se : appr\u00e9ciation ${(PROP.appreciation*100).toFixed(0)}%/an. Pendant la franchise (${FRANCHISE_MONTHS} mois), le CRD augmente (int\u00e9r\u00eats capitalis\u00e9s). Apr\u00e8s Sep 2028, les pr\u00eats s'amortissent \u00e0 ${fmtDec(totalPayment, 2)}/mois. L'equity = valeur estim\u00e9e - CRD total.`;
+
+// ═══ SECTION 6: WEALTH CHART ═══
+new Chart(document.getElementById('wealthChart'), {
+  type: 'line',
+  data: { labels, datasets: [
+    { label: 'Equity (\u20ac)', data: equityData, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.2)', fill: true, tension: 0.3, pointRadius: 2, borderWidth: 3 },
+    { label: 'Capital rembours\u00e9 cumul\u00e9 (\u20ac)', data: capitalRepaidData, borderColor: '#2b6cb0', borderDash: [5,5], tension: 0.3, pointRadius: 1 },
+    { label: 'Appr\u00e9ciation cumul\u00e9e (\u20ac)', data: appreciationData, borderColor: '#d69e2e', borderDash: [5,5], tension: 0.3, pointRadius: 1 }
+  ]},
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.parsed.y) }}},
+    scales: { y: { ticks: { callback: v => fmtK(v) }}}}
 });
 
-// Wealth creation chart
-const ctxWealth = document.getElementById('wealthChart').getContext('2d');
-new Chart(ctxWealth, {
-  type: 'line',
-  data: {
-    labels: labels,
-    datasets: [
-      {
-        label: 'Equity (€)',
-        data: equityData,
-        borderColor: '#276749',
-        backgroundColor: 'rgba(39,103,73,0.2)',
-        fill: true, tension: 0.3, pointRadius: 2, borderWidth: 3,
-      },
-      {
-        label: 'Capital remboursé cumulé (€)',
-        data: capitalRepaidData,
-        borderColor: '#2b6cb0',
-        borderDash: [5,5], tension: 0.3, pointRadius: 1,
-      },
-      {
-        label: 'Appréciation cumulée (€)',
-        data: appreciationData,
-        borderColor: '#d69e2e',
-        borderDash: [5,5], tension: 0.3, pointRadius: 1,
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: function(ctx) { return ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('fr-FR'); }
-        }
-      }
-    },
-    scales: {
-      y: {
-        ticks: { callback: function(v) { return '€' + (v/1000).toFixed(0) + 'K'; } }
-      }
-    }
-  }
-});
-
-// Populate milestones table
+// Milestones
 const milestones = [
   { label: 'Mars 2026', monthsFromMar: 0, comment: 'Achat VEFA, franchise en cours' },
-  { label: 'Déc 2026', monthsFromMar: 9, comment: 'Franchise — intérêts en cours de capitalisation' },
-  { label: 'Déc 2027', monthsFromMar: 21, comment: 'Franchise — CRD en hausse' },
-  { label: 'Sep 2028', monthsFromMar: 30, comment: 'Fin franchise, début amortissement' },
-  { label: 'Déc 2029', monthsFromMar: 45, comment: '~15 mois de remboursement actif' },
-  { label: 'Déc 2030', monthsFromMar: 57, comment: '2 ans de remboursement' },
-  { label: 'Déc 2032', monthsFromMar: 81, comment: '~4 ans de remboursement' },
-  { label: 'Déc 2035', monthsFromMar: 117, comment: 'Moitié de la durée amortissement' },
-  { label: 'Déc 2040', monthsFromMar: 177, comment: '12 ans de remboursement' },
-  { label: 'Déc 2045', monthsFromMar: 237, comment: '17 ans de remboursement' },
-  { label: 'Nov 2052', monthsFromMar: 320, comment: 'Fin de prêt — propriété pleine' },
+  { label: 'D\u00e9c 2026', monthsFromMar: 9, comment: 'Franchise \u2014 int\u00e9r\u00eats en cours de capitalisation' },
+  { label: 'D\u00e9c 2027', monthsFromMar: 21, comment: 'Franchise \u2014 CRD en hausse' },
+  { label: 'Sep 2028', monthsFromMar: 30, comment: 'Fin franchise, d\u00e9but amortissement' },
+  { label: 'D\u00e9c 2029', monthsFromMar: 45, comment: '~15 mois de remboursement actif' },
+  { label: 'D\u00e9c 2030', monthsFromMar: 57, comment: '2 ans de remboursement' },
+  { label: 'D\u00e9c 2032', monthsFromMar: 81, comment: '~4 ans de remboursement' },
+  { label: 'D\u00e9c 2035', monthsFromMar: 117, comment: 'Moiti\u00e9 de la dur\u00e9e amortissement' },
+  { label: 'D\u00e9c 2040', monthsFromMar: 177, comment: '12 ans de remboursement' },
+  { label: 'D\u00e9c 2045', monthsFromMar: 237, comment: '17 ans de remboursement' },
+  { label: 'Nov 2052', monthsFromMar: 320, comment: 'Fin de pr\u00eat \u2014 propri\u00e9t\u00e9 pleine' },
 ];
 
-const tbody = document.querySelector('#milestonesTable tbody');
+const mtbody = document.querySelector('#milestonesTable tbody');
 milestones.forEach(m => {
   const monthFromLoan = MAR2026_OFFSET + m.monthsFromMar;
   const val = Math.round(propertyValue(m.monthsFromMar));
   const crd = Math.round(totalCRD(monthFromLoan));
   const eq = val - crd;
   const row = document.createElement('tr');
-  row.innerHTML = `<td>${m.label}</td><td class="num">€${eq.toLocaleString('fr-FR')}</td><td class="num">€${val.toLocaleString('fr-FR')}</td><td class="num">€${crd.toLocaleString('fr-FR')}</td><td>${m.comment}</td>`;
-  tbody.appendChild(row);
+  row.innerHTML = `<td>${m.label}</td><td class="num">${fmt(eq)}</td><td class="num">${fmt(val)}</td><td class="num">${fmt(crd)}</td><td>${m.comment}</td>`;
+  mtbody.appendChild(row);
 });
 
-// ============ DYNAMIC CASH FLOW COMPUTATION ============
-// Compute capital repaid in first month of amortization (after franchise)
-const crd1AfterFranchise = computeFranchiseCRD(PRET1.capital, PRET1.rate, FRANCHISE_MONTHS);
-const crd2AfterFranchise = computeFranchiseCRD(PRET2.capital, PRET2.rate, FRANCHISE_MONTHS);
+// ═══ SECTION 7: SYNTHESE ═══
+document.getElementById('syntheseContent').innerHTML = `
+  <div class="success">
+    <strong>Avantages VEFA :</strong>
+    <ul style="margin-top:8px;margin-left:20px;">
+      <li>D\u00e9cote de -10% vs march\u00e9 (~${fmt(PROP.totalOperation)} au lieu de ~${fmt(Math.round(PROP.totalOperation / 0.9))} au prix march\u00e9).</li>
+      <li>TVA 5.5% au lieu de 20% (\u00e9conomie ~\u20ac50K).</li>
+      <li>Diff\u00e9r\u00e9 total des pr\u00eats ${FRANCHISE_MONTHS} mois \u2014 seule l'assurance (${fmt(Math.round(totalInsurance))}/mois) est due.</li>
+      <li>LMNP meubl\u00e9 = r\u00e9gime fiscal avantageux, imp\u00f4ts ~0\u20ac.</li>
+      <li>Pr\u00eat 2 \u00e0 ${(PRET2.rate*100).toFixed(2)}% = quasi-gratuit, optimise le co\u00fbt global.</li>
+    </ul>
+  </div>
+  <div class="alert">
+    <strong>Attention \u2014 Int\u00e9r\u00eats capitalis\u00e9s :</strong> Pendant les ${FRANCHISE_MONTHS} mois de franchise, ~${fmt(Math.round(deferredInterest))} d'int\u00e9r\u00eats sont capitalis\u00e9s, faisant passer le CRD de ${fmt(totalPrincipal)} \u00e0 ${fmt(Math.round(totalCRDAfterFranchise))}. C'est le "prix" du diff\u00e9r\u00e9 total.
+  </div>
+  <div class="highlight">
+    <strong>Risque construction :</strong> Retard de livraison fr\u00e9quent en VEFA. Livraison th\u00e9orique = 31/03/2028 + d\u00e9lai l\u00e9gal = ${PROP.deliveryDate}. Pire sc\u00e9nario : 12\u201318 mois de retard. Les pr\u00eats restent en diff\u00e9r\u00e9, allongeant la p\u00e9riode sans revenus.
+  </div>
+  <div class="info">
+    <strong>Strat\u00e9gie de sortie :</strong> \u00c0 partir de 2029, revente possible sans p\u00e9nalit\u00e9. Plus-value estim\u00e9e \u00e0 5 ans (~2031) = ~${fmt(Math.round(propertyValue(57) - totalCRD(MAR2026_OFFSET + 57)))}. Le bien reste un excellent investissement long terme avec un effort mensuel contenu.
+  </div>`;
 
-const monthlyRate1 = PRET1.rate / 100 / 12;
-const monthlyRate2 = PRET2.rate / 100 / 12;
+// ═══ FOOTER ═══
+document.getElementById('pageFooter').innerHTML =
+  `<p>Analyse Appartement Villejuif VEFA \u2014 ${moisFR}</p><p>Donn\u00e9es issues de data.js \u2014 calculs dynamiques</p>`;
 
-const interest1FirstMonth = crd1AfterFranchise * monthlyRate1;
-const capital1FirstMonth = PRET1.payment - interest1FirstMonth;
-
-const interest2FirstMonth = crd2AfterFranchise * monthlyRate2;
-const capital2FirstMonth = PRET2.payment - interest2FirstMonth;
-
-const totalCapitalRepaidMonth = capital1FirstMonth + capital2FirstMonth;
-const monthlyAppreciation = PROPERTY_VALUE_2026_03 * APPRECIATION / 12;
-const totalWealthCreation = totalCapitalRepaidMonth + monthlyAppreciation;
-const cashFlowNet = 112; // effort mensuel
-const ratio = totalWealthCreation / cashFlowNet;
-
-document.getElementById('wealthCreation').textContent = '+€' + Math.round(totalWealthCreation).toLocaleString('fr-FR') + '/mois';
-document.getElementById('wealthRatio').textContent = ratio.toFixed(1) + 'x';
-document.getElementById('wealthExplanation').innerHTML =
-  '<strong>Création de valeur :</strong> Pour chaque €' + cashFlowNet + ' d\'effort mensuel (charge résiduelle), ' +
-  'vous créez ~€' + Math.round(totalWealthCreation).toLocaleString('fr-FR') + ' de richesse nette ' +
-  '(~€' + Math.round(totalCapitalRepaidMonth).toLocaleString('fr-FR') + ' de capital remboursé + ' +
-  '€' + Math.round(monthlyAppreciation).toLocaleString('fr-FR') + ' d\'appréciation du bien). ' +
-  'C\'est un ratio de ' + ratio.toFixed(1) + 'x — chaque euro d\'effort génère ' + ratio.toFixed(0) + '€ de patrimoine.' +
-  '<br><br><em style="font-size:12px;color:var(--gray)">Détail : Prêt 1 — intérêt €' + Math.round(interest1FirstMonth).toLocaleString('fr-FR') +
-  ' + capital €' + Math.round(capital1FirstMonth).toLocaleString('fr-FR') +
-  ' | Prêt 2 — intérêt €' + Math.round(interest2FirstMonth).toLocaleString('fr-FR') +
-  ' + capital €' + Math.round(capital2FirstMonth).toLocaleString('fr-FR') + '</em>';
-</script>
-
-
-<script>
-// Currency conversion
-(function() {
-  const RATES = { EUR: 1, AED: 3.98, MAD: 10.80, USD: 1.08 };
-  const SYMBOLS = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' };
-  let currentCur = 'EUR';
-
-  document.querySelectorAll('.cur-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      currentCur = this.dataset.cur;
-      const rate = RATES[currentCur];
-      const sym = SYMBOLS[currentCur];
-      document.querySelectorAll('[data-eur]').forEach(el => {
-        const eurVal = parseFloat(el.dataset.eur);
-        const converted = Math.round(eurVal * rate);
-        el.textContent = sym + ' ' + converted.toLocaleString('fr-FR');
-      });
+// ═══ CURRENCY SWITCHER ═══
+const RATES = { EUR: 1, AED: FX_STATIC.AED, MAD: FX_STATIC.MAD, USD: FX_STATIC.USD };
+const SYMBOLS = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' };
+document.querySelectorAll('.cur-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const cur = this.dataset.cur;
+    const rate = RATES[cur];
+    const sym = SYMBOLS[cur];
+    document.querySelectorAll('[data-eur]').forEach(el => {
+      el.textContent = sym + ' ' + Math.round(parseFloat(el.dataset.eur) * rate).toLocaleString('fr-FR');
     });
   });
-})();
-
-// Dynamic date
-(function() {
-  var d = new Date();
-  var label = 'Analyse patrimoniale — ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-  var badge = document.getElementById('dateBadgeApt');
-  if (badge) badge.textContent = label;
-})();
+});
 </script>
 
 </body>
