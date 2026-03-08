@@ -149,9 +149,9 @@
 
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
     <label style="font-weight:600;white-space:nowrap;">Loyer d&eacute;clar&eacute; (hors charges) :</label>
-    <input type="range" id="vitrySimLoyer" min="250" max="850" step="10" value="450"
+    <input type="range" id="vitrySimLoyer" min="250" max="850" step="10" value="500"
            style="flex:1;min-width:200px;">
-    <span id="vitrySimLoyerVal" style="font-size:1.3rem;font-weight:700;color:#2b6cb0;min-width:100px;">450 &euro;/mois</span>
+    <span id="vitrySimLoyerVal" style="font-size:1.3rem;font-weight:700;color:#2b6cb0;min-width:100px;">500 &euro;/mois</span>
   </div>
 
   <div id="vitryFiscalSummary" class="highlight" style="margin-bottom:14px;"></div>
@@ -730,7 +730,7 @@ function updateRegimeCompare() {
       + '<td class="num neg">' + microImpot.toLocaleString('fr-FR') + '</td>'
       // Réel
       + '<td class="num" style="color:#718096;">' + Math.round(reelDeductions).toLocaleString('fr-FR') + '</td>'
-      + '<td class="num">' + reelRevImp.toLocaleString('fr-FR')
+      + '<td class="num">' + Math.round(reelRevImp).toLocaleString('fr-FR')
         + (reelDeficit > 0 ? ' <small style="color:#276749;">(d\u00e9f. ' + reelDeficit.toLocaleString('fr-FR') + ')</small>' : '') + '</td>'
       + '<td class="num ' + (reelImpot > 0 ? 'neg' : 'pos') + '">' + reelImpot.toLocaleString('fr-FR') + '</td>'
       // Delta
