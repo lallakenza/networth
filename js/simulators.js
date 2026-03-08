@@ -288,13 +288,16 @@ function buildSimChart(canvasId, chartKey, result) {
                 }
               });
 
-              // If only Immo selected and breakdown available → add sub-lines per apartment
+              // If only Immo selected and breakdown available → add stacked sub-lines per apartment
               if (selected.size === 1 && selected.has(0) && immoBreakdownResult) {
                 const subColors = ['#c05621', '#2b6cb0', '#2c7a7b'];
+                let cumSub = new Array(len).fill(0);
                 immoBreakdownResult.forEach((b, bi) => {
+                  const stackedData = b.data.map((v, j) => cumSub[j] + v);
+                  cumSub = [...stackedData];
                   chart.data.datasets.push({
                     label: '  ↳ ' + b.label,
-                    data: [...b.data],
+                    data: stackedData,
                     borderColor: subColors[bi % subColors.length],
                     backgroundColor: 'transparent',
                     fill: false,
