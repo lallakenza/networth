@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=19';
-import { getGrandTotal } from './engine.js?v=19';
+import { CURRENCY_CONFIG } from './data.js?v=20';
+import { getGrandTotal } from './engine.js?v=20';
 
 // ---- Formatting helpers ----
 
@@ -118,6 +118,10 @@ function renderKPIs(state, view) {
   setEur('kpiAmNW', s.amine.nw);
   setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
   setEur('kpiAmVitry', s.amine.vitryEquity);
+  // TWR dynamic from state (was hardcoded)
+  if (s.actionsView) {
+    setText('kpiAmTWR', '+' + s.actionsView.twr.toFixed(1) + '%');
+  }
 
   setEur('kpiNzNW', s.nezha.nw);
   setEur('kpiNzRueil', s.nezha.rueilEquity);
@@ -132,11 +136,8 @@ function renderKPIs(state, view) {
   // IBKR NAV label
   setText('ibkrNAVLabel', fmt(s.amine.ibkr));
 
-  // PCT displays
-  document.querySelectorAll('[data-type="pct"]').forEach(el => {
-    const pctVal = el.dataset.eurPct;
-    if (pctVal) el.textContent = '+' + pctVal + '%';
-  });
+  // Attach hover insights
+  attachKPIInsights(state, view);
 }
 
 function renderCategoryCards(state, view) {
@@ -194,7 +195,7 @@ function renderExpandSubs(state) {
   // Sub expand card values
   setEur('subIBKR', s.amine.ibkr);
   setEur('subESPP', s.amine.espp);
-  setEur('subSGTM', s.amine.sgtm);
+  setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
   setEur('subUAE', s.amine.uae);
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
@@ -206,7 +207,7 @@ function renderExpandSubs(state) {
   const p = state.portfolio;
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
   setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + '<br>+ cash ~' + p.amine.espp.cashEUR.toLocaleString('fr-FR') + ' EUR');
-  setHTML('subSGTMDetail', p.amine.sgtm.shares + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (statique)<br>Bourse de Casablanca');
+  setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
 
   // Maroc FX note
   setText('subMarocFXNote', 'Total MAD ' + s.amine.moroccoMAD.toLocaleString('fr-FR') + ' / ' + s.fx.MAD.toFixed(4));
@@ -477,7 +478,8 @@ function renderActionsView(state) {
   setText('kpiActionsRealizedPL', rplSign + fmt(av.combinedRealizedPL));
   document.getElementById('kpiActionsRealizedPL')?.classList.add(rplCls);
   setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
-  setText('kpiActionsDividends', fmt(av.dividends) + ' | TWR +' + av.twr.toFixed(1) + '%');
+  setText('kpiActionsDividends', fmt(av.dividends));
+  setText('kpiActionsTWR', 'TWR +' + av.twr.toFixed(1) + '%');
 
   // Positions table — sortable
   renderIBKRPositions(av.ibkrPositions, null, null);
@@ -1245,4 +1247,106 @@ function buildDetailTable(selector, rows, totalLabel) {
   totalRow.style.background = '#edf2f7';
   totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
   tbody.appendChild(totalRow);
+}
+
+// ============================================================
+// KPI HOVER INSIGHTS — contextual tooltips on KPI cards
+// ============================================================
+let _insightsAttached = false;
+
+function attachKPIInsights(state, view) {
+  const s = state;
+  const gt = getGrandTotal(s);
+  const f = v => Math.round(v).toLocaleString('fr-FR');
+  const pct = (v, t) => t > 0 ? Math.round(v / t * 100) : 0;
+
+  // Build insights map from state
+  const insights = {};
+
+  // ── Couple view ──
+  const immoEq = s.couple.immoEquity;
+  const stocksTotal = s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm;
+  const cashTotal = s.amine.uae + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
+  insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Objectif 1M\u20ac atteint en ~1.7 ans.';
+  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
+  insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity + s.nezha.villejuifEquity) + ' (dominante) + Cash \u20ac' + f(s.nezha.cashFrance + s.nezha.cashMaroc) + '. Patrimoine 100% France/Maroc.';
+  insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
+
+  // ── Amine view ──
+  insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 rend 6%/an sur Wio/Mashreq.';
+  insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkr) + ' + ESPP \u20ac' + f(s.amine.espp) + '. Concentration top 3 = 43% du portefeuille. Diversifier vers des ETFs.';
+  insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
+  insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac1,017/mois.';
+
+  // ── Nezha view ──
+  insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac209/mois).';
+  insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac838/mois de richesse.';
+  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison \u00e9t\u00e9 2029. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
+  insights['kpiNzCash'] = 'Cash France \u20ac' + f(s.nezha.cashFrance) + ' (0% rendement) + Cash Maroc + Cr\u00e9ance Omar 40K MAD. Optimiser : placer sur livret/assurance-vie.';
+
+  // ── Actions view ──
+  if (s.actionsView) {
+    const av = s.actionsView;
+    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2. Top 3 = 43% du portefeuille. Win rate historique : 86% (12/14 trades).';
+    const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
+    const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
+    insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '. \u00c9valuer : couper ou moyenner \u00e0 la baisse ?';
+    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro). Meilleur trade : NVIDIA (+\u20ac41K). Profit factor : 17.5x (gains / pertes).';
+    insights['kpiActionsTotalDeposits'] = 'Total inject\u00e9 dans les march\u00e9s. P/L total = ' + (av.combinedUnrealizedPL + av.combinedRealizedPL >= 0 ? '+' : '') + '\u20ac' + f(av.combinedUnrealizedPL + av.combinedRealizedPL) + ' (' + ((av.combinedUnrealizedPL + av.combinedRealizedPL) / av.totalDeposits * 100).toFixed(1) + '% du capital).';
+    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (30% France, 15% US/JP). Strat\u00e9gie : switcher vers ETFs capitalisants.';
+  }
+
+  // ── Cash view ──
+  if (s.cashView) {
+    const cv = s.cashView;
+    insights['kpiCashTotal'] = '\u20ac' + f(cv.totalCash) + ' en cash. Rendement moyen : ' + (cv.weightedAvgYield * 100).toFixed(1) + '%. Cash productif : \u20ac' + f(cv.totalYielding) + ' (' + pct(cv.totalYielding, cv.totalCash) + '%).';
+    insights['kpiCashAvgYield'] = 'Rendement pond\u00e9r\u00e9 de tous les comptes. UAE : 6% (Wio/Mashreq). IBKR EUR : 1.5%. France/Maroc : 0%. Objectif : maximiser le cash \u00e0 6%.';
+    insights['kpiCashInflation'] = '-\u20ac' + f(cv.monthlyInflationCost) + '/mois d\'\u00e9rosion (3% inflation). En 1 an = -\u20ac' + f(cv.monthlyInflationCost * 12) + ' de pouvoir d\'achat perdu.';
+    insights['kpiCashProductive'] = 'Cash plac\u00e9 \u00e0 rendement > 0%. Le reste est dormant et perd de la valeur chaque mois. Objectif : 100% productif.';
+  }
+
+  // ── Immo view ──
+  if (s.immoView) {
+    const iv = s.immoView;
+    insights['kpiImmoViewEq'] = 'Equity nette sur 3 biens. Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + ' + Vitry \u20ac' + f(s.amine.vitryEquity) + '.';
+    insights['kpiImmoViewVal'] = 'Valeur march\u00e9 estim\u00e9e des 3 biens. Appr\u00e9ciation : Vitry +2%/an (GPE), Rueil/Villejuif +1%/an (IDF conservateur).';
+    insights['kpiImmoViewCRD'] = 'Capital Restant D\u00fb total. Se r\u00e9duit chaque mois avec les remboursements. Fin des pr\u00eats : 2044 (Rueil), 2048 (Vitry), 2053 (Villejuif).';
+    insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = capital rembours\u00e9 + appr\u00e9ciation. ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an de richesse nette cr\u00e9\u00e9e automatiquement.';
+    const cfSign = iv.totalCF >= 0 ? '+' : '';
+    insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison 2029). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
+  }
+
+  // ── Cr\u00e9ances view ──
+  if (s.creancesView) {
+    const crv = s.creancesView;
+    insights['kpiCreancesNominal'] = crv.items.length + ' cr\u00e9ances actives. ' + crv.items.filter(c => c.currency === 'EUR').length + ' en EUR, ' + crv.items.filter(c => c.currency === 'MAD').length + ' en MAD. Valeur nominale totale avant probabilit\u00e9.';
+    insights['kpiCreancesExpected'] = 'Valeur ajust\u00e9e par probabilit\u00e9 de recouvrement. Garanti (100%) + Incertain (70%) = valeur attendue r\u00e9aliste.';
+    insights['kpiCreancesGuaranteed'] = '100% probabilit\u00e9. SAP sous 45j, Malt sous 30j. Cr\u00e9ances long terme : Kenza + Mehdi (MAD).';
+    insights['kpiCreancesUncertain'] = 'Probabilit\u00e9 ~70%. Abdelkader 55K MAD + Omar 40K MAD + Akram 1.5K EUR. Relances en cours.';
+    insights['kpiCreancesInflation'] = 'Co\u00fbt d\'opportunit\u00e9 : argent bloqu\u00e9 dans les cr\u00e9ances au lieu d\'\u00eatre investi. Plus le recouvrement tarde, plus la perte est grande.';
+  }
+
+  // Bind events on all .kpi cards
+  document.querySelectorAll('.kpi-strip').forEach(strip => {
+    const barId = 'insight-' + (strip.id || '').replace('kpi-', '');
+    const bar = document.getElementById(barId);
+    if (!bar) return;
+
+    strip.querySelectorAll('.kpi').forEach(kpi => {
+      const valueEl = kpi.querySelector('[id]');
+      if (!valueEl) return;
+      const id = valueEl.id;
+      const text = insights[id];
+      if (!text) return;
+
+      // Remove old listeners (by replacing node — simple approach)
+      kpi.onmouseenter = () => {
+        bar.textContent = text;
+        bar.classList.add('visible');
+      };
+      kpi.onmouseleave = () => {
+        bar.classList.remove('visible');
+      };
+    });
+  });
 }
