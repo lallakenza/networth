@@ -185,24 +185,25 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=18';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=19';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
 const fmtK = v => '\u20ac' + (v/1000).toFixed(0) + 'K';
 const pct = (v, total) => (total > 0 ? (v / total * 100).toFixed(1) : '0') + '%';
 
-// ═══ PROPERTY-SPECIFIC CONSTANTS (static facts) ═══
+// ═══ PROPERTY METADATA (from data.js) ═══
+const propMeta = IC.properties.vitry;
 const PROP = {
-  surface: 67.14,
-  purchasePrice: 275000,    // prix d'achat TTC (VEFA)
-  purchaseDate: '16 janvier 2023',
+  surface: propMeta.surface,
+  purchasePrice: propMeta.purchasePrice,
+  purchaseDate: '16 janvier 2023',   // display label only
   type: 'Appartement T3 — VEFA (TVA 5.5%)',
   regime: 'Location nue (contraintes PTZ + AL + TVA)',
-  appreciation: 0.02,       // 2%/an (GPE Ligne 15)
+  appreciation: propMeta.appreciation,
   owner: 'Mohamed Amine Koraibi',
   // Fiscal sim specific
-  loyerTotalMensuel: 1400,  // Total received from tenant (excl. parking)
+  loyerTotalMensuel: propMeta.loyerObjectif,
   contractStartMonth: 4,    // Location effective starts April 2026
   tfExemptionEndYear: 2027, // TF exonerated for new construction
   startYear: 2026,
@@ -317,7 +318,7 @@ document.getElementById('ficheTable').innerHTML = `
 // ═══ SECTION 2: PRETS ═══
 const totalPrincipal = vitryLoans.reduce((s, l) => s + l.principal, 0);
 const totalPayment = charges.pret; // combined monthly payment from charges
-const totalInterestCost = 56644; // from loan offers
+const totalInterestCost = propMeta.totalInterestCost; // from loan offers, stored in data.js
 let pretsHTML = '';
 const loanDisplayData = [
   { name: 'Action Logement', principal: vitryLoans[0].principal, rate: vitryLoans[0].rate, months: vitryLoans[0].durationMonths, payment: vitryLoans[0].monthlyPayment, note: 'Incl. assurance' },

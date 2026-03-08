@@ -157,22 +157,23 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=18';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=19';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
 const fmtK = v => '\u20ac' + (v/1000).toFixed(0) + 'K';
 const fmtDec = (v, d) => '\u20ac' + v.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
 
-// ═══ PROPERTY-SPECIFIC CONSTANTS ═══
+// ═══ PROPERTY METADATA (from data.js) ═══
+const propMeta = IC.properties.villejuif;
 const PROP = {
-  surface: 68.92,
-  totalOperation: 349456,   // montant total opération
-  address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
+  surface: propMeta.surface,
+  totalOperation: propMeta.totalOperation,
+  address: propMeta.address,
   owner: 'Nezha Kabbaj',
-  appreciation: 0.01,        // 1%/an (marché local)
-  deliveryDate: 'Q4 2028',
-  reservationDate: 'Juil 2025',
+  appreciation: propMeta.appreciation,
+  deliveryDate: 'Q4 2028',       // display label
+  reservationDate: 'Juil 2025',  // display label
 };
 
 // ═══ DATA FROM data.js ═══

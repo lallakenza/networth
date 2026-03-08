@@ -139,7 +139,7 @@
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=18';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=19';
 
 // ═══ HELPERS ═══
 const fmt = v => '€' + Math.round(v).toLocaleString('fr-FR');
@@ -150,9 +150,10 @@ const pct = (v, total) => (total > 0 ? (v / total * 100).toFixed(1) : '0') + '%'
 const loan = IC.loans.rueil;
 const charges = IC.charges.rueil;
 const immo = PORTFOLIO.nezha.immo.rueil;
-const appreciation = 0.01; // 1%/an conservateur IDF
-const surface = 55.66;
-const prixAchatTTC = 255000; // prix + frais notaire
+const propMeta = IC.properties.rueil;
+const appreciation = propMeta.appreciation;
+const surface = propMeta.surface;
+const prixAchatTTC = propMeta.purchasePrice;
 const prixAchatM2 = Math.round(prixAchatTTC / surface);
 
 // ═══ AMORTIZATION SCHEDULE ═══
@@ -199,7 +200,7 @@ document.getElementById('ficheKPIs').innerHTML = `
 const d = new Date();
 const moisFR = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 document.getElementById('ficheTable').innerHTML = `
-  <tr><td>Date d'achat (acte)</td><td class="num">5 novembre 2019</td></tr>
+  <tr><td>Date d'achat (acte)</td><td class="num">${propMeta.purchaseDateLabel}</td></tr>
   <tr><td>Type</td><td class="num">Appartement T3 meublé — LMNP</td></tr>
   <tr><td>Régime locatif</td><td class="num">Location meublée (LMNP)</td></tr>
   <tr><td>Fiscalité</td><td class="num">Régime réel — impôt ~0€ (amortissement)</td></tr>

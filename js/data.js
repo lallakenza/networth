@@ -242,6 +242,27 @@ export const CASH_YIELDS = {
 export const INFLATION_RATE = 0.03; // 3% annuel
 
 // ════════════════════════════════════════════════════════════
+// IBKR CONFIGURATION — seuils et taux par tranche
+// Source : interactivebrokers.com/en/trading/margin-rates.php
+// Dernière vérification : mars 2026
+// ════════════════════════════════════════════════════════════
+export const IBKR_CONFIG = {
+  // Premiers 10K EUR/USD à 0% (seuil IBKR standard pour intérêts)
+  cashThreshold: 10000,
+  // JPY Margin Tiers (emprunt — taux négatif appliqué)
+  // BM JPY = 0.704% (mars 2026)
+  jpyTiers: [
+    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   = BM + 1.5%
+    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M = BM + 1.0%
+    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      = BM + 0.75%
+  ],
+  // Recommandation : solde optimal EUR pour éviter les pénalités
+  optimalCashEUR: 20000,
+  // Rendement de référence cible (pour calcul coût d'opportunité)
+  refYield: 0.06,
+};
+
+// ════════════════════════════════════════════════════════════
 // TAUX DE CHANGE STATIQUES (fallback si API indisponible)
 // Format : 1 EUR = X devises étrangères
 // Source : xe.com — Dernière vérification : mars 2026
@@ -430,6 +451,40 @@ export const IMMO_CONSTANTS = {
     rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
     // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
     villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+  },
+  // ──────────────────────────────────────────────────────
+  // MÉTADONNÉES PROPRIÉTÉS — surface, adresse, prix, appréciation
+  // Utilisé par les pages détaillées (apt_*.html)
+  // ──────────────────────────────────────────────────────
+  properties: {
+    vitry: {
+      address: '8 Rue Camille Blanc, 94400 Vitry-sur-Seine',
+      surface: 67.14,           // m²
+      purchasePrice: 275000,    // prix d'achat TTC (VEFA 2022)
+      purchaseDate: '2023-02',  // date livraison / acte
+      appreciation: 0.02,       // 2%/an (GPE Ligne 15 — forte revalorisation attendue)
+      type: 'T3 — Location nue',
+      loyerObjectif: 1400,      // loyer cible (dont partie cash — voir fiscalite.vitry)
+      totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
+    },
+    rueil: {
+      address: '57 Bd du Maréchal Joffre, 92500 Rueil-Malmaison',
+      surface: 55.66,           // m²
+      purchasePrice: 255000,    // prix d'achat TTC + frais notaire
+      purchaseDate: '2019-11',  // acte notarié 5 novembre 2019
+      purchaseDateLabel: '5 novembre 2019',
+      appreciation: 0.01,       // 1%/an (conservateur IDF)
+      type: 'T3 meublé — LMNP',
+    },
+    villejuif: {
+      address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
+      surface: 68.92,           // m²
+      totalOperation: 349456,   // montant total opération VEFA
+      purchaseDate: '2025-04',  // signature VEFA
+      deliveryDate: '2029-06',  // livraison été 2029
+      appreciation: 0.01,       // 1%/an (marché local conservateur)
+      type: 'T3 — VEFA — LMNP',
+    },
   },
 };
 
