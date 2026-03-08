@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR } from './data.js?v=10';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG } from './data.js?v=19';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -266,11 +266,7 @@ function computeCashView(portfolio, fx) {
   //     Tier 2: ¥11M → ¥114M = BM + 1.0%  (actuellement 1.704%)
   //     Tier 3: > ¥114M      = BM + 0.75% (actuellement 1.454%)
   function ibkrJPYBorrowCost(absJPY) {
-    const tiers = [
-      { limit: 11000000, rate: 0.02204 },   // ← Tier 1 : modifier ce taux si BM change
-      { limit: 114000000, rate: 0.01704 },   // ← Tier 2
-      { limit: Infinity, rate: 0.01454 },     // ← Tier 3
-    ];
+    const tiers = IBKR_CONFIG.jpyTiers;
     let remaining = absJPY, totalCost = 0, prev = 0;
     for (const t of tiers) {
       const slice = Math.min(remaining, t.limit - prev);
@@ -292,10 +288,10 @@ function computeCashView(portfolio, fx) {
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     // IBKR: premiers 10K€/10K$ à 0%, le reste au taux IBKR Pro
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR',
-      yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, 10000),
+      yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, IBKR_CONFIG.cashThreshold),
       owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD',
-      yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, 10000),
+      yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, IBKR_CONFIG.cashThreshold),
       owner: 'Amine' },
     // IBKR JPY short: taux par tranche (tiered margin rate)
     { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY',
@@ -333,7 +329,7 @@ function computeCashView(portfolio, fx) {
   // Conseils priorisés par impact (manque à gagner annuel)
   // Catégories : strategy, action, optimize, risk
   const diagnostics = [];
-  const REF_YIELD = 0.06; // Benchmark 6% (Wio/Mashreq AED)
+  const REF_YIELD = IBKR_CONFIG.refYield; // Benchmark rendement cible (data.js)
 
   // --- Calcul du JPY ---
   const jpyAccount = accounts.find(a => a.isDebt);
@@ -393,7 +389,7 @@ function computeCashView(portfolio, fx) {
   if (ibkrEUR && ibkrEUR.valEUR > 20000) {
     const ibkrMissed = ibkrEUR.valEUR * (REF_YIELD - ibkrEUR.yield);
     // Montant optimal à garder chez IBKR (marge + opportunité d'investissement)
-    const optimalIBKR = 20000; // ~20K€ pour marge et opportunités
+    const optimalIBKR = IBKR_CONFIG.optimalCashEUR; // solde optimal (data.js)
     const excessIBKR = ibkrEUR.valEUR - optimalIBKR;
     const gainTransfert = excessIBKR * REF_YIELD;
     diagnostics.push({
