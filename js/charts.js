@@ -727,35 +727,54 @@ function buildAmortChart(state) {
   const iv = state.immoView;
   if (!iv || !iv.amortSchedules) return;
 
-  // Build stacked area: show CRD evolution over time for each loan
+  // Build line chart: show CRD evolution over time for each loan, aligned by calendar date
   const schedules = iv.amortSchedules;
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
-  // Find the longest schedule and sample yearly
-  let maxMonths = 0;
-  for (const [, amort] of Object.entries(schedules)) {
-    maxMonths = Math.max(maxMonths, amort.schedule.length);
+  // Build date-indexed lookup for each loan
+  const dateMaps = {};
+  const allDates = new Set();
+  for (const [key, amort] of Object.entries(schedules)) {
+    dateMaps[key] = {};
+    // Add initial CRD at start date (month 0 = full principal)
+    const s0 = amort.schedule[0];
+    if (s0) {
+      const [sy, sm] = s0.date.split('-').map(Number);
+      const prevM = sm === 1 ? 12 : sm - 1;
+      const prevY = sm === 1 ? sy - 1 : sy;
+      const startKey = prevY + '-' + String(prevM).padStart(2, '0');
+      dateMaps[key][startKey] = amort.schedule[0].remainingCRD + amort.schedule[0].principal;
+    }
+    for (const row of amort.schedule) {
+      dateMaps[key][row.date] = row.remainingCRD;
+      allDates.add(row.date);
+    }
   }
 
-  // Sample every 12 months
-  const yearStep = 12;
+  // Sort all dates chronologically and sample yearly
+  const sortedDates = [...allDates].sort();
   const labels = [];
   const datasets = {};
-  for (const key of Object.keys(schedules)) {
-    datasets[key] = [];
-  }
+  for (const key of Object.keys(schedules)) { datasets[key] = []; }
 
-  for (let m = 0; m < maxMonths; m += yearStep) {
-    const firstSched = Object.values(schedules)[0];
-    if (firstSched.schedule[m]) {
-      labels.push(firstSched.schedule[m].date || ('M' + m));
-    } else {
-      labels.push('M' + m);
-    }
-    for (const [key, amort] of Object.entries(schedules)) {
-      const row = amort.schedule[Math.min(m, amort.schedule.length - 1)];
-      datasets[key].push(Math.round(row.remainingCRD));
+  // Sample every 12 entries for readability
+  const step = 12;
+  for (let i = 0; i < sortedDates.length; i += step) {
+    const d = sortedDates[i];
+    labels.push(d);
+    for (const [key, dmap] of Object.entries(dateMaps)) {
+      if (dmap[d] !== undefined) {
+        datasets[key].push(Math.round(dmap[d]));
+      } else {
+        // Before loan starts → null (no line), after loan ends → 0
+        const loanDates = Object.keys(dmap).sort();
+        if (d < loanDates[0]) {
+          datasets[key].push(null);
+        } else {
+          datasets[key].push(0);
+        }
+      }
     }
   }
 
@@ -768,6 +787,7 @@ function buildAmortChart(state) {
     tension: 0.3,
     borderWidth: 2,
     pointRadius: 2,
+    spanGaps: false,
   }));
 
   charts.amortChart = new Chart(el, {

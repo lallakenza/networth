@@ -209,6 +209,18 @@ function renderExpandSubs(state) {
   setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + '<br>+ cash ~' + p.amine.espp.cashEUR.toLocaleString('fr-FR') + ' EUR');
   setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
 
+  // SGTM performance badge (vs IPO cost basis)
+  const sgtmPerf = p.market.sgtmCostBasisMAD
+    ? ((p.market.sgtmPriceMAD - p.market.sgtmCostBasisMAD) / p.market.sgtmCostBasisMAD * 100)
+    : null;
+  const sgtmBadgeEl = document.getElementById('subSGTMBadge');
+  if (sgtmBadgeEl && sgtmPerf !== null) {
+    const sign = sgtmPerf >= 0 ? '+' : '';
+    sgtmBadgeEl.textContent = 'IPO ' + sign + sgtmPerf.toFixed(1) + '%';
+    sgtmBadgeEl.style.background = sgtmPerf >= 0 ? '#c6f6d5' : '#fed7d7';
+    sgtmBadgeEl.style.color = sgtmPerf >= 0 ? '#276749' : '#c53030';
+  }
+
   // Maroc FX note
   setText('subMarocFXNote', 'Total MAD ' + s.amine.moroccoMAD.toLocaleString('fr-FR') + ' / ' + s.fx.MAD.toFixed(4));
 }
