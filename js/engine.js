@@ -596,6 +596,171 @@ function computeAmortizationSchedule(loan) {
 }
 
 /**
+ * Compute amortization schedule for a single sub-loan (with optional periods)
+ * Handles: constant payment, interest-only phases, deferred payment phases
+ * Returns: [{month, date, payment, interest, principal, remainingCRD}]
+ */
+function computeSubLoanSchedule(loan) {
+  const schedule = [];
+  let crd = loan.principal;
+  const monthlyRate = loan.rate / 12;
+  const [startY, startM] = loan.startDate.split('-').map(Number);
+
+  if (loan.periods && loan.periods.length > 0) {
+    // Multi-period loan (PTZ with différé, BP with varying payments)
+    let monthIdx = 0;
+    for (const period of loan.periods) {
+      for (let j = 0; j < period.months && crd > 0.01; j++) {
+        const interest = crd * monthlyRate;
+        let payment = period.payment;
+        let principalPart;
+        if (payment === 0) {
+          // Deferred period — no payment
+          // If rate > 0, interest capitalizes (CRD increases)
+          // If rate = 0 (PTZ), CRD stays constant
+          principalPart = 0;
+          if (interest > 0) {
+            crd += interest; // interest capitalization
+          }
+        } else {
+          principalPart = Math.min(payment - interest, crd);
+          crd = Math.max(0, crd - principalPart);
+        }
+        const y = startY + Math.floor((startM - 1 + monthIdx) / 12);
+        const m = ((startM - 1 + monthIdx) % 12) + 1;
+        schedule.push({
+          month: monthIdx + 1,
+          date: y + '-' + String(m).padStart(2, '0'),
+          payment: Math.round(payment * 100) / 100,
+          interest: Math.round(interest * 100) / 100,
+          principal: Math.round(principalPart * 100) / 100,
+          remainingCRD: Math.round(crd * 100) / 100,
+        });
+        monthIdx++;
+      }
+    }
+  } else {
+    // Simple constant-payment loan (Action Logement)
+    const totalMonths = loan.durationMonths;
+    for (let i = 0; i < totalMonths && crd > 0.01; i++) {
+      const interest = crd * monthlyRate;
+      const principalPart = Math.min(loan.monthlyPayment - interest, crd);
+      crd = Math.max(0, crd - principalPart);
+      const y = startY + Math.floor((startM - 1 + i) / 12);
+      const m = ((startM - 1 + i) % 12) + 1;
+      schedule.push({
+        month: i + 1,
+        date: y + '-' + String(m).padStart(2, '0'),
+        payment: loan.monthlyPayment,
+        interest: Math.round(interest * 100) / 100,
+        principal: Math.round(principalPart * 100) / 100,
+        remainingCRD: Math.round(crd * 100) / 100,
+      });
+    }
+  }
+  return schedule;
+}
+
+/**
+ * Compute combined amortization schedule for multiple sub-loans
+ * Merges individual schedules by calendar date, sums CRDs and payments
+ * Returns same format as computeAmortizationSchedule() for compatibility
+ */
+function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
+  // Compute each sub-loan's schedule
+  const subSchedules = subLoans.map(loan => ({
+    loan,
+    schedule: computeSubLoanSchedule(loan),
+  }));
+
+  // Build date-indexed maps for each sub-loan
+  const dateMaps = subSchedules.map(s => {
+    const map = {};
+    for (const row of s.schedule) {
+      map[row.date] = row;
+    }
+    return { loan: s.loan, map, principal: s.loan.principal };
+  });
+
+  // Collect all unique dates
+  const allDates = new Set();
+  for (const s of subSchedules) {
+    for (const row of s.schedule) allDates.add(row.date);
+  }
+  const sortedDates = [...allDates].sort();
+
+  // Build combined schedule
+  const schedule = [];
+  // Track last known CRD per sub-loan for dates where a loan hasn't started yet or has ended
+  const lastCRD = dateMaps.map(d => d.principal); // start at full principal
+
+  for (let i = 0; i < sortedDates.length; i++) {
+    const date = sortedDates[i];
+    let totalPayment = 0, totalInterest = 0, totalPrincipal = 0, totalCRD = 0;
+
+    for (let k = 0; k < dateMaps.length; k++) {
+      const row = dateMaps[k].map[date];
+      if (row) {
+        totalPayment += row.payment;
+        totalInterest += row.interest;
+        totalPrincipal += row.principal;
+        totalCRD += row.remainingCRD;
+        lastCRD[k] = row.remainingCRD;
+      } else {
+        // Loan hasn't started yet → use full principal, or has ended → use 0
+        const loanDates = Object.keys(dateMaps[k].map).sort();
+        if (loanDates.length === 0 || date < loanDates[0]) {
+          totalCRD += dateMaps[k].principal;
+        } else {
+          totalCRD += 0; // loan ended
+        }
+      }
+    }
+
+    schedule.push({
+      month: i + 1,
+      date,
+      payment: Math.round(totalPayment * 100) / 100,
+      interest: Math.round(totalInterest * 100) / 100,
+      principal: Math.round(totalPrincipal * 100) / 100,
+      remainingCRD: Math.round(totalCRD * 100) / 100,
+    });
+  }
+
+  // Find current month index
+  const now = new Date();
+  const nowKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  let currentIdx = schedule.findIndex(r => r.date >= nowKey);
+  if (currentIdx < 0) currentIdx = schedule.length - 1;
+
+  const interestPaid = schedule.slice(0, currentIdx + 1).reduce((s, r) => s + r.interest, 0);
+  const interestRemaining = schedule.slice(currentIdx + 1).reduce((s, r) => s + r.interest, 0);
+  const totalInterest = schedule.reduce((s, r) => s + r.interest, 0);
+  const ins = insuranceMonthly || 0;
+  const totalCost = totalInterest + ins * schedule.length;
+
+  // Combined principal
+  const combinedPrincipal = subLoans.reduce((s, l) => s + l.principal, 0);
+  const halfCRD = combinedPrincipal / 2;
+  const halfCRDMonth = schedule.find(r => r.remainingCRD <= halfCRD);
+  const crossoverMonth = schedule.find(r => r.principal >= r.interest);
+
+  return {
+    schedule,
+    currentIdx,
+    interestPaid: Math.round(interestPaid),
+    interestRemaining: Math.round(interestRemaining),
+    totalInterest: Math.round(totalInterest),
+    totalCost: Math.round(totalCost),
+    milestones: {
+      halfCRDDate: halfCRDMonth ? halfCRDMonth.date : null,
+      crossoverDate: crossoverMonth ? crossoverMonth.date : null,
+    },
+    subSchedules: subSchedules.map(s => ({ name: s.loan.name, schedule: s.schedule })),
+  };
+}
+
+/**
  * Compute fiscalité for a property
  * Handles: micro-foncier (nu), micro-BIC (LMNP), réel foncier, réel BIC
  * Non-résident UAE : taux minimum 20% + PS 17.2%
@@ -695,7 +860,13 @@ function computeImmoView(portfolio, fx) {
   // Compute amortization schedules
   const amortSchedules = {};
   for (const key of loanKeys) {
-    if (IC.loans && IC.loans[key]) {
+    // Multi-loan: use vitryLoans / villejuifLoans if available
+    const subLoansKey = key + 'Loans';
+    if (IC.loans && IC.loans[subLoansKey]) {
+      const insuranceKey = key + 'Insurance';
+      const ins = IC.loans[insuranceKey] || 0;
+      amortSchedules[key] = computeMultiLoanSchedule(IC.loans[subLoansKey], ins);
+    } else if (IC.loans && IC.loans[key]) {
       amortSchedules[key] = computeAmortizationSchedule(IC.loans[key]);
     }
   }
