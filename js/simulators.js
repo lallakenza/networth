@@ -220,15 +220,7 @@ function buildSimChart(canvasId, chartKey, result) {
               const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
               return ' ' + ds.label + ': ' + fmt(actual);
             },
-            afterBody: function(contexts) {
-              // Show immo breakdown ONLY when Immo is isolated
-              if (!immoBreakdownResult) return '';
-              if (!(selected.size === 1 && selected.has(0))) return '';
-              const immoCtx = contexts.find(c => c.dataset.label === 'Immobilier (equity)');
-              if (!immoCtx) return '';
-              const idx = immoCtx.dataIndex;
-              return immoBreakdownResult.map(b => '    ↳ ' + b.label + ': ' + fmt(b.data[idx]));
-            }
+            afterBody: function() { return ''; }
           }
         },
         legend: {
