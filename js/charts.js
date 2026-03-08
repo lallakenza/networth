@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=25';
-import { getGrandTotal } from './engine.js?v=25';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=25';
+import { fmt, fmtAxis } from './render.js?v=26';
+import { getGrandTotal } from './engine.js?v=26';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=26';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -899,10 +899,11 @@ function buildBudgetZoneDonut(state) {
   if (!bv) return;
 
   const zoneColors = { Dubai: '#d69e2e', France: '#2b6cb0', Digital: '#805ad5' };
-  const entries = Object.entries(bv.byZone).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(bv.personalByZone || {}).sort((a, b) => b[1] - a[1]);
   const labels = entries.map(e => e[0]);
   const data = entries.map(e => Math.round(e[1]));
   const colors = labels.map(l => zoneColors[l] || '#94a3b8');
+  const total = bv.personalTotal || 1;
 
   charts.budgetZone = new Chart(el, {
     type: 'doughnut',
@@ -911,7 +912,7 @@ function buildBudgetZoneDonut(state) {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
         legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
-        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / bv.totalMonthly * 100).toFixed(0) + '%)' } }
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
   });
@@ -924,11 +925,12 @@ function buildBudgetTypeDonut(state) {
   const bv = state.budgetView;
   if (!bv) return;
 
-  const typeColors = { Logement: '#e53e3e', 'Crédits': '#2b6cb0', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
-  const entries = Object.entries(bv.byType).sort((a, b) => b[1] - a[1]);
+  const typeColors = { Logement: '#e53e3e', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
+  const entries = Object.entries(bv.personalByType || {}).sort((a, b) => b[1] - a[1]);
   const labels = entries.map(e => e[0]);
   const data = entries.map(e => Math.round(e[1]));
   const colors = labels.map(l => typeColors[l] || '#94a3b8');
+  const total = bv.personalTotal || 1;
 
   charts.budgetType = new Chart(el, {
     type: 'doughnut',
@@ -937,7 +939,7 @@ function buildBudgetTypeDonut(state) {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
         legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
-        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / bv.totalMonthly * 100).toFixed(0) + '%)' } }
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
   });

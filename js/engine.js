@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=25';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=26';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -844,66 +844,84 @@ function computeCreancesView(portfolio, fx) {
 
 /**
  * Compute budget view — monthly expenses breakdown
+ * Separates personal expenses from investment (immo) expenses
  */
-function computeBudgetView(fx) {
+function computeBudgetView(portfolio, fx) {
   const IC = IMMO_CONSTANTS;
+  const p = portfolio;
 
   // Frequency → monthly divisor
   const freqDiv = { monthly: 1, quarterly: 3, yearly: 12 };
 
-  // Start with manual expenses from BUDGET_EXPENSES
-  const items = BUDGET_EXPENSES.map(e => {
+  // Helper to build an item
+  function makeItem(e) {
     const div = freqDiv[e.freq] || 1;
     const monthlyNative = e.amount / div;
-    const monthlyEUR = monthlyNative / (fx[e.currency] || 1);
-    return {
-      label: e.label,
-      amountNative: e.amount,
-      currency: e.currency,
-      freq: e.freq,
-      monthlyNative,
-      monthlyEUR,
-      zone: e.zone,
-      type: e.type,
-    };
+    const monthlyEUR = e.currency === 'EUR' ? monthlyNative : monthlyNative / (fx[e.currency] || 1);
+    return { label: e.label, amountNative: e.amount, currency: e.currency, freq: e.freq, monthlyNative, monthlyEUR, zone: e.zone, type: e.type };
+  }
+
+  // ── PERSONAL EXPENSES (from BUDGET_EXPENSES) ──
+  const personal = BUDGET_EXPENSES.map(makeItem);
+  personal.sort((a, b) => b.monthlyEUR - a.monthlyEUR);
+
+  const personalTotal = personal.reduce((s, i) => s + i.monthlyEUR, 0);
+  const personalByZone = {};
+  const personalByType = {};
+  personal.forEach(i => {
+    personalByZone[i.zone] = (personalByZone[i.zone] || 0) + i.monthlyEUR;
+    personalByType[i.type] = (personalByType[i.type] || 0) + i.monthlyEUR;
   });
 
-  // Auto-generate immo credit lines from IMMO_CONSTANTS.charges
-  const propLabels = { vitry: 'Crédit Vitry', rueil: 'Crédit Rueil', villejuif: 'Crédit Villejuif' };
+  // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
+  // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
+  const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
+  const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+
+  const investProperties = [];
   Object.entries(IC.charges).forEach(([prop, ch]) => {
-    const monthly = (ch.pret || 0) + (ch.assurance || 0);
-    items.push({
-      label: propLabels[prop] || ('Crédit ' + prop),
-      amountNative: monthly,
-      currency: 'EUR',
-      freq: 'monthly',
-      monthlyNative: monthly,
-      monthlyEUR: monthly,
-      zone: 'France',
-      type: 'Crédits',
+    const items = [];
+    let totalCharges = 0;
+    Object.entries(ch).forEach(([key, val]) => {
+      if (val > 0) {
+        items.push({ label: chargeLabels[key] || key, monthlyEUR: val });
+        totalCharges += val;
+      }
+    });
+
+    // Get loyer from portfolio data
+    let loyer = 0;
+    if (prop === 'vitry' && p.amine && p.amine.immo && p.amine.immo.vitry) {
+      loyer = (p.amine.immo.vitry.loyer || 0) + (p.amine.immo.vitry.parking || 0);
+    } else if (p.nezha && p.nezha.immo && p.nezha.immo[prop]) {
+      loyer = p.nezha.immo[prop].loyer || 0;
+    }
+
+    const cf = loyer - totalCharges;
+
+    investProperties.push({
+      name: propNames[prop] || prop,
+      prop,
+      charges: items,
+      totalCharges,
+      loyer,
+      cf,
     });
   });
 
-  // Sort by monthly EUR descending
-  items.sort((a, b) => b.monthlyEUR - a.monthlyEUR);
+  const investTotal = investProperties.reduce((s, p) => s + p.totalCharges, 0);
+  const investLoyerTotal = investProperties.reduce((s, p) => s + p.loyer, 0);
+  const investCFTotal = investLoyerTotal - investTotal;
 
-  // Totals
-  const totalMonthly = items.reduce((s, i) => s + i.monthlyEUR, 0);
-  const totalYearly = totalMonthly * 12;
+  // ── GRAND TOTAL (personal only — investment is separate) ──
+  const totalMonthly = personalTotal;
+  const totalYearly = personalTotal * 12;
 
-  // By zone
-  const byZone = {};
-  items.forEach(i => {
-    byZone[i.zone] = (byZone[i.zone] || 0) + i.monthlyEUR;
-  });
-
-  // By type
-  const byType = {};
-  items.forEach(i => {
-    byType[i.type] = (byType[i.type] || 0) + i.monthlyEUR;
-  });
-
-  return { items, totalMonthly, totalYearly, byZone, byType };
+  return {
+    personal, personalTotal, personalByZone, personalByType,
+    investProperties, investTotal, investLoyerTotal, investCFTotal,
+    totalMonthly, totalYearly,
+  };
 }
 
 /**
@@ -1395,7 +1413,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const cashView = computeCashView(p, fx);
   const immoView = computeImmoView(p, fx);
   const creancesView = computeCreancesView(p, fx);
-  const budgetView = computeBudgetView(fx);
+  const budgetView = computeBudgetView(p, fx);
 
   // ---- DIVIDEND / WHT ANALYSIS ----
   const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);
