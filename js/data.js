@@ -192,7 +192,7 @@ export const PORTFOLIO = {
     },
     immo: {
       // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
-      rueil:     { value: 272000, crd: 196516, loyer: 1300 },
+      rueil:     { value: 272000, crd: 195275, loyer: 1300 },
       villejuif: { value: 360000, crd: 318470, loyer: 1700 },
     },
   },
@@ -266,14 +266,14 @@ export const CURRENCY_CONFIG = {
 export const IMMO_CONSTANTS = {
   growth: {
     vitry: 1017,       // EUR/mois création de richesse (remboursement capital + appréciation)
-    rueil: 838,
+    rueil: 1001,       // 774 capital + 227 appreciation
     villejuif: 813,
   },
   villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     vitry:     { pret: 1317, assurance: 30, pno: 15, tf: 75, copro: 150 },
-    rueil:     { pret: 907, assurance: 25, pno: 12, tf: 67, copro: 80 },
+    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 80 },  // pret: 969.62, ass: 17.99 (2026)
     villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
   },
   prets: {
@@ -351,12 +351,12 @@ export const IMMO_CONSTANTS = {
       },
     },
     rueil: {
-      principal: 220000,
-      rate: 0.0375,
-      startDate: '2019-06',
+      principal: 251200,
+      rate: 0.012,           // 1.20%
+      startDate: '2019-12',   // 1ère échéance 5 décembre 2019
       durationMonths: 300,   // 25 ans
-      monthlyPayment: 907,
-      insurance: 25,
+      monthlyPayment: 969.62, // contrat notarié 5 nov 2019
+      insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
     },
     villejuif: {
       principal: 360000,

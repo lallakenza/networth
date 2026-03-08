@@ -37,6 +37,20 @@
   .chart-container { position: relative; height: 350px; margin: 20px 0; }
   .section-num { display: inline-block; background: #4a5568; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 8px; font-weight: 700; font-size: 14px; }
   footer { text-align: center; color: var(--gray); font-size: 12px; padding: 20px; }
+
+  .apt-nav { display: flex; gap: 0; background: #2d3748; padding: 12px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; margin-bottom: 28px; }
+  .apt-nav a { padding: 10px 24px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; text-decoration: none; }
+  .apt-nav a:hover { color: rgba(255,255,255,0.9); }
+  .apt-nav a.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
+  .apt-nav .nav-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 8px 8px; }
+  .apt-nav a.back-link { color: rgba(255,255,255,0.5); font-size: 12px; }
+  .apt-nav a.back-link:hover { color: rgba(255,255,255,0.9); }
+  .currency-bar { display: flex; gap: 0; justify-content: flex-end; margin-top: 12px; }
+  .cur-btn { padding: 5px 14px; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); transition: all 0.2s; }
+  .cur-btn:first-child { border-radius: 6px 0 0 6px; }
+  .cur-btn:last-child { border-radius: 0 6px 6px 0; }
+  .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .cur-btn:hover { color: white; }
   @media (max-width: 768px) { .grid4, .grid3 { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -45,10 +59,28 @@
 <div class="container">
 
 <header>
-  <h1>Appartement Rueil-Malmaison</h1>
-  <div class="subtitle">Rueil-Malmaison, 92500 | 55.66 m² | Propriétaire : Nezha Kabbaj</div>
-  <div class="badge">Analyse patrimoniale — Mars 2026</div>
+  <div class="container" style="padding-bottom:0;">
+    <h1>Appartement Rueil-Malmaison</h1>
+    <div class="subtitle">Rueil-Malmaison, 92500 | 55.66 m² | Propriétaire : Nezha Kabbaj</div>
+    <div class="badge" id="dateBadgeApt">Analyse patrimoniale — --</div>
+    <div class="currency-bar">
+      <button class="cur-btn active" data-cur="EUR">EUR &euro;</button>
+      <button class="cur-btn" data-cur="AED">AED &#1583;.&#1573;</button>
+      <button class="cur-btn" data-cur="MAD">MAD DH</button>
+      <button class="cur-btn" data-cur="USD">USD $</button>
+    </div>
+  </div>
 </header>
+<div class="apt-nav">
+  <a href="index.html" class="back-link">&larr; Dashboard</a>
+  <div class="nav-sep"></div>
+  <a href="index.html#immobilier" class="back-link">&#x1F3E0; Vue Immobilier</a>
+  <div class="nav-sep"></div>
+  <a href="apt_vitry.html">Vitry-sur-Seine</a>
+  <a href="apt_rueil.html" class="active">Rueil-Malmaison</a>
+  <a href="apt_villejuif.html">Villejuif VEFA</a>
+</div>
+
 
 <!-- SECTION 1: FICHE PROPRIETE -->
 <div class="card">
@@ -68,8 +100,8 @@
       <div class="label">Surface</div>
     </div>
     <div class="metric-box">
-      <div class="value" style="color: var(--green);">€75,484</div>
-      <div class="label">Equity actuelle (mars 2026)</div>
+      <div class="value" style="color: var(--green);" data-eur="76725">€ 76 725</div>
+      <div class="label">Equity actuelle</div>
     </div>
   </div>
 
@@ -95,14 +127,14 @@
       <tr><th>Prêt</th><th class="num">Montant</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th>Notes</th></tr>
     </thead>
     <tbody>
-      <tr><td><strong>Crédit Mutuel</strong></td><td class="num">€251,200</td><td class="num">1.20%</td><td class="num">300 mois</td><td class="num">€907</td><td>Prêt unique (hors assurance)</td></tr>
+      <tr><td><strong>Crédit Mutuel</strong></td><td class="num">€251,200</td><td class="num">1.20%</td><td class="num">300 mois</td><td class="num">€969.62</td><td>Prêt MODULIMMO (hors assurance)</td></tr>
       <tr style="background: #edf2f7; font-weight: 600;">
-        <td><strong>TOTAL</strong></td><td class="num"><strong>€251,200</strong></td><td class="num">1.20%</td><td class="num">25 ans</td><td class="num"><strong>€907/mois</strong></td><td>+ assurance €25/mois. Coût total intérêts : ~€38,800</td></tr>
+        <td><strong>TOTAL</strong></td><td class="num"><strong>€251,200</strong></td><td class="num">1.20%</td><td class="num">25 ans</td><td class="num"><strong>€970/mois</strong></td><td>+ assurance €25/mois. TAEG 1.41%</td></tr>
     </tbody>
   </table>
 
   <div class="info">
-    <strong>Effet de levier :</strong> Vous empruntez €251,200 à 1.20% pour un actif qui s'apprécie à 1%/an. Le coût des intérêts (~€38,800) est compensé par l'appréciation et le cash flow positif (+€209/mois) en fait un investissement auto-financé.
+    <strong>Effet de levier :</strong> Vous empruntez €251,200 à 1.20% (TAEG 1.41%) pour un actif qui s'apprécie à ~1%/an. Le cash flow positif (+€146/mois) en fait un investissement auto-financé.
   </div>
 </div>
 
@@ -122,23 +154,23 @@
     <div>
       <h3>Charges</h3>
       <table>
-        <tr><td>Prêt Crédit Mutuel</td><td class="num neg">€907</td></tr>
-        <tr><td>Assurance crédit</td><td class="num neg">€25</td></tr>
+        <tr><td>Prêt Crédit Mutuel</td><td class="num neg">€970</td></tr>
+        <tr><td>Assurance crédit (ACM VIE)</td><td class="num neg">€18</td></tr>
         <tr><td>PNO</td><td class="num neg">€12</td></tr>
         <tr><td>Taxe foncière (/12)</td><td class="num neg">€67</td></tr>
         <tr><td>Copro non-récupérable</td><td class="num neg">€80</td></tr>
-        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total charges</strong></td><td class="num neg"><strong>€1,091</strong></td></tr>
+        <tr style="background: #edf2f7; font-weight: 600;"><td><strong>Total charges</strong></td><td class="num neg"><strong>€1,147</strong></td></tr>
       </table>
     </div>
   </div>
 
   <div class="grid3" style="margin-top: 16px;">
     <div class="metric-box">
-      <div class="value pos">+€209/mois</div>
+      <div class="value pos">+€153/mois</div>
       <div class="label">Cash flow net</div>
     </div>
     <div class="metric-box">
-      <div class="value pos">€838/mois</div>
+      <div class="value pos">€1,001/mois</div>
       <div class="label">Création de richesse (capital + appreciation)</div>
     </div>
     <div class="metric-box">
@@ -148,7 +180,7 @@
   </div>
 
   <div class="success">
-    <strong>Auto-financé :</strong> Cash flow positif de +€209/mois (loyer HC 1,300 - charges 1,091). Vous créez ~€838 de richesse nette par mois (capital remboursé + appréciation) sans aucun effort financier. Bail meublé depuis oct 2025 (locataires Marouane El Mejjati &amp; Myriem Kadri Hassani).
+    <strong>Auto-financé :</strong> Cash flow positif de +€153/mois (loyer HC 1,300 - charges 1,147). Vous créez ~€1,001 de richesse nette par mois (capital remboursé + appréciation) sans aucun effort financier. Bail meublé depuis oct 2025 (locataires Marouane El Mejjati &amp; Myriem Kadri Hassani).
   </div>
 </div>
 
@@ -182,7 +214,7 @@
     <thead><tr><th>Date</th><th class="num">Equity</th><th class="num">Valeur du bien</th><th class="num">CRD</th><th>Commentaire</th></tr></thead>
     <tbody>
       <tr><td>Nov 2019</td><td class="num">€3,800</td><td class="num">€255,000</td><td class="num">€251,200</td><td>Achat — 1.5% equity</td></tr>
-      <tr><td>Mars 2026</td><td class="num">€75,484</td><td class="num">€272,000</td><td class="num">€196,516</td><td>6.3 ans — 27.8% equity</td></tr>
+      <tr><td>Mars 2026</td><td class="num">€76,725</td><td class="num">€272,000</td><td class="num">€195,275</td><td>6.3 ans — 28.2% equity</td></tr>
       <tr><td>Jan 2027</td><td class="num">€85,543</td><td class="num">€275,000</td><td class="num">€189,457</td><td>7.2 ans — 31.1% equity</td></tr>
       <tr><td>Jan 2028</td><td class="num">€97,707</td><td class="num">€278,000</td><td class="num">€180,293</td><td>8.2 ans — 35.1% equity</td></tr>
       <tr><td>Jan 2029</td><td class="num">€110,020</td><td class="num">€281,000</td><td class="num">€170,980</td><td>9.2 ans — 39.1% equity</td></tr>
@@ -432,6 +464,39 @@ new Chart(ctxWealth, {
     }
   }
 });
+</script>
+
+
+<script>
+// Currency conversion
+(function() {
+  const RATES = { EUR: 1, AED: 3.98, MAD: 10.80, USD: 1.08 };
+  const SYMBOLS = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' };
+  let currentCur = 'EUR';
+
+  document.querySelectorAll('.cur-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentCur = this.dataset.cur;
+      const rate = RATES[currentCur];
+      const sym = SYMBOLS[currentCur];
+      document.querySelectorAll('[data-eur]').forEach(el => {
+        const eurVal = parseFloat(el.dataset.eur);
+        const converted = Math.round(eurVal * rate);
+        el.textContent = sym + ' ' + converted.toLocaleString('fr-FR');
+      });
+    });
+  });
+})();
+
+// Dynamic date
+(function() {
+  var d = new Date();
+  var label = 'Analyse patrimoniale — ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  var badge = document.getElementById('dateBadgeApt');
+  if (badge) badge.textContent = label;
+})();
 </script>
 
 </body>

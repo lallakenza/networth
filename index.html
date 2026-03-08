@@ -570,8 +570,8 @@
     <div class="sim-field"><label>Epargne mensuelle (Amine)</label><input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="cplSimSavingsVal">8,000</div></div>
     <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="cplSimPctActionsVal">100%</div></div>
     <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="cplSimReturnActionsVal">10.0%</div></div>
-    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="20" step="0.5" value="3"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="cplSimHorizonVal">10 ans</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="cplSimHorizonVal">20 ans</div></div>
   </div>
   <div id="cplSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="cplSimStopBannerText"></span></div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
@@ -591,11 +591,11 @@
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine d'Amine seul.<br>
   <strong style="color:var(--gold)">Aujourd'hui : Vitry represente <span id="amImmoPct">--</span>% du NW Amine (<span id="amImmoVal">--</span> d'equity).</strong></p>
   <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="sim-field"><label>Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="7000"><div class="range-val" id="amSimSavingsVal">7,000</div></div>
-    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="60"><div class="range-val" id="amSimPctActionsVal">60%</div></div>
-    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="7"><div class="range-val" id="amSimReturnActionsVal">7.0%</div></div>
-    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="20" step="0.5" value="0"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">Jamais</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="amSimHorizonVal">10 ans</div></div>
+    <div class="sim-field"><label>Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="amSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="amSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="amSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="amSimHorizonVal">20 ans</div></div>
   </div>
   <div id="amSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="amSimStopBannerText"></span></div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
@@ -616,7 +616,7 @@
   <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
     <div class="sim-field"><label>Appreciation immobiliere annuelle</label><input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1"><div class="range-val" id="nzSimAppreciationVal">1.0%</div></div>
     <div class="sim-field"><label>Rendement Cash Nezha</label><input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2"><div class="range-val" id="nzSimCashReturnVal">2.0%</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="20" step="1" value="10"><div class="range-val" id="nzSimHorizonVal">10 ans</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="nzSimHorizonVal">20 ans</div></div>
   </div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(4, 1fr);">
     <div class="sim-result green-r"><div class="sr-val" id="nzSimNW">--</div><div class="sr-label">NW Final Nezha</div></div>
@@ -955,7 +955,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=16"></script>
+<script type="module" src="js/app.js?v=17"></script>
 
 </body>
 </html>
