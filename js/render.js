@@ -1154,18 +1154,27 @@ function renderImmoView(state) {
     amortTbody.innerHTML = '';
     const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
     for (const [key, amort] of Object.entries(schedules)) {
-      const loan = state.portfolio ? null : null; // loan data is in the schedule
       const first = amort.schedule[0];
       const current = amort.schedule[amort.currentIdx] || amort.schedule[amort.schedule.length - 1];
-      const principal = amort.schedule.length > 0 ? Math.round(amort.schedule.reduce((s,r) => s + r.principal, 0) + amort.schedule[0].remainingCRD + amort.schedule[0].interest - amort.schedule[0].payment) : 0;
-      const totalPrincipal = Math.round(amort.totalInterest + amort.schedule[amort.schedule.length-1].remainingCRD + amort.schedule.reduce((s,r)=>s+r.principal,0) - amort.schedule.reduce((s,r)=>s+r.principal,0));
-      const rate = amort.schedule.length > 1 ? (first.interest / (first.remainingCRD + first.principal) * 12 * 100).toFixed(2) : '-';
+
+      // Multi-loan: use summary fields; single-loan: derive from schedule
+      let capitalEmprunte, rate, mensualite;
+      if (amort.isMultiLoan) {
+        capitalEmprunte = amort.combinedPrincipal;
+        rate = (amort.weightedRate * 100).toFixed(2);
+        mensualite = fmt(Math.round(amort.currentMonthlyPayment));
+      } else {
+        capitalEmprunte = Math.round(first.remainingCRD + first.principal);
+        rate = first.interest > 0 ? (first.interest / (first.remainingCRD + first.principal) * 12 * 100).toFixed(2) : '0.00';
+        mensualite = first.payment.toLocaleString('fr-FR');
+      }
+
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + (loanNames[key] || key) + '</td>'
-        + '<td class="num">' + fmt(amort.schedule[0].remainingCRD + amort.schedule[0].principal) + '</td>'
+      tr.innerHTML = '<td>' + (loanNames[key] || key) + (amort.isMultiLoan ? ' <small>(' + amort.nbLoans + ' prêts)</small>' : '') + '</td>'
+        + '<td class="num">' + fmt(capitalEmprunte) + '</td>'
         + '<td class="num">' + rate + '%</td>'
         + '<td class="num">' + Math.ceil(amort.schedule.length / 12) + ' ans</td>'
-        + '<td class="num">' + first.payment + '/mois</td>'
+        + '<td class="num">' + mensualite + '/mois</td>'
         + '<td class="num">' + fmt(current.remainingCRD) + '</td>'
         + '<td class="num">' + fmt(amort.interestPaid) + '</td>'
         + '<td class="num">' + fmt(amort.interestRemaining) + '</td>';
