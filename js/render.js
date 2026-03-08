@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=28';
-import { getGrandTotal } from './engine.js?v=28';
+import { CURRENCY_CONFIG } from './data.js?v=29';
+import { getGrandTotal } from './engine.js?v=29';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -399,6 +399,11 @@ function renderImmoKPIs(state) {
   setEur('kpiImmoEq', state.couple.immoEquity);
   setEur('kpiImmoVal', state.couple.immoValue);
   setEur('kpiImmoCRD', state.couple.immoCRD);
+  // Wealth creation from immoView
+  if (state.immoView) {
+    const wc = state.immoView.totalWealthCreation;
+    setText('immoWealthVal', '+' + fmt(wc) + '/mois');
+  }
 }
 
 function renderBadges(state) {
@@ -650,7 +655,8 @@ function renderActionsView(state) {
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
       const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
-      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalClosed) + '</strong></td>';
+      const ts = totalClosed >= 0 ? '+' : '';
+      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>' + ts + fmt(totalClosed) + '</strong></td>';
       closedTbody.appendChild(tr);
     }
     renderClosedRows(closedData);
@@ -698,7 +704,8 @@ function renderActionsView(state) {
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
       const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
-      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
+      const ds = totalDegiro >= 0 ? '+' : '';
+      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ds + fmt(totalDegiro) + '</strong></td>';
       degiroTbody.appendChild(tr);
     }
     renderDegiroRows(av.degiroClosedPositions);
@@ -706,9 +713,10 @@ function renderActionsView(state) {
   }
 
   // Combined realized P/L
-  setText('actionsCombinedPL', '+' + fmt(av.combinedRealizedPL));
+  const cSign = av.combinedRealizedPL >= 0 ? '+' : '';
+  setText('actionsCombinedPL', cSign + fmt(av.combinedRealizedPL));
   const combinedEl = document.getElementById('actionsCombinedPL');
-  if (combinedEl) combinedEl.classList.add('pl-pos');
+  if (combinedEl) combinedEl.classList.add(av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg');
 
   // Metrics
   setText('actionsCommissions', fmt(av.commissions));

@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=27';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=29';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1127,24 +1127,33 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- NEZHA ----
   const nezhaRueilEquity = p.nezha.immo.rueil.value - p.nezha.immo.rueil.crd;
-  const nezhaVillejuifEquity = p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd;
+  const villejuifSigned = !!p.nezha.immo.villejuif.signed;
+  // Si pas signé : on ne compte que les frais de réservation (récupérables)
+  const nezhaVillejuifEquity = villejuifSigned
+    ? (p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd)
+    : 0;
+  const nezhaVillejuifFutureEquity = p.nezha.immo.villejuif.value - p.nezha.immo.villejuif.crd;
+  const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   const nezhaCashMaroc = toEUR(p.nezha.cashMaroc, 'MAD', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const nezhaRecvOmar = p.nezha.creances && p.nezha.creances.items
     ? toEUR(p.nezha.creances.items[0].amount, p.nezha.creances.items[0].currency, fx)
     : 0;
   const nezhaCash = p.nezha.cashFrance + nezhaCashMaroc;
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaRecvOmar;
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaRecvOmar + nezhaVillejuifReservation;
 
   const nezha = {
     nw: nezhaNW,
-    nwWithVillejuif: nezhaNW + nezhaVillejuifEquity,
+    nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: p.nezha.immo.rueil.crd,
     rueilEquity: nezhaRueilEquity,
     villejuifValue: p.nezha.immo.villejuif.value,
     villejuifCRD: p.nezha.immo.villejuif.crd,
     villejuifEquity: nezhaVillejuifEquity,
+    villejuifFutureEquity: nezhaVillejuifFutureEquity,
+    villejuifSigned: villejuifSigned,
+    villejuifReservation: nezhaVillejuifReservation,
     cashFrance: p.nezha.cashFrance,
     cashMaroc: nezhaCashMaroc,
     cashMarocMAD: p.nezha.cashMaroc,
@@ -1156,9 +1165,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- COUPLE ----
   const coupleImmoEquity = amineVitryEquity + nezhaRueilEquity + nezhaVillejuifEquity;
-  const coupleImmoValue = amine.vitryValue + nezha.rueilValue + nezha.villejuifValue;
-  const coupleImmoCRD = amine.vitryCRD + nezha.rueilCRD + nezha.villejuifCRD;
+  const coupleImmoValue = amine.vitryValue + nezha.rueilValue + (villejuifSigned ? nezha.villejuifValue : 0);
+  const coupleImmoCRD = amine.vitryCRD + nezha.rueilCRD + (villejuifSigned ? nezha.villejuifCRD : 0);
   const coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity;
+  const nbBiens = villejuifSigned ? 3 : 2;
 
   const couple = {
     nw: coupleNW,
@@ -1181,7 +1191,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       sub: [
         { label: 'Vitry', val: amineVitryEquity, color: '#b7791f', owner: 'Amine' },
         { label: 'Rueil', val: nezhaRueilEquity, color: '#e6a817', owner: 'Nezha' },
-        { label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Nezha' },
+        ...(villejuifSigned ? [{ label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Nezha' }] : []),
       ]
     },
     {
@@ -1239,11 +1249,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Creances', color: '#ec4899',
-      total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar,
+      total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar + nezhaVillejuifReservation,
       sub: [
         { label: 'SAP & Tax', val: amineRecvPro, color: '#ec4899', owner: 'Amine — garanti' },
         { label: 'Creances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Amine' },
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: 'Nezha' },
+        ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Nezha — remboursable' }] : []),
       ]
     },
   ];
@@ -1255,8 +1266,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       subtitle: 'Amine (33 ans) & Nezha (34 ans) Koraibi \u2014 Vue consolidee',
       stocks:    { val: amineIbkr + amineEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP + SGTM x2' },
       cash:      { val: amineUae + amineMoroccoCash + p.nezha.cashFrance + nezhaCashMaroc, sub: 'UAE + France + Maroc' },
-      immo:      { val: coupleImmoEquity, sub: '3 biens \u2014 Equity nette' },
-      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
+      immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
+      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
       nwRef: coupleNW,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -1275,8 +1286,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       subtitle: 'Nezha Kabbaj, 34 ans \u2014 Immobilier',
       stocks:    { val: nezhaSgtm, sub: 'SGTM (32 actions)' },
       cash:      { val: p.nezha.cashFrance + nezhaCashMaroc, sub: '85K France + 9K Maroc' },
-      immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: '2 biens \u2014 Rueil + Villejuif' },
-      other:     { val: nezhaRecvOmar, sub: 'Creance Omar (40K MAD)', title: 'Creances' },
+      immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
+      other:     { val: nezhaRecvOmar + nezhaVillejuifReservation, sub: villejuifSigned ? 'Creance Omar (40K MAD)' : 'Creances + Reservation Villejuif', title: 'Creances' },
       nwRef: nezhaNW + nezhaVillejuifEquity,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -1354,7 +1365,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       total: nezhaRueilEquity + nezhaVillejuifEquity,
       sub: [
         { label: 'Rueil', val: nezhaRueilEquity, color: '#e6a817', owner: 'Equity nette' },
-        { label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Conditionnel' },
+        ...(villejuifSigned ? [{ label: 'Villejuif VEFA', val: nezhaVillejuifEquity, color: '#805a10', owner: 'Conditionnel' }] : []),
       ]
     },
     {
@@ -1372,8 +1383,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Creances', color: '#ec4899',
-      total: nezhaRecvOmar,
-      sub: [{ label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' }]
+      total: nezhaRecvOmar + nezhaVillejuifReservation,
+      sub: [
+        { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' },
+        ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Remboursable' }] : []),
+      ]
     },
   ].filter(c => c.total > 0);
 
