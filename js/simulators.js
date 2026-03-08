@@ -292,8 +292,8 @@ function buildSimChart(canvasId, chartKey, result) {
 
               // If only Immo selected and breakdown available → add stacked filled bands per apartment
               if (selected.size === 1 && selected.has(0) && immoBreakdownResult) {
-                const subBorders = ['#c05621', '#2b6cb0', '#2c7a7b'];
-                const subBgs = ['rgba(192,86,33,0.4)', 'rgba(43,108,176,0.35)', 'rgba(44,122,123,0.3)'];
+                const subBorders = ['#c05621', '#b7791f', '#d69e2e'];
+                const subBgs = ['rgba(192,86,33,0.45)', 'rgba(183,121,31,0.35)', 'rgba(214,158,46,0.25)'];
                 let cumSub = new Array(len).fill(0);
                 const firstSubIdx = chart.data.datasets.length; // index of first sub-dataset
                 immoBreakdownResult.forEach((b, bi) => {
