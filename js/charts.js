@@ -819,16 +819,66 @@ function buildAmortChart(state) {
 function buildImmoViewProjection(state) {
   const el = document.getElementById('immoViewProjectionChart');
   if (!el) return;
+  if (charts.immoViewProj) { charts.immoViewProj.destroy(); delete charts.immoViewProj; }
+
+  const iv = state.immoView;
+  if (!iv || !iv.amortSchedules) return;
+
+  // Dynamic projection: compute equity for each property from 2027-2032
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-based
+  const projYears = [2027, 2028, 2029, 2030, 2031, 2032];
+  const loanKeys = ['vitry', 'rueil', 'villejuif'];
+  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+
+  const datasets = loanKeys.map(key => {
+    const amort = iv.amortSchedules[key];
+    if (!amort) return null;
+    const prop = iv.properties.find(p => p.loanKey === key);
+    if (!prop) return null;
+
+    const sched = amort.schedule;
+    const [startY, startM] = sched[0].date.split('-').map(Number);
+
+    // Current value and appreciation rate
+    const appreciation = key === 'vitry' ? 0.02 : 0.01;
+    const currentValue = prop.value;
+
+    const data = projYears.map(year => {
+      // Months from now to target Jan of year
+      const monthsFromNow = (year - currentYear) * 12 - currentMonth;
+      // Months from loan start to target
+      const monthsFromStart = (year - startY) * 12 + (1 - startM);
+
+      if (monthsFromStart < 0) return 0; // loan hasn't started yet
+
+      // CRD at that point
+      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
+      const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+
+      // Projected value with appreciation
+      const yearsAhead = year - currentYear;
+      const projValue = currentValue * Math.pow(1 + appreciation, yearsAhead);
+
+      const equity = projValue - crd;
+      return Math.max(0, Math.round(equity));
+    });
+
+    return {
+      label: loanNames[key],
+      data,
+      borderColor: loanColors[key],
+      backgroundColor: loanColors[key] + '1a',
+      fill: true,
+      tension: 0.3,
+    };
+  }).filter(Boolean);
+
   charts.immoViewProj = new Chart(el, {
     type: 'line',
-    data: {
-      labels: ['2027','2028','2029','2030','2031','2032'],
-      datasets: [
-        { label: 'Vitry', data: [36301,48505,60709,72913,85117,97321], borderColor: '#4a5568', backgroundColor: 'rgba(74,85,104,0.1)', fill: true, tension: 0.3 },
-        { label: 'Rueil', data: [85543,97707,110020,122468,135060,147799], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.1)', fill: true, tension: 0.3 },
-        { label: 'Villejuif', data: [0,0,11039,29706,48808,68307], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.1)', fill: true, tension: 0.3 },
-      ]
-    },
+    data: { labels: projYears.map(String), datasets },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
