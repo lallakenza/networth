@@ -913,6 +913,8 @@ function computeImmoView(portfolio, fx) {
       value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
       ltv: (computedCRD / propData.value * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
+      monthlyPret: chargesConfig.pret,
+      monthlyAssurance: chargesConfig.assurance,
       loyer, cf,
       yieldGross: (loyer * 12 / propData.value * 100),
       yieldNet: (cf * 12 / propData.value * 100),

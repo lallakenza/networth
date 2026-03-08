@@ -1127,8 +1127,8 @@ function renderImmoView(state) {
       const tr = document.createElement('tr');
       if (prop.conditional) tr.style.color = '#92400e';
       tr.innerHTML = '<td>' + prop.name + '</td>'
-        + '<td class="num">' + prop.monthlyPayment + '/mois</td>'
-        + '<td class="num">' + (prop.monthlyPayment - (prop.charges - prop.monthlyPayment > 0 ? 0 : 0)) + '</td>'
+        + '<td class="num">' + fmt(prop.monthlyPret) + '/mois</td>'
+        + '<td class="num">' + fmt(prop.monthlyAssurance) + '</td>'
         + '<td class="num">' + prop.ltv.toFixed(1) + '%</td>'
         + '<td class="num">' + prop.endYear + '</td>'
         + '<td class="num">' + prop.yieldGross.toFixed(1) + '%</td>'
