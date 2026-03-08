@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=20';
-import { IMMO_CONSTANTS } from './data.js?v=20';
+import { fmt, fmtAxis } from './render.js?v=23';
+import { IMMO_CONSTANTS } from './data.js?v=23';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -157,16 +157,30 @@ function runSimulatorGeneric(config) {
 function buildSimChart(canvasId, chartKey, result) {
   const { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears } = result;
 
+  // Compute actual (non-cumulative) values for each band — used by click-to-isolate
+  const actualImmo = dataImmo.map(v => v);
+  const actualCapital = dataBase.map((v, i) => v - dataImmo[i]);
+  const actualGains = dataGains.map((v, i) => v - dataBase[i]);
+
+  // Datasets ordered bottom-to-top for proper stacking with fill: '-1'
+  // 0: Immo fills from 0
+  // 1: Capital fills from Immo line to Capital line
+  // 2: Gains fills from Capital line to Gains line
+  // 3: NW Total (line only, no fill)
   const datasets = [
-    { label: 'Gains Marche (cumul)', data: dataGains, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.25)', fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 3 },
-    { label: 'Capital Investi + Contributions', data: dataBase, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.2)', fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 2 },
-    { label: 'Immobilier (equity)', data: dataImmo, borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.35)', fill: true, tension: 0.3, borderWidth: 0, pointRadius: 0, order: 1 },
-    { label: 'Net Worth Total', data: dataNW, borderColor: '#1a202c', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, order: 0 },
+    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo },
+    { label: 'Capital Investi + Contributions', data: [...dataBase], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
+    { label: 'Gains Marche (cumul)', data: [...dataGains], borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualGains },
+    { label: 'Net Worth Total', data: [...dataNW], borderColor: '#1a202c', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
   ];
 
   if (stopYears > 0) {
-    datasets.push({ label: 'NW sans arret', data: dataNWNoStop, borderColor: 'rgba(39,103,73,0.35)', borderDash: [4,6], tension: 0.3, pointRadius: 0, borderWidth: 2, fill: false, order: 0 });
+    datasets.push({ label: 'NW sans arret', data: [...dataNWNoStop], borderColor: 'rgba(39,103,73,0.35)', borderDash: [4,6], tension: 0.3, pointRadius: 0, borderWidth: 2, fill: false, _actual: dataNWNoStop });
   }
+
+  // Store originals for reset
+  const origData = datasets.map(ds => ({ data: [...ds.data], fill: ds.fill, backgroundColor: ds.backgroundColor, borderWidth: ds.borderWidth }));
+  let isolatedIdx = -1; // -1 = all visible
 
   if (simCharts[chartKey]) simCharts[chartKey].destroy();
   const ctx = document.getElementById(canvasId).getContext('2d');
@@ -175,7 +189,62 @@ function buildSimChart(canvasId, chartKey, result) {
     data: { labels: dataLabels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: c => {
+              // Show actual (non-cumulative) value in tooltip
+              const ds = c.dataset;
+              const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
+              return ds.label + ': ' + fmt(actual);
+            }
+          }
+        },
+        legend: {
+          labels: {
+            generateLabels: function(chart) {
+              const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              labels.forEach((lbl, i) => {
+                if (isolatedIdx >= 0 && i !== isolatedIdx) {
+                  lbl.fontColor = 'rgba(0,0,0,0.25)';
+                }
+              });
+              return labels;
+            }
+          },
+          onClick: function(e, legendItem, legend) {
+            const chart = legend.chart;
+            const idx = legendItem.datasetIndex;
+
+            if (isolatedIdx === idx) {
+              // Reset: show all datasets with original data
+              chart.data.datasets.forEach((ds, i) => {
+                ds.data = [...origData[i].data];
+                ds.fill = origData[i].fill;
+                ds.backgroundColor = origData[i].backgroundColor;
+                ds.borderWidth = origData[i].borderWidth;
+                ds.hidden = false;
+              });
+              isolatedIdx = -1;
+            } else {
+              // Isolate: show only this dataset with its actual (non-cumulative) values
+              chart.data.datasets.forEach((ds, i) => {
+                if (i === idx) {
+                  ds.data = [...ds._actual];
+                  ds.fill = 'origin';
+                  ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
+                  ds.borderWidth = 2;
+                  ds.hidden = false;
+                } else {
+                  ds.hidden = true;
+                }
+              });
+              isolatedIdx = idx;
+            }
+            chart.update();
+          }
+        }
+      },
       scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
     },
     plugins: stopChartIdx >= 0 ? [{
@@ -304,23 +373,81 @@ function runNezhaSimulator(state) {
     '<strong>Croissance moyenne : +' + fmt(Math.round(totalGrowth / horizonYears)) + '/an</strong> via remboursement des prets' +
     (appreciation > 0 ? ' + appreciation ' + (appreciation * 100).toFixed(1) + '%/an.' : '.');
 
+  // Build cumulative stacking data (bottom-to-top: Rueil → Villejuif → Cash → Total line)
+  const cumRueil = dataRueil.map(v => v);
+  const cumRueilVillejuif = dataRueil.map((v, i) => v + dataVillejuif[i]);
+  const cumAll = dataRueil.map((v, i) => v + dataVillejuif[i] + dataCash[i]);
+
+  // Store originals for click-to-isolate reset
+  let nzIsolatedIdx = -1;
+
+  const nzDatasets = [
+    { label: 'Equity Rueil', data: [...cumRueil], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: dataRueil },
+    { label: 'Equity Villejuif', data: [...cumRueilVillejuif], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: dataVillejuif },
+    { label: 'Cash + SGTM', data: [...cumAll], borderColor: '#a0aec0', backgroundColor: 'rgba(160,174,192,0.3)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: dataCash },
+    { label: 'NW Total Nezha', data: [...dataTotal], borderColor: '#d69e2e', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataTotal },
+  ];
+
+  const nzOrigData = nzDatasets.map(ds => ({ data: [...ds.data], fill: ds.fill, backgroundColor: ds.backgroundColor, borderWidth: ds.borderWidth }));
+
   // Chart
   if (simCharts.nzSim) simCharts.nzSim.destroy();
   const ctx = document.getElementById('nzSimChart').getContext('2d');
   simCharts.nzSim = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: dataLabels,
-      datasets: [
-        { label: 'NW Total Nezha', data: dataTotal, borderColor: '#d69e2e', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, order: 0 },
-        { label: 'Equity Rueil', data: dataRueil, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.15)', fill: true, tension: 0.3, borderWidth: 1.5, pointRadius: 0, order: 2 },
-        { label: 'Equity Villejuif', data: dataVillejuif, borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.15)', fill: true, tension: 0.3, borderWidth: 1.5, pointRadius: 0, order: 1 },
-        { label: 'Cash + Creances', data: dataCash, borderColor: '#a0aec0', backgroundColor: 'rgba(160,174,192,0.1)', fill: true, tension: 0.3, borderWidth: 1, pointRadius: 0, borderDash: [4,3], order: 3 },
-      ]
-    },
+    data: { labels: dataLabels, datasets: nzDatasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const ds = c.dataset;
+              const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
+              return ds.label + ': ' + fmt(actual);
+            }
+          }
+        },
+        legend: {
+          labels: {
+            generateLabels: function(chart) {
+              const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              labels.forEach((lbl, i) => {
+                if (nzIsolatedIdx >= 0 && i !== nzIsolatedIdx) lbl.fontColor = 'rgba(0,0,0,0.25)';
+              });
+              return labels;
+            }
+          },
+          onClick: function(e, legendItem, legend) {
+            const chart = legend.chart;
+            const idx = legendItem.datasetIndex;
+            if (nzIsolatedIdx === idx) {
+              chart.data.datasets.forEach((ds, i) => {
+                ds.data = [...nzOrigData[i].data];
+                ds.fill = nzOrigData[i].fill;
+                ds.backgroundColor = nzOrigData[i].backgroundColor;
+                ds.borderWidth = nzOrigData[i].borderWidth;
+                ds.hidden = false;
+              });
+              nzIsolatedIdx = -1;
+            } else {
+              chart.data.datasets.forEach((ds, i) => {
+                if (i === idx) {
+                  ds.data = [...ds._actual];
+                  ds.fill = 'origin';
+                  ds.backgroundColor = nzOrigData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
+                  ds.borderWidth = 2;
+                  ds.hidden = false;
+                } else {
+                  ds.hidden = true;
+                }
+              });
+              nzIsolatedIdx = idx;
+            }
+            chart.update();
+          }
+        }
+      },
       scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
     },
     plugins: [{
