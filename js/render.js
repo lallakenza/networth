@@ -387,46 +387,52 @@ function setHTML(id, html) {
   if (el) el.innerHTML = html;
 }
 
-// ---- SORTABLE IBKR POSITIONS ----
+// ---- SORTABLE UNIFIED POSITIONS TABLE ----
 
-let _ibkrSortKey = null;
-let _ibkrSortDir = 'desc';
+let _allSortKey = null;
+let _allSortDir = 'desc';
 
-function renderIBKRPositions(positions, sortKey, sortDir) {
-  const sorted = [...positions];
+const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
+const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
+
+function renderAllPositions(allPositions, sortKey, sortDir) {
+  const sorted = [...allPositions];
   if (sortKey) {
     sorted.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
-      if (sortKey === 'label') {
+      if (typeof va === 'string') {
         va = (va || '').toLowerCase();
         vb = (vb || '').toLowerCase();
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       }
-      if (sortKey === 'price') {
-        va = a.price || 0;
-        vb = b.price || 0;
-      }
+      va = va || 0; vb = vb || 0;
       return sortDir === 'asc' ? va - vb : vb - va;
     });
   }
-  const tbody = document.getElementById('actionsPositionsTbody');
+  const tbody = document.getElementById('allPositionsTbody');
   if (!tbody) return;
   tbody.innerHTML = '';
   let totalVal = 0, totalCost = 0;
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
-    totalCost += pos.costEUR;
-    const plC = pos.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
-    const plS = pos.unrealizedPL >= 0 ? '+' : '';
+    totalCost += (pos.costEUR || 0);
+    const hasPL = pos.costEUR != null && pos.costEUR > 0;
+    const pl = hasPL ? pos.unrealizedPL : null;
+    const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
+    const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
+    const pctPL = hasPL ? pos.pctPL : null;
     const tr = document.createElement('tr');
     tr.innerHTML = '<td>' + pos.label + '</td>'
+      + '<td>' + (pos.broker || '') + '</td>'
       + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + pos.priceLabel + '</td>'
-      + '<td class="num">' + fmt(pos.costEUR) + '</td>'
+      + '<td class="num">' + (pos.priceLabel || '—') + '</td>'
+      + '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '—') + '</td>'
       + '<td class="num">' + fmt(pos.valEUR) + '</td>'
-      + '<td class="num ' + plC + '">' + plS + fmt(pos.unrealizedPL) + '</td>'
-      + '<td class="num ' + plC + '">' + plS + pos.pctPL.toFixed(1) + '%</td>'
-      + '<td class="num">' + pos.weight.toFixed(1) + '%</td>';
+      + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '—') + '</td>'
+      + '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '—') + '</td>'
+      + '<td class="num">' + pos.weight.toFixed(1) + '%</td>'
+      + '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '—') + '</td>'
+      + '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '—') + '</td>';
     tbody.appendChild(tr);
   });
   const totalPL = totalVal - totalCost;
@@ -435,16 +441,16 @@ function renderIBKRPositions(positions, sortKey, sortDir) {
   const tPlS = totalPL >= 0 ? '+' : '';
   const tr = document.createElement('tr');
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-  tr.innerHTML = '<td><strong>Total Positions</strong></td><td></td><td></td>'
+  tr.innerHTML = '<td><strong>Total (' + sorted.length + ' positions)</strong></td><td></td><td></td><td></td>'
     + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
     + '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>'
     + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
     + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
-    + '<td class="num">100%</td>';
+    + '<td class="num">100%</td><td></td><td></td>';
   tbody.appendChild(tr);
 
   // Update arrow indicators
-  const table = document.getElementById('ibkrPositionsTable');
+  const table = document.getElementById('allPositionsTable');
   if (table) {
     table.querySelectorAll('.sort-arrow').forEach(a => { a.className = 'sort-arrow'; });
     if (sortKey) {
@@ -454,23 +460,22 @@ function renderIBKRPositions(positions, sortKey, sortDir) {
   }
 }
 
-function setupPositionsSort(positions) {
-  const table = document.getElementById('ibkrPositionsTable');
+function setupAllPositionsSort(allPositions) {
+  const table = document.getElementById('allPositionsTable');
   if (!table) return;
-  // Remove old listeners by replacing thead
   const thead = table.querySelector('thead');
   const newThead = thead.cloneNode(true);
   thead.parentNode.replaceChild(newThead, thead);
   newThead.querySelectorAll('.sortable').forEach(th => {
     th.addEventListener('click', () => {
       const key = th.getAttribute('data-sort');
-      if (_ibkrSortKey === key) {
-        _ibkrSortDir = _ibkrSortDir === 'asc' ? 'desc' : 'asc';
+      if (_allSortKey === key) {
+        _allSortDir = _allSortDir === 'asc' ? 'desc' : 'asc';
       } else {
-        _ibkrSortKey = key;
-        _ibkrSortDir = key === 'label' ? 'asc' : 'desc';
+        _allSortKey = key;
+        _allSortDir = (key === 'label' || key === 'broker' || key === 'sector' || key === 'geo') ? 'asc' : 'desc';
       }
-      renderIBKRPositions(positions, _ibkrSortKey, _ibkrSortDir);
+      renderAllPositions(allPositions, _allSortKey, _allSortDir);
     });
   });
 }
@@ -493,9 +498,75 @@ function renderActionsView(state) {
   setText('kpiActionsDividends', fmt(av.dividends));
   setText('kpiActionsTWR', 'TWR +' + av.twr.toFixed(1) + '%');
 
-  // Positions table — sortable
-  renderIBKRPositions(av.ibkrPositions, null, null);
-  setupPositionsSort(av.ibkrPositions);
+  // Build unified positions array (IBKR + ESPP + SGTM)
+  const totalAllVal = av.totalStocks;
+  const allPositions = av.ibkrPositions.map(p => ({
+    ...p,
+    broker: 'IBKR',
+    weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
+  }));
+
+  // ESPP Accenture
+  const esppPL = av.esppUnrealizedPL;
+  allPositions.push({
+    label: 'Accenture (ACN)',
+    broker: 'UBS (ESPP)',
+    ticker: 'ACN',
+    shares: av.esppShares,
+    price: av.esppPrice,
+    priceLabel: '$' + av.esppPrice.toFixed(2),
+    costEUR: av.esppCostBasisEUR,
+    valEUR: av.esppCurrentVal,
+    unrealizedPL: esppPL,
+    pctPL: av.esppCostBasisEUR > 0 ? (esppPL / av.esppCostBasisEUR * 100) : 0,
+    weight: totalAllVal > 0 ? (av.esppCurrentVal / totalAllVal * 100) : 0,
+    sector: 'tech',
+    geo: 'us',
+  });
+
+  // ESPP Cash
+  if (av.esppCashEUR > 0) {
+    allPositions.push({
+      label: 'ESPP Cash résiduel',
+      broker: 'UBS (ESPP)',
+      ticker: '',
+      shares: '',
+      price: null,
+      priceLabel: '—',
+      costEUR: av.esppCashEUR,
+      valEUR: av.esppCashEUR,
+      unrealizedPL: 0,
+      pctPL: 0,
+      weight: totalAllVal > 0 ? (av.esppCashEUR / totalAllVal * 100) : 0,
+      sector: 'cash',
+      geo: 'us',
+    });
+  }
+
+  // SGTM Amine + Nezha
+  const sgtmShares = av.sgtmAmineShares + av.sgtmNezhaShares;
+  const sgtmTotalVal = av.sgtmAmineVal + av.sgtmNezhaVal;
+  const sgtmCostBasis = av.sgtmCostBasisEUR || null;
+  const sgtmPL = sgtmCostBasis ? sgtmTotalVal - sgtmCostBasis : null;
+  allPositions.push({
+    label: 'SGTM (' + sgtmShares + ' actions)',
+    broker: 'Attijari',
+    ticker: 'SGTM',
+    shares: sgtmShares,
+    price: av.sgtmPriceMAD,
+    priceLabel: av.sgtmPriceMAD + ' DH',
+    costEUR: sgtmCostBasis,
+    valEUR: sgtmTotalVal,
+    unrealizedPL: sgtmPL,
+    pctPL: sgtmCostBasis > 0 ? (sgtmPL / sgtmCostBasis * 100) : null,
+    weight: totalAllVal > 0 ? (sgtmTotalVal / totalAllVal * 100) : 0,
+    sector: 'materials',
+    geo: 'morocco',
+  });
+
+  // Render unified table
+  renderAllPositions(allPositions, null, null);
+  setupAllPositionsSort(allPositions);
 
   // Closed positions
   const closedTbody = document.getElementById('actionsClosedTbody');
@@ -515,29 +586,6 @@ function renderActionsView(state) {
     const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
     tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalClosed) + '</strong></td>';
     closedTbody.appendChild(tr);
-  }
-
-  // Other actions (ESPP + SGTM) with cost basis & P/L
-  const otherTbody = document.getElementById('actionsOtherTbody');
-  if (otherTbody) {
-    otherTbody.innerHTML = '';
-    const esppPL = av.esppUnrealizedPL;
-    const esppPLcls = esppPL >= 0 ? 'pl-pos' : 'pl-neg';
-    const esppPLs = esppPL >= 0 ? '+' : '';
-    const rows = [
-      { label: 'ESPP Accenture (' + av.esppShares + ' ACN @ $' + av.esppPrice.toFixed(2) + ')', cost: av.esppCostBasisEUR, val: av.esppCurrentVal, pl: esppPL, plCls: esppPLcls, plS: esppPLs },
-      { label: 'ESPP Cash r\u00e9siduel', cost: av.esppCashEUR, val: av.esppCashEUR, pl: 0, plCls: '', plS: '' },
-      { label: 'SGTM Amine (32 actions)', cost: null, val: av.sgtmAmineVal, pl: null, plCls: '', plS: '' },
-      { label: 'SGTM Nezha (32 actions)', cost: null, val: av.sgtmNezhaVal, pl: null, plCls: '', plS: '' },
-    ];
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + r.label + '</td>'
-        + '<td class="num">' + (r.cost !== null ? fmt(r.cost) : '—') + '</td>'
-        + '<td class="num">' + fmt(r.val) + '</td>'
-        + '<td class="num ' + r.plCls + '">' + (r.pl !== null ? r.plS + fmt(r.pl) : '—') + '</td>';
-      otherTbody.appendChild(tr);
-    });
   }
 
   // IBKR cash table
@@ -981,7 +1029,7 @@ function renderImmoView(state) {
       tr.innerHTML = '<td>' + (loanNames[key] || key) + '</td>'
         + '<td class="num">' + fmt(amort.schedule[0].remainingCRD + amort.schedule[0].principal) + '</td>'
         + '<td class="num">' + rate + '%</td>'
-        + '<td class="num">' + Math.round(amort.schedule.length / 12) + ' ans</td>'
+        + '<td class="num">' + Math.ceil(amort.schedule.length / 12) + ' ans</td>'
         + '<td class="num">' + first.payment + '/mois</td>'
         + '<td class="num">' + fmt(current.remainingCRD) + '</td>'
         + '<td class="num">' + fmt(amort.interestPaid) + '</td>'

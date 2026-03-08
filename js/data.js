@@ -301,7 +301,7 @@ export const IMMO_CONSTANTS = {
   prets: {
     vitryEnd: 2048,      // Année fin du prêt
     rueilEnd: 2044,
-    villejuifEnd: 2053,
+    villejuifEnd: 2052,
   },
   // ──────────────────────────────────────────────────────
   // PRÊTS — Paramètres complets pour tableau d'amortissement

@@ -660,62 +660,65 @@
   </div>
   <div class="kpi-insight-bar" id="insight-actions"></div>
 
-  <div class="grid2">
-    <div>
-      <h3>Positions IBKR — D&eacute;tail complet</h3>
-      <table id="ibkrPositionsTable">
-        <thead><tr>
-          <th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="price">Prix <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="costEUR">Cost <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="valEUR">Valeur <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>
-          <th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>
-        </tr></thead>
-        <tbody id="actionsPositionsTbody"></tbody>
-      </table>
+  <h3>Toutes les Positions — IBKR + ESPP (UBS) + SGTM (Attijari)</h3>
+  <table id="allPositionsTable" style="width:100%;">
+    <thead><tr>
+      <th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="broker">Broker <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="price">Prix <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="costEUR">Co&ucirc;t <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="valEUR">Valeur <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="sector">Secteur <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="geo">G&eacute;o <span class="sort-arrow"></span></th>
+    </tr></thead>
+    <tbody id="allPositionsTbody"></tbody>
+  </table>
 
-      <h3 style="margin-top:20px;">Positions Ferm&eacute;es IBKR (12 mois)</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">P/L R&eacute;alis&eacute;</th></tr></thead>
-        <tbody id="actionsClosedTbody"></tbody>
-      </table>
-
-      <h3 style="margin-top:20px;">Historique Degiro (compte cl&ocirc;tur&eacute; Avr. 2025)</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">Co&ucirc;t</th><th class="num">Produit</th><th class="num">P/L</th></tr></thead>
-        <tbody id="degiroClosedTbody"></tbody>
-      </table>
-
-      <div class="success" style="margin-top:14px;">
-        <strong>P/L R&eacute;alis&eacute; Combin&eacute; (IBKR + Degiro) :</strong> <strong id="actionsCombinedPL" class="pos">--</strong>
-      </div>
-
-      <h3 style="margin-top:20px;">Autres Actions (ESPP + SGTM)</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">Co&ucirc;t</th><th class="num">Valeur</th><th class="num">P/L</th></tr></thead>
-        <tbody id="actionsOtherTbody"></tbody>
-      </table>
-
-      <h3 style="margin-top:20px;">Cash IBKR Multi-devises</h3>
-      <table>
-        <thead><tr><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
-        <tbody id="actionsCashTbody"></tbody>
-      </table>
-    </div>
+  <div class="grid2" style="margin-top:24px;">
     <div>
       <h3>Allocation G&eacute;ographique</h3>
       <div class="chart-container" style="height: 280px;">
         <canvas id="actionsGeoChart"></canvas>
       </div>
+    </div>
+    <div>
       <h3>Allocation Sectorielle</h3>
       <div class="chart-container" style="height: 280px;">
         <canvas id="actionsSectorChart"></canvas>
       </div>
     </div>
   </div>
+
+  <div class="grid2" style="margin-top:16px;">
+    <div>
+      <h3 style="margin-top:20px;">Positions Ferm&eacute;es IBKR (12 mois)</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">P/L R&eacute;alis&eacute;</th></tr></thead>
+        <tbody id="actionsClosedTbody"></tbody>
+      </table>
+    </div>
+    <div>
+      <h3 style="margin-top:20px;">Historique Degiro (compte cl&ocirc;tur&eacute; Avr. 2025)</h3>
+      <table>
+        <thead><tr><th>Position</th><th class="num">Co&ucirc;t</th><th class="num">Produit</th><th class="num">P/L</th></tr></thead>
+        <tbody id="degiroClosedTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="success" style="margin-top:14px;">
+    <strong>P/L R&eacute;alis&eacute; Combin&eacute; (IBKR + Degiro) :</strong> <strong id="actionsCombinedPL" class="pos">--</strong>
+  </div>
+
+  <h3 style="margin-top:20px;">Cash IBKR Multi-devises</h3>
+  <table>
+    <thead><tr><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
+    <tbody id="actionsCashTbody"></tbody>
+  </table>
 
   <div class="highlight" style="margin-top:14px;">
     <strong>M&eacute;triques IBKR :</strong>
@@ -967,7 +970,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=21"></script>
+<script type="module" src="js/app.js?v=22"></script>
 
 </body>
 </html>

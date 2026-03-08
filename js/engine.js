@@ -219,6 +219,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sgtmAmineVal: amineSgtm,
     sgtmNezhaVal: nezhaSgtm,
     sgtmTotal: amineSgtm + nezhaSgtm,
+    sgtmAmineShares: portfolio.amine.sgtm.shares,
+    sgtmNezhaShares: portfolio.nezha.sgtm.shares,
+    sgtmPriceMAD: m.sgtmPriceMAD,
+    sgtmCostBasisEUR: m.sgtmCostBasisMAD
+      ? toEUR((portfolio.amine.sgtm.shares + portfolio.nezha.sgtm.shares) * m.sgtmCostBasisMAD, 'MAD', fx)
+      : null,
     // Totals
     totalStocks,
     totalCurrentValue,
