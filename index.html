@@ -517,8 +517,8 @@
     </div>
     <div>
       <h3>Top Positions IBKR</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">Qte</th><th class="num">Valeur</th></tr></thead>
+      <table id="ibkrSimpleTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="shares">Qte</th><th class="num" data-sort="valEUR">Valeur</th></tr></thead>
         <tbody id="ibkrPositionsTbody"></tbody>
       </table>
       <div class="success" style="margin-top: 14px;">
@@ -697,15 +697,15 @@
   <div class="grid2" style="margin-top:16px;">
     <div>
       <h3 style="margin-top:20px;">Positions Ferm&eacute;es IBKR (12 mois)</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">P/L R&eacute;alis&eacute;</th></tr></thead>
+      <table id="actionsClosedTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th></tr></thead>
         <tbody id="actionsClosedTbody"></tbody>
       </table>
     </div>
     <div>
       <h3 style="margin-top:20px;">Historique Degiro (compte cl&ocirc;tur&eacute; Avr. 2025)</h3>
-      <table>
-        <thead><tr><th>Position</th><th class="num">Co&ucirc;t</th><th class="num">Produit</th><th class="num">P/L</th></tr></thead>
+      <table id="degiroClosedTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L</th></tr></thead>
         <tbody id="degiroClosedTbody"></tbody>
       </table>
     </div>
@@ -771,8 +771,8 @@
   <div class="kpi-insight-bar" id="insight-cash"></div>
 
   <h3>D&eacute;tail par Compte</h3>
-  <table>
-    <thead><tr><th>Compte</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Rendement</th><th class="num">Yield ann.</th><th class="num" style="color:#e53e3e;">Manque &agrave; gagner</th></tr></thead>
+  <table id="cashTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">Compte</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="native">Montant natif</th><th class="num" data-sort="valEUR">Valeur EUR</th><th class="num" data-sort="yield">Rendement</th><th class="num" data-sort="yieldAnn">Yield ann.</th><th class="num" data-sort="missed" style="color:#e53e3e;">Manque &agrave; gagner</th></tr></thead>
     <tbody id="cashAccountsTbody"></tbody>
   </table>
 
@@ -946,8 +946,8 @@
   <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
 
   <h3>D&eacute;tail des Cr&eacute;ances</h3>
-  <table>
-    <thead><tr><th>Cr&eacute;ance</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Probabilit&eacute;</th><th class="num">Valeur attendue</th><th class="num">Inflation /mois</th></tr></thead>
+  <table id="creancesTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">Cr&eacute;ance</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="amount">Montant natif</th><th class="num" data-sort="amountEUR">Valeur EUR</th><th class="num" data-sort="probability">Probabilit&eacute;</th><th class="num" data-sort="expectedValue">Valeur attendue</th><th class="num" data-sort="monthlyInflationCost">Inflation /mois</th></tr></thead>
     <tbody id="creancesDetailTbody"></tbody>
   </table>
 
@@ -985,8 +985,8 @@
   </div>
 
   <h3>D&eacute;tail des D&eacute;penses Personnelles</h3>
-  <table>
-    <thead><tr><th>D&eacute;pense</th><th>Zone</th><th>Type</th><th class="num">Montant natif</th><th>Fr&eacute;quence</th><th class="num">EUR /mois</th><th class="num">% du total</th></tr></thead>
+  <table id="budgetTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">D&eacute;pense</th><th data-sort="zone" data-sort-type="string">Zone</th><th data-sort="type" data-sort-type="string">Type</th><th class="num">Montant natif</th><th data-sort="freq" data-sort-type="string">Fr&eacute;quence</th><th class="num" data-sort="monthlyEUR">EUR /mois</th><th class="num" data-sort="pct">% du total</th></tr></thead>
     <tbody id="budgetDetailTbody"></tbody>
   </table>
 
@@ -1020,7 +1020,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=27"></script>
+<script type="module" src="js/app.js?v=28"></script>
 
 </body>
 </html>

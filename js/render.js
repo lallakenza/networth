@@ -3,8 +3,57 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=27';
-import { getGrandTotal } from './engine.js?v=27';
+import { CURRENCY_CONFIG } from './data.js?v=28';
+import { getGrandTotal } from './engine.js?v=28';
+
+// ---- Generic table sort utility ----
+// makeTableSortable(tableEl, data, renderRowsFn)
+//   tableEl: the <table> element (must have <thead> with <th> headers)
+//   data: array of row objects
+//   renderRowsFn(sortedData): function that repopulates the tbody
+// Headers with data-sort="key" become clickable sort triggers.
+// data-sort-type="string" for text sort, default is numeric.
+function makeTableSortable(tableEl, data, renderRowsFn) {
+  if (!tableEl) return;
+  let sortKey = null, sortDir = 'desc';
+  const headers = tableEl.querySelectorAll('th[data-sort]');
+  headers.forEach(th => {
+    th.classList.add('sortable');
+    // Add arrow indicator if not present
+    if (!th.querySelector('.sort-arrow')) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      th.appendChild(arrow);
+    }
+    // Clone to remove old listeners
+    const newTh = th.cloneNode(true);
+    th.parentNode.replaceChild(newTh, th);
+    newTh.addEventListener('click', () => {
+      const key = newTh.getAttribute('data-sort');
+      const isStr = newTh.getAttribute('data-sort-type') === 'string';
+      if (sortKey === key) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortKey = key;
+        sortDir = isStr ? 'asc' : 'desc';
+      }
+      const sorted = [...data].sort((a, b) => {
+        let va = a[key], vb = b[key];
+        if (isStr || typeof va === 'string') {
+          va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
+          return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        va = va || 0; vb = vb || 0;
+        return sortDir === 'asc' ? va - vb : vb - va;
+      });
+      renderRowsFn(sorted);
+      // Update arrows
+      tableEl.querySelectorAll('.sort-arrow').forEach(a => { a.className = 'sort-arrow'; });
+      const active = tableEl.querySelector('th[data-sort="' + key + '"] .sort-arrow');
+      if (active) active.className = 'sort-arrow ' + sortDir;
+    });
+  });
+}
 
 // ---- Formatting helpers ----
 
@@ -307,30 +356,43 @@ function renderNezhaTable(state) {
 
 function renderIBKRPositionsSimple(state) {
   const tbody = document.getElementById('ibkrPositionsTbody');
+  const ibkrTable = document.getElementById('ibkrSimpleTable');
   if (!tbody) return;
-  tbody.innerHTML = '';
   const positions = state.ibkrPositions;
-
-  // Show top 6
-  positions.slice(0, 6).forEach(pos => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + pos.label + ' <span style="color:var(--gray);font-size:11px">@ ' + pos.priceLabel + '</span></td>'
-      + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + fmt(pos.valEUR) + '</td>';
-    tbody.appendChild(tr);
-  });
-  // Cash
   const cashEUR = state.portfolio.amine.ibkr.cashEUR;
+
+  // Build data including cash as a virtual row
+  const ibkrData = positions.slice(0, 6).map(pos => ({
+    label: pos.label,
+    priceLabel: pos.priceLabel,
+    shares: pos.shares,
+    valEUR: pos.valEUR,
+  }));
   if (cashEUR > 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td style="color:var(--gray)">Cash IBKR</td><td class="num">\u2014</td><td class="num">' + fmt(cashEUR) + '</td>';
-    tbody.appendChild(tr);
+    ibkrData.push({ label: 'Cash IBKR', priceLabel: '', shares: 0, valEUR: cashEUR, isCash: true });
   }
-  // Total
-  const totalRow = document.createElement('tr');
-  totalRow.style.fontWeight = '700'; totalRow.style.background = '#edf2f7';
-  totalRow.innerHTML = '<td><strong>NAV Total</strong></td><td></td><td class="num"><strong>' + fmt(state.amine.ibkr) + '</strong></td>';
-  tbody.appendChild(totalRow);
+
+  function renderIBKRRows(items) {
+    tbody.innerHTML = '';
+    items.forEach(pos => {
+      const tr = document.createElement('tr');
+      if (pos.isCash) {
+        tr.innerHTML = '<td style="color:var(--gray)">' + pos.label + '</td><td class="num">\u2014</td><td class="num">' + fmt(pos.valEUR) + '</td>';
+      } else {
+        tr.innerHTML = '<td>' + pos.label + ' <span style="color:var(--gray);font-size:11px">@ ' + pos.priceLabel + '</span></td>'
+          + '<td class="num">' + pos.shares + '</td>'
+          + '<td class="num">' + fmt(pos.valEUR) + '</td>';
+      }
+      tbody.appendChild(tr);
+    });
+    const totalRow = document.createElement('tr');
+    totalRow.style.fontWeight = '700'; totalRow.style.background = '#edf2f7';
+    totalRow.innerHTML = '<td><strong>NAV Total</strong></td><td></td><td class="num"><strong>' + fmt(state.amine.ibkr) + '</strong></td>';
+    tbody.appendChild(totalRow);
+  }
+
+  renderIBKRRows(ibkrData);
+  makeTableSortable(ibkrTable, ibkrData, renderIBKRRows);
 }
 
 function renderImmoKPIs(state) {
@@ -571,22 +633,28 @@ function renderActionsView(state) {
 
   // Closed positions
   const closedTbody = document.getElementById('actionsClosedTbody');
+  const closedTable = document.getElementById('actionsClosedTable');
   if (closedTbody) {
-    closedTbody.innerHTML = '';
-    let totalClosed = 0;
-    av.closedPositions.forEach(cp => {
-      totalClosed += cp.pl;
-      const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
-      const s = cp.pl >= 0 ? '+' : '';
+    const closedData = av.closedPositions.map(cp => ({ ...cp, label: cp.label + ' (' + cp.ticker + ')' }));
+    function renderClosedRows(items) {
+      closedTbody.innerHTML = '';
+      let totalClosed = 0;
+      items.forEach(cp => {
+        totalClosed += cp.pl;
+        const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
+        const s = cp.pl >= 0 ? '+' : '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + cp.label + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        closedTbody.appendChild(tr);
+      });
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + cp.label + ' (' + cp.ticker + ')</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
+      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalClosed) + '</strong></td>';
       closedTbody.appendChild(tr);
-    });
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
-    tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalClosed) + '</strong></td>';
-    closedTbody.appendChild(tr);
+    }
+    renderClosedRows(closedData);
+    makeTableSortable(closedTable, closedData, renderClosedRows);
   }
 
   // IBKR cash table
@@ -612,24 +680,29 @@ function renderActionsView(state) {
 
   // Degiro closed positions
   const degiroTbody = document.getElementById('degiroClosedTbody');
+  const degiroTable = document.getElementById('degiroClosedTable');
   if (degiroTbody) {
-    degiroTbody.innerHTML = '';
-    let totalCost = 0, totalProceeds = 0, totalDegiro = 0;
-    av.degiroClosedPositions.forEach(cp => {
-      totalCost += (cp.costEUR || 0);
-      totalProceeds += (cp.proceedsEUR || 0);
-      totalDegiro += cp.pl;
-      const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
-      const s = cp.pl >= 0 ? '+' : '';
+    function renderDegiroRows(items) {
+      degiroTbody.innerHTML = '';
+      let totalCost = 0, totalProceeds = 0, totalDegiro = 0;
+      items.forEach(cp => {
+        totalCost += (cp.costEUR || 0);
+        totalProceeds += (cp.proceedsEUR || 0);
+        totalDegiro += cp.pl;
+        const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
+        const s = cp.pl >= 0 ? '+' : '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        degiroTbody.appendChild(tr);
+      });
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
+      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
       degiroTbody.appendChild(tr);
-    });
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
-    tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>+' + fmt(totalDegiro) + '</strong></td>';
-    degiroTbody.appendChild(tr);
+    }
+    renderDegiroRows(av.degiroClosedPositions);
+    makeTableSortable(degiroTable, av.degiroClosedPositions, renderDegiroRows);
   }
 
   // Combined realized P/L
@@ -736,61 +809,120 @@ function renderCashView(state) {
 
   // Accounts table — grouped by owner with subtotals
   const tbody = document.getElementById('cashAccountsTbody');
+  const cashTable = document.getElementById('cashTable');
   if (tbody) {
-    tbody.innerHTML = '';
     const REF_YIELD = 0.06; // 6% benchmark
-    const owners = ['Amine', 'Nezha'];
-    let grandTotalYieldAnn = 0, grandTotalMissed = 0;
-    owners.forEach(owner => {
-      const ownerAccounts = cv.accounts.filter(a => a.owner === owner);
-      if (ownerAccounts.length === 0) return;
-      const ownerPositive = ownerAccounts.filter(a => !a.isDebt);
-      const ownerTotal = ownerPositive.reduce((s, a) => s + a.valEUR, 0);
-      const ownerColor = owner === 'Amine' ? '#ebf5fb' : '#fef9e7';
-      const borderColor = owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
-      // Owner header row
-      const hdr = document.createElement('tr');
-      hdr.style.cssText = 'background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';';
-      hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
-      tbody.appendChild(hdr);
-      // Account rows
-      let ownerYieldAnn = 0, ownerMissed = 0;
-      ownerAccounts.forEach(a => {
+
+    // Build enriched flat data for sorting
+    const cashData = cv.accounts.map(a => {
+      const isDebt = a.isDebt;
+      let yieldAnnVal, missed;
+      if (isDebt) {
+        const costAnn = Math.abs(a.valEUR) * Math.abs(a.yield || 0);
+        yieldAnnVal = -costAnn;
+        missed = costAnn;
+      } else {
+        yieldAnnVal = a.valEUR * (a.yield || 0);
+        missed = a.valEUR > 0 ? Math.max(0, a.valEUR * (REF_YIELD - (a.yield || 0))) : 0;
+      }
+      return { ...a, yieldAnn: yieldAnnVal, missed };
+    });
+
+    function renderCashRowsGrouped(items) {
+      tbody.innerHTML = '';
+      const owners = ['Amine', 'Nezha'];
+      let grandTotalYieldAnn = 0, grandTotalMissed = 0;
+      owners.forEach(owner => {
+        const ownerAccounts = items.filter(a => a.owner === owner);
+        if (ownerAccounts.length === 0) return;
+        const ownerPositive = ownerAccounts.filter(a => !a.isDebt);
+        const ownerTotal = ownerPositive.reduce((s, a) => s + a.valEUR, 0);
+        const ownerColor = owner === 'Amine' ? '#ebf5fb' : '#fef9e7';
+        const borderColor = owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
+        // Owner header row
+        const hdr = document.createElement('tr');
+        hdr.style.cssText = 'background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';';
+        hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
+        tbody.appendChild(hdr);
+        let ownerYieldAnn = 0, ownerMissed = 0;
+        ownerAccounts.forEach(a => {
+          const isDebt = a.isDebt;
+          const isNeg = a.valEUR < 0;
+          const cls = isNeg ? ' class="pl-neg"' : '';
+          const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
+          let yieldStr, yieldAnnStr;
+          if (isDebt) {
+            const costRate = Math.abs(a.yield || 0);
+            const costAnn = Math.abs(a.valEUR) * costRate;
+            yieldStr = '<span class="pl-neg">-' + (costRate * 100).toFixed(1) + '%</span>';
+            yieldAnnStr = '<span class="pl-neg">-' + fmt(costAnn) + '</span>';
+            ownerYieldAnn -= costAnn;
+          } else {
+            yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(1) + '%' : '0%';
+            yieldAnnStr = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
+            ownerYieldAnn += a.valEUR * (a.yield || 0);
+          }
+          const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : (isDebt ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-');
+          ownerMissed += a.missed;
+          const tr = document.createElement('tr');
+          tr.style.borderLeft = '3px solid ' + borderColor;
+          if (isNeg) tr.style.background = '#fff5f5';
+          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
+            + '<td>' + a.owner + '</td>'
+            + '<td>' + a.currency + '</td>'
+            + '<td class="num"' + cls + '>' + nativeStr + '</td>'
+            + '<td class="num"' + cls + '>' + fmt(a.valEUR) + '</td>'
+            + '<td class="num">' + yieldStr + '</td>'
+            + '<td class="num">' + yieldAnnStr + '</td>'
+            + '<td class="num">' + missedStr + '</td>';
+          tbody.appendChild(tr);
+        });
+        grandTotalYieldAnn += ownerYieldAnn;
+        grandTotalMissed += ownerMissed;
+        const ownerAvgYield = ownerTotal > 0 ? (ownerYieldAnn / ownerTotal * 100).toFixed(1) : '0.0';
+        const sub = document.createElement('tr');
+        sub.style.cssText = 'font-weight:600;background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';border-top:2px solid ' + borderColor + ';';
+        sub.innerHTML = '<td style="padding-left:20px;" colspan="4">Total ' + owner + '</td>'
+          + '<td class="num">' + fmt(ownerTotal) + '</td>'
+          + '<td class="num">' + ownerAvgYield + '%</td>'
+          + '<td class="num">' + fmt(ownerYieldAnn) + '</td>'
+          + '<td class="num pl-neg">-' + fmt(ownerMissed) + '</td>';
+        tbody.appendChild(sub);
+      });
+      const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
+      const tr = document.createElement('tr');
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
+        + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
+        + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
+        + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
+        + '<td class="num pl-neg"><strong>-' + fmt(grandTotalMissed) + '</strong></td>';
+      tbody.appendChild(tr);
+    }
+
+    function renderCashRowsFlat(items) {
+      tbody.innerHTML = '';
+      let grandTotalYieldAnn = 0, grandTotalMissed = 0;
+      items.forEach(a => {
         const isDebt = a.isDebt;
         const isNeg = a.valEUR < 0;
         const cls = isNeg ? ' class="pl-neg"' : '';
         const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
-        // Yield display
-        let yieldStr, yieldAnn;
+        const ownerColor = a.owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
+        let yieldStr, yieldAnnStr;
         if (isDebt) {
-          // Debt: show borrowing cost as negative yield
           const costRate = Math.abs(a.yield || 0);
-          const costAnn = Math.abs(a.valEUR) * costRate;
           yieldStr = '<span class="pl-neg">-' + (costRate * 100).toFixed(1) + '%</span>';
-          yieldAnn = '<span class="pl-neg">-' + fmt(costAnn) + '</span>';
-          ownerYieldAnn -= costAnn; // subtract interest cost from owner total
+          yieldAnnStr = '<span class="pl-neg">-' + fmt(Math.abs(a.yieldAnn)) + '</span>';
         } else {
           yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(1) + '%' : '0%';
-          yieldAnn = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
-          ownerYieldAnn += a.valEUR * (a.yield || 0);
+          yieldAnnStr = a.yield > 0 ? fmt(a.yieldAnn) : '-';
         }
-        // Manque à gagner: (6% - actual yield) * valEUR for positive; interest cost for debt
-        let missed, missedStr;
-        if (isDebt) {
-          const costAnn = Math.abs(a.valEUR) * Math.abs(a.yield || 0);
-          missed = costAnn; // interest paid = opportunity cost
-          missedStr = '<span class="pl-neg">-' + fmt(missed) + '</span>';
-          ownerMissed += missed;
-        } else if (a.valEUR > 0) {
-          missed = a.valEUR * (REF_YIELD - (a.yield || 0));
-          missedStr = missed > 10 ? '<span class="pl-neg">-' + fmt(missed) + '</span>' : '-';
-          if (missed > 0) ownerMissed += missed;
-        } else {
-          missed = 0;
-          missedStr = '-';
-        }
+        const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : (isDebt ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-');
+        grandTotalYieldAnn += a.yieldAnn;
+        grandTotalMissed += a.missed;
         const tr = document.createElement('tr');
-        tr.style.borderLeft = '3px solid ' + borderColor;
+        tr.style.borderLeft = '3px solid ' + ownerColor;
         if (isNeg) tr.style.background = '#fff5f5';
         tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
           + '<td>' + a.owner + '</td>'
@@ -798,33 +930,23 @@ function renderCashView(state) {
           + '<td class="num"' + cls + '>' + nativeStr + '</td>'
           + '<td class="num"' + cls + '>' + fmt(a.valEUR) + '</td>'
           + '<td class="num">' + yieldStr + '</td>'
-          + '<td class="num">' + yieldAnn + '</td>'
+          + '<td class="num">' + yieldAnnStr + '</td>'
           + '<td class="num">' + missedStr + '</td>';
         tbody.appendChild(tr);
       });
-      grandTotalYieldAnn += ownerYieldAnn;
-      grandTotalMissed += ownerMissed;
-      // Owner subtotal row
-      const ownerAvgYield = ownerTotal > 0 ? (ownerYieldAnn / ownerTotal * 100).toFixed(1) : '0.0';
-      const sub = document.createElement('tr');
-      sub.style.cssText = 'font-weight:600;background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';border-top:2px solid ' + borderColor + ';';
-      sub.innerHTML = '<td style="padding-left:20px;" colspan="4">Total ' + owner + '</td>'
-        + '<td class="num">' + fmt(ownerTotal) + '</td>'
-        + '<td class="num">' + ownerAvgYield + '%</td>'
-        + '<td class="num">' + fmt(ownerYieldAnn) + '</td>'
-        + '<td class="num pl-neg">-' + fmt(ownerMissed) + '</td>';
-      tbody.appendChild(sub);
-    });
-    // Grand total
-    const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
-      + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
-      + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
-      + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
-      + '<td class="num pl-neg"><strong>-' + fmt(grandTotalMissed) + '</strong></td>';
-    tbody.appendChild(tr);
+      const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
+      const tr = document.createElement('tr');
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
+        + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
+        + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
+        + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
+        + '<td class="num pl-neg"><strong>-' + fmt(grandTotalMissed) + '</strong></td>';
+      tbody.appendChild(tr);
+    }
+
+    renderCashRowsGrouped(cashData);
+    makeTableSortable(cashTable, cashData, renderCashRowsFlat);
   }
 
   // Yield bar
@@ -1099,45 +1221,47 @@ function renderCreancesView(state) {
 
   // Detail table with recouvrement
   const tbody = document.getElementById('creancesDetailTbody');
+  const creancesTable = document.getElementById('creancesTable');
   if (tbody) {
-    tbody.innerHTML = '';
-    crv.items.forEach(item => {
+    const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
+    const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
+
+    function renderCreancesRows(items) {
+      tbody.innerHTML = '';
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        const probStyle = item.guaranteed ? 'color:var(--green);font-weight:600' : (item.probability >= 0.7 ? 'color:#d69e2e' : 'color:var(--red)');
+        const st = item.status || 'en_cours';
+        const statusBadge = '<span style="background:' + (statusColors[st] || '#718096') + ';color:white;padding:1px 6px;border-radius:4px;font-size:10px">' + (statusLabels[st] || st.toUpperCase()) + '</span>';
+        const followUpIcon = item.needsFollowUp ? ' <span title="Relancer ! Dernier contact il y a ' + item.daysSinceContact + 'j" style="color:var(--red);font-weight:700;cursor:help">\u26a0</span>' : '';
+        const overdueTxt = item.daysOverdue > 0 ? ' <span style="color:var(--red);font-size:11px">(' + item.daysOverdue + 'j retard)</span>' : '';
+        const recovPct = Math.min(100, item.recoveryPct);
+        const recovBar = item.paymentsTotal > 0
+          ? '<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:4px"><div style="background:var(--green);height:100%;border-radius:4px;width:' + recovPct + '%"></div></div>'
+          : '';
+
+        tr.innerHTML = '<td>' + item.label + ' ' + statusBadge + followUpIcon + overdueTxt + recovBar + '</td>'
+          + '<td>' + item.owner + '</td>'
+          + '<td>' + item.currency + '</td>'
+          + '<td class="num">' + Math.round(item.amount).toLocaleString('fr-FR') + '</td>'
+          + '<td class="num">' + fmt(item.amountEUR) + '</td>'
+          + '<td class="num" style="' + probStyle + '">' + (item.probability * 100).toFixed(0) + '%</td>'
+          + '<td class="num">' + fmt(item.expectedValue) + '</td>'
+          + '<td class="num ' + (item.monthlyInflationCost > 0 ? 'pl-neg' : '') + '">' + (item.monthlyInflationCost > 0 ? '-' + fmt(item.monthlyInflationCost) : '-') + '</td>';
+        tbody.appendChild(tr);
+      });
       const tr = document.createElement('tr');
-      const probStyle = item.guaranteed ? 'color:var(--green);font-weight:600' : (item.probability >= 0.7 ? 'color:#d69e2e' : 'color:var(--red)');
-
-      // Status badge
-      const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
-      const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
-      const st = item.status || 'en_cours';
-      const statusBadge = '<span style="background:' + (statusColors[st] || '#718096') + ';color:white;padding:1px 6px;border-radius:4px;font-size:10px">' + (statusLabels[st] || st.toUpperCase()) + '</span>';
-      const followUpIcon = item.needsFollowUp ? ' <span title="Relancer ! Dernier contact il y a ' + item.daysSinceContact + 'j" style="color:var(--red);font-weight:700;cursor:help">⚠</span>' : '';
-      const overdueTxt = item.daysOverdue > 0 ? ' <span style="color:var(--red);font-size:11px">(' + item.daysOverdue + 'j retard)</span>' : '';
-
-      // Recovery progress bar
-      const recovPct = Math.min(100, item.recoveryPct);
-      const recovBar = item.paymentsTotal > 0
-        ? '<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:4px"><div style="background:var(--green);height:100%;border-radius:4px;width:' + recovPct + '%"></div></div>'
-        : '';
-
-      tr.innerHTML = '<td>' + item.label + ' ' + statusBadge + followUpIcon + overdueTxt + recovBar + '</td>'
-        + '<td>' + item.owner + '</td>'
-        + '<td>' + item.currency + '</td>'
-        + '<td class="num">' + Math.round(item.amount).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + fmt(item.amountEUR) + '</td>'
-        + '<td class="num" style="' + probStyle + '">' + (item.probability * 100).toFixed(0) + '%</td>'
-        + '<td class="num">' + fmt(item.expectedValue) + '</td>'
-        + '<td class="num ' + (item.monthlyInflationCost > 0 ? 'pl-neg' : '') + '">' + (item.monthlyInflationCost > 0 ? '-' + fmt(item.monthlyInflationCost) : '-') + '</td>';
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
+        + '<td class="num"><strong>' + fmt(crv.totalNominal) + '</strong></td>'
+        + '<td></td>'
+        + '<td class="num"><strong>' + fmt(crv.totalExpected) + '</strong></td>'
+        + '<td class="num pl-neg"><strong>-' + fmt(crv.monthlyInflationCost) + '</strong></td>';
       tbody.appendChild(tr);
-    });
-    // Totals
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
-      + '<td class="num"><strong>' + fmt(crv.totalNominal) + '</strong></td>'
-      + '<td></td>'
-      + '<td class="num"><strong>' + fmt(crv.totalExpected) + '</strong></td>'
-      + '<td class="num pl-neg"><strong>-' + fmt(crv.monthlyInflationCost) + '</strong></td>';
-    tbody.appendChild(tr);
+    }
+
+    renderCreancesRows(crv.items);
+    makeTableSortable(creancesTable, crv.items, renderCreancesRows);
   }
 
   // Garanti vs Incertain bar
@@ -1183,41 +1307,52 @@ function renderBudgetView(state) {
 
   // ── PERSONAL TABLE ──
   const tbody = document.getElementById('budgetDetailTbody');
+  const budgetTable = document.getElementById('budgetTable');
   if (tbody) {
-    tbody.innerHTML = '';
     const zoneColors = { Dubai: '#d69e2e', France: '#2b6cb0', Digital: '#805ad5' };
     const typeColors = { Logement: '#e53e3e', 'Crédits': '#2b6cb0', Utilities: '#38a169', Abonnements: '#805ad5', Assurance: '#d69e2e' };
     const freqLabels = { monthly: '/mois', quarterly: '/trim.', yearly: '/an' };
 
-    bv.personal.forEach(item => {
+    // Enrich items with pct for sorting
+    const budgetData = bv.personal.map(item => ({
+      ...item,
+      pct: bv.personalTotal > 0 ? (item.monthlyEUR / bv.personalTotal * 100) : 0,
+    }));
+
+    function renderBudgetRows(items) {
+      tbody.innerHTML = '';
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        const nativeStr = Math.round(item.amountNative).toLocaleString('fr-FR');
+        const sym = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' }[item.currency] || item.currency;
+        const nativeDisplay = item.currency === 'EUR' ? sym + ' ' + nativeStr : nativeStr + ' ' + sym;
+
+        const zoneBg = zoneColors[item.zone] || '#718096';
+        const typeBg = typeColors[item.type] || '#718096';
+        const zoneBadge = '<span style="background:' + zoneBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.zone + '</span>';
+        const typeBadge = '<span style="background:' + typeBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.type + '</span>';
+
+        tr.innerHTML = '<td style="font-weight:600">' + item.label + '</td>'
+          + '<td>' + zoneBadge + '</td>'
+          + '<td>' + typeBadge + '</td>'
+          + '<td class="num">' + nativeDisplay + '</td>'
+          + '<td>' + (freqLabels[item.freq] || item.freq) + '</td>'
+          + '<td class="num" style="font-weight:700;">' + fmt(item.monthlyEUR) + '</td>'
+          + '<td class="num">' + item.pct.toFixed(1) + '%</td>';
+        tbody.appendChild(tr);
+      });
+
+      // Total row
       const tr = document.createElement('tr');
-      const pct = bv.personalTotal > 0 ? (item.monthlyEUR / bv.personalTotal * 100) : 0;
-      const nativeStr = Math.round(item.amountNative).toLocaleString('fr-FR');
-      const sym = { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$' }[item.currency] || item.currency;
-      const nativeDisplay = item.currency === 'EUR' ? sym + ' ' + nativeStr : nativeStr + ' ' + sym;
-
-      const zoneBg = zoneColors[item.zone] || '#718096';
-      const typeBg = typeColors[item.type] || '#718096';
-      const zoneBadge = '<span style="background:' + zoneBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.zone + '</span>';
-      const typeBadge = '<span style="background:' + typeBg + ';color:white;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600">' + item.type + '</span>';
-
-      tr.innerHTML = '<td style="font-weight:600">' + item.label + '</td>'
-        + '<td>' + zoneBadge + '</td>'
-        + '<td>' + typeBadge + '</td>'
-        + '<td class="num">' + nativeDisplay + '</td>'
-        + '<td>' + (freqLabels[item.freq] || item.freq) + '</td>'
-        + '<td class="num" style="font-weight:700;">' + fmt(item.monthlyEUR) + '</td>'
-        + '<td class="num">' + pct.toFixed(1) + '%</td>';
+      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+      tr.innerHTML = '<td colspan="5"><strong>Total Personnel</strong></td>'
+        + '<td class="num"><strong>' + fmt(bv.personalTotal) + '</strong></td>'
+        + '<td class="num"><strong>100%</strong></td>';
       tbody.appendChild(tr);
-    });
+    }
 
-    // Total row
-    const tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="5"><strong>Total Personnel</strong></td>'
-      + '<td class="num"><strong>' + fmt(bv.personalTotal) + '</strong></td>'
-      + '<td class="num"><strong>100%</strong></td>';
-    tbody.appendChild(tr);
+    renderBudgetRows(budgetData);
+    makeTableSortable(budgetTable, budgetData, renderBudgetRows);
   }
 
   // ── INVEST DETAIL (per property cards) ──
