@@ -903,10 +903,15 @@ function computeImmoView(portfolio, fx) {
 
     const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;
 
+    // Use computed CRD from amort schedule if available (more accurate than static snapshot)
+    const computedCRD = amort
+      ? amort.schedule[amort.currentIdx]?.remainingCRD ?? propData.crd
+      : propData.crd;
+
     return {
       name, owner, conditional: conditional || false,
-      value: propData.value, crd: propData.crd, equity: propData.value - propData.crd,
-      ltv: (propData.crd / propData.value * 100),
+      value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
+      ltv: (computedCRD / propData.value * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
       loyer, cf,
       yieldGross: (loyer * 12 / propData.value * 100),
