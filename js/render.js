@@ -309,7 +309,6 @@ function renderExpandSubs(state, view) {
   }
 
   // ESPP detail label
-  const p = state.portfolio;
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
   setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + '<br>+ cash ~' + p.amine.espp.cashEUR.toLocaleString('fr-FR') + ' EUR');
   setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
