@@ -180,12 +180,24 @@
   <p style="color:#a0aec0;font-size:0.75rem;margin-top:8px;" id="fiscalFootnote"></p>
 </div>
 
+<!-- SECTION 9: COMPARAISON REGIMES FISCAUX -->
+<div class="card">
+  <h2><span class="section-num">9</span>Comparaison : Micro-Foncier vs R&eacute;el Foncier</h2>
+  <p style="color:#718096;margin-bottom:14px;">
+    En tant que non-r&eacute;sident fiscal, les revenus fonciers de source fran&ccedil;aise sont impos&eacute;s &agrave; <strong>TMI 20% + PS 17.2% = 37.2%</strong>.<br>
+    Le choix du r&eacute;gime fiscal impacte directement le cash-flow net. Voici la comparaison sur 10 ans.
+  </p>
+  <div id="regimeCompareContent"></div>
+  <div id="regimeVerdict" class="success" style="margin-top:14px;"></div>
+  <div class="info" style="margin-top:12px;" id="regimeNotes"></div>
+</div>
+
 <footer id="pageFooter"></footer>
 
 </div>
 
 <script type="module">
-import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=40';
+import { PORTFOLIO, FX_STATIC, IMMO_CONSTANTS as IC } from './js/data.js?v=41';
 
 // ═══ HELPERS ═══
 const fmt = v => '\u20ac' + Math.round(v).toLocaleString('fr-FR');
@@ -667,8 +679,111 @@ function updateDeductionDetail(yd) {
     + '</div></div>';
 }
 
-slider.addEventListener('input', updateFiscal);
+slider.addEventListener('input', () => { updateFiscal(); updateRegimeCompare(); });
 updateFiscal();
+
+// ═══ SECTION 9: REGIME COMPARISON ═══
+function updateRegimeCompare() {
+  const loyerDeclare = parseInt(slider.value);
+  const loyerCashMensuel = loyerTotalMensuel - loyerDeclare;
+
+  let microTotal = 0, reelTotal = 0;
+  const rows = [];
+
+  for (let y = 0; y < simNYears; y++) {
+    const year = simStartYear + y;
+    const moisLoyer = year === simStartYear ? (12 - contractStartMonth + 1) : 12;
+    const loyerDeclareAn = loyerDeclare * moisLoyer;
+    const loyerTotalAn = loyerTotalMensuel * moisLoyer;
+    const loyerCashAn = loyerCashMensuel * moisLoyer;
+    const prorata = moisLoyer / 12;
+
+    // ── Micro-foncier : abattement 30% sur loyer déclaré ──
+    const microAbattement = Math.round(loyerDeclareAn * 0.30);
+    const microRevImp = loyerDeclareAn - microAbattement;
+    const microImpot = Math.round(microRevImp * totalRate);
+
+    // ── Réel foncier : déductions réelles ──
+    const tfAnnee = year <= tfExemptionEndYear ? 0 : tfAnnuel;
+    const totalInterets = yearlyInt[year] || 0;
+    const assuranceAnnee = totalAssurance * prorata;
+    const pnoAnnee = pnoAnnuel * prorata;
+    const reelDeductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
+    const reelRevImp = Math.max(0, loyerDeclareAn - reelDeductions);
+    const reelDeficit = loyerDeclareAn < reelDeductions ? Math.round(reelDeductions - loyerDeclareAn) : 0;
+    const reelImpot = Math.round(reelRevImp * totalRate);
+
+    const delta = microImpot - reelImpot;
+    microTotal += microImpot;
+    reelTotal += reelImpot;
+
+    const moisNote = moisLoyer < 12 ? ' <small style="color:#718096;">(' + moisLoyer + 'm)</small>' : '';
+    const deltaClass = delta > 0 ? 'pos' : (delta < 0 ? 'neg' : '');
+    const bgStyle = year <= tfExemptionEndYear ? 'background:#f0fff4;' : '';
+
+    rows.push('<tr style="' + bgStyle + '">'
+      + '<td><strong>' + year + '</strong>' + moisNote + '</td>'
+      + '<td class="num">' + loyerDeclareAn.toLocaleString('fr-FR') + '</td>'
+      // Micro
+      + '<td class="num" style="color:#718096;">' + microAbattement.toLocaleString('fr-FR') + '</td>'
+      + '<td class="num">' + microRevImp.toLocaleString('fr-FR') + '</td>'
+      + '<td class="num neg">' + microImpot.toLocaleString('fr-FR') + '</td>'
+      // Réel
+      + '<td class="num" style="color:#718096;">' + Math.round(reelDeductions).toLocaleString('fr-FR') + '</td>'
+      + '<td class="num">' + reelRevImp.toLocaleString('fr-FR')
+        + (reelDeficit > 0 ? ' <small style="color:#276749;">(d\u00e9f. ' + reelDeficit.toLocaleString('fr-FR') + ')</small>' : '') + '</td>'
+      + '<td class="num ' + (reelImpot > 0 ? 'neg' : 'pos') + '">' + reelImpot.toLocaleString('fr-FR') + '</td>'
+      // Delta
+      + '<td class="num ' + deltaClass + '" style="font-weight:700;">' + (delta > 0 ? '+' : '') + delta.toLocaleString('fr-FR') + '</td>'
+      + '</tr>');
+  }
+
+  const totalDelta = microTotal - reelTotal;
+
+  // TOTAL row
+  rows.push('<tr style="font-weight:700;border-top:3px solid #2d3748;background:#edf2f7;">'
+    + '<td>TOTAL 10 ans</td><td class="num"></td>'
+    + '<td class="num"></td><td class="num"></td>'
+    + '<td class="num neg">' + microTotal.toLocaleString('fr-FR') + ' \u20ac</td>'
+    + '<td class="num"></td><td class="num"></td>'
+    + '<td class="num ' + (reelTotal > 0 ? 'neg' : 'pos') + '">' + reelTotal.toLocaleString('fr-FR') + ' \u20ac</td>'
+    + '<td class="num pos" style="font-weight:700;">' + (totalDelta > 0 ? '+' : '') + totalDelta.toLocaleString('fr-FR') + ' \u20ac</td>'
+    + '</tr>');
+
+  document.getElementById('regimeCompareContent').innerHTML = '<div style="overflow-x:auto;"><table style="font-size:0.82rem;">'
+    + '<thead><tr>'
+    + '<th>Ann\u00e9e</th><th class="num">Loyer<br>D\u00e9clar\u00e9</th>'
+    + '<th class="num" style="background:#fff5eb;" colspan="3">Micro-Foncier (30%)</th>'
+    + '<th class="num" style="background:#ebf8ff;" colspan="3">R\u00e9el Foncier</th>'
+    + '<th class="num" style="background:#f0fff4;">\u0394 \u00c9conomie<br>R\u00e9el</th>'
+    + '</tr>'
+    + '<tr style="font-size:0.75rem;color:#718096;">'
+    + '<th></th><th></th>'
+    + '<th class="num">Abatt.</th><th class="num">Rev. imp.</th><th class="num">Imp\u00f4t</th>'
+    + '<th class="num">D\u00e9ductions</th><th class="num">Rev. imp.</th><th class="num">Imp\u00f4t</th>'
+    + '<th class="num"></th></tr></thead>'
+    + '<tbody>' + rows.join('') + '</tbody></table></div>';
+
+  // Verdict
+  const winner = totalDelta > 0 ? 'R\u00e9el Foncier' : (totalDelta < 0 ? 'Micro-Foncier' : 'Identique');
+  const verdictColor = totalDelta > 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('regimeVerdict').innerHTML =
+    '<strong style="font-size:1.1rem;color:' + verdictColor + ';">R\u00e9gime recommand\u00e9 : ' + winner + '</strong><br>'
+    + '\u00c9conomie sur 10 ans : <strong style="font-size:1.2rem;color:' + verdictColor + ';">'
+    + Math.abs(totalDelta).toLocaleString('fr-FR') + ' \u20ac</strong>'
+    + ' soit ~<strong>' + Math.round(Math.abs(totalDelta) / 10 / 12) + ' \u20ac/mois</strong> en moyenne.'
+    + '<br><small style="color:#718096;">Avec un loyer d\u00e9clar\u00e9 de ' + loyerDeclare + ' \u20ac/mois. Modifiez le slider ci-dessus pour simuler d\'autres sc\u00e9narios.</small>';
+
+  // Notes PTZ/TVA
+  document.getElementById('regimeNotes').innerHTML =
+    '<strong>Notes sur votre situation :</strong><br>'
+    + '\u2022 <strong>PTZ (0%) :</strong> Le PTZ n\'impacte pas le choix du r\u00e9gime. En r\u00e9el, les int\u00e9r\u00eats PTZ sont de 0\u20ac \u2192 seuls les int\u00e9r\u00eats AL + BP sont d\u00e9ductibles.<br>'
+    + '\u2022 <strong>TVA 5.5% :</strong> La TVA r\u00e9duite n\'affecte pas la fiscalit\u00e9 des revenus fonciers. Elle concerne uniquement le prix d\'achat.<br>'
+    + '\u2022 <strong>Non-r\u00e9sident :</strong> Taux minimum 20% (pas de tranches progressives). PS 17.2% s\'appliquent int\u00e9gralement. Pas de CSG d\u00e9ductible.<br>'
+    + '\u2022 <strong>Micro-foncier :</strong> Disponible si revenus fonciers bruts < 15 000\u20ac/an. Abattement forfaitaire 30%. Simple mais pas optimal ici.<br>'
+    + '\u2022 <strong>R\u00e9el foncier :</strong> D\u00e9duction des charges r\u00e9elles (int\u00e9r\u00eats, assurance, PNO, TF). G\u00e9n\u00e8re un d\u00e9ficit foncier reportable (max 10 700\u20ac/an sur revenu global, rest report\u00e9 10 ans sur revenus fonciers). <strong>Engagement 3 ans minimum.</strong>';
+}
+updateRegimeCompare();
 
 // ═══ FOOTER ═══
 document.getElementById('pageFooter').innerHTML =
