@@ -98,7 +98,7 @@ export function render(state, view, currency) {
   if (PERSON_VIEWS.includes(view)) {
     renderCategoryCards(state, view);
     renderCategoryPcts(state, view);
-    renderExpandSubs(state);
+    renderExpandSubs(state, view);
     renderCoupleTable(state);
     renderAmineTable(state);
     renderNezhaTable(state);
@@ -240,7 +240,7 @@ function renderCategoryPcts(state, view) {
   });
 }
 
-function renderExpandSubs(state) {
+function renderExpandSubs(state, view) {
   const s = state;
   // Sub expand card values
   setEur('subIBKR', s.amine.ibkr);
@@ -251,7 +251,62 @@ function renderExpandSubs(state) {
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
   setEur('subVillejuifEq', s.nezha.villejuifEquity);
-  setEur('subCreances', s.amine.recvPro + s.amine.recvPersonal);
+
+  // ── Dynamic créances breakdown by view ──
+  const p = state.portfolio;
+  const fx = state.fx;
+  const toEUR = (amt, cur) => cur === 'EUR' ? amt : amt / fx[cur];
+
+  let creanceItems = [];
+  if (view === 'amine') {
+    creanceItems = (p.amine.creances.items || []).map(c => ({
+      label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
+    }));
+  } else if (view === 'nezha') {
+    creanceItems = (p.nezha.creances && p.nezha.creances.items || []).map(c => ({
+      label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
+    }));
+  } else {
+    // couple: show all
+    (p.amine.creances.items || []).forEach(c => {
+      creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Amine' });
+    });
+    (p.nezha.creances && p.nezha.creances.items || []).forEach(c => {
+      creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Nezha' });
+    });
+  }
+
+  const totalCreances = creanceItems.reduce((sum, c) => sum + c.eur, 0);
+  setEur('subCreances', totalCreances);
+
+  // Build breakdown HTML
+  const bdEl = document.getElementById('subCreancesBreakdown');
+  if (bdEl) {
+    const guaranteed = creanceItems.filter(c => c.guaranteed);
+    const personal = creanceItems.filter(c => !c.guaranteed);
+    let html = '<ul class="breakdown-list">';
+    if (guaranteed.length) {
+      const gTotal = guaranteed.reduce((s, c) => s + c.eur, 0);
+      html += '<li style="font-weight:600"><span class="bl-label">Cr\u00e9ances pro</span><span class="bl-val">' + fmt(gTotal) + '</span></li>';
+      guaranteed.forEach(c => {
+        const ownerTag = view === 'couple' && c.owner ? ' <span style="color:var(--gray);font-size:10px">(' + c.owner + ')</span>' : '';
+        html += '<li><span class="bl-label">&nbsp;&nbsp;' + c.label + ownerTag + '</span><span class="bl-val">' + fmt(c.eur) + '</span></li>';
+      });
+    }
+    if (personal.length) {
+      const pTotal = personal.reduce((s, c) => s + c.eur, 0);
+      html += '<li style="padding-top:4px;border-top:1px solid #cbd5e0;font-weight:600"><span class="bl-label">Cr\u00e9ances personnelles</span><span class="bl-val">' + fmt(pTotal) + '</span></li>';
+      personal.forEach(c => {
+        const ownerTag = view === 'couple' && c.owner ? ' <span style="color:var(--gray);font-size:10px">(' + c.owner + ')</span>' : '';
+        html += '<li><span class="bl-label">&nbsp;&nbsp;' + c.label + ownerTag + '</span><span class="bl-val">' + fmt(c.eur) + '</span></li>';
+      });
+    }
+    if (!creanceItems.length) {
+      html += '<li><span class="bl-label" style="color:var(--gray)">Aucune cr\u00e9ance</span></li>';
+    }
+    html += '</ul>';
+    bdEl.innerHTML = html;
+  }
 
   // ESPP detail label
   const p = state.portfolio;
@@ -314,7 +369,7 @@ function renderExpandSubs(state) {
       let html = '';
       const propMeta = {
         vitry: { desc: '67 m2 \u2014 loyer 1,050 HC + 150 charges + 70 parking', owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
-        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
+        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC + 150 charges (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
         villejuif: { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
       };
       iv.properties.forEach(prop => {

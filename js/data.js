@@ -196,7 +196,7 @@ export const PORTFOLIO = {
     },
     immo: {
       // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
-      rueil:     { value: 272000, crd: 195275, loyer: 1300 },
+      rueil:     { value: 272000, crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
       villejuif: { value: 360000, crd: 318470, loyer: 1700, signed: false, reservationFees: 3000 },
     },
   },
@@ -299,7 +299,7 @@ export const IMMO_CONSTANTS = {
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // pret: AL 145.20 + BP 1020.55 + PTZ 0 ≈ 1166, ass: APRIL 17.48 ≈ 17
-    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 80 },  // pret: 969.62, ass: 17.99 (2026)
+    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 250 },  // pret: 969.62, ass: 17.99 (2026), copro: 250 dont 150 refacturé locataire
     villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
   },
   prets: {
