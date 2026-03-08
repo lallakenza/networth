@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=31';
-import { getGrandTotal } from './engine.js?v=31';
+import { CURRENCY_CONFIG } from './data.js?v=47';
+import { getGrandTotal } from './engine.js?v=47';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1218,13 +1218,14 @@ function renderImmoView(state) {
   setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
   document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
 
-  // Property cards with fiscal data
+  // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');
   if (grid) {
     grid.innerHTML = '';
-    iv.properties.forEach(prop => {
+    iv.properties.forEach((prop, idx) => {
       const card = document.createElement('div');
       card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
+      card.dataset.loanKey = prop.loanKey;
       const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
       const cfSign = prop.cf >= 0 ? '+' : '';
       const f = prop.fiscalite;
@@ -1233,9 +1234,8 @@ function renderImmoView(state) {
         : '';
       const regimeDisplay = f ? (f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime) : '';
       const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + regimeDisplay + '</span>' : '';
-      const aptLink = 'apt_' + prop.loanKey + '.html';
-      card.innerHTML = '<h3><a href="' + aptLink + '" style="color:inherit;text-decoration:none;border-bottom:1px dashed #a0aec0;" title="Voir la fiche ' + prop.name + '">' + prop.name + '</a>' + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
-        + '<div class="prop-owner">' + prop.owner + '</div>'
+      card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
+        + '<div class="prop-owner">' + prop.owner + ' <span style="font-size:10px;color:var(--accent);margin-left:4px;">&#x25BC; cliquer pour details</span></div>'
         + '<div class="prop-kpis">'
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur</div></div>'
@@ -1245,7 +1245,28 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
+      card.addEventListener('click', () => {
+        // Toggle detail panel
+        const panel = document.getElementById('propDetailPanel');
+        const allCards = grid.querySelectorAll('.prop-card');
+        if (panel.style.display !== 'none' && panel.dataset.activeKey === prop.loanKey) {
+          panel.style.display = 'none';
+          allCards.forEach(c => c.classList.remove('active-prop'));
+          return;
+        }
+        allCards.forEach(c => c.classList.remove('active-prop'));
+        card.classList.add('active-prop');
+        panel.dataset.activeKey = prop.loanKey;
+        renderPropertyDetail(state, prop);
+        panel.style.display = 'block';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
       grid.appendChild(card);
+    });
+    // Close button
+    document.getElementById('propDetailClose')?.addEventListener('click', () => {
+      document.getElementById('propDetailPanel').style.display = 'none';
+      grid.querySelectorAll('.prop-card').forEach(c => c.classList.remove('active-prop'));
     });
   }
 
@@ -1359,6 +1380,288 @@ function renderImmoView(state) {
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (iv.totalCFNetFiscal >= 0 ? '+' : '') + iv.totalCFNetFiscal + '/mois</strong>';
   }
+}
+
+// ============ PROPERTY DETAIL PANEL ============
+function renderPropertyDetail(state, prop) {
+  const meta = prop.propertyMeta || {};
+  const cd = prop.chargesDetail || {};
+  const iv = state.immoView;
+
+  // Title
+  const titleEl = document.getElementById('propDetailTitle');
+  if (titleEl) titleEl.textContent = prop.name + (meta.address ? ' — ' + meta.address : '');
+
+  // ── Section 1: Fiche ──
+  const ficheEl = document.getElementById('propDetailFiche');
+  if (ficheEl) {
+    const surface = meta.surface ? meta.surface + ' m²' : '—';
+    const price = meta.purchasePrice ? meta.purchasePrice.toLocaleString('fr-FR') + ' €' : (meta.totalOperation ? meta.totalOperation.toLocaleString('fr-FR') + ' €' : '—');
+    const date = meta.purchaseDate || '—';
+    const type = meta.type || '—';
+    const appreciation = meta.appreciation ? (meta.appreciation * 100).toFixed(0) + '%/an' : '—';
+    ficheEl.innerHTML = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Fiche propriété</h4>'
+      + '<div class="detail-grid">'
+      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + surface + '</div><div style="font-size:11px;color:#718096;">Surface</div></div>'
+      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + price + '</div><div style="font-size:11px;color:#718096;">Prix d\'achat</div></div>'
+      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + fmt(prop.value) + '</div><div style="font-size:11px;color:#718096;">Valeur actuelle</div></div>'
+      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;color:var(--green);">' + fmt(prop.equity) + '</div><div style="font-size:11px;color:#718096;">Equity</div></div>'
+      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + type + '</div><div style="font-size:11px;color:#718096;">Type</div></div>'
+      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + date + '</div><div style="font-size:11px;color:#718096;">Date achat</div></div>'
+      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + appreciation + '</div><div style="font-size:11px;color:#718096;">Appréciation</div></div>'
+      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + prop.ltv.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">LTV</div></div>'
+      + '</div>';
+  }
+
+  // ── Section 2: Prêts ──
+  const loansEl = document.getElementById('propDetailLoans');
+  if (loansEl) {
+    let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Détail des prêts</h4>';
+    if (prop.loanDetails && prop.loanDetails.length > 0) {
+      html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
+        + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
+      let totalMens = 0, totalAss = 0;
+      prop.loanDetails.forEach(l => {
+        totalMens += l.monthlyPayment || 0;
+        totalAss += l.insuranceMonthly || 0;
+        const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
+        html += '<tr>'
+          + '<td>' + l.name + '</td>'
+          + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + ((l.rate || 0) * 100).toFixed(2) + '%</td>'
+          + '<td class="num">' + dur + '</td>'
+          + '<td class="num">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td>'
+          + '</tr>';
+      });
+      html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
+        + '<td>Total</td><td></td><td></td><td></td>'
+        + '<td class="num">' + Math.round(totalMens).toLocaleString('fr-FR') + ' €</td>'
+        + '<td class="num">' + Math.round(totalAss).toLocaleString('fr-FR') + ' €</td></tr>';
+      html += '</tbody></table></div>';
+      html += '<div style="margin-top:6px;font-size:12px;color:#718096;">CRD actuel : <strong>' + fmt(prop.crd) + '</strong> | Fin prêt : <strong>' + (prop.endYear || '—') + '</strong></div>';
+    } else {
+      html += '<p style="color:#718096;font-size:13px;">Aucun détail de prêt disponible</p>';
+    }
+    loansEl.innerHTML = html;
+  }
+
+  // ── Section 3: Cash Flow ──
+  const cfEl = document.getElementById('propDetailCF');
+  if (cfEl) {
+    const cfSign = prop.cf >= 0 ? '+' : '';
+    const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
+    const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
+    const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
+    let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Cash Flow mensuel</h4>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
+      // Revenus
+      + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
+      + '<div style="font-weight:700;color:#276749;margin-bottom:6px;">Revenus</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
+      + '<span>Loyer HC</span><span class="num">' + prop.loyerHC + ' €</span>'
+      + (prop.parking > 0 ? '<span>Parking</span><span class="num">' + prop.parking + ' €</span>' : '')
+      + (prop.chargesLoc > 0 ? '<span>Charges locataire</span><span class="num">' + prop.chargesLoc + ' €</span>' : '')
+      + '<span style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">Total revenus</span><span class="num" style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">' + prop.totalRevenue + ' €</span>'
+      + '</div></div>'
+      // Charges
+      + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
+      + '<div style="font-weight:700;color:#c53030;margin-bottom:6px;">Charges</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
+      + '<span>Prêt</span><span class="num">' + Math.round(cd.pret || 0) + ' €</span>'
+      + '<span>Assurance empr.</span><span class="num">' + Math.round(cd.assurance || 0) + ' €</span>'
+      + '<span>PNO</span><span class="num">' + Math.round(cd.pno || 0) + ' €</span>'
+      + '<span>Taxe foncière</span><span class="num">' + Math.round(cd.tf || 0) + ' €</span>'
+      + '<span>Copro</span><span class="num">' + Math.round(cd.copro || 0) + ' €</span>'
+      + '<span style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">Total charges</span><span class="num" style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">' + Math.round(prop.charges) + ' €</span>'
+      + '</div></div></div>';
+    // CF KPIs
+    html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /an</div></div>'
+      + '</div>';
+    cfEl.innerHTML = html;
+  }
+
+  // ── Section 5: Fiscal Simulator (Vitry only) ──
+  const fiscalEl = document.getElementById('propDetailFiscal');
+  if (fiscalEl) {
+    if (prop.loanKey === 'vitry' && prop.fiscalSimConfig) {
+      fiscalEl.style.display = 'block';
+      renderFiscalSimulator(fiscalEl, prop);
+    } else {
+      fiscalEl.style.display = 'none';
+    }
+  }
+
+  // ── Section 6: VEFA Timeline (Villejuif only) ──
+  const vefaEl = document.getElementById('propDetailVefa');
+  if (vefaEl) {
+    if (prop.loanKey === 'villejuif' && prop.vefaConfig) {
+      vefaEl.style.display = 'block';
+      renderVEFATimeline(vefaEl, prop);
+    } else {
+      vefaEl.style.display = 'none';
+    }
+  }
+
+  // ── Charts (after DOM update) ──
+  setTimeout(() => {
+    if (typeof window.buildPropertyDetailCharts === 'function') {
+      window.buildPropertyDetailCharts(state, prop);
+    }
+  }, 50);
+}
+
+// ── Fiscal Simulator (Vitry) ──
+function renderFiscalSimulator(container, prop) {
+  const cfg = prop.fiscalSimConfig;
+  const yearlyInt = prop.yearlyInterest || {};
+  const defaultLoyer = cfg.loyerTotalMensuel;
+
+  let html = '<h4 style="margin:0 0 12px;font-size:14px;color:#4a5568;">Simulation fiscale — Micro-Foncier vs Réel</h4>';
+  // Slider
+  html += '<div style="margin-bottom:16px;padding:12px;background:#f7fafc;border-radius:8px;">'
+    + '<label style="font-size:13px;font-weight:600;">Loyer déclaré : <span id="pdFiscalSliderVal">' + defaultLoyer + '</span> €/mois</label>'
+    + '<input type="range" id="pdFiscalSlider" min="0" max="' + (defaultLoyer + 200) + '" value="' + defaultLoyer + '" step="50" style="width:100%;margin-top:6px;">'
+    + '<div style="font-size:11px;color:#718096;">Modifiez pour simuler une partie en cash (non déclaré)</div>'
+    + '</div>';
+  // Tables
+  html += '<div id="pdFiscalTable"></div>';
+  html += '<div id="pdFiscalVerdict" style="margin-top:12px;padding:12px;background:#f0fff4;border-radius:8px;"></div>';
+
+  container.innerHTML = html;
+
+  const slider = document.getElementById('pdFiscalSlider');
+  const valEl = document.getElementById('pdFiscalSliderVal');
+
+  function updateFiscalSim() {
+    const loyerDeclare = parseInt(slider.value);
+    valEl.textContent = loyerDeclare;
+    const loyerCashMensuel = cfg.loyerTotalMensuel - loyerDeclare;
+
+    let microTotal = 0, reelTotal = 0;
+    const rows = [];
+
+    for (let y = 0; y < cfg.nYears; y++) {
+      const year = cfg.startYear + y;
+      const moisLoyer = year === cfg.startYear ? (12 - cfg.contractStartMonth + 1) : 12;
+      const loyerDeclareAn = loyerDeclare * moisLoyer;
+      const prorata = moisLoyer / 12;
+
+      // Micro-foncier
+      const microAbattement = Math.round(loyerDeclareAn * 0.30);
+      const microRevImp = loyerDeclareAn - microAbattement;
+      const microImpot = Math.round(microRevImp * cfg.totalRate);
+
+      // Réel foncier
+      const tfAnnee = year <= cfg.tfExemptionEndYear ? 0 : cfg.tfAnnuel;
+      const totalInterets = yearlyInt[year] || 0;
+      const assuranceAnnee = cfg.totalAssuranceAnnuel * prorata;
+      const pnoAnnee = cfg.pnoAnnuel * prorata;
+      const reelDeductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
+      const reelRevImp = Math.max(0, loyerDeclareAn - reelDeductions);
+      const reelDeficit = loyerDeclareAn < reelDeductions ? Math.round(reelDeductions - loyerDeclareAn) : 0;
+      const reelImpot = Math.round(reelRevImp * cfg.totalRate);
+
+      const delta = microImpot - reelImpot;
+      microTotal += microImpot;
+      reelTotal += reelImpot;
+
+      const moisNote = moisLoyer < 12 ? ' <small style="color:#718096;">(' + moisLoyer + 'm)</small>' : '';
+      const bgStyle = year <= cfg.tfExemptionEndYear ? 'background:#f0fff4;' : '';
+
+      rows.push('<tr style="' + bgStyle + '">'
+        + '<td><strong>' + year + '</strong>' + moisNote + '</td>'
+        + '<td class="num">' + loyerDeclareAn.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#718096;">' + microAbattement.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + microRevImp.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#c53030;">' + microImpot.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#718096;">' + Math.round(reelDeductions).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(reelRevImp).toLocaleString('fr-FR')
+          + (reelDeficit > 0 ? ' <small style="color:#276749;">(déf. ' + reelDeficit.toLocaleString('fr-FR') + ')</small>' : '') + '</td>'
+        + '<td class="num" style="color:' + (reelImpot > 0 ? '#c53030' : '#276749') + ';">' + reelImpot.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="font-weight:700;color:' + (delta > 0 ? '#276749' : '#c53030') + ';">' + (delta > 0 ? '+' : '') + delta.toLocaleString('fr-FR') + '</td>'
+        + '</tr>');
+    }
+
+    const totalDelta = microTotal - reelTotal;
+    rows.push('<tr style="font-weight:700;border-top:3px solid #2d3748;background:#edf2f7;">'
+      + '<td>TOTAL 10 ans</td><td></td><td></td><td></td>'
+      + '<td class="num" style="color:#c53030;">' + microTotal.toLocaleString('fr-FR') + ' €</td>'
+      + '<td></td><td></td>'
+      + '<td class="num" style="color:' + (reelTotal > 0 ? '#c53030' : '#276749') + ';">' + reelTotal.toLocaleString('fr-FR') + ' €</td>'
+      + '<td class="num" style="font-weight:700;color:#276749;">' + (totalDelta > 0 ? '+' : '') + totalDelta.toLocaleString('fr-FR') + ' €</td>'
+      + '</tr>');
+
+    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
+      + '<thead><tr><th>Année</th><th class="num">Loyer décl.</th>'
+      + '<th class="num" style="background:#fff5eb;">Abatt. 30%</th><th class="num" style="background:#fff5eb;">Rev. imp.</th><th class="num" style="background:#fff5eb;">Impôt micro</th>'
+      + '<th class="num" style="background:#ebf8ff;">Déductions</th><th class="num" style="background:#ebf8ff;">Rev. imp.</th><th class="num" style="background:#ebf8ff;">Impôt réel</th>'
+      + '<th class="num" style="background:#f0fff4;">Δ Économie</th></tr></thead>'
+      + '<tbody>' + rows.join('') + '</tbody></table></div>';
+
+    const winner = totalDelta > 0 ? 'Réel Foncier' : (totalDelta < 0 ? 'Micro-Foncier' : 'Identique');
+    const verdictColor = totalDelta > 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('pdFiscalVerdict').innerHTML =
+      '<strong style="font-size:1.05rem;color:' + verdictColor + ';">Régime recommandé : ' + winner + '</strong>'
+      + ' | Économie sur 10 ans : <strong style="color:' + verdictColor + ';">' + Math.abs(totalDelta).toLocaleString('fr-FR') + ' €</strong>'
+      + ' (~' + Math.round(Math.abs(totalDelta) / 10 / 12) + ' €/mois en moy.)'
+      + (loyerCashMensuel > 0 ? '<br><small style="color:#718096;">Loyer total ' + cfg.loyerTotalMensuel + '€ dont ' + loyerCashMensuel + '€ cash non déclaré</small>' : '');
+  }
+
+  slider.addEventListener('input', updateFiscalSim);
+  updateFiscalSim();
+}
+
+// ── VEFA Timeline (Villejuif) ──
+function renderVEFATimeline(container, prop) {
+  const cfg = prop.vefaConfig;
+  const [startY, startM] = cfg.franchiseStart.split('-').map(Number);
+  const [delY, delM] = cfg.deliveryDate.split('-').map(Number);
+  const franchiseEnd = new Date(startY, startM - 1 + cfg.franchiseMonths);
+  const franchiseEndLabel = franchiseEnd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const deliveryLabel = new Date(delY, delM - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  let html = '<h4 style="margin:0 0 12px;font-size:14px;color:#4a5568;">Timeline VEFA — Villejuif</h4>';
+
+  // Timeline visual
+  const now = new Date();
+  const totalMonths = (delY - startY) * 12 + (delM - startM);
+  const elapsedMonths = (now.getFullYear() - startY) * 12 + (now.getMonth() + 1 - startM);
+  const pctElapsed = Math.min(100, Math.max(0, elapsedMonths / totalMonths * 100));
+  const pctFranchise = cfg.franchiseMonths / totalMonths * 100;
+
+  html += '<div style="position:relative;height:50px;background:#e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden;">'
+    + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctFranchise + '%;background:#bee3f8;border-right:2px dashed #2b6cb0;"></div>'
+    + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctElapsed + '%;background:var(--accent);opacity:0.3;"></div>'
+    + '<div style="position:absolute;left:' + pctElapsed + '%;top:0;width:3px;height:100%;background:var(--accent);"></div>'
+    + '<div style="position:absolute;left:4px;top:4px;font-size:10px;font-weight:600;color:#2b6cb0;">Franchise</div>'
+    + '<div style="position:absolute;right:4px;top:4px;font-size:10px;font-weight:600;color:#4a5568;">Livraison</div>'
+    + '<div style="position:absolute;left:' + pctElapsed + '%;bottom:4px;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--accent);">Auj.</div>'
+    + '</div>';
+
+  // Key dates
+  html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
+    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseStart + '</div><div style="font-size:11px;color:#718096;">Début franchise</div></div>'
+    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + franchiseEndLabel + '</div><div style="font-size:11px;color:#718096;">Fin franchise</div></div>'
+    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison prévue</div></div>'
+    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Durée franchise</div></div>'
+    + '</div>';
+
+  // Financial summary
+  if (cfg.totalOperation) {
+    html += '<div style="margin-top:12px;padding:12px;background:#f7fafc;border-radius:8px;font-size:13px;">'
+      + '<strong>Montant opération :</strong> ' + cfg.totalOperation.toLocaleString('fr-FR') + ' € '
+      + (cfg.fraisDossier > 0 ? '| <strong>Frais dossier :</strong> ' + cfg.fraisDossier.toLocaleString('fr-FR') + ' €' : '')
+      + '<br><small style="color:#718096;">Pendant la franchise, seuls les intérêts intercalaires sont payés. Les mensualités complètes commencent après livraison.</small>'
+      + '</div>';
+  }
+
+  container.innerHTML = html;
 }
 
 function renderCreancesView(state) {

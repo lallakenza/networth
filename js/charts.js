@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=27';
-import { getGrandTotal } from './engine.js?v=27';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=27';
+import { fmt, fmtAxis } from './render.js?v=47';
+import { getGrandTotal } from './engine.js?v=47';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=47';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -889,6 +889,113 @@ function buildImmoViewProjection(state) {
       scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
   });
 }
+
+// ============ PROPERTY DETAIL CHARTS ============
+export function buildPropertyDetailCharts(state, prop) {
+  const iv = state.immoView;
+  if (!iv || !iv.amortSchedules) return;
+
+  // Destroy previous detail charts
+  if (charts.propDetailEquity) { charts.propDetailEquity.destroy(); delete charts.propDetailEquity; }
+  if (charts.propDetailAmort) { charts.propDetailAmort.destroy(); delete charts.propDetailAmort; }
+
+  const amort = iv.amortSchedules[prop.loanKey];
+  if (!amort) return;
+  const sched = amort.schedule;
+
+  // ── Chart 1: Equity Projection ──
+  const eqEl = document.getElementById('propDetailEquityChart');
+  if (eqEl) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const appreciation = (prop.propertyMeta && prop.propertyMeta.appreciation) || 0.01;
+    const [startY, startM] = sched[0].date.split('-').map(Number);
+
+    const projYears = [];
+    for (let y = currentYear; y <= currentYear + 8; y++) projYears.push(y);
+
+    const equityData = projYears.map(year => {
+      const monthsFromStart = (year - startY) * 12 + (1 - startM);
+      if (monthsFromStart < 0) return 0;
+      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
+      const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+      const yearsAhead = year - currentYear;
+      const projValue = prop.value * Math.pow(1 + appreciation, yearsAhead);
+      return Math.max(0, Math.round(projValue - crd));
+    });
+
+    const valueData = projYears.map(year => {
+      const yearsAhead = year - currentYear;
+      return Math.round(prop.value * Math.pow(1 + appreciation, yearsAhead));
+    });
+
+    const crdData = projYears.map(year => {
+      const monthsFromStart = (year - startY) * 12 + (1 - startM);
+      if (monthsFromStart < 0) return prop.crd;
+      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
+      return schedIdx >= sched.length ? 0 : Math.round(sched[schedIdx].remainingCRD);
+    });
+
+    charts.propDetailEquity = new Chart(eqEl, {
+      type: 'line',
+      data: {
+        labels: projYears.map(String),
+        datasets: [
+          { label: 'Equity', data: equityData, borderColor: '#276749', backgroundColor: '#276749' + '1a', fill: true, tension: 0.3 },
+          { label: 'Valeur', data: valueData, borderColor: '#2b6cb0', borderDash: [5, 5], tension: 0.3, pointRadius: 2 },
+          { label: 'CRD', data: crdData, borderColor: '#c53030', borderDash: [3, 3], tension: 0.3, pointRadius: 2 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { title: { display: true, text: 'Projection equity — ' + prop.name, font: { size: 13 } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+        scales: { y: { ticks: { callback: v => fmtAxis(v) } } }
+      }
+    });
+  }
+
+  // ── Chart 2: Amortization breakdown (capital vs interest per year) ──
+  const amEl = document.getElementById('propDetailAmortChart');
+  if (amEl) {
+    // Aggregate capital and interest by year
+    const yearlyData = {};
+    for (const row of sched) {
+      const year = row.date.split('-')[0];
+      if (!yearlyData[year]) yearlyData[year] = { capital: 0, interest: 0 };
+      yearlyData[year].capital += row.principal;
+      yearlyData[year].interest += row.interest;
+    }
+    const years = Object.keys(yearlyData).sort();
+    // Show a reasonable range (skip past years if many)
+    const now = new Date().getFullYear();
+    const displayYears = years.filter(y => parseInt(y) >= now - 1);
+    const limitedYears = displayYears.slice(0, 12);
+
+    charts.propDetailAmort = new Chart(amEl, {
+      type: 'bar',
+      data: {
+        labels: limitedYears,
+        datasets: [
+          { label: 'Capital', data: limitedYears.map(y => Math.round(yearlyData[y].capital)), backgroundColor: '#276749' },
+          { label: 'Intérêts', data: limitedYears.map(y => Math.round(yearlyData[y].interest)), backgroundColor: '#e53e3e' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { title: { display: true, text: 'Amortissement — Capital vs Intérêts', font: { size: 13 } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
+        scales: {
+          x: { stacked: true },
+          y: { stacked: true, ticks: { callback: v => fmtAxis(v) } }
+        }
+      }
+    });
+  }
+}
+// Make available globally for render.js
+window.buildPropertyDetailCharts = buildPropertyDetailCharts;
 
 // ============ BUDGET DONUTS ============
 function buildBudgetZoneDonut(state) {
