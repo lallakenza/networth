@@ -967,25 +967,12 @@ function computeImmoView(portfolio, fx) {
   // ── Yearly interest schedule per loan (for fiscal simulation) ──
   function yearlyInterestFromSchedule(amortObj) {
     const yearly = {};
-    if (!amortObj) return yearly;
-    if (amortObj.subSchedules) {
-      // Multi-loan: iterate sub-schedules
-      const subLoans = amortObj.subSchedules;
-      for (let k = 0; k < subLoans.length; k++) {
-        const sub = subLoans[k];
-        for (let i = 0; i < sub.schedule.length; i++) {
-          const y = sub.startYear + Math.floor((sub.startMonth - 1 + i) / 12);
-          yearly[y] = (yearly[y] || 0) + sub.schedule[i].interest;
-        }
-      }
-    } else {
-      // Single loan
-      const startDate = amortObj.startDate || '2020-01';
-      const [sy, sm] = startDate.split('-').map(Number);
-      for (let i = 0; i < amortObj.schedule.length; i++) {
-        const y = sy + Math.floor((sm - 1 + i) / 12);
-        yearly[y] = (yearly[y] || 0) + amortObj.schedule[i].interest;
-      }
+    if (!amortObj || !amortObj.schedule) return yearly;
+    // Use the combined schedule directly — each row has a date field "YYYY-MM"
+    for (let i = 0; i < amortObj.schedule.length; i++) {
+      const row = amortObj.schedule[i];
+      const y = parseInt(row.date.split('-')[0]);
+      yearly[y] = (yearly[y] || 0) + row.interest;
     }
     return yearly;
   }
