@@ -15,6 +15,7 @@ function runSimulatorGeneric(config) {
     horizonYears, stopYears,
     startNW, startImmoEquity, startPoolActions, startPoolCash,
     staticAssets, immoGrowthFn, existingGains,
+    immoBreakdown, // optional: [{label, startEquity, growthFn(m)}]
   } = config;
 
   const months = horizonYears * 12;
@@ -57,7 +58,12 @@ function runSimulatorGeneric(config) {
   let cumContributions = 0;
   let cumImmoReturns = 0;
 
+  // Per-property immo tracking
+  const props = immoBreakdown || [];
+  const propCumGrowth = props.map(() => 0);
+
   const dataLabels = [], dataNW = [], dataImmo = [], dataBase = [], dataGains = [], dataNWNoStop = [];
+  const immoBreakdownData = props.map(() => []); // per-property equity arrays
   let month1M = -1;
   let stopChartIdx = -1;
 
@@ -79,12 +85,18 @@ function runSimulatorGeneric(config) {
       dataGains.push(Math.round(immoNow + startLiquidBase + cumContributions + gainsNow));
       dataNWNoStop.push(Math.round(totalNWns));
       if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
+      // Per-property snapshot
+      props.forEach((p, pi) => {
+        immoBreakdownData[pi].push(Math.round(p.startEquity + propCumGrowth[pi]));
+      });
     }
 
     if (totalNW >= 1000000 && month1M === -1) month1M = m;
 
     const immoGrowth = immoGrowthFn(m);
     cumImmoReturns += immoGrowth;
+    // Track per-property growth
+    props.forEach((p, pi) => { propCumGrowth[pi] += p.growthFn(m); });
 
     poolActions *= (1 + monthlyReturnActions);
     poolCash *= (1 + monthlyReturnCash);
@@ -151,24 +163,24 @@ function runSimulatorGeneric(config) {
   }
   document.getElementById(prefix + 'Insight').innerHTML = insightHtml;
 
-  return { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears };
+  // Build immo breakdown labels + data for chart tooltip
+  const immoBreakdownResult = props.length > 0 ? props.map((p, pi) => ({ label: p.label, data: immoBreakdownData[pi] })) : null;
+
+  return { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears, immoBreakdownResult };
 }
 
 function buildSimChart(canvasId, chartKey, result) {
-  const { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears } = result;
+  const { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears, immoBreakdownResult } = result;
 
-  // Compute actual (non-cumulative) values for each band — used by click-to-isolate
+  // Compute actual (non-cumulative) values for each band
   const actualImmo = dataImmo.map(v => v);
   const actualCapital = dataBase.map((v, i) => v - dataImmo[i]);
   const actualGains = dataGains.map((v, i) => v - dataBase[i]);
 
   // Datasets ordered bottom-to-top for proper stacking with fill: '-1'
-  // 0: Immo fills from 0
-  // 1: Capital fills from Immo line to Capital line
-  // 2: Gains fills from Capital line to Gains line
-  // 3: NW Total (line only, no fill)
+  const coreCount = 4; // Immo, Capital, Gains, NW Total (before optional NW sans arret)
   const datasets = [
-    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo },
+    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo, _isImmo: true },
     { label: 'Capital Investi + Contributions', data: [...dataBase], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
     { label: 'Gains Marche (cumul)', data: [...dataGains], borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualGains },
     { label: 'Net Worth Total', data: [...dataNW], borderColor: '#1a202c', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
@@ -180,7 +192,7 @@ function buildSimChart(canvasId, chartKey, result) {
 
   // Store originals for reset
   const origData = datasets.map(ds => ({ data: [...ds.data], fill: ds.fill, backgroundColor: ds.backgroundColor, borderWidth: ds.borderWidth }));
-  let isolatedIdx = -1; // -1 = all visible
+  const selected = new Set(); // empty = all visible (stacked)
 
   if (simCharts[chartKey]) simCharts[chartKey].destroy();
   const ctx = document.getElementById(canvasId).getContext('2d');
@@ -197,7 +209,16 @@ function buildSimChart(canvasId, chartKey, result) {
             label: c => {
               const ds = c.dataset;
               const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
-              return ds.label + ': ' + fmt(actual);
+              return ' ' + ds.label + ': ' + fmt(actual);
+            },
+            afterBody: function(contexts) {
+              // Show immo breakdown when Immo line is visible
+              if (!immoBreakdownResult) return '';
+              const immoCtx = contexts.find(c => c.dataset._isImmo && !c.dataset.hidden);
+              if (!immoCtx) return '';
+              const idx = immoCtx.dataIndex;
+              const lines = immoBreakdownResult.map(b => '    ↳ ' + b.label + ': ' + fmt(b.data[idx]));
+              return lines;
             }
           }
         },
@@ -206,7 +227,7 @@ function buildSimChart(canvasId, chartKey, result) {
             generateLabels: function(chart) {
               const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
               labels.forEach((lbl, i) => {
-                if (isolatedIdx >= 0 && i !== isolatedIdx) {
+                if (selected.size > 0 && !selected.has(i)) {
                   lbl.fontColor = 'rgba(0,0,0,0.25)';
                 }
               });
@@ -217,8 +238,14 @@ function buildSimChart(canvasId, chartKey, result) {
             const chart = legend.chart;
             const idx = legendItem.datasetIndex;
 
-            if (isolatedIdx === idx) {
-              // Reset: show all datasets with original data
+            if (selected.has(idx)) {
+              selected.delete(idx);
+            } else {
+              selected.add(idx);
+            }
+
+            if (selected.size === 0) {
+              // Reset: show all datasets with original stacked data
               chart.data.datasets.forEach((ds, i) => {
                 ds.data = [...origData[i].data];
                 ds.fill = origData[i].fill;
@@ -226,11 +253,10 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.borderWidth = origData[i].borderWidth;
                 ds.hidden = false;
               });
-              isolatedIdx = -1;
             } else {
-              // Isolate: show only this dataset with its actual (non-cumulative) values
+              // Show selected datasets with actual values, hide others
               chart.data.datasets.forEach((ds, i) => {
-                if (i === idx) {
+                if (selected.has(i)) {
                   ds.data = [...ds._actual];
                   ds.fill = 'origin';
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
@@ -240,7 +266,6 @@ function buildSimChart(canvasId, chartKey, result) {
                   ds.hidden = true;
                 }
               });
-              isolatedIdx = idx;
             }
             chart.update();
           }
@@ -291,7 +316,12 @@ function runCoupleSimulator(state) {
       let growth = IC.growth.vitry + IC.growth.rueil;
       if (m >= IC.villejuifStartMonth) growth += IC.growth.villejuif;
       return growth;
-    }
+    },
+    immoBreakdown: [
+      { label: 'Vitry', startEquity: s.amine.vitryEquity, growthFn: () => IC.growth.vitry },
+      { label: 'Rueil', startEquity: s.nezha.rueilEquity, growthFn: () => IC.growth.rueil },
+      { label: 'Villejuif', startEquity: s.nezha.villejuifEquity, growthFn: (m) => m >= IC.villejuifStartMonth ? IC.growth.villejuif : 0 },
+    ]
   });
   buildSimChart('cplSimChart', 'cplSim', result);
 }
@@ -379,9 +409,6 @@ function runNezhaSimulator(state) {
   const cumRueilVillejuif = dataRueil.map((v, i) => v + dataVillejuif[i]);
   const cumAll = dataRueil.map((v, i) => v + dataVillejuif[i] + dataCash[i]);
 
-  // Store originals for click-to-isolate reset
-  let nzIsolatedIdx = -1;
-
   const nzDatasets = [
     { label: 'Equity Rueil', data: [...cumRueil], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: dataRueil },
     { label: 'Equity Villejuif', data: [...cumRueilVillejuif], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: dataVillejuif },
@@ -390,6 +417,7 @@ function runNezhaSimulator(state) {
   ];
 
   const nzOrigData = nzDatasets.map(ds => ({ data: [...ds.data], fill: ds.fill, backgroundColor: ds.backgroundColor, borderWidth: ds.borderWidth }));
+  const nzSelected = new Set();
 
   // Chart
   if (simCharts.nzSim) simCharts.nzSim.destroy();
@@ -407,7 +435,7 @@ function runNezhaSimulator(state) {
             label: c => {
               const ds = c.dataset;
               const actual = ds._actual ? ds._actual[c.dataIndex] : c.parsed.y;
-              return ds.label + ': ' + fmt(actual);
+              return ' ' + ds.label + ': ' + fmt(actual);
             }
           }
         },
@@ -416,7 +444,7 @@ function runNezhaSimulator(state) {
             generateLabels: function(chart) {
               const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
               labels.forEach((lbl, i) => {
-                if (nzIsolatedIdx >= 0 && i !== nzIsolatedIdx) lbl.fontColor = 'rgba(0,0,0,0.25)';
+                if (nzSelected.size > 0 && !nzSelected.has(i)) lbl.fontColor = 'rgba(0,0,0,0.25)';
               });
               return labels;
             }
@@ -424,28 +452,20 @@ function runNezhaSimulator(state) {
           onClick: function(e, legendItem, legend) {
             const chart = legend.chart;
             const idx = legendItem.datasetIndex;
-            if (nzIsolatedIdx === idx) {
+            if (nzSelected.has(idx)) { nzSelected.delete(idx); } else { nzSelected.add(idx); }
+            if (nzSelected.size === 0) {
               chart.data.datasets.forEach((ds, i) => {
-                ds.data = [...nzOrigData[i].data];
-                ds.fill = nzOrigData[i].fill;
-                ds.backgroundColor = nzOrigData[i].backgroundColor;
-                ds.borderWidth = nzOrigData[i].borderWidth;
-                ds.hidden = false;
+                ds.data = [...nzOrigData[i].data]; ds.fill = nzOrigData[i].fill;
+                ds.backgroundColor = nzOrigData[i].backgroundColor; ds.borderWidth = nzOrigData[i].borderWidth; ds.hidden = false;
               });
-              nzIsolatedIdx = -1;
             } else {
               chart.data.datasets.forEach((ds, i) => {
-                if (i === idx) {
-                  ds.data = [...ds._actual];
-                  ds.fill = 'origin';
+                if (nzSelected.has(i)) {
+                  ds.data = [...ds._actual]; ds.fill = 'origin';
                   ds.backgroundColor = nzOrigData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
-                  ds.borderWidth = 2;
-                  ds.hidden = false;
-                } else {
-                  ds.hidden = true;
-                }
+                  ds.borderWidth = 2; ds.hidden = false;
+                } else { ds.hidden = true; }
               });
-              nzIsolatedIdx = idx;
             }
             chart.update();
           }
