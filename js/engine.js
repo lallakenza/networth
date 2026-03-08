@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=26';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=27';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -875,17 +875,26 @@ function computeBudgetView(portfolio, fx) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
+  // Villejuif: charges décalées — début ~3 ans après premier déblocage (avril 2025 → avril 2028)
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+  // Villejuif : promesse de vente, prêt pas débloqué. Seule l'assurance prêt est payée (51€/mois).
+  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~2029).
+  const villejuifActiveCharges = ['assurance']; // seules charges payées actuellement
 
   const investProperties = [];
   Object.entries(IC.charges).forEach(([prop, ch]) => {
+    const isVillejuif = prop === 'villejuif';
+
     const items = [];
     let totalCharges = 0;
+    let currentCharges = 0;
     Object.entries(ch).forEach(([key, val]) => {
       if (val > 0) {
-        items.push({ label: chargeLabels[key] || key, monthlyEUR: val });
+        const isActive = isVillejuif ? villejuifActiveCharges.includes(key) : true;
+        items.push({ label: chargeLabels[key] || key, monthlyEUR: val, active: isActive });
         totalCharges += val;
+        if (isActive) currentCharges += val;
       }
     });
 
@@ -897,19 +906,25 @@ function computeBudgetView(portfolio, fx) {
       loyer = p.nezha.immo[prop].loyer || 0;
     }
 
-    const cf = loyer - totalCharges;
+    // Villejuif: no loyer yet (not delivered)
+    const currentLoyer = isVillejuif ? 0 : loyer;
+    const cf = currentLoyer - currentCharges;
+    const active = !isVillejuif; // fully active = all charges running
 
     investProperties.push({
       name: propNames[prop] || prop,
       prop,
       charges: items,
-      totalCharges,
-      loyer,
+      totalCharges,        // Full future charges
+      currentCharges,      // Currently paid (Villejuif: only assurance 51€)
+      loyer: currentLoyer,
+      futureLoyer: loyer,  // Expected loyer when delivered
       cf,
+      active,              // false for Villejuif (partial)
     });
   });
 
-  const investTotal = investProperties.reduce((s, p) => s + p.totalCharges, 0);
+  const investTotal = investProperties.reduce((s, p) => s + p.currentCharges, 0);
   const investLoyerTotal = investProperties.reduce((s, p) => s + p.loyer, 0);
   const investCFTotal = investLoyerTotal - investTotal;
 

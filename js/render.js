@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=26';
-import { getGrandTotal } from './engine.js?v=26';
+import { CURRENCY_CONFIG } from './data.js?v=27';
+import { getGrandTotal } from './engine.js?v=27';
 
 // ---- Formatting helpers ----
 
@@ -1225,28 +1225,52 @@ function renderBudgetView(state) {
   if (investDiv) {
     let html = '';
     bv.investProperties.forEach(prop => {
-      const cfClass = prop.cf >= 0 ? 'pos' : 'neg';
-      const cfSign2 = prop.cf >= 0 ? '+' : '';
-      html += '<div style="background:#f7fafc;border-radius:10px;padding:16px 20px;margin-bottom:12px;border-left:4px solid #2b6cb0">';
+      const inactive = !prop.active;
+      const borderColor = inactive ? '#cbd5e0' : '#2b6cb0';
+      const opacity = inactive ? 'opacity:0.6' : '';
+      html += '<div style="background:#f7fafc;border-radius:10px;padding:16px 20px;margin-bottom:12px;border-left:4px solid ' + borderColor + ';' + opacity + '">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-      html += '<strong style="font-size:15px;color:var(--primary)">' + prop.name + '</strong>';
+      html += '<strong style="font-size:15px;color:var(--primary)">' + prop.name;
+      if (inactive) html += ' <span style="background:#fef3c7;padding:1px 8px;border-radius:4px;font-size:10px;color:#92400e;font-weight:600">\u00c0 VENIR</span>';
+      html += '</strong>';
       html += '<div style="display:flex;gap:16px;align-items:center">';
-      if (prop.loyer > 0) {
-        html += '<span style="font-size:13px;color:var(--gray)">Loyer : <strong style="color:var(--green)">' + fmt(prop.loyer) + '</strong></span>';
+      if (inactive) {
+        html += '<span style="font-size:13px;color:var(--gray)"><em>VEFA \u2014 seule assurance pr\u00eat (' + fmt(prop.currentCharges) + ')</em></span>';
       } else {
-        html += '<span style="font-size:13px;color:var(--gray)">Loyer : <em>pas encore lou\u00e9</em></span>';
+        if (prop.loyer > 0) {
+          html += '<span style="font-size:13px;color:var(--gray)">Loyer : <strong style="color:var(--green)">' + fmt(prop.loyer) + '</strong></span>';
+        } else {
+          html += '<span style="font-size:13px;color:var(--gray)">Loyer : <em>pas encore lou\u00e9</em></span>';
+        }
+        const cfClass = prop.cf >= 0 ? 'pos' : 'neg';
+        const cfSign2 = prop.cf >= 0 ? '+' : '';
+        html += '<span style="font-size:13px;font-weight:700" class="' + cfClass + '">CF : ' + cfSign2 + fmt(prop.cf) + '/mois</span>';
       }
-      html += '<span style="font-size:13px;font-weight:700" class="' + cfClass + '">CF : ' + cfSign2 + fmt(prop.cf) + '/mois</span>';
       html += '</div></div>';
 
-      // Charges table
+      // Charges table — active charges bold, inactive (future) in gray italic
       html += '<table style="margin:0;font-size:12px"><tbody>';
       prop.charges.forEach(ch => {
-        html += '<tr><td style="padding:4px 12px">' + ch.label + '</td>'
+        const chActive = ch.active !== false;
+        const style = chActive ? '' : 'color:var(--gray);font-style:italic';
+        const suffix = chActive ? '' : ' <span style="font-size:10px">(futur)</span>';
+        html += '<tr style="' + style + '"><td style="padding:4px 12px">' + ch.label + suffix + '</td>'
           + '<td class="num" style="padding:4px 12px">' + fmt(ch.monthlyEUR) + '</td></tr>';
       });
-      html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0"><td style="padding:4px 12px">Total charges</td>'
-        + '<td class="num" style="padding:4px 12px">' + fmt(prop.totalCharges) + '</td></tr>';
+      // Current vs future total
+      if (prop.currentCharges !== prop.totalCharges) {
+        html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0"><td style="padding:4px 12px">Pay\u00e9 actuellement</td>'
+          + '<td class="num" style="padding:4px 12px">' + fmt(prop.currentCharges) + '</td></tr>';
+        html += '<tr style="color:var(--gray)"><td style="padding:4px 12px"><em>Total futur (apr\u00e8s livraison)</em></td>'
+          + '<td class="num" style="padding:4px 12px"><em>' + fmt(prop.totalCharges) + '</em></td></tr>';
+      } else {
+        html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0"><td style="padding:4px 12px">Total charges</td>'
+          + '<td class="num" style="padding:4px 12px">' + fmt(prop.totalCharges) + '</td></tr>';
+      }
+      if (inactive && prop.futureLoyer > 0) {
+        html += '<tr style="color:var(--green)"><td style="padding:4px 12px">Loyer pr\u00e9vu</td>'
+          + '<td class="num" style="padding:4px 12px">' + fmt(prop.futureLoyer) + '</td></tr>';
+      }
       html += '</tbody></table></div>';
     });
 
