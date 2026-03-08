@@ -1104,7 +1104,8 @@ function computeBudgetView(portfolio, fx) {
       const v = p.amine.immo.vitry;
       loyer = (v.loyerHC || v.loyer || 0) + (v.parking || 0) + (v.chargesLocataire || 0);
     } else if (p.nezha && p.nezha.immo && p.nezha.immo[prop]) {
-      loyer = p.nezha.immo[prop].loyer || 0;
+      const nz = p.nezha.immo[prop];
+      loyer = (nz.loyerHC || nz.loyer || 0) + (nz.parking || 0) + (nz.chargesLocataire || 0);
     }
 
     // Villejuif: no loyer yet (not delivered)

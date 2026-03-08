@@ -340,16 +340,7 @@
         <div class="sub-icon">&#x1F4C4;</div>
         <div class="sub-title">Creances</div>
         <div class="sub-equity" style="color:var(--primary);" id="subCreances" data-eur="0">--</div>
-        <ul class="breakdown-list">
-          <li><span class="bl-label">SAP & Tax (20j x 910)</span><span class="bl-val">18,200</span></li>
-          <li style="padding-top:4px;border-top:1px solid #cbd5e0;font-weight:600"><span class="bl-label">Creances personnelles</span><span class="bl-val">30,551</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Kenza Kabbaj (200K MAD)</span><span class="bl-val">18,492</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Abdelkader (55K MAD)</span><span class="bl-val">5,085</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Mehdi Akanour (30K MAD)</span><span class="bl-val">2,774</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Akram</span><span class="bl-val">1,500</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Akram & Abdelkader (loyer)</span><span class="bl-val">1,200</span></li>
-          <li><span class="bl-label">&nbsp;&nbsp;Anas (Thermomix)</span><span class="bl-val">1,500</span></li>
-        </ul>
+        <div id="subCreancesBreakdown"></div>
       </div>
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F3DB;&#xFE0F;</div>
@@ -894,9 +885,9 @@
         <td class="num" style="font-weight:600">1,423</td><td class="num">1,120</td><td class="num">1,270</td><td class="num neg" style="font-weight:700">-153</td>
       </tr>
       <tr style="background:#f0f5ff">
-        <td><strong>Rueil</strong><br><span style="font-size:11px;color:var(--gray)">HC 1,300 (bail oct 2025)</span></td>
-        <td class="num">970</td><td class="num">18</td><td class="num">12</td><td class="num">67</td><td class="num">80</td>
-        <td class="num" style="font-weight:600">1,147</td><td class="num">1,300</td><td class="num">1,300</td><td class="num pos" style="font-weight:700">+153</td>
+        <td><strong>Rueil</strong><br><span style="font-size:11px;color:var(--gray)">HC 1,300 + charges 150 (bail oct 2025)</span></td>
+        <td class="num">970</td><td class="num">18</td><td class="num">12</td><td class="num">67</td><td class="num">250</td>
+        <td class="num" style="font-weight:600">1,317</td><td class="num">1,300</td><td class="num">1,450</td><td class="num pos" style="font-weight:700">+133</td>
       </tr>
       <tr>
         <td><strong>Villejuif</strong><br><span style="font-size:11px;color:#92400e">VEFA — livraison ete 2029 (3 ans franchise)</span></td>
@@ -905,10 +896,10 @@
       </tr>
     </tbody>
   </table>
-  <p style="font-size:11px;color:var(--gray);margin-top:4px">Vitry : loyer HC 1,050 (500 bail + 550 cash) + 150 provision charges + 70 parking = 1,270 total. Rueil : loyer HC 1,300 (bail meuble oct 2025), copro 80/mois. Villejuif : assurance 51.29 (LCL), mensualite P1 1,572.79 + P2 124.99, copro estimee 110/mois.</p>
+  <p style="font-size:11px;color:var(--gray);margin-top:4px">Vitry : loyer HC 1,050 (500 bail + 550 cash) + 150 provision charges + 70 parking = 1,270 total. Rueil : loyer HC 1,300 + 150 charges locataire (bail meuble oct 2025), copro 250/mois dont 150 refacture. Villejuif : assurance 51.29 (LCL), mensualite P1 1,572.79 + P2 124.99, copro estimee 110/mois.</p>
 
   <div class="success" style="margin-top: 14px;">
-    <strong>Analyse :</strong> Rueil est autofinance (+153/mois grace au bail meuble oct 2025 a 1,300 HC). Vitry a un deficit de -153/mois (revenus 1,270 vs charges 1,423). Loyer HC Vitry = 1,050 (500 bail + 550 cash) + 150 charges locataire + 70 parking.
+    <strong>Analyse :</strong> Rueil est autofinance (+133/mois : revenus 1,450 vs charges 1,317). Copro 250/mois dont 150 refacture au locataire. Vitry a un deficit de -153/mois (revenus 1,270 vs charges 1,423). Loyer HC Vitry = 1,050 (500 bail + 550 cash) + 150 charges locataire + 70 parking.
     <br><span style="color:var(--red)">Attention Villejuif :</span> Si loyer &lt; 1,700, le cash-flow negatif sera de ~260/mois soit ~3,1K/an a couvrir.
   </div>
 
@@ -1015,7 +1006,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=41"></script>
+<script type="module" src="js/app.js?v=42"></script>
 
 </body>
 </html>
