@@ -273,6 +273,81 @@ function renderExpandSubs(state) {
 
   // Maroc FX note
   setText('subMarocFXNote', 'Total MAD ' + s.amine.moroccoMAD.toLocaleString('fr-FR') + ' / ' + s.fx.MAD.toFixed(4));
+
+  // ── Dynamic immo sub-cards (CRD + CF badges) ──
+  const iv = state.immoView;
+  if (iv && iv.properties) {
+    const propMap = {};
+    iv.properties.forEach(p => { propMap[p.loanKey] = p; });
+
+    // Sub-card CRD details
+    const vitryP = propMap.vitry;
+    if (vitryP) {
+      setHTML('subVitryCrdDetail', fmt(vitryP.value) + ' (2%/an)<br>CRD ' + fmt(vitryP.crd));
+      const vBadge = document.getElementById('subVitryCFBadge');
+      if (vBadge) {
+        const sign = vitryP.cf >= 0 ? '+' : '';
+        vBadge.textContent = 'CF ' + sign + fmt(vitryP.cf) + '/mois';
+        vBadge.style.background = vitryP.cf >= 0 ? '#c6f6d5' : '#fed7d7';
+        vBadge.style.color = vitryP.cf >= 0 ? '#276749' : '#c53030';
+      }
+    }
+    const rueilP = propMap.rueil;
+    if (rueilP) {
+      setHTML('subRueilCrdDetail', fmt(rueilP.value) + '<br>CRD ' + fmt(rueilP.crd));
+      const rBadge = document.getElementById('subRueilCFBadge');
+      if (rBadge) {
+        const sign = rueilP.cf >= 0 ? '+' : '';
+        rBadge.textContent = 'CF ' + sign + fmt(rueilP.cf) + '/mois';
+        rBadge.style.background = rueilP.cf >= 0 ? '#c6f6d5' : '#fed7d7';
+        rBadge.style.color = rueilP.cf >= 0 ? '#276749' : '#c53030';
+      }
+    }
+    const villejuifP = propMap.villejuif;
+    if (villejuifP) {
+      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>');
+    }
+
+    // ── Dynamic Résumé Immobilier table ──
+    const immoTbody = document.getElementById('immoSummaryTbody');
+    if (immoTbody) {
+      let html = '';
+      const propMeta = {
+        vitry: { desc: '67 m2 \u2014 loyer 1,200 + parking 70 cash', owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
+        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC + 150 charges (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
+        villejuif: { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
+      };
+      iv.properties.forEach(prop => {
+        const meta = propMeta[prop.loanKey] || {};
+        const rowStyle = meta.rowBg ? ' style="' + meta.rowBg + '"' : '';
+        const descStyle = meta.descColor ? 'color:' + meta.descColor : 'color:var(--gray)';
+        const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
+        const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
+        const cfStyle = prop.conditional ? 'color:var(--gray)' : '';
+        html += '<tr' + rowStyle + '>'
+          + '<td><strong>' + prop.name + '</strong><br><span style="font-size:12px;' + descStyle + '">' + (meta.desc || '') + '</span></td>'
+          + '<td>' + (meta.owner || prop.owner) + '</td>'
+          + '<td class="num" data-eur="' + Math.round(prop.value) + '">--</td>'
+          + '<td class="num" data-eur="' + Math.round(prop.crd) + '">--</td>'
+          + '<td class="num pos" data-eur="' + Math.round(prop.equity) + '">--</td>'
+          + '<td class="num ' + cfClass + '"' + (cfStyle ? ' style="' + cfStyle + '"' : '') + '>' + cfText + '</td>'
+          + '<td><span style="background:' + (meta.statusBg || '#e2e8f0') + ';padding:2px 8px;border-radius:10px;font-size:12px;color:' + (meta.statusColor || '#2d3748') + '">' + (meta.status || '') + '</span></td>'
+          + '</tr>';
+      });
+      immoTbody.innerHTML = html;
+    }
+
+    // ── Dynamic insight texts ──
+    if (vitryP) {
+      setText('insightVitryCF', (vitryP.cf >= 0 ? '+' : '') + Math.round(vitryP.cf));
+      setText('insightVitryCharges', Math.round(vitryP.charges).toLocaleString('fr-FR'));
+    }
+    if (rueilP) {
+      const rueilCFText = '+' + Math.round(rueilP.cf);
+      setText('insightRueilCF', rueilCFText);
+      setText('insightRueilCF2', rueilCFText);
+    }
+  }
 }
 
 function renderCoupleTable(state) {

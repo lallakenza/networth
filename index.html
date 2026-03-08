@@ -306,23 +306,23 @@
       <a href="apt_vitry.html" class="sub-card">
         <div class="sub-icon">&#x1F3E0;</div>
         <div class="sub-title">Vitry-sur-Seine</div>
-        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span data-eur="293000">--</span> (2%/an)<br>CRD <span data-eur="268903">--</span></div>
+        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span id="subVitryCrdDetail" data-eur="293000">--</span></div>
         <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
-        <div class="sub-badge" style="background:#fed7d7;color:#c53030">CF -317/mois</div>
+        <div class="sub-badge" id="subVitryCFBadge">--</div>
       </a>
       <a href="apt_rueil.html" class="sub-card">
         <div class="sub-icon">&#x1F3E1;</div>
         <div class="sub-title">Rueil-Malmaison</div>
-        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span data-eur="272000">--</span><br>CRD <span data-eur="196516">--</span></div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span id="subRueilCrdDetail" data-eur="272000">--</span></div>
         <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
-        <div class="sub-badge" style="background:#c6f6d5;color:#276749">CF +209/mois</div>
+        <div class="sub-badge" id="subRueilCFBadge">--</div>
       </a>
       <a href="apt_villejuif.html" class="sub-card">
         <div class="sub-icon">&#x1F3D7;&#xFE0F;</div>
         <div class="sub-title">VEFA Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div>
-        <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span data-eur="360000">--</span><br>CRD <span data-eur="318470">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3K payee</span></div>
+        <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span id="subVillejuifCrdDetail" data-eur="360000">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3K payee</span></div>
         <div class="sub-equity pos" id="subVillejuifEq" data-eur="0">--</div>
-        <div class="sub-badge" style="background:#fef3c7;color:#92400e">Conditionnel — Pas de permis d'habiter</div>
+        <div class="sub-badge" id="subVillejuifCFBadge" style="background:#fef3c7;color:#92400e">Conditionnel</div>
       </a>
     </div>
   </div>
@@ -406,29 +406,7 @@
     <thead>
       <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Equity</th><th class="num">CF /mois</th><th>Statut</th></tr>
     </thead>
-    <tbody>
-      <tr>
-        <td><strong>Vitry-sur-Seine</strong><br><span style="font-size:12px;color:var(--gray)">67 m2 — loyer 1,200 + parking 70 cash</span></td>
-        <td>Amine</td>
-        <td class="num" data-eur="293000">--</td><td class="num" data-eur="268903">--</td><td class="num pos" data-eur="24097">--</td>
-        <td class="num neg">-317</td>
-        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
-      </tr>
-      <tr style="background:#f0f5ff">
-        <td><strong>Rueil-Malmaison</strong><br><span style="font-size:12px;color:var(--gray)">56 m2 — loyer 1,300 HC + 150 charges (bail oct 2025)</span></td>
-        <td>Nezha</td>
-        <td class="num" data-eur="272000">--</td><td class="num" data-eur="196516">--</td><td class="num pos" data-eur="75484">--</td>
-        <td class="num pos">+209</td>
-        <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
-      </tr>
-      <tr>
-        <td><strong>Villejuif (VEFA)</strong><br><span style="font-size:12px;color:#92400e">Conditionnel — acte non signe</span></td>
-        <td>Nezha</td>
-        <td class="num" data-eur="360000">--</td><td class="num" data-eur="318470">--</td><td class="num pos" data-eur="41530">--</td>
-        <td class="num" style="color:var(--gray)">--</td>
-        <td><span style="background:#fef3c7;padding:2px 8px;border-radius:10px;font-size:12px;color:#92400e">Conditionnel</span></td>
-      </tr>
-    </tbody>
+    <tbody id="immoSummaryTbody"></tbody>
   </table>
   <p style="font-size:12px;color:var(--gray);margin-top:6px">Villejuif : Prets LCL — P1 286,670 @ 3.27% + P2 31,800 @ 0.90%. Franchise totale 36 mois, capitalisation annuelle. Vitry : valeur appreciee 2%/an depuis achat (275K &rarr; 293K). Rueil : bail meuble oct 2025 (1,300 HC + 150 charges).</p>
 
@@ -489,7 +467,7 @@
   <div class="highlight" style="margin-top: 14px;">
     <strong>Immobilier Amine :</strong><br>
     - <span style="color:var(--green)">Vitry genere +1,017/mois de creation de richesse</span> (560 capital rembourse + 458 appreciation). Excellent levier malgre le CF negatif.<br>
-    - <strong>CF = -317/mois</strong> (revenus 1,270 vs charges 1,587). Ratio richesse/effort de 3.2x. Augmentation loyer a 1,400 debut 2027 &rarr; CF = -117.<br>
+    - <strong>CF = <span id="insightVitryCF">--</span>/mois</strong> (revenus 1,270 vs charges <span id="insightVitryCharges">--</span>). Augmentation loyer a 1,400 debut 2027 ameliorera le CF.<br>
     - Explorer le passage en LMNP reel — les charges deductibles pourraient reduire l'imposition a zero.
   </div>
 </div>
@@ -549,9 +527,9 @@
         <strong>Profil :</strong> Patrimoine 100% immobilier + cash. 85K en France (dont une partie pour apport Villejuif — 3K payes en reservation). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>
         <strong>Insights Nezha :</strong><br>
         - <span style="color:var(--green)">NW de 176K dont 75K en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>
-        - <span style="color:var(--green)">Rueil : auto-finance (+209/mois de CF positif)</span>. 838/mois de creation de richesse, zero effort financier.<br>
+        - <span style="color:var(--green)">Rueil : auto-finance (<span id="insightRueilCF">--</span>/mois de CF positif)</span>. 838/mois de creation de richesse, zero effort financier.<br>
         - Cash total ~94K (85K France + 9K Maroc). ~28K restent pour l'apport Villejuif. Creance Omar 40K MAD (~4K) a recuperer.<br>
-        - <strong>Franchise totale 3 ans :</strong> Nezha ne paye rien pendant la franchise. Les interets se capitalisent (~24K). Le surplus de Rueil (+209/mois) peut etre epargne pour la tresorerie post-franchise.<br>
+        - <strong>Franchise totale 3 ans :</strong> Nezha ne paye rien pendant la franchise. Les interets se capitalisent (~24K). Le surplus de Rueil (<span id="insightRueilCF2">--</span>/mois) peut etre epargne pour la tresorerie post-franchise.<br>
         - <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~2,576/mois de mensualites (Rueil 907 + Villejuif ~1,669). Tresorerie libre ~66K a conserver.<br>
         - <span style="color:var(--green)">Apres livraison :</span> 2 biens = +1,651/mois de creation de richesse (~20K/an). Objectif loyer Villejuif : 1,600-1,800 meuble.
       </div>
@@ -1037,7 +1015,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=37"></script>
+<script type="module" src="js/app.js?v=38"></script>
 
 </body>
 </html>
