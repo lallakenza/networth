@@ -186,8 +186,15 @@ export const PORTFOLIO = {
   // NEZHA
   // ════════════════════════════════════════════════════════
   nezha: {
-    cashFrance: 85000,       // EUR — compte bancaire France (0% rendement)
-    cashMaroc: 100000,       // MAD — compte bancaire Maroc (0% rendement)
+    // ── Cash détaillé Nezha (relevés mars 2026) ──
+    cash: {
+      revolutEUR: 27140,       // EUR — Revolut France (0%)
+      creditMutuelCC: 10221,   // EUR — Crédit Mutuel compte courant (0%)
+      lclLivretA: 23015,       // EUR — LCL Livret A (1.5% défiscalisé)
+      lclCompteDepots: 31145,  // EUR — LCL Compte de dépôts (0%)
+      attijariwafarMAD: 115528,// MAD — Attijariwafa Compte chèque MRE (0%)
+      wioAED: 20106,           // AED — Wio Savings UAE (0%)
+    },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     creances: {
       items: [
@@ -238,8 +245,13 @@ export const CASH_YIELDS = {
   ibkrCashUSD: 0.0314,  // 3.14% = BM 3.64% - 0.50% commission IBKR
   ibkrCashJPY: -0.017,  // NON UTILISÉ DIRECTEMENT — calcul par tranche dans engine.js
   // --- Autres ---
-  nezhaCashFrance: 0,  // Pas de livret / pas de rendement
-  nezhaCashMaroc: 0,   // Pas de rendement
+  // --- Nezha (détaillé par compte) ---
+  nezhaRevolutEUR: 0,       // Revolut EUR — pas de rendement
+  nezhaCreditMutuel: 0,     // Crédit Mutuel CC — pas de rendement
+  nezhaLivretA: 0.015,      // LCL Livret A — 1.5% (depuis fév 2026, défiscalisé)
+  nezhaLclDepots: 0,        // LCL Compte dépôts — pas de rendement
+  nezhaAttijariMAD: 0,      // Attijariwafa Maroc — pas de rendement
+  nezhaWioAED: 0,           // Wio UAE — pas de rendement (0% sur screenshot)
   esppCash: 0,         // Cash résiduel ESPP, pas de rendement
 };
 
