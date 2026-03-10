@@ -90,10 +90,10 @@ export const PORTFOLIO = {
         { ticker: 'IBIT',    shares: 1200, price: 38.80,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
         { ticker: 'ETHA',    shares: 1100, price: 14.93,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
       ],
-      // ⬇️ Cash multi-devises (depuis rapport IBKR)
-      cashEUR: 65927,       // Solde EUR chez IBKR
-      cashUSD: 14482,       // Solde USD chez IBKR
-      cashJPY: -21390085,   // Solde JPY chez IBKR (NÉGATIF = emprunt margin)
+      // ⬇️ Cash multi-devises (IBKR — mis à jour 10 mars 2026 après FX trades)
+      cashEUR: 1,            // Solde EUR chez IBKR (vendu 65926 EUR→JPY @ 183.595)
+      cashUSD: 2,            // Solde USD chez IBKR (vendu 14480 USD→JPY @ 158.090)
+      cashJPY: -6997258,     // Solde JPY chez IBKR (-21390085 + 12103684 + 2289143)
       // Performance metrics (April 2025 - March 2026)
       meta: {
         twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
@@ -129,6 +129,9 @@ export const PORTFOLIO = {
         { date: '2026-02-03', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 300,  price: 42.50,  currency: 'USD', cost: 12750 },
         { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 200,  price: 41.38,  currency: 'USD', cost: 8275  },
         { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 100,  price: 40.90,  currency: 'USD', cost: 4090  },
+        // ─── FX trades 10 mars 2026 — deleveraging JPY ───
+        { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -315.66, note: 'Vente EUR pour racheter JPY short' },
+        { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -315.55, note: 'Vente USD pour racheter JPY short' },
       ],
     },
 
