@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=61';
-import { compute } from './engine.js?v=61';
-import { render } from './render.js?v=61';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=61';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=61';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=61';
+import { PORTFOLIO, FX_STATIC } from './data.js?v=62';
+import { compute } from './engine.js?v=62';
+import { render } from './render.js?v=62';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=62';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=62';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=62';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };

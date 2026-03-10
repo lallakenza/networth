@@ -125,7 +125,17 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const insights = [];
 
   // 1. Stock picking track record
-  const allClosed = [...(meta.closedPositions || []), ...degiroClosedPositions];
+  // Build closedPositions from trades array — aggregate by ticker for total P/L per position
+  const ibkrTrades = ibkr.trades || [];
+  const ibkrByTicker = {};
+  ibkrTrades.filter(t => t.type === 'sell').forEach(t => {
+    if (!ibkrByTicker[t.ticker]) ibkrByTicker[t.ticker] = { ticker: t.ticker, label: t.label, pl: 0, currency: t.currency, sells: 0 };
+    ibkrByTicker[t.ticker].pl += (t.realizedPL || 0);
+    ibkrByTicker[t.ticker].sells++;
+    ibkrByTicker[t.ticker].lastDate = t.date;
+  });
+  const ibkrClosedPositions = Object.values(ibkrByTicker);
+  const allClosed = [...ibkrClosedPositions, ...degiroClosedPositions];
   const winners = allClosed.filter(p => p.pl > 0);
   const losers = allClosed.filter(p => p.pl < 0);
   const winRate = allClosed.length > 0 ? (winners.length / allClosed.length * 100) : 0;
@@ -334,7 +344,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     realizedPL: ibkrRealizedPL,
     dividends: meta.dividends || 0,
     commissions: meta.commissions || 0,
-    closedPositions: meta.closedPositions || [],
+    closedPositions: ibkrClosedPositions,
+    trades: ibkrTrades,
     deposits: ibkrDeposits,
     // Degiro
     degiroClosedPositions,
