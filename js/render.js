@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=59';
-import { getGrandTotal } from './engine.js?v=59';
+import { CURRENCY_CONFIG } from './data.js?v=60';
+import { getGrandTotal } from './engine.js?v=60';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1479,10 +1479,10 @@ function renderImmoView(state) {
     html += '\u2022 Soci\u00e9t\u00e9 des Grands Projets \u2014 calendrier GPE (L15 Sud fin 2026, L15 Ouest 2030-2032)<br>';
     html += '</div>';
     html += '<div style="margin-top:8px;font-size:11px;color:#a0aec0;">';
-    html += '<strong>Hypoth\u00e8ses cl\u00e9s :</strong> VEFA neuf = prime +12-15% vs ancien m\u00eame quartier. R\u00e9novation = prime +10%. ';
-    html += 'Vitry : TVA 5.5% sur achat (valeur march\u00e9 sup\u00e9rieure au prix pay\u00e9). ';
-    html += 'Villejuif : remise r\u00e9sident sur VEFA (valeur march\u00e9 > prix d\u2019op\u00e9ration). ';
-    html += 'Rueil : 15K\u20ac travaux revalorisant l\'appartement (cuisine + SDB).';
+    html += '<strong>Hypoth\u00e8ses cl\u00e9s :</strong> VEFA neuf en quartier \u00e9tabli = prime +12-15% vs ancien. VEFA neuf en quartier en chantier (Vitry) = prime limit\u00e9e +5-8% (offre abondante, commerces manquants). R\u00e9novation = prime +10%. ';
+    html += 'Vitry : TVA 5.5% sur achat (valeur march\u00e9 sup\u00e9rieure au prix pay\u00e9, mais quartier encore en d\u00e9veloppement). ';
+    html += 'Villejuif : remise r\u00e9sident VEFA, quartier d\u00e9j\u00e0 \u00e9tabli (L14 + L15 + p\u00f4le sant\u00e9). ';
+    html += 'Rueil : 15K\u20ac travaux r\u00e9valorisant l\'appartement (cuisine + SDB). Quartier sous-performe la ville (-37% vs moyenne Rueil).';
     html += '</div>';
     methPanel.innerHTML = html;
   }
