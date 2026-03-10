@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=58';
-import { getGrandTotal } from './engine.js?v=58';
+import { CURRENCY_CONFIG } from './data.js?v=59';
+import { getGrandTotal } from './engine.js?v=59';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1439,6 +1439,53 @@ function renderImmoView(state) {
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (iv.totalCFNetFiscal >= 0 ? '+' : '') + iv.totalCFNetFiscal + '/mois</strong>';
   }
+
+  // ── Methodology & Sources panel ──
+  const methPanel = document.getElementById('immoMethodologyContent');
+  if (methPanel) {
+    let html = '';
+    iv.properties.forEach(prop => {
+      const m = prop.propertyMeta || {};
+      const phases = m.appreciationPhases || [];
+      const l15 = m.ligne15 || {};
+      html += '<div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">';
+      html += '<strong style="color:var(--accent);">' + prop.name + '</strong>';
+      if (m.surface) html += ' — ' + m.surface + ' m\u00b2';
+      html += '<br>';
+      // Type & context
+      if (m.type) html += '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;">' + m.type + '</span> ';
+      if (l15.station) html += '<span style="background:#f0fff4;padding:1px 6px;border-radius:4px;font-size:10px;color:#276749;">L15 : ' + l15.station + ' (' + l15.distance + ', ouverture ' + l15.opening + ')</span> ';
+      html += '<br>';
+      // Valuation
+      html += '<div style="margin-top:6px;">';
+      html += '\u2022 <strong>Valeur actuelle : ' + fmt(prop.value) + '</strong> (' + (m.surface ? Math.round(prop.value / m.surface).toLocaleString('fr-FR') : '?') + ' \u20ac/m\u00b2)<br>';
+      html += '\u2022 Taux d\'appr\u00e9ciation moyen : <strong>' + ((m.appreciation || 0.01) * 100).toFixed(1) + '%/an</strong><br>';
+      // Phases
+      if (phases.length > 0) {
+        html += '\u2022 Projection par phase :<br>';
+        phases.forEach(function(ph) {
+          html += '&nbsp;&nbsp;&nbsp;\u2192 ' + ph.start + '-' + ph.end + ' : <strong>' + (ph.rate * 100).toFixed(1) + '%/an</strong> \u2014 ' + ph.note + '<br>';
+        });
+      }
+      html += '</div></div>';
+    });
+    // Sources
+    html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #cbd5e0;">';
+    html += '<strong>Sources (mars 2026) :</strong><br>';
+    html += '\u2022 MeilleursAgents.com \u2014 prix/m\u00b2 par rue et quartier (f\u00e9vrier 2026)<br>';
+    html += '\u2022 efficity.com \u2014 prix/m\u00b2 par adresse (janvier-f\u00e9vrier 2026)<br>';
+    html += '\u2022 SeLoger.com \u2014 estimations immobili\u00e8res par ville<br>';
+    html += '\u2022 Capaxis / LyBox / ImAvenir \u2014 \u00e9tudes impact Ligne 15 (+8-15% dans rayon 500m)<br>';
+    html += '\u2022 Soci\u00e9t\u00e9 des Grands Projets \u2014 calendrier GPE (L15 Sud fin 2026, L15 Ouest 2030-2032)<br>';
+    html += '</div>';
+    html += '<div style="margin-top:8px;font-size:11px;color:#a0aec0;">';
+    html += '<strong>Hypoth\u00e8ses cl\u00e9s :</strong> VEFA neuf = prime +12-15% vs ancien m\u00eame quartier. R\u00e9novation = prime +10%. ';
+    html += 'Vitry : TVA 5.5% sur achat (valeur march\u00e9 sup\u00e9rieure au prix pay\u00e9). ';
+    html += 'Villejuif : remise r\u00e9sident sur VEFA (valeur march\u00e9 > prix d\u2019op\u00e9ration). ';
+    html += 'Rueil : 15K\u20ac travaux revalorisant l\'appartement (cuisine + SDB).';
+    html += '</div>';
+    methPanel.innerHTML = html;
+  }
 }
 
 // ============ PROPERTY DETAIL PANEL ============
@@ -2155,10 +2202,10 @@ function attachKPIInsights(state, view) {
   // ── Immo view ──
   if (s.immoView) {
     const iv = s.immoView;
-    insights['kpiImmoViewEq'] = 'Equity nette sur 3 biens. Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + ' + Vitry \u20ac' + f(s.amine.vitryEquity) + '.';
-    insights['kpiImmoViewVal'] = 'Valeur march\u00e9 estim\u00e9e des 3 biens. Appr\u00e9ciation : Vitry +2%/an (GPE), Rueil/Villejuif +1%/an (IDF conservateur).';
-    insights['kpiImmoViewCRD'] = 'Capital Restant D\u00fb total. Se r\u00e9duit chaque mois avec les remboursements. Fin des pr\u00eats : 2044 (Rueil), 2048 (Vitry), 2053 (Villejuif).';
-    insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = capital rembours\u00e9 + appr\u00e9ciation. ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an de richesse nette cr\u00e9\u00e9e automatiquement.';
+    insights['kpiImmoViewEq'] = 'Equity nette sur 3 biens. Rueil \u20ac' + f(s.nezha.rueilEquity) + ' (ancien r\u00e9nov\u00e9) + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + ' (VEFA neuf) + Vitry \u20ac' + f(s.amine.vitryEquity) + ' (VEFA neuf RE2020).';
+    insights['kpiImmoViewVal'] = 'Valeur march\u00e9 bas\u00e9e sur donn\u00e9es MeilleursAgents/efficity (mars 2026) + prime neuf (+12-15%). Vitry 2.5%/an (L15 Les Ardoines), Villejuif 2%/an (L15 Louis Aragon), Rueil 1%/an (L15 lointaine).';
+    insights['kpiImmoViewCRD'] = 'Capital Restant D\u00fb total. Se r\u00e9duit chaque mois. Fin : 2044 (Rueil), 2048 (Vitry), 2053 (Villejuif). Plus de d\u00e9tails dans la section Sources ci-dessous.';
+    insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = capital rembours\u00e9 + appr\u00e9ciation. ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an de richesse nette cr\u00e9\u00e9e. Vitry et Villejuif b\u00e9n\u00e9ficient de l\'effet GPE Ligne 15.';
     const cfSign = iv.totalCF >= 0 ? '+' : '';
     insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison 2029). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
   }

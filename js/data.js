@@ -121,7 +121,11 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 293000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
+      vitry: { value: 320000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
+      // value: 320K = 67.14m² × ~4 765€/m² (VEFA neuf RE2020, livré 2023)
+      // Achat à 275K grâce TVA 5.5% — valeur marché du neuf nettement supérieure
+      // MeilleursAgents quartier Ardoines : 4 259€/m² (stock ancien moyen)
+      // Prime neuf : +12-15% sur l'ancien → ~4 765€/m² = 320K
       // loyerHC: 500€ bail HC + 550€ cash = 1050€ HC total
       // chargesLocataire: 150€ provision charges (offsets copro)
       // parking: 70€ cash
@@ -203,8 +207,18 @@ export const PORTFOLIO = {
     },
     immo: {
       // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
-      rueil:     { value: 272000, crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
-      villejuif: { value: 360000, crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
+      rueil:     { value: 280000, crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
+      // value: 280K = 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
+      // Achat 255K (nov 2019) + 15K travaux = 270K investi
+      // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
+      // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
+      villejuif: { value: 370000, crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
+      // value: 370K = 68.92m² × ~5 369€/m² (VEFA neuf, en construction)
+      // Opération totale : 349 456€ avec remise résident Villejuif
+      // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
+      // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
+      // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
+      // Valeur conservatrice en construction (livraison été 2029)
     },
   },
 

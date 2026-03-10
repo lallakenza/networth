@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=58';
-import { getGrandTotal } from './engine.js?v=58';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=58';
+import { fmt, fmtAxis } from './render.js?v=59';
+import { getGrandTotal } from './engine.js?v=59';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=59';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -846,8 +846,9 @@ function buildImmoViewProjection(state) {
     const sched = amort.schedule;
     const [startY, startM] = sched[0].date.split('-').map(Number);
 
-    // Current value and appreciation rate
-    const appreciation = key === 'vitry' ? 0.02 : 0.01;
+    // Current value and appreciation rate (from property metadata)
+    const propMeta = IC.properties[key] || {};
+    const appreciation = propMeta.appreciation || 0.01;
     const currentValue = prop.value;
 
     const data = projYears.map(year => {
