@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=60';
-import { getGrandTotal } from './engine.js?v=60';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=60';
+import { fmt, fmtAxis } from './render.js?v=61';
+import { getGrandTotal } from './engine.js?v=61';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=61';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -294,18 +294,68 @@ function buildImmoEquityBar(state) {
 function buildImmoProjection(state) {
   const el = document.getElementById('immoProjectionChart');
   if (!el) return;
+
+  // Dynamic projection from current property values + appreciation rates
+  const iv = state.immoView;
+  if (!iv || !iv.amortSchedules) return;
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const projYears = [];
+  for (let y = currentYear + 1; y <= currentYear + 7; y++) projYears.push(y);
+
+  const loanKeys = ['vitry', 'rueil', 'villejuif'];
+  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+
+  const datasets = loanKeys.map(key => {
+    const amort = iv.amortSchedules[key];
+    if (!amort) return null;
+    const prop = iv.properties.find(p => p.loanKey === key);
+    if (!prop) return null;
+
+    const sched = amort.schedule;
+    const [startY, startM] = sched[0].date.split('-').map(Number);
+    const propMeta = IMMO_CONSTANTS.properties[key] || {};
+    const phases = propMeta.appreciationPhases || [];
+    const defaultRate = propMeta.appreciation || 0.01;
+
+    // Get appreciation rate for a given year using phases
+    function getRate(year) {
+      for (let i = 0; i < phases.length; i++) {
+        if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+      }
+      return defaultRate;
+    }
+
+    const data = projYears.map(year => {
+      const monthsFromStart = (year - startY) * 12 + (1 - startM);
+      if (monthsFromStart < 0) return 0;
+      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
+      const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+
+      // Compound appreciation year-by-year using phased rates
+      let projValue = prop.value;
+      for (let y = currentYear; y < year; y++) {
+        projValue *= (1 + getRate(y));
+      }
+
+      return Math.max(0, Math.round(projValue - crd));
+    });
+
+    return {
+      label: loanNames[key], data,
+      borderColor: loanColors[key], backgroundColor: loanColors[key] + '1a',
+      fill: true, tension: 0.3,
+    };
+  }).filter(Boolean);
+
   charts.immoProj = new Chart(el, {
     type: 'line',
-    data: {
-      labels: ['2027','2028','2029','2030','2031','2032'],
-      datasets: [
-        { label: 'Vitry', data: [36301,48505,60709,72913,85117,97321], borderColor: '#4a5568', backgroundColor: 'rgba(74,85,104,0.1)', fill: true, tension: 0.3 },
-        { label: 'Rueil', data: [85543,97707,110020,122468,135060,147799], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.1)', fill: true, tension: 0.3 },
-        { label: 'Villejuif', data: [0,0,11039,29706,48808,68307], borderColor: '#2c7a7b', backgroundColor: 'rgba(44,122,123,0.1)', fill: true, tension: 0.3 },
-      ]
-    },
+    data: { labels: projYears.map(String), datasets },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
+      plugins: { title: { display: true, text: 'Projection equity (appréc. par phases)', font: { size: 14 } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
       scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
   });
@@ -845,27 +895,29 @@ function buildImmoViewProjection(state) {
 
     const sched = amort.schedule;
     const [startY, startM] = sched[0].date.split('-').map(Number);
+    const propMeta = IMMO_CONSTANTS.properties[key] || {};
+    const phases = propMeta.appreciationPhases || [];
+    const defaultRate = propMeta.appreciation || 0.01;
 
-    // Current value and appreciation rate (from property metadata)
-    const propMeta = IC.properties[key] || {};
-    const appreciation = propMeta.appreciation || 0.01;
-    const currentValue = prop.value;
+    // Get appreciation rate for a given year using phases
+    function getRate(year) {
+      for (let i = 0; i < phases.length; i++) {
+        if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+      }
+      return defaultRate;
+    }
 
     const data = projYears.map(year => {
-      // Months from now to target Jan of year
-      const monthsFromNow = (year - currentYear) * 12 - currentMonth;
-      // Months from loan start to target
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
-
-      if (monthsFromStart < 0) return 0; // loan hasn't started yet
-
-      // CRD at that point
+      if (monthsFromStart < 0) return 0;
       const schedIdx = Math.min(monthsFromStart, sched.length - 1);
       const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
 
-      // Projected value with appreciation
-      const yearsAhead = year - currentYear;
-      const projValue = currentValue * Math.pow(1 + appreciation, yearsAhead);
+      // Compound appreciation year-by-year using phased rates
+      let projValue = prop.value;
+      for (let y = currentYear; y < year; y++) {
+        projValue *= (1 + getRate(y));
+      }
 
       const equity = projValue - crd;
       return Math.max(0, Math.round(equity));
@@ -910,8 +962,17 @@ export function buildPropertyDetailCharts(state, prop) {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
-    const appreciation = (prop.propertyMeta && prop.propertyMeta.appreciation) || 0.01;
+    const propMeta = prop.propertyMeta || {};
+    const phases = propMeta.appreciationPhases || [];
+    const defaultRate = propMeta.appreciation || 0.01;
     const [startY, startM] = sched[0].date.split('-').map(Number);
+
+    function getRate(year) {
+      for (let i = 0; i < phases.length; i++) {
+        if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+      }
+      return defaultRate;
+    }
 
     const projYears = [];
     for (let y = currentYear; y <= currentYear + 8; y++) projYears.push(y);
@@ -921,14 +982,15 @@ export function buildPropertyDetailCharts(state, prop) {
       if (monthsFromStart < 0) return 0;
       const schedIdx = Math.min(monthsFromStart, sched.length - 1);
       const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
-      const yearsAhead = year - currentYear;
-      const projValue = prop.value * Math.pow(1 + appreciation, yearsAhead);
+      let projValue = prop.value;
+      for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
       return Math.max(0, Math.round(projValue - crd));
     });
 
     const valueData = projYears.map(year => {
-      const yearsAhead = year - currentYear;
-      return Math.round(prop.value * Math.pow(1 + appreciation, yearsAhead));
+      let projValue = prop.value;
+      for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
+      return Math.round(projValue);
     });
 
     const crdData = projYears.map(year => {
