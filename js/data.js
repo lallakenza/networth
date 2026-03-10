@@ -303,9 +303,9 @@ export const CURRENCY_CONFIG = {
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
   growth: {
-    vitry: 1017,       // EUR/mois création de richesse (remboursement capital + appréciation)
-    rueil: 1001,       // 774 capital + 227 appreciation
-    villejuif: 813,
+    vitry: 1139,       // EUR/mois création de richesse (529 capital + 610 appréciation à 2.5%/an)
+    rueil: 1001,       // 774 capital + 227 appréciation à 1%/an (inchangé)
+    villejuif: 1113,   // 513 capital + 600 appréciation à 2%/an
   },
   villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
   charges: {
@@ -462,23 +462,47 @@ export const IMMO_CONSTANTS = {
   // ──────────────────────────────────────────────────────
   properties: {
     vitry: {
-      address: '8 Rue Camille Blanc, 94400 Vitry-sur-Seine',
+      address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
       surface: 67.14,           // m²
       purchasePrice: 275000,    // prix d'achat TTC (VEFA 2022)
       purchaseDate: '2023-02',  // date livraison / acte
-      appreciation: 0.02,       // 2%/an (GPE Ligne 15 — forte revalorisation attendue)
+      // ── Appréciation réaliste par phase (moyenne pondérée) ──
+      // 2026-2029 : 3.5%/an — gare Ligne 15 Les Ardoines opérationnelle (2025),
+      //   ZAC Seine Gare Vitry en livraison, 20K emplois prévus, T Zen 5
+      //   MeilleursAgents: quartier à 4 259€/m² (fév 2026), en hausse
+      //   Capaxis: +8-15% autour des stations L15 déjà ouvertes
+      // 2030+ : 2.0%/an — offre massive (8K logements neufs) absorbe la demande
+      // Moyenne lissée sur 10 ans ≈ 2.5%/an
+      appreciation: 0.025,       // 2.5%/an (moyenne lissée, GPE Ligne 15 Les Ardoines)
+      appreciationPhases: [
+        { start: 2026, end: 2029, rate: 0.035, note: 'Gare L15 ouverte, ZAC en livraison, effet proximité max' },
+        { start: 2030, end: 2040, rate: 0.020, note: 'Offre massive absorbe la demande (8K logements neufs)' },
+      ],
       type: 'T3 — Location nue',
       loyerObjectif: 1400,      // loyer cible (dont partie cash — voir fiscalite.vitry)
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
+      ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2025 },
     },
     rueil: {
-      address: '57 Bd du Maréchal Joffre, 92500 Rueil-Malmaison',
+      address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
       surface: 55.66,           // m²
       purchasePrice: 255000,    // prix d'achat TTC + frais notaire
       purchaseDate: '2019-11',  // acte notarié 5 novembre 2019
       purchaseDateLabel: '5 novembre 2019',
-      appreciation: 0.01,       // 1%/an (conservateur IDF)
+      // ── Appréciation réaliste par phase ──
+      // 2026-2029 : 0.5%/an — marché plat, station L15 Rueil lointaine (~2030-2032),
+      //   quartier Fouilleuse/Mazurières sous-performe le reste de Rueil (-37% vs ville)
+      //   MeilleursAgents: 4 445€/m² allée des Glycines vs 5 920€ ville
+      //   Orpi: prix Rueil -1.5% sur 2 ans (2023-2025)
+      // 2030+ : 1.5%/an — si L15 Ouest ouvre, effet indirect (station à 15-20 min à pied)
+      // Moyenne lissée sur 10 ans ≈ 1.0%/an
+      appreciation: 0.01,        // 1.0%/an (moyenne lissée, effet L15 indirect et tardif)
+      appreciationPhases: [
+        { start: 2026, end: 2029, rate: 0.005, note: 'Marché plat, L15 Ouest pas avant 2030-2032' },
+        { start: 2030, end: 2040, rate: 0.015, note: 'L15 Ouest ouvre, effet indirect à 15-20 min à pied' },
+      ],
       type: 'T3 meublé — LMNP',
+      ligne15: { station: 'Rueil-Suresnes', distance: '15-20 min à pied', opening: '2030-2032' },
     },
     villejuif: {
       address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
@@ -486,8 +510,20 @@ export const IMMO_CONSTANTS = {
       totalOperation: 349456,   // montant total opération VEFA
       purchaseDate: '2025-04',  // signature VEFA
       deliveryDate: '2029-06',  // livraison été 2029
-      appreciation: 0.01,       // 1%/an (marché local conservateur)
+      // ── Appréciation réaliste par phase ──
+      // 2025-2028 : 3.0%/an — L15 Sud ouverture fin 2026, déjà L14 prolongée,
+      //   en face station Villejuif Louis Aragon (future L15), pôle santé Gustave Roussy
+      //   MeilleursAgents: Bd Gorki ~5 138€/m², hausse +20% entre 2021-2025
+      //   efficity: 5 050€/m² jan 2026, +6% vs ville
+      // 2029+ : 1.5%/an — livraison du bien, L15 roulera depuis 3 ans, effet déjà pricé
+      // Moyenne lissée sur 10 ans ≈ 2.0%/an
+      appreciation: 0.02,        // 2.0%/an (moyenne lissée, hub L14+L15, pôle santé)
+      appreciationPhases: [
+        { start: 2025, end: 2028, rate: 0.030, note: 'Anticipation L15 + L14 déjà là, pôle santé Gustave Roussy' },
+        { start: 2029, end: 2040, rate: 0.015, note: 'Livraison bien, L15 roulera depuis 3 ans, effet pricé' },
+      ],
       type: 'T3 — VEFA — LMNP',
+      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: 2026 },
     },
   },
 };
