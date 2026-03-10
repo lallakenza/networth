@@ -76,7 +76,7 @@ export const PORTFOLIO = {
       positions: [
         // { ticker, shares, price (cours actuel), costBasis (PRU), currency, label, sector, geo }
         // Cours mis à jour automatiquement par l'API Yahoo Finance
-        { ticker: 'AIR.PA',  shares: 200,  price: 175.88, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
+        { ticker: 'AIR.PA',  shares: 200,  price: 173.30, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
         { ticker: 'BN.PA',   shares: 200,  price: 70.04,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france' },
         { ticker: 'DG.PA',   shares: 200,  price: 131.70, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france' },
         { ticker: 'FGR.PA',  shares: 100,  price: 137.50, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france' },
@@ -87,8 +87,8 @@ export const PORTFOLIO = {
         { ticker: 'SAN.PA',  shares: 50,   price: 77.73,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france' },
         { ticker: 'SAP',     shares: 70,   price: 170.98, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany' },
         { ticker: '4911.T',  shares: 500,  price: 3040,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan' },
-        { ticker: 'IBIT',    shares: 1200, price: 40.39,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
-        { ticker: 'ETHA',    shares: 1100, price: 15.80,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
+        { ticker: 'IBIT',    shares: 1200, price: 38.80,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
+        { ticker: 'ETHA',    shares: 1100, price: 14.93,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
       ],
       // ⬇️ Cash multi-devises (depuis rapport IBKR)
       cashEUR: 65927,       // Solde EUR chez IBKR
@@ -212,9 +212,9 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 730,       // Cours SGTM en MAD (casablanca-bourse.com) — mis à jour 8 Mar 2026
+    sgtmPriceMAD: 740,       // Cours SGTM en MAD (casablanca-bourse.com) — mis à jour 10 Mar 2026
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
-    acnPriceUSD: 185.40,     // Cours Accenture en USD (Fidelity)
+    acnPriceUSD: 215.00,     // Cours Accenture en USD (Fidelity)
   },
 };
 
@@ -282,14 +282,14 @@ export const IBKR_CONFIG = {
 // ════════════════════════════════════════════════════════════
 // TAUX DE CHANGE STATIQUES (fallback si API indisponible)
 // Format : 1 EUR = X devises étrangères
-// Source : xe.com — Dernière vérification : mars 2026
+// Source : xe.com — Dernière vérification : 10 mars 2026
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,
-  AED: 4.3259,
-  MAD: 10.8154,
-  USD: 1.0850,
-  JPY: 161.50,
+  AED: 4.2500,
+  MAD: 10.8100,
+  USD: 1.1560,
+  JPY: 184.00,
 };
 
 // Symboles devises pour affichage
