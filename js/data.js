@@ -121,11 +121,15 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 320000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
-      // value: 320K = 67.14m² × ~4 765€/m² (VEFA neuf RE2020, livré 2023)
-      // Achat à 275K grâce TVA 5.5% — valeur marché du neuf nettement supérieure
-      // MeilleursAgents quartier Ardoines : 4 259€/m² (stock ancien moyen)
-      // Prime neuf : +12-15% sur l'ancien → ~4 765€/m² = 320K
+      vitry: { value: 300000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
+      // value: 300K = 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
+      // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
+      // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
+      // Prime neuf limitée à +5-8% car quartier encore en chantier :
+      //   - gare L15 Les Ardoines en travaux (pas encore opérationnelle)
+      //   - peu de commerces, ZAC en construction
+      //   - offre massive (8K logements neufs) qui plafonne les prix
+      // → 4 259 × 1.05 ≈ 4 470€/m² = 300K (conservateur)
       // loyerHC: 500€ bail HC + 550€ cash = 1050€ HC total
       // chargesLocataire: 150€ provision charges (offsets copro)
       // parking: 70€ cash
@@ -317,7 +321,7 @@ export const CURRENCY_CONFIG = {
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
   growth: {
-    vitry: 1139,       // EUR/mois création de richesse (529 capital + 610 appréciation à 2.5%/an)
+    vitry: 1100,       // EUR/mois création de richesse (529 capital + ~575 appréciation à 2.5%/an sur 300K)
     rueil: 1001,       // 774 capital + 227 appréciation à 1%/an (inchangé)
     villejuif: 1113,   // 513 capital + 600 appréciation à 2%/an
   },
@@ -481,16 +485,17 @@ export const IMMO_CONSTANTS = {
       purchasePrice: 275000,    // prix d'achat TTC (VEFA 2022)
       purchaseDate: '2023-02',  // date livraison / acte
       // ── Appréciation réaliste par phase (moyenne pondérée) ──
-      // 2026-2029 : 3.5%/an — gare Ligne 15 Les Ardoines opérationnelle (2025),
-      //   ZAC Seine Gare Vitry en livraison, 20K emplois prévus, T Zen 5
-      //   MeilleursAgents: quartier à 4 259€/m² (fév 2026), en hausse
-      //   Capaxis: +8-15% autour des stations L15 déjà ouvertes
-      // 2030+ : 2.0%/an — offre massive (8K logements neufs) absorbe la demande
+      // 2026-2028 : 2.0%/an — quartier encore en chantier, gare pas ouverte,
+      //   peu de commerces, offre neuve abondante qui pèse sur les prix
+      // 2029-2032 : 3.5%/an — gare L15 opérationnelle, ZAC livrée, 20K emplois,
+      //   commerces installés, quartier commence à vivre → rattrapage
+      // 2033+ : 2.0%/an — effet GPE digéré, croissance IDF standard
       // Moyenne lissée sur 10 ans ≈ 2.5%/an
       appreciation: 0.025,       // 2.5%/an (moyenne lissée, GPE Ligne 15 Les Ardoines)
       appreciationPhases: [
-        { start: 2026, end: 2029, rate: 0.035, note: 'Gare L15 ouverte, ZAC en livraison, effet proximité max' },
-        { start: 2030, end: 2040, rate: 0.020, note: 'Offre massive absorbe la demande (8K logements neufs)' },
+        { start: 2026, end: 2028, rate: 0.020, note: 'Quartier en chantier, gare en travaux, offre abondante' },
+        { start: 2029, end: 2032, rate: 0.035, note: 'Gare L15 ouverte, ZAC livrée, commerces, rattrapage' },
+        { start: 2033, end: 2040, rate: 0.020, note: 'Effet GPE digéré, croissance IDF standard' },
       ],
       type: 'T3 — Location nue',
       loyerObjectif: 1400,      // loyer cible (dont partie cash — voir fiscalite.vitry)
