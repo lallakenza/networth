@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=47';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=57';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -203,6 +203,107 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     currentLosersCount: currentLosers.length,
     winRate: winRate,
   });
+
+  // 7. Benchmark comparison (YTD 2026 — updated 10 mars 2026)
+  // Sources : Yahoo Finance, tradingeconomics.com, APMEX, investing.com
+  const benchmarks = {
+    date: '10 mars 2026',
+    portfolio: { twr: meta.twr || 0, label: 'Portefeuille IBKR' },
+    items: [
+      { label: 'Or (XAU/USD)',       ytd: 21.0, note: '$5 070 — record historique, haven demand (Iran conflict)' },
+      { label: 'S&P 500',            ytd: 12.5, note: '6 796 pts — AI + tech rally, vol \u00e9lev\u00e9e' },
+      { label: 'MSCI World (EUR)',    ytd: 6.0,  note: 'Europe drag\u00e9e par \u00e9nergie, dollar fort' },
+      { label: 'Bitcoin (BTC)',       ytd: -25.0, note: '~$67K — correction depuis $93K fin 2025' },
+      { label: 'CAC 40',             ytd: 5.0,   note: 'Biais d\u00e9fensif, sous-perf vs US' },
+      { label: 'Immobilier mondial',  ytd: 2.0,   note: 'REIT stable, taux en d\u00e9tente partielle' },
+      { label: 'Inflation (FR)',      ytd: 1.0,   note: 'IPC f\u00e9vrier 2026 = 1%/an' },
+    ],
+  };
+  insights.push({
+    type: 'benchmark',
+    title: 'Performance vs Benchmarks (YTD 2026)',
+    benchmarks: benchmarks,
+  });
+
+  // 8. Macro risk assessment
+  const macroRisks = [];
+  // Middle East conflict / energy
+  macroRisks.push({
+    severity: 'high',
+    label: 'Conflit Iran / \u00c9nergie',
+    detail: 'Frappes US/Isra\u00ebl sur l\u2019Iran, p\u00e9trole en hausse. Risque direct sur industrials (Airbus, Vinci, Eiffage = 40%+ du portefeuille). L\u2019or surperforme \u2014 aucune exposition or dans le portefeuille.',
+  });
+  // EUR/USD volatility impact on USD assets
+  macroRisks.push({
+    severity: 'medium',
+    label: 'Volatilit\u00e9 EUR/USD',
+    detail: 'EUR \u00e0 1.16 (+7% depuis d\u00e9but 2025). Les actifs USD (IBIT, ETHA, IBKR cash USD, ESPP) perdent en valeur EUR quand l\u2019euro se renforce. Exposition USD = ~30% du portefeuille actions.',
+  });
+  // Crypto drawdown
+  if (ibkrPositions.some(p => p.ticker === 'IBIT' || p.ticker === 'ETHA')) {
+    const cryptoLoss = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s, p) => s + p.unrealizedPL, 0);
+    macroRisks.push({
+      severity: cryptoLoss < -5000 ? 'high' : 'medium',
+      label: 'Drawdown Crypto',
+      detail: 'BTC -25% YTD, ETH -33% YTD. Perte latente crypto : \u20ac' + Math.abs(Math.round(cryptoLoss)).toLocaleString('fr-FR') + '. Th\u00e8se long-terme intacte mais volatilit\u00e9 extr\u00eame.',
+    });
+  }
+  // JPY carry trade risk
+  const jpyDebtEUR = Math.abs(toEUR(ibkr.cashJPY, 'JPY', fx));
+  macroRisks.push({
+    severity: jpyDebtEUR > 100000 ? 'high' : 'medium',
+    label: 'Carry Trade JPY (\u00a5' + Math.round(Math.abs(ibkr.cashJPY)/1000000) + 'M)',
+    detail: 'Emprunt JPY = \u20ac' + Math.round(jpyDebtEUR).toLocaleString('fr-FR') + '. Si le yen se renforce (flight-to-safety), la dette en EUR augmente. BoJ hawkish = risque de squeeze.',
+  });
+  // No gold exposure
+  macroRisks.push({
+    severity: 'low',
+    label: 'Z\u00e9ro exposition Or',
+    detail: 'L\u2019or a gagn\u00e9 +21% YTD 2026 (record $5 602). Aucune exposition directe. Consid\u00e9rer GLD ou SGOL (5-10% du portefeuille) comme hedge g\u00e9opolitique.',
+  });
+  insights.push({
+    type: 'macro-risks',
+    title: 'Risques Macro\u00e9conomiques',
+    risks: macroRisks,
+  });
+
+  // 9. Dividend WHT deadlines (upcoming ex-dates for sell-before strategy)
+  const today = new Date();
+  const upcoming = [];
+  ibkrPositions.forEach(pos => {
+    const cal = DIV_CALENDAR[pos.ticker];
+    if (!cal || !cal.exDates || cal.exDates.length === 0 || cal.dps === 0) return;
+    cal.exDates.forEach(d => {
+      const exDate = new Date(d);
+      const daysUntil = Math.round((exDate - today) / 86400000);
+      if (daysUntil > 0 && daysUntil <= 90) {
+        const whtRate = WHT_RATES[pos.geo] || 0.30;
+        const grossDiv = pos.shares * cal.dps;
+        const grossDivEUR = toEUR(grossDiv, pos.currency, fx);
+        const whtCost = grossDivEUR * whtRate;
+        upcoming.push({
+          ticker: pos.ticker,
+          label: pos.label,
+          exDate: d,
+          daysUntil: daysUntil,
+          dps: cal.dps,
+          grossDivEUR: grossDivEUR,
+          whtRate: whtRate,
+          whtCost: whtCost,
+          currency: pos.currency,
+        });
+      }
+    });
+  });
+  upcoming.sort((a, b) => a.daysUntil - b.daysUntil);
+  if (upcoming.length > 0) {
+    insights.push({
+      type: 'dividend-wht',
+      title: 'Calendrier Dividendes — WHT \u00e0 \u00e9viter',
+      upcoming: upcoming,
+      totalWHTAtRisk: upcoming.reduce((s, d) => s + d.whtCost, 0),
+    });
+  }
 
   return {
     ibkrPositions,

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=47';
-import { getGrandTotal } from './engine.js?v=47';
+import { CURRENCY_CONFIG } from './data.js?v=57';
+import { getGrandTotal } from './engine.js?v=57';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -934,8 +934,63 @@ function renderActionsView(state) {
         html += '- <strong>Moins de stock picking</strong> : les 14 lignes g\u00e9n\u00e8rent du stress et des commissions. Un c\u0153ur ETF (80%) + satellites stock picking (20%) serait plus efficace<br>';
         html += '- <strong>Strat\u00e9gie DCA</strong> : automatiser des versements mensuels sur 2-3 ETFs plut\u00f4t que du timing de march\u00e9<br>';
         if (ins.currentLosersCount > 2) html += '- <strong>Couper les positions mortes</strong> : ' + ins.currentLosersCount + ' positions \u00e0 -10%+. \u00c9valuer si la th\u00e8se d\'investissement tient toujours<br>';
+        html += '- <strong>Ajouter de l\'or</strong> : 0% d\'exposition, or +21% YTD. Un hedge g\u00e9opolitique (5-10% via GLD/SGOL) am\u00e9liorerait le profil risque<br>';
         html += '- <strong>Pas de tech US directe</strong> : manque d\'exposition aux GAFAM/Magnificent 7 (seulement via ESPP Accenture)<br>';
         html += '</div></div>';
+      }
+
+      else if (ins.type === 'benchmark') {
+        const b = ins.benchmarks;
+        const twr = b.portfolio.twr;
+        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Donn\u00e9es au ' + b.date + '</div>';
+        // Portfolio bar first
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:2px solid var(--accent);">';
+        html += '<span style="flex:1;font-size:13px;font-weight:700;">' + b.portfolio.label + '</span>';
+        html += '<span style="font-size:16px;font-weight:700;color:' + (twr >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (twr >= 0 ? '+' : '') + twr.toFixed(1) + '%</span></div>';
+        // Benchmark bars
+        b.items.forEach(function(item) {
+          var barColor = item.ytd >= 0 ? '#22c55e' : '#ef4444';
+          var barWidth = Math.min(Math.abs(item.ytd) * 2.5, 100);
+          var beat = twr > item.ytd;
+          html += '<div style="padding:5px 0;border-bottom:1px solid #edf2f7;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">';
+          html += '<span>' + item.label + (beat ? ' \u2714' : '') + '</span>';
+          html += '<span style="font-weight:600;color:' + barColor + ';">' + (item.ytd >= 0 ? '+' : '') + item.ytd.toFixed(1) + '%</span></div>';
+          html += '<div style="background:#edf2f7;border-radius:3px;height:6px;margin-top:3px;">';
+          html += '<div style="width:' + barWidth + '%;height:100%;background:' + barColor + ';border-radius:3px;"></div></div>';
+          html += '<div style="font-size:10px;color:#a0aec0;margin-top:2px;">' + item.note + '</div>';
+          html += '</div>';
+        });
+        // Summary
+        var beaten = b.items.filter(function(i) { return twr > i.ytd; }).length;
+        html += '<div style="margin-top:10px;padding:8px;background:' + (beaten >= 4 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
+        html += (beaten >= 4 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
+        if (twr < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
+        else html += 'Surperforme le S&P 500 \u2014 stock picking cr\u00e9ateur de valeur cette ann\u00e9e.';
+        html += '</div>';
+      }
+
+      else if (ins.type === 'macro-risks') {
+        ins.risks.forEach(function(risk) {
+          var sColor = risk.severity === 'high' ? '#e53e3e' : risk.severity === 'medium' ? '#dd6b20' : '#718096';
+          var sIcon = risk.severity === 'high' ? '\uD83D\uDD34' : risk.severity === 'medium' ? '\uD83D\uDFE0' : '\u26AA';
+          html += '<div style="padding:8px 0;border-bottom:1px solid #edf2f7;">';
+          html += '<div style="font-size:13px;font-weight:600;color:' + sColor + ';">' + sIcon + ' ' + risk.label + '</div>';
+          html += '<div style="font-size:12px;color:#4a5568;margin-top:3px;">' + risk.detail + '</div>';
+          html += '</div>';
+        });
+      }
+
+      else if (ins.type === 'dividend-wht') {
+        html += '<div style="font-size:13px;margin-bottom:10px;">WHT total \u00e0 risque : <strong class="pl-neg">\u20ac' + Math.round(ins.totalWHTAtRisk).toLocaleString('fr-FR') + '</strong></div>';
+        html += '<div style="font-size:11px;color:#718096;margin-bottom:8px;">\uD83D\uDCA1 En tant que r\u00e9sident fiscal UAE, vendre AVANT l\'ex-date \u00e9vite la WHT (0% sur plus-values)</div>';
+        ins.upcoming.forEach(function(d) {
+          var urgColor = d.daysUntil <= 30 ? '#e53e3e' : d.daysUntil <= 60 ? '#dd6b20' : '#718096';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+          html += '<div><strong>' + d.label + '</strong><br><span style="color:' + urgColor + ';">Ex-date : ' + d.exDate + ' (J-' + d.daysUntil + ')</span></div>';
+          html += '<div style="text-align:right;"><span class="pl-neg">WHT \u20ac' + Math.round(d.whtCost) + '</span><br><span style="color:#a0aec0;">' + (d.whtRate * 100).toFixed(0) + '% sur \u20ac' + Math.round(d.grossDivEUR) + '</span></div>';
+          html += '</div>';
+        });
       }
 
       card.innerHTML = html;
@@ -2058,7 +2113,7 @@ function attachKPIInsights(state, view) {
   const immoEq = s.couple.immoEquity;
   const stocksTotal = s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm;
   const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cash;
-  insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Objectif 1M\u20ac atteint en ~1.7 ans.';
+  insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Contexte : conflit Iran, or +21% YTD, BTC -25% YTD.';
   insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
   insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE). Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
@@ -2079,13 +2134,13 @@ function attachKPIInsights(state, view) {
   // ── Actions view ──
   if (s.actionsView) {
     const av = s.actionsView;
-    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2. Top 3 = 43% du portefeuille. Win rate historique : 86% (12/14 trades).';
+    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2. Benchmark : S&P 500 +12.5% YTD, Or +21% YTD, BTC -25% YTD.';
     const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
     const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
-    insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '. \u00c9valuer : couper ou moyenner \u00e0 la baisse ?';
-    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro). Meilleur trade : NVIDIA (+\u20ac41K). Profit factor : 17.5x (gains / pertes).';
+    insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '. Crypto = gros contributeur n\u00e9gatif (BTC -25%, ETH -33% YTD).';
+    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro). Meilleur trade : NVIDIA (+\u20ac41K). Attention : 0% d\'exposition or (meilleur actif 2025-2026).';
     insights['kpiActionsTotalDeposits'] = 'Total inject\u00e9 dans les march\u00e9s. P/L total = ' + (av.combinedUnrealizedPL + av.combinedRealizedPL >= 0 ? '+' : '') + '\u20ac' + f(av.combinedUnrealizedPL + av.combinedRealizedPL) + ' (' + ((av.combinedUnrealizedPL + av.combinedRealizedPL) / av.totalDeposits * 100).toFixed(1) + '% du capital).';
-    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (30% France, 15% US/JP). Strat\u00e9gie : switcher vers ETFs capitalisants.';
+    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (30% France, 15% US/JP). \u26A0 Prochain ex-date : DG.PA le 21 avr. Vendre avant pour \u00e9viter WHT.';
   }
 
   // ── Cash view ──
