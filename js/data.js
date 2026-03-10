@@ -286,10 +286,10 @@ export const IBKR_CONFIG = {
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,
-  AED: 4.2500,
-  MAD: 10.8100,
-  USD: 1.1560,
-  JPY: 184.00,
+  AED: 4.2700,       // Xe 10/03: 4.2701 (AED pegged to USD)
+  MAD: 10.8600,      // Xe 10/03: 10.8602
+  USD: 1.1600,       // Xe 10/03: 1.1636, intraday low ~1.156
+  JPY: 183.50,       // Xe 10/03: 183.32, Investing.com: 184.49
 };
 
 // Symboles devises pour affichage
