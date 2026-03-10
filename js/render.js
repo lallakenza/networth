@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=60';
-import { getGrandTotal } from './engine.js?v=60';
+import { CURRENCY_CONFIG } from './data.js?v=61';
+import { getGrandTotal } from './engine.js?v=61';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
