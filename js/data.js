@@ -72,7 +72,7 @@ export const PORTFOLIO = {
     // cashJPY est NÉGATIF = emprunt (short JPY pour levier)
     // ──────────────────────────────────────────────────────
     ibkr: {
-      staticNAV: 197477,    // NAV totale du rapport CSV (pour vérification)
+      staticNAV: 192878,    // NAV totale du rapport CSV au 09/03/2026
       positions: [
         // { ticker, shares, price (cours actuel), costBasis (PRU), currency, label, sector, geo }
         // Cours mis à jour automatiquement par l'API Yahoo Finance
@@ -94,21 +94,42 @@ export const PORTFOLIO = {
       cashEUR: 65927,       // Solde EUR chez IBKR
       cashUSD: 14482,       // Solde USD chez IBKR
       cashJPY: -21390085,   // Solde JPY chez IBKR (NÉGATIF = emprunt margin)
-      // Performance metrics from CSV (April 2025 - March 2026)
+      // Performance metrics (April 2025 - March 2026)
       meta: {
-        twr: 26.94,            // Time-Weighted Return %
-        realizedPL: 5980,      // Total realized P/L (stocks + forex)
-        dividends: 648,        // Gross dividends received
-        commissions: -872,     // Commissions + transaction fees
-        deposits: 199886,      // Net deposits
-        closedPositions: [
-          { ticker: 'GLE',  pl: 4807, label: 'Soci\u00e9t\u00e9 G\u00e9n\u00e9rale' },
-          { ticker: 'QQQM', pl: 3185, label: 'Invesco Nasdaq 100' },
-          { ticker: 'EDEN', pl: 570,  label: 'Edenred' },
-          { ticker: 'NXI',  pl: 400,  label: 'Nexity' },
-          { ticker: 'WLN',  pl: -3202, label: 'Worldline' },
-        ],
+        twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
+        realizedPL: 5760,      // Total realized P/L stocks (EDEN +588, GLE +4807, QQQM +3185, NXI +400, WLN -3202, forex -167 + rounding)
+        dividends: 648,        // Gross dividends received (all-time)
+        commissions: -872,     // Commissions + transaction fees (all-time)
+        deposits: 202886,      // Net deposits (199886 + 3000 Jan 2026)
       },
+      // ── Historique complet des trades IBKR ──
+      // type: 'buy' | 'sell' — qty toujours positif
+      // realizedPL sur les sells = P/L réalisé pour CE trade (pas cumulé)
+      trades: [
+        // ─── EDEN (Edenred) — position ouverte Sep 2025, fermée Feb 2026 ───
+        { date: '2025-09-15', ticker: 'EDEN', label: 'Edenred',          type: 'buy',  qty: 2000, price: 19.95,  currency: 'EUR', cost: 39900 },
+        { date: '2025-10-01', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 20.34,  currency: 'EUR', proceeds: 6102,  realizedPL: 117  },
+        { date: '2025-10-02', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 20.78,  currency: 'EUR', proceeds: 6234,  realizedPL: 249  },
+        { date: '2025-10-03', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 21.29,  currency: 'EUR', proceeds: 6387,  realizedPL: 402  },
+        { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',          type: 'buy',  qty: 300,  price: 17.985, currency: 'EUR', cost: 5396 },
+        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 1400, price: 19.42,  currency: 'EUR', proceeds: 27188, realizedPL: -180, note: 'Vente finale (600@19.38 + 800@19.45)' },
+        // Total EDEN P/L: 117 + 249 + 402 - 180 = +588 (≈ +570 après commissions)
+        // ─── GLE (Société Générale) ───
+        { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale', type: 'sell', qty: 200,  price: 75.34,  currency: 'EUR', proceeds: 15068, realizedPL: 4807, note: 'Vente totale' },
+        // ─── WLN (Worldline) — coupure perte ───
+        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',        type: 'sell', qty: 3000, price: 1.475,  currency: 'EUR', proceeds: 4425,  realizedPL: -3202, note: 'Vente totale — coupure perte' },
+        // ─── NXI (Nexity) ───
+        { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',           type: 'sell', qty: 2000, price: 9.62,   currency: 'EUR', proceeds: 19240, realizedPL: 400,  note: 'Vente totale' },
+        // ─── QQQM (Invesco Nasdaq 100) ───
+        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58, price: 250.49, currency: 'USD', proceeds: 14528, realizedPL: 3185, note: 'Vente totale — profit-taking' },
+        // ─── ETHA (iShares Ethereum) — renforcements ───
+        { date: '2026-02-02', ticker: 'ETHA', label: 'iShares Ethereum', type: 'buy',  qty: 200,  price: 18.01,  currency: 'USD', cost: 3602  },
+        { date: '2026-02-04', ticker: 'ETHA', label: 'iShares Ethereum', type: 'buy',  qty: 400,  price: 16.20,  currency: 'USD', cost: 6480  },
+        // ─── IBIT (iShares Bitcoin) — renforcements ───
+        { date: '2026-02-03', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 300,  price: 42.50,  currency: 'USD', cost: 12750 },
+        { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 200,  price: 41.38,  currency: 'USD', cost: 8275  },
+        { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 100,  price: 40.90,  currency: 'USD', cost: 4090  },
+      ],
     },
 
     // ──────────────────────────────────────────────────────
