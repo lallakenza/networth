@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=93';
-import { compute } from './engine.js?v=93';
-import { render } from './render.js?v=93';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=93';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=93';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=93';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=94';
+import { compute } from './engine.js?v=94';
+import { render } from './render.js?v=94';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=94';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=94';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=94';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -227,20 +227,62 @@ refresh();
   }
 })();
 
-(async function() {
-  // Show static data date in the badge while loading
+// ---- Stock price loading with progress ----
+let stockRefreshInProgress = false;
+
+async function loadStockPrices() {
+  if (stockRefreshInProgress) return;
+  stockRefreshInProgress = true;
+
   const sBadge = document.getElementById('stockBadge');
-  if (sBadge) sBadge.textContent = 'Actions : donn\u00e9es du ' + DATA_LAST_UPDATE + ', chargement live...';
-  // Stock prices
-  const result = await fetchStockPrices(PORTFOLIO);
-  if (result.updated) {
-    stockSource = 'live';
-    refresh();
+  const progressBar = document.getElementById('stockProgressBar');
+  const progressFill = document.getElementById('stockProgressFill');
+  const progressLabel = document.getElementById('stockProgressLabel');
+  const refreshBtn = document.getElementById('refreshStocksBtn');
+
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.style.opacity = '0.4'; }
+  if (sBadge) sBadge.textContent = 'Actions : chargement live...';
+  if (progressBar) progressBar.style.display = 'block';
+  if (progressFill) progressFill.style.width = '0%';
+
+  function onProgress(loaded, total, ticker) {
+    const pct = Math.round(loaded / total * 100);
+    if (progressFill) progressFill.style.width = pct + '%';
+    if (progressLabel) progressLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
   }
-  if (sBadge) {
-    const statusLabel = result.liveCount > 0 ? result.liveCount + '/' + result.totalTickers + ' live' : 'statique (donn\u00e9es du ' + DATA_LAST_UPDATE + ')';
-    const sgtmLabel = result.sgtmLive ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)' : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
-    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
-    if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
+
+  try {
+    const result = await fetchStockPrices(PORTFOLIO, onProgress);
+    if (result.updated) {
+      stockSource = 'live';
+      refresh();
+    }
+    if (sBadge) {
+      const statusLabel = result.liveCount > 0
+        ? result.liveCount + '/' + result.totalTickers + ' live'
+        : 'statique (données du ' + DATA_LAST_UPDATE + ')';
+      const sgtmLabel = result.sgtmLive
+        ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
+        : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+      sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
+      if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    console.warn('Stock fetch error:', e);
+    if (sBadge) sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE;
   }
-})();
+
+  // Hide progress bar after a short delay
+  setTimeout(() => { if (progressBar) progressBar.style.display = 'none'; }, 2000);
+  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.style.opacity = '1'; }
+  stockRefreshInProgress = false;
+}
+
+// Initial load
+loadStockPrices();
+
+// Refresh button
+document.getElementById('refreshStocksBtn')?.addEventListener('click', () => loadStockPrices());
+
+// Auto-refresh every 10 minutes
+setInterval(() => loadStockPrices(), 10 * 60 * 1000);

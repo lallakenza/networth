@@ -40,11 +40,13 @@ async function fetchStockPrice(symbol) {
     const meta = result?.meta;
     const p = meta?.regularMarketPrice;
     if (!p || p <= 0) return null;
-    const pc = meta?.chartPreviousClose || meta?.previousClose;
+    // previousClose = actual yesterday's close (for daily P&L)
+    // chartPreviousClose = close before chart range start (Dec 31 for range=ytd) — NOT yesterday!
+    const dailyPrevClose = meta?.previousClose || null;
     // Extract historical closes for period P&L
     const timestamps = result?.timestamp || [];
     const closes = result?.indicators?.quote?.[0]?.close || [];
-    const refPrices = { previousClose: pc || null };
+    const refPrices = { previousClose: dailyPrevClose };
     if (timestamps.length > 0 && closes.length > 0) {
       const now = new Date();
       const ytdStart = new Date(now.getFullYear(), 0, 1).getTime() / 1000;
@@ -58,6 +60,15 @@ async function fetchStockPrice(symbol) {
         if (!refPrices.ytdOpen && t >= ytdStart) refPrices.ytdOpen = c;
         if (!refPrices.mtdOpen && t >= mtdStart) refPrices.mtdOpen = c;
         if (!refPrices.oneMonthAgo && t >= oneMonthAgo) refPrices.oneMonthAgo = c;
+      }
+      // Fallback: if no previousClose from meta, use last close in timeseries
+      if (!refPrices.previousClose) {
+        for (let i = closes.length - 1; i >= 0; i--) {
+          if (closes[i] !== null && closes[i] !== undefined) {
+            refPrices.previousClose = closes[i];
+            break;
+          }
+        }
       }
     }
     return { price: p, ...refPrices };
@@ -138,10 +149,14 @@ async function fetchSGTMPrice() {
 /**
  * Fetch all stock prices (IBKR positions + ACN + SGTM)
  * Mutates portfolio.amine.ibkr.positions[].price, portfolio.market.acnPriceUSD, portfolio.market.sgtmPriceMAD
+ * @param {object} portfolio
+ * @param {function} onProgress - optional callback(loaded, total, ticker) called as each ticker completes
  * Returns { updated: boolean, liveCount: number, totalTickers: number, sgtmLive: boolean }
  */
-export async function fetchStockPrices(portfolio) {
+export async function fetchStockPrices(portfolio, onProgress) {
   const tickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
+  const totalTickers = tickers.length + 1; // +1 for SGTM
+  let loaded = 0;
   const prices = {};
 
   // Fetch IBKR + ACN in parallel with SGTM
@@ -149,8 +164,10 @@ export async function fetchStockPrices(portfolio) {
     Promise.all(tickers.map(async (ticker) => {
       const result = await fetchStockPrice(ticker);
       if (result) prices[ticker] = result;
+      loaded++;
+      if (onProgress) onProgress(loaded, totalTickers, ticker);
     })),
-    fetchSGTMPrice(),
+    fetchSGTMPrice().then(r => { loaded++; if (onProgress) onProgress(loaded, totalTickers, 'SGTM'); return r; }),
   ]);
 
   let updated = false;
