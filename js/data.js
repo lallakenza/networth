@@ -588,8 +588,10 @@ export const IMMO_CONSTANTS = {
     vitry: {
       address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
       surface: 67.14,           // m²
-      purchasePrice: 275000,    // prix d'achat TTC (VEFA 2022)
-      purchaseDate: '2023-02',  // date livraison / acte
+      purchasePrice: 275000,    // prix d'achat TTC (VEFA)
+      purchaseDate: '2023-01',  // acte notarié 16 janvier 2023
+      deliveryDate: '2025-07',  // livraison VEFA juillet 2025
+      tvaAvantage: 37796,       // économie TVA (20% - 5.5%) × prix HT
       // ── Appréciation réaliste par phase (moyenne pondérée) ──
       // 2026-2028 : 2.0%/an — quartier encore en chantier, gare pas ouverte,
       //   peu de commerces, offre neuve abondante qui pèse sur les prix
@@ -714,9 +716,10 @@ export const EXIT_COSTS = {
     tvaReduite: {
       tauxReduit: 0.055,
       tauxNormal: 0.20,
-      dureeEngagement: 10,       // années
+      dureeEngagement: 10,       // années depuis livraison
       prixHTApprox: 260000,      // prix HT approximatif (275K TTC à TVA 5.5%)
-      dateAchat: '2023-02',
+      dateLivraison: '2025-07',  // obligation 10 ans commence à la livraison VEFA
+      dateFinObligation: '2035-07', // fin obligation TVA
     },
     // PTZ — Prêt à Taux Zéro
     // Doit occuper comme résidence principale pendant 6 ans (2023-2029)
@@ -724,18 +727,25 @@ export const EXIT_COSTS = {
     // Mais si mis en location avant 6 ans : peut être rappelé
     ptz: {
       dureeOccupation: 6,        // années en résidence principale (ou assimilé)
-      dateDebut: '2023-02',
-      dateFin: '2029-02',        // fin obligation résidence principale
+      dateDebut: '2023-11',      // premier déblocage PTZ ~novembre 2023
+      dateFin: '2029-12',        // fin obligation RP (~décembre 2029)
+      differeTotalMois: 60,      // 60 mois de différé total
       montant: 60000,
-      note: 'Location possible après 6 ans. Avant : risque de rappel PTZ.',
+      mensualite: 333,           // ~333€/mois après fin du différé (dec 2028)
+      note: 'Location nue possible après 6 ans. Meublé possible après PTZ. Rappel CRD si infraction.',
     },
     // Action Logement
     // Conditions : plafond de ressources du locataire
     // Pas de pénalité spécifique à la revente, mais le prêt doit être remboursé
     actionLogement: {
       montant: 40000,
-      plafondRessources: true,   // locataire doit respecter plafonds
-      note: 'Prêt remboursable sans pénalité. Locataire sous plafond de ressources.',
+      taux: 0.01,               // 1%/an
+      duree: 300,               // 300 mois (25 ans)
+      dateDebut: '2023-02',
+      dateFin: '2048-02',       // obligation RP jusqu'à fin prêt
+      plafondRessources: true,   // locataire doit respecter plafonds PLS
+      sanction: 'Rappel immédiat du CRD (40K€)',
+      note: 'Obligation RP toute la durée du prêt. Rappel CRD en cas de manquement.',
     },
   },
   rueil: {
@@ -762,59 +772,80 @@ export const EXIT_COSTS = {
 // liées aux dispositifs de financement et TVA réduite
 // ════════════════════════════════════════════════════════════
 export const VITRY_CONSTRAINTS = {
-  summary: 'Vitry cumule 3 dispositifs avec obligations : TVA 5.5%, PTZ, Action Logement',
+  summary: 'Vitry cumule 4 dispositifs avec obligations : Anti-spéculation, TVA 5.5%, PTZ, Action Logement',
   constraints: [
+    {
+      dispositif: 'Anti-Spéculation (Municipal)',
+      reference: 'Acte de vente art. 5.1.3',
+      obligation: 'Interdiction de revente avec profit pendant 5 ans',
+      dateDebut: '2023-01',
+      dateFin: '2028-01',       // 5 ans depuis acte 16/01/2023
+      penalite: 'Reversement de 100% du profit net à la commune',
+      details: [
+        'Clause anti-spéculation inscrite dans l\'acte notarié du 16/01/2023',
+        'Durée : 5 ans → expire le 16 janvier 2028',
+        'Si vente avant : 100% de la plus-value nette reversée à la mairie',
+        'Après 5 ans : aucune contrainte, vente libre',
+      ],
+      status: 'actif',
+      yearsRemaining: 2,  // à partir de mars 2026
+    },
     {
       dispositif: 'TVA 5.5%',
       reference: 'CGI art. 278 sexies',
-      obligation: 'Conservation du bien pendant 10 ans minimum',
-      dateDebut: '2023-02',
-      dateFin: '2033-02',
+      obligation: 'Résidence principale pendant 10 ans depuis livraison',
+      dateDebut: '2025-07',     // obligation depuis livraison VEFA
+      dateFin: '2035-07',       // 10 ans depuis livraison juillet 2025
       penalite: 'Remboursement différentiel TVA (14.5% × prix HT) au prorata des années restantes',
       details: [
         'Bien acheté 275 000€ TTC à TVA 5.5% au lieu de 20%',
-        'Différentiel TVA ≈ 260 000 × 14.5% ≈ 37 700€',
-        'Pénalité dégressive : -1/10ème par an (ex: revente année 5 → ~18 850€ à rembourser)',
-        'Après 10 ans (février 2033) : aucune pénalité',
-        'Zone ANRU / QPV — condition de localisation respectée',
+        'Économie TVA : 37 796€ (différentiel 14.5% × 260 000€ HT)',
+        'Obligation : RP 10 ans depuis livraison VEFA (juillet 2025)',
+        'Pénalité dégressive : -1/10ème par an',
+        'Après juillet 2035 : aucune pénalité — conversion LMNP possible',
+        'Zone ANRU / QPV Balzac — condition de localisation respectée',
+        'RP maintenue via déclaration fiscale conjointe (Nezha résidente France)',
       ],
       status: 'actif',
-      yearsRemaining: 7,  // à partir de mars 2026
+      yearsRemaining: 9,  // à partir de mars 2026
     },
     {
       dispositif: 'PTZ (Prêt à Taux Zéro)',
-      reference: 'Code de la construction L31-10',
+      reference: 'Code de la construction L.31-10-6',
       obligation: 'Résidence principale ou assimilé pendant 6 ans',
-      dateDebut: '2023-02',
-      dateFin: '2029-02',
+      dateDebut: '2023-11',     // premier déblocage PTZ
+      dateFin: '2029-12',       // fin obligation RP (~décembre 2029)
       penalite: 'Rappel du prêt PTZ (remboursement immédiat de 60 000€)',
       details: [
         'Montant PTZ : 60 000€ à 0%',
-        'Obligation : résidence principale pendant 6 ans',
-        'Location : autorisée APRÈS février 2029 (fin période 6 ans)',
-        'Actuellement en location (dérogation non-résident ? à vérifier)',
+        'Différé total : 60 mois → début remboursement ~décembre 2028',
+        'Mensualité post-différé : ~333€/mois',
+        'Obligation : RP pendant 6 ans (jusqu\'à ~décembre 2029)',
+        'Location nue autorisée (motif légitime : éloignement professionnel)',
+        'Conditions : bail nu, plafonds PLS, notification LRAR',
+        'Après décembre 2029 : meublé possible, conversion LMNP envisageable',
         'Remboursement anticipé : sans pénalité ni frais',
-        'Le PTZ ne génère aucun intérêt → pas d\'impact fiscal',
       ],
       status: 'actif',
-      yearsRemaining: 3,
+      yearsRemaining: 4,
     },
     {
       dispositif: 'Action Logement',
       reference: 'Convention entre employeur et Action Logement Services',
-      obligation: 'Plafond de ressources du locataire',
+      obligation: 'Résidence principale pendant toute la durée du prêt',
       dateDebut: '2023-02',
-      dateFin: null,   // pas de date de fin — durée du prêt
-      penalite: 'Pas de pénalité de revente. Prêt remboursable sans frais.',
+      dateFin: '2048-02',       // 25 ans
+      penalite: 'Rappel immédiat du CRD (40 000€)',
       details: [
-        'Montant : 40 000€ à 0.50%',
-        'Le locataire doit respecter les plafonds de ressources Action Logement',
-        'Durée 25 ans — fin février 2048',
-        'Remboursement anticipé : pas de pénalité',
-        'Condition : lié à l\'emploi au moment de l\'obtention (condition passée)',
+        'Montant : 40 000€ à 1%',
+        'Obligation RP pendant toute la durée (25 ans → février 2048)',
+        'Sanction si manquement : rappel immédiat du capital restant dû',
+        'Le locataire doit respecter les plafonds de ressources PLS',
+        'Fréquence d\'audit : rare',
+        'Remboursement anticipé : possible sans pénalité',
       ],
       status: 'actif',
-      yearsRemaining: null,
+      yearsRemaining: 22,
     },
     {
       dispositif: 'Location nue (régime foncier)',
@@ -824,27 +855,30 @@ export const VITRY_CONSTRAINTS = {
       dateFin: null,
       penalite: 'Redressement fiscal si non-déclaration',
       details: [
-        'Non-résident UAE : IR 20% minimum + PS 17.2%',
+        'Non-résident UAE : IR 20% minimum + PS 17.2% = 37.2%',
         'Régime réel foncier (intérêts + charges déductibles)',
         'Loyer déclaré : 500€/mois (partie bail officiel)',
-        'Loyer total perçu : 1 050€ HC + 150€ charges + 70€ parking = 1 270€',
-        'Différence non déclarée : risque fiscal si contrôle',
+        'Complément en espèces non déclaré (stratégie Scénario D)',
+        'Loyer de marché comparable : 1 250€ HC (référence rapport stratégique)',
+        'Justification loyer bas : 6 clauses (état équipement, parking, acoustique, QPV, GPE, stabilité)',
       ],
       status: 'actif',
       yearsRemaining: null,
     },
   ],
   timeline: [
-    { date: '2023-02', event: 'Livraison + début occupation', icon: 'key' },
-    { date: '2025-08', event: 'Début remboursement BP (après intérêts seuls)', icon: 'bank' },
-    { date: '2026-04', event: 'Début location', icon: 'home' },
+    { date: '2023-01', event: 'Acte notarié VEFA signé (16 janvier)', icon: 'doc', done: true },
+    { date: '2025-07', event: 'Livraison VEFA + début occupation', icon: 'key', done: true },
+    { date: '2025-08', event: 'Début remboursement BP (après période intérêts seuls)', icon: 'bank', done: true },
+    { date: '2026-04', event: 'Début location nue', icon: 'home' },
     { date: '2027-12', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
+    { date: '2028-01', event: 'Fin clause anti-spéculation (5 ans)', icon: 'unlock' },
     { date: '2028-12', event: 'Fin différé PTZ → début remboursement 333€/mois', icon: 'money' },
-    { date: '2029-02', event: 'Fin obligation résidence principale PTZ (6 ans)', icon: 'unlock' },
-    { date: '2033-02', event: 'Fin obligation TVA 5.5% (10 ans)', icon: 'free' },
+    { date: '2029-12', event: 'Fin obligation RP PTZ (6 ans) → meublé possible', icon: 'unlock' },
+    { date: '2035-07', event: 'Fin obligation TVA 5.5% (10 ans livraison) → LMNP possible', icon: 'free' },
     { date: '2043-11', event: 'Fin prêt PTZ', icon: 'check' },
-    { date: '2048-02', event: 'Fin prêt Action Logement', icon: 'check' },
-    { date: '2048-12', event: 'Fin prêt Banque Populaire', icon: 'check' },
+    { date: '2048-02', event: 'Fin prêt Action Logement + fin obligation RP', icon: 'check' },
+    { date: '2048-12', event: 'Fin prêt Banque Populaire (Riv\'immo)', icon: 'check' },
   ],
 };
 
