@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=67';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=68';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1278,8 +1278,9 @@ function computeImmoView(portfolio, fx) {
     }
 
     // ── Exit costs at current date ──
-    const purchasePrice = meta.purchasePrice || meta.totalOperation || propData.value;
-    const purchaseDateStr = meta.purchaseDate || '2023-01';
+    const propMeta = IC.properties[loanKey] || {};
+    const purchasePrice = propMeta.purchasePrice || propMeta.totalOperation || propData.value;
+    const purchaseDateStr = propMeta.purchaseDate || '2023-01';
     const [py, pm] = purchaseDateStr.split('-').map(Number);
     const now = new Date();
     const holdingYears = (now.getFullYear() - py) + (now.getMonth() + 1 - pm) / 12;
