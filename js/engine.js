@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=92';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=93';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -349,6 +349,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sgtmCostBasisEUR: m.sgtmCostBasisMAD
       ? toEUR((portfolio.amine.sgtm.shares + portfolio.nezha.sgtm.shares) * m.sgtmCostBasisMAD, 'MAD', fx)
       : null,
+    // Live flags for UI indicators
+    _acnLive: !!m._acnLive,
+    _sgtmLive: !!m._sgtmLive,
     // Totals
     totalStocks,
     totalCurrentValue,

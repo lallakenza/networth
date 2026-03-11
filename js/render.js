@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=92';
-import { getGrandTotal } from './engine.js?v=92';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=93';
+import { getGrandTotal } from './engine.js?v=93';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -920,6 +920,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   if (!tbody) return;
   tbody.innerHTML = '';
   let totalVal = 0, totalCost = 0;
+  let hasStatic = false;
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
     totalCost += (pos.costEUR || 0);
@@ -928,18 +929,22 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
+    const isStatic = pos._live === false;
+    if (isStatic) hasStatic = true;
+    const staticMark = isStatic ? ' <span style="color:#a0aec0;font-size:10px" title="Cours statique (API indisponible)">*</span>' : '';
     const tr = document.createElement('tr');
+    if (isStatic) tr.style.color = '#718096';
     tr.innerHTML = '<td>' + pos.label + '</td>'
       + '<td>' + (pos.broker || '') + '</td>'
       + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + (pos.priceLabel || '—') + '</td>'
-      + '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '—') + '</td>'
+      + '<td class="num">' + (pos.priceLabel || '\u2014') + staticMark + '</td>'
+      + '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>'
       + '<td class="num">' + fmt(pos.valEUR) + '</td>'
-      + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '—') + '</td>'
-      + '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '—') + '</td>'
+      + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>'
+      + '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>'
       + '<td class="num">' + pos.weight.toFixed(1) + '%</td>'
-      + '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '—') + '</td>'
-      + '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '—') + '</td>';
+      + '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>'
+      + '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>';
     tbody.appendChild(tr);
   });
   const totalPL = totalVal - totalCost;
@@ -955,6 +960,12 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
     + '<td class="num">100%</td><td></td><td></td>';
   tbody.appendChild(tr);
+
+  // Footnote for static prices
+  const footnote = document.getElementById('actionsStaticFootnote');
+  if (footnote) {
+    footnote.textContent = hasStatic ? '* Cours statique \u2014 API indisponible, prix de la derni\u00e8re mise \u00e0 jour data.js' : '';
+  }
 
   // Update arrow indicators
   const table = document.getElementById('allPositionsTable');
@@ -1047,6 +1058,7 @@ function renderActionsView(state) {
     weight: totalAllVal > 0 ? (av.esppCurrentVal / totalAllVal * 100) : 0,
     sector: 'tech',
     geo: 'us',
+    _live: av._acnLive,
   });
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
@@ -1070,6 +1082,7 @@ function renderActionsView(state) {
     weight: totalAllVal > 0 ? (sgtmTotalVal / totalAllVal * 100) : 0,
     sector: 'materials',
     geo: 'morocco',
+    _live: av._sgtmLive,
   });
 
   // Render unified table
