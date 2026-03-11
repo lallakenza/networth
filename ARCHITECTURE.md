@@ -235,6 +235,41 @@ Les insights dans `renderDynamicInsights()` sont 100% dynamiques — ils lisent 
 2. Utiliser `fmt()` / `K()` / `N()` pour le formatage
 3. Ne jamais mentionner un compte par son nom en dur — utiliser `accounts.find()` ou `accounts.filter()`
 
+## KPI Detail Panels (render.js → setupKPIDetailPanels)
+
+Les KPI de la vue Actions sont cliquables. Chaque clic ouvre un panneau détaillé avec la répartition par ticker.
+
+### KPIs disponibles et leur contenu
+
+| KPI | ID panel | Données source | Contenu |
+|-----|----------|---------------|---------|
+| P&L Daily | detailPLDaily | periodPL.daily.breakdown | P&L par position, impact FX cash |
+| P&L MTD | detailPLMTD | periodPL.mtd.breakdown | P&L par position, top 3 pertes |
+| P&L 1 Mois | detailPL1M | periodPL.oneMonth.breakdown | P&L par position, top 3 pertes |
+| P&L YTD | detailPLYTD | periodPL.ytd.breakdown | P&L par position, total gains/pertes |
+| Total Actions | detailTotal | allPos (IBKR+ESPP+SGTM) | Répartition par valeur, concentration top 3 |
+| P/L Non Réalisé | detailUnrealized | allPos.unrealizedPL | P/L latent par position avec % |
+| P/L Réalisé | detailRealized | closedPositions + degiro | Trades clôturés, meilleur trade |
+| Total Déposé | detailDeposits | av.deposits | Historique dépôts, ROI |
+| Dividendes/TWR | detailDividends | av.dividends, av.twr | Yield, commissions, WHT |
+
+### Comment ajouter un nouveau KPI detail panel
+
+1. Ajouter `data-detail="detailXxx"` et classe `kpi-clickable` sur le `.kpi` dans index.html
+2. Ajouter un générateur dans `detailGenerators` dans `setupKPIDetailPanels()` (render.js)
+3. Le générateur retourne du HTML utilisant les classes `.detail-header`, `.detail-body`, `.detail-row`, `.detail-footer`
+4. Les données doivent venir de `state.actionsView` — jamais de constantes hardcodées
+
+### Sources des period P&L (engine.js)
+
+- `previousClose` → vient de `meta.previousClose` (Yahoo Finance) = clôture veille → pour Daily P&L
+- `chartPreviousClose` → clôture avant début range YTD (31 dec) → NE PAS utiliser pour Daily
+- `mtdOpen` → premier close du mois courant (depuis timestamps)
+- `ytdOpen` → premier close de l'année (depuis timestamps)
+- `oneMonthAgo` → close il y a 30 jours (depuis timestamps)
+
+⚠ Bug historique (fixé v94) : `chartPreviousClose` était utilisé pour Daily P&L, ce qui affichait le changement YTD au lieu du daily.
+
 ## Conventions
 
 - Montants en devise native dans data.js, conversion en EUR dans engine.js via `toEUR()`
