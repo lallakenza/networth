@@ -986,7 +986,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
  * Compute exit costs for a property at a given sale price and holding duration
  * Returns breakdown: PV tax (IR + PS + surtaxe), agency fees, mainlevée, TVA clawback, total
  */
-function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate = null) {
+function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate = null, loanCRDs = null) {
   const EC = EXIT_COSTS;
   const result = {
     salePrice,
@@ -1010,6 +1010,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     agencyFee: 0,
     diagnostics: EC.diagnosticsCost,
     mainlevee: 0,
+    ira: 0, // indemnités remboursement anticipé
     tvaClawback: 0,
 
     // Total
@@ -1084,6 +1085,33 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     result.mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
   }
 
+  // IRA — Indemnités de remboursement anticipé
+  // min(6 mois d'intérêts, 3% du CRD) par prêt — PTZ et Action Logement exemptés
+  if (crdAtExit > 0 && EC.iraMonthsInterest) {
+    const exemptTypes = EC.iraExemptTypes || [];
+    if (loanCRDs && loanCRDs.length > 0) {
+      // Per-loan IRA calculation
+      let totalIRA = 0;
+      for (const loan of loanCRDs) {
+        const lname = (loan.name || '').toLowerCase();
+        const isExempt = exemptTypes.some(t => lname.includes(t));
+        if (isExempt || loan.crd <= 0) continue;
+        const sixMonthsInterest = loan.crd * (loan.rate || 0) / 12 * EC.iraMonthsInterest;
+        const threePctCRD = loan.crd * EC.iraPctCRD;
+        totalIRA += Math.min(sixMonthsInterest, threePctCRD);
+      }
+      result.ira = Math.round(totalIRA);
+    } else {
+      // Fallback: estimate on total CRD with average rate
+      const IC = IMMO_CONSTANTS;
+      const loanConfig = IC.loans && IC.loans[loanKey];
+      const rate = loanConfig ? (loanConfig.rate || 0.02) : 0.02;
+      const sixMonthsInterest = crdAtExit * rate / 12 * EC.iraMonthsInterest;
+      const threePctCRD = crdAtExit * EC.iraPctCRD;
+      result.ira = Math.round(Math.min(sixMonthsInterest, threePctCRD));
+    }
+  }
+
   // TVA clawback (Vitry uniquement) — obligation 10 ans depuis LIVRAISON (pas acte)
   if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
     const tva = EC.vitry.tvaReduite;
@@ -1100,7 +1128,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
   }
 
   // Total frais de sortie
-  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.tvaClawback;
+  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.ira + result.tvaClawback;
 
   // Produit net = prix de vente - frais de sortie - CRD restant
   result.netProceeds = salePrice - result.totalExitCosts;
@@ -1113,13 +1141,13 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
  * Compute exit costs at a specific future year (exported for charts/projections)
  * Returns { totalExitCosts, netEquityAfterExit, tvaClawback, totalTaxPV, ... }
  */
-export function computeExitCostsAtYear(loanKey, targetYear, projectedValue, purchasePrice, crdAtDate, totalAmortissements) {
+export function computeExitCostsAtYear(loanKey, targetYear, projectedValue, purchasePrice, crdAtDate, totalAmortissements, loanCRDs = null) {
   const propMeta = IMMO_CONSTANTS.properties[loanKey] || {};
   const purchaseDate = propMeta.purchaseDate || '2023-01';
   const [pY, pM] = purchaseDate.split('-').map(Number);
   const holdingYears = (targetYear - pY) + (6 - pM) / 12; // approx mid-year
   const targetDate = new Date(targetYear, 5, 1); // June 1 of target year
-  return computeExitCosts(loanKey, projectedValue, purchasePrice, holdingYears, crdAtDate, totalAmortissements, targetDate);
+  return computeExitCosts(loanKey, projectedValue, purchasePrice, holdingYears, crdAtDate, totalAmortissements, targetDate, loanCRDs);
 }
 
 /**
@@ -1303,7 +1331,25 @@ function computeImmoView(portfolio, fx) {
     // Estimate total amortissements (LMNP réel)
     const fiscType = IC.fiscalite && IC.fiscalite[loanKey] ? IC.fiscalite[loanKey].type : 'nu';
     const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdingYears)) : 0;
-    const exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort);
+    // Build per-loan CRDs for IRA computation
+    let loanCRDs = null;
+    if (amort && amort.subSchedules) {
+      const subLoansConfig = IC.loans[loanKey + 'Loans'] || [];
+      loanCRDs = amort.subSchedules.map((sub, i) => {
+        const lastRow = sub.schedule[sub.schedule.length - 1];
+        // Find current month row
+        const nowStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+        const currentRow = sub.schedule.find(r => r.date === nowStr) || sub.schedule.find(r => r.date >= nowStr) || lastRow;
+        return {
+          name: sub.name,
+          crd: currentRow ? currentRow.remainingCRD : 0,
+          rate: subLoansConfig[i] ? subLoansConfig[i].rate : 0,
+        };
+      });
+    } else if (IC.loans && IC.loans[loanKey]) {
+      loanCRDs = [{ name: 'Prêt principal', crd: computedCRD, rate: IC.loans[loanKey].rate || 0 }];
+    }
+    const exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
     return {
       name, owner, conditional: conditional || false,
