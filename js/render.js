@@ -1074,45 +1074,27 @@ function renderActionsView(state) {
     weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
   }));
 
-  // ESPP Accenture (Amine)
-  const esppPL = av.esppUnrealizedPL;
+  // ESPP Accenture (Amine + Nezha merged)
+  const esppTotalShares = av.esppShares + (av.nezhaEsppShares || 0);
+  const esppTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
+  const esppTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
+  const esppTotalPL = av.esppUnrealizedPL + (av.nezhaEsppUnrealizedPL || 0);
   allPositions.push({
-    label: 'ACN Amine (' + av.esppShares + ')',
+    label: 'Accenture (' + esppTotalShares + ' ACN)',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
-    shares: av.esppShares,
+    shares: esppTotalShares,
     price: av.esppPrice,
     priceLabel: '$' + av.esppPrice.toFixed(2),
-    costEUR: av.esppCostBasisEUR,
-    valEUR: av.esppCurrentVal,
-    unrealizedPL: esppPL,
-    pctPL: av.esppCostBasisEUR > 0 ? (esppPL / av.esppCostBasisEUR * 100) : 0,
-    weight: totalAllVal > 0 ? (av.esppCurrentVal / totalAllVal * 100) : 0,
+    costEUR: esppTotalCost,
+    valEUR: esppTotalVal,
+    unrealizedPL: esppTotalPL,
+    pctPL: esppTotalCost > 0 ? (esppTotalPL / esppTotalCost * 100) : 0,
+    weight: totalAllVal > 0 ? (esppTotalVal / totalAllVal * 100) : 0,
     sector: 'tech',
     geo: 'us',
     _live: av._acnLive,
   });
-
-  // Nezha ESPP Accenture
-  if (av.nezhaEsppShares > 0) {
-    const nezhaEsppPL = av.nezhaEsppUnrealizedPL;
-    allPositions.push({
-      label: 'ACN Nezha (' + av.nezhaEsppShares + ')',
-      broker: 'UBS (ESPP)',
-      ticker: 'ACN',
-      shares: av.nezhaEsppShares,
-      price: av.esppPrice,
-      priceLabel: '$' + av.esppPrice.toFixed(2),
-      costEUR: av.nezhaEsppCostBasisEUR,
-      valEUR: av.nezhaEsppCurrentVal,
-      unrealizedPL: nezhaEsppPL,
-      pctPL: av.nezhaEsppCostBasisEUR > 0 ? (nezhaEsppPL / av.nezhaEsppCostBasisEUR * 100) : 0,
-      weight: totalAllVal > 0 ? (av.nezhaEsppCurrentVal / totalAllVal * 100) : 0,
-      sector: 'tech',
-      geo: 'us',
-      _live: av._acnLive,
-    });
-  }
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
 
