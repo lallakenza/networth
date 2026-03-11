@@ -426,11 +426,8 @@ export const CURRENCY_CONFIG = {
 // IMMOBILIER — constantes pour simulations
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  growth: {
-    vitry: 1100,       // EUR/mois création de richesse (529 capital + ~575 appréciation à 2.5%/an sur 300K)
-    rueil: 1001,       // 774 capital + 227 appréciation à 1%/an (inchangé)
-    villejuif: 1113,   // 513 capital + 600 appréciation à 2%/an
-  },
+  // growth: calculé dynamiquement dans engine.js depuis amortSchedules + appreciation + CF
+  // Ancien hardcodé supprimé — voir wealthBreakdown dans computeImmoView()
   villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }

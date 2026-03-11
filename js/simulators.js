@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=76';
-import { IMMO_CONSTANTS } from './data.js?v=76';
+import { fmt, fmtAxis } from './render.js?v=77';
+import { IMMO_CONSTANTS } from './data.js?v=77';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -394,15 +394,21 @@ function runCoupleSimulator(state) {
     startPoolActions: couplePoolActions, startPoolCash: couplePoolCash,
     staticAssets: coupleStatic, existingGains: 45000,
     immoGrowthFn: (m) => {
-      let growth = IC.growth.vitry + IC.growth.rueil;
-      if (m >= IC.villejuifStartMonth) growth += IC.growth.villejuif;
+      const iv = s.immoView;
+      const wv = (key) => iv ? (iv.properties.find(p => p.loanKey === key) || {}).wealthCreation || 0 : 0;
+      let growth = wv('vitry') + wv('rueil');
+      if (m >= IC.villejuifStartMonth) growth += wv('villejuif');
       return growth;
     },
-    immoBreakdown: [
-      { label: 'Vitry', startEquity: s.amine.vitryEquity, growthFn: () => IC.growth.vitry },
-      { label: 'Rueil', startEquity: s.nezha.rueilEquity, growthFn: () => IC.growth.rueil },
-      { label: 'Villejuif', startEquity: s.nezha.villejuifEquity, growthFn: (m) => m >= IC.villejuifStartMonth ? IC.growth.villejuif : 0 },
-    ]
+    immoBreakdown: (() => {
+      const iv = s.immoView;
+      const wv = (key) => iv ? (iv.properties.find(p => p.loanKey === key) || {}).wealthCreation || 0 : 0;
+      return [
+        { label: 'Vitry', startEquity: s.amine.vitryEquity, growthFn: () => wv('vitry') },
+        { label: 'Rueil', startEquity: s.nezha.rueilEquity, growthFn: () => wv('rueil') },
+        { label: 'Villejuif', startEquity: s.nezha.villejuifEquity, growthFn: (m) => m >= IC.villejuifStartMonth ? wv('villejuif') : 0 },
+      ];
+    })()
   });
   buildSimChart('cplSimChart', 'cplSim', result);
 }
@@ -425,7 +431,10 @@ function runAmineSimulator(state) {
     startNW: s.amine.nw, startImmoEquity: s.amine.vitryEquity,
     startPoolActions: s.pools.actions, startPoolCash: aminePoolCash,
     staticAssets: amineStatic, existingGains: 45000,
-    immoGrowthFn: () => IC.growth.vitry
+    immoGrowthFn: () => {
+      const iv = s.immoView;
+      return iv ? (iv.properties.find(p => p.loanKey === 'vitry') || {}).wealthCreation || 0 : 0;
+    }
   });
   buildSimChart('amSimChart', 'amSim', result);
 }
@@ -451,6 +460,11 @@ function runNezhaSimulator(state) {
   const monthlyApprecVillejuif = s.nezha.villejuifValue * appreciation / 12;
   const monthlyCashReturn = cashReturn / 12;
 
+  // Wealth creation from computed state (no hardcoded values)
+  const ivNz = s.immoView;
+  const wcRueil = ivNz ? (ivNz.properties.find(p => p.loanKey === 'rueil') || {}).wealthCreation || 0 : 0;
+  const wcVillejuif = ivNz ? (ivNz.properties.find(p => p.loanKey === 'villejuif') || {}).wealthCreation || 0 : 0;
+
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
   for (let m = 0; m <= months; m++) {
@@ -462,8 +476,8 @@ function runNezhaSimulator(state) {
       dataCash.push(Math.round(cashNz + sgtmNz));
       dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
     }
-    rueilEq += IC.growth.rueil + monthlyApprecRueil;
-    if (m >= IC.villejuifStartMonth) villejuifEq += IC.growth.villejuif + monthlyApprecVillejuif;
+    rueilEq += wcRueil + monthlyApprecRueil;
+    if (m >= IC.villejuifStartMonth) villejuifEq += wcVillejuif + monthlyApprecVillejuif;
     cashNz *= (1 + monthlyCashReturn);
     sgtmNz *= (1 + 0.07 / 12);
   }
