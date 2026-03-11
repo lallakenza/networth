@@ -343,6 +343,13 @@ export const PORTFOLIO = {
 };
 
 // ════════════════════════════════════════════════════════════
+// DATE DE DERNIÈRE MISE À JOUR DES DONNÉES STATIQUES
+// Utilisée pour afficher "données du XX" pendant le chargement
+// Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
+// ════════════════════════════════════════════════════════════
+export const DATA_LAST_UPDATE = '10/03/2026';
+
+// ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
 //
 // ⚠️  Pour IBKR : les taux ci-dessous sont les taux NOMINAUX
