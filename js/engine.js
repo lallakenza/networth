@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=95';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=96';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -376,7 +376,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     geoAllocation,
     sectorAllocation,
     insights,
-    // Multi-period P&L (price + FX combined)
+    // Multi-period P&L (price + FX combined) with per-position breakdowns
     periodPL: (() => {
       function sumField(field) { return ibkrPositions.reduce((s, p) => s + (p[field] || 0), 0); }
       function hasField(field) { return ibkrPositions.some(p => p[field] !== null && p[field] !== undefined); }
@@ -385,16 +385,27 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         if (!refPrice || refPrice <= 0) return 0;
         return esppCurrentVal - (espp.shares * refPrice / (fx.USD || 1));
       }
+      // Per-position breakdown for a given field
+      function breakdown(field, esppRefPrice) {
+        const items = [];
+        ibkrPositions.forEach(p => {
+          if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
+        });
+        const esppPL = esppPeriod(esppRefPrice);
+        if (esppPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal });
+        items.sort((a, b) => a.pl - b.pl); // worst first
+        return items;
+      }
       // IBKR cash FX P&L (daily only — uses FX_STATIC as prev)
       const jpyPrevFx = FX_STATIC.JPY || fx.JPY;
       const usdPrevFx = FX_STATIC.USD || fx.USD;
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
       return {
-        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL') },
-        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL') },
-        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL') },
-        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL') },
+        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
+        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
+        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
+        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
       };
     })(),
   };

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=95';
-import { getGrandTotal } from './engine.js?v=95';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=96';
+import { getGrandTotal } from './engine.js?v=96';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1314,6 +1314,261 @@ function renderActionsView(state) {
       insightsContainer.appendChild(card);
     });
   }
+
+  // ── Clickable KPI detail panels ──────────────────────────
+  setupKPIDetailPanels(state);
+}
+
+/**
+ * Setup clickable KPI detail panels for Actions view
+ * Each KPI card expands a panel showing per-ticker breakdown
+ */
+function setupKPIDetailPanels(state) {
+  const av = state.actionsView;
+  const panel = document.getElementById('kpiDetailPanel');
+  if (!panel) return;
+  let activeKPI = null;
+
+  // Build all positions list for unrealized P&L breakdown
+  const allPos = av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
+  allPos.push({
+    label: 'Accenture (ACN)', ticker: 'ACN', broker: 'ESPP',
+    valEUR: av.esppCurrentVal, costEUR: av.esppCostBasisEUR,
+    unrealizedPL: av.esppUnrealizedPL,
+    pctPL: av.esppCostBasisEUR > 0 ? (av.esppUnrealizedPL / av.esppCostBasisEUR * 100) : 0,
+  });
+  if (av.sgtmCostBasisEUR != null) {
+    const sgtmPL = av.sgtmTotal - av.sgtmCostBasisEUR;
+    allPos.push({
+      label: 'SGTM (x' + (av.sgtmAmineShares + av.sgtmNezhaShares) + ')', ticker: 'SGTM', broker: 'Attijari',
+      valEUR: av.sgtmTotal, costEUR: av.sgtmCostBasisEUR,
+      unrealizedPL: sgtmPL,
+      pctPL: av.sgtmCostBasisEUR > 0 ? (sgtmPL / av.sgtmCostBasisEUR * 100) : 0,
+    });
+  }
+
+  // Helper: render a P&L breakdown list
+  function renderPLBreakdown(items, total, footer) {
+    if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Pas de données</div>';
+    const maxAbs = Math.max(...items.map(i => Math.abs(i.pl)), 1);
+    const gainers = items.filter(i => i.pl > 0);
+    const losers = items.filter(i => i.pl < 0);
+    let html = '<div class="detail-header"><h4>Répartition P&L par position</h4>';
+    html += '<div class="detail-summary">' + losers.length + ' en perte, ' + gainers.length + ' en gain</div></div>';
+    html += '<div class="detail-body">';
+    items.forEach(i => {
+      const cls = i.pl >= 0 ? 'pl-pos' : 'pl-neg';
+      const sign = i.pl >= 0 ? '+' : '';
+      const barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
+      const barColor = i.pl >= 0 ? '#48bb78' : '#fc8181';
+      html += '<div class="detail-row">';
+      html += '<span class="ticker-label">' + i.label + '</span>';
+      html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(i.pl)) + '</span>';
+      html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    if (footer) html += '<div class="detail-footer">' + footer + '</div>';
+    return html;
+  }
+
+  // Helper: render a value breakdown list (for total, deposits, etc.)
+  function renderValueBreakdown(items, title, subtitle) {
+    if (!items || items.length === 0) return '';
+    const maxVal = Math.max(...items.map(i => Math.abs(i.value)), 1);
+    let html = '<div class="detail-header"><h4>' + title + '</h4>';
+    if (subtitle) html += '<div class="detail-summary">' + subtitle + '</div>';
+    html += '</div><div class="detail-body">';
+    items.forEach(i => {
+      const barW = Math.round(Math.abs(i.value) / maxVal * 100);
+      const cls = i.cls || '';
+      html += '<div class="detail-row">';
+      html += '<span class="ticker-label">' + i.label + '</span>';
+      html += '<span class="ticker-pl ' + cls + '">' + (i.prefix || '') + fmt(Math.round(i.value)) + '</span>';
+      html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + (i.color || '#63b3ed') + ';"></span></span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    if (items._footer) html += '<div class="detail-footer">' + items._footer + '</div>';
+    return html;
+  }
+
+  // KPI detail generators
+  const detailGenerators = {
+    // ── Period P&L panels ──
+    detailPLDaily: function() {
+      const d = av.periodPL?.daily;
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données daily non disponibles</div>';
+      let footer = 'Top perte : ' + (d.breakdown[0]?.label || '--') + ' (' + fmt(Math.round(d.breakdown[0]?.pl || 0)) + ')';
+      const best = d.breakdown[d.breakdown.length - 1];
+      if (best && best.pl > 0) footer += ' | Top gain : ' + best.label + ' (+' + fmt(Math.round(best.pl)) + ')';
+      if (d.cashFxPL && Math.abs(d.cashFxPL) > 1) footer += ' | Impact FX cash : ' + (d.cashFxPL >= 0 ? '+' : '') + fmt(Math.round(d.cashFxPL));
+      return renderPLBreakdown(d.breakdown, d.total, footer);
+    },
+    detailPLMTD: function() {
+      const d = av.periodPL?.mtd;
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données MTD non disponibles</div>';
+      const worst3 = d.breakdown.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(d.breakdown, d.total, 'Top 3 pertes MTD : ' + worst3);
+    },
+    detailPL1M: function() {
+      const d = av.periodPL?.oneMonth;
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1M non disponibles</div>';
+      const worst3 = d.breakdown.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(d.breakdown, d.total, 'Top 3 pertes 1 mois : ' + worst3);
+    },
+    detailPLYTD: function() {
+      const d = av.periodPL?.ytd;
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données YTD non disponibles</div>';
+      const gainers = d.breakdown.filter(i => i.pl > 0);
+      const losers = d.breakdown.filter(i => i.pl < 0);
+      const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
+      const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
+      let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
+      footer += ' | Net : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
+      if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
+      return renderPLBreakdown(d.breakdown, d.total, footer);
+    },
+    // ── Top-row KPI panels ──
+    detailTotal: function() {
+      const items = allPos.sort((a, b) => b.valEUR - a.valEUR).map(p => ({
+        label: p.label + ' (' + p.broker + ')',
+        value: p.valEUR,
+        color: '#4299e1',
+      }));
+      const top3 = items.slice(0, 3);
+      const top3Pct = (top3.reduce((s, i) => s + i.value, 0) / av.totalStocks * 100).toFixed(0);
+      items._footer = 'Top 3 = ' + top3Pct + '% du portefeuille : ' + top3.map(i => i.label.split(' (')[0]).join(', ') + '. Diversification ' + (parseFloat(top3Pct) > 50 ? '⚠ concentrée' : '✓ correcte') + '.';
+      return renderValueBreakdown(items, 'Répartition par position', allPos.length + ' positions | Total €' + fmt(Math.round(av.totalStocks)));
+    },
+    detailUnrealized: function() {
+      const items = allPos.sort((a, b) => a.unrealizedPL - b.unrealizedPL).map(p => ({
+        label: p.label,
+        value: Math.abs(p.unrealizedPL),
+        prefix: p.unrealizedPL >= 0 ? '+' : '-',
+        cls: p.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg',
+        color: p.unrealizedPL >= 0 ? '#48bb78' : '#fc8181',
+        _rawPL: p.unrealizedPL,
+        _pct: p.pctPL,
+      }));
+      const worst = items[0];
+      const best = items[items.length - 1];
+      let html = '<div class="detail-header"><h4>P/L Non Réalisé par position</h4>';
+      html += '<div class="detail-summary">' + allPos.filter(p => p.unrealizedPL >= 0).length + ' en gain, ' + allPos.filter(p => p.unrealizedPL < 0).length + ' en perte</div></div>';
+      html += '<div class="detail-body">';
+      const maxAbs = Math.max(...allPos.map(p => Math.abs(p.unrealizedPL)), 1);
+      allPos.sort((a, b) => a.unrealizedPL - b.unrealizedPL).forEach(p => {
+        const sign = p.unrealizedPL >= 0 ? '+' : '';
+        const cls = p.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
+        const barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
+        const barColor = p.unrealizedPL >= 0 ? '#48bb78' : '#fc8181';
+        html += '<div class="detail-row">';
+        html += '<span class="ticker-label">' + p.label + ' <span style="color:#a0aec0;font-size:11px;">' + sign + p.pctPL.toFixed(1) + '%</span></span>';
+        html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(p.unrealizedPL)) + '</span>';
+        html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<div class="detail-footer">Pire position : ' + worst?.label + ' | Meilleure : ' + best?.label + '</div>';
+      return html;
+    },
+    detailRealized: function() {
+      // IBKR closed + Degiro closed
+      const ibkrClosed = av.closedPositions || [];
+      const degiroClosed = av.degiroClosedPositions || [];
+      const allClosed = ibkrClosed.map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'IBKR' }))
+        .concat(degiroClosed.map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'Degiro' })));
+      allClosed.sort((a, b) => b.pl - a.pl); // best first
+      const items = allClosed.map(t => ({
+        label: t.label + ' (' + t.source + ')',
+        value: Math.abs(t.pl),
+        prefix: t.pl >= 0 ? '+' : '-',
+        cls: t.pl >= 0 ? 'pl-pos' : 'pl-neg',
+        color: t.pl >= 0 ? '#48bb78' : '#fc8181',
+      }));
+      let html = '<div class="detail-header"><h4>P/L Réalisé — Positions clôturées</h4>';
+      html += '<div class="detail-summary">' + allClosed.length + ' trades | Total ' + (av.combinedRealizedPL >= 0 ? '+' : '') + '€' + fmt(Math.round(av.combinedRealizedPL)) + '</div></div>';
+      html += '<div class="detail-body">';
+      const maxVal = Math.max(...allClosed.map(t => Math.abs(t.pl)), 1);
+      allClosed.forEach(t => {
+        const sign = t.pl >= 0 ? '+' : '';
+        const cls = t.pl >= 0 ? 'pl-pos' : 'pl-neg';
+        const barW = Math.round(Math.abs(t.pl) / maxVal * 100);
+        const barColor = t.pl >= 0 ? '#48bb78' : '#fc8181';
+        html += '<div class="detail-row">';
+        html += '<span class="ticker-label">' + t.label + ' <span style="color:#a0aec0;font-size:11px;">(' + t.source + ')</span></span>';
+        html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(t.pl)) + '</span>';
+        html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
+        html += '</div>';
+      });
+      html += '</div>';
+      const bestTrade = allClosed[0];
+      html += '<div class="detail-footer">🏆 Meilleur trade : ' + (bestTrade?.label || '--') + ' (+€' + fmt(Math.round(bestTrade?.pl || 0)) + ')</div>';
+      return html;
+    },
+    detailDeposits: function() {
+      const deps = av.deposits || [];
+      const totalPL = av.combinedUnrealizedPL + av.combinedRealizedPL;
+      const roi = av.totalDeposits > 0 ? (totalPL / av.totalDeposits * 100).toFixed(1) : '0.0';
+      let html = '<div class="detail-header"><h4>Historique des dépôts</h4>';
+      html += '<div class="detail-summary">ROI total : ' + (totalPL >= 0 ? '+' : '') + roi + '% | P/L net : ' + (totalPL >= 0 ? '+' : '') + '€' + fmt(Math.round(totalPL)) + '</div></div>';
+      html += '<div class="detail-body">';
+      if (deps.length > 0) {
+        const maxDep = Math.max(...deps.map(d => d.amount || 0), 1);
+        deps.forEach(d => {
+          html += '<div class="detail-row">';
+          html += '<span class="ticker-label">' + (d.date || '') + ' <span style="color:#a0aec0;font-size:11px;">' + (d.note || d.label || '') + '</span></span>';
+          html += '<span class="ticker-pl">€' + fmt(Math.round(d.amount || 0)) + '</span>';
+          const barW = Math.round((d.amount || 0) / maxDep * 100);
+          html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:#ecc94b;"></span></span>';
+          html += '</div>';
+        });
+      } else {
+        html += '<div style="text-align:center;color:#a0aec0;padding:10px;">Pas de détail par dépôt disponible</div>';
+      }
+      html += '</div>';
+      html += '<div class="detail-footer">Capital investi : €' + fmt(Math.round(av.totalDeposits)) + ' → Valeur actuelle : €' + fmt(Math.round(av.totalStocks)) + '</div>';
+      return html;
+    },
+    detailDividends: function() {
+      let html = '<div class="detail-header"><h4>Dividendes & Performance</h4>';
+      html += '<div class="detail-summary">TWR ' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '% | Dividendes bruts €' + fmt(Math.round(av.dividends)) + '</div></div>';
+      html += '<div class="detail-body">';
+      html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus</span><span class="ticker-pl pl-pos">+€' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">Commissions payées</span><span class="ticker-pl pl-neg">€' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
+      const divYield = av.totalStocks > 0 ? (av.dividends / av.totalStocks * 100).toFixed(2) : '0.00';
+      html += '<div class="detail-row"><span class="ticker-label">Yield dividende (brut)</span><span class="ticker-pl">' + divYield + '%</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">TWR (performance globale)</span><span class="ticker-pl ' + (av.twr >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '%</span><span class="ticker-bar"></span></div>';
+      html += '</div>';
+      html += '<div class="detail-footer">💡 WHT (retenue à la source) déduite automatiquement sur dividendes FR (30%), US (15%), JP (15%). En tant que résident fiscal UAE, vendre avant l\'ex-date évite la WHT.</div>';
+      return html;
+    },
+  };
+
+  // Click handler for all KPI cards
+  document.querySelectorAll('.kpi-clickable[data-detail]').forEach(kpi => {
+    kpi.addEventListener('click', function() {
+      const detailId = this.dataset.detail;
+      // Toggle off if already active
+      if (activeKPI === detailId) {
+        panel.style.display = 'none';
+        this.classList.remove('active-kpi');
+        activeKPI = null;
+        return;
+      }
+      // Deactivate previous
+      document.querySelectorAll('.kpi-clickable.active-kpi').forEach(k => k.classList.remove('active-kpi'));
+      this.classList.add('active-kpi');
+      activeKPI = detailId;
+      // Generate and show detail
+      const generator = detailGenerators[detailId];
+      if (generator) {
+        panel.innerHTML = generator();
+        panel.style.display = 'block';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
 }
 
 function renderCashView(state) {
