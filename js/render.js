@@ -2452,7 +2452,8 @@ function renderAptView(state, loanKey) {
   // ── Section 5: Exit projection chart + table ──
   html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
   html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Projection frais de sortie par année</h3>';
-  html += '<div class="chart-container" style="height:340px;margin-bottom:16px;"><canvas id="aptExitProjectionChart"></canvas></div>';
+  const exitChartId = 'aptExitProjectionChart_' + loanKey;
+  html += '<div class="chart-container" style="height:340px;margin-bottom:16px;"><canvas id="' + exitChartId + '"></canvas></div>';
   html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente au prix actuel (' + fmt(prop.value) + ') à différentes dates. Les abattements PV augmentent avec la durée de détention.</p>';
 
   const purchasePrice = meta.purchasePrice || meta.totalOperation || prop.value;
@@ -2498,9 +2499,10 @@ function renderAptView(state, loanKey) {
   }
 
   // Exit projection chart (after DOM ready)
+  const _exitChartId = 'aptExitProjectionChart_' + loanKey;
   setTimeout(() => {
     if (typeof window.buildExitProjectionChart === 'function') {
-      window.buildExitProjectionChart(state, prop, 'aptExitProjectionChart');
+      window.buildExitProjectionChart(state, prop, _exitChartId);
     }
   }, 50);
 }
