@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=69';
-import { getGrandTotal } from './engine.js?v=69';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=86';
+import { getGrandTotal } from './engine.js?v=86';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -573,10 +573,20 @@ function renderDynamicInsights(state, view) {
   if (amAct) {
     const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);
     const jpyEUR = Math.round(jpyShort / fx.JPY);
+    // Dynamic insights — compute portfolio projections from actual state
+    const ibkrNAV = s.amine.ibkr;
+    const twr = (p.amine.ibkr.meta.twr || 0);
+    const deposits = p.amine.ibkr.meta.deposits || 0;
+    const plTotal = ibkrNAV - deposits;
+    const plPct = deposits > 0 ? (plTotal / deposits * 100).toFixed(1) : '0';
+    // Simple projection: current NAV growing at estimated annual return
+    const annualReturn = deposits > 0 && ibkrNAV > 0 ? (ibkrNAV / deposits - 1) : 0;
+    const proj3y = Math.round(ibkrNAV * Math.pow(1 + Math.min(annualReturn, 0.10), 3));
+
     amAct.innerHTML =
       '<strong>Insights Actions :</strong><br>' +
-      '- TWR de ' + (p.amine.ibkr.meta.twr || 0).toFixed(0) + '% est excellent \u2014 bien au-dessus du CAC40 (~20% sur la meme periode).<br>' +
-      '- <span style="color:var(--green)">A 7% annuel + 7K/mois d\'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>' +
+      '- TWR de ' + twr.toFixed(1) + '% (P/L total: ' + (plTotal >= 0 ? '+' : '') + N(Math.round(plTotal)) + ', soit ' + (plTotal >= 0 ? '+' : '') + plPct + '% sur depots).<br>' +
+      '- <span style="color:var(--green)">Projection 3 ans (au rythme actuel) :</span> NAV ~' + K(proj3y) + ' (sans apport supplementaire).<br>' +
       '- <span style="color:var(--green)">Deleverage JPY :</span> Short JPY reduit a -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR).';
   }
 
