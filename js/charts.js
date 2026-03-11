@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=73';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=73';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=73';
+import { fmt, fmtAxis } from './render.js?v=74';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=74';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=74';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1085,8 +1085,9 @@ export function buildPropertyDetailCharts(state, prop) {
   }
 }
 // ============ EXIT PROJECTION CHART (per apartment) ============
-export function buildExitProjectionChart(state, prop) {
-  const el = document.getElementById('exitProjectionChart');
+export function buildExitProjectionChart(state, prop, canvasId) {
+  const targetId = canvasId || 'exitProjectionChart';
+  const el = document.getElementById(targetId);
   if (!el) return;
   if (charts.exitProjection) { charts.exitProjection.destroy(); delete charts.exitProjection; }
 
@@ -1095,6 +1096,7 @@ export function buildExitProjectionChart(state, prop) {
   const amort = iv.amortSchedules[prop.loanKey];
   if (!amort) return;
 
+  const IC = IMMO_CONSTANTS;
   const propMeta = prop.propertyMeta || {};
   const purchasePrice = prop.purchasePrice || propMeta.purchasePrice || propMeta.totalOperation || prop.value;
   const phases = propMeta.appreciationPhases || [];
@@ -1106,9 +1108,6 @@ export function buildExitProjectionChart(state, prop) {
   const fiscConfig = IC.fiscalite && IC.fiscalite[prop.loanKey];
   const fiscType = fiscConfig ? fiscConfig.type : 'nu';
   const amortPerYear = purchasePrice * 0.80 * 0.02;
-
-  // Sub-loan info for IRA
-  const IC = IMMO_CONSTANTS;
   const subLoansKey = prop.loanKey + 'Loans';
   const subLoansConfig = IC.loans && IC.loans[subLoansKey] ? IC.loans[subLoansKey] : null;
 
