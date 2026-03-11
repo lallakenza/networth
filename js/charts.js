@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=83';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=83';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=83';
+import { fmt, fmtAxis } from './render.js?v=84';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=84';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=84';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1326,9 +1326,9 @@ export function buildWealthProjectionChart(state, mode, group) {
         order: 3,
       },
       {
-        label: 'Réduction frais sortie',
+        label: 'Variation frais sortie',
         data: exitSavData,
-        backgroundColor: '#38b2ac',
+        backgroundColor: exitSavData.map(v => v >= 0 ? '#38b2ac' : '#fc8181'),
         stack: 'wealth',
         order: 2,
       },
