@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v106** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v107** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -71,11 +71,14 @@ Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS 
 
 ```
 fetchStockPrice(ticker):
-  1. Direct Yahoo Finance (rare que ça marche, CORS)
-  2. api.allorigins.win/raw?url=... (proxy CORS, fiable)
-  3. corsproxy.io/?... (backup proxy)
-  4. api.codetabs.com/v1/proxy?quest=... (3e backup)
+  Batch 1 (race): Direct Yahoo + allorigins
+  Batch 2 (race, si batch 1 échoue): codetabs + corsproxy.io
   → Si tous échouent : pos._live = false, prix fallback de data.js utilisé
+
+fetchStockPrices():
+  - Fetch par groupes de 4 tickers avec 600ms entre chaque batch
+  - Évite le rate-limiting Yahoo (429) qui survient avec 60+ requêtes simultanées
+  - Retry automatique des tickers échoués après 2s de pause
 
 fetchSGTMPrice():
   1. Google Finance via allorigins (scrape data-last-price)
@@ -335,11 +338,11 @@ Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM
 | Vue | Comportement | Exemple |
 |-----|-------------|---------|
 | **Treemaps** (couple, geo, nezha, amine) | Merger → une seule entrée | "ESPP Accenture €36K", "SGTM €4K" |
-| **Positions table** (vue Actions) | Séparer → une ligne par owner | "ACN Amine (167)", "ACN Nezha (40)" |
+| **Positions table** (vue Actions) | Merger → une seule ligne | "Accenture (207 ACN)", "SGTM (64 actions)" |
 | **KPI sub-cards** (vue Couple, expand stocks) | Merger | "ESPP: €36K (Amine 167 + Nezha 40)" |
 | **Nezha Detail table** | Séparer (Nezha only) | "ESPP Accenture (40 ACN @ $202)" |
 | **Amine Detail table** | Séparer (Amine only) | "ESPP Accenture (167 ACN @ $202)" |
 | **P&L breakdowns** (daily, MTD, YTD) | Séparer → "ACN Amine", "ACN Nezha" | Permet de voir la perf individuelle |
 | **Deposit history** | Séparer par owner | Lots ESPP Amine vs Nezha |
 
-**Principe** : les treemaps montrent la vue "patrimoine combiné" donc merger. Les tables détaillées permettent l'analyse individuelle donc séparer.
+**Principe** : les vues agrégées (treemaps, positions table, sub-cards) merger les tickers partagés. Les tables détaillées par personne (Amine/Nezha detail) et les P&L breakdowns séparent pour l'analyse individuelle.

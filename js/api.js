@@ -75,25 +75,30 @@ async function fetchStockPrice(symbol) {
   }
   const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d';
 
-  // Race all sources in parallel — first valid response wins
-  const sources = [
-    yahooUrl, // direct (may work without CORS in some browsers)
+  // Try proxies sequentially (reduces total requests to avoid Yahoo rate-limiting)
+  // Order: most reliable first
+  const proxies = [
+    yahooUrl, // direct (works in some browsers without CORS)
     'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl),
-    'https://corsproxy.io/?' + encodeURIComponent(yahooUrl),
     'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(yahooUrl),
+    'https://corsproxy.io/?' + encodeURIComponent(yahooUrl),
   ];
 
-  // Each source: fetch → parse → return result or throw
-  const attempts = sources.map(url =>
+  // Race first 2 proxies, then fallback to remaining if both fail
+  const tryBatch = (urls) => urls.map(url =>
     fetch(url, { signal: AbortSignal.timeout(8000) })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => { const result = extractFromYahoo(d); if (!result) throw new Error('no data'); return result; })
   );
 
   try {
-    return await Promise.any(attempts);
-  } catch(e) {
-    return null; // all sources failed
+    return await Promise.any(tryBatch(proxies.slice(0, 2)));
+  } catch(e1) {
+    try {
+      return await Promise.any(tryBatch(proxies.slice(2)));
+    } catch(e2) {
+      return null; // all sources failed
+    }
   }
 }
 
@@ -152,16 +157,41 @@ export async function fetchStockPrices(portfolio, onProgress) {
   let loaded = 0;
   const prices = {};
 
-  // Fetch IBKR + ACN in parallel with SGTM
+  // Fetch in small batches to avoid Yahoo rate-limiting
+  // (60+ simultaneous requests trigger 429 errors)
+  const BATCH_SIZE = 4;
+  const BATCH_DELAY = 600; // ms between batches
+
+  async function fetchBatched() {
+    for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+      const batch = tickers.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (ticker) => {
+        const result = await fetchStockPrice(ticker);
+        if (result) prices[ticker] = result;
+        loaded++;
+        if (onProgress) onProgress(loaded, totalTickers, ticker);
+      }));
+      // Small delay between batches (except after last batch)
+      if (i + BATCH_SIZE < tickers.length) {
+        await new Promise(r => setTimeout(r, BATCH_DELAY));
+      }
+    }
+  }
+
   const [, sgtmPrice] = await Promise.all([
-    Promise.all(tickers.map(async (ticker) => {
-      const result = await fetchStockPrice(ticker);
-      if (result) prices[ticker] = result;
-      loaded++;
-      if (onProgress) onProgress(loaded, totalTickers, ticker);
-    })),
+    fetchBatched(),
     fetchSGTMPrice().then(r => { loaded++; if (onProgress) onProgress(loaded, totalTickers, 'SGTM'); return r; }),
   ]);
+
+  // Retry pass for failed tickers (after a short delay)
+  const failedTickers = tickers.filter(t => !prices[t]);
+  if (failedTickers.length > 0) {
+    await new Promise(r => setTimeout(r, 2000));
+    await Promise.all(failedTickers.map(async (ticker) => {
+      const result = await fetchStockPrice(ticker);
+      if (result) prices[ticker] = result;
+    }));
+  }
 
   let updated = false;
 
