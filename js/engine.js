@@ -1351,6 +1351,17 @@ function computeImmoView(portfolio, fx) {
     }
     const exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
+    // ── Wealth creation breakdown (computed dynamically) ──
+    const currentAmortRow = amort ? amort.schedule[amort.currentIdx] : null;
+    const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
+    const appreciationRate = (IC.properties[loanKey] || {}).appreciation || 0;
+    const appreciationMois = propData.value * appreciationRate / 12;
+    // For conditional (not yet operational) properties: no CF, no capital if loan not disbursed
+    const isOperational = !conditional || (conditional && totalRevenue > 0);
+    const wealthCF = isOperational ? cf : 0;
+    const wealthCapital = (conditional && !(IC.loans.villejuifFranchise || {}).loanDisbursed && loanKey === 'villejuif') ? 0 : capitalAmortiMois;
+    const wealthCreationComputed = wealthCapital + appreciationMois + wealthCF;
+
     return {
       name, owner, conditional: conditional || false,
       value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
@@ -1362,7 +1373,13 @@ function computeImmoView(portfolio, fx) {
       yieldGross: (totalRevenue * 12 / propData.value * 100),
       yieldNet: (cf * 12 / propData.value * 100),
       yieldNetFiscal: fisc ? (cfNetFiscal * 12 / propData.value * 100) : null,
-      wealthCreation: IC.growth[loanKey],
+      wealthCreation: Math.round(wealthCreationComputed),
+      wealthBreakdown: {
+        capitalAmorti: Math.round(capitalAmortiMois),
+        appreciation: Math.round(appreciationMois),
+        cashflow: Math.round(wealthCF),
+        effortEpargne: wealthCF < 0 ? Math.round(Math.abs(wealthCF)) : 0,
+      },
       endYear: IC.prets[loanKey + 'End'],
       charges,
       chargesDetail: { ...chargesConfig },
@@ -1432,7 +1449,8 @@ function computeImmoView(portfolio, fx) {
       const propMeta = IC.properties.villejuif || {};
       prop.vefaConfig = {
         franchiseMonths: franchise.months || 36,
-        franchiseStart: franchise.startDate || '2025-08',
+        franchiseStart: franchise.startDate || null,
+        loanDisbursed: franchise.loanDisbursed !== undefined ? franchise.loanDisbursed : true,
         deliveryDate: propMeta.deliveryDate || '2029-06',
         totalOperation: propMeta.totalOperation || 0,
         fraisDossier: franchise.fraisDossier || 0,
@@ -1445,6 +1463,11 @@ function computeImmoView(portfolio, fx) {
   const totalCRD = properties.reduce((s, p) => s + p.crd, 0);
   const totalCF = properties.reduce((s, p) => s + p.cf, 0);
   const totalWealthCreation = properties.reduce((s, p) => s + p.wealthCreation, 0);
+  const totalWealthBreakdown = {
+    capitalAmorti: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
+    appreciation: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.appreciation : 0), 0),
+    cashflow: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.cashflow : 0), 0),
+  };
   const avgLTV = totalValue > 0 ? (totalCRD / totalValue * 100) : 0;
 
   // Fiscal totals
@@ -1471,7 +1494,7 @@ function computeImmoView(portfolio, fx) {
   return {
     properties,
     totalEquity, totalValue, totalCRD,
-    totalCF, totalWealthCreation,
+    totalCF, totalWealthCreation, totalWealthBreakdown,
     avgLTV,
     amortSchedules,
     totalInterestPaid,
