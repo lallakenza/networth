@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=68';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=69';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1084,14 +1084,16 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     result.mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
   }
 
-  // TVA clawback (Vitry uniquement)
+  // TVA clawback (Vitry uniquement) — obligation 10 ans depuis LIVRAISON (pas acte)
   if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
     const tva = EC.vitry.tvaReduite;
-    const [achatY, achatM] = tva.dateAchat.split('-').map(Number);
-    const achatDate = new Date(achatY, achatM - 1);
-    const yearsHeld = holdingYears;
-    if (yearsHeld < tva.dureeEngagement) {
-      const yearsRemaining = tva.dureeEngagement - Math.floor(yearsHeld);
+    // L'obligation TVA 5.5% court depuis la livraison VEFA, pas depuis l'acte
+    const livraisonStr = tva.dateLivraison || '2025-07';
+    const [livY, livM] = livraisonStr.split('-').map(Number);
+    const now = new Date();
+    const yearsSinceLivraison = (now.getFullYear() - livY) + (now.getMonth() + 1 - livM) / 12;
+    if (yearsSinceLivraison < tva.dureeEngagement) {
+      const yearsRemaining = tva.dureeEngagement - Math.max(0, Math.floor(yearsSinceLivraison));
       const diffTVA = tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit);
       result.tvaClawback = Math.round(diffTVA * yearsRemaining / tva.dureeEngagement);
     }

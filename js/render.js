@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=68';
-import { getGrandTotal } from './engine.js?v=68';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=69';
+import { getGrandTotal } from './engine.js?v=69';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -2454,8 +2454,13 @@ function computeExitCostsSim(loanKey, salePrice, purchasePrice, holdingYears, cr
   let tvaClawback = 0;
   if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
     const tva = EC.vitry.tvaReduite;
-    if (holdingYears < tva.dureeEngagement) {
-      const rem = tva.dureeEngagement - Math.floor(holdingYears);
+    // TVA obligation depuis livraison (07/2025), pas acte (01/2023)
+    // holdingYears = years since purchaseDate (2023-01)
+    // yearsSinceLivraison = holdingYears - (2025.5 - 2023.0) = holdingYears - 2.5
+    const livOffset = 2.5; // offset livraison vs acte en années
+    const yearsSinceLivraison = Math.max(0, holdingYears - livOffset);
+    if (yearsSinceLivraison < tva.dureeEngagement) {
+      const rem = tva.dureeEngagement - Math.max(0, Math.floor(yearsSinceLivraison));
       tvaClawback = Math.round(tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit) * rem / tva.dureeEngagement);
     }
   }
