@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=87';
-import { getGrandTotal } from './engine.js?v=87';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=88';
+import { getGrandTotal } from './engine.js?v=88';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1444,10 +1444,10 @@ function renderCashView(state) {
     makeTableSortable(cashTable, cashData, renderCashRowsFlat);
   }
 
-  // Yield bars — Couple, Amine, Nezha
+  // Yield bars — Couple, Amine, Nezha (click to toggle % ↔ montants)
   const barsContainer = document.getElementById('cashYieldBars');
   if (barsContainer && cv.totalCash > 0) {
-    const inflRate = 0.03; // 3% reference inflation
+    const inflRate = 0.03;
     const rows = [
       { label: 'Couple', yielding: cv.totalYielding, nonYielding: cv.totalNonYielding, total: cv.totalCash,
         yieldSum: cv.weightedAvgYield * cv.totalCash },
@@ -1458,24 +1458,44 @@ function renderCashView(state) {
           total: cv.byOwner.Nezha.total, yieldSum: cv.byOwner.Nezha.weightedYieldSum },
       ] : []),
     ];
-    barsContainer.innerHTML = rows.map(r => {
-      if (r.total <= 0) return '';
-      const pctProd = Math.round(r.yielding / r.total * 100);
-      const pctDorm = 100 - pctProd;
-      const gainAnn = r.yieldSum; // total annual yield in EUR
-      const erosionAnn = r.total * inflRate;
-      const net = gainAnn - erosionAnn;
-      const netStr = (net >= 0 ? '+' : '') + fmt(Math.round(net));
-      const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
-      return '<div style="display:flex;align-items:center;gap:10px;">'
-        + '<span style="min-width:52px;font-weight:600;font-size:13px;">' + r.label + '</span>'
-        + '<div class="meter-bar" style="height:28px;flex:1;">'
-        + '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + pctProd + '% (' + fmt(r.yielding, true) + ')</div>'
-        + '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + pctDorm + '% (' + fmt(r.nonYielding, true) + ')</div>'
-        + '</div>'
-        + '<span style="min-width:90px;text-align:right;font-size:13px;font-weight:600;color:' + netColor + '">' + netStr + '/an</span>'
-        + '</div>';
-    }).join('');
+    // Store data for toggle
+    barsContainer._rows = rows;
+    barsContainer._showAmounts = false;
+
+    function renderYieldBars() {
+      const showAmt = barsContainer._showAmounts;
+      barsContainer.innerHTML = rows.map(r => {
+        if (r.total <= 0) return '';
+        const pctProd = Math.round(r.yielding / r.total * 100);
+        const pctDorm = 100 - pctProd;
+        const net = r.yieldSum - r.total * inflRate;
+        const netStr = (net >= 0 ? '+' : '') + fmt(Math.round(net));
+        const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
+        // Build segments — skip 0% segments
+        let segs = '';
+        if (pctProd > 0) {
+          const prodLabel = showAmt ? fmt(r.yielding, true) : pctProd + '%';
+          segs += '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + prodLabel + '</div>';
+        }
+        if (pctDorm > 0) {
+          const dormLabel = showAmt ? fmt(r.nonYielding, true) : pctDorm + '%';
+          segs += '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + dormLabel + '</div>';
+        }
+        return '<div style="display:flex;align-items:center;gap:10px;">'
+          + '<span style="min-width:52px;font-weight:600;font-size:13px;">' + r.label + '</span>'
+          + '<div class="meter-bar" style="height:28px;flex:1;cursor:pointer;" data-yieldbar="1">' + segs + '</div>'
+          + '<span style="min-width:100px;text-align:right;font-size:13px;font-weight:600;color:' + netColor + '">' + netStr + '/an</span>'
+          + '</div>';
+      }).join('');
+    }
+    renderYieldBars();
+    // Click to toggle
+    barsContainer.onclick = (e) => {
+      if (e.target.closest('[data-yieldbar]') || e.target.closest('.mb-seg')) {
+        barsContainer._showAmounts = !barsContainer._showAmounts;
+        renderYieldBars();
+      }
+    };
   }
 
   // JPY note
