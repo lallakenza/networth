@@ -1513,6 +1513,64 @@ function computeImmoView(portfolio, fx) {
     };
   });
 
+  // ── Pre-compute exit costs per year for the projection (total + per property) ──
+  // Exit costs decrease over time (PV abattements, TVA clawback, IRA) → the reduction = wealth created
+  const exitCostsByYear = {};      // { year: totalExitCosts }
+  const exitCostsByYearProp = {};  // { year: { loanKey: exitCosts } }
+  const projLoanKeys = properties.map(p => p.loanKey);
+  for (let yr = projStartY; yr <= projEndY; yr++) {
+    let totalEC = 0;
+    const perPropEC = {};
+    projLoanKeys.forEach(lk => {
+      const prop = properties.find(p => p.loanKey === lk);
+      const amort = amortSchedules[lk];
+      const propMeta = IC.properties[lk] || {};
+      const appreciationRate = propMeta.appreciation || 0;
+      const purchasePrice = propMeta.purchasePrice || propMeta.totalOperation || prop.value;
+      const purchaseDateStr = propMeta.purchaseDate || '2023-01';
+      const [pY2] = purchaseDateStr.split('-').map(Number);
+      // Projected value with compound appreciation
+      const phases = propMeta.appreciationPhases || [];
+      let projValue = prop.value;
+      for (let yy = projStartY; yy < yr; yy++) {
+        let rate = appreciationRate;
+        for (const ph of phases) { if (yy >= ph.start && yy <= ph.end) { rate = ph.rate; break; } }
+        projValue *= (1 + rate);
+      }
+      // CRD at that year (from amort schedule, ~June)
+      const sched = amort ? amort.schedule : null;
+      let crd = 0;
+      if (sched) {
+        const dateJune = yr + '-06';
+        const row = sched.find(r => r.date === dateJune) || sched.find(r => r.date >= dateJune);
+        crd = row ? row.remainingCRD : 0;
+      }
+      // LMNP amortissements
+      const fiscConfig = IC.fiscalite && IC.fiscalite[lk];
+      const fiscType = fiscConfig ? fiscConfig.type : 'nu';
+      const yearsHeld = yr - pY2;
+      const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, yearsHeld)) : 0;
+      // Per-loan CRDs for IRA
+      let loanCRDs = null;
+      if (amort && amort.subSchedules) {
+        const subLoansConfig = IC.loans[lk + 'Loans'] || [];
+        loanCRDs = amort.subSchedules.map((sub, i) => {
+          const subRow = sub.schedule.find(r => r.date === yr + '-06') || sub.schedule.find(r => r.date >= yr + '-06');
+          return { name: sub.name, crd: subRow ? subRow.remainingCRD : 0, rate: subLoansConfig[i] ? subLoansConfig[i].rate : 0 };
+        });
+      } else if (IC.loans && IC.loans[lk]) {
+        loanCRDs = [{ name: 'Prêt principal', crd: crd, rate: IC.loans[lk].rate || 0 }];
+      }
+      try {
+        const ec = computeExitCostsAtYear(lk, yr, projValue, purchasePrice, crd, totalAmort, loanCRDs);
+        totalEC += ec.totalExitCosts;
+        perPropEC[lk] = ec.totalExitCosts;
+      } catch(e) { perPropEC[lk] = 0; }
+    });
+    exitCostsByYear[yr] = totalEC;
+    exitCostsByYearProp[yr] = perPropEC;
+  }
+
   // For each property: extract month-by-month capital repayment from amort schedule
   // and compute appreciation + CF for each future month
   const wealthProjection = [];
@@ -1572,11 +1630,17 @@ function computeImmoView(portfolio, fx) {
       const effCapital = isOperationalAtM ? capitalM : 0;
       const effCF = isOperationalAtM ? cfM : 0;
 
+      // Per-property exit cost savings
+      const prevPropEC = (exitCostsByYearProp[y - 1] || {})[lk] || 0;
+      const thisPropEC = (exitCostsByYearProp[y] || {})[lk] || 0;
+      const propExitSaving = Math.max(0, prevPropEC - thisPropEC) / 12;
+
       perProp[lk] = {
         capital: Math.round(effCapital),
         appreciation: Math.round(appreciationM),
         cashflow: Math.round(effCF),
-        total: Math.round(effCapital + appreciationM + effCF),
+        exitSavings: Math.round(propExitSaving),
+        total: Math.round(effCapital + appreciationM + effCF + propExitSaving),
       };
 
       totalCapital += effCapital;
@@ -1584,13 +1648,20 @@ function computeImmoView(portfolio, fx) {
       totalCashflow += effCF;
     });
 
+    // Exit cost savings: monthly share of the year-over-year reduction (total)
+    const prevYearEC = exitCostsByYear[y - 1] !== undefined ? exitCostsByYear[y - 1] : exitCostsByYear[y];
+    const thisYearEC = exitCostsByYear[y] !== undefined ? exitCostsByYear[y] : 0;
+    const annualExitSaving = Math.max(0, prevYearEC - thisYearEC); // only count reductions
+    const monthlyExitSaving = annualExitSaving / 12;
+
     wealthProjection.push({
       date: dateStr,
       month: m,
       capital: Math.round(totalCapital),
       appreciation: Math.round(totalApprec),
       cashflow: Math.round(totalCashflow),
-      total: Math.round(totalCapital + totalApprec + totalCashflow),
+      exitSavings: Math.round(monthlyExitSaving),
+      total: Math.round(totalCapital + totalApprec + totalCashflow + monthlyExitSaving),
       perProp,
     });
   }
@@ -1611,6 +1682,8 @@ function computeImmoView(portfolio, fx) {
     villejuifRegimeComparison,
     vitryConstraints: VITRY_CONSTRAINTS,
     exitCostsConfig: EXIT_COSTS,
+    exitCostsByYear,
+    exitCostsByYearProp,
     wealthProjection,
   };
 }
