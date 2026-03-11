@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=80';
-import { compute } from './engine.js?v=80';
-import { render } from './render.js?v=80';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=80';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=80';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=80';
+import { PORTFOLIO, FX_STATIC } from './data.js?v=81';
+import { compute } from './engine.js?v=81';
+import { render } from './render.js?v=81';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=81';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=81';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=81';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -21,6 +21,44 @@ let simulatorsBound = false;
 
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 const IMMO_VIEWS = ['immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
+const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget'];
+const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
+
+// ---- URL hash routing ----
+function updateHash() {
+  const view = currentSubView || currentView;
+  const hash = view === 'couple' ? '' : '#' + view;
+  if (location.hash !== hash && ('#' + '' !== hash || location.hash !== '')) {
+    history.replaceState(null, '', hash || location.pathname + location.search);
+  }
+}
+
+function restoreFromHash() {
+  const hash = location.hash.replace('#', '');
+  if (!hash) return; // default to couple
+  if (IMMO_SUB_VIEWS.includes(hash)) {
+    currentView = 'immobilier';
+    currentSubView = hash;
+  } else if (ALL_VIEWS.includes(hash)) {
+    currentView = hash;
+    currentSubView = null;
+  }
+}
+
+function syncNavUI() {
+  // Sync main view buttons
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  const mainView = IMMO_VIEWS.includes(currentSubView || currentView) ? 'immobilier' : currentView;
+  const activeBtn = document.querySelector('.view-btn[data-view="' + mainView + '"]');
+  if (activeBtn) activeBtn.classList.add('active');
+  // Sync immo sub-nav
+  if (mainView === 'immobilier') {
+    document.querySelectorAll('.immo-sub-btn').forEach(b => b.classList.remove('active'));
+    const subview = currentSubView || 'immobilier';
+    const subBtn = document.querySelector('.immo-sub-btn[data-subview="' + subview + '"]');
+    if (subBtn) subBtn.classList.add('active');
+  }
+}
 
 // ---- Central refresh ----
 function refresh() {
@@ -77,6 +115,7 @@ document.querySelectorAll('.view-btn').forEach(btn => {
     const defaultSubBtn = document.querySelector('.immo-sub-btn[data-subview="immobilier"]');
     if (defaultSubBtn) defaultSubBtn.classList.add('active');
 
+    updateHash();
     refresh();
   });
 });
@@ -101,8 +140,16 @@ document.querySelectorAll('.immo-sub-btn').forEach(btn => {
     const immoBtn = document.querySelector('.view-btn[data-view="immobilier"]');
     if (immoBtn) immoBtn.classList.add('active');
 
+    updateHash();
     refresh();
   });
+});
+
+// Browser back/forward navigation
+window.addEventListener('hashchange', () => {
+  restoreFromHash();
+  syncNavUI();
+  refresh();
 });
 
 // Currency switching
@@ -160,6 +207,8 @@ window.coupleChartZoomOut = coupleChartZoomOut;
 })();
 
 // ---- INIT ----
+restoreFromHash();
+syncNavUI();
 refresh();
 
 // ---- Fetch live data ----
