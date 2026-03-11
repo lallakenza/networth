@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v100** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v106** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -159,9 +159,10 @@ Les dépôts sont enregistrés dans `ibkr.deposits[]` avec :
 **À mettre à jour** : à chaque nouveau dépôt/virement ou rapport IBKR "Deposits & Withdrawals".
 
 **Autres sources de dépôts** (calculés automatiquement par engine.js) :
-- **ESPP** : chaque lot dans `espp.lots[]` est un dépôt (investissement salarié en USD)
+- **ESPP Amine** : chaque lot dans `amine.espp.lots[]` est un dépôt (investissement salarié, enregistré en EUR car paie française)
+- **ESPP Nezha** : chaque lot dans `nezha.espp.lots[]` est un dépôt (même logique, via UBS compte W3 F0329 11)
 - **SGTM** : l'achat IPO est calculé à partir de `market.sgtmCostBasisMAD × shares`
-- `owner` est attribué automatiquement : Amine (IBKR, ESPP), Amine+Nezha (SGTM)
+- `owner` est attribué automatiquement : Amine (IBKR, ESPP Amine), Nezha (ESPP Nezha), Amine+Nezha (SGTM)
 
 ### Transactions (trades[])
 
@@ -326,3 +327,19 @@ Où :
 - `fmtAxis(val)` pour axes de graphiques (notation K)
 - Les insights dans render.js doivent utiliser `state.*` et `state.cashView.*`, jamais de constantes
 - Les textes de conseil/recommandation sont OK s'ils sont génériques ("optimiser le placement") mais jamais avec des montants hardcodés
+
+## Règle de merge des tickers partagés (Amine + Nezha)
+
+Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM via Bourse Casablanca), il faut **merger** les entrées dans les vues agrégées et **séparer** dans les vues détaillées :
+
+| Vue | Comportement | Exemple |
+|-----|-------------|---------|
+| **Treemaps** (couple, geo, nezha, amine) | Merger → une seule entrée | "ESPP Accenture €36K", "SGTM €4K" |
+| **Positions table** (vue Actions) | Séparer → une ligne par owner | "ACN Amine (167)", "ACN Nezha (40)" |
+| **KPI sub-cards** (vue Couple, expand stocks) | Merger | "ESPP: €36K (Amine 167 + Nezha 40)" |
+| **Nezha Detail table** | Séparer (Nezha only) | "ESPP Accenture (40 ACN @ $202)" |
+| **Amine Detail table** | Séparer (Amine only) | "ESPP Accenture (167 ACN @ $202)" |
+| **P&L breakdowns** (daily, MTD, YTD) | Séparer → "ACN Amine", "ACN Nezha" | Permet de voir la perf individuelle |
+| **Deposit history** | Séparer par owner | Lots ESPP Amine vs Nezha |
+
+**Principe** : les treemaps montrent la vue "patrimoine combiné" donc merger. Les tables détaillées permettent l'analyse individuelle donc séparer.
