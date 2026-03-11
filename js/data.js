@@ -97,41 +97,111 @@ export const PORTFOLIO = {
       // Performance metrics (April 2025 - March 2026)
       meta: {
         twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
-        realizedPL: 5760,      // Total realized P/L stocks (EDEN +588, GLE +4807, QQQM +3185, NXI +400, WLN -3202, forex -167 + rounding)
+        realizedPL: 5924,      // Total realized P/L stocks: EDEN +569.59, GLE +4807.34, QQQM +3750.01, NXI +399.58, WLN -3202, forex PL -568.07 + misc 167.55
         dividends: 648,        // Gross dividends received (all-time)
         commissions: -872,     // Commissions + transaction fees (all-time)
         deposits: 202886,      // Net deposits (199886 + 3000 Jan 2026)
       },
       // ── Historique complet des trades IBKR ──
-      // type: 'buy' | 'sell' — qty toujours positif
-      // realizedPL sur les sells = P/L réalisé pour CE trade (pas cumulé)
+      // Source: CSV IBKR U18138426 — April 2025 → March 2026
+      // Format unifié: { date, ticker, label, type, qty, price, currency, cost|proceeds, realizedPL, commission, costBasis, note }
+      // type: 'buy' | 'sell' | 'fx'
+      // qty: toujours positif. type indique le sens.
+      // cost/proceeds: montant total (qty × price). cost pour buy, proceeds pour sell.
+      // realizedPL: P/L réalisé sur les sells (du CSV IBKR). Vide pour les buys.
+      // commission: frais de transaction (négatif).
+      // costBasis: PRU moyen au moment du trade (du CSV IBKR). Utile pour recalculer le P/L.
       trades: [
-        // ─── EDEN (Edenred) — position ouverte Sep 2025, fermée Feb 2026 ───
-        { date: '2025-09-15', ticker: 'EDEN', label: 'Edenred',          type: 'buy',  qty: 2000, price: 19.95,  currency: 'EUR', cost: 39900 },
-        { date: '2025-10-01', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 20.34,  currency: 'EUR', proceeds: 6102,  realizedPL: 117  },
-        { date: '2025-10-02', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 20.78,  currency: 'EUR', proceeds: 6234,  realizedPL: 249  },
-        { date: '2025-10-03', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 300,  price: 21.29,  currency: 'EUR', proceeds: 6387,  realizedPL: 402  },
-        { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',          type: 'buy',  qty: 300,  price: 17.985, currency: 'EUR', cost: 5396 },
-        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',          type: 'sell', qty: 1400, price: 19.42,  currency: 'EUR', proceeds: 27188, realizedPL: -180, note: 'Vente finale (600@19.38 + 800@19.45)' },
-        // Total EDEN P/L: 117 + 249 + 402 - 180 = +588 (≈ +570 après commissions)
-        // ─── GLE (Société Générale) ───
-        { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale', type: 'sell', qty: 200,  price: 75.34,  currency: 'EUR', proceeds: 15068, realizedPL: 4807, note: 'Vente totale' },
-        // ─── WLN (Worldline) — coupure perte ───
-        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',        type: 'sell', qty: 3000, price: 1.475,  currency: 'EUR', proceeds: 4425,  realizedPL: -3202, note: 'Vente totale — coupure perte' },
-        // ─── NXI (Nexity) ───
-        { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',           type: 'sell', qty: 2000, price: 9.62,   currency: 'EUR', proceeds: 19240, realizedPL: 400,  note: 'Vente totale' },
-        // ─── QQQM (Invesco Nasdaq 100) ───
-        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58, price: 250.49, currency: 'USD', proceeds: 14528, realizedPL: 3185, note: 'Vente totale — profit-taking' },
-        // ─── ETHA (iShares Ethereum) — renforcements ───
-        { date: '2026-02-02', ticker: 'ETHA', label: 'iShares Ethereum', type: 'buy',  qty: 200,  price: 18.01,  currency: 'USD', cost: 3602  },
-        { date: '2026-02-04', ticker: 'ETHA', label: 'iShares Ethereum', type: 'buy',  qty: 400,  price: 16.20,  currency: 'USD', cost: 6480  },
-        // ─── IBIT (iShares Bitcoin) — renforcements ───
-        { date: '2026-02-03', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 300,  price: 42.50,  currency: 'USD', cost: 12750 },
-        { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 200,  price: 41.38,  currency: 'USD', cost: 8275  },
-        { date: '2026-02-04', ticker: 'IBIT', label: 'iShares Bitcoin',  type: 'buy',  qty: 100,  price: 40.90,  currency: 'USD', cost: 4090  },
-        // ─── FX trades 10 mars 2026 — deleveraging JPY ───
-        { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -315.66, note: 'Vente EUR pour racheter JPY short' },
-        { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -315.55, note: 'Vente USD pour racheter JPY short' },
+        // ═══════════════════════════════════════════════════
+        //  STOCK TRADES — triés par date
+        // ═══════════════════════════════════════════════════
+
+        // ─── QQQM (Invesco Nasdaq 100) — achat avr 2025, vendu fév 2026 ───
+        { date: '2025-04-03', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'buy',  qty: 58,   price: 185.80,  currency: 'USD', cost: 10776,  commission: -1.00, costBasis: 185.63 , source: 'ibkr' },
+        // ─── MC (LVMH) — position ouverte ───
+        { date: '2025-08-18', ticker: 'MC.PA',   label: 'LVMH',              type: 'buy',  qty: 40,   price: 472.40,  currency: 'EUR', cost: 18896,  commission: -9.45, costBasis: 475.85 , source: 'ibkr' },
+        // ─── P911 (Porsche) — position ouverte ───
+        { date: '2025-08-18', ticker: 'P911.DE', label: 'Porsche',           type: 'buy',  qty: 400,  price: 45.20,   currency: 'EUR', cost: 18080,  commission: -9.04, costBasis: 45.50 , source: 'ibkr' },
+        // ─── WLN (Worldline) — achat août/oct 2025, coupé fév 2026 ───
+        { date: '2025-08-19', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 1000, price: 3.028,   currency: 'EUR', cost: 3028,   commission: -3.00, costBasis: 3.022 , source: 'ibkr' },
+        // ─── DG (Vinci) — position ouverte ───
+        { date: '2025-08-25', ticker: 'DG.PA',   label: 'Vinci',             type: 'buy',  qty: 200,  price: 122.40,  currency: 'EUR', cost: 24480,  commission: -12.24, costBasis: 121.50 , source: 'ibkr' },
+        // ─── FGR (Eiffage) — position ouverte ───
+        { date: '2025-08-26', ticker: 'FGR.PA',  label: 'Eiffage',           type: 'buy',  qty: 100,  price: 111.75,  currency: 'EUR', cost: 11175,  commission: -5.59, costBasis: 109.75 , source: 'ibkr' },
+        // ─── GLE (Société Générale) — achat août 2025, vendu fév 2026 ───
+        { date: '2025-08-26', ticker: 'GLE',  label: 'Société Générale',  type: 'buy',  qty: 200,  price: 51.24,   currency: 'EUR', cost: 10248,  commission: -5.12, costBasis: 52.00 , source: 'ibkr' },
+        // ─── NXI (Nexity) — achat août/oct 2025, vendu fév 2026 ───
+        { date: '2025-08-27', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 1000, price: 9.60,    currency: 'EUR', cost: 9600,   commission: -4.80, costBasis: 9.535 , source: 'ibkr' },
+        { date: '2025-08-28', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 500,  price: 9.10,    currency: 'EUR', cost: 4550,   commission: -3.00, costBasis: 9.10 , source: 'ibkr' },
+        // ─── SAN (Sanofi) — position ouverte ───
+        { date: '2025-09-04', ticker: 'SAN.PA',  label: 'Sanofi',            type: 'buy',  qty: 50,   price: 77.65,   currency: 'EUR', cost: 3883,   commission: -3.00, costBasis: 78.96 , source: 'ibkr' },
+        // ─── EDEN (Edenred) — ouvert sep 2025, fermé fév 2026 ───
+        { date: '2025-09-15', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 2000, price: 19.95,   currency: 'EUR', cost: 39900,  commission: -19.95, costBasis: 19.95 , source: 'ibkr' },
+        // ─── RMS (Hermès) — position ouverte ───
+        { date: '2025-09-25', ticker: 'RMS.PA',  label: 'Hermès',            type: 'buy',  qty: 10,   price: 2052,    currency: 'EUR', cost: 20520,  commission: -10.26, costBasis: 2062 , source: 'ibkr' },
+        // ─── EDEN sells (Oct 2025) — prises de profit partielles ───
+        { date: '2025-10-01', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 20.34,   currency: 'EUR', proceeds: 6102,  realizedPL: 110.96,  commission: -3.05, costBasis: 20.43 , source: 'ibkr' },
+        { date: '2025-10-02', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 20.78,   currency: 'EUR', proceeds: 6234,  realizedPL: 242.89,  commission: -3.12, costBasis: 20.70 , source: 'ibkr' },
+        { date: '2025-10-03', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 21.29,   currency: 'EUR', proceeds: 6387,  realizedPL: 395.81,  commission: -3.19, costBasis: 21.47 , source: 'ibkr' },
+        // ─── NXI renfort + WLN renfort ───
+        { date: '2025-10-28', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 500,  price: 9.34,    currency: 'EUR', cost: 4670,   commission: -3.00, costBasis: 9.15 , source: 'ibkr' },
+        { date: '2025-10-29', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 2000, price: 2.295,   currency: 'EUR', cost: 4590,   commission: -3.00, costBasis: 2.315 , source: 'ibkr' },
+        // ─── OR (L'Oréal) — position ouverte ───
+        { date: '2025-11-03', ticker: 'OR.PA',   label: "L'Oréal",           type: 'buy',  qty: 30,   price: 361.50,  currency: 'EUR', cost: 10845,  commission: -5.42, costBasis: 361.85 , source: 'ibkr' },
+        // ─── 4911.T (Shiseido) — position ouverte (JPY) ───
+        { date: '2025-11-25', ticker: '4911.T',  label: 'Shiseido',          type: 'buy',  qty: 500,  price: 2179,    currency: 'JPY', cost: 1089500, commission: -871.60, costBasis: 2179, source: 'ibkr' },
+        // ─── AIR (Airbus) — 2 lots, position ouverte ───
+        { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 196.50,  currency: 'EUR', cost: 19650,  commission: -9.83, costBasis: 192.58 , source: 'ibkr' },
+        { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 183.80,  currency: 'EUR', cost: 18380,  commission: -9.19, costBasis: 192.58 , source: 'ibkr' },
+        // ─── IBIT (iShares Bitcoin) — position ouverte ───
+        { date: '2025-12-11', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 50.76,   currency: 'USD', cost: 5076,   commission: -1.00, costBasis: 52.10 , source: 'ibkr' },
+        // ─── EDEN rebuy jan 2026 ───
+        { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 300,  price: 17.985,  currency: 'EUR', cost: 5396,   commission: -3.00, costBasis: 17.60 , source: 'ibkr' },
+        // ─── BN (Danone) — position ouverte ───
+        { date: '2026-01-21', ticker: 'BN.PA',   label: 'Danone',            type: 'buy',  qty: 200,  price: 68.80,   currency: 'EUR', cost: 13760,  commission: -6.88, costBasis: 67.40 , source: 'ibkr' },
+        // ─── SAP — position ouverte ───
+        { date: '2026-01-21', ticker: 'SAP',     label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
+        // ─── IBIT renforcements jan/fév 2026 ───
+        { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60 , source: 'ibkr' },
+        // ─── ETHA (iShares Ethereum) — 3 lots ───
+        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17 , source: 'ibkr' },
+        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50 , source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34 , source: 'ibkr' },
+        // ─── IBIT renforcements fév 2026 ───
+        { date: '2026-02-03', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 300,  price: 42.50,   currency: 'USD', cost: 12750,  commission: -1.50, costBasis: 43.30 , source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.75,   currency: 'USD', cost: 4175,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.50,   currency: 'USD', cost: 4150,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 40.90,   currency: 'USD', cost: 4090,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
+        // ─── QQQM sell — profit-taking ───
+        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58,   price: 250.49,  currency: 'USD', proceeds: 14528, realizedPL: 3750.01, commission: -1.01, costBasis: 250.31 , source: 'ibkr' },
+        // ─── GLE sell — vente totale ───
+        { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale',  type: 'sell', qty: 200,  price: 75.34,   currency: 'EUR', proceeds: 15068, realizedPL: 4807.34, commission: -7.53, costBasis: 76.24 , source: 'ibkr' },
+        // ─── WLN sell — coupure perte ───
+        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',         type: 'sell', qty: 3000, price: 1.475,   currency: 'EUR', proceeds: 4425,  realizedPL: -3202,   commission: -3.00, costBasis: 1.4435 , source: 'ibkr' },
+        // ─── EDEN ventes finales (2 lots) ───
+        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 600,  price: 19.38,   currency: 'EUR', proceeds: 11628, realizedPL: -353.80, commission: -5.81, costBasis: 19.59 , source: 'ibkr' },
+        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 800,  price: 19.45,   currency: 'EUR', proceeds: 15560, realizedPL: 173.73,  commission: -7.78, costBasis: 19.59 , source: 'ibkr' },
+        // Total EDEN P/L: 110.96 + 242.89 + 395.81 - 353.80 + 173.73 = +569.59
+        // ─── NXI sell — vente totale ───
+        { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',            type: 'sell', qty: 2000, price: 9.62,    currency: 'EUR', proceeds: 19240, realizedPL: 399.58,  commission: -9.62, costBasis: 9.535 , source: 'ibkr' },
+
+        // ═══════════════════════════════════════════════════
+        //  FX TRADES — conversions de devises & carry trade
+        // ═══════════════════════════════════════════════════
+
+        // ─── EUR→USD conversion initiale avr 2025 ───
+        { date: '2025-04-21', ticker: 'EUR.USD', label: 'EUR→USD',            type: 'fx', qty: 10000,  price: 1.1498,  currency: 'EUR', targetAmount: 11498,  targetCurrency: 'USD', commission: -1.74, note: 'Conversion EUR→USD pour achats US' , source: 'ibkr' },
+        // ─── EUR→AED conversions oct/nov 2025 ───
+        { date: '2025-10-22', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 2350,   price: 4.25505, currency: 'EUR', targetAmount: 9999,   targetCurrency: 'AED', commission: -1.72 , source: 'ibkr' },
+        { date: '2025-10-22', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 23482,  price: 4.2584,  currency: 'EUR', targetAmount: 99996,  targetCurrency: 'AED', commission: -1.72 , source: 'ibkr' },
+        { date: '2025-11-03', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 20074,  price: 4.23425, currency: 'EUR', targetAmount: 84998,  targetCurrency: 'AED', commission: -1.74 , source: 'ibkr' },
+        // ─── JPY carry trade — short JPY jan/fév 2026 ───
+        { date: '2026-01-09', ticker: 'EUR.JPY', label: 'EUR→JPY (short)',    type: 'fx', qty: 14000,  price: 183.88,  currency: 'EUR', jpyAmount: -2574320,  commission: -1.72, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        { date: '2026-02-06', ticker: 'EUR.JPY', label: 'EUR→JPY (short)',    type: 'fx', qty: 33000,  price: 185.452, currency: 'EUR', jpyAmount: -6119916,  commission: -1.70, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        { date: '2026-02-06', ticker: 'USD.JPY', label: 'USD→JPY (short)',    type: 'fx', qty: 73700,  price: 157.067, currency: 'USD', jpyAmount: -11575838, commission: -1.70, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        // ─── JPY deleverage 10 mars 2026 ───
+        { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
+        { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
       ],
     },
 
@@ -193,20 +263,32 @@ export const PORTFOLIO = {
     degiro: {
       closed: true,
       closedDate: '2025-04-14',
-      closedPositions: [
-        // { ticker, label, costEUR (coût total), proceedsEUR (vente totale), shares, pl (P/L) }
-        { ticker: 'NVDA', label: 'NVIDIA (540 post-split)', costEUR: 8067, proceedsEUR: 48264, shares: 540, currency: 'EUR', pl: 40197, note: 'Apr 2025 liquidation. Net EUR from Degiro emails.' },
-        { ticker: 'NVDA', label: 'NVIDIA (Jul 2023)', costEUR: 539, proceedsEUR: 1721, shares: 4, currency: 'EUR', pl: 1182, note: '4 pre-10:1 split @ $473.40. EUR approx.' },
-        { ticker: 'MC', label: 'LVMH', costEUR: 6104, proceedsEUR: 11230, shares: 16, currency: 'EUR', pl: 5126, note: 'Sold Aug 2021.' },
-        { ticker: 'SAP', label: 'SAP SE', costEUR: 2804, proceedsEUR: 3650, shares: 27, currency: 'EUR', pl: 846, note: 'Sold Jul 2023.' },
-        { ticker: 'EUCAR', label: 'Europcar', costEUR: 7422, proceedsEUR: 9489, shares: 19300, currency: 'EUR', pl: 2067, note: 'Sold Jun-Aug 2021.' },
-        { ticker: 'SPOT', label: 'Spotify', costEUR: 500, proceedsEUR: 1214, shares: 2, currency: 'EUR', pl: 714, note: 'Sold Feb 2025 @ €606.89.' },
-        { ticker: 'DIS', label: 'Walt Disney', costEUR: 5614, proceedsEUR: 5379, shares: 35, currency: 'EUR', pl: -235, note: '30 sold Sep 2021, 5 sold Feb 2025.' },
-        { ticker: 'INFY', label: 'Infosys ADR', costEUR: 4433, proceedsEUR: 4708, shares: 300, currency: 'EUR', pl: 182, note: 'Sold Apr 2025.' },
-        { ticker: 'MISC', label: 'Autres (FedEx, IBM, Fitbit, Juve...)', costEUR: 0, proceedsEUR: 1000, shares: 0, currency: 'EUR', pl: 1000, note: 'Net ~€1000 sur positions mineures.' },
-      ],
       totalRealizedPL: 51079,  // EUR total P/L Degiro
+      // Degiro trades migrated to unified trades[] below
     },
+
+    // ════════════════════════════════════════════════════════════
+    // HISTORIQUE UNIFIÉ DE TOUS LES TRADES — toutes plateformes
+    // ════════════════════════════════════════════════════════════
+    // Format: { date, ticker, label, type, qty, price, currency, cost|proceeds,
+    //           realizedPL, commission, costBasis, source, note }
+    // source: 'ibkr' | 'degiro' | 'espp'
+    // Champs manquants = données non disponibles (trades historiques Degiro)
+    allTrades: [
+      // ═══════════════════════════════════════════════════
+      //  DEGIRO — positions fermées (compte clôturé avr 2025)
+      //  Dates approximatives — seuls cost/proceeds/PL connus
+      // ═══════════════════════════════════════════════════
+      { date: '2025-04-14', ticker: 'NVDA',  label: 'NVIDIA (540 post-split)',  type: 'sell', qty: 540,   price: '',    currency: 'EUR', cost: 8067,   proceeds: 48264, realizedPL: 40197, commission: '', costBasis: '', source: 'degiro', note: 'Liquidation Degiro — 540 actions post-split 10:1' },
+      { date: '2023-07-15', ticker: 'NVDA',  label: 'NVIDIA (pre-split)',       type: 'sell', qty: 4,     price: '',    currency: 'EUR', cost: 539,    proceeds: 1721,  realizedPL: 1182,  commission: '', costBasis: '', source: 'degiro', note: '4 pre-10:1 split @ ~$473' },
+      { date: '2021-08-15', ticker: 'MC',    label: 'LVMH',                     type: 'sell', qty: 16,    price: '',    currency: 'EUR', cost: 6104,   proceeds: 11230, realizedPL: 5126,  commission: '', costBasis: '', source: 'degiro', note: 'Vendu août 2021' },
+      { date: '2023-07-15', ticker: 'SAP',   label: 'SAP SE',                   type: 'sell', qty: 27,    price: '',    currency: 'EUR', cost: 2804,   proceeds: 3650,  realizedPL: 846,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu juil 2023' },
+      { date: '2021-08-01', ticker: 'EUCAR', label: 'Europcar',                 type: 'sell', qty: 19300, price: '',    currency: 'EUR', cost: 7422,   proceeds: 9489,  realizedPL: 2067,  commission: '', costBasis: '', source: 'degiro', note: 'Vendu jun-août 2021' },
+      { date: '2025-02-15', ticker: 'SPOT',  label: 'Spotify',                  type: 'sell', qty: 2,     price: 606.89, currency: 'EUR', cost: 500,   proceeds: 1214,  realizedPL: 714,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu fév 2025 @ 606.89€' },
+      { date: '2025-02-15', ticker: 'DIS',   label: 'Walt Disney',              type: 'sell', qty: 35,    price: '',    currency: 'EUR', cost: 5614,   proceeds: 5379,  realizedPL: -235,  commission: '', costBasis: '', source: 'degiro', note: '30 vendu sep 2021, 5 vendu fév 2025' },
+      { date: '2025-04-14', ticker: 'INFY',  label: 'Infosys ADR',              type: 'sell', qty: 300,   price: '',    currency: 'EUR', cost: 4433,   proceeds: 4708,  realizedPL: 182,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu avr 2025 (liquidation)' },
+      { date: '2025-04-14', ticker: 'MISC',  label: 'Autres (FedEx, IBM, Fitbit, Juve...)', type: 'sell', qty: 0, price: '', currency: 'EUR', cost: 0, proceeds: 1000, realizedPL: 1000, commission: '', costBasis: '', source: 'degiro', note: 'Net ~1000€ positions mineures' },
+    ],
 
     // ──────────────────────────────────────────────────────
     // PASSIF — dettes / obligations
