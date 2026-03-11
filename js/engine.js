@@ -204,11 +204,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     addDeposit(d.date, d.label || 'Dépôt IBKR', 'Amine', 'IBKR', d.amount, d.currency, d.fxRateAtDate || 1);
   });
 
-  // 2. ESPP lots (Amine) — each lot is a "deposit" (employee investment in USD)
+  // 2. ESPP lots (Amine) — contribution from French salary in EUR
+  // The ESPP buys ACN in USD, but the employee contributes from EUR salary
+  // So the deposit is recorded in EUR (what was actually deducted from pay)
   (espp.lots || []).forEach(lot => {
     const costUSD = lot.shares * lot.costBasis;
+    const fxRate = lot.fxRateAtDate || 1.15; // EUR/USD at purchase date
+    const costEUR = costUSD / fxRate;
     addDeposit(lot.date, 'ESPP ' + lot.shares + ' ACN @ $' + lot.costBasis.toFixed(0), 'Amine', 'ESPP (UBS)',
-      costUSD, 'USD', lot.fxRateAtDate || 1.15);
+      Math.round(costEUR), 'EUR', 1);
   });
 
   // 3. SGTM IPO — Amine + Nezha
