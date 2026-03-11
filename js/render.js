@@ -2603,14 +2603,73 @@ function renderAptView(state, loanKey) {
           + '</div>';
       }
 
-      // JEANBRUN constraints
-      html += '<div style="margin-top:12px;padding:10px;background:#fffaf0;border-radius:8px;font-size:12px;color:#744210;">'
-        + '<strong>Contraintes JEANBRUN :</strong> Loyer plafonné à ' + VILLEJUIF_REGIMES.jeanbrun.plafondLoyer.loyerMaxMensuel + '€/mois (vs ' + VILLEJUIF_REGIMES.base.loyerMeubleHC + '€ marché meublé). '
-        + 'Location nue uniquement. Engagement ' + VILLEJUIF_REGIMES.jeanbrun.dureeEngagement.join('/') + ' ans. Plafond ressources locataire.'
-        + '</div>';
-
       html += '</div>';
     }
+
+    // ── JEANBRUN Constraints & Loyer Plafonné — Detailed section ──
+    const jb = VILLEJUIF_REGIMES.jeanbrun;
+    const vBase = VILLEJUIF_REGIMES.base;
+    const plafond = jb.plafondLoyer;
+    const surface = vBase.surface;
+    const loyerMarche = vBase.loyerNuHC;
+    const loyerMeuble = vBase.loyerMeubleHC;
+    const manqueAGagner = loyerMarche - plafond.loyerMaxMensuel;
+
+    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes JEANBRUN — Loyer Plafonné & Obligations</h3>';
+
+    // Loyer plafonné calculation
+    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #dd6b20;">';
+    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Calcul du Loyer Plafonné</div>';
+    html += '<div style="font-size:12px;color:#4a5568;line-height:1.6;">';
+    html += 'Zone A (Villejuif) — Plafond 2025 : <strong>' + plafond.zoneA + ' €/m²/mois</strong><br>';
+    html += 'Surface habitable : <strong>' + surface + ' m²</strong><br>';
+    html += 'Loyer max = ' + surface + ' × ' + plafond.zoneA + ' = <strong style="color:#c05621;">' + plafond.loyerMaxMensuel + ' €/mois</strong><br>';
+    html += 'Loyer marché (nu) : <strong>' + loyerMarche + ' €/mois</strong> — Manque à gagner : <strong style="color:#c53030;">' + manqueAGagner + ' €/mois</strong> (' + (manqueAGagner * 12).toLocaleString('fr-FR') + ' €/an)';
+    html += '</div></div>';
+
+    // Réduction d'impôt calculation
+    const ri = jb.reductionImpot;
+    const prixRetenu = Math.min(vBase.totalOperation, ri.plafondPrix, ri.plafondM2 * surface);
+    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #38a169;">';
+    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Réduction d\'Impôt JEANBRUN</div>';
+    html += '<div style="font-size:12px;color:#4a5568;line-height:1.6;">';
+    html += 'Prix d\'achat : ' + vBase.totalOperation.toLocaleString('fr-FR') + ' € — Plafond prix : ' + ri.plafondPrix.toLocaleString('fr-FR') + ' € — Plafond m² : ' + ri.plafondM2.toLocaleString('fr-FR') + ' €/m²<br>';
+    html += 'Assiette retenue : <strong>' + prixRetenu.toLocaleString('fr-FR') + ' €</strong> (min des 3 plafonds)<br>';
+    html += '<div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap;">';
+    jb.dureeEngagement.forEach(d => {
+      const taux = d === 6 ? ri.taux6ans : d === 9 ? ri.taux9ans : ri.taux12ans;
+      const reduction = Math.round(prixRetenu * taux);
+      const annuel = Math.round(reduction / d);
+      html += '<div style="flex:1;min-width:130px;padding:8px;background:#f0fff4;border-radius:6px;text-align:center;">';
+      html += '<div style="font-weight:700;font-size:14px;color:#276749;">' + reduction.toLocaleString('fr-FR') + ' €</div>';
+      html += '<div style="font-size:11px;color:#718096;">' + d + ' ans (' + (taux * 100) + '%) → ' + annuel.toLocaleString('fr-FR') + '€/an</div>';
+      html += '</div>';
+    });
+    html += '</div></div></div>';
+
+    // Conditions list
+    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #3182ce;">';
+    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Conditions d\'éligibilité</div>';
+    html += '<ul style="margin:0;padding-left:16px;font-size:12px;color:#4a5568;line-height:1.8;">';
+    jb.conditions.forEach(c => { html += '<li>' + c + '</li>'; });
+    html += '</ul></div>';
+
+    // Avantages / Inconvénients
+    html += '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+    html += '<div style="flex:1;min-width:200px;background:#f0fff4;border-radius:8px;padding:12px;">';
+    html += '<div style="font-weight:700;font-size:12px;color:#276749;margin-bottom:6px;">Avantages</div>';
+    html += '<ul style="margin:0;padding-left:14px;font-size:11px;color:#4a5568;line-height:1.7;">';
+    jb.avantages.forEach(a => { html += '<li>' + a + '</li>'; });
+    html += '</ul></div>';
+    html += '<div style="flex:1;min-width:200px;background:#fff5f5;border-radius:8px;padding:12px;">';
+    html += '<div style="font-weight:700;font-size:12px;color:#c53030;margin-bottom:6px;">Inconvénients</div>';
+    html += '<ul style="margin:0;padding-left:14px;font-size:11px;color:#4a5568;line-height:1.7;">';
+    jb.inconvenients.forEach(i => { html += '<li>' + i + '</li>'; });
+    html += '</ul></div>';
+    html += '</div>';
+
+    html += '</div>';
   }
 
   // ── Section 5: Exit projection chart + table ──
