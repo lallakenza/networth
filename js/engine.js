@@ -1490,11 +1490,28 @@ function computeImmoView(portfolio, fx) {
     console.warn('Villejuif regime comparison failed:', e);
   }
 
-  // ── Wealth creation projection (20 years, month by month) ──
-  const projectionMonths = 20 * 12;
+  // ── Wealth creation projection (through end of 2046) ──
   const projNow = new Date();
   const projStartY = projNow.getFullYear();
   const projStartM = projNow.getMonth(); // 0-based
+  // Calculate months to reach Dec 2046 (inclusive)
+  const projEndY = projStartY + 20; // 2046
+  const projectionMonths = (projEndY - projStartY) * 12 + (12 - projStartM); // through Dec 2046
+
+  // Pre-compute per-property charge breakdown for projection:
+  // - Fixed charges: prêt + assurance (stop when loan ends)
+  // - Variable charges: TF + copro + PNO (grow with inflation)
+  const chargesInflation = 0.02; // 2%/an inflation on TF, copro, PNO
+  const irlRate = 0.015;         // 1.5%/an IRL indexation on rent
+
+  const propChargeBreakdown = {};
+  properties.forEach(prop => {
+    const cd = prop.chargesDetail || IC.charges[prop.loanKey] || {};
+    propChargeBreakdown[prop.loanKey] = {
+      fixedMonthly: (cd.pret || 0) + (cd.assurance || 0),  // stops when loan ends
+      variableMonthly: (cd.pno || 0) + (cd.tf || 0) + (cd.copro || 0),  // grows with inflation
+    };
+  });
 
   // For each property: extract month-by-month capital repayment from amort schedule
   // and compute appreciation + CF for each future month
@@ -1514,36 +1531,41 @@ function computeImmoView(portfolio, fx) {
       const appreciationRate = propMeta.appreciation || 0;
 
       // Is this property operational at month m?
-      // Villejuif: operational after delivery (~month 40 from now = villejuifStartMonth)
       const isVillejuif = lk === 'villejuif';
       const vilStartMonth = IC.villejuifStartMonth || 40;
       const isOperationalAtM = isVillejuif ? (m >= vilStartMonth) : !prop.conditional;
 
       // Capital from amort schedule (look up the schedule row for this date)
       let capitalM = 0;
+      let loanActive = false;
       if (amort && amort.schedule) {
         const row = amort.schedule.find(r => r.date === dateStr);
-        if (row) capitalM = row.principal;
+        if (row) {
+          capitalM = row.principal;
+          loanActive = true; // still within loan period
+        }
       }
-      // For Villejuif pre-delivery: franchise period has 0 principal, which is correct
-      // But if loanDisbursed = false and we're in early months, capital = 0 anyway
 
-      // Appreciation: compound — value grows each year
-      // Simplified: use current value * appreciation / 12 (constant)
-      // More accurate: compound appreciation year by year
+      // Appreciation: compound year by year
       const yearsFromNow = m / 12;
       const compoundedValue = prop.value * Math.pow(1 + appreciationRate, yearsFromNow);
       const appreciationM = compoundedValue * appreciationRate / 12;
 
-      // Cash flow: when operational, with IRL rent growth (1.5%/an)
-      const irlRate = 0.015; // IRL indexation annuelle
+      // Cash flow: when operational, with IRL rent growth + charge inflation + loan end detection
       let cfM = 0;
       if (isOperationalAtM) {
-        // Revenue grows with IRL, charges (pret) stay fixed
         const yearsOperational = isVillejuif ? (m - vilStartMonth) / 12 : yearsFromNow;
+
+        // Revenue grows with IRL
         const revenueGrowthFactor = Math.pow(1 + irlRate, Math.max(0, yearsOperational));
         const grownRevenue = prop.totalRevenue * revenueGrowthFactor;
-        cfM = grownRevenue - prop.charges;
+
+        // Charges: fixed (prêt) only if loan still active, variable grow with inflation
+        const cbd = propChargeBreakdown[lk];
+        const fixedCharges = loanActive ? cbd.fixedMonthly : 0; // prêt+assurance stop when loan ends
+        const variableCharges = cbd.variableMonthly * Math.pow(1 + chargesInflation, yearsFromNow);
+
+        cfM = grownRevenue - fixedCharges - variableCharges;
       }
 
       // For conditional but not yet operational: only appreciation counts

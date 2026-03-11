@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=79';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=79';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=79';
+import { fmt, fmtAxis } from './render.js?v=80';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=80';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=80';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1241,7 +1241,7 @@ export function buildWealthProjectionChart(state, mode) {
     byYear[y].count++;
   });
   const years = Object.keys(byYear).sort();
-  // Exclude last year if partial (< 12 months)
+  // Exclude last year if partial (< 12 months) — keeps all full years including 2046
   if (years.length > 0 && byYear[years[years.length - 1]].count < 12) {
     years.pop();
   }
@@ -1326,7 +1326,7 @@ export function buildWealthProjectionChart(state, mode) {
         },
         title: {
           display: true,
-          text: isAnnual ? 'Cr\u00e9ation de richesse par an (projection 20 ans)' : 'Cr\u00e9ation de richesse moyenne par mois (projection 20 ans)',
+          text: isAnnual ? 'Création de richesse par an (2026–2046)' : 'Création de richesse moyenne par mois (2026–2046)',
           font: { size: 14, weight: '600' },
           padding: { bottom: 12 },
         },
