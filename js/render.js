@@ -949,12 +949,15 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = pos._live === false;
-    if (isStatic) hasStatic = true;
+    const noAPI = pos.ticker === 'SGTM'; // SGTM has no Yahoo Finance API — static is expected
+    if (isStatic && !noAPI) hasStatic = true;
     const liveBadge = isStatic
-      ? ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible">STATIC</span>'
+      ? (noAPI
+        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Pas d\'API disponible — prix mis à jour manuellement">STATIC</span>'
+        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible, vérifier les proxies">STATIC</span>')
       : ' <span style="display:inline-block;background:#c6f6d5;color:#276749;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours en temps réel">LIVE</span>';
     const tr = document.createElement('tr');
-    if (isStatic) tr.style.color = '#718096';
+    if (isStatic && !noAPI) tr.style.color = '#718096';
     tr.innerHTML = '<td>' + pos.label + '</td>'
       + '<td>' + (pos.broker || '') + '</td>'
       + '<td class="num">' + pos.shares + '</td>'
