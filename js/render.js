@@ -250,7 +250,7 @@ function renderExpandSubs(state, view) {
   const s = state;
   // Sub expand card values
   setEur('subIBKR', s.amine.ibkr);
-  setEur('subESPP', s.amine.espp);
+  setEur('subESPP', s.amine.espp + s.nezha.espp);
   setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
   setEur('subUAE', s.amine.uae + s.amine.revolutEUR);
   setEur('subMarocCash', s.amine.moroccoCash);
@@ -316,7 +316,7 @@ function renderExpandSubs(state, view) {
 
   // ESPP detail label
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
-  setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel);
+  setHTML('subESPPDetail', (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine ' + p.amine.espp.shares + ' + Nezha ' + (p.nezha.espp ? p.nezha.espp.shares : 0) + ')');
   setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
 
   // SGTM performance badge (vs IPO cost basis)
@@ -699,7 +699,7 @@ function renderCoupleTable(state) {
   const s = state;
   const p = state.portfolio;
   const rows = [
-    ['Actions & ETFs (IBKR + ' + p.amine.espp.shares + ' ACN + ' + (p.amine.sgtm.shares * 2) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm],
+    ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm],
     ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
@@ -740,8 +740,10 @@ function renderNezhaTable(state) {
   const s = state;
   const p = state.portfolio;
   const sgtmLabel = p.nezha.sgtm.shares + ' actions SGTM @ ' + p.market.sgtmPriceMAD + ' DH';
+  const esppLabel = (p.nezha.espp ? p.nezha.espp.shares : 0) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0);
   const rows = [
     ['Equity Rueil-Malmaison', s.nezha.rueilEquity],
+    ['ESPP Accenture (' + esppLabel + ')', s.nezha.espp],
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
@@ -750,6 +752,7 @@ function renderNezhaTable(state) {
     ['Wio UAE (' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.nezha.cashUAE],
     ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
+    ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
   const tbody = document.querySelector('#nezhaDetailTable tbody');
   if (!tbody) return;
@@ -1071,10 +1074,10 @@ function renderActionsView(state) {
     weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
   }));
 
-  // ESPP Accenture
+  // ESPP Accenture (Amine)
   const esppPL = av.esppUnrealizedPL;
   allPositions.push({
-    label: 'Accenture (ACN)',
+    label: 'ACN Amine (' + av.esppShares + ')',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
     shares: av.esppShares,
@@ -1089,6 +1092,27 @@ function renderActionsView(state) {
     geo: 'us',
     _live: av._acnLive,
   });
+
+  // Nezha ESPP Accenture
+  if (av.nezhaEsppShares > 0) {
+    const nezhaEsppPL = av.nezhaEsppUnrealizedPL;
+    allPositions.push({
+      label: 'ACN Nezha (' + av.nezhaEsppShares + ')',
+      broker: 'UBS (ESPP)',
+      ticker: 'ACN',
+      shares: av.nezhaEsppShares,
+      price: av.esppPrice,
+      priceLabel: '$' + av.esppPrice.toFixed(2),
+      costEUR: av.nezhaEsppCostBasisEUR,
+      valEUR: av.nezhaEsppCurrentVal,
+      unrealizedPL: nezhaEsppPL,
+      pctPL: av.nezhaEsppCostBasisEUR > 0 ? (nezhaEsppPL / av.nezhaEsppCostBasisEUR * 100) : 0,
+      weight: totalAllVal > 0 ? (av.nezhaEsppCurrentVal / totalAllVal * 100) : 0,
+      sector: 'tech',
+      geo: 'us',
+      _live: av._acnLive,
+    });
+  }
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
 
@@ -3618,7 +3642,7 @@ function attachKPIInsights(state, view) {
 
   // ── Couple view ──
   const immoEq = s.couple.immoEquity;
-  const stocksTotal = s.amine.ibkr + s.amine.espp + s.amine.sgtm + s.nezha.sgtm;
+  const stocksTotal = s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm;
   const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cash;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Contexte : conflit Iran, or +21% YTD, BTC -25% YTD.';
   insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';

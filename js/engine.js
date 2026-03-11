@@ -131,7 +131,7 @@ function computeIBKRPositions(portfolio, fx) {
 /**
  * Compute actions view data (stocks cockpit)
  */
-function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp) {
+function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp) {
   const ibkr = portfolio.amine.ibkr;
   const espp = portfolio.amine.espp;
   const m = portfolio.market;
@@ -153,8 +153,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const esppCurrentVal = toEUR(espp.shares * m.acnPriceUSD, 'USD', fx);
   const esppUnrealizedPL = esppCurrentVal - esppCostBasisEUR;
 
-  // Total all stocks (IBKR + ESPP + SGTM)
-  const totalStocks = ibkrNAV + amineEspp + amineSgtm + nezhaSgtm;
+  // Nezha ESPP
+  const nezhaEsppData = portfolio.nezha.espp || {};
+  const nezhaEsppShares = nezhaEsppData.shares || 0;
+  const nezhaEsppCurrentVal = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
+  const nezhaEsppCostBasisEUR = toEUR(nezhaEsppData.totalCostBasisUSD || 0, 'USD', fx);
+  const nezhaEsppUnrealizedPL = nezhaEsppCurrentVal - nezhaEsppCostBasisEUR;
+
+  // Total all stocks (IBKR + ESPP Amine + ESPP Nezha + SGTM)
+  const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
 
   // Geo allocation from IBKR positions
   const geoAllocation = {};
@@ -162,7 +169,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const geo = p.geo || 'other';
     geoAllocation[geo] = (geoAllocation[geo] || 0) + p.valEUR;
   });
-  geoAllocation.us = (geoAllocation.us || 0) + amineEspp;
+  geoAllocation.us = (geoAllocation.us || 0) + amineEspp + nezhaEspp;
   geoAllocation.morocco = (geoAllocation.morocco || 0) + amineSgtm + nezhaSgtm;
 
   // Sector allocation from IBKR positions
@@ -215,6 +222,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       Math.round(costEUR), 'EUR', 1);
   });
 
+  // 2b. ESPP Nezha — same logic (French salary → EUR)
+  (nezhaEsppData.lots || []).forEach(lot => {
+    const costUSD = lot.shares * lot.costBasis;
+    const fxRate = lot.fxRateAtDate || 1.10; // EUR/USD at purchase date (2023-2025)
+    const costEUR = costUSD / fxRate;
+    addDeposit(lot.date, 'ESPP ' + lot.shares + ' ACN @ $' + lot.costBasis.toFixed(0), 'Nezha', 'ESPP (UBS)',
+      Math.round(costEUR), 'EUR', 1);
+  });
+
   // 3. SGTM IPO — Amine + Nezha
   const sgtmCost = portfolio.market.sgtmCostBasisMAD || 420;
   [{ owner: 'Amine', shares: portfolio.amine.sgtm?.shares || 0 },
@@ -228,25 +244,26 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   depositHistory.sort((a, b) => a.date.localeCompare(b.date));
 
   const ibkrDepositsTotal = depositHistory.filter(d => d.platform === 'IBKR').reduce((s, d) => s + d.amountEUR, 0);
-  const esppDeposits = esppCostBasisEUR;
+  const esppDeposits = esppCostBasisEUR + nezhaEsppCostBasisEUR;
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
   const totalDeposits = ibkrDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
   // Cross-platform combined unrealized P/L
-  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL;
+  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL;
 
   // Cross-platform total current value (excl SGTM which is not a brokerage)
-  const totalCurrentValue = ibkrNAV + amineEspp;
+  const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp;
 
   // Pre-compute YTD P&L for benchmark comparison
   // IBKR only
   const ibkrYtdPL = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0);
   const ibkrStartOfYear = totalPositionsVal - ibkrYtdPL;
   const ibkrYtdPct = ibkrStartOfYear > 0 ? (ibkrYtdPL / ibkrStartOfYear * 100) : 0;
-  // Total portfolio (IBKR + ESPP + SGTM)
+  // Total portfolio (IBKR + ESPP Amine + ESPP Nezha + SGTM)
   const _acnYtdOpen = m.acnYtdOpen || 0;
   const _esppYtdPL = _acnYtdOpen > 0 ? esppCurrentVal - (espp.shares * _acnYtdOpen / (fx.USD || 1)) : 0;
-  const totalYtdPL = ibkrYtdPL + _esppYtdPL; // SGTM has no YTD ref price
+  const _nezhaEsppYtdPL = (_acnYtdOpen > 0 && nezhaEsppShares > 0) ? nezhaEsppCurrentVal - (nezhaEsppShares * _acnYtdOpen / (fx.USD || 1)) : 0;
+  const totalYtdPL = ibkrYtdPL + _esppYtdPL + _nezhaEsppYtdPL; // SGTM has no YTD ref price
   const totalStartOfYear = totalStocks - totalYtdPL;
   const totalYtdPct = totalStartOfYear > 0 ? (totalYtdPL / totalStartOfYear * 100) : 0;
 
@@ -464,6 +481,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     esppPrice: m.acnPriceUSD,
     esppCostBasisUSD, esppCostBasisEUR, esppCurrentVal, esppUnrealizedPL,
     esppCashEUR: espp.cashEUR,
+    // Nezha ESPP
+    nezhaEsppVal: nezhaEsppCurrentVal,
+    nezhaEsppShares: nezhaEsppShares,
+    nezhaEsppCostBasisEUR: nezhaEsppCostBasisEUR,
+    nezhaEsppCurrentVal: nezhaEsppCurrentVal,
+    nezhaEsppUnrealizedPL: nezhaEsppUnrealizedPL,
     // SGTM
     sgtmAmineVal: amineSgtm,
     sgtmNezhaVal: nezhaSgtm,
@@ -506,10 +529,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     periodPL: (() => {
       function sumField(field) { return ibkrPositions.reduce((s, p) => s + (p[field] || 0), 0); }
       function hasField(field) { return ibkrPositions.some(p => p[field] !== null && p[field] !== undefined); }
-      // ESPP period P&L
+      // ESPP period P&L (Amine + Nezha)
       function esppPeriod(refPrice) {
         if (!refPrice || refPrice <= 0) return 0;
         return esppCurrentVal - (espp.shares * refPrice / (fx.USD || 1));
+      }
+      function nezhaEsppPeriod(refPrice) {
+        if (!refPrice || refPrice <= 0 || nezhaEsppShares <= 0) return 0;
+        return nezhaEsppCurrentVal - (nezhaEsppShares * refPrice / (fx.USD || 1));
       }
       // Per-position breakdown for a given field
       function breakdown(field, esppRefPrice) {
@@ -518,7 +545,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
           if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
         });
         const esppPL = esppPeriod(esppRefPrice);
-        if (esppPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal });
+        if (esppPL !== 0) items.push({ label: 'ACN Amine', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal });
+        const nezhaEsppPL = nezhaEsppPeriod(esppRefPrice);
+        if (nezhaEsppPL !== 0) items.push({ label: 'ACN Nezha', ticker: 'ACN', pl: nezhaEsppPL, valEUR: nezhaEsppCurrentVal });
         items.sort((a, b) => a.pl - b.pl); // worst first
         return items;
       }
@@ -528,10 +557,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
       return {
-        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
-        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
-        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
-        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
+        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
+        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
+        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
+        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
       };
     })(),
   };
@@ -2228,11 +2257,20 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaCashMarocEUR = toEUR(nc.attijariwafarMAD, 'MAD', fx);
   const nezhaCashUAE_EUR = toEUR(nc.wioAED, 'AED', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
+  // Nezha ESPP (Accenture via UBS)
+  const nezhaEsppData = p.nezha.espp || {};
+  const nezhaEsppShares = nezhaEsppData.shares || 0;
+  const nezhaEspp = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
+  const nezhaEsppCostBasisUSD = nezhaEsppData.totalCostBasisUSD || 0;
+  const nezhaEsppCostBasisEUR = toEUR(nezhaEsppCostBasisUSD, 'USD', fx);
+  const nezhaEsppUnrealizedPL = nezhaEspp - nezhaEsppCostBasisEUR;
+  // Caution Rueil — dette envers locataire
+  const nezhaCautionRueil = p.nezha.cautionRueil || 0;
   const nezhaRecvOmar = p.nezha.creances && p.nezha.creances.items
     ? toEUR(p.nezha.creances.items[0].amount, p.nezha.creances.items[0].currency, fx)
     : 0;
   const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR;
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaRecvOmar + nezhaVillejuifReservation;
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
 
   const nezha = {
     nw: nezhaNW,
@@ -2259,6 +2297,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     livretA: nc.lclLivretA,
     lclDepots: nc.lclCompteDepots,
     sgtm: nezhaSgtm,
+    espp: nezhaEspp,
+    esppShares: nezhaEsppShares,
+    esppCostBasisEUR: nezhaEsppCostBasisEUR,
+    esppUnrealizedPL: nezhaEsppUnrealizedPL,
+    cautionRueil: nezhaCautionRueil,
     recvOmar: nezhaRecvOmar,
     recvOmarMAD: p.nezha.creances && p.nezha.creances.items ? p.nezha.creances.items[0].amount : 40000,
     cash: nezhaCash,
@@ -2310,7 +2353,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         const nonCrypto = p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto');
         const ibkrNonCryptoVal = nonCrypto.reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
         const ibkrCash = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
-        return ibkrNonCryptoVal + ibkrCash + amineEspp + amineSgtm + nezhaSgtm;
+        return ibkrNonCryptoVal + ibkrCash + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
       })(),
       sub: [
         ...p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
@@ -2321,7 +2364,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR', ticker: pos.ticker };
         }),
         { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af', owner: 'Amine — IBKR' },
-        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1', owner: 'Amine — ESPP' },
+        { label: 'ESPP Amine (ACN)', val: amineEspp, color: '#6366f1', owner: 'Amine — ESPP' },
+        { label: 'ESPP Nezha (ACN)', val: nezhaEspp, color: '#a78bfa', owner: 'Nezha — ESPP' },
         { label: 'SGTM Amine', val: amineSgtm, color: '#4f46e5', owner: 'Amine — Maroc' },
         { label: 'SGTM Nezha', val: nezhaSgtm, color: '#818cf8', owner: 'Nezha — Maroc' },
       ].filter(s => s.val > 100)
@@ -2388,7 +2432,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     couple: {
       title: 'Dashboard Patrimonial',
       subtitle: 'Amine (33 ans) & Nezha (34 ans) Koraibi \u2014 Vue consolidee',
-      stocks:    { val: amineIbkr + amineEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP + SGTM x2' },
+      stocks:    { val: amineIbkr + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
       cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
@@ -2408,7 +2452,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nezha: {
       title: 'Dashboard \u2014 Nezha Kabbaj',
       subtitle: 'Nezha Kabbaj, 34 ans \u2014 Immobilier',
-      stocks:    { val: nezhaSgtm, sub: 'SGTM (32 actions)' },
+      stocks:    { val: nezhaSgtm + nezhaEspp, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
       other:     { val: nezhaRecvOmar + nezhaVillejuifReservation, sub: villejuifSigned ? 'Creance Omar (40K MAD)' : 'Creances + Reservation Villejuif', title: 'Creances' },
@@ -2515,8 +2559,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Actions', color: '#2b6cb0',
-      total: nezhaSgtm,
-      sub: [{ label: 'SGTM', val: nezhaSgtm, color: '#818cf8', owner: 'Maroc' }]
+      total: nezhaSgtm + nezhaEspp,
+      sub: [
+        ...(nezhaEspp > 100 ? [{ label: 'ESPP Accenture', val: nezhaEspp, color: '#6366f1', owner: 'UBS' }] : []),
+        { label: 'SGTM', val: nezhaSgtm, color: '#818cf8', owner: 'Maroc' },
+      ]
     },
     {
       label: 'Creances', color: '#ec4899',
@@ -2551,7 +2598,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   });
   // Add ESPP to US
   if (!geoGroups['us']) geoGroups['us'] = [];
-  geoGroups['us'].push({ label: 'ESPP Accenture', val: amineEspp, color: '#10b981', owner: 'ESPP' });
+  geoGroups['us'].push({ label: 'ESPP Amine (ACN)', val: amineEspp, color: '#10b981', owner: 'ESPP' });
+  geoGroups['us'].push({ label: 'ESPP Nezha (ACN)', val: nezhaEspp, color: '#34d399', owner: 'ESPP' });
   // Add SGTM to Morocco
   if (!geoGroups['morocco']) geoGroups['morocco'] = [];
   geoGroups['morocco'].push({ label: 'SGTM Amine', val: amineSgtm, color: '#ca8a04', owner: 'Maroc' });
@@ -2575,7 +2623,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const ibkrPositions = computeIBKRPositions(p, fx);
 
   // ---- NEW ASSET-TYPE VIEWS ----
-  const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp);
+  const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp);
   const cashView = computeCashView(p, fx);
   // immoView already computed at top of function (needed for CRDs in NW calculations)
   const creancesView = computeCreancesView(p, fx);
