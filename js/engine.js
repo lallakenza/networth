@@ -1277,6 +1277,17 @@ function computeImmoView(portfolio, fx) {
         insuranceMonthly: l.insurance || 0 }];
     }
 
+    // ── Exit costs at current date ──
+    const purchasePrice = meta.purchasePrice || meta.totalOperation || propData.value;
+    const purchaseDateStr = meta.purchaseDate || '2023-01';
+    const [py, pm] = purchaseDateStr.split('-').map(Number);
+    const now = new Date();
+    const holdingYears = (now.getFullYear() - py) + (now.getMonth() + 1 - pm) / 12;
+    // Estimate total amortissements (LMNP réel)
+    const fiscType = IC.fiscalite && IC.fiscalite[loanKey] ? IC.fiscalite[loanKey].type : 'nu';
+    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdingYears)) : 0;
+    const exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort);
+
     return {
       name, owner, conditional: conditional || false,
       value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
@@ -1300,21 +1311,8 @@ function computeImmoView(portfolio, fx) {
       loanInterestAnnuel,
       deductibleChargesAnnuel: deductibleCharges * 12,
       loyerDeclareAnnuel,
+      exitCosts,
     };
-
-    // ── Exit costs at current date ──
-    const purchasePrice = meta.purchasePrice || meta.totalOperation || propData.value;
-    const purchaseDateStr = meta.purchaseDate || '2023-01';
-    const [py, pm] = purchaseDateStr.split('-').map(Number);
-    const now = new Date();
-    const holdingYears = (now.getFullYear() - py) + (now.getMonth() + 1 - pm) / 12;
-    // Estimate total amortissements (LMNP réel)
-    const fiscType = IC.fiscalite && IC.fiscalite[loanKey] ? IC.fiscalite[loanKey].type : 'nu';
-    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdingYears)) : 0;
-
-    result.exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort);
-
-    return result;
   }
 
   properties.push(buildProperty('Vitry-sur-Seine', 'Amine', portfolio.amine.immo.vitry, IC.charges.vitry, 'vitry'));
