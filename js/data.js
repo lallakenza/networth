@@ -215,7 +215,7 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 300000, crd: 268903, loyerHC: 1050, loyerDeclare: 500, chargesLocataire: 150, parking: 70 },
+      vitry: { value: 300000, crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 0, loyerTotalCC: 1200, loyerDeclareCC: 600 },
       // value: 300K = 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
       // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
       // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
@@ -606,7 +606,7 @@ export const IMMO_CONSTANTS = {
         { start: 2033, end: 2040, rate: 0.020, note: 'Effet GPE digéré, croissance IDF standard' },
       ],
       type: 'T3 — Location nue',
-      loyerObjectif: 1400,      // loyer cible (dont partie cash — voir fiscalite.vitry)
+      loyerObjectif: 1200,      // loyer total CC réel perçu (dont partie cash — voir fiscalite.vitry)
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
       ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2025 },
     },
@@ -707,6 +707,13 @@ export const EXIT_COSTS = {
   // Frais de mainlevée hypothécaire si prêt en cours
   mainleveeFixe: 500,    // Frais fixes huissier/notaire
   mainleveePct: 0.003,   // ~0.3% du capital initial emprunté
+
+  // Indemnités de remboursement anticipé (IRA)
+  // Plafond légal : min(6 mois d'intérêts, 3% du CRD)
+  // PTZ et Action Logement : 0€ d'IRA (remboursement anticipé sans pénalité)
+  iraMonthsInterest: 6,  // 6 mois d'intérêts restants
+  iraPctCRD: 0.03,       // 3% du CRD
+  iraExemptTypes: ['ptz', 'action-logement'],  // pas d'IRA sur ces prêts
 
   // ── Contraintes spécifiques par dispositif ──
   vitry: {
