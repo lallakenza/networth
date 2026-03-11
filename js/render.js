@@ -809,8 +809,8 @@ function renderImmoKPIs(state) {
   setEur('kpiImmoCRD', state.couple.immoCRD);
   // Dynamic label with nb biens
   const nb = state.couple.nbBiens || 3;
-  setText('kpiCoupleImmoLabel', 'Equity Immo (' + nb + ' biens) *');
-  setText('kpiImmoEqLabel', 'Equity Totale (' + nb + ' biens)');
+  setText('kpiCoupleImmoLabel', 'Equity Nette Immo (' + nb + ' biens) *');
+  setText('kpiImmoEqLabel', 'Equity Nette (' + nb + ' biens)');
   // Wealth creation from immoView
   if (state.immoView) {
     const wc = state.immoView.totalWealthCreation;
