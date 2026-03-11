@@ -1633,7 +1633,7 @@ function computeImmoView(portfolio, fx) {
       // Per-property exit cost savings
       const prevPropEC = (exitCostsByYearProp[y - 1] || {})[lk] || 0;
       const thisPropEC = (exitCostsByYearProp[y] || {})[lk] || 0;
-      const propExitSaving = Math.max(0, prevPropEC - thisPropEC) / 12;
+      const propExitSaving = (prevPropEC - thisPropEC) / 12; // positive = savings, negative = cost increase
 
       perProp[lk] = {
         capital: Math.round(effCapital),
@@ -1651,7 +1651,7 @@ function computeImmoView(portfolio, fx) {
     // Exit cost savings: monthly share of the year-over-year reduction (total)
     const prevYearEC = exitCostsByYear[y - 1] !== undefined ? exitCostsByYear[y - 1] : exitCostsByYear[y];
     const thisYearEC = exitCostsByYear[y] !== undefined ? exitCostsByYear[y] : 0;
-    const annualExitSaving = Math.max(0, prevYearEC - thisYearEC); // only count reductions
+    const annualExitSaving = prevYearEC - thisYearEC; // positive = savings, negative = cost increase
     const monthlyExitSaving = annualExitSaving / 12;
 
     wealthProjection.push({
