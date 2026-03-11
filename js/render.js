@@ -1477,7 +1477,7 @@ function setupKPIDetailPanels(state) {
       const top3 = items.slice(0, 3);
       const top3Pct = (top3.reduce((s, i) => s + i.value, 0) / av.totalStocks * 100).toFixed(0);
       items._footer = 'Top 3 = ' + top3Pct + '% du portefeuille : ' + top3.map(i => i.label.split(' (')[0]).join(', ') + '. Diversification ' + (parseFloat(top3Pct) > 50 ? '⚠ concentrée' : '✓ correcte') + '.';
-      return renderValueBreakdown(items, 'Répartition par position', allPos.length + ' positions | Total €' + fmt(Math.round(av.totalStocks)));
+      return renderValueBreakdown(items, 'Répartition par position', allPos.length + ' positions | Total ' + fmt(Math.round(av.totalStocks)));
     },
     detailUnrealized: function() {
       const losers = allPos.filter(p => p.unrealizedPL < 0).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
@@ -1548,7 +1548,7 @@ function setupKPIDetailPanels(state) {
         color: t.pl >= 0 ? '#48bb78' : '#fc8181',
       }));
       let html = '<div class="detail-header"><h4>P/L Réalisé — Positions clôturées</h4>';
-      html += '<div class="detail-summary">' + allClosed.length + ' trades | Total ' + (av.combinedRealizedPL >= 0 ? '+' : '') + '€' + fmt(Math.round(av.combinedRealizedPL)) + '</div></div>';
+      html += '<div class="detail-summary">' + allClosed.length + ' trades | Total ' + (av.combinedRealizedPL >= 0 ? '+' : '') + fmt(Math.round(av.combinedRealizedPL)) + '</div></div>';
       html += '<div class="detail-body">';
       const maxVal = Math.max(...allClosed.map(t => Math.abs(t.pl)), 1);
       allClosed.forEach(t => {
@@ -1564,7 +1564,7 @@ function setupKPIDetailPanels(state) {
       });
       html += '</div>';
       const bestTrade = allClosed[0];
-      html += '<div class="detail-footer">🏆 Meilleur trade : ' + (bestTrade?.label || '--') + ' (+€' + fmt(Math.round(bestTrade?.pl || 0)) + ')</div>';
+      html += '<div class="detail-footer">🏆 Meilleur trade : ' + (bestTrade?.label || '--') + ' (+' + fmt(Math.round(bestTrade?.pl || 0)) + ')</div>';
       return html;
     },
     detailDeposits: function() {
@@ -1574,7 +1574,7 @@ function setupKPIDetailPanels(state) {
       const totalFxGain = deps.reduce((s, d) => s + (d.fxGainEUR || 0), 0);
       const totalInvested = deps.reduce((s, d) => s + d.amountEUR, 0);
       let html = '<div class="detail-header"><h4>Historique des dépôts</h4>';
-      html += '<div class="detail-summary">Total investi : €' + fmt(Math.round(totalInvested)) + ' | ROI : ' + (totalPL >= 0 ? '+' : '') + roi + '%</div></div>';
+      html += '<div class="detail-summary">Total investi : ' + fmt(Math.round(totalInvested)) + ' | ROI : ' + (totalPL >= 0 ? '+' : '') + roi + '%</div></div>';
       html += '<div class="detail-body" style="max-height:500px;">';
       // Column headers
       html += '<div style="display:flex;gap:8px;padding:4px 0 8px;border-bottom:2px solid #e2e8f0;font-size:9px;color:#a0aec0;text-transform:uppercase;letter-spacing:0.5px;">';
@@ -1593,7 +1593,7 @@ function setupKPIDetailPanels(state) {
           var ownerTotal = ownerDeps.reduce(function(s, d) { return s + d.amountEUR; }, 0);
           // Owner header
           html += '<div style="padding:10px 0 4px;font-weight:700;font-size:13px;color:#1a202c;border-bottom:2px solid #cbd5e0;">';
-          html += '👤 ' + owner + ' — €' + fmt(Math.round(ownerTotal)) + ' investi</div>';
+          html += '👤 ' + owner + ' — ' + fmt(Math.round(ownerTotal)) + ' investi</div>';
           // Sub-group by platform
           var platforms = [];
           ownerDeps.forEach(function(d) { if (platforms.indexOf(d.platform) === -1) platforms.push(d.platform); });
@@ -1612,19 +1612,20 @@ function setupKPIDetailPanels(state) {
             html += '<div style="display:flex;gap:8px;padding:6px 0 3px;font-weight:600;font-size:11px;color:#4a5568;border-bottom:1px solid #edf2f7;background:#f7fafc;margin:0 -20px;padding-left:20px;padding-right:20px;">';
             html += '<span style="flex:1;">' + platform + ' (' + pDeps.length + ')</span>';
             html += '<span style="min-width:85px;text-align:right;"></span>';
-            html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(pTotal)) + '</span>';
-            html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(pCurrentTotal)) + '</span>';
+            html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(pTotal)) + '</span>';
+            html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(pCurrentTotal)) + '</span>';
             html += '<span style="min-width:60px;text-align:right;' + (pFxGain >= 0 ? 'color:#276749' : 'color:#c53030') + ';">' + (pFxGain >= 0 ? '+' : '') + fmt(Math.round(pFxGain)) + '</span>';
             html += '</div>';
             pDeps.forEach(function(d) {
               var fxCls = d.fxGainEUR >= 0 ? 'color:#276749' : 'color:#c53030';
               var fxSign = d.fxGainEUR >= 0 ? '+' : '';
-              var currSym = d.currency === 'EUR' ? '€' : d.currency === 'USD' ? '$' : d.currency === 'MAD' ? 'DH ' : d.currency + ' ';
+              var currSym = d.currency === 'EUR' ? '€' : d.currency === 'USD' ? '$' : d.currency === 'MAD' ? 'DH' : d.currency;
+              var nativeFmt = Math.round(d.amountNative).toLocaleString('fr-FR');
               html += '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
               html += '<span style="flex:1;">' + d.date + ' <span style="color:#a0aec0;font-size:10px;">' + d.label + '</span></span>';
-              html += '<span style="min-width:85px;text-align:right;font-weight:500;">' + currSym + fmt(Math.round(d.amountNative)) + '</span>';
-              html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(d.amountEUR)) + '</span>';
-              html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(d.currentEUR)) + '</span>';
+              html += '<span style="min-width:85px;text-align:right;font-weight:500;">' + currSym + ' ' + nativeFmt + '</span>';
+              html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(d.amountEUR)) + '</span>';
+              html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(d.currentEUR)) + '</span>';
               html += '<span style="min-width:60px;text-align:right;' + fxCls + ';">' + (d.currency === 'EUR' ? '—' : fxSign + fmt(Math.round(d.fxGainEUR))) + '</span>';
               html += '</div>';
             });
@@ -1634,18 +1635,18 @@ function setupKPIDetailPanels(state) {
         html += '<div style="text-align:center;color:#a0aec0;padding:10px;">Pas de dépôts enregistrés</div>';
       }
       html += '</div>';
-      var footer = 'Capital investi : €' + fmt(Math.round(totalInvested)) + ' → Valeur actuelle : €' + fmt(Math.round(av.totalStocks));
-      if (Math.abs(totalFxGain) > 10) footer += ' | Impact FX total : ' + (totalFxGain >= 0 ? '+' : '') + '€' + fmt(Math.round(totalFxGain));
+      var footer = 'Capital investi : ' + fmt(Math.round(totalInvested)) + ' → Valeur actuelle : ' + fmt(Math.round(av.totalStocks));
+      if (Math.abs(totalFxGain) > 10) footer += ' | Impact FX total : ' + (totalFxGain >= 0 ? '+' : '') + fmt(Math.round(totalFxGain));
       footer += '<br>💡 "EUR (ajd)" = si vous aviez gardé la devise sans investir, sa valeur en EUR aujourd\'hui.';
       html += '<div class="detail-footer">' + footer + '</div>';
       return html;
     },
     detailDividends: function() {
       let html = '<div class="detail-header"><h4>Dividendes & Performance</h4>';
-      html += '<div class="detail-summary">TWR ' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '% | Dividendes bruts €' + fmt(Math.round(av.dividends)) + '</div></div>';
+      html += '<div class="detail-summary">TWR ' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '% | Dividendes bruts ' + fmt(Math.round(av.dividends)) + '</div></div>';
       html += '<div class="detail-body">';
-      html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus</span><span class="ticker-pl pl-pos">+€' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
-      html += '<div class="detail-row"><span class="ticker-label">Commissions payées</span><span class="ticker-pl pl-neg">€' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus</span><span class="ticker-pl pl-pos">+' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">Commissions payées</span><span class="ticker-pl pl-neg">-' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
       const divYield = av.totalStocks > 0 ? (av.dividends / av.totalStocks * 100).toFixed(2) : '0.00';
       html += '<div class="detail-row"><span class="ticker-label">Yield dividende (brut)</span><span class="ticker-pl">' + divYield + '%</span><span class="ticker-bar"></span></div>';
       html += '<div class="detail-row"><span class="ticker-label">TWR (performance globale)</span><span class="ticker-pl ' + (av.twr >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '%</span><span class="ticker-bar"></span></div>';
