@@ -1535,10 +1535,15 @@ function computeImmoView(portfolio, fx) {
       const compoundedValue = prop.value * Math.pow(1 + appreciationRate, yearsFromNow);
       const appreciationM = compoundedValue * appreciationRate / 12;
 
-      // Cash flow: only when operational
+      // Cash flow: when operational, with IRL rent growth (1.5%/an)
+      const irlRate = 0.015; // IRL indexation annuelle
       let cfM = 0;
       if (isOperationalAtM) {
-        cfM = prop.cf; // Simplified: constant CF (could add IRL growth later)
+        // Revenue grows with IRL, charges (pret) stay fixed
+        const yearsOperational = isVillejuif ? (m - vilStartMonth) / 12 : yearsFromNow;
+        const revenueGrowthFactor = Math.pow(1 + irlRate, Math.max(0, yearsOperational));
+        const grownRevenue = prop.totalRevenue * revenueGrowthFactor;
+        cfM = grownRevenue - prop.charges;
       }
 
       // For conditional but not yet operational: only appreciation counts

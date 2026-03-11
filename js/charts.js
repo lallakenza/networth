@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=78';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=78';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=78';
+import { fmt, fmtAxis } from './render.js?v=79';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=79';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=79';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1229,19 +1229,26 @@ export function buildWealthProjectionChart(state, mode) {
   // Aggregate data
   let labels = [], capitalData = [], apprecData = [], cfData = [], totalData = [];
 
+  // Group by year first (used for both modes)
+  const byYear = {};
+  proj.forEach(row => {
+    const y = row.date.split('-')[0];
+    if (!byYear[y]) byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, total: 0, count: 0 };
+    byYear[y].capital += row.capital;
+    byYear[y].appreciation += row.appreciation;
+    byYear[y].cashflow += row.cashflow;
+    byYear[y].total += row.total;
+    byYear[y].count++;
+  });
+  const years = Object.keys(byYear).sort();
+  // Exclude last year if partial (< 12 months)
+  if (years.length > 0 && byYear[years[years.length - 1]].count < 12) {
+    years.pop();
+  }
+
   if (isAnnual) {
-    // Group by year
-    const byYear = {};
-    proj.forEach(row => {
-      const y = row.date.split('-')[0];
-      if (!byYear[y]) byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, total: 0, count: 0 };
-      byYear[y].capital += row.capital;
-      byYear[y].appreciation += row.appreciation;
-      byYear[y].cashflow += row.cashflow;
-      byYear[y].total += row.total;
-      byYear[y].count++;
-    });
-    Object.keys(byYear).sort().forEach(y => {
+    // Total per year
+    years.forEach(y => {
       const d = byYear[y];
       labels.push(y);
       capitalData.push(d.capital);
@@ -1250,16 +1257,15 @@ export function buildWealthProjectionChart(state, mode) {
       totalData.push(d.total);
     });
   } else {
-    // Monthly — sample every 3 months for readability
-    proj.forEach((row, i) => {
-      if (i % 3 === 0 || i === proj.length - 1) {
-        const [y, m] = row.date.split('-');
-        labels.push(m + '/' + y.slice(2));
-        capitalData.push(row.capital);
-        apprecData.push(row.appreciation);
-        cfData.push(row.cashflow);
-        totalData.push(row.total);
-      }
+    // Monthly average per year (= annual total / 12 months)
+    years.forEach(y => {
+      const d = byYear[y];
+      const n = d.count; // months in that year
+      labels.push(y);
+      capitalData.push(Math.round(d.capital / n));
+      apprecData.push(Math.round(d.appreciation / n));
+      cfData.push(Math.round(d.cashflow / n));
+      totalData.push(Math.round(d.total / n));
     });
   }
 
@@ -1320,7 +1326,7 @@ export function buildWealthProjectionChart(state, mode) {
         },
         title: {
           display: true,
-          text: isAnnual ? 'Cr\u00e9ation de richesse par an (projection 20 ans)' : 'Cr\u00e9ation de richesse par mois (projection 20 ans)',
+          text: isAnnual ? 'Cr\u00e9ation de richesse par an (projection 20 ans)' : 'Cr\u00e9ation de richesse moyenne par mois (projection 20 ans)',
           font: { size: 14, weight: '600' },
           padding: { bottom: 12 },
         },
