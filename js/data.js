@@ -100,8 +100,21 @@ export const PORTFOLIO = {
         realizedPL: 5924,      // Total realized P/L stocks: EDEN +569.59, GLE +4807.34, QQQM +3750.01, NXI +399.58, WLN -3202, forex PL -568.07 + misc 167.55
         dividends: 648,        // Gross dividends received (all-time)
         commissions: -872,     // Commissions + transaction fees (all-time)
-        deposits: 202886,      // Net deposits (199886 + 3000 Jan 2026)
       },
+      // ── Historique des dépôts IBKR ──
+      // Source : rapport IBKR "Deposits & Withdrawals"
+      // Mettre à jour à chaque nouveau virement ou rapport IBKR
+      // currency: devise du virement | amount: montant en devise native | fxRateAtDate: taux EUR/devise au jour du dépôt
+      deposits: [
+        { date: '2025-04-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement initial IBKR' },
+        { date: '2025-08-01', amount: 150000, currency: 'EUR', fxRateAtDate: 1,     label: 'Virement principal IBKR' },
+        { date: '2025-09-01', amount: 20000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
+        { date: '2025-10-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
+        { date: '2025-11-01', amount: 5886,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
+        { date: '2025-12-01', amount: 4000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
+        { date: '2026-01-15', amount: 3000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement janvier 2026' },
+      ],
+      // Total dépôts IBKR = 202886 EUR
       // ── Historique complet des trades IBKR ──
       // Source: CSV IBKR U18138426 — April 2025 → March 2026
       // Format unifié: { date, ticker, label, type, qty, price, currency, cost|proceeds, realizedPL, commission, costBasis, note }

@@ -147,6 +147,22 @@ Système générique — ne jamais hardcoder de noms de comptes :
 | `CASH_YIELDS` | Si taux changent | Sites banques | Commentaire date |
 | `staticNAV` (IBKR) | Chaque mise à jour IBKR | Rapport CSV IBKR | Doit correspondre à NAV du CSV |
 
+### Dépôts (ibkr.deposits[])
+
+Les dépôts sont enregistrés dans `ibkr.deposits[]` avec :
+- `date` : date du virement (ISO format)
+- `amount` : montant en devise native
+- `currency` : devise du virement (EUR, USD, MAD...)
+- `fxRateAtDate` : taux EUR/devise au jour du dépôt (1 pour EUR)
+- `label` : description du virement
+
+**À mettre à jour** : à chaque nouveau dépôt/virement ou rapport IBKR "Deposits & Withdrawals".
+
+**Autres sources de dépôts** (calculés automatiquement par engine.js) :
+- **ESPP** : chaque lot dans `espp.lots[]` est un dépôt (investissement salarié en USD)
+- **SGTM** : l'achat IPO est calculé à partir de `market.sgtmCostBasisMAD × shares`
+- `owner` est attribué automatiquement : Amine (IBKR, ESPP), Amine+Nezha (SGTM)
+
 ### Transactions (trades[])
 
 **Les transactions ne sont JAMAIS supprimées.** Elles sont toujours ajoutées (append-only).

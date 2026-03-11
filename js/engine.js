@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=98';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=99';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -183,10 +183,50 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrRealizedPL = meta.realizedPL || 0;
   const combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
 
-  // Cross-platform deposits
-  const ibkrDeposits = meta.deposits || 0;
-  const esppDeposits = esppCostBasisEUR; // employee paid this amount
-  const totalDeposits = ibkrDeposits + esppDeposits;
+  // Cross-platform deposits — detailed history with FX comparison
+  const depositHistory = [];
+
+  // Helper: push a deposit entry
+  function addDeposit(date, label, owner, platform, amountNative, currency, fxAtDate) {
+    const amountEUR = currency === 'EUR' ? amountNative : amountNative / fxAtDate;
+    const currentEUR = currency === 'EUR' ? amountNative : toEUR(amountNative, currency, fx);
+    depositHistory.push({
+      date, label, owner, platform,
+      amountNative, currency, fxAtDate,
+      amountEUR,
+      currentEUR,
+      fxGainEUR: currentEUR - amountEUR,
+    });
+  }
+
+  // 1. IBKR deposits (Amine)
+  (ibkr.deposits || []).forEach(d => {
+    addDeposit(d.date, d.label || 'Dépôt IBKR', 'Amine', 'IBKR', d.amount, d.currency, d.fxRateAtDate || 1);
+  });
+
+  // 2. ESPP lots (Amine) — each lot is a "deposit" (employee investment in USD)
+  (espp.lots || []).forEach(lot => {
+    const costUSD = lot.shares * lot.costBasis;
+    addDeposit(lot.date, 'ESPP ' + lot.shares + ' ACN @ $' + lot.costBasis.toFixed(0), 'Amine', 'ESPP (UBS)',
+      costUSD, 'USD', lot.fxRateAtDate || 1.15);
+  });
+
+  // 3. SGTM IPO — Amine + Nezha
+  const sgtmCost = portfolio.market.sgtmCostBasisMAD || 420;
+  [{ owner: 'Amine', shares: portfolio.amine.sgtm?.shares || 0 },
+   { owner: 'Nezha', shares: portfolio.nezha.sgtm?.shares || 0 }].forEach(s => {
+    if (s.shares <= 0) return;
+    const costMAD = s.shares * sgtmCost;
+    addDeposit('2025-12-15', 'IPO SGTM (' + s.shares + ' actions @ ' + sgtmCost + ' DH)', s.owner, 'Attijari (SGTM)',
+      costMAD, 'MAD', 10.8);
+  });
+
+  depositHistory.sort((a, b) => a.date.localeCompare(b.date));
+
+  const ibkrDepositsTotal = depositHistory.filter(d => d.platform === 'IBKR').reduce((s, d) => s + d.amountEUR, 0);
+  const esppDeposits = esppCostBasisEUR;
+  const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
+  const totalDeposits = ibkrDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
   // Cross-platform combined unrealized P/L
   const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL;
@@ -424,7 +464,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     commissions: meta.commissions || 0,
     closedPositions: allClosed,
     trades: allTradesUnified,
-    deposits: ibkrDeposits,
+    depositHistory: depositHistory,
     // Degiro — reconstruct for render table from allTrades (backwards compat)
     degiroClosedPositions: (portfolio.amine.allTrades || []).filter(t => t.source === 'degiro' && t.type === 'sell').map(t => ({
       ticker: t.ticker, label: t.label, costEUR: t.cost || 0, proceedsEUR: t.proceeds || 0,
