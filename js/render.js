@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=90';
-import { getGrandTotal } from './engine.js?v=90';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=91';
+import { getGrandTotal } from './engine.js?v=91';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -316,7 +316,7 @@ function renderExpandSubs(state, view) {
 
   // ESPP detail label
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
-  setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + '<br>+ cash ~' + p.amine.espp.cashEUR.toLocaleString('fr-FR') + ' EUR');
+  setHTML('subESPPDetail', p.amine.espp.shares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel);
   setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
 
   // SGTM performance badge (vs IPO cost basis)
@@ -479,16 +479,22 @@ function renderDynamicInsights(state, view) {
 
   // ── Cash insights (expand-cash) ──
   const cashIns = document.getElementById('cashInsightsExpand');
-  if (cashIns) {
-    const totalCash = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
-    const monthsSafe = Math.round(totalCash / 4500); // ~4.5K/month burn
-    const aedPct = Math.round((s.amine.uae / totalCash) * 100);
+  if (cashIns && state.cashView) {
+    const cv = state.cashView;
+    const totalCash = cv.totalCash;
+    const dormantPct = totalCash > 0 ? Math.round(cv.totalNonYielding / totalCash * 100) : 0;
+    const yieldingPct = 100 - dormantPct;
+    const avgYld = cv.weightedAvgYield ? (cv.weightedAvgYield * 100).toFixed(1) : '0';
+    // Find highest-yield and lowest-yield accounts dynamically
+    const posAccounts = cv.accounts.filter(a => !a.isDebt && a.valEUR > 50);
+    const bestAcct = posAccounts.reduce((best, a) => (a.yield || 0) > (best.yield || 0) ? a : best, { yield: 0 });
+    const worstBig = posAccounts.filter(a => a.valEUR > 1000).reduce((w, a) => (a.yield || 0) < (w.yield || Infinity) ? a : w, { yield: Infinity });
     cashIns.innerHTML =
       '<strong>Insights Cash :</strong><br>' +
-      '- <span style="color:var(--green)">' + K(totalCash) + ' de cash = ~' + monthsSafe + ' mois de matelas de securite meme en cas d\'arret total d\'activite.</span><br>' +
-      '- Le rendement de ' + Math.round(CASH_YIELDS.wioSavings * 100) + '% sur l\'epargne UAE (Wio Savings) est tres competitif \u2014 continuer a maximiser ce placement.<br>' +
-      '- Cash Maroc peu rentable (~1-2%). Considerer un rapatriement progressif vers UAE ou investissement en actions.<br>' +
-      '- <span style="color:var(--red)">Risque FX :</span> ' + aedPct + '% du cash est en AED (peg USD). Un affaiblissement du dollar impacterait la valeur en EUR.';
+      '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
+      '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : ' + fmt(cv.totalNonYielding * 0.05) + '.<br>' +
+      (bestAcct.label ? '- Meilleur rendement : ' + bestAcct.label + ' (' + ((bestAcct.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
+      (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '');
   }
 
   // ── Other insights (expand-other) ──
@@ -522,8 +528,7 @@ function renderDynamicInsights(state, view) {
       '- NW combine de ' + K(nw) + ' a 33 et 34 ans \u2014 excellent rythme de constitution patrimoniale pour un couple.<br>' +
       '- Revenus diversifies : salaire Amine (Dubai) + patrimoine locatif Nezha (France). Deux pays, deux sources de revenus.<br>' +
       '- Cash couple total ~' + K(cashCouple) + ' (Amine ' + K(cashAmine) + ' + Nezha ' + K(cashNezha) + ') reparti sur 2 devises et plusieurs banques. Bonne resilience en cas de blocage bancaire.<br>' +
-      '- Zero dette consommation. Les ' + K(totalDebt) + ' de dette sont 100% adosses a des actifs immo productifs (' + K(totalImmoVal) + ' de valeur).<br>' +
-      '- <strong>Objectif 1M NW couple : atteignable en ~3-4 ans avec le rythme actuel d\'epargne + creation immo.</strong>';
+      '- Zero dette consommation. Les ' + K(totalDebt) + ' de dette sont 100% adosses a des actifs immo productifs (' + K(totalImmoVal) + ' de valeur).';
   }
 
   const cplRisks = document.getElementById('coupleInsightsRisks');
@@ -610,7 +615,7 @@ function renderDynamicInsights(state, view) {
       '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
       '- Cash total ~' + K(cashFR + cashMA) + ' (' + K(cashFR) + ' France + ' + K(cashMA) + ' Maroc).<br>' +
       '- <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~' + N(totalMens) + '/mois de mensualites (Rueil ' + N(rueilMens) + ' + Villejuif ~' + N(vilMens) + ').<br>' +
-      '- <span style="color:var(--green)">Apres livraison :</span> 2 biens de creation de richesse. Objectif loyer Villejuif : 1,600-1,800 meuble.';
+      '- <span style="color:var(--green)">Apres livraison :</span> 2 biens de creation de richesse.';
   }
 
   // ── Nezha projection table ──
@@ -648,12 +653,14 @@ function renderDynamicInsights(state, view) {
       }
     });
     html += '</tr>';
-    // Cash row (declining due to Villejuif costs)
+    // Cash row — compute net CF from immo charges dynamically
+    const nzMonthlyCF = (rueilP ? rueilP.cf : 0) + (villejuifP ? villejuifP.cf : 0);
+    // If CF negative, cash declines; if positive, cash grows
+    const nzCashDrift = nzMonthlyCF; // monthly net cash change from immo
     html += '<tr><td>Cash</td>';
     years.forEach(y => {
       const m = monthsFromNow(y);
-      // Cash declines by ~800/month (CF negative immo + living)
-      const cash = nzCash - m * 800;
+      const cash = nzCash + nzCashDrift * m;
       html += '<td class="num">' + N(Math.max(0, cash)) + '</td>';
     });
     html += '</tr>';
@@ -664,7 +671,7 @@ function renderDynamicInsights(state, view) {
       const eqR = rueilP ? rueilP.equity + rueilGrowth * m : 0;
       let eqV = 0;
       if (y >= 2029) { eqV = vilGrowth * (y - 2029) * 12; }
-      const cash = Math.max(0, nzCash - m * 800);
+      const cash = Math.max(0, nzCash + nzCashDrift * m);
       html += '<td class="num"><strong>' + N(eqR + eqV + cash) + '</strong></td>';
     });
     html += '</tr></tbody></table>';
@@ -1042,24 +1049,7 @@ function renderActionsView(state) {
     geo: 'us',
   });
 
-  // ESPP Cash
-  if (av.esppCashEUR > 0) {
-    allPositions.push({
-      label: 'ESPP Cash résiduel',
-      broker: 'UBS (ESPP)',
-      ticker: '',
-      shares: '',
-      price: null,
-      priceLabel: '—',
-      costEUR: av.esppCashEUR,
-      valEUR: av.esppCashEUR,
-      unrealizedPL: 0,
-      pctPL: 0,
-      weight: totalAllVal > 0 ? (av.esppCashEUR / totalAllVal * 100) : 0,
-      sector: 'cash',
-      geo: 'us',
-    });
-  }
+  // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
 
   // SGTM Amine + Nezha
   const sgtmShares = av.sgtmAmineShares + av.sgtmNezhaShares;
@@ -1326,7 +1316,8 @@ function renderCashView(state) {
   if (tbody) {
     const REF_YIELD = 0.06; // 6% benchmark
 
-    // Build enriched flat data for sorting
+    // Build enriched flat data for sorting — hide tiny accounts (< 50€)
+    const MIN_DISPLAY_EUR = 50;
     const cashData = cv.accounts.map(a => {
       const isDebt = a.isDebt;
       let yieldAnnVal, missed;
@@ -1339,7 +1330,7 @@ function renderCashView(state) {
         missed = a.valEUR > 0 ? Math.max(0, a.valEUR * (REF_YIELD - (a.yield || 0))) : 0;
       }
       return { ...a, yieldAnn: yieldAnnVal, missed };
-    });
+    }).filter(a => a.isDebt || Math.abs(a.valEUR) >= MIN_DISPLAY_EUR);
 
     function renderCashRowsGrouped(items) {
       tbody.innerHTML = '';
@@ -1549,54 +1540,27 @@ function renderCashView(state) {
           + 'Co\u00fbt emprunt JPY : ' + fmt(d.jpyCostAnn) + '/an en plus.';
       }
 
-      // ── Cash Nezha ──
-      else if (d.category === 'nezha_cash') {
-        title = '\uD83D\uDD25 Cash Nezha : ' + fmt(d.amountEUR) + ' \u00e0 0% \u2014 perd ' + fmt(d.gainPotentiel) + '/an';
-        detail = 'Cash France : ' + fmt(d.cashFranceEUR) + ' | Cash Maroc : ' + fmt(d.cashMarocEUR) + '. '
-          + 'C\'est le plus gros gisement de gains. Chaque mois qui passe co\u00fbte ~' + fmt(d.gainPotentiel / 12) + '.';
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      // ── Comptes dormants par propriétaire (générique) ──
+      else if (d.category.startsWith('dormant_')) {
+        const acctList = d.accounts.map(a => a.label + ' (' + fmt(a.valEUR) + ')').join(', ');
+        title = '\uD83D\uDD25 Cash dormant ' + d.owner + ' : ' + fmt(d.amountEUR) + ' \u00e0 <3% \u2014 potentiel +' + fmt(d.gainPotentiel) + '/an';
+        detail = d.accounts.length + ' compte' + (d.accounts.length > 1 ? 's' : '') + ' concern\u00e9' + (d.accounts.length > 1 ? 's' : '') + ' : ' + acctList + '.';
       }
 
-      // ── IBKR EUR ──
-      else if (d.category === 'ibkr_eur') {
-        title = '\uD83D\uDCB0 IBKR EUR : ' + fmt(d.amountEUR) + ' \u00e0 ' + (d.effectiveYield * 100).toFixed(1) + '% effectif \u2014 manque ' + fmt(d.missedAnn) + '/an';
-        detail = 'Premiers 10K\u20ac \u00e0 0% chez IBKR, le reste \u00e0 1.53%. Rendement effectif trop faible. '
-          + 'Exc\u00e9dent de ~' + fmt(d.excessEUR) + ' pourrait rapporter ' + fmt(d.gainTransfert) + '/an plac\u00e9 \u00e0 6%.';
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
-      }
-
-      // ── Cash Maroc Amine ──
-      else if (d.category === 'maroc_cash') {
-        title = '\uD83C\uDDF2\uD83C\uDDE6 Cash Maroc Amine : ' + fmt(d.amountEUR) + ' \u00e0 0% \u2014 potentiel +' + fmt(d.gainPotentiel) + '/an';
-        detail = 'Attijariwafa : ' + Math.round(d.attijariMAD).toLocaleString('fr-FR') + ' MAD | Nabd : ' + Math.round(d.nabdMAD).toLocaleString('fr-FR') + ' MAD. '
-          + 'Des options existent pour faire travailler ce cash au Maroc.';
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+      // ── Comptes sous-optimaux ──
+      else if (d.category === 'sub_optimal') {
+        title = '\uD83D\uDCB0 ' + d.label + ' : ' + fmt(d.amountEUR) + ' \u00e0 ' + (d.effectiveYield * 100).toFixed(1) + '% \u2014 manque ' + fmt(d.missedAnn) + '/an';
+        detail = 'Rendement inf\u00e9rieur au benchmark. Optimiser le placement pour r\u00e9cup\u00e9rer ' + fmt(d.missedAnn) + '/an.';
       }
 
       // ── JPY Levier ──
       else if (d.category === 'jpy_leverage') {
         title = '\uD83D\uDCB1 Levier JPY : \u00a5' + Math.round(d.jpyNative).toLocaleString('ja-JP') + ' emprunt\u00e9s \u2014 co\u00fbt ' + fmt(d.costAnn) + '/an';
-        detail = 'Taux blend\u00e9 ' + (d.blendedRate * 100).toFixed(1) + '% (par tranche IBKR Pro). '
-          + 'Risque de change : un yen \u00e0 +10% = perte de ~' + fmt(d.riskYen10pct) + ' suppl\u00e9mentaire.';
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
+        detail = 'Taux blend\u00e9 ' + (d.blendedRate * 100).toFixed(1) + '%. '
+          + 'Risque de change : yen \u00e0 +10% = perte de ~' + fmt(d.riskYen10pct) + '.';
       }
 
-      // ── IBKR USD ──
-      else if (d.category === 'ibkr_usd') {
-        title = '\uD83D\uDCB5 IBKR USD : ' + fmt(d.amountEUR) + ' \u00e0 ' + (d.effectiveYield * 100).toFixed(1) + '% effectif';
-        detail = 'Premiers 10K$ \u00e0 0% r\u00e9duisent fortement le rendement. '
-          + 'Manque \u00e0 gagner : ' + fmt(d.missedAnn) + '/an vs benchmark 6%.';
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
-      }
-
-      // ── Petits comptes ──
-      else if (d.category === 'small_accounts') {
-        title = '\uD83D\uDCE6 ' + d.count + ' petits comptes dormants : ' + fmt(d.amountEUR) + ' total';
-        detail = d.labels;
-        actionsHtml = d.actions.map(a => '<div style="padding:3px 0;">\u2192 ' + a + '</div>').join('');
-      }
-
-      // ── Plan d'action ──
+      // ── Plan d'action (dynamique) ──
       else if (d.category === 'action_plan') {
         title = '\uD83D\uDCCB Plan d\'action \u2014 r\u00e9cup\u00e9rer ' + fmt(d.totalMissedAnn) + '/an';
         detail = '';
