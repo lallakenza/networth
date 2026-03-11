@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=70';
-import { getGrandTotal } from './engine.js?v=70';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=70';
+import { fmt, fmtAxis } from './render.js?v=71';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=71';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=71';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -907,7 +907,11 @@ function buildImmoViewProjection(state) {
       return defaultRate;
     }
 
-    const data = projYears.map(year => {
+    const purchasePrice = propMeta.purchasePrice || prop.purchasePrice || 0;
+    // Estimate total amortissements at each year (LMNP: ~2% of 80% of value per year)
+    const amortPerYear = (purchasePrice * 0.80 * 0.02);
+
+    const dataBrute = projYears.map(year => {
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
       if (monthsFromStart < 0) return 0;
       const schedIdx = Math.min(monthsFromStart, sched.length - 1);
@@ -920,12 +924,26 @@ function buildImmoViewProjection(state) {
       }
 
       const equity = projValue - crd;
-      return Math.max(0, Math.round(equity));
+      return { equity: Math.max(0, Math.round(equity)), projValue, crd };
+    });
+
+    const dataNet = projYears.map((year, i) => {
+      const { projValue, crd } = dataBrute[i];
+      const pDate = propMeta.purchaseDate || '2023-01';
+      const [pY2] = pDate.split('-').map(Number);
+      const yearsHeld = year - pY2;
+      const totalAmort = amortPerYear * yearsHeld;
+      try {
+        const exitCosts = computeExitCostsAtYear(key, year, projValue, purchasePrice, crd, totalAmort);
+        return Math.max(0, Math.round(exitCosts.netEquityAfterExit));
+      } catch (e) {
+        return dataBrute[i].equity;
+      }
     });
 
     return {
-      label: loanNames[key],
-      data,
+      label: loanNames[key] + ' (net)',
+      data: dataNet,
       borderColor: loanColors[key],
       backgroundColor: loanColors[key] + '1a',
       fill: true,
@@ -937,7 +955,7 @@ function buildImmoViewProjection(state) {
     type: 'line',
     data: { labels: projYears.map(String), datasets },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { title: { display: true, text: 'Projection equity', font: { size: 14 } },
+      plugins: { title: { display: true, text: 'Projection equity nette (après frais de sortie)', font: { size: 14 } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
       scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
   });
@@ -977,42 +995,51 @@ export function buildPropertyDetailCharts(state, prop) {
     const projYears = [];
     for (let y = currentYear; y <= currentYear + 8; y++) projYears.push(y);
 
-    const equityData = projYears.map(year => {
+    const purchasePrice = propMeta.purchasePrice || prop.purchasePrice || 0;
+    const amortPerYear = (purchasePrice * 0.80 * 0.02);
+
+    const rawData = projYears.map(year => {
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
-      if (monthsFromStart < 0) return 0;
-      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
-      const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+      const schedIdx = monthsFromStart < 0 ? -1 : Math.min(monthsFromStart, sched.length - 1);
+      const crd = schedIdx < 0 || schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
       let projValue = prop.value;
       for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
-      return Math.max(0, Math.round(projValue - crd));
+      return { projValue, crd, equityBrute: Math.max(0, Math.round(projValue - crd)) };
     });
 
-    const valueData = projYears.map(year => {
-      let projValue = prop.value;
-      for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
-      return Math.round(projValue);
+    const equityBruteData = rawData.map(d => d.equityBrute);
+
+    const equityNetData = projYears.map((year, i) => {
+      const { projValue, crd } = rawData[i];
+      const pDate = propMeta.purchaseDate || '2023-01';
+      const [pY2] = pDate.split('-').map(Number);
+      const yearsHeld = year - pY2;
+      const totalAmort = amortPerYear * yearsHeld;
+      try {
+        const exitCosts = computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort);
+        return Math.max(0, Math.round(exitCosts.netEquityAfterExit));
+      } catch (e) {
+        return rawData[i].equityBrute;
+      }
     });
 
-    const crdData = projYears.map(year => {
-      const monthsFromStart = (year - startY) * 12 + (1 - startM);
-      if (monthsFromStart < 0) return prop.crd;
-      const schedIdx = Math.min(monthsFromStart, sched.length - 1);
-      return schedIdx >= sched.length ? 0 : Math.round(sched[schedIdx].remainingCRD);
-    });
+    const valueData = rawData.map(d => Math.round(d.projValue));
+    const crdData = rawData.map(d => Math.round(d.crd));
 
     charts.propDetailEquity = new Chart(eqEl, {
       type: 'line',
       data: {
         labels: projYears.map(String),
         datasets: [
-          { label: 'Equity', data: equityData, borderColor: '#276749', backgroundColor: '#276749' + '1a', fill: true, tension: 0.3 },
+          { label: 'Equity nette', data: equityNetData, borderColor: '#276749', backgroundColor: '#276749' + '1a', fill: true, tension: 0.3, borderWidth: 2 },
+          { label: 'Equity brute', data: equityBruteData, borderColor: '#276749', borderDash: [5, 5], tension: 0.3, pointRadius: 2, borderWidth: 1 },
           { label: 'Valeur', data: valueData, borderColor: '#2b6cb0', borderDash: [5, 5], tension: 0.3, pointRadius: 2 },
           { label: 'CRD', data: crdData, borderColor: '#c53030', borderDash: [3, 3], tension: 0.3, pointRadius: 2 },
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { title: { display: true, text: 'Projection equity — ' + prop.name, font: { size: 13 } },
+        plugins: { title: { display: true, text: 'Projection equity (nette après frais de sortie) — ' + prop.name, font: { size: 13 } },
           tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
         scales: { y: { ticks: { callback: v => fmtAxis(v) } } }
       }

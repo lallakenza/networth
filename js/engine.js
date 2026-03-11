@@ -986,7 +986,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
  * Compute exit costs for a property at a given sale price and holding duration
  * Returns breakdown: PV tax (IR + PS + surtaxe), agency fees, mainlevée, TVA clawback, total
  */
-function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements) {
+function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate = null) {
   const EC = EXIT_COSTS;
   const result = {
     salePrice,
@@ -1090,7 +1090,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     // L'obligation TVA 5.5% court depuis la livraison VEFA, pas depuis l'acte
     const livraisonStr = tva.dateLivraison || '2025-07';
     const [livY, livM] = livraisonStr.split('-').map(Number);
-    const now = new Date();
+    const now = targetDate || new Date();
     const yearsSinceLivraison = (now.getFullYear() - livY) + (now.getMonth() + 1 - livM) / 12;
     if (yearsSinceLivraison < tva.dureeEngagement) {
       const yearsRemaining = tva.dureeEngagement - Math.max(0, Math.floor(yearsSinceLivraison));
@@ -1107,6 +1107,19 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
   result.netEquityAfterExit = result.netProceeds - crdAtExit;
 
   return result;
+}
+
+/**
+ * Compute exit costs at a specific future year (exported for charts/projections)
+ * Returns { totalExitCosts, netEquityAfterExit, tvaClawback, totalTaxPV, ... }
+ */
+export function computeExitCostsAtYear(loanKey, targetYear, projectedValue, purchasePrice, crdAtDate, totalAmortissements) {
+  const propMeta = IMMO_CONSTANTS.properties[loanKey] || {};
+  const purchaseDate = propMeta.purchaseDate || '2023-01';
+  const [pY, pM] = purchaseDate.split('-').map(Number);
+  const holdingYears = (targetYear - pY) + (6 - pM) / 12; // approx mid-year
+  const targetDate = new Date(targetYear, 5, 1); // June 1 of target year
+  return computeExitCosts(loanKey, projectedValue, purchasePrice, holdingYears, crdAtDate, totalAmortissements, targetDate);
 }
 
 /**
@@ -1311,6 +1324,7 @@ function computeImmoView(portfolio, fx) {
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
+      purchasePrice,
       propertyMeta: IC.properties[loanKey] || {},
       loanInterestAnnuel,
       deductibleChargesAnnuel: deductibleCharges * 12,
@@ -1763,7 +1777,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineIbkr = computeIBKR(p, fx, stockSource);
   const amineEspp = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx) + p.amine.espp.cashEUR;
   const amineVitryCRD = immoCRDs.vitry ?? p.amine.immo.vitry.crd;
-  const amineVitryEquity = p.amine.immo.vitry.value - amineVitryCRD;
+  const amineVitryEquityBrute = p.amine.immo.vitry.value - amineVitryCRD;
+  // Net equity = after exit costs, floored at 0 (if negative → not mature enough to sell)
+  const vitryExitCosts = immoView.properties.find(pr => pr.loanKey === 'vitry')?.exitCosts;
+  const amineVitryEquity = Math.max(0, vitryExitCosts ? vitryExitCosts.netEquityAfterExit : amineVitryEquityBrute);
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
 
   // Creances — split by type: pro (factures clients) vs perso (prêts famille/amis)
@@ -1795,7 +1812,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     morocco: amineMoroccoCash + amineSgtm,
     vitryValue: p.amine.immo.vitry.value,
     vitryCRD: amineVitryCRD,
-    vitryEquity: amineVitryEquity,
+    vitryEquity: amineVitryEquity, // net (after exit costs, floored at 0)
+    vitryEquityBrute: amineVitryEquityBrute,
     vehicles: amineVehicles,
     recvPro: amineRecvPro,
     recvPersonal: amineRecvPersonal,
@@ -1805,14 +1823,19 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- NEZHA ----
   const nezhaRueilCRD = immoCRDs.rueil ?? p.nezha.immo.rueil.crd;
-  const nezhaRueilEquity = p.nezha.immo.rueil.value - nezhaRueilCRD;
+  const nezhaRueilEquityBrute = p.nezha.immo.rueil.value - nezhaRueilCRD;
+  // Net equity = after exit costs, floored at 0
+  const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
+  const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
   const nezhaVillejuifCRD = immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd;
   // Si pas signé : on ne compte que les frais de réservation (récupérables)
+  const villejuifExitCosts = immoView.properties.find(pr => pr.loanKey === 'villejuif')?.exitCosts;
+  const nezhaVillejuifEquityBrute = p.nezha.immo.villejuif.value - nezhaVillejuifCRD;
   const nezhaVillejuifEquity = villejuifSigned
-    ? (p.nezha.immo.villejuif.value - nezhaVillejuifCRD)
+    ? Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)
     : 0;
-  const nezhaVillejuifFutureEquity = p.nezha.immo.villejuif.value - nezhaVillejuifCRD;
+  const nezhaVillejuifFutureEquity = Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute);
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   // Nezha cash — detailed accounts
   const nc = p.nezha.cash;
@@ -1831,10 +1854,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: nezhaRueilCRD,
-    rueilEquity: nezhaRueilEquity,
+    rueilEquity: nezhaRueilEquity, // net (after exit costs, floored at 0)
+    rueilEquityBrute: nezhaRueilEquityBrute,
     villejuifValue: p.nezha.immo.villejuif.value,
     villejuifCRD: nezhaVillejuifCRD,
-    villejuifEquity: nezhaVillejuifEquity,
+    villejuifEquity: nezhaVillejuifEquity, // net (after exit costs, floored at 0)
+    villejuifEquityBrute: nezhaVillejuifEquityBrute,
     villejuifFutureEquity: nezhaVillejuifFutureEquity,
     villejuifSigned: villejuifSigned,
     villejuifReservation: nezhaVillejuifReservation,
@@ -1855,7 +1880,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   };
 
   // ---- COUPLE ----
+  // Net equity (post exit costs, floored at 0 per property)
   const coupleImmoEquity = amineVitryEquity + nezhaRueilEquity + nezhaVillejuifEquity;
+  const coupleImmoEquityBrute = amineVitryEquityBrute + nezhaRueilEquityBrute + (villejuifSigned ? nezhaVillejuifEquityBrute : 0);
   const coupleImmoValue = amine.vitryValue + nezha.rueilValue + (villejuifSigned ? nezha.villejuifValue : 0);
   const coupleImmoCRD = amine.vitryCRD + nezha.rueilCRD + (villejuifSigned ? nezha.villejuifCRD : 0);
   const coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity;
@@ -1863,7 +1890,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   const couple = {
     nw: coupleNW,
-    immoEquity: coupleImmoEquity,
+    immoEquity: coupleImmoEquity, // net (after exit costs)
+    immoEquityBrute: coupleImmoEquityBrute,
     immoValue: coupleImmoValue,
     immoCRD: coupleImmoCRD,
     nbBiens: nbBiens,

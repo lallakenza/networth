@@ -634,6 +634,7 @@ export const IMMO_CONSTANTS = {
     villejuif: {
       address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
       surface: 68.92,           // m²
+      purchasePrice: 349456,    // prix d'achat total opération VEFA
       totalOperation: 349456,   // montant total opération VEFA
       purchaseDate: '2025-04',  // signature VEFA
       deliveryDate: '2029-06',  // livraison été 2029
