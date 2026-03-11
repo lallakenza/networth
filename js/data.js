@@ -76,19 +76,19 @@ export const PORTFOLIO = {
       positions: [
         // { ticker, shares, price (cours actuel), costBasis (PRU), currency, label, sector, geo }
         // Cours mis à jour automatiquement par l'API Yahoo Finance
-        { ticker: 'AIR.PA',  shares: 200,  price: 173.30, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
-        { ticker: 'BN.PA',   shares: 200,  price: 70.04,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france' },
-        { ticker: 'DG.PA',   shares: 200,  price: 131.70, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france' },
-        { ticker: 'FGR.PA',  shares: 100,  price: 137.50, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france' },
-        { ticker: 'MC.PA',   shares: 40,   price: 505.80, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france' },
-        { ticker: 'OR.PA',   shares: 30,   price: 371.45, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france' },
-        { ticker: 'P911.DE', shares: 400,  price: 38.64,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany' },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1899.50, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france' },
-        { ticker: 'SAN.PA',  shares: 50,   price: 77.73,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france' },
-        { ticker: 'SAP',     shares: 70,   price: 170.98, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany' },
-        { ticker: '4911.T',  shares: 500,  price: 3040,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan' },
-        { ticker: 'IBIT',    shares: 1200, price: 38.80,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
-        { ticker: 'ETHA',    shares: 1100, price: 14.93,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
+        { ticker: 'AIR.PA',  shares: 200,  price: 177.90, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
+        { ticker: 'BN.PA',   shares: 200,  price: 70.20,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france' },
+        { ticker: 'DG.PA',   shares: 200,  price: 130.65, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france' },
+        { ticker: 'FGR.PA',  shares: 100,  price: 141.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france' },
+        { ticker: 'MC.PA',   shares: 40,   price: 498.60, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france' },
+        { ticker: 'OR.PA',   shares: 30,   price: 361.90, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france' },
+        { ticker: 'P911.DE', shares: 400,  price: 37.76,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany' },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1927.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france' },
+        { ticker: 'SAN.PA',  shares: 50,   price: 75.82,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france' },
+        { ticker: 'SAP',     shares: 70,   price: 165.60, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany' },
+        { ticker: '4911.T',  shares: 500,  price: 3222,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan' },
+        { ticker: 'IBIT',    shares: 1200, price: 39.43,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
+        { ticker: 'ETHA',    shares: 1100, price: 15.39,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
       ],
       // ⬇️ Cash multi-devises (IBKR — mis à jour 10 mars 2026 après FX trades)
       cashEUR: 1,            // Solde EUR chez IBKR (vendu 65926 EUR→JPY @ 183.595)
@@ -366,7 +366,7 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 700,       // Cours SGTM en MAD (clôture 10 Mar 2026) — casablanca-bourse.com
+    sgtmPriceMAD: 717,       // Cours SGTM en MAD (séance 11 Mar 2026) — casablanca-bourse.com
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 201.63,     // Cours Accenture en USD — mis à jour 11/03/2026
   },
@@ -447,10 +447,10 @@ export const IBKR_CONFIG = {
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,
-  AED: 4.2700,       // Xe 10/03: 4.2701 (AED pegged to USD)
-  MAD: 10.8600,      // Xe 10/03: 10.8602
-  USD: 1.1600,       // Xe 10/03: 1.1636, intraday low ~1.156
-  JPY: 183.50,       // Xe 10/03: 183.32, Investing.com: 184.49
+  AED: 4.2500,       // Xe 12/03: ~4.25 (AED pegged to USD, EUR/USD 1.157)
+  MAD: 10.8500,      // Xe 12/03: ~10.85
+  USD: 1.1570,       // Xe 11/03: 1.1570
+  JPY: 183.00,       // Xe 12/03: ~183.00
 };
 
 // Symboles devises pour affichage

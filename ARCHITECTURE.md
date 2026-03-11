@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v107** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v109** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
