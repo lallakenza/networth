@@ -546,8 +546,9 @@ export const IMMO_CONSTANTS = {
       },
     ],
     villejuifFranchise: {
-      months: 36,              // Aug 2025 – Aug 2028
-      startDate: '2025-08',
+      months: 36,
+      startDate: null,         // Prêt non encore débloqué — franchise non commencée
+      loanDisbursed: false,    // Nezha n'a pas encore signé l'offre / débloqué le prêt
       fraisDossier: 1500,
     },
   },

@@ -811,10 +811,20 @@ function renderImmoKPIs(state) {
   const nb = state.couple.nbBiens || 3;
   setText('kpiCoupleImmoLabel', 'Equity Nette Immo (' + nb + ' biens) *');
   setText('kpiImmoEqLabel', 'Equity Nette (' + nb + ' biens)');
-  // Wealth creation from immoView
+  // Wealth creation from immoView — with breakdown
   if (state.immoView) {
     const wc = state.immoView.totalWealthCreation;
     setText('immoWealthVal', '+' + fmt(wc) + '/mois');
+    // Show mini breakdown in projection area
+    const tb = state.immoView.totalWealthBreakdown;
+    const projEl = document.getElementById('immoWealthProj');
+    if (projEl && tb) {
+      projEl.innerHTML = '<span style="color:#2b6cb0">\u25A0</span> Capital ' + fmt(tb.capitalAmorti)
+        + ' + <span style="color:#276749">\u25A0</span> Appre. ' + fmt(tb.appreciation)
+        + (tb.cashflow >= 0
+          ? ' + <span style="color:#48bb78">\u25A0</span> CF +' + fmt(tb.cashflow)
+          : ' - <span style="color:#e53e3e">\u25A0</span> Effort ' + fmt(Math.abs(tb.cashflow)));
+    }
   }
 }
 
@@ -1539,6 +1549,97 @@ function renderCashView(state) {
   }
 }
 
+function renderWealthBreakdown(iv) {
+  const section = document.getElementById('wealthBreakdownSection');
+  const content = document.getElementById('wealthBreakdownContent');
+  if (!section || !content || !iv.totalWealthBreakdown) return;
+
+  const tb = iv.totalWealthBreakdown;
+  const total = iv.totalWealthCreation;
+  const props = iv.properties;
+
+  // Bar width helper (proportional to total)
+  const maxComp = Math.max(Math.abs(tb.capitalAmorti), Math.abs(tb.appreciation), Math.abs(tb.cashflow), 1);
+  function barW(val) { return Math.max(2, Math.abs(val) / maxComp * 100); }
+
+  // Build per-property rows
+  let tableRows = '';
+  props.forEach(p => {
+    const wb = p.wealthBreakdown || {};
+    const t = p.wealthCreation || 0;
+    const isConditional = p.conditional && t === 0;
+    tableRows += '<tr' + (isConditional ? ' style="color:#a0aec0;font-style:italic"' : '') + '>'
+      + '<td style="font-weight:600;white-space:nowrap">' + p.name + '</td>'
+      + '<td class="num" style="color:var(--accent)">' + fmt(wb.capitalAmorti || 0) + '</td>'
+      + '<td class="num" style="color:var(--green)">' + fmt(wb.appreciation || 0) + '</td>'
+      + '<td class="num" style="color:' + (wb.cashflow >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (wb.cashflow >= 0 ? '+' : '') + fmt(wb.cashflow || 0) + '</td>'
+      + '<td class="num" style="font-weight:700;color:' + (t >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (t >= 0 ? '+' : '') + fmt(t) + '</td>'
+      + '</tr>';
+  });
+
+  // Total row
+  tableRows += '<tr style="border-top:2px solid var(--primary);font-weight:700">'
+    + '<td>TOTAL</td>'
+    + '<td class="num" style="color:var(--accent)">' + fmt(tb.capitalAmorti) + '</td>'
+    + '<td class="num" style="color:var(--green)">' + fmt(tb.appreciation) + '</td>'
+    + '<td class="num" style="color:' + (tb.cashflow >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (tb.cashflow >= 0 ? '+' : '') + fmt(tb.cashflow) + '</td>'
+    + '<td class="num" style="font-size:16px;color:var(--green)">+' + fmt(total) + '</td>'
+    + '</tr>';
+
+  // Annual projection
+  const annuel = total * 12;
+
+  // Visual bar breakdown
+  const capPct = total > 0 ? (tb.capitalAmorti / total * 100).toFixed(0) : 0;
+  const apPct = total > 0 ? (tb.appreciation / total * 100).toFixed(0) : 0;
+  const cfPct = total > 0 ? Math.max(0, tb.cashflow) / total * 100 : 0;
+  // Negative CF is an "effort" that reduces the total — show it visually
+  const effortPct = tb.cashflow < 0 ? (Math.abs(tb.cashflow) / (tb.capitalAmorti + tb.appreciation) * 100).toFixed(0) : 0;
+
+  content.innerHTML =
+    '<p style="margin:0 0 12px;color:var(--gray);font-size:13px;line-height:1.5">'
+    + 'Chaque mois, votre patrimoine immobilier augmente de <strong style="color:var(--green)">+' + fmt(total) + '</strong> '
+    + '(<strong>' + fmt(annuel) + '/an</strong>). Voici les moteurs :'
+    + '</p>'
+    // Stacked bar visualization
+    + '<div style="display:flex;border-radius:8px;overflow:hidden;height:32px;margin-bottom:16px;font-size:11px;font-weight:600;color:#fff">'
+    + '<div style="background:#2b6cb0;width:' + capPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (capPct > 8 ? '0' : '60') + 'px" title="Capital amorti">' + (capPct > 8 ? capPct + '%' : '') + '</div>'
+    + '<div style="background:#276749;width:' + apPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (apPct > 8 ? '0' : '60') + 'px" title="Appr\u00e9ciation">' + (apPct > 8 ? apPct + '%' : '') + '</div>'
+    + (tb.cashflow >= 0
+      ? '<div style="background:#48bb78;width:' + cfPct.toFixed(0) + '%;display:flex;align-items:center;justify-content:center" title="Cash flow positif">' + (cfPct > 8 ? cfPct.toFixed(0) + '%' : '') + '</div>'
+      : '<div style="background:#e53e3e;width:' + effortPct + '%;display:flex;align-items:center;justify-content:center" title="Effort d\u2019\u00e9pargne">' + (effortPct > 8 ? '-' + effortPct + '%' : '') + '</div>')
+    + '</div>'
+    // Legend
+    + '<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;font-size:12px">'
+    + '<span><span style="display:inline-block;width:12px;height:12px;background:#2b6cb0;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Capital amorti <strong>' + fmt(tb.capitalAmorti) + '/mois</strong></span>'
+    + '<span><span style="display:inline-block;width:12px;height:12px;background:#276749;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Appr\u00e9ciation <strong>' + fmt(tb.appreciation) + '/mois</strong></span>'
+    + (tb.cashflow >= 0
+      ? '<span><span style="display:inline-block;width:12px;height:12px;background:#48bb78;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Cash flow net <strong>+' + fmt(tb.cashflow) + '/mois</strong></span>'
+      : '<span><span style="display:inline-block;width:12px;height:12px;background:#e53e3e;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Effort d\u2019\u00e9pargne <strong>-' + fmt(Math.abs(tb.cashflow)) + '/mois</strong></span>')
+    + '</div>'
+    // Detail table
+    + '<div style="overflow-x:auto">'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+    + '<thead><tr style="background:#f7fafc">'
+    + '<th style="text-align:left;padding:8px">Bien</th>'
+    + '<th class="num" style="padding:8px">Capital amorti</th>'
+    + '<th class="num" style="padding:8px">Appr\u00e9ciation</th>'
+    + '<th class="num" style="padding:8px">Cash flow</th>'
+    + '<th class="num" style="padding:8px">Total /mois</th>'
+    + '</tr></thead><tbody>' + tableRows + '</tbody></table>'
+    + '</div>'
+    // Explanation
+    + '<div style="margin-top:16px;padding:12px 16px;background:#f0fff4;border-radius:8px;border-left:3px solid var(--green);font-size:12px;line-height:1.6;color:#2d3748">'
+    + '<strong>Comment lire ce tableau :</strong><br>'
+    + '<strong>Capital amorti</strong> = part du pr\u00eat rembours\u00e9e qui augmente votre equity (le locataire paie, la banque rembourse).<br>'
+    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 2.5%/an GPE L15, Rueil 1%/an, Villejuif 2%/an L14+L15).<br>'
+    + '<strong>Cash flow</strong> = loyers - toutes charges (pr\u00eat + assurance + PNO + TF + copro). N\u00e9gatif = effort d\u2019\u00e9pargne mensuel.'
+    + (tb.cashflow < 0 ? '<br><em>M\u00eame avec un effort de ' + fmt(Math.abs(tb.cashflow)) + '/mois, vous cr\u00e9ez ' + fmt(total) + '/mois de richesse nette. Le levier bancaire travaille pour vous.</em>' : '')
+    + '</div>';
+
+  section.style.display = 'block';
+}
+
 function renderImmoView(state) {
   const iv = state.immoView;
   // KPIs
@@ -1547,6 +1648,9 @@ function renderImmoView(state) {
   setEur('kpiImmoViewCRD', iv.totalCRD);
   setText('kpiImmoViewWealth', '+' + fmt(iv.totalWealthCreation) + '/mois');
   setText('kpiImmoViewLTV', iv.avgLTV.toFixed(1) + '%');
+
+  // ── Wealth creation breakdown section ──
+  renderWealthBreakdown(iv);
   const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = iv.totalCF >= 0 ? '+' : '';
   setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
@@ -2162,44 +2266,63 @@ function renderFiscalSimulator(container, prop) {
 // ── VEFA Timeline (Villejuif) ──
 function renderVEFATimeline(container, prop) {
   const cfg = prop.vefaConfig;
-  const [startY, startM] = cfg.franchiseStart.split('-').map(Number);
   const [delY, delM] = cfg.deliveryDate.split('-').map(Number);
-  const franchiseEnd = new Date(startY, startM - 1 + cfg.franchiseMonths);
-  const franchiseEndLabel = franchiseEnd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const deliveryLabel = new Date(delY, delM - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
   let html = '<h4 style="margin:0 0 12px;font-size:14px;color:#4a5568;">Timeline VEFA — Villejuif</h4>';
 
-  // Timeline visual
-  const now = new Date();
-  const totalMonths = (delY - startY) * 12 + (delM - startM);
-  const elapsedMonths = (now.getFullYear() - startY) * 12 + (now.getMonth() + 1 - startM);
-  const pctElapsed = Math.min(100, Math.max(0, elapsedMonths / totalMonths * 100));
-  const pctFranchise = cfg.franchiseMonths / totalMonths * 100;
+  // Check if loan is disbursed
+  if (!cfg.loanDisbursed || !cfg.franchiseStart) {
+    // Loan NOT disbursed yet — show waiting state
+    html += '<div style="padding:16px;background:#fef3c7;border-radius:8px;border-left:3px solid #d69e2e;margin-bottom:16px;">'
+      + '<div style="font-weight:700;color:#92400e;margin-bottom:4px;">En attente de d\u00e9blocage du pr\u00eat</div>'
+      + '<div style="font-size:13px;color:#744210;">Le pr\u00eat n\u2019a pas encore \u00e9t\u00e9 d\u00e9bloqu\u00e9. La franchise de ' + cfg.franchiseMonths + ' mois d\u00e9butera \u00e0 la date de premier d\u00e9blocage des fonds.</div>'
+      + '</div>';
 
-  html += '<div style="position:relative;height:50px;background:#e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden;">'
-    + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctFranchise + '%;background:#bee3f8;border-right:2px dashed #2b6cb0;"></div>'
-    + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctElapsed + '%;background:var(--accent);opacity:0.3;"></div>'
-    + '<div style="position:absolute;left:' + pctElapsed + '%;top:0;width:3px;height:100%;background:var(--accent);"></div>'
-    + '<div style="position:absolute;left:4px;top:4px;font-size:10px;font-weight:600;color:#2b6cb0;">Franchise</div>'
-    + '<div style="position:absolute;right:4px;top:4px;font-size:10px;font-weight:600;color:#4a5568;">Livraison</div>'
-    + '<div style="position:absolute;left:' + pctElapsed + '%;bottom:4px;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--accent);">Auj.</div>'
-    + '</div>';
+    html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr;">'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;color:#d69e2e;">En attente</div><div style="font-size:11px;color:#718096;">D\u00e9but franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison pr\u00e9vue</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Dur\u00e9e franchise</div></div>'
+      + '</div>';
+  } else {
+    // Loan disbursed — show full timeline
+    const [startY, startM] = cfg.franchiseStart.split('-').map(Number);
+    const franchiseEnd = new Date(startY, startM - 1 + cfg.franchiseMonths);
+    const franchiseEndLabel = franchiseEnd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-  // Key dates
-  html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
-    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseStart + '</div><div style="font-size:11px;color:#718096;">Début franchise</div></div>'
-    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + franchiseEndLabel + '</div><div style="font-size:11px;color:#718096;">Fin franchise</div></div>'
-    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison prévue</div></div>'
-    + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Durée franchise</div></div>'
-    + '</div>';
+    // Timeline visual
+    const now = new Date();
+    const totalMonths = (delY - startY) * 12 + (delM - startM);
+    const elapsedMonths = (now.getFullYear() - startY) * 12 + (now.getMonth() + 1 - startM);
+    const pctElapsed = Math.min(100, Math.max(0, elapsedMonths / totalMonths * 100));
+    const pctFranchise = cfg.franchiseMonths / totalMonths * 100;
+
+    html += '<div style="position:relative;height:50px;background:#e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden;">'
+      + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctFranchise + '%;background:#bee3f8;border-right:2px dashed #2b6cb0;"></div>'
+      + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctElapsed + '%;background:var(--accent);opacity:0.3;"></div>'
+      + '<div style="position:absolute;left:' + pctElapsed + '%;top:0;width:3px;height:100%;background:var(--accent);"></div>'
+      + '<div style="position:absolute;left:4px;top:4px;font-size:10px;font-weight:600;color:#2b6cb0;">Franchise</div>'
+      + '<div style="position:absolute;right:4px;top:4px;font-size:10px;font-weight:600;color:#4a5568;">Livraison</div>'
+      + '<div style="position:absolute;left:' + pctElapsed + '%;bottom:4px;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--accent);">Auj.</div>'
+      + '</div>';
+
+    html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseStart + '</div><div style="font-size:11px;color:#718096;">D\u00e9but franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + franchiseEndLabel + '</div><div style="font-size:11px;color:#718096;">Fin franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison pr\u00e9vue</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Dur\u00e9e franchise</div></div>'
+      + '</div>';
+  }
 
   // Financial summary
   if (cfg.totalOperation) {
+    const noteText = cfg.loanDisbursed
+      ? 'Pendant la franchise, seuls les int\u00e9r\u00eats intercalaires sont pay\u00e9s. Les mensualit\u00e9s compl\u00e8tes commencent apr\u00e8s livraison.'
+      : 'Pr\u00eat non d\u00e9bloqu\u00e9 \u2014 aucun int\u00e9r\u00eat intercalaire n\u2019est encore d\u00fb. Pas d\u2019impact sur le cash flow.';
     html += '<div style="margin-top:12px;padding:12px;background:#f7fafc;border-radius:8px;font-size:13px;">'
-      + '<strong>Montant opération :</strong> ' + cfg.totalOperation.toLocaleString('fr-FR') + ' € '
-      + (cfg.fraisDossier > 0 ? '| <strong>Frais dossier :</strong> ' + cfg.fraisDossier.toLocaleString('fr-FR') + ' €' : '')
-      + '<br><small style="color:#718096;">Pendant la franchise, seuls les intérêts intercalaires sont payés. Les mensualités complètes commencent après livraison.</small>'
+      + '<strong>Montant op\u00e9ration :</strong> ' + cfg.totalOperation.toLocaleString('fr-FR') + ' \u20ac '
+      + (cfg.fraisDossier > 0 ? '| <strong>Frais dossier :</strong> ' + cfg.fraisDossier.toLocaleString('fr-FR') + ' \u20ac' : '')
+      + '<br><small style="color:#718096;">' + noteText + '</small>'
       + '</div>';
   }
 
@@ -2991,7 +3114,8 @@ function attachKPIInsights(state, view) {
     insights['kpiImmoViewEq'] = 'Equity nette sur 3 biens. Rueil \u20ac' + f(s.nezha.rueilEquity) + ' (ancien r\u00e9nov\u00e9) + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + ' (VEFA neuf) + Vitry \u20ac' + f(s.amine.vitryEquity) + ' (VEFA neuf RE2020).';
     insights['kpiImmoViewVal'] = 'Valeur march\u00e9 bas\u00e9e sur donn\u00e9es MeilleursAgents/efficity (mars 2026) + prime neuf (+12-15%). Vitry 2.5%/an (L15 Les Ardoines), Villejuif 2%/an (L15 Louis Aragon), Rueil 1%/an (L15 lointaine).';
     insights['kpiImmoViewCRD'] = 'Capital Restant D\u00fb total. Se r\u00e9duit chaque mois. Fin : 2044 (Rueil), 2048 (Vitry), 2053 (Villejuif). Plus de d\u00e9tails dans la section Sources ci-dessous.';
-    insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = capital rembours\u00e9 + appr\u00e9ciation. ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an de richesse nette cr\u00e9\u00e9e. Vitry et Villejuif b\u00e9n\u00e9ficient de l\'effet GPE Ligne 15.';
+    const twb = iv.totalWealthBreakdown || {};
+    insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = Capital amorti ' + f(twb.capitalAmorti || 0) + ' + Appr\u00e9ciation ' + f(twb.appreciation || 0) + (twb.cashflow >= 0 ? ' + CF +' + f(twb.cashflow) : ' - Effort ' + f(Math.abs(twb.cashflow || 0))) + '. Soit ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an.';
     const cfSign = iv.totalCF >= 0 ? '+' : '';
     insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison 2029). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
   }
