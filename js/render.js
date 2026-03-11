@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=86';
-import { getGrandTotal } from './engine.js?v=86';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=87';
+import { getGrandTotal } from './engine.js?v=87';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1444,13 +1444,38 @@ function renderCashView(state) {
     makeTableSortable(cashTable, cashData, renderCashRowsFlat);
   }
 
-  // Yield bar
-  const bar = document.getElementById('cashYieldBar');
-  if (bar && cv.totalCash > 0) {
-    const pctProd = (cv.totalYielding / cv.totalCash * 100).toFixed(0);
-    const pctDorm = (100 - pctProd).toFixed(0);
-    bar.innerHTML = '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + pctProd + '% (' + fmt(cv.totalYielding, true) + ')</div>'
-      + '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + pctDorm + '% (' + fmt(cv.totalNonYielding, true) + ')</div>';
+  // Yield bars — Couple, Amine, Nezha
+  const barsContainer = document.getElementById('cashYieldBars');
+  if (barsContainer && cv.totalCash > 0) {
+    const inflRate = 0.03; // 3% reference inflation
+    const rows = [
+      { label: 'Couple', yielding: cv.totalYielding, nonYielding: cv.totalNonYielding, total: cv.totalCash,
+        yieldSum: cv.weightedAvgYield * cv.totalCash },
+      ...(cv.byOwner ? [
+        { label: 'Amine', yielding: cv.byOwner.Amine.yielding, nonYielding: cv.byOwner.Amine.nonYielding,
+          total: cv.byOwner.Amine.total, yieldSum: cv.byOwner.Amine.weightedYieldSum },
+        { label: 'Nezha', yielding: cv.byOwner.Nezha.yielding, nonYielding: cv.byOwner.Nezha.nonYielding,
+          total: cv.byOwner.Nezha.total, yieldSum: cv.byOwner.Nezha.weightedYieldSum },
+      ] : []),
+    ];
+    barsContainer.innerHTML = rows.map(r => {
+      if (r.total <= 0) return '';
+      const pctProd = Math.round(r.yielding / r.total * 100);
+      const pctDorm = 100 - pctProd;
+      const gainAnn = r.yieldSum; // total annual yield in EUR
+      const erosionAnn = r.total * inflRate;
+      const net = gainAnn - erosionAnn;
+      const netStr = (net >= 0 ? '+' : '') + fmt(Math.round(net));
+      const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
+      return '<div style="display:flex;align-items:center;gap:10px;">'
+        + '<span style="min-width:52px;font-weight:600;font-size:13px;">' + r.label + '</span>'
+        + '<div class="meter-bar" style="height:28px;flex:1;">'
+        + '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + pctProd + '% (' + fmt(r.yielding, true) + ')</div>'
+        + '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + pctDorm + '% (' + fmt(r.nonYielding, true) + ')</div>'
+        + '</div>'
+        + '<span style="min-width:90px;text-align:right;font-size:13px;font-weight:600;color:' + netColor + '">' + netStr + '/an</span>'
+        + '</div>';
+    }).join('');
   }
 
   // JPY note

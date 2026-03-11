@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=86';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=87';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -432,12 +432,18 @@ function computeCashView(portfolio, fx) {
   let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
   let weightedYieldSum = 0;
   const byCurrency = {};
+  const PRODUCTIVE_THRESHOLD = 0.03; // ≥3% = productif, <3% = dormant
+
+  // Per-owner breakdown
+  const byOwner = {
+    Amine:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0 },
+    Nezha:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0 },
+  };
 
   accounts.forEach(a => {
     a.valEUR = toEUR(a.native, a.currency, fx);
     if (a.isDebt) return; // exclude debt (JPY short) from cash totals
     totalCash += a.valEUR;
-    const PRODUCTIVE_THRESHOLD = 0.03; // ≥3% = productif, <3% = dormant
     if (a.yield >= PRODUCTIVE_THRESHOLD) {
       totalYielding += a.valEUR;
     } else {
@@ -445,6 +451,21 @@ function computeCashView(portfolio, fx) {
     }
     weightedYieldSum += a.valEUR * (a.yield || 0);
     byCurrency[a.currency] = (byCurrency[a.currency] || 0) + a.valEUR;
+    // Per-owner
+    const ow = byOwner[a.owner];
+    if (ow) {
+      ow.total += a.valEUR;
+      if (a.yield >= PRODUCTIVE_THRESHOLD) { ow.yielding += a.valEUR; }
+      else { ow.nonYielding += a.valEUR; }
+      ow.weightedYieldSum += a.valEUR * (a.yield || 0);
+    }
+  });
+
+  // Per-owner computed fields
+  ['Amine', 'Nezha'].forEach(name => {
+    const ow = byOwner[name];
+    ow.avgYield = ow.total > 0 ? (ow.weightedYieldSum / ow.total) : 0;
+    ow.netVsInflation = ow.weightedYieldSum - (ow.total * INFLATION_RATE); // gain - erosion
   });
 
   const weightedAvgYield = totalCash > 0 ? (weightedYieldSum / totalCash) : 0;
@@ -656,6 +677,7 @@ function computeCashView(portfolio, fx) {
     byCurrency,
     jpyShortEUR,
     diagnostics,
+    byOwner,
   };
 }
 
