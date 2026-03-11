@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=89';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=90';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -45,7 +45,19 @@ function computeIBKRPositions(portfolio, fx) {
     if (pos.currency === 'EUR') priceLabel = pos.price.toFixed(2) + ' EUR';
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
     else if (pos.currency === 'JPY') priceLabel = '\u00a5' + Math.round(pos.price);
-    return { ...pos, valEUR, costEUR, unrealizedPL, pctPL, priceLabel };
+    // Period P&L: price change + FX change (daily uses FX_STATIC as prev FX, others use current FX)
+    const prevFxRate = FX_STATIC[pos.currency] || fx[pos.currency];
+    const curFxRate = fx[pos.currency] || 1;
+    function periodPL(refPrice, usePrevFx) {
+      if (!refPrice || refPrice <= 0) return null;
+      const refVal = pos.shares * refPrice / (usePrevFx ? prevFxRate : curFxRate);
+      return valEUR - refVal;
+    }
+    const dailyPL = periodPL(pos.previousClose, true); // daily: prev FX for full picture
+    const mtdPL = periodPL(pos.mtdOpen, false);
+    const ytdPL = periodPL(pos.ytdOpen, false);
+    const oneMonthPL = periodPL(pos.oneMonthAgo, false);
+    return { ...pos, valEUR, costEUR, unrealizedPL, pctPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL };
   }).sort((a, b) => b.valEUR - a.valEUR);
 
   // Compute weights
@@ -361,6 +373,27 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     geoAllocation,
     sectorAllocation,
     insights,
+    // Multi-period P&L (price + FX combined)
+    periodPL: (() => {
+      function sumField(field) { return ibkrPositions.reduce((s, p) => s + (p[field] || 0), 0); }
+      function hasField(field) { return ibkrPositions.some(p => p[field] !== null && p[field] !== undefined); }
+      // ESPP period P&L
+      function esppPeriod(refPrice) {
+        if (!refPrice || refPrice <= 0) return 0;
+        return esppCurrentVal - (espp.shares * refPrice / (fx.USD || 1));
+      }
+      // IBKR cash FX P&L (daily only — uses FX_STATIC as prev)
+      const jpyPrevFx = FX_STATIC.JPY || fx.JPY;
+      const usdPrevFx = FX_STATIC.USD || fx.USD;
+      const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
+                      + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
+      return {
+        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL') },
+        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL') },
+        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL') },
+        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL') },
+      };
+    })(),
   };
 }
 
@@ -666,6 +699,22 @@ function computeCashView(portfolio, fx) {
     ],
   });
 
+  // ── FX Daily P&L: compare live FX vs FX_STATIC (previous close) ──
+  let fxDailyPL = 0;
+  const fxDailyDetail = {};
+  accounts.forEach(a => {
+    if (a.currency === 'EUR' || !a.native || a.native === 0) return;
+    const prevRate = FX_STATIC[a.currency];
+    const liveRate = fx[a.currency];
+    if (!prevRate || !liveRate) return;
+    // Value in EUR at previous close vs now
+    const valPrev = a.native / prevRate;
+    const valNow = a.native / liveRate;
+    const delta = valNow - valPrev;
+    fxDailyPL += delta;
+    fxDailyDetail[a.currency] = (fxDailyDetail[a.currency] || 0) + delta;
+  });
+
   return {
     accounts,
     totalCash,
@@ -678,6 +727,8 @@ function computeCashView(portfolio, fx) {
     jpyShortEUR,
     diagnostics,
     byOwner,
+    fxDailyPL,
+    fxDailyDetail,
   };
 }
 

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=89';
-import { getGrandTotal } from './engine.js?v=89';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=90';
+import { getGrandTotal } from './engine.js?v=90';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -997,6 +997,24 @@ function renderActionsView(state) {
   setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
   setText('kpiActionsDividends', fmt(av.dividends));
   setText('kpiActionsTWR', 'TWR +' + av.twr.toFixed(1) + '%');
+
+  // Period P&L KPIs (Daily, MTD, 1M, YTD)
+  if (av.periodPL) {
+    [
+      { id: 'kpiPLDaily', data: av.periodPL.daily },
+      { id: 'kpiPLMTD', data: av.periodPL.mtd },
+      { id: 'kpiPL1M', data: av.periodPL.oneMonth },
+      { id: 'kpiPLYTD', data: av.periodPL.ytd },
+    ].forEach(p => {
+      const el = document.getElementById(p.id);
+      if (!el) return;
+      if (!p.data.hasData) { el.textContent = '--'; return; }
+      const v = Math.round(p.data.total);
+      const sign = v >= 0 ? '+' : '';
+      el.textContent = sign + fmt(v);
+      el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+    });
+  }
 
   // Build unified positions array (IBKR + ESPP + SGTM)
   const totalAllVal = av.totalStocks;
