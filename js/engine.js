@@ -1074,8 +1074,9 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     result.totalTaxPV = result.ir + result.ps + result.surtaxe;
   }
 
-  // Frais d'agence
-  result.agencyFee = Math.round(salePrice * EC.agencyFeePct);
+  // Frais d'agence — désactivé (vente en direct sans agence)
+  // result.agencyFee = Math.round(salePrice * EC.agencyFeePct);
+  result.agencyFee = 0;
 
   // Frais de mainlevée si CRD > 0
   if (crdAtExit > 0) {

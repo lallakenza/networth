@@ -2187,7 +2187,7 @@ function renderAptView(state, loanKey) {
     html += '<div><span style="color:#718096;">Abatt. IR (' + Math.round(ec.abattementIR * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementIR)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Abatt. PS (' + Math.round(ec.abattementPS * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementPS)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Taxe PV (IR+PS)</span><br><strong class="pl-neg">' + fmt(ec.totalTaxPV) + '</strong></div>';
-    html += '<div><span style="color:#718096;">Frais agence (4%)</span><br><strong class="pl-neg">' + fmt(ec.agencyFee) + '</strong></div>';
+    // Frais agence supprimés (vente en direct)
     if (ec.tvaClawback > 0) {
       html += '<div><span style="color:#718096;">Clawback TVA 5.5%</span><br><strong class="pl-neg">' + fmt(ec.tvaClawback) + '</strong></div>';
     }
@@ -2385,7 +2385,7 @@ function renderAptView(state, loanKey) {
 
   html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
     + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
-    + '<th class="num">Taxe PV</th><th class="num">Agence</th><th class="num">TVA claw.</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
+    + '<th class="num">Taxe PV</th><th class="num">TVA claw.</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
   for (let yr = 2026; yr <= 2040; yr += 2) {
     const holdYears = (yr - py) + (6 - pm) / 12;  // approx mid-year
@@ -2401,7 +2401,6 @@ function renderAptView(state, loanKey) {
       + '<td class="num">' + Math.round(exitSim.abattementIR * 100) + '%</td>'
       + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
       + '<td class="num">' + fmt(exitSim.totalTaxPV) + '</td>'
-      + '<td class="num">' + fmt(exitSim.agencyFee) + '</td>'
       + '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>'
       + '<td class="num" style="color:#c53030;font-weight:600;">' + fmt(exitSim.totalExitCosts) + '</td>'
       + '<td class="num" style="color:' + neColor + ';font-weight:600;">' + fmt(Math.round(exitSim.netEquityAfterExit)) + '</td>'
@@ -2448,7 +2447,7 @@ function computeExitCostsSim(loanKey, salePrice, purchasePrice, holdingYears, cr
   let surtaxe = 0;
   if (pvNetIR > 50000) { for (const b of EC.surtaxe) { if (pvNetIR >= b.from) surtaxe = Math.round(pvNetIR * b.rate); } }
   const totalTaxPV = ir + ps + surtaxe;
-  const agencyFee = Math.round(salePrice * EC.agencyFeePct);
+  const agencyFee = 0;  // Vente en direct, pas d'agence
   const diagnostics = EC.diagnosticsCost;
   let mainlevee = 0;
   if (crdAtExit > 0) mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
