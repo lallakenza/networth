@@ -74,30 +74,27 @@ async function fetchStockPrice(symbol) {
     return { price: p, ...refPrices };
   }
   const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d';
-  // Attempt 1: Direct Yahoo Finance (may work in some browsers)
-  try {
-    const r = await fetch(yahooUrl);
-    if (r.ok) {
-      const result = extractFromYahoo(await r.json());
-      if (result) return result;
-    }
-  } catch(e) {}
-  // Attempt 2-4: Multiple CORS proxies (rotate to handle downtime)
-  const proxies = [
-    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-    url => 'https://corsproxy.io/?' + encodeURIComponent(url),
-    url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+
+  // Race all sources in parallel — first valid response wins
+  const sources = [
+    yahooUrl, // direct (may work without CORS in some browsers)
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl),
+    'https://corsproxy.io/?' + encodeURIComponent(yahooUrl),
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(yahooUrl),
   ];
-  for (const proxy of proxies) {
-    try {
-      const r = await fetch(proxy(yahooUrl));
-      if (r.ok) {
-        const result = extractFromYahoo(await r.json());
-        if (result) return result;
-      }
-    } catch(e) {}
+
+  // Each source: fetch → parse → return result or throw
+  const attempts = sources.map(url =>
+    fetch(url, { signal: AbortSignal.timeout(8000) })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => { const result = extractFromYahoo(d); if (!result) throw new Error('no data'); return result; })
+  );
+
+  try {
+    return await Promise.any(attempts);
+  } catch(e) {
+    return null; // all sources failed
   }
-  return null;
 }
 
 /**
@@ -105,45 +102,41 @@ async function fetchStockPrice(symbol) {
  * Returns price in MAD or null
  */
 async function fetchSGTMPrice() {
-  // Attempt 1: Google Finance page via CORS proxy (scrape data-last-price)
-  try {
-    const gUrl = encodeURIComponent('https://www.google.com/finance/quote/GTM:CAS');
-    const r = await fetch('https://api.allorigins.win/raw?url=' + gUrl);
-    if (r.ok) {
-      const html = await r.text();
-      const m = html.match(/data-last-price="([\d.]+)"/);
-      if (m && parseFloat(m[1]) > 0) return parseFloat(m[1]);
-    }
-  } catch(e) {}
+  const gUrl = 'https://www.google.com/finance/quote/GTM:CAS';
+  const lUrl = 'https://www.leboursier.ma/cours/SGTM';
 
-  // Attempt 2: leboursier.ma page scraping via CORS proxy
-  try {
-    const lUrl = encodeURIComponent('https://www.leboursier.ma/cours/SGTM');
-    const r = await fetch('https://api.allorigins.win/raw?url=' + lUrl);
-    if (r.ok) {
-      const html = await r.text();
-      // Look for price patterns like "700,00" or "cours" fields
-      const m = html.match(/cours[^>]*>[\s]*([\d\s]+[.,]\d{2})/i) ||
-                html.match(/"price"[:\s]*([\d.]+)/) ||
-                html.match(/"lastPrice"[:\s]*([\d.]+)/);
-      if (m) {
-        const price = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
-        if (price > 0) return price;
-      }
-    }
-  } catch(e) {}
+  function extractGooglePrice(html) {
+    const m = html.match(/data-last-price="([\d.]+)"/);
+    if (m && parseFloat(m[1]) > 0) return parseFloat(m[1]);
+    throw new Error('no price');
+  }
 
-  // Attempt 3: corsproxy.io as alternative CORS proxy
-  try {
-    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://www.google.com/finance/quote/GTM:CAS'));
-    if (r.ok) {
-      const html = await r.text();
-      const m = html.match(/data-last-price="([\d.]+)"/);
-      if (m && parseFloat(m[1]) > 0) return parseFloat(m[1]);
+  function extractBoursierPrice(html) {
+    const m = html.match(/cours[^>]*>[\s]*([\d\s]+[.,]\d{2})/i) ||
+              html.match(/"price"[:\s]*([\d.]+)/) ||
+              html.match(/"lastPrice"[:\s]*([\d.]+)/);
+    if (m) {
+      const price = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
+      if (price > 0) return price;
     }
-  } catch(e) {}
+    throw new Error('no price');
+  }
 
-  return null;
+  // Race all sources in parallel
+  const attempts = [
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(gUrl), { signal: AbortSignal.timeout(8000) })
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractGooglePrice),
+    fetch('https://corsproxy.io/?' + encodeURIComponent(gUrl), { signal: AbortSignal.timeout(8000) })
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractGooglePrice),
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(lUrl), { signal: AbortSignal.timeout(8000) })
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractBoursierPrice),
+  ];
+
+  try {
+    return await Promise.any(attempts);
+  } catch(e) {
+    return null;
+  }
 }
 
 /**
