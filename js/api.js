@@ -57,18 +57,68 @@ async function fetchStockPrice(symbol) {
 }
 
 /**
- * Fetch all stock prices (IBKR positions + ACN)
- * Mutates portfolio.amine.ibkr.positions[].price and portfolio.market.acnPriceUSD
- * Returns { updated: boolean, liveCount: number, totalTickers: number }
+ * Fetch SGTM price from Casablanca Bourse (multiple fallbacks)
+ * Returns price in MAD or null
+ */
+async function fetchSGTMPrice() {
+  // Attempt 1: Google Finance page via CORS proxy (scrape data-last-price)
+  try {
+    const gUrl = encodeURIComponent('https://www.google.com/finance/quote/GTM:CAS');
+    const r = await fetch('https://api.allorigins.win/raw?url=' + gUrl);
+    if (r.ok) {
+      const html = await r.text();
+      const m = html.match(/data-last-price="([\d.]+)"/);
+      if (m && parseFloat(m[1]) > 0) return parseFloat(m[1]);
+    }
+  } catch(e) {}
+
+  // Attempt 2: leboursier.ma page scraping via CORS proxy
+  try {
+    const lUrl = encodeURIComponent('https://www.leboursier.ma/cours/SGTM');
+    const r = await fetch('https://api.allorigins.win/raw?url=' + lUrl);
+    if (r.ok) {
+      const html = await r.text();
+      // Look for price patterns like "700,00" or "cours" fields
+      const m = html.match(/cours[^>]*>[\s]*([\d\s]+[.,]\d{2})/i) ||
+                html.match(/"price"[:\s]*([\d.]+)/) ||
+                html.match(/"lastPrice"[:\s]*([\d.]+)/);
+      if (m) {
+        const price = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
+        if (price > 0) return price;
+      }
+    }
+  } catch(e) {}
+
+  // Attempt 3: corsproxy.io as alternative CORS proxy
+  try {
+    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://www.google.com/finance/quote/GTM:CAS'));
+    if (r.ok) {
+      const html = await r.text();
+      const m = html.match(/data-last-price="([\d.]+)"/);
+      if (m && parseFloat(m[1]) > 0) return parseFloat(m[1]);
+    }
+  } catch(e) {}
+
+  return null;
+}
+
+/**
+ * Fetch all stock prices (IBKR positions + ACN + SGTM)
+ * Mutates portfolio.amine.ibkr.positions[].price, portfolio.market.acnPriceUSD, portfolio.market.sgtmPriceMAD
+ * Returns { updated: boolean, liveCount: number, totalTickers: number, sgtmLive: boolean }
  */
 export async function fetchStockPrices(portfolio) {
   const tickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
   const prices = {};
 
-  await Promise.all(tickers.map(async (ticker) => {
-    const price = await fetchStockPrice(ticker);
-    if (price) prices[ticker] = price;
-  }));
+  // Fetch IBKR + ACN in parallel with SGTM
+  const [, sgtmPrice] = await Promise.all([
+    Promise.all(tickers.map(async (ticker) => {
+      const price = await fetchStockPrice(ticker);
+      if (price) prices[ticker] = price;
+    })),
+    fetchSGTMPrice(),
+  ]);
 
   let updated = false;
 
@@ -86,9 +136,18 @@ export async function fetchStockPrices(portfolio) {
     updated = true;
   }
 
+  // Update SGTM
+  let sgtmLive = false;
+  if (sgtmPrice) {
+    portfolio.market.sgtmPriceMAD = sgtmPrice;
+    sgtmLive = true;
+    updated = true;
+  }
+
   return {
     updated,
-    liveCount: Object.keys(prices).length,
-    totalTickers: tickers.length,
+    liveCount: Object.keys(prices).length + (sgtmLive ? 1 : 0),
+    totalTickers: tickers.length + 1,
+    sgtmLive,
   };
 }

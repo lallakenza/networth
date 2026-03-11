@@ -264,7 +264,7 @@
         <div class="sub-title">IBKR Portfolio</div>
         <div class="sub-detail">12 actions EU + 1 JP<br>2 crypto ETFs + multi-devise</div>
         <div class="sub-equity pos" id="subIBKR" data-eur="0">--</div>
-        <div class="sub-badge" style="background:#c6f6d5;color:#276749">TWR +26.94%</div>
+        <div class="sub-badge" id="subIBKRBadge" style="background:#c6f6d5;color:#276749">--</div>
       </a>
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F4BC;</div>
@@ -290,35 +290,19 @@
         <div class="sub-icon">&#x1F1E6;&#x1F1EA;</div>
         <div class="sub-title">Cash UAE</div>
         <div class="sub-equity pos" id="subUAE" data-eur="0">--</div>
-        <ul class="breakdown-list">
-          <li><span class="bl-label">Mashreq NEO PLUS</span><span class="bl-val">AED 310,518 <span style="color:var(--gray);font-size:11px">(71,781)</span></span></li>
-          <li><span class="bl-label">Wio Savings</span><span class="bl-val">AED 220,000 <span style="color:var(--gray);font-size:11px">(50,856)</span></span></li>
-          <li><span class="bl-label">Revolut (EUR)</span><span class="bl-val">4,267</span></li>
-          <li><span class="bl-label">Wio Current</span><span class="bl-val">AED 4,904 <span style="color:var(--gray);font-size:11px">(1,134)</span></span></li>
-          <li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total Excel</span><span class="bl-val">128,039</span></li>
-          <li><span class="bl-label" style="font-style:italic;color:var(--green)">+ Paiement 21j SAP&Tax recu</span><span class="bl-val" style="color:var(--green)">+23,910</span></li>
-        </ul>
-        <div class="sub-badge" style="background:#f0fff4;color:#276749">~6% rendement epargne</div>
+        <ul class="breakdown-list" id="subUAEBreakdown"></ul>
+        <div class="sub-badge" id="subUAEBadge" style="background:#f0fff4;color:#276749">--</div>
       </div>
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
         <div class="sub-title">Cash Maroc</div>
         <div class="sub-equity pos" id="subMarocCash" data-eur="0">--</div>
-        <ul class="breakdown-list">
-          <li><span class="bl-label">Attijariwafa Courant</span><span class="bl-val">MAD 151,202</span></li>
-          <li><span class="bl-label">BMCE/BOA Cheque</span><span class="bl-val">MAD 37,304</span></li>
-        </ul>
+        <ul class="breakdown-list" id="subMarocBreakdown"></ul>
         <div class="sub-detail" style="margin-top:6px;font-style:italic" id="subMarocFXNote">--</div>
       </div>
     </div>
     <div style="padding: 12px 20px 4px;">
-      <div class="highlight" style="margin:0;">
-        <strong>Insights Cash :</strong><br>
-        - <span style="color:var(--green)">169K de cash = 6 mois de matelas de securite meme en cas d'arret total d'activite.</span><br>
-        - Le rendement de 6% sur l'epargne UAE (Wio Savings) est tres competitif — continuer a maximiser ce placement.<br>
-        - Cash Maroc peu rentable (~1-2%). Considerer un rapatriement progressif vers UAE ou investissement en actions.<br>
-        - <span style="color:var(--red)">Risque FX :</span> 89% du cash est en AED (peg USD). Un affaiblissement du dollar impacterait la valeur en EUR.
-      </div>
+      <div class="highlight" style="margin:0;" id="cashInsightsExpand"></div>
     </div>
   </div>
 
@@ -355,8 +339,8 @@
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F697;</div>
         <div class="sub-title">Vehicules</div>
-        <div class="sub-detail">Porsche Cayenne 45K<br>Mercedes Class A 10K</div>
-        <div class="sub-equity" style="color:var(--primary);" data-eur="55000">--</div>
+        <div class="sub-detail" id="subVehiclesDetail">--</div>
+        <div class="sub-equity" style="color:var(--primary);" id="subVehicles" data-eur="0">--</div>
       </div>
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F4C4;</div>
@@ -367,18 +351,12 @@
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F3DB;&#xFE0F;</div>
         <div class="sub-title">TVA a payer</div>
-        <div class="sub-detail">Passif fiscal<br>Provision estimee</div>
-        <div class="sub-equity neg" data-eur="16000" data-sign="-">--</div>
+        <div class="sub-detail" id="subTVADetail">--</div>
+        <div class="sub-equity neg" id="subTVA" data-eur="0" data-sign="-">--</div>
       </div>
     </div>
     <div style="padding: 12px 20px 4px;">
-      <div class="highlight" style="margin:0;">
-        <strong>Insights Autres :</strong><br>
-        - <span style="color:var(--green)">48,751 de creances dont 18K SAP&Tax garanties (delai 45j).</span> Les creances perso (~31K) sont a prioriser par montant (Kenza 18K, Abdelkader 5K).<br>
-        - Vehicules (55K) sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>
-        - TVA (-16K) est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>
-        - <span style="color:var(--red)">Risque :</span> Les creances personnelles (~31K) sont difficilement recouvrables a court terme. Ne pas les compter dans la tresorerie operationnelle. Les 18K SAP&Tax sont garantis (delai paiement 45j) et assimilables a du cash.
-      </div>
+      <div class="highlight" style="margin:0;" id="otherInsightsExpand"></div>
     </div>
   </div>
 </div>
@@ -421,7 +399,7 @@
     </thead>
     <tbody id="immoSummaryTbody"></tbody>
   </table>
-  <p style="font-size:12px;color:var(--gray);margin-top:6px">Villejuif : Prets LCL — P1 286,670 @ 3.27% + P2 31,800 @ 0.90%. Franchise totale 36 mois, capitalisation annuelle. Vitry : valeur appreciee 2%/an depuis achat (275K &rarr; 293K). Rueil : bail meuble oct 2025 (1,300 HC + 150 charges).</p>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px" id="immoLoanFootnote"></p>
 
   <div class="info" style="margin-top:14px;font-size:13px;text-align:center;">
     <strong>Voir les analyses detaillees</strong> (cash flow, projections, strategie) dans la vue <a href="#" onclick="document.querySelector('[data-view=immobilier]').click(); return false;" style="color:var(--accent);font-weight:700;">&#x1F3E0; Immobilier</a>.
@@ -432,26 +410,8 @@
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--green);">&#x1F4A1;</span>Vue d'ensemble & Insights</h2>
   <div class="grid2">
-    <div>
-      <div class="success">
-        <strong>Points forts du couple :</strong><br>
-        - NW combine de 736K a 33 et 34 ans — excellent rythme de constitution patrimoniale pour un couple.<br>
-        - Revenus diversifies : salaire Amine (Dubai) + patrimoine locatif Nezha (France). Deux pays, deux sources de revenus.<br>
-        - Cash couple total ~249K (Amine 172K + Nezha 94K dont 85K EUR + 9K MAD) reparti sur 2 devises et plusieurs banques. Bonne resilience en cas de blocage bancaire.<br>
-        - Zero dette consommation. Les 784K de dette sont 100% adosses a des actifs immo productifs (925K de valeur).<br>
-        - <strong>Objectif 1M NW couple : atteignable en ~3-4 ans avec le rythme actuel d'epargne + creation immo.</strong>
-      </div>
-    </div>
-    <div>
-      <div class="highlight">
-        <strong>Risques & points d'attention couple :</strong><br>
-        - <strong>Concentration immo IDF :</strong> 3 biens, 925K de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -93K d'equity couple.<br>
-        - <strong>Exposition devise :</strong> Le couple est multi-devise — ~172K en AED/USD (Amine) + ~94K en EUR/MAD (Nezha 85K EUR + 9K MAD). Le risque USD/EUR est reel (~35% du cash total en AED).<br>
-        - <strong>Charge immo post-2028 :</strong> Apres livraison Villejuif, les mensualites totales passeront a ~3,855/mois (Vitry 1,183 + Rueil 988 + Villejuif ~1,720 avec assurances). La tresorerie Nezha (~94K) sera reduite par l'apport Villejuif (~28K restant), laissant ~66K de reserve pour absorber le CF negatif initial.<br>
-        - <strong>Creances (49K) :</strong> SAP&Tax 18K (garanti, delai de paiement 45 jours — quasi-cash) + creances perso 31K (recouvrement incertain). Ne compter que les 18K SAP dans la planification.<br>
-        - <strong>Levier JPY (Amine) :</strong> Emprunt -7M JPY (~38K EUR) sur IBKR apres deleverage du 10/03. Risque yen reduit de 67% (etait -21M JPY / ~116K EUR). Une appreciation du yen de 10% ne couterait plus que ~4K.
-      </div>
-    </div>
+    <div><div class="success" id="coupleInsightsPositive"></div></div>
+    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
   </div>
 </div>
 
@@ -477,12 +437,7 @@
       </div>
     </div>
   </div>
-  <div class="highlight" style="margin-top: 14px;">
-    <strong>Immobilier Amine :</strong><br>
-    - <span style="color:var(--green)">Vitry genere +1,017/mois de creation de richesse</span> (560 capital rembourse + 458 appreciation). Excellent levier malgre le CF negatif.<br>
-    - <strong>CF = <span id="insightVitryCF">--</span>/mois</strong> (revenus 1,270 CC vs charges <span id="insightVitryCharges">--</span>). Loyer HC 1,050 + 150 charges + 70 parking.<br>
-    - Explorer le passage en LMNP reel — les charges deductibles pourraient reduire l'imposition a zero.
-  </div>
+  <div class="highlight" style="margin-top: 14px;" id="amineImmoInsight"></div>
 </div>
 
 <!-- AMINE: RESUME ACTIONS -->
@@ -507,17 +462,8 @@
         <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="shares">Qte</th><th class="num" data-sort="valEUR">Valeur</th></tr></thead>
         <tbody id="ibkrPositionsTbody"></tbody>
       </table>
-      <div class="success" style="margin-top: 14px;">
-        <strong>IBKR :</strong> NAV <span id="ibkrNAVLabel">--</span>, depots 202,886. TWR 26.94% depuis ouverture.
-      </div>
-      <div class="highlight" style="margin-top: 10px;">
-        <strong>Insights Actions :</strong><br>
-        - TWR de 31% est excellent — bien au-dessus du CAC40 (~20% sur la meme periode).<br>
-        - <strong>Diversification geo :</strong> 53% France, 21% Crypto — risque de concentration sur le marche francais. Considerer plus d'exposition US/Monde.<br>
-        - Bitcoin (IBIT) represente 20% du portefeuille avec un P&L de -4,720 : position a surveiller, mais horizon long terme favorable.<br>
-        - <span style="color:var(--green)">A 7% annuel + 7K/mois d'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>
-        - <span style="color:var(--green)">Deleverage JPY (10/03) :</span> Short JPY reduit de -21M a -7M JPY (~38K EUR). Risque yen divise par 3. Cash EUR/USD IBKR utilise pour racheter du JPY.
-      </div>
+      <div class="success" style="margin-top: 14px;" id="ibkrSummaryBox"></div>
+      <div class="highlight" style="margin-top: 10px;" id="amineActionsInsight"></div>
     </div>
   </div>
 </div>
@@ -531,16 +477,7 @@
         <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="info" style="margin-top: 14px;">
-        <strong>Profil :</strong> Patrimoine 100% immobilier + cash. 85K en France (dont une partie pour apport Villejuif — 3.6K payes en reservation). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>
-        <strong>Insights Nezha :</strong><br>
-        - <span style="color:var(--green)">NW de 176K dont 75K en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>
-        - <span style="color:var(--green)">Rueil : auto-finance (<span id="insightRueilCF">--</span>/mois de CF positif)</span>. 838/mois de creation de richesse, zero effort financier.<br>
-        - Cash total ~94K (85K France + 9K Maroc). ~28K restent pour l'apport Villejuif. Creance Omar 40K MAD (~4K) a recuperer.<br>
-        - <strong>Franchise totale 3 ans :</strong> Nezha ne paye rien pendant la franchise. Les interets se capitalisent (~24K). Le surplus de Rueil (<span id="insightRueilCF2">--</span>/mois) peut etre epargne pour la tresorerie post-franchise.<br>
-        - <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~2,576/mois de mensualites (Rueil 907 + Villejuif ~1,669). Tresorerie libre ~66K a conserver.<br>
-        - <span style="color:var(--green)">Apres livraison :</span> 2 biens = +1,651/mois de creation de richesse (~20K/an). Objectif loyer Villejuif : 1,600-1,800 meuble.
-      </div>
+      <div class="info" style="margin-top: 14px;" id="nezhaInsightsBox"></div>
     </div>
     <div>
       <div class="chart-container" style="height: 300px;">
@@ -618,16 +555,7 @@
   <div class="highlight" id="nzSimInsight">--</div>
 
   <h3 style="margin-top:20px;">Projection detaillee</h3>
-  <table>
-    <thead><tr><th></th><th class="num">Jan 2027</th><th class="num">Jan 2028</th><th class="num">Jan 2029</th><th class="num">Jan 2030</th><th class="num">Jan 2031</th><th class="num">Jan 2032</th></tr></thead>
-    <tbody>
-      <tr><td>Equity Rueil</td><td class="num">85,543</td><td class="num">97,707</td><td class="num">110,020</td><td class="num">122,468</td><td class="num">135,060</td><td class="num">147,799</td></tr>
-      <tr><td>Equity Villejuif</td><td class="num">0</td><td class="num">0</td><td class="num">11,039</td><td class="num">29,706</td><td class="num">48,808</td><td class="num">68,307</td></tr>
-      <tr><td>Cash</td><td class="num">74,050</td><td class="num">63,459</td><td class="num">53,209</td><td class="num">43,288</td><td class="num">33,682</td><td class="num">24,401</td></tr>
-      <tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>
-        <td class="num"><strong>159,593</strong></td><td class="num"><strong>161,166</strong></td><td class="num"><strong>174,268</strong></td><td class="num"><strong>195,462</strong></td><td class="num"><strong>217,550</strong></td><td class="num"><strong>240,507</strong></td></tr>
-    </tbody>
-  </table>
+  <div id="nezhaProjectionTable"></div>
 </div>
 
 <div class="card" data-view="nezha">
@@ -884,59 +812,13 @@
 <!-- IMMOBILIER: ANALYSES DETAILLEES (deplacees de la vue Couple) -->
 <div class="card hidden" data-view="immobilier">
   <h2><span class="section-icon" style="background: var(--green);">&#x1F4B0;</span>Cash Flow & Strat&eacute;gie Immobili&egrave;re</h2>
-  <div class="info" style="margin-top:10px; font-size:13px;">
-    <strong>Villejuif — Simulation banque vs estimation realiste :</strong><br>
-    La banque simule un deblocage integral du credit au jour 1. En realite, les fonds VEFA se debloquent progressivement (appels de fonds : 35% fondations, 70% hors d'eau, 80% hors d'air, 95% achevement, 100% livraison). L'apport (~31K) est utilise en premier.<br><br>
-    <table style="font-size:12px;margin:8px 0">
-      <tr><th></th><th class="num">Simulation banque</th><th class="num">Estimation realiste</th><th class="num">Economie</th></tr>
-      <tr><td>Interets capitalises (36 mois)</td><td class="num">29,918</td><td class="num" style="color:var(--green);font-weight:600">~24,150</td><td class="num pos">~5,750 (-19%)</td></tr>
-      <tr><td>CRD apres franchise</td><td class="num">348,388</td><td class="num" style="color:var(--green);font-weight:600">~342,620</td><td class="num pos">~5,750</td></tr>
-      <tr><td>Mensualite post-franchise</td><td class="num">1,698/mois</td><td class="num" style="color:var(--green);font-weight:600">~1,669/mois</td><td class="num pos">~29/mois</td></tr>
-      <tr><td>Cout total sur 291 mois</td><td class="num">494,112</td><td class="num" style="color:var(--green);font-weight:600">~485,800</td><td class="num pos">~8,300</td></tr>
-    </table>
-    <span style="font-size:11px;color:var(--gray)">Hypothese : fondations M0, hors d'eau M6, hors d'air M9, achevement M15, livraison M18. Apport utilise en priorite. Assurance 51/mois non incluse dans la mensualite ci-dessus.</span>
-  </div>
-
-  <div class="highlight" style="margin-top: 14px;">
-    <strong>Strategie Immo Couple :</strong><br>
-    - <strong>Bilan consolide :</strong> 925K de patrimoine immo, 784K de dette, 141K d'equity. Le couple detient 3 biens en IDF avec un taux d'endettement immo de ~85%. La strategie repose sur le levier credit pour construire de l'equity via le remboursement.<br>
-    - <strong>Cash flow consolide : -108/mois</strong> aujourd'hui. Le portefeuille immo coute 1,296/an au couple. C'est absorbable par les revenus d'Amine, mais la marge est mince. Apres augmentation Vitry debut 2027, le CF passe a <span style="color:var(--green)">+92/mois</span> — le portefeuille devient auto-finance.<br>
-    - <strong>Creation de richesse : +1,855/mois</strong> (22K/an) via le remboursement du capital + appreciation. Chaque mois, le patrimoine net du couple progresse malgre le CF negatif. C'est l'essence de la strategie.<br>
-    - <strong>Horizon ete 2029 :</strong> Avec Villejuif livre, le couple passera a +2,668/mois de creation de richesse (32K/an).<br>
-    - <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~93K d'equity.<br>
-    - <span style="color:var(--green)">Trajectoire :</span> A 5 ans, equity immo estimee > 300K (vs 141K ajd).
-  </div>
+  <div class="info" style="margin-top:10px; font-size:13px;" id="villejuifSimulation"></div>
+  <div class="highlight" style="margin-top: 14px;" id="immoStrategyInsight"></div>
 
   <h3 style="margin-top: 24px;">Analyse d'autofinancement — Cash Flow reel</h3>
   <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Revenus = loyer HC + charges locataire + parking. Charges = tout ce que le proprietaire paye (pret, copro, assurance, PNO, TF). Cash flow = revenus - charges.</p>
-  <table style="margin-top:10px;">
-    <thead>
-      <tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Vitry</strong><br><span style="font-size:11px;color:var(--gray)">HC 1,050 + charges 150 + parking 70</span></td>
-        <td class="num">1,166</td><td class="num">17</td><td class="num">15</td><td class="num">75</td><td class="num">150</td>
-        <td class="num" style="font-weight:600">1,423</td><td class="num">1,120</td><td class="num">1,270</td><td class="num neg" style="font-weight:700">-153</td>
-      </tr>
-      <tr style="background:#f0f5ff">
-        <td><strong>Rueil</strong><br><span style="font-size:11px;color:var(--gray)">HC 1,300 + charges 150 (bail oct 2025)</span></td>
-        <td class="num">970</td><td class="num">18</td><td class="num">12</td><td class="num">67</td><td class="num">250</td>
-        <td class="num" style="font-weight:600">1,317</td><td class="num">1,300</td><td class="num">1,450</td><td class="num pos" style="font-weight:700">+133</td>
-      </tr>
-      <tr>
-        <td><strong>Villejuif</strong><br><span style="font-size:11px;color:#92400e">VEFA — livraison ete 2029 (3 ans franchise)</span></td>
-        <td class="num">1,669</td><td class="num">51</td><td class="num">15</td><td class="num">83</td><td class="num">110</td>
-        <td class="num" style="font-weight:600">1,928</td><td class="num" style="color:var(--gray)">TBD</td><td class="num" style="color:var(--gray)">TBD</td><td class="num" style="color:var(--gray)">--</td>
-      </tr>
-    </tbody>
-  </table>
-  <p style="font-size:11px;color:var(--gray);margin-top:4px">Vitry : loyer HC 1,050 (500 bail + 550 cash) + 150 provision charges + 70 parking = 1,270 total. Rueil : loyer HC 1,300 + 150 charges locataire (bail meuble oct 2025), copro 250/mois dont 150 refacture. Villejuif : assurance 51.29 (LCL), mensualite P1 1,572.79 + P2 124.99, copro estimee 110/mois.</p>
-
-  <div class="success" style="margin-top: 14px;">
-    <strong>Analyse :</strong> Rueil est autofinance (+133/mois : revenus 1,450 vs charges 1,317). Copro 250/mois dont 150 refacture au locataire. Vitry a un deficit de -153/mois (revenus 1,270 vs charges 1,423). Loyer HC Vitry = 1,050 (500 bail + 550 cash) + 150 charges locataire + 70 parking.
-    <br><span style="color:var(--red)">Attention Villejuif :</span> Si loyer &lt; 1,700, le cash-flow negatif sera de ~260/mois soit ~3,1K/an a couvrir.
-  </div>
+  <div id="immoCFTable"></div>
+  <div class="success" style="margin-top: 14px;" id="immoCFAnalysis"></div>
 
   <!-- HYPOTHESES & SOURCES -->
   <div id="immoMethodologyPanel" style="margin-top:24px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
@@ -1042,12 +924,12 @@
 <footer>
   <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
   <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
-  <p style="font-size:11px;margin-top:4px;">Taux de change : 1 EUR = <span id="fxDisplay">4.3259 AED | 10.8154 MAD | 1.0850 USD</span></p>
+  <p style="font-size:11px;margin-top:4px;">Taux de change : 1 EUR = <span id="fxDisplay">--</span></p>
 </footer>
 
 </div>
 
-<script type="module" src="js/app.js?v=63"></script>
+<script type="module" src="js/app.js?v=65"></script>
 
 </body>
 </html>

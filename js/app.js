@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=64';
-import { compute } from './engine.js?v=64';
-import { render } from './render.js?v=64';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=64';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=64';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=64';
+import { PORTFOLIO, FX_STATIC } from './data.js?v=65';
+import { compute } from './engine.js?v=65';
+import { render } from './render.js?v=65';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=65';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=65';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=65';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -140,7 +140,8 @@ refresh();
   const sBadge = document.getElementById('stockBadge');
   if (sBadge) {
     const statusLabel = result.liveCount > 0 ? result.liveCount + '/' + result.totalTickers + ' live' : 'statique';
-    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+    const sgtmLabel = result.sgtmLive ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)' : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
     if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
   }
 })();
