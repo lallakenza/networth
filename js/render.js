@@ -889,6 +889,22 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
+// Add a subtle percentage badge below a KPI value
+function setSubPct(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Remove existing sub-pct if any
+  const existing = el.parentElement?.querySelector('.kpi-sub-pct');
+  if (existing) existing.remove();
+  // Create sub-pct element
+  const span = document.createElement('span');
+  span.className = 'kpi-sub-pct';
+  const sign = pct >= 0 ? '+' : '';
+  span.textContent = sign + pct.toFixed(1) + '%';
+  span.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct >= 0 ? '#276749' : '#c53030') + ';';
+  el.insertAdjacentElement('afterend', span);
+}
+
 function setHTML(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
@@ -1010,10 +1026,18 @@ function renderActionsView(state) {
   const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
   setText('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
   document.getElementById('kpiActionsUnrealizedPL')?.classList.add(plCls);
+  // Add % vs deposits for unrealized P/L
+  const unrealPct = av.totalDeposits > 0 ? (av.combinedUnrealizedPL / av.totalDeposits * 100) : 0;
+  setSubPct('kpiActionsUnrealizedPL', unrealPct);
+
   const rplCls = av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
   const rplSign = av.combinedRealizedPL >= 0 ? '+' : '';
   setText('kpiActionsRealizedPL', rplSign + fmt(av.combinedRealizedPL));
   document.getElementById('kpiActionsRealizedPL')?.classList.add(rplCls);
+  // Add % vs deposits for realized P/L
+  const realPct = av.totalDeposits > 0 ? (av.combinedRealizedPL / av.totalDeposits * 100) : 0;
+  setSubPct('kpiActionsRealizedPL', realPct);
+
   setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
   setText('kpiActionsDividends', fmt(av.dividends));
   setText('kpiActionsTWR', 'TWR +' + av.twr.toFixed(1) + '%');
@@ -1033,6 +1057,9 @@ function renderActionsView(state) {
       const sign = v >= 0 ? '+' : '';
       el.textContent = sign + fmt(v);
       el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+      // Add % vs total portfolio
+      const pct = av.totalStocks > 0 ? (p.data.total / av.totalStocks * 100) : 0;
+      setSubPct(p.id, pct);
     });
   }
 
@@ -1258,17 +1285,18 @@ function renderActionsView(state) {
 
       else if (ins.type === 'benchmark') {
         const b = ins.benchmarks;
+        const ytdPct = b.portfolio.ytdPct;
         const twr = b.portfolio.twr;
         html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Donn\u00e9es au ' + b.date + '</div>';
-        // Portfolio bar first
+        // Portfolio bar first — show YTD performance (comparable to benchmarks)
         html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:2px solid var(--accent);">';
-        html += '<span style="flex:1;font-size:13px;font-weight:700;">' + b.portfolio.label + '</span>';
-        html += '<span style="font-size:16px;font-weight:700;color:' + (twr >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (twr >= 0 ? '+' : '') + twr.toFixed(1) + '%</span></div>';
+        html += '<span style="flex:1;font-size:13px;font-weight:700;">' + b.portfolio.label + ' <span style="font-weight:400;font-size:11px;color:#718096;">(TWR ' + (twr >= 0 ? '+' : '') + twr.toFixed(1) + '%)</span></span>';
+        html += '<span style="font-size:16px;font-weight:700;color:' + (ytdPct >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (ytdPct >= 0 ? '+' : '') + ytdPct.toFixed(1) + '%</span></div>';
         // Benchmark bars
         b.items.forEach(function(item) {
           var barColor = item.ytd >= 0 ? '#22c55e' : '#ef4444';
           var barWidth = Math.min(Math.abs(item.ytd) * 2.5, 100);
-          var beat = twr > item.ytd;
+          var beat = ytdPct > item.ytd;
           html += '<div style="padding:5px 0;border-bottom:1px solid #edf2f7;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">';
           html += '<span>' + item.label + (beat ? ' \u2714' : '') + '</span>';
@@ -1279,10 +1307,10 @@ function renderActionsView(state) {
           html += '</div>';
         });
         // Summary
-        var beaten = b.items.filter(function(i) { return twr > i.ytd; }).length;
+        var beaten = b.items.filter(function(i) { return ytdPct > i.ytd; }).length;
         html += '<div style="margin-top:10px;padding:8px;background:' + (beaten >= 4 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
         html += (beaten >= 4 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
-        if (twr < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
+        if (ytdPct < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
         else html += 'Surperforme le S&P 500 \u2014 stock picking cr\u00e9ateur de valeur cette ann\u00e9e.';
         html += '</div>';
       }

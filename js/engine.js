@@ -238,6 +238,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Cross-platform total current value (excl SGTM which is not a brokerage)
   const totalCurrentValue = ibkrNAV + amineEspp;
 
+  // Pre-compute YTD P&L total for benchmark comparison
+  const ytdPLTotal = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0);
+  // ESPP YTD P&L (use market acnYtdOpen)
+  const _acnYtdOpen = m.acnYtdOpen || 0;
+  const _esppYtdPL = _acnYtdOpen > 0 ? esppCurrentVal - (espp.shares * _acnYtdOpen / (fx.USD || 1)) : 0;
+  const totalYtdPL = ytdPLTotal + _esppYtdPL;
+  // YTD % = ytdPL / (currentValue - ytdPL) — i.e. start-of-year value
+  const startOfYearVal = totalPositionsVal - totalYtdPL;
+  const ytdPctPerf = startOfYearVal > 0 ? (totalYtdPL / startOfYearVal * 100) : 0;
+
   // --- Investment Insights ---
   const insights = [];
 
@@ -337,7 +347,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Sources : Yahoo Finance, tradingeconomics.com, APMEX, investing.com
   const benchmarks = {
     date: '10 mars 2026',
-    portfolio: { twr: meta.twr || 0, label: 'Portefeuille IBKR' },
+    portfolio: { twr: meta.twr || 0, ytdPct: ytdPctPerf, label: 'Portefeuille IBKR' },
     items: [
       { label: 'Or (XAU/USD)',       ytd: 21.0, note: '$5 070 — record historique, haven demand (Iran conflict)' },
       { label: 'S&P 500',            ytd: 12.5, note: '6 796 pts — AI + tech rally, vol \u00e9lev\u00e9e' },
