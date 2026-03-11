@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=82';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=82';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=82';
+import { fmt, fmtAxis } from './render.js?v=83';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=83';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=83';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1229,7 +1229,7 @@ export function buildWealthProjectionChart(state, mode, group) {
 
   // Property names and colors for "par appart" mode
   const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
-  const propColors = { vitry: '#2b6cb0', rueil: '#276749', villejuif: '#d69e2e' };
+  const propColors = { vitry: '#3182ce', rueil: '#2f855a', villejuif: '#ed8936' };
   const propKeys = Object.keys(proj[0]?.perProp || {});
 
   // Group by year first (used for both modes)
@@ -1288,7 +1288,7 @@ export function buildWealthProjectionChart(state, mode, group) {
       label: 'Total',
       data: totalData,
       type: 'line',
-      borderColor: '#e53e3e',
+      borderColor: '#2d3748',
       backgroundColor: 'transparent',
       borderWidth: 2,
       pointRadius: 0,
@@ -1314,28 +1314,28 @@ export function buildWealthProjectionChart(state, mode, group) {
       {
         label: 'Capital amorti',
         data: capitalData,
-        backgroundColor: '#2b6cb0',
+        backgroundColor: '#3182ce',
         stack: 'wealth',
         order: 4,
       },
       {
         label: 'Appréciation',
         data: apprecData,
-        backgroundColor: '#276749',
+        backgroundColor: '#2f855a',
         stack: 'wealth',
         order: 3,
       },
       {
         label: 'Réduction frais sortie',
         data: exitSavData,
-        backgroundColor: '#9f7aea',
+        backgroundColor: '#38b2ac',
         stack: 'wealth',
         order: 2,
       },
       {
         label: 'Cash flow',
         data: cfData,
-        backgroundColor: cfData.map(v => v >= 0 ? '#48bb78' : '#e53e3e'),
+        backgroundColor: cfData.map(v => v >= 0 ? '#68d391' : '#fc8181'),
         stack: 'wealth',
         order: 1,
       },
@@ -1343,7 +1343,7 @@ export function buildWealthProjectionChart(state, mode, group) {
         label: 'Total',
         data: totalData,
         type: 'line',
-        borderColor: '#d69e2e',
+        borderColor: '#2d3748',
         backgroundColor: 'transparent',
         borderWidth: 2,
         pointRadius: 0,
