@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS } from './data.js?v=66';
-import { getGrandTotal } from './engine.js?v=66';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=67';
+import { getGrandTotal } from './engine.js?v=67';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -115,13 +115,18 @@ export function render(state, view, currency) {
   if (view === 'creances') renderCreancesView(state);
   if (view === 'budget') renderBudgetView(state);
 
+  // Per-apartment views
+  if (view === 'apt_vitry') renderAptView(state, 'vitry');
+  if (view === 'apt_rueil') renderAptView(state, 'rueil');
+  if (view === 'apt_villejuif') renderAptView(state, 'villejuif');
+
   renderBadges(state);
   updateAllDataEur();
 }
 
 // ---- Individual render functions ----
 
-const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances', 'budget'];
+const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances', 'budget', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 
 function renderHeader(state, view) {
@@ -133,8 +138,8 @@ function renderHeader(state, view) {
     if (subEl) subEl.textContent = v.subtitle;
   } else {
     // Asset views
-    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel' };
-    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital' };
+    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel', apt_vitry: 'Vitry-sur-Seine', apt_rueil: 'Rueil-Malmaison', apt_villejuif: 'Villejuif (VEFA)' };
+    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: '19 Rue Nathalie Lemel — T3 Location nue', apt_rueil: '21 All\u00e9e des Glycines — T3 meubl\u00e9 LMNP', apt_villejuif: '167 Bd Maxime Gorki — T3 VEFA' };
     if (titleEl) titleEl.textContent = titles[view] || '';
     if (subEl) subEl.textContent = subs[view] || '';
   }
@@ -1541,10 +1546,25 @@ function renderImmoView(state) {
   setEur('kpiImmoViewVal', iv.totalValue);
   setEur('kpiImmoViewCRD', iv.totalCRD);
   setText('kpiImmoViewWealth', '+' + fmt(iv.totalWealthCreation) + '/mois');
+  setText('kpiImmoViewLTV', iv.avgLTV.toFixed(1) + '%');
   const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = iv.totalCF >= 0 ? '+' : '';
   setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
   document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
+
+  // Exit costs KPIs (net equity after exit)
+  const neaeEl = document.getElementById('kpiImmoViewNetEq');
+  if (neaeEl) {
+    const neae = iv.totalNetEquityAfterExit || 0;
+    neaeEl.textContent = fmt(Math.round(neae));
+    neaeEl.setAttribute('data-eur', Math.round(neae));
+    neaeEl.className = 'value ' + (neae >= 0 ? 'pl-pos' : 'pl-neg');
+  }
+  const exitEl = document.getElementById('kpiImmoViewExitCosts');
+  if (exitEl) {
+    exitEl.textContent = fmt(Math.round(iv.totalExitCosts || 0));
+    exitEl.setAttribute('data-eur', Math.round(iv.totalExitCosts || 0));
+  }
 
   // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');
@@ -1562,32 +1582,22 @@ function renderImmoView(state) {
         : '';
       const regimeDisplay = f ? (f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime) : '';
       const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + regimeDisplay + '</span>' : '';
+      const netEq = prop.exitCosts ? prop.exitCosts.netEquityAfterExit : prop.equity;
+      const netEqClass = netEq >= 0 ? 'pl-pos' : 'pl-neg';
       card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
-        + '<div class="prop-owner">' + prop.owner + ' <span style="font-size:10px;color:var(--accent);margin-left:4px;">&#x25BC; cliquer pour details</span></div>'
+        + '<div class="prop-owner">' + prop.owner + ' <span style="font-size:10px;color:var(--accent);margin-left:4px;">▸ voir détails</span></div>'
         + '<div class="prop-kpis">'
-        + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.crd) + '</div><div class="pk-label">CRD</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity brute</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
       card.addEventListener('click', () => {
-        // Toggle detail panel
-        const panel = document.getElementById('propDetailPanel');
-        const allCards = grid.querySelectorAll('.prop-card');
-        if (panel.style.display !== 'none' && panel.dataset.activeKey === prop.loanKey) {
-          panel.style.display = 'none';
-          allCards.forEach(c => c.classList.remove('active-prop'));
-          return;
-        }
-        allCards.forEach(c => c.classList.remove('active-prop'));
-        card.classList.add('active-prop');
-        panel.dataset.activeKey = prop.loanKey;
-        renderPropertyDetail(state, prop);
-        panel.style.display = 'block';
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Navigate to apartment sub-view
+        const subBtn = document.querySelector('.immo-sub-btn[data-subview="apt_' + prop.loanKey + '"]');
+        if (subBtn) subBtn.click();
       });
       grid.appendChild(card);
     });
@@ -2122,6 +2132,339 @@ function renderVEFATimeline(container, prop) {
   }
 
   container.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════
+// PER-APARTMENT VIEW
+// ════════════════════════════════════════════════════════════
+function renderAptView(state, loanKey) {
+  const iv = state.immoView;
+  const prop = iv.properties.find(p => p.loanKey === loanKey);
+  if (!prop) return;
+
+  const containerId = 'apt' + loanKey.charAt(0).toUpperCase() + loanKey.slice(1) + 'Content';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const meta = prop.propertyMeta || {};
+  const cd = prop.chargesDetail || {};
+  const ec = prop.exitCosts || {};
+
+  let html = '';
+
+  // ── Section 1: Fiche propriété + Exit costs KPIs ──
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">';
+
+  // Left: property info
+  const surface = meta.surface ? meta.surface + ' m²' : '—';
+  const price = meta.purchasePrice ? meta.purchasePrice.toLocaleString('fr-FR') + ' €' : (meta.totalOperation ? meta.totalOperation.toLocaleString('fr-FR') + ' €' : '—');
+  const date = meta.purchaseDate || '—';
+  const type = meta.type || '—';
+  const appreciation = meta.appreciation ? (meta.appreciation * 100).toFixed(1) + '%/an' : '—';
+
+  html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;">'
+    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Fiche propriété</h3>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">'
+    + '<div><span style="color:#718096;">Surface</span><br><strong>' + surface + '</strong></div>'
+    + '<div><span style="color:#718096;">Prix d\'achat</span><br><strong>' + price + '</strong></div>'
+    + '<div><span style="color:#718096;">Valeur actuelle</span><br><strong>' + fmt(prop.value) + '</strong></div>'
+    + '<div><span style="color:#718096;">Equity brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
+    + '<div><span style="color:#718096;">Type</span><br><strong>' + type + '</strong></div>'
+    + '<div><span style="color:#718096;">Date achat</span><br><strong>' + date + '</strong></div>'
+    + '<div><span style="color:#718096;">Appréciation</span><br><strong>' + appreciation + '</strong></div>'
+    + '<div><span style="color:#718096;">LTV</span><br><strong>' + prop.ltv.toFixed(1) + '%</strong></div>'
+    + '</div></div>';
+
+  // Right: Exit costs summary
+  html += '<div style="background:#fff5f5;border-radius:12px;padding:16px;">'
+    + '<h3 style="margin:0 0 12px;font-size:15px;color:#c53030;">Frais de sortie (si vente aujourd\'hui)</h3>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
+
+  if (ec.pvBrute != null) {
+    const pvColor = ec.pvBrute > 0 ? '#276749' : '#c53030';
+    html += '<div><span style="color:#718096;">Plus-value brute</span><br><strong style="color:' + pvColor + ';">' + (ec.pvBrute > 0 ? '+' : '') + fmt(Math.round(ec.pvBrute)) + '</strong></div>';
+    html += '<div><span style="color:#718096;">Détention</span><br><strong>' + ec.holdingYears + ' ans</strong></div>';
+    html += '<div><span style="color:#718096;">Abatt. IR (' + Math.round(ec.abattementIR * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementIR)) + '</strong></div>';
+    html += '<div><span style="color:#718096;">Abatt. PS (' + Math.round(ec.abattementPS * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementPS)) + '</strong></div>';
+    html += '<div><span style="color:#718096;">Taxe PV (IR+PS)</span><br><strong class="pl-neg">' + fmt(ec.totalTaxPV) + '</strong></div>';
+    html += '<div><span style="color:#718096;">Frais agence (4%)</span><br><strong class="pl-neg">' + fmt(ec.agencyFee) + '</strong></div>';
+    if (ec.tvaClawback > 0) {
+      html += '<div><span style="color:#718096;">Clawback TVA 5.5%</span><br><strong class="pl-neg">' + fmt(ec.tvaClawback) + '</strong></div>';
+    }
+    if (ec.mainlevee > 0) {
+      html += '<div><span style="color:#718096;">Mainlevée hypo.</span><br><strong class="pl-neg">' + fmt(ec.mainlevee) + '</strong></div>';
+    }
+    html += '</div>';
+    html += '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    html += '<div><span style="color:#718096;font-weight:600;">Total frais sortie</span><br><strong class="pl-neg" style="font-size:16px;">' + fmt(ec.totalExitCosts) + '</strong></div>';
+    const neColor = ec.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
+    html += '<div><span style="color:#718096;font-weight:600;">Equity nette après sortie</span><br><strong style="font-size:16px;color:' + neColor + ';">' + fmt(Math.round(ec.netEquityAfterExit)) + '</strong></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '</div>';
+
+  // ── Section 2: Détail des prêts ──
+  html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
+  html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Détail des prêts</h3>';
+  if (prop.loanDetails && prop.loanDetails.length > 0) {
+    html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
+      + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
+    let totalMens = 0, totalAss = 0;
+    prop.loanDetails.forEach(l => {
+      totalMens += l.monthlyPayment || 0;
+      totalAss += l.insuranceMonthly || 0;
+      const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
+      html += '<tr><td>' + l.name + '</td>'
+        + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
+        + '<td class="num">' + ((l.rate || 0) * 100).toFixed(2) + '%</td>'
+        + '<td class="num">' + dur + '</td>'
+        + '<td class="num">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</td>'
+        + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td></tr>';
+    });
+    html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
+      + '<td>Total</td><td></td><td></td><td></td>'
+      + '<td class="num">' + Math.round(totalMens).toLocaleString('fr-FR') + ' €</td>'
+      + '<td class="num">' + Math.round(totalAss).toLocaleString('fr-FR') + ' €</td></tr>';
+    html += '</tbody></table></div>';
+    html += '<div style="margin-top:8px;font-size:12px;color:#718096;">CRD actuel : <strong>' + fmt(prop.crd) + '</strong> | Fin prêt : <strong>' + (prop.endYear || '—') + '</strong></div>';
+  }
+  html += '</div>';
+
+  // ── Section 3: Cash Flow détaillé ──
+  const cfSign = prop.cf >= 0 ? '+' : '';
+  const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
+  const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
+  const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
+  html += '<div style="margin-bottom:24px;">'
+    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel</h3>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
+    // Revenus
+    + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
+    + '<div style="font-weight:700;color:#276749;margin-bottom:6px;">Revenus</div>'
+    + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
+    + '<span>Loyer HC</span><span class="num">' + prop.loyerHC + ' €</span>'
+    + (prop.parking > 0 ? '<span>Parking</span><span class="num">' + prop.parking + ' €</span>' : '')
+    + (prop.chargesLoc > 0 ? '<span>Charges locataire</span><span class="num">' + prop.chargesLoc + ' €</span>' : '')
+    + '<span style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">Total revenus</span><span class="num" style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">' + prop.totalRevenue + ' €</span>'
+    + '</div></div>'
+    // Charges
+    + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
+    + '<div style="font-weight:700;color:#c53030;margin-bottom:6px;">Charges</div>'
+    + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
+    + '<span>Prêt</span><span class="num">' + Math.round(cd.pret || 0) + ' €</span>'
+    + '<span>Assurance empr.</span><span class="num">' + Math.round(cd.assurance || 0) + ' €</span>'
+    + '<span>PNO</span><span class="num">' + Math.round(cd.pno || 0) + ' €</span>'
+    + '<span>Taxe foncière</span><span class="num">' + Math.round(cd.tf || 0) + ' €</span>'
+    + '<span>Copro</span><span class="num">' + Math.round(cd.copro || 0) + ' €</span>'
+    + '<span style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">Total charges</span><span class="num" style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">' + Math.round(prop.charges) + ' €</span>'
+    + '</div></div></div>';
+  // CF KPIs
+  html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
+    + '</div></div>';
+
+  // ── Section 4: Vitry-specific — Constraints ──
+  if (loanKey === 'vitry') {
+    const vc = VITRY_CONSTRAINTS;
+    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes & Obligations</h3>';
+    html += '<p style="font-size:12px;color:#744210;margin:0 0 12px;">' + vc.summary + '</p>';
+
+    vc.constraints.forEach(c => {
+      const statusColor = c.status === 'actif' ? '#c05621' : '#276749';
+      const yearsLeft = c.yearsRemaining != null ? ' <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:10px;color:#92400e;">' + c.yearsRemaining + ' ans restants</span>' : '';
+      html += '<div style="margin-bottom:16px;padding:12px;background:white;border-radius:8px;border-left:3px solid ' + statusColor + ';">';
+      html += '<div style="font-weight:700;font-size:13px;color:#2d3748;">' + c.dispositif + yearsLeft + '</div>';
+      html += '<div style="font-size:11px;color:#718096;margin:4px 0;">' + c.reference + '</div>';
+      html += '<div style="font-size:12px;color:#4a5568;margin:6px 0;"><strong>Obligation :</strong> ' + c.obligation + '</div>';
+      if (c.dateDebut && c.dateFin) {
+        html += '<div style="font-size:12px;color:#4a5568;"><strong>Période :</strong> ' + c.dateDebut + ' → ' + c.dateFin + '</div>';
+      }
+      html += '<div style="font-size:12px;color:#c53030;margin:4px 0;"><strong>Pénalité :</strong> ' + c.penalite + '</div>';
+      html += '<ul style="margin:6px 0 0;padding-left:16px;font-size:11px;color:#4a5568;">';
+      c.details.forEach(d => { html += '<li style="margin-bottom:2px;">' + d + '</li>'; });
+      html += '</ul></div>';
+    });
+
+    // Timeline
+    html += '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
+    html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
+    const now = new Date();
+    vc.timeline.forEach(t => {
+      const [ty, tm] = t.date.split('-').map(Number);
+      const tDate = new Date(ty, tm - 1);
+      const isPast = tDate < now;
+      const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
+      const marker = isPast ? '✓' : '▸';
+      html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+
+    // Fiscal simulator
+    html += '<div id="aptVitryFiscal" style="margin-bottom:24px;"></div>';
+  }
+
+  // ── Section 4: Villejuif-specific — VEFA Timeline + Regime comparison ──
+  if (loanKey === 'villejuif') {
+    // VEFA Timeline
+    if (prop.vefaConfig) {
+      html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
+    }
+
+    // JEANBRUN vs LMNP comparison
+    const cmp = iv.villejuifRegimeComparison;
+    if (cmp && cmp.summary) {
+      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h3>';
+
+      // Summary KPIs
+      const delta = cmp.summary.delta;
+      const winColor = delta > 0 ? '#276749' : '#c05621';
+      html += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:18px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:11px;color:#718096;">Régime recommandé</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:11px;color:#718096;">Avantage sur 10 ans</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:11px;color:#718096;">Réduction JEANBRUN totale</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.lmnpAmortAnnuel) + '/an</div><div style="font-size:11px;color:#718096;">Amortissement LMNP</div></div>';
+      html += '</div>';
+
+      // Comparison table
+      html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
+        + '<thead><tr><th>Année</th>'
+        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
+        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
+        + '<th class="num" style="background:#f0fff4;">Δ LMNP-JB</th></tr></thead><tbody>';
+      for (let y = 0; y < cmp.jeanbrun.length; y++) {
+        const jb = cmp.jeanbrun[y];
+        const lm = cmp.lmnp[y];
+        const d = lm.cumGain - jb.cumGain;
+        const dColor = d > 0 ? '#276749' : '#c53030';
+        html += '<tr><td><strong>' + jb.year + '</strong></td>'
+          + '<td class="num">' + jb.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(jb.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(jb.cumGain)) + '</td>'
+          + '<td class="num">' + lm.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(lm.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(lm.cumGain)) + '</td>'
+          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+
+      // LMP warning
+      if (cmp.summary.lmpRisque) {
+        html += '<div style="margin-top:12px;padding:10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:8px;font-size:12px;color:#c53030;">'
+          + '<strong>⚠️ Risque LMP :</strong> Recettes meublées totales (Villejuif + Rueil) = ' + cmp.summary.lmpRecettesTotales.toLocaleString('fr-FR') + '€/an > seuil 23 000€. '
+          + 'En tant que non-résident sans revenus d\'activité en France, le passage en LMP pourrait être automatique. '
+          + 'Conséquences : cotisations sociales SSI ~40% sur le bénéfice.'
+          + '</div>';
+      }
+
+      // JEANBRUN constraints
+      html += '<div style="margin-top:12px;padding:10px;background:#fffaf0;border-radius:8px;font-size:12px;color:#744210;">'
+        + '<strong>Contraintes JEANBRUN :</strong> Loyer plafonné à ' + VILLEJUIF_REGIMES.jeanbrun.plafondLoyer.loyerMaxMensuel + '€/mois (vs ' + VILLEJUIF_REGIMES.base.loyerMeubleHC + '€ marché meublé). '
+        + 'Location nue uniquement. Engagement ' + VILLEJUIF_REGIMES.jeanbrun.dureeEngagement.join('/') + ' ans. Plafond ressources locataire.'
+        + '</div>';
+
+      html += '</div>';
+    }
+  }
+
+  // ── Section 5: Exit costs projection (all properties) ──
+  html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
+  html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Projection frais de sortie par année</h3>';
+  html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente au prix actuel (' + fmt(prop.value) + ') à différentes dates. Les abattements PV augmentent avec la durée de détention.</p>';
+
+  const purchasePrice = meta.purchasePrice || meta.totalOperation || prop.value;
+  const [py, pm] = (meta.purchaseDate || '2023-01').split('-').map(Number);
+  const fiscType = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[loanKey] ? IMMO_CONSTANTS.fiscalite[loanKey].type : 'nu';
+
+  html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
+    + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
+    + '<th class="num">Taxe PV</th><th class="num">Agence</th><th class="num">TVA claw.</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
+
+  for (let yr = 2026; yr <= 2040; yr += 2) {
+    const holdYears = (yr - py) + (6 - pm) / 12;  // approx mid-year
+    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
+    // Simple CRD estimation: assume linear principal repayment
+    const loanDuration = prop.endYear ? (prop.endYear - py) : 25;
+    const crdEstimate = Math.max(0, prop.crd - (prop.crd / (loanDuration * 12) * (holdYears - ((new Date().getFullYear()) - py)) * 12));
+    const exitSim = computeExitCostsSim(loanKey, prop.value, purchasePrice, holdYears, Math.round(crdEstimate), totalAmort);
+    const neColor = exitSim.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
+    html += '<tr>'
+      + '<td><strong>' + yr + '</strong></td>'
+      + '<td class="num">' + Math.floor(holdYears) + ' ans</td>'
+      + '<td class="num">' + Math.round(exitSim.abattementIR * 100) + '%</td>'
+      + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
+      + '<td class="num">' + fmt(exitSim.totalTaxPV) + '</td>'
+      + '<td class="num">' + fmt(exitSim.agencyFee) + '</td>'
+      + '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>'
+      + '<td class="num" style="color:#c53030;font-weight:600;">' + fmt(exitSim.totalExitCosts) + '</td>'
+      + '<td class="num" style="color:' + neColor + ';font-weight:600;">' + fmt(Math.round(exitSim.netEquityAfterExit)) + '</td>'
+      + '</tr>';
+  }
+  html += '</tbody></table></div>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // Render dynamic sub-sections after DOM insertion
+  if (loanKey === 'vitry' && prop.fiscalSimConfig) {
+    const fiscalEl = document.getElementById('aptVitryFiscal');
+    if (fiscalEl) renderFiscalSimulator(fiscalEl, prop);
+  }
+  if (loanKey === 'villejuif' && prop.vefaConfig) {
+    const vefaEl = document.getElementById('aptVillejuifVefa');
+    if (vefaEl) renderVEFATimeline(vefaEl, prop);
+  }
+}
+
+// Lightweight exit cost computation for simulation table (mirrors engine logic)
+function computeExitCostsSim(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmort) {
+  const EC = EXIT_COSTS;
+  const fraisAcq = purchasePrice * 0.075;
+  const amortRe = (EC[loanKey] && EC[loanKey].lmnpAmortReintegration && totalAmort > 0) ? totalAmort : 0;
+  const pvBrute = salePrice - (purchasePrice + fraisAcq) + amortRe;
+  let abattIR = 0, abattPS = 0;
+  const years = Math.floor(holdingYears);
+
+  if (pvBrute > 0) {
+    for (const b of EC.irAbattement) { for (let y = b.fromYear; y <= b.toYear && y <= years; y++) abattIR += b.ratePerYear; }
+    if (years >= 22) abattIR = 1;
+    abattIR = Math.min(1, abattIR);
+    for (const b of EC.psAbattement) { for (let y = b.fromYear; y <= b.toYear && y <= years; y++) abattPS += b.ratePerYear; }
+    if (years >= 30) abattPS = 1;
+    abattPS = Math.min(1, abattPS);
+  }
+
+  const pvNetIR = pvBrute > 0 ? pvBrute * (1 - abattIR) : 0;
+  const pvNetPS = pvBrute > 0 ? pvBrute * (1 - abattPS) : 0;
+  const ir = Math.round(pvNetIR * EC.irRate);
+  const ps = Math.round(pvNetPS * EC.psRate);
+  let surtaxe = 0;
+  if (pvNetIR > 50000) { for (const b of EC.surtaxe) { if (pvNetIR >= b.from) surtaxe = Math.round(pvNetIR * b.rate); } }
+  const totalTaxPV = ir + ps + surtaxe;
+  const agencyFee = Math.round(salePrice * EC.agencyFeePct);
+  const diagnostics = EC.diagnosticsCost;
+  let mainlevee = 0;
+  if (crdAtExit > 0) mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
+  let tvaClawback = 0;
+  if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
+    const tva = EC.vitry.tvaReduite;
+    if (holdingYears < tva.dureeEngagement) {
+      const rem = tva.dureeEngagement - Math.floor(holdingYears);
+      tvaClawback = Math.round(tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit) * rem / tva.dureeEngagement);
+    }
+  }
+  const totalExitCosts = totalTaxPV + agencyFee + diagnostics + mainlevee + tvaClawback;
+  return {
+    pvBrute, abattementIR: abattIR, abattementPS: abattPS, totalTaxPV, agencyFee, tvaClawback, mainlevee,
+    totalExitCosts, netEquityAfterExit: salePrice - totalExitCosts - crdAtExit,
+  };
 }
 
 function renderCreancesView(state) {
