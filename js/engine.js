@@ -1356,10 +1356,9 @@ function computeImmoView(portfolio, fx) {
     const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
     const appreciationRate = (IC.properties[loanKey] || {}).appreciation || 0;
     const appreciationMois = propData.value * appreciationRate / 12;
-    // For conditional (not yet operational) properties: no CF, no capital if loan not disbursed
-    const isOperational = !conditional || (conditional && totalRevenue > 0);
-    const wealthCF = isOperational ? cf : 0;
-    const wealthCapital = (conditional && !(IC.loans.villejuifFranchise || {}).loanDisbursed && loanKey === 'villejuif') ? 0 : capitalAmortiMois;
+    // For conditional properties (not signed / not delivered): no CF, no capital — only appreciation
+    const wealthCF = conditional ? 0 : cf;
+    const wealthCapital = conditional ? 0 : capitalAmortiMois;
     const wealthCreationComputed = wealthCapital + appreciationMois + wealthCF;
 
     return {
