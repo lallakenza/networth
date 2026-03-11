@@ -323,11 +323,28 @@ export const PORTFOLIO = {
       wioAED: 20106,           // AED — Wio Savings UAE (0%)
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
+    // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
+    // Source : relevé UBS "Investment Account June 2025"
+    // 40 actions ACN, cost basis total $10,544.20, valeur $11,955.60 au 30/06/2025
+    // Cash UBS : $109.56 — dividendes YTD $71.04
+    espp: {
+      shares: 40,
+      cashUSD: 109.56,   // Cash résiduel dans le compte UBS
+      totalCostBasisUSD: 10544.20,
+      lots: [
+        { date: '2023-11-01', source: 'ESPP', shares: 8, costBasis: 255.148 },
+        { date: '2024-05-01', source: 'ESPP', shares: 8, costBasis: 255.675 },
+        { date: '2024-11-01', source: 'ESPP', shares: 8, costBasis: 294.431 },
+        { date: '2025-05-01', source: 'ESPP', shares: 16, costBasis: 256.385 },
+      ],
+    },
     creances: {
       items: [
         { label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-01-15', payments: [], notes: '' },
       ],
     },
+    // Caution locative Rueil — dépôt de garantie reçu du locataire, à rembourser au départ
+    cautionRueil: 2600, // EUR — à déduire du patrimoine net (dette envers locataire)
     immo: {
       // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
       rueil:     { value: 280000, crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
