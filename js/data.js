@@ -338,7 +338,7 @@ export const PORTFOLIO = {
   market: {
     sgtmPriceMAD: 740,       // Cours SGTM en MAD (casablanca-bourse.com) — mis à jour 10 Mar 2026
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
-    acnPriceUSD: 215.00,     // Cours Accenture en USD (Fidelity)
+    acnPriceUSD: 201.63,     // Cours Accenture en USD — mis à jour 11/03/2026
   },
 };
 
@@ -347,7 +347,7 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '10/03/2026';
+export const DATA_LAST_UPDATE = '11/03/2026';
 
 // ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
