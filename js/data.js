@@ -292,8 +292,8 @@ export const PORTFOLIO = {
       //  DEGIRO — positions fermées (compte clôturé avr 2025)
       //  Dates approximatives — seuls cost/proceeds/PL connus
       // ═══════════════════════════════════════════════════
-      { date: '2025-04-14', ticker: 'NVDA',  label: 'NVIDIA (540 post-split)',  type: 'sell', qty: 540,   price: '',    currency: 'EUR', cost: 8067,   proceeds: 48264, realizedPL: 40197, commission: '', costBasis: '', source: 'degiro', note: 'Liquidation Degiro — 540 actions post-split 10:1' },
-      { date: '2023-07-15', ticker: 'NVDA',  label: 'NVIDIA (pre-split)',       type: 'sell', qty: 4,     price: '',    currency: 'EUR', cost: 539,    proceeds: 1721,  realizedPL: 1182,  commission: '', costBasis: '', source: 'degiro', note: '4 pre-10:1 split @ ~$473' },
+      { date: '2025-04-14', ticker: 'NVDA',  label: 'NVIDIA',                   type: 'sell', qty: 540,   price: '',    currency: 'EUR', cost: 8067,   proceeds: 48264, realizedPL: 40197, commission: '', costBasis: '', source: 'degiro', note: 'Liquidation Degiro — 540 actions post-split 10:1' },
+      { date: '2023-07-15', ticker: 'NVDA',  label: 'NVIDIA',                   type: 'sell', qty: 4,     price: '',    currency: 'EUR', cost: 539,    proceeds: 1721,  realizedPL: 1182,  commission: '', costBasis: '', source: 'degiro', note: '4 pre-10:1 split @ ~$473' },
       { date: '2021-08-15', ticker: 'MC',    label: 'LVMH',                     type: 'sell', qty: 16,    price: '',    currency: 'EUR', cost: 6104,   proceeds: 11230, realizedPL: 5126,  commission: '', costBasis: '', source: 'degiro', note: 'Vendu août 2021' },
       { date: '2023-07-15', ticker: 'SAP',   label: 'SAP SE',                   type: 'sell', qty: 27,    price: '',    currency: 'EUR', cost: 2804,   proceeds: 3650,  realizedPL: 846,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu juil 2023' },
       { date: '2021-08-01', ticker: 'EUCAR', label: 'Europcar',                 type: 'sell', qty: 19300, price: '',    currency: 'EUR', cost: 7422,   proceeds: 9489,  realizedPL: 2067,  commission: '', costBasis: '', source: 'degiro', note: 'Vendu jun-août 2021' },
