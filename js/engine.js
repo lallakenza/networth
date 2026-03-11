@@ -261,12 +261,18 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const byTickerSource = {};
   allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
     const key = (t.source || 'ibkr') + ':' + t.ticker;
-    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr' };
+    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr' };
     byTickerSource[key].pl += (t.realizedPL || 0);
+    byTickerSource[key].costEUR += (t.cost || 0);
+    byTickerSource[key].proceedsEUR += (t.proceeds || 0);
     byTickerSource[key].sells++;
     byTickerSource[key].lastDate = t.date;
+    // Keep most recent label (post-split label wins over pre-split)
+    if (!byTickerSource[key].lastDate || t.date >= byTickerSource[key].lastDate) byTickerSource[key].label = t.label;
   });
   const allClosed = Object.values(byTickerSource);
+  const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
+  const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
   const winners = allClosed.filter(p => p.pl > 0);
   const losers = allClosed.filter(p => p.pl < 0);
   const winRate = allClosed.length > 0 ? (winners.length / allClosed.length * 100) : 0;
@@ -479,13 +485,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     realizedPL: ibkrRealizedPL,
     dividends: meta.dividends || 0,
     commissions: meta.commissions || 0,
-    closedPositions: allClosed,
+    closedPositions: ibkrOnlyClosed,
+    allClosedPositions: allClosed,
     trades: allTradesUnified,
     depositHistory: depositHistory,
-    // Degiro — reconstruct for render table from allTrades (backwards compat)
-    degiroClosedPositions: (portfolio.amine.allTrades || []).filter(t => t.source === 'degiro' && t.type === 'sell').map(t => ({
-      ticker: t.ticker, label: t.label, costEUR: t.cost || 0, proceedsEUR: t.proceeds || 0,
-      shares: t.qty, currency: t.currency, pl: t.realizedPL || 0, note: t.note || '',
+    // Degiro — aggregated by ticker (pre-split + post-split merged)
+    degiroClosedPositions: degiroOnlyClosed.map(t => ({
+      ticker: t.ticker, label: t.label, pl: t.pl || 0,
+      costEUR: t.costEUR || 0, proceedsEUR: t.proceedsEUR || 0,
     })),
     degiroRealizedPL,
     // Cross-platform
