@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=107';
-import { compute } from './engine.js?v=107';
-import { render } from './render.js?v=107';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=107';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=107';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=107';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=108';
+import { compute } from './engine.js?v=108';
+import { render } from './render.js?v=108';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=108';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=108';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=108';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -258,18 +258,31 @@ async function loadStockPrices() {
       refresh();
     }
     if (sBadge) {
-      const statusLabel = result.liveCount > 0
-        ? result.liveCount + '/' + result.totalTickers + ' live'
+      // liveCount includes SGTM if live; yahooLive = tickers with Yahoo API that loaded
+      const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
+      const yahooTotal = result.totalTickers - 1; // exclude SGTM (no Yahoo API)
+      const allYahooLive = yahooLive >= yahooTotal;
+
+      const statusLabel = yahooLive > 0
+        ? yahooLive + '/' + yahooTotal + ' live'
         : 'statique (données du ' + DATA_LAST_UPDATE + ')';
       const sgtmLabel = result.sgtmLive
         ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
         : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
       sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
-      if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
+
+      // Green if all Yahoo-sourced tickers loaded, red if some failed, gray if all failed
+      if (allYahooLive) {
+        sBadge.style.color = 'var(--green)';
+      } else if (yahooLive > 0) {
+        sBadge.style.color = 'var(--red)';
+      } else {
+        sBadge.style.color = 'var(--red)';
+      }
     }
   } catch (e) {
     console.warn('Stock fetch error:', e);
-    if (sBadge) sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE;
+    if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red)'; }
   }
 
   // Hide progress bar after a short delay
