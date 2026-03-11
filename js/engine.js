@@ -103,7 +103,6 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Degiro (closed account)
   const degiro = portfolio.amine.degiro || {};
-  const degiroClosedPositions = degiro.closedPositions || [];
   const degiroRealizedPL = degiro.totalRealizedPL || 0;
 
   // Combined realized P/L (IBKR + Degiro)
@@ -125,17 +124,19 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const insights = [];
 
   // 1. Stock picking track record
-  // Build closedPositions from trades array — aggregate by ticker for total P/L per position
+  // Combine all trades from unified allTrades[] + ibkr.trades[] into one list
   const ibkrTrades = ibkr.trades || [];
-  const ibkrByTicker = {};
-  ibkrTrades.filter(t => t.type === 'sell').forEach(t => {
-    if (!ibkrByTicker[t.ticker]) ibkrByTicker[t.ticker] = { ticker: t.ticker, label: t.label, pl: 0, currency: t.currency, sells: 0 };
-    ibkrByTicker[t.ticker].pl += (t.realizedPL || 0);
-    ibkrByTicker[t.ticker].sells++;
-    ibkrByTicker[t.ticker].lastDate = t.date;
+  const allTradesUnified = [...ibkrTrades, ...(portfolio.amine.allTrades || [])];
+  // Aggregate sells by ticker+source for total P/L per closed position
+  const byTickerSource = {};
+  allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
+    const key = (t.source || 'ibkr') + ':' + t.ticker;
+    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr' };
+    byTickerSource[key].pl += (t.realizedPL || 0);
+    byTickerSource[key].sells++;
+    byTickerSource[key].lastDate = t.date;
   });
-  const ibkrClosedPositions = Object.values(ibkrByTicker);
-  const allClosed = [...ibkrClosedPositions, ...degiroClosedPositions];
+  const allClosed = Object.values(byTickerSource);
   const winners = allClosed.filter(p => p.pl > 0);
   const losers = allClosed.filter(p => p.pl < 0);
   const winRate = allClosed.length > 0 ? (winners.length / allClosed.length * 100) : 0;
@@ -344,11 +345,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     realizedPL: ibkrRealizedPL,
     dividends: meta.dividends || 0,
     commissions: meta.commissions || 0,
-    closedPositions: ibkrClosedPositions,
-    trades: ibkrTrades,
+    closedPositions: allClosed,
+    trades: allTradesUnified,
     deposits: ibkrDeposits,
-    // Degiro
-    degiroClosedPositions,
+    // Degiro — reconstruct for render table from allTrades (backwards compat)
+    degiroClosedPositions: (portfolio.amine.allTrades || []).filter(t => t.source === 'degiro' && t.type === 'sell').map(t => ({
+      ticker: t.ticker, label: t.label, costEUR: t.cost || 0, proceedsEUR: t.proceeds || 0,
+      shares: t.qty, currency: t.currency, pl: t.realizedPL || 0, note: t.note || '',
+    })),
     degiroRealizedPL,
     // Cross-platform
     combinedRealizedPL,
