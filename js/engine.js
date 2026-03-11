@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES } from './data.js?v=66';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=67';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -983,6 +983,228 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
 }
 
 /**
+ * Compute exit costs for a property at a given sale price and holding duration
+ * Returns breakdown: PV tax (IR + PS + surtaxe), agency fees, mainlevée, TVA clawback, total
+ */
+function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements) {
+  const EC = EXIT_COSTS;
+  const result = {
+    salePrice,
+    purchasePrice,
+    holdingYears: Math.floor(holdingYears),
+
+    // Plus-value brute
+    pvBrute: 0,
+    // Abattements
+    abattementIR: 0,
+    abattementPS: 0,
+    pvNetteIR: 0,
+    pvNettePS: 0,
+    // Impôts
+    ir: 0,
+    ps: 0,
+    surtaxe: 0,
+    totalTaxPV: 0,
+
+    // Autres frais
+    agencyFee: 0,
+    diagnostics: EC.diagnosticsCost,
+    mainlevee: 0,
+    tvaClawback: 0,
+
+    // Total
+    totalExitCosts: 0,
+    netProceeds: 0,
+    netEquityAfterExit: 0,
+  };
+
+  // Frais de notaire forfaitaires à l'achat (déjà payés) — on les ajoute au prix d'acquisition
+  // pour réduire la PV (majoration forfaitaire 7.5% si on ne peut pas justifier les frais réels)
+  const fraisAcquisition = purchasePrice * 0.075;  // forfait 7.5%
+
+  // Si LMNP réel : les amortissements déduits sont réintégrés (loi finances 2025)
+  const amortReintegration = (EC[loanKey] && EC[loanKey].lmnpAmortReintegration && totalAmortissements > 0)
+    ? totalAmortissements : 0;
+
+  // Plus-value brute = prix vente - (prix achat + frais + travaux) + réintégration amortissements
+  result.pvBrute = salePrice - (purchasePrice + fraisAcquisition) + amortReintegration;
+
+  if (result.pvBrute > 0) {
+    const years = Math.floor(holdingYears);
+
+    // Calcul abattement IR
+    let totalAbattIR = 0;
+    for (const bracket of EC.irAbattement) {
+      for (let y = bracket.fromYear; y <= bracket.toYear && y <= years; y++) {
+        totalAbattIR += bracket.ratePerYear;
+      }
+    }
+    if (years >= 22) totalAbattIR = 1;  // Exonéré IR après 22 ans
+    result.abattementIR = Math.min(1, totalAbattIR);
+
+    // Calcul abattement PS
+    let totalAbattPS = 0;
+    for (const bracket of EC.psAbattement) {
+      for (let y = bracket.fromYear; y <= bracket.toYear && y <= years; y++) {
+        totalAbattPS += bracket.ratePerYear;
+      }
+    }
+    if (years >= 30) totalAbattPS = 1;  // Exonéré PS après 30 ans
+    result.abattementPS = Math.min(1, totalAbattPS);
+
+    // PV nettes après abattement
+    result.pvNetteIR = result.pvBrute * (1 - result.abattementIR);
+    result.pvNettePS = result.pvBrute * (1 - result.abattementPS);
+
+    // IR sur PV
+    result.ir = Math.round(result.pvNetteIR * EC.irRate);
+
+    // PS sur PV
+    result.ps = Math.round(result.pvNettePS * EC.psRate);
+
+    // Surtaxe (sur PV nette IR — si > 50K)
+    if (result.pvNetteIR > 50000) {
+      for (const bracket of EC.surtaxe) {
+        if (result.pvNetteIR >= bracket.from) {
+          result.surtaxe = Math.round(result.pvNetteIR * bracket.rate);
+        }
+      }
+    }
+
+    result.totalTaxPV = result.ir + result.ps + result.surtaxe;
+  }
+
+  // Frais d'agence
+  result.agencyFee = Math.round(salePrice * EC.agencyFeePct);
+
+  // Frais de mainlevée si CRD > 0
+  if (crdAtExit > 0) {
+    // Mainlevée calculée sur le capital initial (approximation : on utilise le purchase price)
+    result.mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
+  }
+
+  // TVA clawback (Vitry uniquement)
+  if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
+    const tva = EC.vitry.tvaReduite;
+    const [achatY, achatM] = tva.dateAchat.split('-').map(Number);
+    const achatDate = new Date(achatY, achatM - 1);
+    const yearsHeld = holdingYears;
+    if (yearsHeld < tva.dureeEngagement) {
+      const yearsRemaining = tva.dureeEngagement - Math.floor(yearsHeld);
+      const diffTVA = tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit);
+      result.tvaClawback = Math.round(diffTVA * yearsRemaining / tva.dureeEngagement);
+    }
+  }
+
+  // Total frais de sortie
+  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.tvaClawback;
+
+  // Produit net = prix de vente - frais de sortie - CRD restant
+  result.netProceeds = salePrice - result.totalExitCosts;
+  result.netEquityAfterExit = result.netProceeds - crdAtExit;
+
+  return result;
+}
+
+/**
+ * Compute JEANBRUN vs LMNP comparison for Villejuif over N years
+ */
+function computeVillejuifRegimeComparison() {
+  const VR = VILLEJUIF_REGIMES;
+  const sim = VR.simulation;
+  const base = VR.base;
+  const years = sim.duree;
+  const h = sim.hypotheses;
+
+  const results = { jeanbrun: [], lmnp: [] };
+  let jCumGain = 0, lCumGain = 0;
+  let jCumTax = 0, lCumTax = 0;
+
+  // JEANBRUN: 9 ans d'engagement (best middle-ground)
+  const jbEngagement = 9;
+  const jbReduction = VR.jeanbrun.reductionImpot;
+  const prixPlafonneJB = Math.min(base.totalOperation, jbReduction.plafondPrix, base.surface * jbReduction.plafondM2);
+  const reductionTotale = prixPlafonneJB * jbReduction.taux9ans;
+  const reductionAnnuelle = reductionTotale / jbEngagement;
+
+  // LMNP: amortissement du bien
+  const valeurAmortissable = base.totalOperation * (1 - h.partTerrain);
+  const amortBienAnnuel = valeurAmortissable * h.tauxAmortissement;
+  const amortMobilierAnnuel = base.coutMobilier * 0.10; // amorti sur 10 ans
+
+  for (let y = 1; y <= years; y++) {
+    const inflationFactor = Math.pow(1 + h.inflationLoyer, y - 1);
+
+    // ── JEANBRUN ──
+    const jLoyer = Math.min(
+      Math.round(base.loyerNuHC * inflationFactor),
+      VR.jeanbrun.plafondLoyer.loyerMaxMensuel
+    );
+    const jRevenuAnnuel = jLoyer * 12;
+    const jChargesAnnuel = (base.chargesProprietaire + base.mensualitePret + base.assurancePret) * 12;
+    const jCFBrut = jRevenuAnnuel - jChargesAnnuel;
+    // Fiscalité : revenus fonciers imposés au réel
+    const jRevenuImposable = Math.max(0, jRevenuAnnuel - (base.chargesProprietaire * 12)); // simplified
+    const jImpot = Math.round(jRevenuImposable * (h.tauxIR + h.tauxPS));
+    // Réduction d'impôt JEANBRUN
+    const jReduction = y <= jbEngagement ? Math.round(reductionAnnuelle) : 0;
+    const jImpotNet = Math.max(0, jImpot - jReduction);
+    const jCFNet = jCFBrut - jImpotNet;
+    jCumGain += jCFNet;
+    jCumTax += jImpotNet;
+
+    results.jeanbrun.push({
+      year: y, loyer: jLoyer, revenuAnnuel: jRevenuAnnuel,
+      cfBrut: jCFBrut, impot: jImpot, reduction: jReduction,
+      impotNet: jImpotNet, cfNet: jCFNet, cumGain: jCumGain,
+    });
+
+    // ── LMNP ──
+    const lLoyer = Math.round(base.loyerMeubleHC * inflationFactor);
+    const lRevenuAnnuel = lLoyer * 12;
+    const lFraisComptable = VR.lmnp.fiscalite.fraisComptable;
+    const lCFE = VR.lmnp.fiscalite.cfe;
+    const lChargesAnnuel = jChargesAnnuel + lFraisComptable + lCFE + base.renouvellementMobilier;
+    const lCFBrut = lRevenuAnnuel - lChargesAnnuel;
+    // Amortissement couvre le revenu → impôt = 0 tant que amort > revenu net
+    const lRevenuNetComptable = lRevenuAnnuel - (base.chargesProprietaire * 12) - lFraisComptable - lCFE;
+    const lAmortTotal = amortBienAnnuel + amortMobilierAnnuel;
+    const lRevenuImposable = Math.max(0, lRevenuNetComptable - lAmortTotal);
+    const lImpot = Math.round(lRevenuImposable * (h.tauxIR + h.tauxPS));
+    const lCFNet = lCFBrut - lImpot;
+    lCumGain += lCFNet;
+    lCumTax += lImpot;
+
+    // Déduire coût mobilier initial la première année
+    const lCFNetAdj = y === 1 ? lCFNet - base.coutMobilier : lCFNet;
+    if (y === 1) lCumGain -= base.coutMobilier;
+
+    results.lmnp.push({
+      year: y, loyer: lLoyer, revenuAnnuel: lRevenuAnnuel,
+      cfBrut: lCFBrut, amortissement: Math.round(lAmortTotal),
+      impot: lImpot, cfNet: lCFNetAdj, cumGain: lCumGain,
+    });
+  }
+
+  // Summary
+  const delta = lCumGain - jCumGain;
+  results.summary = {
+    jbTotal: jCumGain,
+    lmnpTotal: lCumGain,
+    delta,
+    winner: delta > 0 ? 'LMNP' : 'JEANBRUN',
+    jbReductionTotale: Math.round(reductionTotale),
+    jbReductionAnnuelle: Math.round(reductionAnnuelle),
+    jbLoyerPlafond: VR.jeanbrun.plafondLoyer.loyerMaxMensuel,
+    lmnpAmortAnnuel: Math.round(amortBienAnnuel + amortMobilierAnnuel),
+    lmpRisque: (base.loyerMeubleHC * 12) > VILLEJUIF_REGIMES.lmp.seuils.recettesMin,
+    lmpRecettesTotales: (base.loyerMeubleHC + 1300) * 12, // Villejuif + Rueil
+  };
+
+  return results;
+}
+
+/**
  * Compute immo view data
  */
 function computeImmoView(portfolio, fx) {
@@ -1079,6 +1301,20 @@ function computeImmoView(portfolio, fx) {
       deductibleChargesAnnuel: deductibleCharges * 12,
       loyerDeclareAnnuel,
     };
+
+    // ── Exit costs at current date ──
+    const purchasePrice = meta.purchasePrice || meta.totalOperation || propData.value;
+    const purchaseDateStr = meta.purchaseDate || '2023-01';
+    const [py, pm] = purchaseDateStr.split('-').map(Number);
+    const now = new Date();
+    const holdingYears = (now.getFullYear() - py) + (now.getMonth() + 1 - pm) / 12;
+    // Estimate total amortissements (LMNP réel)
+    const fiscType = IC.fiscalite && IC.fiscalite[loanKey] ? IC.fiscalite[loanKey].type : 'nu';
+    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdingYears)) : 0;
+
+    result.exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort);
+
+    return result;
   }
 
   properties.push(buildProperty('Vitry-sur-Seine', 'Amine', portfolio.amine.immo.vitry, IC.charges.vitry, 'vitry'));
@@ -1154,6 +1390,18 @@ function computeImmoView(portfolio, fx) {
   const totalInterestPaid = Object.values(amortSchedules).reduce((s, a) => s + a.interestPaid, 0);
   const totalInterestRemaining = Object.values(amortSchedules).reduce((s, a) => s + a.interestRemaining, 0);
 
+  // Exit costs totals
+  const totalExitCosts = properties.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
+  const totalNetEquityAfterExit = properties.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : 0), 0);
+
+  // Villejuif regime comparison
+  let villejuifRegimeComparison = null;
+  try {
+    villejuifRegimeComparison = computeVillejuifRegimeComparison();
+  } catch (e) {
+    console.warn('Villejuif regime comparison failed:', e);
+  }
+
   return {
     properties,
     totalEquity, totalValue, totalCRD,
@@ -1165,6 +1413,11 @@ function computeImmoView(portfolio, fx) {
     totalImpotAnnuel,
     totalLoyerAnnuel,
     totalCFNetFiscal,
+    totalExitCosts,
+    totalNetEquityAfterExit,
+    villejuifRegimeComparison,
+    vitryConstraints: VITRY_CONSTRAINTS,
+    exitCostsConfig: EXIT_COSTS,
   };
 }
 

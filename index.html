@@ -36,12 +36,16 @@
   .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
   .cur-btn:hover { color: white; }
 
-  .view-switcher { display: flex; gap: 0; margin: 0 0 32px; background: #2d3748; padding: 16px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; }
+  .view-switcher { display: flex; gap: 0; margin: 0; background: #2d3748; padding: 16px 0 0; justify-content: center; align-items: stretch; flex-wrap: wrap; }
   .view-btn { padding: 12px 32px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); border-bottom: 3px solid transparent; transition: all 0.2s; }
   .view-btn:hover { color: rgba(255,255,255,0.9); }
   .view-btn.active { color: white; border-bottom-color: #48bb78; background: rgba(255,255,255,0.05); }
   .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
   .view-btn.asset-view-btn.active { border-bottom-color: #ed8936; }
+  .immo-sub-nav { display: flex; gap: 0; background: #3a4a5e; padding: 0; justify-content: center; margin: 0 0 32px; }
+  .immo-sub-btn { padding: 8px 24px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.5); border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .immo-sub-btn:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.03); }
+  .immo-sub-btn.active { color: #fbd38d; border-bottom-color: #ed8936; background: rgba(255,255,255,0.06); }
 
   .sortable { cursor: pointer; user-select: none; position: relative; }
   .sortable:hover { background: #dce5f0; }
@@ -169,9 +173,16 @@
   <div class="view-sep"></div>
   <button class="view-btn asset-view-btn" data-view="actions">&#x1F4C8; Actions</button>
   <button class="view-btn asset-view-btn" data-view="cash">&#x1F4B0; Cash</button>
-  <button class="view-btn asset-view-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
+  <button class="view-btn asset-view-btn immo-parent-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
   <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
   <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
+</div>
+<!-- Sub-navigation immobilier (visible quand immobilier ou apt_* est actif) -->
+<div class="immo-sub-nav" id="immoSubNav" style="display:none;">
+  <button class="immo-sub-btn active" data-subview="immobilier">Vue d'ensemble</button>
+  <button class="immo-sub-btn" data-subview="apt_vitry">Vitry-sur-Seine</button>
+  <button class="immo-sub-btn" data-subview="apt_rueil">Rueil-Malmaison</button>
+  <button class="immo-sub-btn" data-subview="apt_villejuif">Villejuif</button>
 </div>
 
 <div class="container">
@@ -730,12 +741,17 @@
 <!-- ============ VUE IMMOBILIER ============ -->
 <div class="card hidden" data-view="immobilier">
   <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Portefeuille Immobilier</h2>
-  <div class="kpi-strip" id="kpi-immo" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="kpi gold"><div class="value" id="kpiImmoViewEq" data-eur="0">--</div><div class="label">Equity Totale</div></div>
+  <div class="kpi-strip" id="kpi-immo" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi gold"><div class="value" id="kpiImmoViewEq" data-eur="0">--</div><div class="label">Equity Brute</div></div>
+    <div class="kpi green"><div class="value" id="kpiImmoViewNetEq" data-eur="0">--</div><div class="label">Equity Nette (apr&egrave;s sortie)</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiImmoViewExitCosts" data-eur="0">--</div><div class="label">Frais de Sortie Total</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF Net /mois</div></div>
+  </div>
+  <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
     <div class="kpi"><div class="value" id="kpiImmoViewVal" data-eur="0">--</div><div class="label">Valeur Totale</div></div>
     <div class="kpi"><div class="value" id="kpiImmoViewCRD" data-eur="0">--</div><div class="label">CRD Total</div></div>
     <div class="kpi green"><div class="value" id="kpiImmoViewWealth">--</div><div class="label">Cr&eacute;ation Richesse /mois</div></div>
-    <div class="kpi"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF Net /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewLTV">--</div><div class="label">LTV Moyen</div></div>
   </div>
   <div class="kpi-insight-bar" id="insight-immo"></div>
 
@@ -840,6 +856,25 @@
   </table>
 </div>
 
+<!-- ============ VUES APPARTEMENTS ============ -->
+<!-- Vitry -->
+<div class="card hidden" data-view="apt_vitry">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3E0;</span>Vitry-sur-Seine — 19 Rue Nathalie Lemel</h2>
+  <div id="aptVitryContent"></div>
+</div>
+
+<!-- Rueil -->
+<div class="card hidden" data-view="apt_rueil">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3E0;</span>Rueil-Malmaison — 21 All&eacute;e des Glycines</h2>
+  <div id="aptRueilContent"></div>
+</div>
+
+<!-- Villejuif -->
+<div class="card hidden" data-view="apt_villejuif">
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Villejuif — 167 Bd Maxime Gorki <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">VEFA</span></h2>
+  <div id="aptVillejuifContent"></div>
+</div>
+
 <!-- ============ VUE CREANCES ============ -->
 <div class="card hidden" data-view="creances">
   <h2><span class="section-icon" style="background: #cbd5e0;">&#x1F4CB;</span>Cr&eacute;ances & Recouvrements</h2>
@@ -929,7 +964,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=66"></script>
+<script type="module" src="js/app.js?v=67"></script>
 
 </body>
 </html>

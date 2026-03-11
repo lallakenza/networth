@@ -654,6 +654,349 @@ export const IMMO_CONSTANTS = {
 };
 
 // ════════════════════════════════════════════════════════════
+// FRAIS DE SORTIE IMMOBILIER — Plus-value, agence, notaire
+//
+// Permet de calculer la "net equity après sortie" à tout moment.
+// La plus-value immobilière des NON-RÉSIDENTS est taxée à :
+//   - IR : 19% (taux forfaitaire non-résident)
+//   - PS : 17.2% (prélèvements sociaux)
+//   - Surtaxe : 0-6% si PV > 50K€
+//   = Total de base : 36.2%
+//
+// Abattements progressifs selon la durée de détention :
+//   IR (19%) : exonéré après 22 ans
+//   PS (17.2%) : exonéré après 30 ans
+//
+// Sources : BOFiP, CGI art. 150 U / 150 VB / 150 VC
+// ════════════════════════════════════════════════════════════
+export const EXIT_COSTS = {
+  // Abattements IR (par année de détention, à partir de la 6ème année)
+  // Années 1-5 : 0%  |  Années 6-21 : 6%/an  |  Année 22 : 4%  →  100% après 22 ans
+  irAbattement: [
+    { fromYear: 1, toYear: 5, ratePerYear: 0 },
+    { fromYear: 6, toYear: 21, ratePerYear: 0.06 },
+    { fromYear: 22, toYear: 22, ratePerYear: 0.04 },
+    // Au-delà de 22 ans : exonéré (100%)
+  ],
+  // Abattements PS (par année de détention)
+  // Années 1-5 : 0%  |  Années 6-21 : 1.65%/an  |  Année 22 : 1.60%  |  Année 23-30 : 9%/an  →  100% après 30 ans
+  psAbattement: [
+    { fromYear: 1, toYear: 5, ratePerYear: 0 },
+    { fromYear: 6, toYear: 21, ratePerYear: 0.0165 },
+    { fromYear: 22, toYear: 22, ratePerYear: 0.016 },
+    { fromYear: 23, toYear: 30, ratePerYear: 0.09 },
+    // Au-delà de 30 ans : exonéré (100%)
+  ],
+  irRate: 0.19,     // Taux forfaitaire non-résident
+  psRate: 0.172,    // Prélèvements sociaux
+  // Surtaxe sur plus-values élevées (CGI art. 1609 nonies G)
+  surtaxe: [
+    { from: 0,      to: 50000,  rate: 0 },
+    { from: 50001,  to: 100000, rate: 0.02 },
+    { from: 100001, to: 150000, rate: 0.03 },
+    { from: 150001, to: 200000, rate: 0.04 },
+    { from: 200001, to: 250000, rate: 0.05 },
+    { from: 250001, to: Infinity, rate: 0.06 },
+  ],
+  // Frais d'agence (à la charge du vendeur en France)
+  agencyFeePct: 0.04,    // ~4% du prix de vente (fourchette 3-5%)
+  // Diagnostics obligatoires avant vente
+  diagnosticsCost: 500,  // DPE, amiante, plomb, etc.
+  // Frais de mainlevée hypothécaire si prêt en cours
+  mainleveeFixe: 500,    // Frais fixes huissier/notaire
+  mainleveePct: 0.003,   // ~0.3% du capital initial emprunté
+
+  // ── Contraintes spécifiques par dispositif ──
+  vitry: {
+    // TVA 5.5% — Article 278 sexies du CGI
+    // Si revente avant 10 ans : remboursement du différentiel TVA (20% - 5.5% = 14.5%)
+    // Prorata temporis : 1/10ème par année restante
+    tvaReduite: {
+      tauxReduit: 0.055,
+      tauxNormal: 0.20,
+      dureeEngagement: 10,       // années
+      prixHTApprox: 260000,      // prix HT approximatif (275K TTC à TVA 5.5%)
+      dateAchat: '2023-02',
+    },
+    // PTZ — Prêt à Taux Zéro
+    // Doit occuper comme résidence principale pendant 6 ans (2023-2029)
+    // Remboursement anticipé sans pénalité (pas de frais de sortie PTZ)
+    // Mais si mis en location avant 6 ans : peut être rappelé
+    ptz: {
+      dureeOccupation: 6,        // années en résidence principale (ou assimilé)
+      dateDebut: '2023-02',
+      dateFin: '2029-02',        // fin obligation résidence principale
+      montant: 60000,
+      note: 'Location possible après 6 ans. Avant : risque de rappel PTZ.',
+    },
+    // Action Logement
+    // Conditions : plafond de ressources du locataire
+    // Pas de pénalité spécifique à la revente, mais le prêt doit être remboursé
+    actionLogement: {
+      montant: 40000,
+      plafondRessources: true,   // locataire doit respecter plafonds
+      note: 'Prêt remboursable sans pénalité. Locataire sous plafond de ressources.',
+    },
+  },
+  rueil: {
+    // Pas de dispositif particulier — achat classique ancien
+    // LMNP : pas de contrainte de revente spécifique
+    // Mais : si LMNP réel, les amortissements déduits sont réintégrés
+    // dans le calcul de la plus-value (amortissements = majoration du prix d'achat !)
+    // Attention : depuis loi de finances 2025, les amortissements LMNP
+    // sont désormais réintégrés dans le calcul de la PV (art. 150 VB bis CGI)
+    lmnpAmortReintegration: true,
+    note: 'LMNP réel : amortissements réintégrés dans la PV depuis 2025 (loi de finances 2025)',
+  },
+  villejuif: {
+    // VEFA en cours — pas encore livré
+    // LMNP ou JEANBRUN selon le choix
+    // Si LMNP réel : même règle de réintégration des amortissements
+    lmnpAmortReintegration: true,
+    note: 'VEFA — choix régime à faire avant livraison (été 2029)',
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+// CONTRAINTES VITRY — Rappel de toutes les obligations
+// liées aux dispositifs de financement et TVA réduite
+// ════════════════════════════════════════════════════════════
+export const VITRY_CONSTRAINTS = {
+  summary: 'Vitry cumule 3 dispositifs avec obligations : TVA 5.5%, PTZ, Action Logement',
+  constraints: [
+    {
+      dispositif: 'TVA 5.5%',
+      reference: 'CGI art. 278 sexies',
+      obligation: 'Conservation du bien pendant 10 ans minimum',
+      dateDebut: '2023-02',
+      dateFin: '2033-02',
+      penalite: 'Remboursement différentiel TVA (14.5% × prix HT) au prorata des années restantes',
+      details: [
+        'Bien acheté 275 000€ TTC à TVA 5.5% au lieu de 20%',
+        'Différentiel TVA ≈ 260 000 × 14.5% ≈ 37 700€',
+        'Pénalité dégressive : -1/10ème par an (ex: revente année 5 → ~18 850€ à rembourser)',
+        'Après 10 ans (février 2033) : aucune pénalité',
+        'Zone ANRU / QPV — condition de localisation respectée',
+      ],
+      status: 'actif',
+      yearsRemaining: 7,  // à partir de mars 2026
+    },
+    {
+      dispositif: 'PTZ (Prêt à Taux Zéro)',
+      reference: 'Code de la construction L31-10',
+      obligation: 'Résidence principale ou assimilé pendant 6 ans',
+      dateDebut: '2023-02',
+      dateFin: '2029-02',
+      penalite: 'Rappel du prêt PTZ (remboursement immédiat de 60 000€)',
+      details: [
+        'Montant PTZ : 60 000€ à 0%',
+        'Obligation : résidence principale pendant 6 ans',
+        'Location : autorisée APRÈS février 2029 (fin période 6 ans)',
+        'Actuellement en location (dérogation non-résident ? à vérifier)',
+        'Remboursement anticipé : sans pénalité ni frais',
+        'Le PTZ ne génère aucun intérêt → pas d\'impact fiscal',
+      ],
+      status: 'actif',
+      yearsRemaining: 3,
+    },
+    {
+      dispositif: 'Action Logement',
+      reference: 'Convention entre employeur et Action Logement Services',
+      obligation: 'Plafond de ressources du locataire',
+      dateDebut: '2023-02',
+      dateFin: null,   // pas de date de fin — durée du prêt
+      penalite: 'Pas de pénalité de revente. Prêt remboursable sans frais.',
+      details: [
+        'Montant : 40 000€ à 0.50%',
+        'Le locataire doit respecter les plafonds de ressources Action Logement',
+        'Durée 25 ans — fin février 2048',
+        'Remboursement anticipé : pas de pénalité',
+        'Condition : lié à l\'emploi au moment de l\'obtention (condition passée)',
+      ],
+      status: 'actif',
+      yearsRemaining: null,
+    },
+    {
+      dispositif: 'Location nue (régime foncier)',
+      reference: 'CGI art. 14 / 28',
+      obligation: 'Déclaration des revenus fonciers de source française',
+      dateDebut: '2026-04',
+      dateFin: null,
+      penalite: 'Redressement fiscal si non-déclaration',
+      details: [
+        'Non-résident UAE : IR 20% minimum + PS 17.2%',
+        'Régime réel foncier (intérêts + charges déductibles)',
+        'Loyer déclaré : 500€/mois (partie bail officiel)',
+        'Loyer total perçu : 1 050€ HC + 150€ charges + 70€ parking = 1 270€',
+        'Différence non déclarée : risque fiscal si contrôle',
+      ],
+      status: 'actif',
+      yearsRemaining: null,
+    },
+  ],
+  timeline: [
+    { date: '2023-02', event: 'Livraison + début occupation', icon: 'key' },
+    { date: '2025-08', event: 'Début remboursement BP (après intérêts seuls)', icon: 'bank' },
+    { date: '2026-04', event: 'Début location', icon: 'home' },
+    { date: '2027-12', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
+    { date: '2028-12', event: 'Fin différé PTZ → début remboursement 333€/mois', icon: 'money' },
+    { date: '2029-02', event: 'Fin obligation résidence principale PTZ (6 ans)', icon: 'unlock' },
+    { date: '2033-02', event: 'Fin obligation TVA 5.5% (10 ans)', icon: 'free' },
+    { date: '2043-11', event: 'Fin prêt PTZ', icon: 'check' },
+    { date: '2048-02', event: 'Fin prêt Action Logement', icon: 'check' },
+    { date: '2048-12', event: 'Fin prêt Banque Populaire', icon: 'check' },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════
+// VILLEJUIF — Comparaison JEANBRUN vs LMNP vs LMP
+//
+// Le bien sera livré été 2029. Il faut choisir le régime AVANT.
+// 3 options :
+//   1. Dispositif JEANBRUN (neuf, loi 2025) — location nue
+//   2. LMNP réel (meublé) — avec amortissement
+//   3. LMP (si seuil dépassé) — meublé professionnel
+//
+// Paramètres de simulation :
+//   - Meublé : +3 000€ de mobilier initial + +100€ de loyer/mois
+//   - Nue (JEANBRUN) : pas de frais mobilier, loyer de base
+// ════════════════════════════════════════════════════════════
+export const VILLEJUIF_REGIMES = {
+  // Données de base (identiques pour tous les régimes)
+  base: {
+    loyerNuHC: 1700,          // Loyer HC en location nue
+    loyerMeubleHC: 1800,      // Loyer HC en meublé (+100€)
+    coutMobilier: 3000,        // Investissement mobilier initial
+    renouvellementMobilier: 500, // Renouvellement mobilier annuel moyen
+    chargesProprietaire: 259,  // copro 110 + PNO 15 + TF 83 + assurance 51
+    mensualitePret: 1669,      // prêt LCL P1+P2
+    assurancePret: 51,
+    valeurBien: 370000,
+    totalOperation: 349456,
+    surface: 68.92,
+  },
+
+  // ── Option 1 : JEANBRUN (ex-Pinel Denormandie rénové) ──
+  // Dispositif de la loi de finances 2025 pour le neuf
+  // Réduction d'impôt proportionnelle à la durée d'engagement
+  jeanbrun: {
+    nom: 'Dispositif JEANBRUN (Loi 2025)',
+    type: 'nu',       // location nue obligatoire
+    dureeEngagement: [6, 9, 12],  // choix durée
+    reductionImpot: {
+      // Réduction d'impôt calculée sur le prix d'achat plafonné
+      plafondPrix: 300000,      // plafond d'investissement
+      plafondM2: 5500,          // plafond prix/m²
+      taux6ans: 0.09,           // 9% sur 6 ans = 1.5%/an
+      taux9ans: 0.12,           // 12% sur 9 ans = 1.33%/an
+      taux12ans: 0.14,          // 14% sur 12 ans = 1.17%/an
+    },
+    conditions: [
+      'Logement neuf (VEFA) en zone tendue (zone A → Villejuif OK)',
+      'Respect du plafond de loyer : ~17.62€/m² zone A (2025)',
+      'Respect du plafond de ressources du locataire',
+      'Location nue à titre de résidence principale du locataire',
+      'Engagement de location 6, 9 ou 12 ans',
+      'Performance énergétique RE2020 (VEFA → OK automatiquement)',
+    ],
+    plafondLoyer: {
+      zoneA: 17.62,   // €/m²/mois (2025, à actualiser)
+      loyerMaxMensuel: 1215,  // 68.92m² × 17.62 = 1 214€ (arrondi)
+    },
+    avantages: [
+      'Réduction d\'impôt directe (non-résident : imputable sur IR français)',
+      'Pas de mobilier à acheter ni entretenir',
+      'Loyer plafonné mais sécurisé (zone tendue)',
+    ],
+    inconvenients: [
+      'Loyer plafonné à ~1 215€ (vs 1 700€ marché)',
+      'Location NUE uniquement',
+      'Engagement longue durée (6-12 ans)',
+      'Plafond de ressources locataire',
+      'Non cumulable avec LMNP',
+    ],
+  },
+
+  // ── Option 2 : LMNP réel (amortissement) ──
+  lmnp: {
+    nom: 'LMNP Réel (Amortissement)',
+    type: 'meuble',
+    conditions: [
+      'Logement meublé (mobilier minimum défini par décret)',
+      'Recettes locatives < 23 000€/an ET < revenus d\'activité → sinon LMP',
+      'Inscription au greffe du tribunal de commerce (P0i)',
+      'Comptabilité d\'engagement (BIC réel simplifié)',
+    ],
+    fiscalite: {
+      regime: 'reel-simplifie',
+      amortissementBien: 0.02,     // ~2% du bien/an sur 30-50 ans (hors terrain)
+      amortissementMobilier: 0.10, // ~10% du mobilier/an sur 7-10 ans
+      partTerrain: 0.20,           // 20% = terrain (non amortissable)
+      // Charges déductibles : intérêts, assurance, PNO, TF, copro, comptable, CFE
+      fraisComptable: 1200,        // Expert-comptable + adhésion CGA ~1200€/an
+      cfe: 200,                    // Cotisation Foncière des Entreprises ~200€/an
+    },
+    avantages: [
+      'Loyer libre (marché) : 1 800€ HC',
+      'Amortissement du bien → impôt = 0 pendant 15-20 ans',
+      'Charges déductibles (intérêts, travaux, comptable)',
+      'Récupération TVA si neuf (mais pas en non-professionnel simple)',
+    ],
+    inconvenients: [
+      'Coût mobilier initial : 3 000€',
+      'Renouvellement mobilier : ~500€/an',
+      'Frais comptable : ~1 200€/an',
+      'CFE : ~200€/an',
+      'Réintégration amortissements dans PV à la revente (loi 2025)',
+      'Risque de basculement LMP si recettes > 23K€',
+    ],
+  },
+
+  // ── Option 3 : LMP (Loueur Meublé Professionnel) ──
+  lmp: {
+    nom: 'LMP (Loueur Meublé Professionnel)',
+    type: 'meuble',
+    seuils: {
+      recettesMin: 23000,       // Recettes > 23 000€/an
+      // ET recettes > revenus d'activité du foyer fiscal
+      // Non-résident : pas de revenus d'activité en France → condition 2 auto-remplie ?
+      note: 'Attention : non-résident sans revenus FR → potentiellement LMP automatique si > 23K€',
+    },
+    fiscalite: {
+      // Comme LMNP réel mais avec :
+      cotisationsSociales: 0.40, // ~40% de cotisations sociales (SSI) sur le bénéfice
+      plusValuePro: true,        // PV professionnelle (exonération après 5 ans si CA < 90K)
+      deficitImputable: true,    // Déficit imputable sur revenu global (pas juste BIC)
+    },
+    avantages: [
+      'Déficit imputable sur le revenu global',
+      'PV professionnelle : exonération totale si > 5 ans ET CA < 90K€',
+      'Amortissement du bien (comme LMNP)',
+    ],
+    inconvenients: [
+      'Cotisations sociales SSI ~40% sur le bénéfice',
+      'Complexité administrative (déclaration pro)',
+      'Affiliation SSI obligatoire',
+      'Risque : requalification des amortissements passés',
+    ],
+    risque: 'Avec Rueil (1300×12=15600) + Villejuif (1800×12=21600) = 37 200€/an → dépasse le seuil de 23K€. Si pas de revenus d\'activité en France → LMP automatique.',
+  },
+
+  // ── Simulation comparative sur 10 ans ──
+  simulation: {
+    duree: 10,   // années
+    hypotheses: {
+      appreciationAnnuelle: 0.02,   // 2%/an
+      inflationLoyer: 0.015,         // 1.5%/an (IRL)
+      tauxIR: 0.20,                  // Non-résident
+      tauxPS: 0.172,
+      tauxAmortissement: 0.02,       // 2% du bien/an (hors terrain)
+      partTerrain: 0.20,
+    },
+  },
+};
+
+// ════════════════════════════════════════════════════════════
 // HISTORIQUE PATRIMOINE — Points manuels + dernier point live
 // Le dernier point (coupleNW/amineNW/nezhaNW = null) est rempli
 // dynamiquement par engine.js avec les valeurs actuelles.
