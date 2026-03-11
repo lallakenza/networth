@@ -336,7 +336,7 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 740,       // Cours SGTM en MAD (casablanca-bourse.com) — mis à jour 10 Mar 2026
+    sgtmPriceMAD: 700,       // Cours SGTM en MAD (clôture 10 Mar 2026) — casablanca-bourse.com
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 201.63,     // Cours Accenture en USD — mis à jour 11/03/2026
   },
