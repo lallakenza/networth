@@ -34,23 +34,48 @@ export async function fetchFXRates() {
  * Fetch a single stock price from Yahoo Finance
  */
 async function fetchStockPrice(symbol) {
-  // Try Yahoo Finance chart API directly
+  // Fetch YTD daily data from Yahoo Finance — gives us daily/MTD/YTD/1M reference prices
+  function extractFromYahoo(d) {
+    const result = d?.chart?.result?.[0];
+    const meta = result?.meta;
+    const p = meta?.regularMarketPrice;
+    if (!p || p <= 0) return null;
+    const pc = meta?.chartPreviousClose || meta?.previousClose;
+    // Extract historical closes for period P&L
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+    const refPrices = { previousClose: pc || null };
+    if (timestamps.length > 0 && closes.length > 0) {
+      const now = new Date();
+      const ytdStart = new Date(now.getFullYear(), 0, 1).getTime() / 1000;
+      const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000;
+      const oneMonthAgo = now.getTime() / 1000 - 30 * 86400;
+      // Find closest valid close for each reference date
+      for (let i = 0; i < timestamps.length; i++) {
+        const c = closes[i];
+        if (c === null || c === undefined) continue;
+        const t = timestamps[i];
+        if (!refPrices.ytdOpen && t >= ytdStart) refPrices.ytdOpen = c;
+        if (!refPrices.mtdOpen && t >= mtdStart) refPrices.mtdOpen = c;
+        if (!refPrices.oneMonthAgo && t >= oneMonthAgo) refPrices.oneMonthAgo = c;
+      }
+    }
+    return { price: p, ...refPrices };
+  }
   try {
-    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d');
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d');
     if (r.ok) {
-      const d = await r.json();
-      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (p && p > 0) return p;
+      const result = extractFromYahoo(await r.json());
+      if (result) return result;
     }
   } catch(e) {}
   // Fallback: CORS proxy
   try {
-    const url = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d');
+    const url = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d');
     const r = await fetch('https://api.allorigins.win/raw?url=' + url);
     if (r.ok) {
-      const d = await r.json();
-      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (p && p > 0) return p;
+      const result = extractFromYahoo(await r.json());
+      if (result) return result;
     }
   } catch(e) {}
   return null;
@@ -114,8 +139,8 @@ export async function fetchStockPrices(portfolio) {
   // Fetch IBKR + ACN in parallel with SGTM
   const [, sgtmPrice] = await Promise.all([
     Promise.all(tickers.map(async (ticker) => {
-      const price = await fetchStockPrice(ticker);
-      if (price) prices[ticker] = price;
+      const result = await fetchStockPrice(ticker);
+      if (result) prices[ticker] = result;
     })),
     fetchSGTMPrice(),
   ]);
@@ -125,14 +150,24 @@ export async function fetchStockPrices(portfolio) {
   // Update IBKR positions
   portfolio.amine.ibkr.positions.forEach(pos => {
     if (prices[pos.ticker]) {
-      pos.price = prices[pos.ticker];
+      const d = prices[pos.ticker];
+      pos.price = d.price;
+      pos.previousClose = d.previousClose;
+      pos.ytdOpen = d.ytdOpen;
+      pos.mtdOpen = d.mtdOpen;
+      pos.oneMonthAgo = d.oneMonthAgo;
       updated = true;
     }
   });
 
   // Update ACN (ESPP)
   if (prices['ACN']) {
-    portfolio.market.acnPriceUSD = prices['ACN'];
+    const d = prices['ACN'];
+    portfolio.market.acnPriceUSD = d.price;
+    portfolio.market.acnPreviousClose = d.previousClose;
+    portfolio.market.acnYtdOpen = d.ytdOpen;
+    portfolio.market.acnMtdOpen = d.mtdOpen;
+    portfolio.market.acnOneMonthAgo = d.oneMonthAgo;
     updated = true;
   }
 
