@@ -78,6 +78,111 @@ Système générique — ne jamais hardcoder de noms de comptes :
 | Immobilier | `immobilier` | `state.immoView` |
 | Budget | `budget` | `state.budgetView` |
 
+## Mise à jour des données — Checklist
+
+À chaque session de mise à jour, l'IA doit vérifier l'ancienneté des données et mettre à jour ce qui est périmé.
+
+### Données temps-réel (récupérées automatiquement par api.js)
+- **Taux FX** : récupérés live via frankfurter.dev → pas besoin de toucher `FX_STATIC` sauf si l'API plante
+- **Cours actions IBKR** : récupérés live via Yahoo Finance chart API → les `price` dans `positions[]` servent de fallback
+
+### Données à mettre à jour manuellement dans data.js
+
+| Donnée | Fréquence | Source | Comment vérifier l'ancienneté |
+|--------|-----------|--------|-------------------------------|
+| Soldes bancaires (cash UAE, Maroc, Revolut, IBKR cash) | Chaque session | Apps bancaires, IBKR | Commentaires `mis à jour` dans data.js |
+| Positions IBKR (shares, costBasis) | Si nouveau trade | CSV IBKR ou fichier utilisateur | Comparer `trades[]` dernière date vs aujourd'hui |
+| Cours SGTM (`market.sgtmPriceMAD`) | Si > 1 semaine | casablanca-bourse.com | Commentaire date dans data.js |
+| Cours ACN (`market.acnPriceUSD`) | Si > 1 semaine | Fidelity / Yahoo Finance | Commentaire date dans data.js |
+| CRD immobilier | Mensuel | Tableau d'amortissement | Comparer au schedule calculé par engine |
+| Créances | Quand payées/ajoutées | Factures | Vérifier items[] dans creances |
+| Véhicules | Trimestriel | Argus / La Centrale | Commentaire date |
+| `FX_STATIC` | Si > 2 semaines | xe.com | Commentaire date dans data.js |
+| `CASH_YIELDS` | Si taux changent | Sites banques | Commentaire date |
+| `staticNAV` (IBKR) | Chaque mise à jour IBKR | Rapport CSV IBKR | Doit correspondre à NAV du CSV |
+
+### Règle d'ancienneté automatique
+
+Au début de chaque session, l'IA doit :
+1. Lire les dates dans les commentaires de `data.js`
+2. Si les cours stocks (SGTM, ACN) ont **> 7 jours** → les mettre à jour (web search ou fichier utilisateur)
+3. Si les soldes bancaires ont **> 14 jours** → demander à l'utilisateur les soldes actuels
+4. Si `FX_STATIC` a **> 14 jours** → mettre à jour depuis xe.com
+5. Toujours bumper le numéro de version `?v=XX` dans tous les imports après modification
+
+## Comment traiter un fichier CSV / relevé IBKR
+
+L'utilisateur fournit régulièrement un export IBKR (CSV ou PDF). Voici comment l'interpréter :
+
+### 1. Identifier les nouvelles opérations
+
+Comparer les trades du fichier avec `PORTFOLIO.amine.ibkr.trades[]` dans data.js.
+Tout trade dont la date + ticker + qty n'existe pas encore doit être ajouté.
+
+### 2. Format des trades dans data.js
+
+```javascript
+// Achat
+{ date: 'YYYY-MM-DD', ticker: 'AIR.PA', label: 'Airbus', type: 'buy',
+  qty: 100, price: 196.50, currency: 'EUR', cost: 19650,
+  commission: -9.83, costBasis: 192.58, source: 'ibkr' }
+
+// Vente
+{ date: 'YYYY-MM-DD', ticker: 'GLE', label: 'Société Générale', type: 'sell',
+  qty: 200, price: 75.34, currency: 'EUR', proceeds: 15068,
+  realizedPL: 4807.34, commission: -7.53, costBasis: 76.24, source: 'ibkr' }
+
+// FX trade
+{ date: 'YYYY-MM-DD', ticker: 'EUR.JPY', label: 'EUR→JPY (short)', type: 'fx',
+  qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684,
+  commission: -1.72, note: 'Rachat JPY short', source: 'ibkr' }
+```
+
+### 3. Mettre à jour les positions après un trade
+
+Après ajout d'un trade, mettre à jour la section `positions[]` :
+
+| Opération | Action sur positions[] |
+|-----------|----------------------|
+| **Achat d'une action existante** | Mettre à jour `shares` (nouveau total) et `costBasis` (nouveau PRU moyen du CSV) |
+| **Achat d'une nouvelle action** | Ajouter une nouvelle entrée dans `positions[]` avec ticker, shares, price, costBasis, currency, label, sector, geo |
+| **Vente partielle** | Réduire `shares`. Le `costBasis` reste le même (PRU moyen). Ajouter le realizedPL dans meta.realizedPL |
+| **Vente totale (clôture)** | Supprimer l'entrée de `positions[]`. Ajouter le realizedPL dans meta.realizedPL |
+| **Trade FX** | Mettre à jour `cashEUR`, `cashUSD`, `cashJPY` selon les montants convertis |
+
+### 4. Mettre à jour les agrégats IBKR
+
+Après tout changement :
+- `staticNAV` : NAV totale du rapport CSV (ligne "Net Asset Value")
+- `meta.deposits` : si dépôt/retrait détecté
+- `meta.realizedPL` : somme de tous les realizedPL des sells
+- `meta.dividends` : si dividendes reçus
+- `meta.commissions` : cumul commissions
+
+### 5. Mettre à jour le cash IBKR
+
+Le CSV IBKR donne les soldes cash par devise :
+- `cashEUR` : solde EUR (attention au seuil IBKR 10K à 0%)
+- `cashUSD` : solde USD
+- `cashJPY` : solde JPY (négatif = emprunt short JPY)
+
+## Mise à jour des insights (render.js)
+
+Les insights dans `renderDynamicInsights()` sont 100% dynamiques — ils lisent `state.*` et `state.cashView.*`. **Ils ne doivent jamais contenir de montants, noms de comptes, ou conseils spécifiques en dur.**
+
+### Règles pour les insights
+- Utiliser `state.cashView.accounts` pour lister les comptes dynamiquement
+- Utiliser `state.immoView.properties` pour les données immo
+- Utiliser `state.actionsView` pour les données actions
+- Les textes de conseil doivent être génériques : "Optimiser le placement" au lieu de "Transférer vers Wio"
+- Les montants doivent toujours être calculés : `K(cashTotal)` au lieu de `"85K€"`
+- Les projections doivent utiliser les données réelles (CF immo, rendement actuel) et jamais des constantes
+
+### Si on ajoute un nouvel insight
+1. Calculer les valeurs depuis `state.*` dans `renderDynamicInsights()`
+2. Utiliser `fmt()` / `K()` / `N()` pour le formatage
+3. Ne jamais mentionner un compte par son nom en dur — utiliser `accounts.find()` ou `accounts.filter()`
+
 ## Conventions
 
 - Montants en devise native dans data.js, conversion en EUR dans engine.js via `toEUR()`
