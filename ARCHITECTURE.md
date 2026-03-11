@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v91** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v100** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -259,14 +259,14 @@ Les KPI de la vue Actions sont cliquables. Chaque clic ouvre un panneau détaill
 
 | KPI | ID panel | Données source | Contenu |
 |-----|----------|---------------|---------|
-| P&L Daily | detailPLDaily | periodPL.daily.breakdown | P&L par position, impact FX cash |
+| P&L Daily | detailPLDaily | periodPL.daily.breakdown | Two-column pertes/gains, positions à €0 filtrées (marché fermé) |
 | P&L MTD | detailPLMTD | periodPL.mtd.breakdown | P&L par position, top 3 pertes |
 | P&L 1 Mois | detailPL1M | periodPL.oneMonth.breakdown | P&L par position, top 3 pertes |
 | P&L YTD | detailPLYTD | periodPL.ytd.breakdown | P&L par position, total gains/pertes |
 | Total Actions | detailTotal | allPos (IBKR+ESPP+SGTM) | Répartition par valeur, concentration top 3 |
-| P/L Non Réalisé | detailUnrealized | allPos.unrealizedPL | P/L latent par position avec % |
+| P/L Non Réalisé | detailUnrealized | allPos.unrealizedPL | Two-column: pertes (gauche) / gains (droite), avec % et barres |
 | P/L Réalisé | detailRealized | closedPositions + degiro | Trades clôturés, meilleur trade |
-| Total Déposé | detailDeposits | av.deposits | Historique dépôts, ROI |
+| Total Déposé | detailDeposits | av.depositHistory | Historique groupé par owner → platform (trié par montant décroissant), ROI |
 | Dividendes/TWR | detailDividends | av.dividends, av.twr | Yield, commissions, WHT |
 
 ### Comment ajouter un nouveau KPI detail panel
@@ -275,6 +275,13 @@ Les KPI de la vue Actions sont cliquables. Chaque clic ouvre un panneau détaill
 2. Ajouter un générateur dans `detailGenerators` dans `setupKPIDetailPanels()` (render.js)
 3. Le générateur retourne du HTML utilisant les classes `.detail-header`, `.detail-body`, `.detail-row`, `.detail-footer`
 4. Les données doivent venir de `state.actionsView` — jamais de constantes hardcodées
+
+### Affichage P&L breakdown (render.js → renderPLBreakdown)
+
+- **Two-column layout** : pertes à gauche (rouge), gains à droite (vert)
+- **Filtrage €0** : les positions avec |P&L| < 0.5€ sont masquées (ex: actions européennes quand le marché US est ouvert mais pas EU). Un compteur "(N à €0 masqués)" est affiché dans le header.
+- **P/L Non Réalisé** (detailUnrealized) : même layout two-column avec % par position
+- **Dépôts** (detailDeposits) : groupés par owner → platform, plateformes triées par montant total décroissant (IBKR avant ESPP pour Amine)
 
 ### Sources des period P&L (engine.js)
 

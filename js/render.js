@@ -1350,15 +1350,20 @@ function setupKPIDetailPanels(state) {
   // Helper: render a P&L breakdown in two columns (losers | gainers)
   function renderPLBreakdown(items, total, footer) {
     if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Pas de données</div>';
-    const losers = items.filter(i => i.pl < 0).sort((a, b) => a.pl - b.pl); // worst first
-    const gainers = items.filter(i => i.pl > 0).sort((a, b) => b.pl - a.pl); // best first
-    const flat = items.filter(i => i.pl === 0);
+    // Filter out near-zero P&L (e.g. European stocks when market is closed)
+    const threshold = 0.5;
+    const filtered = items.filter(i => Math.abs(i.pl) >= threshold);
+    const skipped = items.length - filtered.length;
+    const losers = filtered.filter(i => i.pl < 0).sort((a, b) => a.pl - b.pl); // worst first
+    const gainers = filtered.filter(i => i.pl > 0).sort((a, b) => b.pl - a.pl); // best first
     const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
     const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
-    const maxAbs = Math.max(...items.map(i => Math.abs(i.pl)), 1);
+    const maxAbs = Math.max(...filtered.map(i => Math.abs(i.pl)), 1);
 
     let html = '<div class="detail-header"><h4>Répartition P&L par position</h4>';
-    html += '<div class="detail-summary">' + losers.length + ' en perte, ' + gainers.length + ' en gain</div></div>';
+    html += '<div class="detail-summary">' + losers.length + ' en perte, ' + gainers.length + ' en gain';
+    if (skipped > 0) html += ' (' + skipped + ' à €0 masqués)';
+    html += '</div></div>';
     html += '<div class="detail-body" style="padding:0;">';
 
     // Two-column layout
@@ -1394,12 +1399,8 @@ function setupKPIDetailPanels(state) {
       html += '<span style="display:block;height:100%;width:' + barW + '%;background:#48bb78;border-radius:3px;"></span></span>';
       html += '</div>';
     });
-    if (flat.length > 0) {
-      flat.forEach(function(i) {
-        html += '<div style="display:flex;align-items:center;padding:4px 0;font-size:12px;color:#a0aec0;">';
-        html += '<span style="flex:1;">' + i.label + '</span><span style="min-width:75px;text-align:right;">€0</span>';
-        html += '</div>';
-      });
+    if (losers.length === 0 && gainers.length === 0 && skipped > 0) {
+      html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">' + skipped + ' positions à €0 (marché fermé ?)</div>';
     }
     html += '</div>';
 
@@ -1479,34 +1480,57 @@ function setupKPIDetailPanels(state) {
       return renderValueBreakdown(items, 'Répartition par position', allPos.length + ' positions | Total €' + fmt(Math.round(av.totalStocks)));
     },
     detailUnrealized: function() {
-      const items = allPos.sort((a, b) => a.unrealizedPL - b.unrealizedPL).map(p => ({
-        label: p.label,
-        value: Math.abs(p.unrealizedPL),
-        prefix: p.unrealizedPL >= 0 ? '+' : '-',
-        cls: p.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg',
-        color: p.unrealizedPL >= 0 ? '#48bb78' : '#fc8181',
-        _rawPL: p.unrealizedPL,
-        _pct: p.pctPL,
-      }));
-      const worst = items[0];
-      const best = items[items.length - 1];
-      let html = '<div class="detail-header"><h4>P/L Non Réalisé par position</h4>';
-      html += '<div class="detail-summary">' + allPos.filter(p => p.unrealizedPL >= 0).length + ' en gain, ' + allPos.filter(p => p.unrealizedPL < 0).length + ' en perte</div></div>';
-      html += '<div class="detail-body">';
+      const losers = allPos.filter(p => p.unrealizedPL < 0).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
+      const gainers = allPos.filter(p => p.unrealizedPL > 0).sort((a, b) => b.unrealizedPL - a.unrealizedPL);
+      const flat = allPos.filter(p => p.unrealizedPL === 0);
+      const totalLoss = losers.reduce((s, p) => s + p.unrealizedPL, 0);
+      const totalGain = gainers.reduce((s, p) => s + p.unrealizedPL, 0);
       const maxAbs = Math.max(...allPos.map(p => Math.abs(p.unrealizedPL)), 1);
-      allPos.sort((a, b) => a.unrealizedPL - b.unrealizedPL).forEach(p => {
-        const sign = p.unrealizedPL >= 0 ? '+' : '';
-        const cls = p.unrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
-        const barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
-        const barColor = p.unrealizedPL >= 0 ? '#48bb78' : '#fc8181';
-        html += '<div class="detail-row">';
-        html += '<span class="ticker-label">' + p.label + ' <span style="color:#a0aec0;font-size:11px;">' + sign + p.pctPL.toFixed(1) + '%</span></span>';
-        html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(p.unrealizedPL)) + '</span>';
-        html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
+
+      let html = '<div class="detail-header"><h4>P/L Non Réalisé par position</h4>';
+      html += '<div class="detail-summary">' + losers.length + ' en perte, ' + gainers.length + ' en gain</div></div>';
+      html += '<div class="detail-body" style="padding:0;">';
+
+      // Two-column layout
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">';
+
+      // Left column: LOSERS
+      html += '<div style="border-right:1px solid #e2e8f0;padding:12px 16px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:#c53030;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #fed7d7;margin-bottom:6px;">';
+      html += '📉 Pertes (' + fmt(Math.round(totalLoss)) + ')</div>';
+      if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
+      losers.forEach(function(p) {
+        var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
+        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">' + p.pctPL.toFixed(1) + '%</span></span>';
+        html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(p.unrealizedPL)) + '</span>';
+        html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
+        html += '<span style="display:block;height:100%;width:' + barW + '%;background:#fc8181;border-radius:3px;"></span></span>';
         html += '</div>';
       });
       html += '</div>';
-      html += '<div class="detail-footer">Pire position : ' + worst?.label + ' | Meilleure : ' + best?.label + '</div>';
+
+      // Right column: GAINERS
+      html += '<div style="padding:12px 16px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #c6f6d5;margin-bottom:6px;">';
+      html += '📈 Gains (+' + fmt(Math.round(totalGain)) + ')</div>';
+      if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
+      gainers.forEach(function(p) {
+        var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
+        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">+' + p.pctPL.toFixed(1) + '%</span></span>';
+        html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(p.unrealizedPL)) + '</span>';
+        html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
+        html += '<span style="display:block;height:100%;width:' + barW + '%;background:#48bb78;border-radius:3px;"></span></span>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      html += '</div>'; // end grid
+      html += '</div>'; // end detail-body
+      const worst = losers[0];
+      const best = gainers[0];
+      html += '<div class="detail-footer">Pire : ' + (worst?.label || '--') + ' (' + fmt(Math.round(worst?.unrealizedPL || 0)) + ') | Meilleure : ' + (best?.label || '--') + ' (+' + fmt(Math.round(best?.unrealizedPL || 0)) + ')</div>';
       return html;
     },
     detailRealized: function() {
@@ -1573,6 +1597,12 @@ function setupKPIDetailPanels(state) {
           // Sub-group by platform
           var platforms = [];
           ownerDeps.forEach(function(d) { if (platforms.indexOf(d.platform) === -1) platforms.push(d.platform); });
+          // Sort platforms by total deposited (largest first)
+          platforms.sort(function(a, b) {
+            var totalA = ownerDeps.filter(function(d) { return d.platform === a; }).reduce(function(s, d) { return s + d.amountEUR; }, 0);
+            var totalB = ownerDeps.filter(function(d) { return d.platform === b; }).reduce(function(s, d) { return s + d.amountEUR; }, 0);
+            return totalB - totalA;
+          });
           platforms.forEach(function(platform) {
             var pDeps = ownerDeps.filter(function(d) { return d.platform === platform; });
             var pTotal = pDeps.reduce(function(s, d) { return s + d.amountEUR; }, 0);
