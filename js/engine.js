@@ -2364,10 +2364,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR', ticker: pos.ticker };
         }),
         { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af', owner: 'Amine — IBKR' },
-        { label: 'ESPP Amine (ACN)', val: amineEspp, color: '#6366f1', owner: 'Amine — ESPP' },
-        { label: 'ESPP Nezha (ACN)', val: nezhaEspp, color: '#a78bfa', owner: 'Nezha — ESPP' },
-        { label: 'SGTM Amine', val: amineSgtm, color: '#4f46e5', owner: 'Amine — Maroc' },
-        { label: 'SGTM Nezha', val: nezhaSgtm, color: '#818cf8', owner: 'Nezha — Maroc' },
+        { label: 'ESPP Accenture', val: amineEspp + nezhaEspp, color: '#6366f1', owner: 'Amine + Nezha — ESPP' },
+        { label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#4f46e5', owner: 'Amine + Nezha — Maroc' },
       ].filter(s => s.val > 100)
     },
     {
@@ -2596,14 +2594,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     const pal = geoColorSubs[geo] || ['#94a3b8'];
     geoGroups[geo].push({ label: short, val: valEUR, color: pal[palIdx % pal.length], owner: 'IBKR', ticker: pos.ticker });
   });
-  // Add ESPP to US
+  // Add ESPP (merged Amine + Nezha) to US
   if (!geoGroups['us']) geoGroups['us'] = [];
-  geoGroups['us'].push({ label: 'ESPP Amine (ACN)', val: amineEspp, color: '#10b981', owner: 'ESPP' });
-  geoGroups['us'].push({ label: 'ESPP Nezha (ACN)', val: nezhaEspp, color: '#34d399', owner: 'ESPP' });
-  // Add SGTM to Morocco
+  geoGroups['us'].push({ label: 'ESPP Accenture', val: amineEspp + nezhaEspp, color: '#10b981', owner: 'ESPP' });
+  // Add SGTM (merged Amine + Nezha) to Morocco
   if (!geoGroups['morocco']) geoGroups['morocco'] = [];
-  geoGroups['morocco'].push({ label: 'SGTM Amine', val: amineSgtm, color: '#ca8a04', owner: 'Maroc' });
-  geoGroups['morocco'].push({ label: 'SGTM Nezha', val: nezhaSgtm, color: '#eab308', owner: 'Maroc' });
+  geoGroups['morocco'].push({ label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#ca8a04', owner: 'Maroc' });
   // Add IBKR Cash
   if (ibkrCashVal > 100) {
     if (!geoGroups['cash']) geoGroups['cash'] = [];
