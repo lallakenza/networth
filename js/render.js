@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=98';
-import { getGrandTotal } from './engine.js?v=98';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=99';
+import { getGrandTotal } from './engine.js?v=99';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1347,27 +1347,64 @@ function setupKPIDetailPanels(state) {
     });
   }
 
-  // Helper: render a P&L breakdown list
+  // Helper: render a P&L breakdown in two columns (losers | gainers)
   function renderPLBreakdown(items, total, footer) {
     if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Pas de données</div>';
+    const losers = items.filter(i => i.pl < 0).sort((a, b) => a.pl - b.pl); // worst first
+    const gainers = items.filter(i => i.pl > 0).sort((a, b) => b.pl - a.pl); // best first
+    const flat = items.filter(i => i.pl === 0);
+    const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
+    const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
     const maxAbs = Math.max(...items.map(i => Math.abs(i.pl)), 1);
-    const gainers = items.filter(i => i.pl > 0);
-    const losers = items.filter(i => i.pl < 0);
+
     let html = '<div class="detail-header"><h4>Répartition P&L par position</h4>';
     html += '<div class="detail-summary">' + losers.length + ' en perte, ' + gainers.length + ' en gain</div></div>';
-    html += '<div class="detail-body">';
-    items.forEach(i => {
-      const cls = i.pl >= 0 ? 'pl-pos' : 'pl-neg';
-      const sign = i.pl >= 0 ? '+' : '';
-      const barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
-      const barColor = i.pl >= 0 ? '#48bb78' : '#fc8181';
-      html += '<div class="detail-row">';
-      html += '<span class="ticker-label">' + i.label + '</span>';
-      html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(i.pl)) + '</span>';
-      html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
+    html += '<div class="detail-body" style="padding:0;">';
+
+    // Two-column layout
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">';
+
+    // Left column: LOSERS
+    html += '<div style="border-right:1px solid #e2e8f0;padding:12px 16px;">';
+    html += '<div style="font-size:11px;font-weight:700;color:#c53030;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #fed7d7;margin-bottom:6px;">';
+    html += '📉 Pertes (' + fmt(Math.round(totalLoss)) + ')</div>';
+    if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
+    losers.forEach(function(i) {
+      var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
+      html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+      html += '<span style="flex:1;font-weight:500;">' + i.label + '</span>';
+      html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(i.pl)) + '</span>';
+      html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
+      html += '<span style="display:block;height:100%;width:' + barW + '%;background:#fc8181;border-radius:3px;"></span></span>';
       html += '</div>';
     });
     html += '</div>';
+
+    // Right column: GAINERS
+    html += '<div style="padding:12px 16px;">';
+    html += '<div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #c6f6d5;margin-bottom:6px;">';
+    html += '📈 Gains (+' + fmt(Math.round(totalGain)) + ')</div>';
+    if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
+    gainers.forEach(function(i) {
+      var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
+      html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+      html += '<span style="flex:1;font-weight:500;">' + i.label + '</span>';
+      html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(i.pl)) + '</span>';
+      html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
+      html += '<span style="display:block;height:100%;width:' + barW + '%;background:#48bb78;border-radius:3px;"></span></span>';
+      html += '</div>';
+    });
+    if (flat.length > 0) {
+      flat.forEach(function(i) {
+        html += '<div style="display:flex;align-items:center;padding:4px 0;font-size:12px;color:#a0aec0;">';
+        html += '<span style="flex:1;">' + i.label + '</span><span style="min-width:75px;text-align:right;">€0</span>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    html += '</div>'; // end grid
+    html += '</div>'; // end detail-body
     if (footer) html += '<div class="detail-footer">' + footer + '</div>';
     return html;
   }
@@ -1507,27 +1544,70 @@ function setupKPIDetailPanels(state) {
       return html;
     },
     detailDeposits: function() {
-      const deps = av.deposits || [];
+      const deps = av.depositHistory || [];
       const totalPL = av.combinedUnrealizedPL + av.combinedRealizedPL;
       const roi = av.totalDeposits > 0 ? (totalPL / av.totalDeposits * 100).toFixed(1) : '0.0';
+      const totalFxGain = deps.reduce((s, d) => s + (d.fxGainEUR || 0), 0);
+      const totalInvested = deps.reduce((s, d) => s + d.amountEUR, 0);
       let html = '<div class="detail-header"><h4>Historique des dépôts</h4>';
-      html += '<div class="detail-summary">ROI total : ' + (totalPL >= 0 ? '+' : '') + roi + '% | P/L net : ' + (totalPL >= 0 ? '+' : '') + '€' + fmt(Math.round(totalPL)) + '</div></div>';
-      html += '<div class="detail-body">';
+      html += '<div class="detail-summary">Total investi : €' + fmt(Math.round(totalInvested)) + ' | ROI : ' + (totalPL >= 0 ? '+' : '') + roi + '%</div></div>';
+      html += '<div class="detail-body" style="max-height:500px;">';
+      // Column headers
+      html += '<div style="display:flex;gap:8px;padding:4px 0 8px;border-bottom:2px solid #e2e8f0;font-size:9px;color:#a0aec0;text-transform:uppercase;letter-spacing:0.5px;">';
+      html += '<span style="flex:1;">Date & Description</span>';
+      html += '<span style="min-width:85px;text-align:right;">Natif</span>';
+      html += '<span style="min-width:75px;text-align:right;">EUR (date)</span>';
+      html += '<span style="min-width:75px;text-align:right;">EUR (ajd)</span>';
+      html += '<span style="min-width:60px;text-align:right;">Δ FX</span>';
+      html += '</div>';
       if (deps.length > 0) {
-        const maxDep = Math.max(...deps.map(d => d.amount || 0), 1);
-        deps.forEach(d => {
-          html += '<div class="detail-row">';
-          html += '<span class="ticker-label">' + (d.date || '') + ' <span style="color:#a0aec0;font-size:11px;">' + (d.note || d.label || '') + '</span></span>';
-          html += '<span class="ticker-pl">€' + fmt(Math.round(d.amount || 0)) + '</span>';
-          const barW = Math.round((d.amount || 0) / maxDep * 100);
-          html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:#ecc94b;"></span></span>';
-          html += '</div>';
+        // Group by owner then platform
+        var owners = ['Amine', 'Nezha'];
+        owners.forEach(function(owner) {
+          var ownerDeps = deps.filter(function(d) { return d.owner === owner; });
+          if (ownerDeps.length === 0) return;
+          var ownerTotal = ownerDeps.reduce(function(s, d) { return s + d.amountEUR; }, 0);
+          // Owner header
+          html += '<div style="padding:10px 0 4px;font-weight:700;font-size:13px;color:#1a202c;border-bottom:2px solid #cbd5e0;">';
+          html += '👤 ' + owner + ' — €' + fmt(Math.round(ownerTotal)) + ' investi</div>';
+          // Sub-group by platform
+          var platforms = [];
+          ownerDeps.forEach(function(d) { if (platforms.indexOf(d.platform) === -1) platforms.push(d.platform); });
+          platforms.forEach(function(platform) {
+            var pDeps = ownerDeps.filter(function(d) { return d.platform === platform; });
+            var pTotal = pDeps.reduce(function(s, d) { return s + d.amountEUR; }, 0);
+            var pCurrentTotal = pDeps.reduce(function(s, d) { return s + d.currentEUR; }, 0);
+            var pFxGain = pDeps.reduce(function(s, d) { return s + d.fxGainEUR; }, 0);
+            // Platform sub-header
+            html += '<div style="display:flex;gap:8px;padding:6px 0 3px;font-weight:600;font-size:11px;color:#4a5568;border-bottom:1px solid #edf2f7;background:#f7fafc;margin:0 -20px;padding-left:20px;padding-right:20px;">';
+            html += '<span style="flex:1;">' + platform + ' (' + pDeps.length + ')</span>';
+            html += '<span style="min-width:85px;text-align:right;"></span>';
+            html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(pTotal)) + '</span>';
+            html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(pCurrentTotal)) + '</span>';
+            html += '<span style="min-width:60px;text-align:right;' + (pFxGain >= 0 ? 'color:#276749' : 'color:#c53030') + ';">' + (pFxGain >= 0 ? '+' : '') + fmt(Math.round(pFxGain)) + '</span>';
+            html += '</div>';
+            pDeps.forEach(function(d) {
+              var fxCls = d.fxGainEUR >= 0 ? 'color:#276749' : 'color:#c53030';
+              var fxSign = d.fxGainEUR >= 0 ? '+' : '';
+              var currSym = d.currency === 'EUR' ? '€' : d.currency === 'USD' ? '$' : d.currency === 'MAD' ? 'DH ' : d.currency + ' ';
+              html += '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+              html += '<span style="flex:1;">' + d.date + ' <span style="color:#a0aec0;font-size:10px;">' + d.label + '</span></span>';
+              html += '<span style="min-width:85px;text-align:right;font-weight:500;">' + currSym + fmt(Math.round(d.amountNative)) + '</span>';
+              html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(d.amountEUR)) + '</span>';
+              html += '<span style="min-width:75px;text-align:right;">€' + fmt(Math.round(d.currentEUR)) + '</span>';
+              html += '<span style="min-width:60px;text-align:right;' + fxCls + ';">' + (d.currency === 'EUR' ? '—' : fxSign + fmt(Math.round(d.fxGainEUR))) + '</span>';
+              html += '</div>';
+            });
+          });
         });
       } else {
-        html += '<div style="text-align:center;color:#a0aec0;padding:10px;">Pas de détail par dépôt disponible</div>';
+        html += '<div style="text-align:center;color:#a0aec0;padding:10px;">Pas de dépôts enregistrés</div>';
       }
       html += '</div>';
-      html += '<div class="detail-footer">Capital investi : €' + fmt(Math.round(av.totalDeposits)) + ' → Valeur actuelle : €' + fmt(Math.round(av.totalStocks)) + '</div>';
+      var footer = 'Capital investi : €' + fmt(Math.round(totalInvested)) + ' → Valeur actuelle : €' + fmt(Math.round(av.totalStocks));
+      if (Math.abs(totalFxGain) > 10) footer += ' | Impact FX total : ' + (totalFxGain >= 0 ? '+' : '') + '€' + fmt(Math.round(totalFxGain));
+      footer += '<br>💡 "EUR (ajd)" = si vous aviez gardé la devise sans investir, sa valeur en EUR aujourd\'hui.';
+      html += '<div class="detail-footer">' + footer + '</div>';
       return html;
     },
     detailDividends: function() {
