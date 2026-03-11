@@ -62,22 +62,30 @@ async function fetchStockPrice(symbol) {
     }
     return { price: p, ...refPrices };
   }
+  const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d';
+  // Attempt 1: Direct Yahoo Finance (may work in some browsers)
   try {
-    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d');
+    const r = await fetch(yahooUrl);
     if (r.ok) {
       const result = extractFromYahoo(await r.json());
       if (result) return result;
     }
   } catch(e) {}
-  // Fallback: CORS proxy
-  try {
-    const url = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d');
-    const r = await fetch('https://api.allorigins.win/raw?url=' + url);
-    if (r.ok) {
-      const result = extractFromYahoo(await r.json());
-      if (result) return result;
-    }
-  } catch(e) {}
+  // Attempt 2-4: Multiple CORS proxies (rotate to handle downtime)
+  const proxies = [
+    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+    url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  ];
+  for (const proxy of proxies) {
+    try {
+      const r = await fetch(proxy(yahooUrl));
+      if (r.ok) {
+        const result = extractFromYahoo(await r.json());
+        if (result) return result;
+      }
+    } catch(e) {}
+  }
   return null;
 }
 
@@ -147,7 +155,7 @@ export async function fetchStockPrices(portfolio) {
 
   let updated = false;
 
-  // Update IBKR positions
+  // Update IBKR positions — mark live/static
   portfolio.amine.ibkr.positions.forEach(pos => {
     if (prices[pos.ticker]) {
       const d = prices[pos.ticker];
@@ -156,7 +164,10 @@ export async function fetchStockPrices(portfolio) {
       pos.ytdOpen = d.ytdOpen;
       pos.mtdOpen = d.mtdOpen;
       pos.oneMonthAgo = d.oneMonthAgo;
+      pos._live = true;
       updated = true;
+    } else {
+      pos._live = false;
     }
   });
 
@@ -168,15 +179,21 @@ export async function fetchStockPrices(portfolio) {
     portfolio.market.acnYtdOpen = d.ytdOpen;
     portfolio.market.acnMtdOpen = d.mtdOpen;
     portfolio.market.acnOneMonthAgo = d.oneMonthAgo;
+    portfolio.market._acnLive = true;
     updated = true;
+  } else {
+    portfolio.market._acnLive = false;
   }
 
   // Update SGTM
   let sgtmLive = false;
   if (sgtmPrice) {
     portfolio.market.sgtmPriceMAD = sgtmPrice;
+    portfolio.market._sgtmLive = true;
     sgtmLive = true;
     updated = true;
+  } else {
+    portfolio.market._sgtmLive = false;
   }
 
   return {

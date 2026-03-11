@@ -47,9 +47,47 @@ data.js  →  engine.js  →  render.js  →  DOM (index.html)
 
 ## Comment ajouter une nouvelle position IBKR
 
-1. **data.js** : ajouter dans `PORTFOLIO.amine.ibkr.positions[]` : `{ ticker, shares, avgCost, currency }`
+1. **data.js** : ajouter dans `PORTFOLIO.amine.ibkr.positions[]` : `{ ticker, shares, price, costBasis, currency, label, sector, geo }`
 2. **api.js** : `fetchStockPrices()` le récupère automatiquement via Yahoo Finance
 3. **engine.js** : `computeIBKRPositions()` le traite automatiquement
+
+### Trouver le bon ticker Yahoo Finance
+
+Le ticker dans `positions[].ticker` doit correspondre au format Yahoo Finance :
+
+| Bourse | Format ticker | Exemples |
+|--------|--------------|----------|
+| Euronext Paris | `SYMBOL.PA` | `AIR.PA` (Airbus), `MC.PA` (LVMH), `BN.PA` (Danone) |
+| Xetra (Allemagne) | `SYMBOL.DE` | `P911.DE` (Porsche), `SAP` (exception : pas de suffixe) |
+| Tokyo Stock Exchange | `CODE.T` | `4911.T` (Shiseido) |
+| NYSE / NASDAQ (US) | `SYMBOL` (pas de suffixe) | `IBIT`, `ETHA`, `ACN` |
+| Casablanca (Maroc) | Pas de ticker Yahoo | SGTM → scraping Google Finance (`GTM:CAS`) |
+
+Pour vérifier un ticker : `https://finance.yahoo.com/quote/TICKER` — si la page affiche un prix, le ticker est bon.
+
+### Architecture API (api.js)
+
+Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS bloque les appels directs vers Yahoo Finance, donc on utilise des proxies :
+
+```
+fetchStockPrice(ticker):
+  1. Direct Yahoo Finance (rare que ça marche, CORS)
+  2. api.allorigins.win/raw?url=... (proxy CORS, fiable)
+  3. corsproxy.io/?... (backup proxy)
+  4. api.codetabs.com/v1/proxy?quest=... (3e backup)
+  → Si tous échouent : pos._live = false, prix fallback de data.js utilisé
+
+fetchSGTMPrice():
+  1. Google Finance via allorigins (scrape data-last-price)
+  2. leboursier.ma via allorigins (scrape cours)
+  3. Google Finance via corsproxy.io
+  → Si tous échouent : prix statique de data.js
+```
+
+Si un proxy tombe durablement, le remplacer par un autre. Alternatives connues :
+- `https://thingproxy.freeboard.io/fetch/URL`
+- `https://cors-anywhere.herokuapp.com/URL` (nécessite activation manuelle)
+- Déployer son propre proxy Cloudflare Worker (gratuit, plus fiable)
 
 ## Cache busting
 
