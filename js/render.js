@@ -940,6 +940,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   tbody.innerHTML = '';
   let totalVal = 0, totalCost = 0;
   let hasStatic = false;
+  let staticVal = 0, liveVal = 0;
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
     totalCost += (pos.costEUR || 0);
@@ -948,9 +949,9 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
-    const isStatic = pos._live === false;
+    const isStatic = pos._live !== true;
     const noAPI = pos.ticker === 'SGTM'; // SGTM has no Yahoo Finance API — static is expected
-    if (isStatic && !noAPI) hasStatic = true;
+    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
     const liveBadge = isStatic
       ? (noAPI
         ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Pas d\'API disponible — prix mis à jour manuellement">STATIC</span>'
@@ -988,7 +989,24 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   // Footnote for static prices
   const footnote = document.getElementById('actionsStaticFootnote');
   if (footnote) {
-    footnote.textContent = hasStatic ? '* Cours statique \u2014 API indisponible, prix de la derni\u00e8re mise \u00e0 jour data.js' : '';
+    if (hasStatic) {
+      const staticPct = totalVal > 0 ? (staticVal / totalVal * 100).toFixed(0) : 0;
+      footnote.textContent = '* Cours statique \u2014 API indisponible, prix de la derni\u00e8re mise \u00e0 jour data.js (' + staticPct + '% du portefeuille soit ' + fmt(staticVal) + ')';
+    } else {
+      footnote.textContent = '';
+    }
+  }
+
+  // Asterisk on KPIs when some positions use static prices
+  const kpiAsterisk = document.getElementById('kpiStaticWarning');
+  if (kpiAsterisk) {
+    if (hasStatic) {
+      const staticPct = totalVal > 0 ? (staticVal / totalVal * 100).toFixed(0) : 0;
+      kpiAsterisk.innerHTML = '* ' + staticPct + '% bas\u00e9 sur donn\u00e9es statiques (' + fmt(staticVal) + ')';
+      kpiAsterisk.style.display = '';
+    } else {
+      kpiAsterisk.style.display = 'none';
+    }
   }
 
   // Update arrow indicators
