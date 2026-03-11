@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS } from './data.js?v=65';
-import { getGrandTotal } from './engine.js?v=65';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS } from './data.js?v=66';
+import { getGrandTotal } from './engine.js?v=66';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -381,8 +381,8 @@ function renderExpandSubs(state, view) {
 
   // ── IBKR badge ──
   const ibkrBadge = document.getElementById('subIBKRBadge');
-  if (ibkrBadge && p0.amine.ibkr.twr) {
-    ibkrBadge.textContent = 'TWR +' + p0.amine.ibkr.twr.toFixed(2) + '%';
+  if (ibkrBadge && p0.amine.ibkr.meta.twr) {
+    ibkrBadge.textContent = 'TWR +' + p0.amine.ibkr.meta.twr.toFixed(2) + '%';
   }
 
   // ── Dynamic immo sub-cards (CRD + CF badges) ──
@@ -489,8 +489,9 @@ function renderDynamicInsights(state, view) {
   // ── Other insights (expand-other) ──
   const otherIns = document.getElementById('otherInsightsExpand');
   if (otherIns) {
-    const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
-    const guarCreances = (p.amine.creances.items || []).filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const allCreances = (p.amine.creances.items || []).concat(p.nezha.creances.items || []);
+    const totalCreances = allCreances.reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const guarCreances = allCreances.filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
     const persoCreances = totalCreances - guarCreances;
     const totalVeh = (p.amine.vehicles.cayenne || 0) + (p.amine.vehicles.mercedes || 0);
     const tvaAbs = Math.abs(p.amine.tva || 0);
@@ -559,7 +560,7 @@ function renderDynamicInsights(state, view) {
   // ── IBKR summary box ──
   const ibkrBox = document.getElementById('ibkrSummaryBox');
   if (ibkrBox) {
-    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.deposits) + '. TWR ' + (p.amine.ibkr.twr || 0).toFixed(2) + '% depuis ouverture.';
+    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.meta.deposits) + '. TWR ' + (p.amine.ibkr.meta.twr || 0).toFixed(2) + '% depuis ouverture.';
   }
 
   // ── Amine actions insight ──
@@ -569,7 +570,7 @@ function renderDynamicInsights(state, view) {
     const jpyEUR = Math.round(jpyShort / fx.JPY);
     amAct.innerHTML =
       '<strong>Insights Actions :</strong><br>' +
-      '- TWR de ' + (p.amine.ibkr.twr || 0).toFixed(0) + '% est excellent \u2014 bien au-dessus du CAC40 (~20% sur la meme periode).<br>' +
+      '- TWR de ' + (p.amine.ibkr.meta.twr || 0).toFixed(0) + '% est excellent \u2014 bien au-dessus du CAC40 (~20% sur la meme periode).<br>' +
       '- <span style="color:var(--green)">A 7% annuel + 7K/mois d\'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>' +
       '- <span style="color:var(--green)">Deleverage JPY :</span> Short JPY reduit a -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR).';
   }
