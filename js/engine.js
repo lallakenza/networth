@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=96';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=97';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -33,9 +33,35 @@ function computeIBKR(portfolio, fx, stockSource) {
 
 /**
  * Compute individual IBKR position values with P/L (for table display)
+ *
+ * Period P&L formula (accounts for trades during the period):
+ *   periodPL = endValue - startValue - netCashInvested
+ *   where:
+ *     endValue      = currentShares × currentPrice (in EUR)
+ *     startValue    = sharesAtStart × refPrice (in EUR)
+ *     netCashInvested = cost of buys during period − proceeds of sells during period (in EUR)
+ *     sharesAtStart = currentShares − (buys during period) + (sells during period)
  */
 function computeIBKRPositions(portfolio, fx) {
   const ibkr = portfolio.amine.ibkr;
+
+  // Group IBKR stock trades by ticker (exclude FX trades)
+  const allTrades = (ibkr.trades || []).filter(t => t.type === 'buy' || t.type === 'sell');
+  const tradesByTicker = {};
+  allTrades.forEach(t => {
+    if (!tradesByTicker[t.ticker]) tradesByTicker[t.ticker] = [];
+    tradesByTicker[t.ticker].push(t);
+  });
+
+  // Compute period start date strings (ISO format for comparison)
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const todayStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+  const ytdStartStr = now.getFullYear() + '-01-01';
+  const mtdStartStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-01';
+  const oneMonthAgoDate = new Date(now.getTime() - 30 * 86400000);
+  const oneMonthStr = oneMonthAgoDate.getFullYear() + '-' + pad2(oneMonthAgoDate.getMonth() + 1) + '-' + pad2(oneMonthAgoDate.getDate());
+
   const positions = ibkr.positions.map(pos => {
     const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
     const costEUR = toEUR(pos.shares * pos.costBasis, pos.currency, fx);
@@ -45,18 +71,54 @@ function computeIBKRPositions(portfolio, fx) {
     if (pos.currency === 'EUR') priceLabel = pos.price.toFixed(2) + ' EUR';
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
     else if (pos.currency === 'JPY') priceLabel = '\u00a5' + Math.round(pos.price);
-    // Period P&L: price change + FX change (daily uses FX_STATIC as prev FX, others use current FX)
+
     const prevFxRate = FX_STATIC[pos.currency] || fx[pos.currency];
     const curFxRate = fx[pos.currency] || 1;
-    function periodPL(refPrice, usePrevFx) {
+    const trades = tradesByTicker[pos.ticker] || [];
+
+    // Compute shares held at period start + net cash invested during period
+    function tradesDuringPeriod(periodStartDate) {
+      let buyShares = 0, sellShares = 0;
+      let buyCostNative = 0, sellProceedsNative = 0;
+      trades.forEach(t => {
+        if (t.date >= periodStartDate) {
+          if (t.type === 'buy') {
+            buyShares += t.qty;
+            buyCostNative += (t.cost || t.qty * t.price);
+          } else if (t.type === 'sell') {
+            sellShares += t.qty;
+            sellProceedsNative += (t.proceeds || t.qty * t.price);
+          }
+        }
+      });
+      return {
+        sharesAtStart: pos.shares - buyShares + sellShares,
+        netCashInvestedEUR: toEUR(buyCostNative, pos.currency, fx) - toEUR(sellProceedsNative, pos.currency, fx),
+      };
+    }
+
+    // Period P&L: correct formula accounting for intra-period trades
+    function periodPL(refPrice, usePrevFx, periodStartDate) {
       if (!refPrice || refPrice <= 0) return null;
-      const refVal = pos.shares * refPrice / (usePrevFx ? prevFxRate : curFxRate);
+      const fxRate = usePrevFx ? prevFxRate : curFxRate;
+
+      if (periodStartDate && trades.length > 0) {
+        const { sharesAtStart, netCashInvestedEUR } = tradesDuringPeriod(periodStartDate);
+        // Start value = shares held at period start × reference price (in EUR)
+        const startVal = sharesAtStart > 0 ? (sharesAtStart * refPrice / fxRate) : 0;
+        // Period P&L = end value - start value - net cash invested during period
+        return valEUR - startVal - netCashInvestedEUR;
+      }
+
+      // Fallback if no trades data: assume all shares held since period start
+      const refVal = pos.shares * refPrice / fxRate;
       return valEUR - refVal;
     }
-    const dailyPL = periodPL(pos.previousClose, true); // daily: prev FX for full picture
-    const mtdPL = periodPL(pos.mtdOpen, false);
-    const ytdPL = periodPL(pos.ytdOpen, false);
-    const oneMonthPL = periodPL(pos.oneMonthAgo, false);
+
+    const dailyPL = periodPL(pos.previousClose, true, todayStr);
+    const mtdPL = periodPL(pos.mtdOpen, false, mtdStartStr);
+    const ytdPL = periodPL(pos.ytdOpen, false, ytdStartStr);
+    const oneMonthPL = periodPL(pos.oneMonthAgo, false, oneMonthStr);
     return { ...pos, valEUR, costEUR, unrealizedPL, pctPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL };
   }).sort((a, b) => b.valEUR - a.valEUR);
 
