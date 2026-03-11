@@ -1651,6 +1651,29 @@ function renderImmoView(state) {
 
   // ── Wealth creation breakdown section ──
   renderWealthBreakdown(iv);
+
+  // ── Wealth projection chart ──
+  const projSection = document.getElementById('wealthProjectionSection');
+  if (projSection && iv.wealthProjection) {
+    projSection.style.display = 'block';
+    // Build chart (default: annual)
+    setTimeout(() => {
+      if (typeof window.buildWealthProjectionChart === 'function') {
+        window.buildWealthProjectionChart(state, 'an');
+      }
+    }, 100);
+    // Toggle binding
+    const toggleBtns = document.querySelectorAll('.wealth-proj-btn');
+    toggleBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        toggleBtns.forEach(b => { b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.fontWeight = '400'; b.classList.remove('active'); });
+        btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '600'; btn.classList.add('active');
+        if (typeof window.buildWealthProjectionChart === 'function') {
+          window.buildWealthProjectionChart(state, btn.dataset.mode);
+        }
+      });
+    });
+  }
   const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = iv.totalCF >= 0 ? '+' : '';
   setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
