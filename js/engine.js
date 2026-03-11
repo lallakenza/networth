@@ -1490,6 +1490,84 @@ function computeImmoView(portfolio, fx) {
     console.warn('Villejuif regime comparison failed:', e);
   }
 
+  // ── Wealth creation projection (20 years, month by month) ──
+  const projectionMonths = 20 * 12;
+  const projNow = new Date();
+  const projStartY = projNow.getFullYear();
+  const projStartM = projNow.getMonth(); // 0-based
+
+  // For each property: extract month-by-month capital repayment from amort schedule
+  // and compute appreciation + CF for each future month
+  const wealthProjection = [];
+  for (let m = 0; m < projectionMonths; m++) {
+    const y = projStartY + Math.floor((projStartM + m) / 12);
+    const mo = ((projStartM + m) % 12) + 1;
+    const dateStr = y + '-' + String(mo).padStart(2, '0');
+
+    let totalCapital = 0, totalApprec = 0, totalCashflow = 0;
+    const perProp = {};
+
+    properties.forEach(prop => {
+      const lk = prop.loanKey;
+      const amort = amortSchedules[lk];
+      const propMeta = IC.properties[lk] || {};
+      const appreciationRate = propMeta.appreciation || 0;
+
+      // Is this property operational at month m?
+      // Villejuif: operational after delivery (~month 40 from now = villejuifStartMonth)
+      const isVillejuif = lk === 'villejuif';
+      const vilStartMonth = IC.villejuifStartMonth || 40;
+      const isOperationalAtM = isVillejuif ? (m >= vilStartMonth) : !prop.conditional;
+
+      // Capital from amort schedule (look up the schedule row for this date)
+      let capitalM = 0;
+      if (amort && amort.schedule) {
+        const row = amort.schedule.find(r => r.date === dateStr);
+        if (row) capitalM = row.principal;
+      }
+      // For Villejuif pre-delivery: franchise period has 0 principal, which is correct
+      // But if loanDisbursed = false and we're in early months, capital = 0 anyway
+
+      // Appreciation: compound — value grows each year
+      // Simplified: use current value * appreciation / 12 (constant)
+      // More accurate: compound appreciation year by year
+      const yearsFromNow = m / 12;
+      const compoundedValue = prop.value * Math.pow(1 + appreciationRate, yearsFromNow);
+      const appreciationM = compoundedValue * appreciationRate / 12;
+
+      // Cash flow: only when operational
+      let cfM = 0;
+      if (isOperationalAtM) {
+        cfM = prop.cf; // Simplified: constant CF (could add IRL growth later)
+      }
+
+      // For conditional but not yet operational: only appreciation counts
+      const effCapital = isOperationalAtM ? capitalM : 0;
+      const effCF = isOperationalAtM ? cfM : 0;
+
+      perProp[lk] = {
+        capital: Math.round(effCapital),
+        appreciation: Math.round(appreciationM),
+        cashflow: Math.round(effCF),
+        total: Math.round(effCapital + appreciationM + effCF),
+      };
+
+      totalCapital += effCapital;
+      totalApprec += appreciationM;
+      totalCashflow += effCF;
+    });
+
+    wealthProjection.push({
+      date: dateStr,
+      month: m,
+      capital: Math.round(totalCapital),
+      appreciation: Math.round(totalApprec),
+      cashflow: Math.round(totalCashflow),
+      total: Math.round(totalCapital + totalApprec + totalCashflow),
+      perProp,
+    });
+  }
+
   return {
     properties,
     totalEquity, totalValue, totalCRD,
@@ -1506,6 +1584,7 @@ function computeImmoView(portfolio, fx) {
     villejuifRegimeComparison,
     vitryConstraints: VITRY_CONSTRAINTS,
     exitCostsConfig: EXIT_COSTS,
+    wealthProjection,
   };
 }
 

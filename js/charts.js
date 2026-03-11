@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=77';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=77';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=77';
+import { fmt, fmtAxis } from './render.js?v=78';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=78';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=78';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1214,9 +1214,136 @@ export function buildExitProjectionChart(state, prop, canvasId) {
   });
 }
 
+// ============ WEALTH CREATION PROJECTION CHART ============
+export function buildWealthProjectionChart(state, mode) {
+  const el = document.getElementById('wealthProjectionChart');
+  if (!el) return;
+  if (charts.wealthProjection) { charts.wealthProjection.destroy(); delete charts.wealthProjection; }
+
+  const iv = state.immoView;
+  if (!iv || !iv.wealthProjection) return;
+  const proj = iv.wealthProjection;
+
+  const isAnnual = mode === 'an';
+
+  // Aggregate data
+  let labels = [], capitalData = [], apprecData = [], cfData = [], totalData = [];
+
+  if (isAnnual) {
+    // Group by year
+    const byYear = {};
+    proj.forEach(row => {
+      const y = row.date.split('-')[0];
+      if (!byYear[y]) byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, total: 0, count: 0 };
+      byYear[y].capital += row.capital;
+      byYear[y].appreciation += row.appreciation;
+      byYear[y].cashflow += row.cashflow;
+      byYear[y].total += row.total;
+      byYear[y].count++;
+    });
+    Object.keys(byYear).sort().forEach(y => {
+      const d = byYear[y];
+      labels.push(y);
+      capitalData.push(d.capital);
+      apprecData.push(d.appreciation);
+      cfData.push(d.cashflow);
+      totalData.push(d.total);
+    });
+  } else {
+    // Monthly — sample every 3 months for readability
+    proj.forEach((row, i) => {
+      if (i % 3 === 0 || i === proj.length - 1) {
+        const [y, m] = row.date.split('-');
+        labels.push(m + '/' + y.slice(2));
+        capitalData.push(row.capital);
+        apprecData.push(row.appreciation);
+        cfData.push(row.cashflow);
+        totalData.push(row.total);
+      }
+    });
+  }
+
+  const ctx = el.getContext('2d');
+  charts.wealthProjection = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Capital amorti',
+          data: capitalData,
+          backgroundColor: '#2b6cb0',
+          stack: 'wealth',
+          order: 3,
+        },
+        {
+          label: 'Appr\u00e9ciation',
+          data: apprecData,
+          backgroundColor: '#276749',
+          stack: 'wealth',
+          order: 2,
+        },
+        {
+          label: 'Cash flow',
+          data: cfData,
+          backgroundColor: cfData.map(v => v >= 0 ? '#48bb78' : '#e53e3e'),
+          stack: 'wealth',
+          order: 1,
+        },
+        {
+          label: 'Total',
+          data: totalData,
+          type: 'line',
+          borderColor: '#d69e2e',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          order: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const v = ctx.parsed.y;
+              const sign = v >= 0 ? '+' : '';
+              return ctx.dataset.label + ': ' + sign + '\u20ac' + Math.round(v).toLocaleString('fr-FR') + (isAnnual ? '/an' : '/mois');
+            }
+          }
+        },
+        title: {
+          display: true,
+          text: isAnnual ? 'Cr\u00e9ation de richesse par an (projection 20 ans)' : 'Cr\u00e9ation de richesse par mois (projection 20 ans)',
+          font: { size: 14, weight: '600' },
+          padding: { bottom: 12 },
+        },
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+        y: {
+          stacked: true,
+          ticks: {
+            callback: function(v) { return '\u20ac' + fmtAxis(v); },
+            font: { size: 10 },
+          },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+      },
+    },
+  });
+}
+
 // Make available globally for render.js
 window.buildPropertyDetailCharts = buildPropertyDetailCharts;
 window.buildExitProjectionChart = buildExitProjectionChart;
+window.buildWealthProjectionChart = buildWealthProjectionChart;
 
 // ============ BUDGET DONUTS ============
 function buildBudgetZoneDonut(state) {

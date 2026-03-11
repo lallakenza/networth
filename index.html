@@ -761,6 +761,18 @@
     <div id="wealthBreakdownContent"></div>
   </div>
 
+  <!-- WEALTH PROJECTION CHART -->
+  <div id="wealthProjectionSection" class="card" style="margin:0 0 16px;padding:20px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:16px;color:var(--primary);">Projection Cr&eacute;ation de Richesse (20 ans)</h3>
+      <div id="wealthProjToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
+        <button class="wealth-proj-btn active" data-mode="an" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par an</button>
+        <button class="wealth-proj-btn" data-mode="mois" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par mois</button>
+      </div>
+    </div>
+    <div class="chart-container" style="height:380px;"><canvas id="wealthProjectionChart"></canvas></div>
+  </div>
+
   <div class="prop-grid" id="propGrid"></div>
 
   <!-- PROPERTY DETAIL PANEL (expanded on card click) -->
@@ -972,7 +984,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=77"></script>
+<script type="module" src="js/app.js?v=78"></script>
 
 </body>
 </html>
