@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=69';
-import { getGrandTotal } from './engine.js?v=69';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=69';
+import { fmt, fmtAxis } from './render.js?v=70';
+import { getGrandTotal } from './engine.js?v=70';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=70';
 
 let charts = {};
 let coupleSelectedCat = null;

@@ -1349,13 +1349,17 @@ function computeImmoView(portfolio, fx) {
       const propMeta = IC.properties.vitry || {};
       const april = IC.loans.vitryInsuranceAPRIL || {};
       const alInsurance = (IC.loans.vitryLoans && IC.loans.vitryLoans[0]) ? IC.loans.vitryLoans[0].insuranceMonthly * 12 : 0;
+      const vitryProp = portfolio.amine.immo.vitry;
       prop.fiscalSimConfig = {
-        loyerTotalMensuel: propMeta.loyerObjectif || (prop.loyerHC + prop.chargesLoc + prop.parking),
+        loyerTotalCC: vitryProp.loyerTotalCC || propMeta.loyerObjectif || 1200,
+        loyerDeclareCC: vitryProp.loyerDeclareCC || 600,
         contractStartMonth: 4,    // Location effective starts April 2026
         tfExemptionEndYear: 2027, // TF exonerated for new construction
         startYear: 2026,
         nYears: 10,
         totalRate: (IC.fiscalite.vitry.tmi + IC.fiscalite.vitry.ps),
+        tmi: IC.fiscalite.vitry.tmi,
+        ps: IC.fiscalite.vitry.ps,
         totalAssuranceAnnuel: (april.annualTTC || 0) + alInsurance,
         pnoAnnuel: IC.charges.vitry.pno * 12,
         tfAnnuel: IC.charges.vitry.tf * 12,

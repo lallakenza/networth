@@ -1990,18 +1990,32 @@ function renderPropertyDetail(state, prop) {
 function renderFiscalSimulator(container, prop) {
   const cfg = prop.fiscalSimConfig;
   const yearlyInt = prop.yearlyInterest || {};
-  const defaultLoyer = cfg.loyerTotalMensuel;
+  const defaultTotalCC = cfg.loyerTotalCC;
+  const defaultDeclareCC = cfg.loyerDeclareCC;
+  const maxDeclare = defaultTotalCC;  // can't declare more than total
 
-  let html = '<h4 style="margin:0 0 12px;font-size:14px;color:#4a5568;">Simulation fiscale — Micro-Foncier vs Réel</h4>';
-  // Slider
-  html += '<div style="margin-bottom:16px;padding:12px;background:#f7fafc;border-radius:8px;">'
-    + '<label style="font-size:13px;font-weight:600;">Loyer déclaré : <span id="pdFiscalSliderVal">' + defaultLoyer + '</span> €/mois</label>'
-    + '<input type="range" id="pdFiscalSlider" min="0" max="' + (defaultLoyer + 200) + '" value="' + defaultLoyer + '" step="50" style="width:100%;margin-top:6px;">'
-    + '<div style="font-size:11px;color:#718096;">Modifiez pour simuler une partie en cash (non déclaré)</div>'
+  let html = '<h4 style="margin:0 0 16px;font-size:15px;color:#2d3748;">Simulateur fiscal — Déclaré vs Cash (régime réel)</h4>';
+
+  // KPI summary cards (updated dynamically)
+  html += '<div id="pdFiscalKPIs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;"></div>';
+
+  // Slider for declared rent
+  html += '<div style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,#f7fafc,#edf2f7);border-radius:10px;border:1px solid #e2e8f0;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+    + '<label style="font-size:13px;font-weight:600;color:#2d3748;">Loyer déclaré CC :</label>'
+    + '<span style="font-size:20px;font-weight:700;color:var(--accent);"><span id="pdFiscalSliderVal">' + defaultDeclareCC + '</span> €/mois</span>'
+    + '</div>'
+    + '<input type="range" id="pdFiscalSlider" min="0" max="' + maxDeclare + '" value="' + defaultDeclareCC + '" step="10" '
+    + 'style="width:100%;accent-color:var(--accent);height:6px;">'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#718096;margin-top:4px;">'
+    + '<span>0 €</span>'
+    + '<span>Loyer total CC : ' + defaultTotalCC + ' €/mois</span>'
+    + '<span>' + maxDeclare + ' €</span>'
+    + '</div>'
     + '</div>';
+
   // Tables
   html += '<div id="pdFiscalTable"></div>';
-  html += '<div id="pdFiscalVerdict" style="margin-top:12px;padding:12px;background:#f0fff4;border-radius:8px;"></div>';
 
   container.innerHTML = html;
 
@@ -2009,78 +2023,111 @@ function renderFiscalSimulator(container, prop) {
   const valEl = document.getElementById('pdFiscalSliderVal');
 
   function updateFiscalSim() {
-    const loyerDeclare = parseInt(slider.value);
-    valEl.textContent = loyerDeclare;
-    const loyerCashMensuel = cfg.loyerTotalMensuel - loyerDeclare;
+    const loyerDeclareCC = parseInt(slider.value);
+    valEl.textContent = loyerDeclareCC;
+    const loyerCashMensuel = defaultTotalCC - loyerDeclareCC;
 
-    let microTotal = 0, reelTotal = 0;
+    let impotDeclareTotal = 0, impotToutDeclareTotal = 0;
+    let cashCumule = 0;
     const rows = [];
 
     for (let y = 0; y < cfg.nYears; y++) {
       const year = cfg.startYear + y;
       const moisLoyer = year === cfg.startYear ? (12 - cfg.contractStartMonth + 1) : 12;
-      const loyerDeclareAn = loyerDeclare * moisLoyer;
       const prorata = moisLoyer / 12;
 
-      // Micro-foncier
-      const microAbattement = Math.round(loyerDeclareAn * 0.30);
-      const microRevImp = loyerDeclareAn - microAbattement;
-      const microImpot = Math.round(microRevImp * cfg.totalRate);
+      // Revenus déclarés (ce que tu déclares)
+      const loyerDeclareAn = loyerDeclareCC * moisLoyer;
+      // Revenus si tu déclarais tout
+      const loyerToutDeclareAn = defaultTotalCC * moisLoyer;
+      // Cash non déclaré
+      const cashAn = loyerCashMensuel * moisLoyer;
+      cashCumule += cashAn;
 
-      // Réel foncier
+      // Charges déductibles (régime réel) — identiques dans les 2 cas
       const tfAnnee = year <= cfg.tfExemptionEndYear ? 0 : cfg.tfAnnuel;
       const totalInterets = yearlyInt[year] || 0;
       const assuranceAnnee = cfg.totalAssuranceAnnuel * prorata;
       const pnoAnnee = cfg.pnoAnnuel * prorata;
-      const reelDeductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
-      const reelRevImp = Math.max(0, loyerDeclareAn - reelDeductions);
-      const reelDeficit = loyerDeclareAn < reelDeductions ? Math.round(reelDeductions - loyerDeclareAn) : 0;
-      const reelImpot = Math.round(reelRevImp * cfg.totalRate);
+      const deductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
 
-      const delta = microImpot - reelImpot;
-      microTotal += microImpot;
-      reelTotal += reelImpot;
+      // Impôt si tu déclares le montant choisi
+      const revImpDeclare = Math.max(0, loyerDeclareAn - deductions);
+      const deficitDeclare = loyerDeclareAn < deductions ? Math.round(deductions - loyerDeclareAn) : 0;
+      const impotDeclare = Math.round(revImpDeclare * cfg.totalRate);
+
+      // Impôt si tu déclarais tout (scénario "honnête")
+      const revImpTout = Math.max(0, loyerToutDeclareAn - deductions);
+      const impotTout = Math.round(revImpTout * cfg.totalRate);
+
+      // Économie = impôt en moins grâce au cash
+      const economie = impotTout - impotDeclare;
+
+      impotDeclareTotal += impotDeclare;
+      impotToutDeclareTotal += impotTout;
 
       const moisNote = moisLoyer < 12 ? ' <small style="color:#718096;">(' + moisLoyer + 'm)</small>' : '';
-      const bgStyle = year <= cfg.tfExemptionEndYear ? 'background:#f0fff4;' : '';
 
-      rows.push('<tr style="' + bgStyle + '">'
+      rows.push('<tr>'
         + '<td><strong>' + year + '</strong>' + moisNote + '</td>'
-        + '<td class="num">' + loyerDeclareAn.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#718096;">' + microAbattement.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + microRevImp.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#c53030;">' + microImpot.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#718096;">' + Math.round(reelDeductions).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + Math.round(reelRevImp).toLocaleString('fr-FR')
-          + (reelDeficit > 0 ? ' <small style="color:#276749;">(déf. ' + reelDeficit.toLocaleString('fr-FR') + ')</small>' : '') + '</td>'
-        + '<td class="num" style="color:' + (reelImpot > 0 ? '#c53030' : '#276749') + ';">' + reelImpot.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="font-weight:700;color:' + (delta > 0 ? '#276749' : '#c53030') + ';">' + (delta > 0 ? '+' : '') + delta.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(loyerDeclareAn).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#718096;">' + Math.round(deductions).toLocaleString('fr-FR')
+          + (deficitDeclare > 0 ? ' <small style="color:#276749;">▲</small>' : '') + '</td>'
+        + '<td class="num">' + Math.round(revImpDeclare).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#c53030;">' + impotDeclare.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#718096;">' + Math.round(loyerToutDeclareAn).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#c53030;">' + impotTout.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="font-weight:700;color:#276749;">' + economie.toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:#2b6cb0;font-weight:600;">' + cashAn.toLocaleString('fr-FR') + '</td>'
         + '</tr>');
     }
 
-    const totalDelta = microTotal - reelTotal;
+    const totalEconomie = impotToutDeclareTotal - impotDeclareTotal;
     rows.push('<tr style="font-weight:700;border-top:3px solid #2d3748;background:#edf2f7;">'
-      + '<td>TOTAL 10 ans</td><td></td><td></td><td></td>'
-      + '<td class="num" style="color:#c53030;">' + microTotal.toLocaleString('fr-FR') + ' €</td>'
-      + '<td></td><td></td>'
-      + '<td class="num" style="color:' + (reelTotal > 0 ? '#c53030' : '#276749') + ';">' + reelTotal.toLocaleString('fr-FR') + ' €</td>'
-      + '<td class="num" style="font-weight:700;color:#276749;">' + (totalDelta > 0 ? '+' : '') + totalDelta.toLocaleString('fr-FR') + ' €</td>'
+      + '<td>TOTAL ' + cfg.nYears + ' ans</td><td></td><td></td><td></td>'
+      + '<td class="num" style="color:#c53030;">' + impotDeclareTotal.toLocaleString('fr-FR') + ' €</td>'
+      + '<td></td>'
+      + '<td class="num" style="color:#c53030;">' + impotToutDeclareTotal.toLocaleString('fr-FR') + ' €</td>'
+      + '<td class="num" style="font-weight:700;color:#276749;">+' + totalEconomie.toLocaleString('fr-FR') + ' €</td>'
+      + '<td class="num" style="color:#2b6cb0;font-weight:700;">' + cashCumule.toLocaleString('fr-FR') + ' €</td>'
       + '</tr>');
 
-    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
-      + '<thead><tr><th>Année</th><th class="num">Loyer décl.</th>'
-      + '<th class="num" style="background:#fff5eb;">Abatt. 30%</th><th class="num" style="background:#fff5eb;">Rev. imp.</th><th class="num" style="background:#fff5eb;">Impôt micro</th>'
-      + '<th class="num" style="background:#ebf8ff;">Déductions</th><th class="num" style="background:#ebf8ff;">Rev. imp.</th><th class="num" style="background:#ebf8ff;">Impôt réel</th>'
-      + '<th class="num" style="background:#f0fff4;">Δ Économie</th></tr></thead>'
+    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;"><table style="font-size:0.78rem;width:100%;">'
+      + '<thead><tr>'
+      + '<th>Année</th>'
+      + '<th class="num" style="background:#ebf8ff;" colspan="4">Si tu déclares ' + loyerDeclareCC + '€ CC</th>'
+      + '<th class="num" style="background:#fff5eb;" colspan="2">Si tout déclaré (' + defaultTotalCC + '€)</th>'
+      + '<th class="num" style="background:#f0fff4;">Économie</th>'
+      + '<th class="num" style="background:#ebf4ff;">Cash</th>'
+      + '</tr>'
+      + '<tr style="font-size:0.7rem;color:#718096;">'
+      + '<th></th>'
+      + '<th class="num" style="background:#ebf8ff;">Loyer</th>'
+      + '<th class="num" style="background:#ebf8ff;">Déductions</th>'
+      + '<th class="num" style="background:#ebf8ff;">Rev. imp.</th>'
+      + '<th class="num" style="background:#ebf8ff;">Impôt</th>'
+      + '<th class="num" style="background:#fff5eb;">Loyer</th>'
+      + '<th class="num" style="background:#fff5eb;">Impôt</th>'
+      + '<th class="num" style="background:#f0fff4;">Δ impôt</th>'
+      + '<th class="num" style="background:#ebf4ff;">Non décl.</th>'
+      + '</tr></thead>'
       + '<tbody>' + rows.join('') + '</tbody></table></div>';
 
-    const winner = totalDelta > 0 ? 'Réel Foncier' : (totalDelta < 0 ? 'Micro-Foncier' : 'Identique');
-    const verdictColor = totalDelta > 0 ? 'var(--green)' : 'var(--red)';
-    document.getElementById('pdFiscalVerdict').innerHTML =
-      '<strong style="font-size:1.05rem;color:' + verdictColor + ';">Régime recommandé : ' + winner + '</strong>'
-      + ' | Économie sur 10 ans : <strong style="color:' + verdictColor + ';">' + Math.abs(totalDelta).toLocaleString('fr-FR') + ' €</strong>'
-      + ' (~' + Math.round(Math.abs(totalDelta) / 10 / 12) + ' €/mois en moy.)'
-      + (loyerCashMensuel > 0 ? '<br><small style="color:#718096;">Loyer total ' + cfg.loyerTotalMensuel + '€ dont ' + loyerCashMensuel + '€ cash non déclaré</small>' : '');
+    // Update KPI cards
+    const kpiEl = document.getElementById('pdFiscalKPIs');
+    kpiEl.innerHTML = ''
+      + '<div style="padding:12px;background:#f0fff4;border-radius:8px;text-align:center;border:1px solid #c6f6d5;">'
+      + '<div style="font-size:18px;font-weight:700;color:#276749;">+' + totalEconomie.toLocaleString('fr-FR') + ' €</div>'
+      + '<div style="font-size:11px;color:#276749;">Économie impôts ' + cfg.nYears + ' ans</div></div>'
+      + '<div style="padding:12px;background:#ebf4ff;border-radius:8px;text-align:center;border:1px solid #bee3f8;">'
+      + '<div style="font-size:18px;font-weight:700;color:#2b6cb0;">' + cashCumule.toLocaleString('fr-FR') + ' €</div>'
+      + '<div style="font-size:11px;color:#2b6cb0;">Cash cumulé ' + cfg.nYears + ' ans</div></div>'
+      + '<div style="padding:12px;background:#fff5f5;border-radius:8px;text-align:center;border:1px solid #fed7d7;">'
+      + '<div style="font-size:18px;font-weight:700;color:#c53030;">' + impotDeclareTotal.toLocaleString('fr-FR') + ' €</div>'
+      + '<div style="font-size:11px;color:#c53030;">Impôts payés ' + cfg.nYears + ' ans</div></div>'
+      + '<div style="padding:12px;background:#f7fafc;border-radius:8px;text-align:center;border:1px solid #e2e8f0;">'
+      + '<div style="font-size:18px;font-weight:700;color:#4a5568;">' + loyerCashMensuel + ' €/mois</div>'
+      + '<div style="font-size:11px;color:#718096;">Cash mensuel net</div></div>';
   }
 
   slider.addEventListener('input', updateFiscalSim);

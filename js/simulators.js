@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=69';
-import { IMMO_CONSTANTS } from './data.js?v=69';
+import { fmt, fmtAxis } from './render.js?v=70';
+import { IMMO_CONSTANTS } from './data.js?v=70';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
