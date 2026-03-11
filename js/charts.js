@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=81';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=81';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=81';
+import { fmt, fmtAxis } from './render.js?v=82';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=82';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=82';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1215,7 +1215,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
 }
 
 // ============ WEALTH CREATION PROJECTION CHART ============
-export function buildWealthProjectionChart(state, mode) {
+export function buildWealthProjectionChart(state, mode, group) {
   const el = document.getElementById('wealthProjectionChart');
   if (!el) return;
   if (charts.wealthProjection) { charts.wealthProjection.destroy(); delete charts.wealthProjection; }
@@ -1225,90 +1225,142 @@ export function buildWealthProjectionChart(state, mode) {
   const proj = iv.wealthProjection;
 
   const isAnnual = mode === 'an';
+  const isByAppart = group === 'appart';
 
-  // Aggregate data
-  let labels = [], capitalData = [], apprecData = [], cfData = [], totalData = [];
+  // Property names and colors for "par appart" mode
+  const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
+  const propColors = { vitry: '#2b6cb0', rueil: '#276749', villejuif: '#d69e2e' };
+  const propKeys = Object.keys(proj[0]?.perProp || {});
 
   // Group by year first (used for both modes)
   const byYear = {};
   proj.forEach(row => {
     const y = row.date.split('-')[0];
-    if (!byYear[y]) byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, total: 0, count: 0 };
+    if (!byYear[y]) {
+      byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, exitSavings: 0, total: 0, count: 0 };
+      propKeys.forEach(k => { byYear[y][k] = 0; });
+    }
     byYear[y].capital += row.capital;
     byYear[y].appreciation += row.appreciation;
     byYear[y].cashflow += row.cashflow;
+    byYear[y].exitSavings += row.exitSavings || 0;
     byYear[y].total += row.total;
     byYear[y].count++;
+    // Per-property totals
+    propKeys.forEach(k => {
+      const pp = row.perProp[k];
+      if (pp) byYear[y][k] += pp.total;
+    });
   });
   const years = Object.keys(byYear).sort();
-  // Exclude last year if partial (< 12 months) — keeps all full years including 2046
+  // Exclude last year if partial (< 12 months)
   if (years.length > 0 && byYear[years[years.length - 1]].count < 12) {
     years.pop();
   }
 
-  if (isAnnual) {
-    // Total per year
+  let labels = [], datasets = [], totalData = [];
+
+  if (isByAppart) {
+    // ── Par appart: stacked by property ──
+    const propData = {};
+    propKeys.forEach(k => { propData[k] = []; });
+
     years.forEach(y => {
       const d = byYear[y];
+      const n = isAnnual ? 1 : d.count;
       labels.push(y);
-      capitalData.push(d.capital);
-      apprecData.push(d.appreciation);
-      cfData.push(d.cashflow);
-      totalData.push(d.total);
+      propKeys.forEach(k => {
+        propData[k].push(Math.round(d[k] / n));
+      });
+      totalData.push(Math.round(d.total / n));
+    });
+
+    propKeys.forEach(k => {
+      datasets.push({
+        label: propNames[k] || k,
+        data: propData[k],
+        backgroundColor: propColors[k] || '#718096',
+        stack: 'wealth',
+        order: 3,
+      });
+    });
+    datasets.push({
+      label: 'Total',
+      data: totalData,
+      type: 'line',
+      borderColor: '#e53e3e',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.3,
+      order: 0,
     });
   } else {
-    // Monthly average per year (= annual total / 12 months)
+    // ── Par type: stacked by component (capital, appréciation, exit savings, CF) ──
+    let capitalData = [], apprecData = [], cfData = [], exitSavData = [];
+
     years.forEach(y => {
       const d = byYear[y];
-      const n = d.count; // months in that year
+      const n = isAnnual ? 1 : d.count;
       labels.push(y);
       capitalData.push(Math.round(d.capital / n));
       apprecData.push(Math.round(d.appreciation / n));
       cfData.push(Math.round(d.cashflow / n));
+      exitSavData.push(Math.round(d.exitSavings / n));
       totalData.push(Math.round(d.total / n));
     });
+
+    datasets = [
+      {
+        label: 'Capital amorti',
+        data: capitalData,
+        backgroundColor: '#2b6cb0',
+        stack: 'wealth',
+        order: 4,
+      },
+      {
+        label: 'Appréciation',
+        data: apprecData,
+        backgroundColor: '#276749',
+        stack: 'wealth',
+        order: 3,
+      },
+      {
+        label: 'Réduction frais sortie',
+        data: exitSavData,
+        backgroundColor: '#9f7aea',
+        stack: 'wealth',
+        order: 2,
+      },
+      {
+        label: 'Cash flow',
+        data: cfData,
+        backgroundColor: cfData.map(v => v >= 0 ? '#48bb78' : '#e53e3e'),
+        stack: 'wealth',
+        order: 1,
+      },
+      {
+        label: 'Total',
+        data: totalData,
+        type: 'line',
+        borderColor: '#d69e2e',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        order: 0,
+      },
+    ];
   }
+
+  const suffix = isAnnual ? '/an' : '/mois';
+  const titleGroup = isByAppart ? 'par appartement' : (isAnnual ? 'par an' : 'moyenne par mois');
+  const titleText = 'Création de richesse ' + titleGroup + ' (2026–2046)';
 
   const ctx = el.getContext('2d');
   charts.wealthProjection = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Capital amorti',
-          data: capitalData,
-          backgroundColor: '#2b6cb0',
-          stack: 'wealth',
-          order: 3,
-        },
-        {
-          label: 'Appr\u00e9ciation',
-          data: apprecData,
-          backgroundColor: '#276749',
-          stack: 'wealth',
-          order: 2,
-        },
-        {
-          label: 'Cash flow',
-          data: cfData,
-          backgroundColor: cfData.map(v => v >= 0 ? '#48bb78' : '#e53e3e'),
-          stack: 'wealth',
-          order: 1,
-        },
-        {
-          label: 'Total',
-          data: totalData,
-          type: 'line',
-          borderColor: '#d69e2e',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.3,
-          order: 0,
-        },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -1320,13 +1372,13 @@ export function buildWealthProjectionChart(state, mode) {
             label: function(ctx) {
               const v = ctx.parsed.y;
               const sign = v >= 0 ? '+' : '';
-              return ctx.dataset.label + ': ' + sign + '\u20ac' + Math.round(v).toLocaleString('fr-FR') + (isAnnual ? '/an' : '/mois');
+              return ctx.dataset.label + ': ' + sign + '€' + Math.round(v).toLocaleString('fr-FR') + suffix;
             }
           }
         },
         title: {
           display: true,
-          text: isAnnual ? 'Création de richesse par an (2026–2046)' : 'Création de richesse moyenne par mois (2026–2046)',
+          text: titleText,
           font: { size: 14, weight: '600' },
           padding: { bottom: 12 },
         },
@@ -1336,7 +1388,7 @@ export function buildWealthProjectionChart(state, mode) {
         y: {
           stacked: true,
           ticks: {
-            callback: function(v) { return '\u20ac' + fmtAxis(v); },
+            callback: function(v) { return '€' + fmtAxis(v); },
             font: { size: 10 },
           },
           grid: { color: 'rgba(0,0,0,0.06)' },

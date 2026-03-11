@@ -765,9 +765,15 @@
   <div id="wealthProjectionSection" class="card" style="margin:0 0 16px;padding:20px;display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h3 style="margin:0;font-size:16px;color:var(--primary);">Projection Cr&eacute;ation de Richesse (20 ans)</h3>
-      <div id="wealthProjToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
-        <button class="wealth-proj-btn active" data-mode="an" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par an</button>
-        <button class="wealth-proj-btn" data-mode="mois" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par mois</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="wealthProjGroupToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
+          <button class="wealth-group-btn active" data-group="type" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par type</button>
+          <button class="wealth-group-btn" data-group="appart" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par appart</button>
+        </div>
+        <div id="wealthProjToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
+          <button class="wealth-proj-btn active" data-mode="an" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par an</button>
+          <button class="wealth-proj-btn" data-mode="mois" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par mois</button>
+        </div>
       </div>
     </div>
     <div class="chart-container" style="height:380px;"><canvas id="wealthProjectionChart"></canvas></div>
@@ -984,7 +990,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=81"></script>
+<script type="module" src="js/app.js?v=82"></script>
 
 </body>
 </html>

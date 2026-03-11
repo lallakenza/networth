@@ -1656,21 +1656,39 @@ function renderImmoView(state) {
   const projSection = document.getElementById('wealthProjectionSection');
   if (projSection && iv.wealthProjection) {
     projSection.style.display = 'block';
-    // Build chart (default: annual)
-    setTimeout(() => {
+
+    // Current toggle states
+    let wealthProjMode = 'an';
+    let wealthProjGroup = 'type';
+
+    function rebuildWealthChart() {
       if (typeof window.buildWealthProjectionChart === 'function') {
-        window.buildWealthProjectionChart(state, 'an');
+        window.buildWealthProjectionChart(state, wealthProjMode, wealthProjGroup);
       }
-    }, 100);
-    // Toggle binding
+    }
+
+    // Build chart (default: annual, par type)
+    setTimeout(rebuildWealthChart, 100);
+
+    // Time toggle (Par an / Par mois)
     const toggleBtns = document.querySelectorAll('.wealth-proj-btn');
     toggleBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         toggleBtns.forEach(b => { b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.fontWeight = '400'; b.classList.remove('active'); });
         btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '600'; btn.classList.add('active');
-        if (typeof window.buildWealthProjectionChart === 'function') {
-          window.buildWealthProjectionChart(state, btn.dataset.mode);
-        }
+        wealthProjMode = btn.dataset.mode;
+        rebuildWealthChart();
+      });
+    });
+
+    // Group toggle (Par type / Par appart)
+    const groupBtns = document.querySelectorAll('.wealth-group-btn');
+    groupBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        groupBtns.forEach(b => { b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.fontWeight = '400'; b.classList.remove('active'); });
+        btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '600'; btn.classList.add('active');
+        wealthProjGroup = btn.dataset.group;
+        rebuildWealthChart();
       });
     });
   }
