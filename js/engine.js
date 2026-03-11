@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, NW_HISTORY, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=69';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=86';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1630,9 +1630,11 @@ function computeImmoView(portfolio, fx) {
       const effCapital = isOperationalAtM ? capitalM : 0;
       const effCF = isOperationalAtM ? cfM : 0;
 
-      // Per-property exit cost savings
-      const prevPropEC = (exitCostsByYearProp[y - 1] || {})[lk] || 0;
+      // Per-property exit cost savings (same fallback logic as total: first year → 0 savings)
       const thisPropEC = (exitCostsByYearProp[y] || {})[lk] || 0;
+      const prevPropEC = exitCostsByYearProp[y - 1] !== undefined
+        ? (exitCostsByYearProp[y - 1][lk] || 0)
+        : thisPropEC; // first year: no previous → use current → savings = 0
       const propExitSaving = (prevPropEC - thisPropEC) / 12; // positive = savings, negative = cost increase
 
       perProp[lk] = {
@@ -1977,18 +1979,7 @@ function computeDividendAnalysis(ibkrPositions, fx) {
   };
 }
 
-/**
- * Compute NW history with live current values
- */
-function computeNWHistory(coupleNW, amineNW, nezhaNW) {
-  const history = NW_HISTORY.map(h => {
-    if (h.coupleNW === null) {
-      return { ...h, coupleNW: coupleNW, amineNW: amineNW, nezhaNW: nezhaNW };
-    }
-    return { ...h };
-  });
-  return history;
-}
+// NW history chart removed v86 — no real historical data available
 
 /**
  * Master compute function — returns complete STATE
@@ -2446,8 +2437,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // ---- DIVIDEND / WHT ANALYSIS ----
   const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);
 
-  // ---- NW HISTORY (live current point) ----
-  const nwHistory = computeNWHistory(coupleNW, amineNW, nezhaNW + nezhaVillejuifEquity);
+  // NW history removed v86
 
   return {
     fx,
@@ -2469,7 +2459,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     creancesView,
     budgetView,
     dividendAnalysis,
-    nwHistory,
+    // nwHistory removed v86
   };
 }
 

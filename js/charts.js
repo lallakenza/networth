@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=85';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=85';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=85';
+import { fmt, fmtAxis } from './render.js?v=86';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=86';
+import { IMMO_CONSTANTS } from './data.js?v=86';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -59,7 +59,7 @@ export function rebuildAllCharts(state, view) {
   }
 
   if (PERSON_VIEWS.includes(view)) {
-    buildNWHistoryChart(state);
+    // buildNWHistoryChart removed v86 — no real historical data
     buildCoupleTreemap(state);
   }
 }
