@@ -228,28 +228,19 @@ refresh();
 })();
 
 (async function() {
-  // Show static data date while loading
-  const dateHint = document.getElementById('stockDateHint');
-  if (dateHint) dateHint.textContent = '(donn\u00e9es du ' + DATA_LAST_UPDATE + ')';
+  // Show static data date in the badge while loading
+  const sBadge = document.getElementById('stockBadge');
+  if (sBadge) sBadge.textContent = 'Actions : donn\u00e9es du ' + DATA_LAST_UPDATE + ', chargement live...';
   // Stock prices
   const result = await fetchStockPrices(PORTFOLIO);
   if (result.updated) {
     stockSource = 'live';
     refresh();
   }
-  const sBadge = document.getElementById('stockBadge');
   if (sBadge) {
-    const statusLabel = result.liveCount > 0 ? result.liveCount + '/' + result.totalTickers + ' live' : 'statique';
+    const statusLabel = result.liveCount > 0 ? result.liveCount + '/' + result.totalTickers + ' live' : 'statique (donn\u00e9es du ' + DATA_LAST_UPDATE + ')';
     const sgtmLabel = result.sgtmLive ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)' : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
     sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
     if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
-  }
-  // Hide date hint once loaded (live data replaces it)
-  if (dateHint) {
-    if (result.liveCount > 0) {
-      dateHint.textContent = '';
-    } else {
-      dateHint.style.color = 'var(--red)';
-    }
   }
 })();
