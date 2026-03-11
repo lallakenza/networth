@@ -1999,18 +1999,30 @@ function renderFiscalSimulator(container, prop) {
   // KPI summary cards (updated dynamically)
   html += '<div id="pdFiscalKPIs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;"></div>';
 
+  // Slider for total rent
+  html += '<div style="margin-bottom:10px;padding:14px 16px;background:linear-gradient(135deg,#fff5eb,#fef3c7);border-radius:10px;border:1px solid #f6e05e;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+    + '<label style="font-size:13px;font-weight:600;color:#744210;">Loyer total CC :</label>'
+    + '<span style="font-size:20px;font-weight:700;color:#b7791f;"><span id="pdFiscalTotalVal">' + defaultTotalCC + '</span> €/mois</span>'
+    + '</div>'
+    + '<input type="range" id="pdFiscalTotalSlider" min="200" max="2500" value="' + defaultTotalCC + '" step="10" '
+    + 'style="width:100%;accent-color:#b7791f;height:6px;">'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#718096;margin-top:4px;">'
+    + '<span>200 €</span><span>2 500 €</span>'
+    + '</div>'
+    + '</div>';
+
   // Slider for declared rent
-  html += '<div style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,#f7fafc,#edf2f7);border-radius:10px;border:1px solid #e2e8f0;">'
+  html += '<div style="margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#f7fafc,#edf2f7);border-radius:10px;border:1px solid #e2e8f0;">'
     + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
     + '<label style="font-size:13px;font-weight:600;color:#2d3748;">Loyer déclaré CC :</label>'
     + '<span style="font-size:20px;font-weight:700;color:var(--accent);"><span id="pdFiscalSliderVal">' + defaultDeclareCC + '</span> €/mois</span>'
     + '</div>'
-    + '<input type="range" id="pdFiscalSlider" min="0" max="' + maxDeclare + '" value="' + defaultDeclareCC + '" step="10" '
+    + '<input type="range" id="pdFiscalSlider" min="0" max="' + defaultTotalCC + '" value="' + defaultDeclareCC + '" step="10" '
     + 'style="width:100%;accent-color:var(--accent);height:6px;">'
     + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#718096;margin-top:4px;">'
     + '<span>0 €</span>'
-    + '<span>Loyer total CC : ' + defaultTotalCC + ' €/mois</span>'
-    + '<span>' + maxDeclare + ' €</span>'
+    + '<span id="pdFiscalDeclareMax">' + defaultTotalCC + ' €</span>'
     + '</div>'
     + '</div>';
 
@@ -2021,11 +2033,20 @@ function renderFiscalSimulator(container, prop) {
 
   const slider = document.getElementById('pdFiscalSlider');
   const valEl = document.getElementById('pdFiscalSliderVal');
+  const totalSlider = document.getElementById('pdFiscalTotalSlider');
+  const totalValEl = document.getElementById('pdFiscalTotalVal');
+  const declareMaxEl = document.getElementById('pdFiscalDeclareMax');
 
   function updateFiscalSim() {
+    const loyerTotalCC = parseInt(totalSlider.value);
+    totalValEl.textContent = loyerTotalCC;
+    // Cap declared at total
+    slider.max = loyerTotalCC;
+    declareMaxEl.textContent = loyerTotalCC + ' €';
+    if (parseInt(slider.value) > loyerTotalCC) slider.value = loyerTotalCC;
     const loyerDeclareCC = parseInt(slider.value);
     valEl.textContent = loyerDeclareCC;
-    const loyerCashMensuel = defaultTotalCC - loyerDeclareCC;
+    const loyerCashMensuel = loyerTotalCC - loyerDeclareCC;
 
     let impotDeclareTotal = 0, impotToutDeclareTotal = 0;
     let cashCumule = 0;
@@ -2039,7 +2060,7 @@ function renderFiscalSimulator(container, prop) {
       // Revenus déclarés (ce que tu déclares)
       const loyerDeclareAn = loyerDeclareCC * moisLoyer;
       // Revenus si tu déclarais tout
-      const loyerToutDeclareAn = defaultTotalCC * moisLoyer;
+      const loyerToutDeclareAn = loyerTotalCC * moisLoyer;
       // Cash non déclaré
       const cashAn = loyerCashMensuel * moisLoyer;
       cashCumule += cashAn;
@@ -2096,7 +2117,7 @@ function renderFiscalSimulator(container, prop) {
       + '<thead><tr>'
       + '<th>Année</th>'
       + '<th class="num" style="background:#ebf8ff;" colspan="4">Si tu déclares ' + loyerDeclareCC + '€ CC</th>'
-      + '<th class="num" style="background:#fff5eb;" colspan="2">Si tout déclaré (' + defaultTotalCC + '€)</th>'
+      + '<th class="num" style="background:#fff5eb;" colspan="2">Si tout déclaré (' + loyerTotalCC + '€)</th>'
       + '<th class="num" style="background:#f0fff4;">Économie</th>'
       + '<th class="num" style="background:#ebf4ff;">Cash</th>'
       + '</tr>'
@@ -2131,6 +2152,7 @@ function renderFiscalSimulator(container, prop) {
   }
 
   slider.addEventListener('input', updateFiscalSim);
+  totalSlider.addEventListener('input', updateFiscalSim);
   updateFiscalSim();
 }
 
