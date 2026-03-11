@@ -82,9 +82,20 @@ Système générique — ne jamais hardcoder de noms de comptes :
 
 À chaque session de mise à jour, l'IA doit vérifier l'ancienneté des données et mettre à jour ce qui est périmé.
 
-### Données temps-réel (récupérées automatiquement par api.js)
+### Données temps-réel (récupérées automatiquement par api.js au chargement du site)
 - **Taux FX** : récupérés live via frankfurter.dev → pas besoin de toucher `FX_STATIC` sauf si l'API plante
-- **Cours actions IBKR** : récupérés live via Yahoo Finance chart API → les `price` dans `positions[]` servent de fallback
+- **Cours actions IBKR** : récupérés live via Yahoo Finance chart API → les `price` dans `positions[]` servent de fallback statique
+
+### Mise à jour obligatoire à chaque session
+
+**À chaque session, l'IA DOIT mettre à jour les prix des actions dans data.js** — même si l'API les récupère en live au chargement, les `price` dans `positions[]` servent de fallback et doivent rester à jour :
+
+1. **Cours SGTM** (`market.sgtmPriceMAD`) — Pas d'API disponible. L'IA doit chercher le cours sur le web :
+   - Source primaire : `casablanca-bourse.com` ou `leboursier.ma` (chercher "SGTM cours")
+   - Mettre à jour le prix ET le commentaire de date
+2. **Cours ACN** (`market.acnPriceUSD`) — Chercher via web search "ACN stock price" ou Yahoo Finance
+3. **Prix fallback IBKR** (`positions[].price`) — Récupérer les cours actuels via web search pour chaque position et mettre à jour les prix dans data.js. L'API Yahoo les récupère en live, mais les fallback doivent rester récents.
+4. **`FX_STATIC`** — Mettre à jour les taux de change depuis xe.com
 
 ### Données à mettre à jour manuellement dans data.js
 
@@ -92,23 +103,26 @@ Système générique — ne jamais hardcoder de noms de comptes :
 |--------|-----------|--------|-------------------------------|
 | Soldes bancaires (cash UAE, Maroc, Revolut, IBKR cash) | Chaque session | Apps bancaires, IBKR | Commentaires `mis à jour` dans data.js |
 | Positions IBKR (shares, costBasis) | Si nouveau trade | CSV IBKR ou fichier utilisateur | Comparer `trades[]` dernière date vs aujourd'hui |
-| Cours SGTM (`market.sgtmPriceMAD`) | Si > 1 semaine | casablanca-bourse.com | Commentaire date dans data.js |
-| Cours ACN (`market.acnPriceUSD`) | Si > 1 semaine | Fidelity / Yahoo Finance | Commentaire date dans data.js |
 | CRD immobilier | Mensuel | Tableau d'amortissement | Comparer au schedule calculé par engine |
 | Créances | Quand payées/ajoutées | Factures | Vérifier items[] dans creances |
 | Véhicules | Trimestriel | Argus / La Centrale | Commentaire date |
-| `FX_STATIC` | Si > 2 semaines | xe.com | Commentaire date dans data.js |
 | `CASH_YIELDS` | Si taux changent | Sites banques | Commentaire date |
 | `staticNAV` (IBKR) | Chaque mise à jour IBKR | Rapport CSV IBKR | Doit correspondre à NAV du CSV |
+
+### Transactions (trades[])
+
+**Les transactions ne sont JAMAIS supprimées.** Elles sont toujours ajoutées (append-only).
+Quand l'utilisateur fournit un CSV ou relevé IBKR, comparer avec les trades existants et ajouter uniquement les nouvelles opérations.
 
 ### Règle d'ancienneté automatique
 
 Au début de chaque session, l'IA doit :
 1. Lire les dates dans les commentaires de `data.js`
-2. Si les cours stocks (SGTM, ACN) ont **> 7 jours** → les mettre à jour (web search ou fichier utilisateur)
-3. Si les soldes bancaires ont **> 14 jours** → demander à l'utilisateur les soldes actuels
-4. Si `FX_STATIC` a **> 14 jours** → mettre à jour depuis xe.com
-5. Toujours bumper le numéro de version `?v=XX` dans tous les imports après modification
+2. Mettre à jour **tous les prix** (SGTM via web, ACN via web, positions[].price via web)
+3. Mettre à jour `FX_STATIC` depuis xe.com
+4. Si les soldes bancaires ont **> 14 jours** → demander à l'utilisateur les soldes actuels
+5. Mettre à jour les commentaires de date après chaque modification
+6. Toujours bumper le numéro de version `?v=XX` dans tous les imports après modification
 
 ## Comment traiter un fichier CSV / relevé IBKR
 

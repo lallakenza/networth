@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC } from './data.js?v=91';
-import { compute } from './engine.js?v=91';
-import { render } from './render.js?v=91';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=91';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=91';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=91';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=92';
+import { compute } from './engine.js?v=92';
+import { render } from './render.js?v=92';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=92';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=92';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=92';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -228,6 +228,9 @@ refresh();
 })();
 
 (async function() {
+  // Show static data date while loading
+  const dateHint = document.getElementById('stockDateHint');
+  if (dateHint) dateHint.textContent = '(donn\u00e9es du ' + DATA_LAST_UPDATE + ')';
   // Stock prices
   const result = await fetchStockPrices(PORTFOLIO);
   if (result.updated) {
@@ -240,5 +243,13 @@ refresh();
     const sgtmLabel = result.sgtmLive ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)' : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
     sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
     if (result.liveCount > 0) sBadge.style.color = 'var(--green)';
+  }
+  // Hide date hint once loaded (live data replaces it)
+  if (dateHint) {
+    if (result.liveCount > 0) {
+      dateHint.textContent = '';
+    } else {
+      dateHint.style.color = 'var(--red)';
+    }
   }
 })();
