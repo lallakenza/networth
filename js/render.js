@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG } from './data.js?v=61';
-import { getGrandTotal } from './engine.js?v=61';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS } from './data.js?v=65';
+import { getGrandTotal } from './engine.js?v=65';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -99,6 +99,7 @@ export function render(state, view, currency) {
     renderCategoryCards(state, view);
     renderCategoryPcts(state, view);
     renderExpandSubs(state, view);
+    renderDynamicInsights(state, view);
     renderCoupleTable(state);
     renderAmineTable(state);
     renderNezhaTable(state);
@@ -328,6 +329,62 @@ function renderExpandSubs(state, view) {
   // Maroc FX note
   setText('subMarocFXNote', 'Total MAD ' + s.amine.moroccoMAD.toLocaleString('fr-FR') + ' / ' + s.fx.MAD.toFixed(4));
 
+  // ── Dynamic cash breakdowns ──
+  const p0 = state.portfolio;
+  const fxR = state.fx;
+  const uaeBD = document.getElementById('subUAEBreakdown');
+  if (uaeBD) {
+    const mashreq = p0.amine.uae.mashreq;
+    const wioS = p0.amine.uae.wioSavings;
+    const revEUR = p0.amine.uae.revolutEUR;
+    const wioC = p0.amine.uae.wioCurrent;
+    const fmtAED = v => 'AED ' + Math.round(v).toLocaleString('fr-FR');
+    const fmtEURsm = v => '<span style="color:var(--gray);font-size:11px">(' + Math.round(v / fxR.AED).toLocaleString('fr-FR') + ')</span>';
+    const totalUAE = (mashreq + wioS + wioC) / fxR.AED + revEUR;
+    uaeBD.innerHTML =
+      '<li><span class="bl-label">Mashreq NEO PLUS</span><span class="bl-val">' + fmtAED(mashreq) + ' ' + fmtEURsm(mashreq) + '</span></li>' +
+      '<li><span class="bl-label">Wio Savings</span><span class="bl-val">' + fmtAED(wioS) + ' ' + fmtEURsm(wioS) + '</span></li>' +
+      '<li><span class="bl-label">Revolut (EUR)</span><span class="bl-val">' + Math.round(revEUR).toLocaleString('fr-FR') + '</span></li>' +
+      '<li><span class="bl-label">Wio Current</span><span class="bl-val">' + fmtAED(wioC) + ' ' + fmtEURsm(wioC) + '</span></li>' +
+      '<li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total EUR</span><span class="bl-val">' + Math.round(totalUAE).toLocaleString('fr-FR') + '</span></li>';
+  }
+  const uaeBadge = document.getElementById('subUAEBadge');
+  if (uaeBadge) {
+    const bestRate = Math.max(CASH_YIELDS.mashreq, CASH_YIELDS.wioSavings) * 100;
+    uaeBadge.textContent = '~' + bestRate.toFixed(0) + '% rendement epargne';
+  }
+
+  const marocBD = document.getElementById('subMarocBreakdown');
+  if (marocBD) {
+    const att = p0.amine.maroc.attijari;
+    const nabd = p0.amine.maroc.nabd;
+    marocBD.innerHTML =
+      '<li><span class="bl-label">Attijariwafa Courant</span><span class="bl-val">MAD ' + Math.round(att).toLocaleString('fr-FR') + '</span></li>' +
+      '<li><span class="bl-label">BMCE/BOA Cheque</span><span class="bl-val">MAD ' + Math.round(nabd).toLocaleString('fr-FR') + '</span></li>';
+  }
+
+  // ── Dynamic vehicles & TVA ──
+  const veh = p0.amine.vehicles;
+  if (veh) {
+    const totalVeh = (veh.cayenne || 0) + (veh.mercedes || 0);
+    setHTML('subVehiclesDetail', 'Porsche Cayenne ' + Math.round((veh.cayenne || 0) / 1000) + 'K<br>Mercedes Class A ' + Math.round((veh.mercedes || 0) / 1000) + 'K');
+    setEur('subVehicles', totalVeh);
+  }
+  const tvaVal = Math.abs(p0.amine.tva || 0);
+  setHTML('subTVADetail', 'Passif fiscal<br>Provision estimee');
+  const tvaEl = document.getElementById('subTVA');
+  if (tvaEl) { tvaEl.setAttribute('data-eur', Math.round(tvaVal)); tvaEl.setAttribute('data-sign', '-'); }
+
+  // ── Dynamic FX footer ──
+  const fxDisp = document.getElementById('fxDisplay');
+  if (fxDisp) fxDisp.textContent = fxR.AED.toFixed(4) + ' AED | ' + fxR.MAD.toFixed(4) + ' MAD | ' + fxR.USD.toFixed(4) + ' USD';
+
+  // ── IBKR badge ──
+  const ibkrBadge = document.getElementById('subIBKRBadge');
+  if (ibkrBadge && p0.amine.ibkr.twr) {
+    ibkrBadge.textContent = 'TWR +' + p0.amine.ibkr.twr.toFixed(2) + '%';
+  }
+
   // ── Dynamic immo sub-cards (CRD + CF badges) ──
   const iv = state.immoView;
   if (iv && iv.properties) {
@@ -401,6 +458,217 @@ function renderExpandSubs(state, view) {
       setText('insightRueilCF', rueilCFText);
       setText('insightRueilCF2', rueilCFText);
     }
+  }
+}
+
+// ============================================================
+// DYNAMIC INSIGHTS — replaces all hardcoded text in HTML
+// ============================================================
+function renderDynamicInsights(state, view) {
+  const s = state;
+  const p = state.portfolio;
+  const iv = state.immoView;
+  const fx = state.fx;
+  const K = v => Math.round(v / 1000) + 'K';
+  const N = v => Math.round(v).toLocaleString('fr-FR');
+
+  // ── Cash insights (expand-cash) ──
+  const cashIns = document.getElementById('cashInsightsExpand');
+  if (cashIns) {
+    const totalCash = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
+    const monthsSafe = Math.round(totalCash / 4500); // ~4.5K/month burn
+    const aedPct = Math.round((s.amine.uae / totalCash) * 100);
+    cashIns.innerHTML =
+      '<strong>Insights Cash :</strong><br>' +
+      '- <span style="color:var(--green)">' + K(totalCash) + ' de cash = ~' + monthsSafe + ' mois de matelas de securite meme en cas d\'arret total d\'activite.</span><br>' +
+      '- Le rendement de ' + Math.round(CASH_YIELDS.wioSavings * 100) + '% sur l\'epargne UAE (Wio Savings) est tres competitif \u2014 continuer a maximiser ce placement.<br>' +
+      '- Cash Maroc peu rentable (~1-2%). Considerer un rapatriement progressif vers UAE ou investissement en actions.<br>' +
+      '- <span style="color:var(--red)">Risque FX :</span> ' + aedPct + '% du cash est en AED (peg USD). Un affaiblissement du dollar impacterait la valeur en EUR.';
+  }
+
+  // ── Other insights (expand-other) ──
+  const otherIns = document.getElementById('otherInsightsExpand');
+  if (otherIns) {
+    const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const guarCreances = (p.amine.creances.items || []).filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const persoCreances = totalCreances - guarCreances;
+    const totalVeh = (p.amine.vehicles.cayenne || 0) + (p.amine.vehicles.mercedes || 0);
+    const tvaAbs = Math.abs(p.amine.tva || 0);
+    otherIns.innerHTML =
+      '<strong>Insights Autres :</strong><br>' +
+      '- <span style="color:var(--green)">' + N(totalCreances) + ' de creances dont ' + K(guarCreances) + ' garanties (delai 45j).</span> Les creances perso (~' + K(persoCreances) + ') sont a prioriser par montant.<br>' +
+      '- Vehicules (' + K(totalVeh) + ') sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>' +
+      '- TVA (-' + K(tvaAbs) + ') est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>' +
+      '- <span style="color:var(--red)">Risque :</span> Les creances personnelles (~' + K(persoCreances) + ') sont difficilement recouvrables a court terme. Ne pas les compter dans la tresorerie operationnelle. Les ' + K(guarCreances) + ' garantis sont assimilables a du cash.';
+  }
+
+  // ── Couple insights ──
+  const cplPos = document.getElementById('coupleInsightsPositive');
+  if (cplPos && iv) {
+    const nw = s.couple.nw;
+    const cashCouple = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
+    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
+    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc;
+    const totalDebt = iv.properties.reduce((sum, pr) => sum + pr.crd, 0);
+    const totalImmoVal = iv.properties.reduce((sum, pr) => sum + pr.value, 0);
+    cplPos.innerHTML =
+      '<strong>Points forts du couple :</strong><br>' +
+      '- NW combine de ' + K(nw) + ' a 33 et 34 ans \u2014 excellent rythme de constitution patrimoniale pour un couple.<br>' +
+      '- Revenus diversifies : salaire Amine (Dubai) + patrimoine locatif Nezha (France). Deux pays, deux sources de revenus.<br>' +
+      '- Cash couple total ~' + K(cashCouple) + ' (Amine ' + K(cashAmine) + ' + Nezha ' + K(cashNezha) + ') reparti sur 2 devises et plusieurs banques. Bonne resilience en cas de blocage bancaire.<br>' +
+      '- Zero dette consommation. Les ' + K(totalDebt) + ' de dette sont 100% adosses a des actifs immo productifs (' + K(totalImmoVal) + ' de valeur).<br>' +
+      '- <strong>Objectif 1M NW couple : atteignable en ~3-4 ans avec le rythme actuel d\'epargne + creation immo.</strong>';
+  }
+
+  const cplRisks = document.getElementById('coupleInsightsRisks');
+  if (cplRisks && iv) {
+    const totalImmoVal = iv.properties.reduce((sum, pr) => sum + pr.value, 0);
+    const totalDebt = iv.properties.reduce((sum, pr) => sum + pr.crd, 0);
+    const totalEquity = iv.properties.reduce((sum, pr) => sum + pr.equity, 0);
+    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
+    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc;
+    const cashTotal = cashAmine + cashNezha;
+    const aedPct = Math.round((s.amine.uae / cashTotal) * 100);
+    const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);
+    const jpyEUR = Math.round(jpyShort / fx.JPY);
+    const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const guarCreances = (p.amine.creances.items || []).filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+    const persoCreances = totalCreances - guarCreances;
+    cplRisks.innerHTML =
+      '<strong>Risques & points d\'attention couple :</strong><br>' +
+      '- <strong>Concentration immo IDF :</strong> ' + iv.properties.length + ' biens, ' + K(totalImmoVal) + ' de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -' + K(totalImmoVal * 0.1) + ' d\'equity couple.<br>' +
+      '- <strong>Exposition devise :</strong> Le couple est multi-devise \u2014 ~' + K(cashAmine) + ' en AED/USD (Amine) + ~' + K(cashNezha) + ' en EUR/MAD (Nezha). Le risque USD/EUR est reel (~' + aedPct + '% du cash total en AED).<br>' +
+      '- <strong>Creances (' + K(totalCreances) + ') :</strong> ' + K(guarCreances) + ' garanti (delai de paiement 45 jours \u2014 quasi-cash) + creances perso ' + K(persoCreances) + ' (recouvrement incertain). Ne compter que les ' + K(guarCreances) + ' dans la planification.<br>' +
+      '- <strong>Levier JPY (Amine) :</strong> Emprunt -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR) sur IBKR. Une appreciation du yen de 10% couterait ~' + K(jpyEUR * 0.1) + '.';
+  }
+
+  // ── Amine immo insight ──
+  const amImmo = document.getElementById('amineImmoInsight');
+  if (amImmo && iv) {
+    const vitryP = iv.properties.find(pr => pr.loanKey === 'vitry');
+    if (vitryP) {
+      const wealthMonth = vitryP.wealthCreation || 0;
+      amImmo.innerHTML =
+        '<strong>Immobilier Amine :</strong><br>' +
+        '- <span style="color:var(--green)">Vitry genere +' + N(wealthMonth) + '/mois de creation de richesse</span>. Excellent levier malgre le CF negatif.<br>' +
+        '- <strong>CF = ' + (vitryP.cf >= 0 ? '+' : '') + Math.round(vitryP.cf) + '/mois</strong> (revenus ' + N(vitryP.totalRevenue || vitryP.revenue || 0) + ' CC vs charges ' + N(vitryP.charges) + ').<br>' +
+        '- Explorer le passage en LMNP reel \u2014 les charges deductibles pourraient reduire l\'imposition a zero.';
+    }
+  }
+
+  // ── IBKR summary box ──
+  const ibkrBox = document.getElementById('ibkrSummaryBox');
+  if (ibkrBox) {
+    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.deposits) + '. TWR ' + (p.amine.ibkr.twr || 0).toFixed(2) + '% depuis ouverture.';
+  }
+
+  // ── Amine actions insight ──
+  const amAct = document.getElementById('amineActionsInsight');
+  if (amAct) {
+    const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);
+    const jpyEUR = Math.round(jpyShort / fx.JPY);
+    amAct.innerHTML =
+      '<strong>Insights Actions :</strong><br>' +
+      '- TWR de ' + (p.amine.ibkr.twr || 0).toFixed(0) + '% est excellent \u2014 bien au-dessus du CAC40 (~20% sur la meme periode).<br>' +
+      '- <span style="color:var(--green)">A 7% annuel + 7K/mois d\'epargne, le portefeuille actions atteindra ~500K en 3 ans.</span><br>' +
+      '- <span style="color:var(--green)">Deleverage JPY :</span> Short JPY reduit a -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR).';
+  }
+
+  // ── Nezha insights ──
+  const nzBox = document.getElementById('nezhaInsightsBox');
+  if (nzBox && iv) {
+    const rueilP = iv.properties.find(pr => pr.loanKey === 'rueil');
+    const villejuifP = iv.properties.find(pr => pr.loanKey === 'villejuif');
+    const nzNW = s.nezha.nw;
+    const cashFR = s.nezha.cashFrance;
+    const cashMA = s.nezha.cashMaroc;
+    const rueilCF = rueilP ? (rueilP.cf >= 0 ? '+' : '') + Math.round(rueilP.cf) : '--';
+    const rueilWealth = rueilP ? (rueilP.wealthCreation || 0) : 0;
+    const rueilMens = rueilP ? Math.round(rueilP.charges) : 0;
+    const vilMens = villejuifP ? Math.round(villejuifP.charges) : 0;
+    const totalMens = rueilMens + vilMens;
+    nzBox.innerHTML =
+      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>' +
+      '<strong>Insights Nezha :</strong><br>' +
+      '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont ' + K(rueilP ? rueilP.equity : 0) + ' en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>' +
+      '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
+      '- Cash total ~' + K(cashFR + cashMA) + ' (' + K(cashFR) + ' France + ' + K(cashMA) + ' Maroc).<br>' +
+      '- <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~' + N(totalMens) + '/mois de mensualites (Rueil ' + N(rueilMens) + ' + Villejuif ~' + N(vilMens) + ').<br>' +
+      '- <span style="color:var(--green)">Apres livraison :</span> 2 biens de creation de richesse. Objectif loyer Villejuif : 1,600-1,800 meuble.';
+  }
+
+  // ── Nezha projection table ──
+  const nzProj = document.getElementById('nezhaProjectionTable');
+  if (nzProj && iv) {
+    // Simple projection based on current amortization schedules
+    const rueilP = iv.properties.find(pr => pr.loanKey === 'rueil');
+    const villejuifP = iv.properties.find(pr => pr.loanKey === 'villejuif');
+    const nzCash = s.nezha.cashFrance + s.nezha.cashMaroc;
+    // Project 6 years from now
+    const years = [2027, 2028, 2029, 2030, 2031, 2032];
+    const now = new Date();
+    const monthsFromNow = y => (y - now.getFullYear()) * 12 + (1 - now.getMonth());
+    let html = '<table><thead><tr><th></th>';
+    years.forEach(y => { html += '<th class="num">Jan ' + y + '</th>'; });
+    html += '</tr></thead><tbody>';
+    const rueilGrowth = rueilP ? (rueilP.wealthCreation || 0) : 0;
+    const vilGrowth = villejuifP ? (villejuifP.wealthCreation || 0) : 0;
+    // Equity Rueil row
+    html += '<tr><td>Equity Rueil</td>';
+    years.forEach(y => {
+      const m = monthsFromNow(y);
+      const eq = rueilP ? rueilP.equity + rueilGrowth * m : 0;
+      html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
+    });
+    html += '</tr>';
+    // Equity Villejuif row (0 before 2029, then growing)
+    html += '<tr><td>Equity Villejuif</td>';
+    years.forEach(y => {
+      if (y < 2029) { html += '<td class="num">0</td>'; }
+      else {
+        const mSince = (y - 2029) * 12;
+        const eq = vilGrowth * mSince;
+        html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
+      }
+    });
+    html += '</tr>';
+    // Cash row (declining due to Villejuif costs)
+    html += '<tr><td>Cash</td>';
+    years.forEach(y => {
+      const m = monthsFromNow(y);
+      // Cash declines by ~800/month (CF negative immo + living)
+      const cash = nzCash - m * 800;
+      html += '<td class="num">' + N(Math.max(0, cash)) + '</td>';
+    });
+    html += '</tr>';
+    // Total row
+    html += '<tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>';
+    years.forEach(y => {
+      const m = monthsFromNow(y);
+      const eqR = rueilP ? rueilP.equity + rueilGrowth * m : 0;
+      let eqV = 0;
+      if (y >= 2029) { eqV = vilGrowth * (y - 2029) * 12; }
+      const cash = Math.max(0, nzCash - m * 800);
+      html += '<td class="num"><strong>' + N(eqR + eqV + cash) + '</strong></td>';
+    });
+    html += '</tr></tbody></table>';
+    nzProj.innerHTML = html;
+  }
+
+  // ── Immo loan footnote ──
+  const lnFoot = document.getElementById('immoLoanFootnote');
+  if (lnFoot && iv) {
+    const vilLoansF = IMMO_CONSTANTS.loans.villejuifLoans || [];
+    const vitConsts = IMMO_CONSTANTS.properties.vitry;
+    const fM = vilLoansF[0] && vilLoansF[0].periods ? vilLoansF[0].periods[0].months : 36;
+    let footText = 'Villejuif : Prets LCL \u2014 ';
+    if (vilLoansF.length >= 2) {
+      footText += 'P1 ' + N(vilLoansF[0].principal) + ' @ ' + (vilLoansF[0].rate * 100).toFixed(2) + '% + P2 ' + N(vilLoansF[1].principal) + ' @ ' + (vilLoansF[1].rate * 100).toFixed(2) + '%. ';
+    }
+    footText += 'Franchise totale ' + fM + ' mois, capitalisation annuelle. ';
+    footText += 'Vitry : valeur appreciee ' + ((vitConsts && vitConsts.appreciation ? vitConsts.appreciation : 0.02) * 100).toFixed(0) + '%/an depuis achat. ';
+    footText += 'Rueil : bail meuble oct 2025.';
+    lnFoot.textContent = footText;
   }
 }
 
@@ -1438,6 +1706,91 @@ function renderImmoView(state) {
       + (cashNonDeclare > 0 ? ' (+ ' + Math.round(cashNonDeclare).toLocaleString('fr-FR') + ' non declare)' : '')
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (iv.totalCFNetFiscal >= 0 ? '+' : '') + iv.totalCFNetFiscal + '/mois</strong>';
+  }
+
+  // ── Dynamic CF Table (was hardcoded in HTML) ──
+  const cfTableEl = document.getElementById('immoCFTable');
+  if (cfTableEl) {
+    let html = '<table style="margin-top:10px;"><thead><tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr></thead><tbody>';
+    iv.properties.forEach((prop, i) => {
+      const cd = prop.chargesDetail || {};
+      const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
+      const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
+      const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
+      const loyerText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.loyer || 0).toLocaleString('fr-FR');
+      const revText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.totalRevenue || 0).toLocaleString('fr-FR');
+      const cfStyle = prop.conditional ? ' style="color:var(--gray)"' : ' style="font-weight:700"';
+      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 livraison ete 2029</span>'
+        : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyer || 0) + '</span>';
+      html += '<tr' + rowBg + '>'
+        + '<td><strong>' + prop.name + '</strong><br>' + desc + '</td>'
+        + '<td class="num">' + Math.round(cd.pret || prop.monthlyPret || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(cd.assurance || prop.monthlyAssurance || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(cd.pno || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(cd.tf || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + Math.round(cd.copro || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="font-weight:600">' + Math.round(prop.charges || 0).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num">' + loyerText + '</td>'
+        + '<td class="num">' + revText + '</td>'
+        + '<td class="num ' + cfClass + '"' + cfStyle + '>' + cfText + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    cfTableEl.innerHTML = html;
+  }
+
+  // ── CF Analysis ──
+  const cfAnalysis = document.getElementById('immoCFAnalysis');
+  if (cfAnalysis) {
+    const autofinP = iv.properties.filter(p => !p.conditional && p.cf >= 0);
+    const deficitP = iv.properties.filter(p => !p.conditional && p.cf < 0);
+    let text = '<strong>Analyse :</strong> ';
+    autofinP.forEach(p => { text += p.name + ' est autofinance (+' + Math.round(p.cf) + '/mois : revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
+    deficitP.forEach(p => { text += p.name + ' a un deficit de ' + Math.round(p.cf) + '/mois (revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
+    cfAnalysis.innerHTML = text;
+  }
+
+  // ── Villejuif Simulation table ──
+  const vilSim = document.getElementById('villejuifSimulation');
+  if (vilSim) {
+    const vilLoans = IMMO_CONSTANTS.loans.villejuifLoans || [];
+    const totalPrincipal = vilLoans.reduce((s, l) => s + l.principal, 0);
+    const franchiseM = vilLoans[0] && vilLoans[0].periods ? vilLoans[0].periods[0].months : 36;
+    // Bank scenario: full disbursement at day 1
+    const bankInterest = Math.round(totalPrincipal * 0.031 * (franchiseM / 12)); // ~3.1% weighted avg
+    const bankCRD = totalPrincipal + bankInterest;
+    // Realistic: ~19% less due to progressive disbursement
+    const realInterest = Math.round(bankInterest * 0.81);
+    const realCRD = totalPrincipal + realInterest;
+    const saving = bankInterest - realInterest;
+    vilSim.innerHTML =
+      '<strong>Villejuif \u2014 Simulation banque vs estimation realiste :</strong><br>' +
+      'La banque simule un deblocage integral du credit au jour 1. En realite, les fonds VEFA se debloquent progressivement.<br><br>' +
+      '<table style="font-size:12px;margin:8px 0">' +
+      '<tr><th></th><th class="num">Simulation banque</th><th class="num">Estimation realiste</th><th class="num">Economie</th></tr>' +
+      '<tr><td>Interets capitalises (' + franchiseM + ' mois)</td><td class="num">' + bankInterest.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realInterest.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + ' (-' + Math.round(saving / bankInterest * 100) + '%)</td></tr>' +
+      '<tr><td>CRD apres franchise</td><td class="num">' + bankCRD.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realCRD.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + '</td></tr>' +
+      '</table>' +
+      '<span style="font-size:11px;color:var(--gray)">Hypothese : fondations M0, hors d\'eau M6, hors d\'air M9, achevement M15, livraison M18. Apport utilise en priorite.</span>';
+  }
+
+  // ── Immo Strategy ──
+  const stratBox = document.getElementById('immoStrategyInsight');
+  if (stratBox) {
+    const totalVal = iv.totalValue;
+    const totalDebt = iv.totalCRD;
+    const totalEq = iv.totalEquity;
+    const leverage = totalDebt > 0 ? Math.round(totalDebt / totalVal * 100) : 0;
+    const cfTotal = iv.totalCF;
+    const cfAnnual = cfTotal * 12;
+    const wealthTotal = iv.totalWealthCreation;
+    stratBox.innerHTML =
+      '<strong>Strategie Immo Couple :</strong><br>' +
+      '- <strong>Bilan consolide :</strong> ' + Math.round(totalVal / 1000) + 'K de patrimoine immo, ' + Math.round(totalDebt / 1000) + 'K de dette, ' + Math.round(totalEq / 1000) + 'K d\'equity. Taux d\'endettement immo de ~' + leverage + '%.<br>' +
+      '- <strong>Cash flow consolide : ' + (cfTotal >= 0 ? '+' : '') + cfTotal + '/mois</strong> aujourd\'hui (' + Math.abs(cfAnnual).toLocaleString('fr-FR') + '/an).<br>' +
+      '- <strong>Creation de richesse : +' + Math.round(wealthTotal).toLocaleString('fr-FR') + '/mois</strong> (' + Math.round(wealthTotal * 12 / 1000) + 'K/an) via le remboursement du capital + appreciation.<br>' +
+      '- <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~' + Math.round(totalVal * 0.1 / 1000) + 'K d\'equity.<br>' +
+      '- <span style="color:var(--green)">Trajectoire :</span> A 5 ans, equity immo estimee > ' + Math.round((totalEq + wealthTotal * 60) / 1000) + 'K (vs ' + Math.round(totalEq / 1000) + 'K ajd).';
   }
 
   // ── Methodology & Sources panel ──
