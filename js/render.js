@@ -1983,6 +1983,9 @@ function renderPropertyDetail(state, prop) {
     if (typeof window.buildPropertyDetailCharts === 'function') {
       window.buildPropertyDetailCharts(state, prop);
     }
+    if (typeof window.buildExitProjectionChart === 'function') {
+      window.buildExitProjectionChart(state, prop);
+    }
   }, 50);
 }
 
@@ -2259,6 +2262,9 @@ function renderAptView(state, loanKey) {
     // Frais agence supprimés (vente en direct)
     if (ec.tvaClawback > 0) {
       html += '<div><span style="color:#718096;">Clawback TVA 5.5%</span><br><strong class="pl-neg">' + fmt(ec.tvaClawback) + '</strong></div>';
+    }
+    if (ec.ira > 0) {
+      html += '<div><span style="color:#718096;">IRA (remb. anticipé)</span><br><strong class="pl-neg">' + fmt(ec.ira) + '</strong></div>';
     }
     if (ec.mainlevee > 0) {
       html += '<div><span style="color:#718096;">Mainlevée hypo.</span><br><strong class="pl-neg">' + fmt(ec.mainlevee) + '</strong></div>';

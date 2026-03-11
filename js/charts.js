@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=72';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=72';
-import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=72';
+import { fmt, fmtAxis } from './render.js?v=73';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=73';
+import { IMMO_CONSTANTS, NW_HISTORY } from './data.js?v=73';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1084,8 +1084,140 @@ export function buildPropertyDetailCharts(state, prop) {
     });
   }
 }
+// ============ EXIT PROJECTION CHART (per apartment) ============
+export function buildExitProjectionChart(state, prop) {
+  const el = document.getElementById('exitProjectionChart');
+  if (!el) return;
+  if (charts.exitProjection) { charts.exitProjection.destroy(); delete charts.exitProjection; }
+
+  const iv = state.immoView;
+  if (!iv || !iv.amortSchedules) return;
+  const amort = iv.amortSchedules[prop.loanKey];
+  if (!amort) return;
+
+  const propMeta = prop.propertyMeta || {};
+  const purchasePrice = prop.purchasePrice || propMeta.purchasePrice || propMeta.totalOperation || prop.value;
+  const phases = propMeta.appreciationPhases || [];
+  const defaultRate = propMeta.appreciation || 0.01;
+  const sched = amort.schedule;
+  const [startY, startM] = sched[0].date.split('-').map(Number);
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const fiscConfig = IC.fiscalite && IC.fiscalite[prop.loanKey];
+  const fiscType = fiscConfig ? fiscConfig.type : 'nu';
+  const amortPerYear = purchasePrice * 0.80 * 0.02;
+
+  // Sub-loan info for IRA
+  const IC = IMMO_CONSTANTS;
+  const subLoansKey = prop.loanKey + 'Loans';
+  const subLoansConfig = IC.loans && IC.loans[subLoansKey] ? IC.loans[subLoansKey] : null;
+
+  function getRate(year) {
+    for (let i = 0; i < phases.length; i++) {
+      if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+    }
+    return defaultRate;
+  }
+
+  // Build year range: current year + 1 to current year + 15
+  const projYears = [];
+  for (let y = currentYear + 1; y <= currentYear + 15; y++) projYears.push(y);
+
+  const dataNet = [], dataTaxes = [], dataCosts = [], dataCRD = [];
+  const dataTVA = [], dataIRA = [];
+
+  for (const year of projYears) {
+    // Projected value with appreciation
+    let projValue = prop.value;
+    for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
+
+    // CRD at target year
+    const monthsFromStart = (year - startY) * 12 + (6 - startM); // ~June
+    const schedIdx = Math.min(Math.max(0, monthsFromStart), sched.length - 1);
+    const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+
+    // Total amortissements
+    const pDate = propMeta.purchaseDate || '2023-01';
+    const [pY2] = pDate.split('-').map(Number);
+    const yearsHeld = year - pY2;
+    const totalAmort = fiscType === 'lmnp' ? Math.round(amortPerYear * yearsHeld) : 0;
+
+    // Build per-loan CRDs for IRA
+    let loanCRDs = null;
+    if (amort.subSchedules && subLoansConfig) {
+      loanCRDs = amort.subSchedules.map((sub, i) => {
+        const subIdx = Math.min(Math.max(0, monthsFromStart), sub.schedule.length - 1);
+        const row = sub.schedule[subIdx];
+        return {
+          name: sub.name,
+          crd: row ? row.remainingCRD : 0,
+          rate: subLoansConfig[i] ? subLoansConfig[i].rate : 0,
+        };
+      });
+    } else if (IC.loans && IC.loans[prop.loanKey]) {
+      loanCRDs = [{ name: 'Prêt principal', crd: crd, rate: IC.loans[prop.loanKey].rate || 0 }];
+    }
+
+    try {
+      const ec = computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort, loanCRDs);
+      const netProceeds = Math.max(0, Math.round(ec.netEquityAfterExit));
+      const taxes = ec.totalTaxPV;
+      const tvaC = ec.tvaClawback || 0;
+      const ira = ec.ira || 0;
+      const otherCosts = ec.diagnostics + ec.mainlevee;
+
+      dataNet.push(netProceeds);
+      dataTaxes.push(taxes);
+      dataTVA.push(tvaC);
+      dataIRA.push(ira);
+      dataCosts.push(otherCosts);
+      dataCRD.push(Math.round(crd));
+    } catch (e) {
+      dataNet.push(0); dataTaxes.push(0); dataTVA.push(0); dataIRA.push(0); dataCosts.push(0); dataCRD.push(0);
+    }
+  }
+
+  charts.exitProjection = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: projYears.map(String),
+      datasets: [
+        { label: 'Net (ce que tu gardes)', data: dataNet, backgroundColor: '#276749', stack: 'breakdown' },
+        { label: 'Impôts PV', data: dataTaxes, backgroundColor: '#c53030', stack: 'breakdown' },
+        { label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' },
+        { label: 'IRA + frais', data: dataIRA.map((v, i) => v + dataCosts[i]), backgroundColor: '#d69e2e', stack: 'breakdown' },
+        { label: 'CRD restant', data: dataCRD, backgroundColor: '#a0aec0', stack: 'breakdown' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: 'Projection sortie — Si tu vends en année X', font: { size: 14 } },
+        tooltip: {
+          mode: 'index',
+          callbacks: {
+            label: c => c.dataset.label + ': ' + fmt(c.parsed.y),
+            afterBody: function(items) {
+              if (!items.length) return '';
+              const idx = items[0].dataIndex;
+              const total = dataNet[idx] + dataTaxes[idx] + dataTVA[idx] + dataIRA[idx] + dataCosts[idx] + dataCRD[idx];
+              return '\nPrix de vente estimé: ' + fmt(Math.round(total))
+                + '\nTu récupères: ' + fmt(dataNet[idx]);
+            }
+          }
+        },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, ticks: { callback: v => fmtAxis(v) } }
+      }
+    }
+  });
+}
+
 // Make available globally for render.js
 window.buildPropertyDetailCharts = buildPropertyDetailCharts;
+window.buildExitProjectionChart = buildExitProjectionChart;
 
 // ============ BUDGET DONUTS ============
 function buildBudgetZoneDonut(state) {
