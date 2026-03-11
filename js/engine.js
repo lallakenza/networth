@@ -421,12 +421,12 @@ function computeCashView(portfolio, fx) {
       owner: 'Amine', isDebt: true },
     { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
     // Nezha — comptes détaillés
-    { label: 'Revolut EUR (Nz)', native: p.nezha.cash.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.nezhaRevolutEUR, owner: 'Nezha' },
+    { label: 'Revolut EUR (Nezha)', native: p.nezha.cash.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.nezhaRevolutEUR, owner: 'Nezha' },
     { label: 'Crédit Mutuel', native: p.nezha.cash.creditMutuelCC, currency: 'EUR', yield: CASH_YIELDS.nezhaCreditMutuel, owner: 'Nezha' },
     { label: 'Livret A (LCL)', native: p.nezha.cash.lclLivretA, currency: 'EUR', yield: CASH_YIELDS.nezhaLivretA, owner: 'Nezha' },
     { label: 'LCL Dépôts', native: p.nezha.cash.lclCompteDepots, currency: 'EUR', yield: CASH_YIELDS.nezhaLclDepots, owner: 'Nezha' },
-    { label: 'Attijariwafa (Nz)', native: p.nezha.cash.attijariwafarMAD, currency: 'MAD', yield: CASH_YIELDS.nezhaAttijariMAD, owner: 'Nezha' },
-    { label: 'Wio UAE (Nz)', native: p.nezha.cash.wioAED, currency: 'AED', yield: CASH_YIELDS.nezhaWioAED, owner: 'Nezha' },
+    { label: 'Attijariwafa (Nezha)', native: p.nezha.cash.attijariwafarMAD, currency: 'MAD', yield: CASH_YIELDS.nezhaAttijariMAD, owner: 'Nezha' },
+    { label: 'Wio UAE (Nezha)', native: p.nezha.cash.wioAED, currency: 'AED', yield: CASH_YIELDS.nezhaWioAED, owner: 'Nezha' },
   ];
 
   let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
@@ -2205,15 +2205,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + amineRevolutEUR + amineMoroccoCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
-        ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nz)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
+        ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nezha)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
         ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: 'Nezha — 0%' }] : []),
         ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: 'Nezha — 1.5%' }] : []),
         ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Dépôts', val: nc.lclCompteDepots, color: '#b91c1c', owner: 'Nezha — 0%' }] : []),
-        ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa (Nz)', val: nezhaCashMarocEUR, color: '#991b1b', owner: 'Nezha — 0%' }] : []),
-        ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nz)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
-        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Am)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
+        ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa (Nezha)', val: nezhaCashMarocEUR, color: '#991b1b', owner: 'Nezha — 0%' }] : []),
+        ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nezha)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
+        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Amine)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
         ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
-        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Am)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
+        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
       ]
     },
     {
