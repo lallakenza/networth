@@ -270,6 +270,32 @@ Les KPI de la vue Actions sont cliquables. Chaque clic ouvre un panneau détaill
 
 ⚠ Bug historique (fixé v94) : `chartPreviousClose` était utilisé pour Daily P&L, ce qui affichait le changement YTD au lieu du daily.
 
+### Formule Period P&L — gestion des achats intra-période (fixé v97)
+
+**Problème** : si on achète 1000 actions IBIT en février 2026, le YTD P&L ne doit PAS calculer `1000 × (prix_actuel - prix_1er_jan)` car ces actions n'existaient pas au 1er janvier.
+
+**Formule correcte** :
+```
+periodPL = endValue - startValue - netCashInvested
+```
+Où :
+- `endValue` = currentShares × currentPrice (en EUR)
+- `startValue` = sharesAtStart × refPrice (en EUR)
+- `netCashInvested` = coût des achats pendant la période − produit des ventes pendant la période (en EUR)
+- `sharesAtStart` = currentShares − buysDuringPeriod + sellsDuringPeriod
+
+**Exemple concret (IBIT YTD)** :
+- 1200 shares actuelles, 100 achetées en dec 2025, 1100 achetées en jan-fév 2026
+- sharesAtStart (1er jan) = 1200 - 1100 = 100
+- startValue = 100 × ytdOpenPrice / fx.USD
+- netCashInvested = toEUR(48885 USD buys) (les 1100 shares achetées en 2026)
+- YTD P&L = valeur actuelle - startValue - netCashInvested
+- Résultat : seule la variation de prix sur les 100 shares + le gain/perte réel des 1100 shares (vs leur prix d'achat) sont comptés
+
+**Implémentation** : `computeIBKRPositions()` dans engine.js utilise `ibkr.trades[]` pour calculer `sharesAtStart` et `netCashInvested` pour chaque période et chaque ticker.
+
+**Note ESPP** : tous les lots ESPP (ACN) sont antérieurs à 2023. La formule simple `shares × (currentPrice - refPrice)` reste correcte pour ESPP car aucun trade n'a eu lieu pendant les périodes calculées.
+
 ## Conventions
 
 - Montants en devise native dans data.js, conversion en EUR dans engine.js via `toEUR()`
