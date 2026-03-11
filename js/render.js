@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=94';
-import { getGrandTotal } from './engine.js?v=94';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=95';
+import { getGrandTotal } from './engine.js?v=95';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -931,13 +931,15 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = pos._live === false;
     if (isStatic) hasStatic = true;
-    const staticMark = isStatic ? ' <span style="color:#a0aec0;font-size:10px" title="Cours statique (API indisponible)">*</span>' : '';
+    const liveBadge = isStatic
+      ? ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible">STATIC</span>'
+      : ' <span style="display:inline-block;background:#c6f6d5;color:#276749;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours en temps réel">LIVE</span>';
     const tr = document.createElement('tr');
     if (isStatic) tr.style.color = '#718096';
     tr.innerHTML = '<td>' + pos.label + '</td>'
       + '<td>' + (pos.broker || '') + '</td>'
       + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + (pos.priceLabel || '\u2014') + staticMark + '</td>'
+      + '<td class="num">' + (pos.priceLabel || '\u2014') + liveBadge + '</td>'
       + '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>'
       + '<td class="num">' + fmt(pos.valEUR) + '</td>'
       + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>'
