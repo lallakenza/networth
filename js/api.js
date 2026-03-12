@@ -91,13 +91,32 @@ export async function fetchFXRates(forceRefresh) {
 // STOCK PRICES — Single ticker fetch (race ALL proxies + endpoints)
 // ============================================================
 
-/** Extract price from Yahoo v8 chart endpoint */
+/**
+ * Extract price + previousClose from Yahoo v8 chart endpoint (range=5d).
+ * Uses historical OHLC data: current price from meta, previousClose from
+ * the second-to-last trading day's close in the time series.
+ */
 function extractFromChart(d) {
   const result = d?.chart?.result?.[0];
   const meta = result?.meta;
   const p = meta?.regularMarketPrice;
   if (!p || p <= 0) return null;
-  return { price: p, previousClose: meta?.previousClose || null };
+
+  // Try meta.previousClose first
+  let prevClose = meta?.previousClose || null;
+
+  // If missing, derive from historical closes (range=5d gives ~5 trading days)
+  if (!prevClose || prevClose <= 0) {
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (closes && closes.length >= 2) {
+      // Walk backwards to find the second-to-last valid close
+      for (let i = closes.length - 2; i >= 0; i--) {
+        if (closes[i] && closes[i] > 0) { prevClose = closes[i]; break; }
+      }
+    }
+  }
+
+  return { price: p, previousClose: prevClose };
 }
 
 /** Extract price from Yahoo v6 quote endpoint */
@@ -110,36 +129,35 @@ function extractFromQuote(d) {
 }
 
 /**
- * Fetch a single ticker — tries ALL proxies × 2 Yahoo endpoints in parallel.
+ * Fetch a single ticker — tries ALL proxies × 3 Yahoo endpoints in parallel.
  * Returns { price, previousClose } or null.
  *
- * Hybrid strategy (two-phase Promise.any):
- *   Phase 1: Race all attempts, but REJECT results missing previousClose.
- *            → First COMPLETE result wins (fast like Promise.any, quality like Promise.all).
- *   Phase 2: If phase 1 fails (no complete result), accept any result with a price.
- *            → Fallback ensures we at least get a price even without previousClose.
+ * Strategy:
+ *   - 3 endpoints: v8 chart range=5d (best for previousClose), v8 chart range=1d, v6 quote
+ *   - All 6 proxies × 3 endpoints = 18 parallel requests
+ *   - Promise.any picks the FIRST successful result
+ *   - Prefer results with previousClose, fall back to price-only
  */
 async function fetchStockPrice(symbol) {
-  const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d';
+  const chart5dUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=5d&interval=1d';
+  const chart1dUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d';
   const quoteUrl = 'https://query1.finance.yahoo.com/v6/finance/quote?symbols=' + symbol;
 
-  // Build promise factories — each returns { price, previousClose } or throws
+  // Build promise — returns { price, previousClose } or throws
   const makeAttempt = (proxy, url, extractor) =>
     fetchWithTimeout(proxy(url), 10000)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => { const result = extractor(d); if (!result) throw new Error('no data'); return result; });
 
-  // Launch ALL attempts at once (12 total: 6 proxies × 2 endpoints)
+  // Launch ALL attempts at once (18 total: 6 proxies × 3 endpoints)
   const rawPromises = [];
   for (const proxy of PROXIES) {
-    rawPromises.push(makeAttempt(proxy, chartUrl, extractFromChart));
+    rawPromises.push(makeAttempt(proxy, chart5dUrl, extractFromChart));  // best for previousClose
+    rawPromises.push(makeAttempt(proxy, chart1dUrl, extractFromChart));
     rawPromises.push(makeAttempt(proxy, quoteUrl, extractFromQuote));
   }
 
-  // Settle all into {status, value} so we can inspect results
-  const settled = Promise.allSettled(rawPromises);
-
-  // Phase 1: Promise.any — only accept results WITH previousClose
+  // Phase 1: Try to get a result WITH previousClose (fast — first one wins)
   const completePromises = rawPromises.map(p =>
     p.then(r => {
       if (!r.previousClose || r.previousClose <= 0) throw new Error('no previousClose');
@@ -147,21 +165,24 @@ async function fetchStockPrice(symbol) {
     })
   );
 
+  // Start both phases in parallel
+  const settledPromise = Promise.allSettled(rawPromises);
+
   try {
     return await Promise.any(completePromises);
   } catch (e) {
-    // Phase 1 failed — no complete result available
+    // No result with previousClose — fall back to any valid price
   }
 
-  // Phase 2: wait for all to settle, pick any valid result (price only)
-  const results = await settled;
+  // Phase 2: pick any valid result
+  const results = await settledPromise;
   const valid = results
     .filter(r => r.status === 'fulfilled' && r.value && r.value.price > 0)
     .map(r => r.value);
 
   if (valid.length === 0) return null;
 
-  // Still prefer results with previousClose if any arrived
+  // Still prefer results with previousClose
   const withPrevClose = valid.filter(r => r.previousClose && r.previousClose > 0);
   return withPrevClose.length > 0 ? withPrevClose[0] : valid[0];
 }
