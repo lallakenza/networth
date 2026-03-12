@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v112** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v113** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -67,38 +67,76 @@ Pour vérifier un ticker : `https://finance.yahoo.com/quote/TICKER` — si la pa
 
 ### Architecture API (api.js)
 
-Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS bloque les appels directs vers Yahoo Finance, donc on utilise des proxies :
+Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS bloque les appels directs vers Yahoo Finance, donc on utilise des proxies CORS.
 
+**PRINCIPE : maximiser le taux de succès.** Pour chaque ticker, on lance TOUS les proxies × TOUS les endpoints Yahoo en parallèle (Promise.any). Le premier qui répond gagne. Ensuite, si des tickers ont échoué, on relance automatiquement en boucle (retry loop) jusqu'à tout avoir.
+
+#### Proxies CORS (6 sources, toutes lancées en parallèle)
 ```
-fetchStockPrice(ticker):
-  URL: range=1d&interval=1d (très léger, ~1 data point au lieu de 70+)
-  Retourne: { price, previousClose } seulement
-  Batch 1 (race): Direct Yahoo + allorigins
-  Batch 2 (race, si batch 1 échoue): codetabs + corsproxy.io
-  → Si tous échouent : pos._live = false, prix fallback de data.js utilisé
-
-fetchStockPrices():
-  - Fetch par groupes de 4 tickers avec 600ms entre chaque batch
-  - Retry automatique des tickers échoués après 2s de pause
-
-IMPORTANT — séparation données live vs stockées:
-  - LIVE (API range=1d): price + previousClose uniquement
-  - STOCKÉ (data.js positions[]): ytdOpen, mtdOpen, oneMonthAgo
-  - Les prix historiques ne changent pas, donc on les stocke une fois dans data.js
-  - Mettre à jour mtdOpen au 1er de chaque mois, oneMonthAgo toutes les 2 semaines
-  - ytdOpen ne change qu'au 1er janvier
-
-fetchSGTMPrice():
-  1. Google Finance via allorigins (scrape data-last-price)
-  2. leboursier.ma via allorigins (scrape cours)
-  3. Google Finance via corsproxy.io
-  → Si tous échouent : prix statique de data.js
+1. Direct Yahoo (sans proxy — marche dans certains navigateurs)
+2. api.allorigins.win/raw?url=
+3. api.codetabs.com/v1/proxy?quest=
+4. corsproxy.io/?
+5. api.cors.lol/?url=
+6. thingproxy.freeboard.io/fetch/
 ```
 
-Si un proxy tombe durablement, le remplacer par un autre. Alternatives connues :
-- `https://thingproxy.freeboard.io/fetch/URL`
+#### Endpoints Yahoo (2 par ticker, lancés en parallèle via chaque proxy)
+```
+- v8 chart:  /v8/finance/chart/TICKER?range=1d&interval=1d  → extractFromChart()
+- v6 quote:  /v6/finance/quote?symbols=TICKER               → extractFromQuote()
+```
+
+Résultat : pour chaque ticker, **12 requêtes en parallèle** (6 proxies × 2 endpoints). Promise.any retourne le premier succès.
+
+#### Flux complet
+```
+1. Charger depuis localStorage cache (tickers déjà récupérés aujourd'hui)
+2. Lancer TOUS les tickers manquants en parallèle (pas de batching)
+3. Pour chaque ticker: 12 requêtes en parallèle → premier succès = sauvegardé
+4. Si des tickers ont échoué → RETRY LOOP automatique:
+   - Attendre 5 secondes
+   - Relancer les tickers manquants (12 requêtes/ticker)
+   - Rafraîchir le dashboard à chaque succès
+   - Max 5 rounds de retry
+   - S'arrête dès que 14/14 loadés
+5. Chaque prix récupéré est immédiatement sauvegardé dans le cache du jour
+```
+
+#### fetchStockPrice(ticker) — retourne { price, previousClose }
+```
+Race 12 promises en parallèle (6 proxies × 2 endpoints Yahoo)
+Timeout: 10s par requête
+Si TOUS échouent: return null → pos._live = false, fallback data.js
+```
+
+#### fetchSGTMPrice() — retourne prix en MAD
+```
+Race 10 promises en parallèle (5 proxies × 2 sources: Google Finance + leboursier.ma)
+Si TOUS échouent: prix statique de data.js
+```
+
+#### retryFailedTickers() — boucle de retry
+```
+- Max 5 rounds, 5s entre chaque round
+- Chaque round relance les tickers manquants en parallèle
+- Met à jour portfolio + cache + badge à chaque succès
+- Log console: [retry] Round X/5: N tickers (TICKER1, TICKER2...)
+```
+
+#### Séparation données live vs stockées
+```
+LIVE (API): price + previousClose uniquement
+STOCKÉ (data.js): ytdOpen, mtdOpen, oneMonthAgo
+→ mtdOpen: mettre à jour au 1er de chaque mois
+→ oneMonthAgo: mettre à jour toutes les 2 semaines
+→ ytdOpen: ne change qu'au 1er janvier
+```
+
+Si un proxy tombe durablement, le remplacer dans le tableau PROXIES de api.js. Sources alternatives :
 - `https://cors-anywhere.herokuapp.com/URL` (nécessite activation manuelle)
 - Déployer son propre proxy Cloudflare Worker (gratuit, plus fiable)
+- `https://corsfix.com/` (60 req/min gratuit)
 
 ## Cache localStorage (api.js)
 

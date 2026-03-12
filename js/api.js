@@ -3,6 +3,10 @@
 // ============================================================
 // Returns data only, never touches the DOM.
 // Uses localStorage as daily cache to avoid redundant API calls.
+//
+// STRATEGY: Maximize success rate by using multiple CORS proxies,
+// multiple Yahoo endpoints, all in parallel. Then retry failed
+// tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
 const CACHE_PREFIX = 'nw_cache_';
@@ -23,7 +27,6 @@ function saveCache(cache) {
   try { localStorage.setItem(todayKey(), JSON.stringify(cache)); } catch (e) { /* quota exceeded — ignore */ }
 }
 
-/** Remove cache entries from previous days */
 function purgeOldCache() {
   try {
     const today = todayKey();
@@ -36,23 +39,34 @@ function purgeOldCache() {
   } catch (e) { /* ignore */ }
 }
 
-// Run once on module load
 purgeOldCache();
 
-/**
- * Fetch live FX rates from ExchangeRate-API
- * Returns { rates: {AED, MAD, USD, JPY}, source: string } or null on failure
- */
+// ---- CORS Proxy list ----
+// Each proxy wraps a target URL to bypass CORS.
+// Order matters: most reliable first. We race them ALL in parallel.
+const PROXIES = [
+  url => url, // direct (works without CORS in some browsers)
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  url => 'https://api.cors.lol/?url=' + encodeURIComponent(url),
+  url => 'https://thingproxy.freeboard.io/fetch/' + url,
+];
+
+// ---- Helper: fetch with timeout ----
+function fetchWithTimeout(url, timeoutMs) {
+  return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+}
+
+// ============================================================
+// FX RATES
+// ============================================================
 export async function fetchFXRates(forceRefresh) {
-  // Check cache first
   if (!forceRefresh) {
     const cache = loadCache();
     if (cache.fx) {
       console.log('[cache] FX rates loaded from cache');
-      return {
-        rates: cache.fx.rates,
-        source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')',
-      };
+      return { rates: cache.fx.rates, source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')' };
     }
   }
 
@@ -61,22 +75,11 @@ export async function fetchFXRates(forceRefresh) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.result === 'success' && data.rates) {
-      const rates = {
-        EUR: 1,
-        AED: data.rates.AED,
-        MAD: data.rates.MAD,
-        USD: data.rates.USD,
-        JPY: data.rates.JPY,
-      };
-      // Save to cache
+      const rates = { EUR: 1, AED: data.rates.AED, MAD: data.rates.MAD, USD: data.rates.USD, JPY: data.rates.JPY };
       const cache = loadCache();
       cache.fx = { rates };
       saveCache(cache);
-
-      return {
-        rates,
-        source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')',
-      };
+      return { rates, source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')' };
     }
   } catch (e) {
     console.warn('FX API indisponible:', e.message);
@@ -84,52 +87,64 @@ export async function fetchFXRates(forceRefresh) {
   return null;
 }
 
-/**
- * Fetch a single stock price from Yahoo Finance
- */
-async function fetchStockPrice(symbol) {
-  // Fetch only current price + previousClose (range=1d = very light, ~1 data point)
-  // Historical ref prices (ytdOpen, mtdOpen, oneMonthAgo) are stored in data.js — not re-fetched
-  function extractFromYahoo(d) {
-    const result = d?.chart?.result?.[0];
-    const meta = result?.meta;
-    const p = meta?.regularMarketPrice;
-    if (!p || p <= 0) return null;
-    return { price: p, previousClose: meta?.previousClose || null };
-  }
-  const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d';
+// ============================================================
+// STOCK PRICES — Single ticker fetch (race ALL proxies + endpoints)
+// ============================================================
 
-  // Try proxies sequentially (reduces total requests to avoid Yahoo rate-limiting)
-  // Order: most reliable first
-  const proxies = [
-    yahooUrl, // direct (works in some browsers without CORS)
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl),
-    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(yahooUrl),
-    'https://corsproxy.io/?' + encodeURIComponent(yahooUrl),
-  ];
+/** Extract price from Yahoo v8 chart endpoint */
+function extractFromChart(d) {
+  const result = d?.chart?.result?.[0];
+  const meta = result?.meta;
+  const p = meta?.regularMarketPrice;
+  if (!p || p <= 0) return null;
+  return { price: p, previousClose: meta?.previousClose || null };
+}
 
-  // Race first 2 proxies, then fallback to remaining if both fail
-  const tryBatch = (urls) => urls.map(url =>
-    fetch(url, { signal: AbortSignal.timeout(8000) })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => { const result = extractFromYahoo(d); if (!result) throw new Error('no data'); return result; })
-  );
-
-  try {
-    return await Promise.any(tryBatch(proxies.slice(0, 2)));
-  } catch(e1) {
-    try {
-      return await Promise.any(tryBatch(proxies.slice(2)));
-    } catch(e2) {
-      return null; // all sources failed
-    }
-  }
+/** Extract price from Yahoo v6 quote endpoint */
+function extractFromQuote(d) {
+  const q = d?.quoteResponse?.result?.[0];
+  if (!q) return null;
+  const p = q.regularMarketPrice;
+  if (!p || p <= 0) return null;
+  return { price: p, previousClose: q.regularMarketPreviousClose || null };
 }
 
 /**
- * Fetch SGTM price from Casablanca Bourse (multiple fallbacks)
- * Returns price in MAD or null
+ * Fetch a single ticker — tries ALL proxies × 2 Yahoo endpoints in parallel.
+ * Returns { price, previousClose } or null.
  */
+async function fetchStockPrice(symbol) {
+  const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d';
+  const quoteUrl = 'https://query1.finance.yahoo.com/v6/finance/quote?symbols=' + symbol;
+
+  const attempts = [];
+
+  // Strategy: race ALL proxies for BOTH endpoints
+  for (const proxy of PROXIES) {
+    // v8 chart endpoint
+    attempts.push(
+      fetchWithTimeout(proxy(chartUrl), 10000)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(d => { const result = extractFromChart(d); if (!result) throw new Error('no data'); return result; })
+    );
+    // v6 quote endpoint (different response format, different rate limits)
+    attempts.push(
+      fetchWithTimeout(proxy(quoteUrl), 10000)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(d => { const result = extractFromQuote(d); if (!result) throw new Error('no data'); return result; })
+    );
+  }
+
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    return null;
+  }
+}
+
+// ============================================================
+// SGTM — Casablanca Bourse (multiple sources)
+// ============================================================
 async function fetchSGTMPrice() {
   const gUrl = 'https://www.google.com/finance/quote/GTM:CAS';
   const lUrl = 'https://www.leboursier.ma/cours/SGTM';
@@ -151,30 +166,38 @@ async function fetchSGTMPrice() {
     throw new Error('no price');
   }
 
-  // Race all sources in parallel
-  const attempts = [
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(gUrl), { signal: AbortSignal.timeout(8000) })
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractGooglePrice),
-    fetch('https://corsproxy.io/?' + encodeURIComponent(gUrl), { signal: AbortSignal.timeout(8000) })
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractGooglePrice),
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(lUrl), { signal: AbortSignal.timeout(8000) })
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); }).then(extractBoursierPrice),
-  ];
+  // Try all proxies for both Google Finance and leboursier
+  const attempts = [];
+  for (const proxy of PROXIES.slice(1)) { // skip direct (HTML pages always need proxy)
+    attempts.push(
+      fetchWithTimeout(proxy(gUrl), 10000)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(extractGooglePrice)
+    );
+    attempts.push(
+      fetchWithTimeout(proxy(lUrl), 10000)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(extractBoursierPrice)
+    );
+  }
 
   try {
     return await Promise.any(attempts);
-  } catch(e) {
+  } catch (e) {
     return null;
   }
 }
 
+// ============================================================
+// MAIN — Fetch all stock prices with cache + aggressive retry
+// ============================================================
+
 /**
  * Fetch all stock prices (IBKR positions + ACN + SGTM)
- * Mutates portfolio.amine.ibkr.positions[].price, portfolio.market.acnPriceUSD, portfolio.market.sgtmPriceMAD
  * @param {object} portfolio
- * @param {function} onProgress - optional callback(loaded, total, ticker) called as each ticker completes
- * @param {boolean} forceRefresh - if true, bypass cache and re-fetch all tickers
- * Returns { updated: boolean, liveCount: number, totalTickers: number, sgtmLive: boolean }
+ * @param {function} onProgress - callback(loaded, total, ticker)
+ * @param {boolean} forceRefresh - bypass cache
+ * Returns { updated, liveCount, totalTickers, sgtmLive, failedTickers }
  */
 export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
   const allTickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
@@ -182,101 +205,71 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
   let loaded = 0;
   const prices = {};
 
-  // ---- Load from cache first ----
+  // ---- Load from cache ----
   const cache = loadCache();
   let tickersToFetch = [];
   let cachedSGTM = null;
 
   if (!forceRefresh) {
-    // Restore cached stock prices
     for (const ticker of allTickers) {
       if (cache.stocks[ticker]) {
         prices[ticker] = cache.stocks[ticker];
         loaded++;
-        if (onProgress) onProgress(loaded, totalTickers, ticker + ' (cache)');
+        if (onProgress) onProgress(loaded, totalTickers, ticker + ' ✓');
       } else {
         tickersToFetch.push(ticker);
       }
     }
-    // Restore cached SGTM
     if (cache.sgtm) {
       cachedSGTM = cache.sgtm.price;
       loaded++;
-      if (onProgress) onProgress(loaded, totalTickers, 'SGTM (cache)');
+      if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
     }
-    if (tickersToFetch.length === 0 && cachedSGTM !== null) {
-      console.log('[cache] All ' + totalTickers + ' tickers loaded from cache — 0 API calls');
-    } else {
-      console.log('[cache] ' + (allTickers.length - tickersToFetch.length) + '/' + allTickers.length + ' tickers from cache, ' + tickersToFetch.length + ' to fetch' + (cachedSGTM !== null ? ', SGTM from cache' : ', SGTM to fetch'));
-    }
+    console.log('[api] ' + (allTickers.length - tickersToFetch.length) + '/' + allTickers.length + ' from cache, ' + tickersToFetch.length + ' to fetch' + (cachedSGTM !== null ? ', SGTM cached' : ''));
   } else {
     tickersToFetch = [...allTickers];
-    console.log('[cache] Force refresh — fetching all ' + totalTickers + ' tickers');
+    console.log('[api] Hard refresh — fetching all ' + totalTickers);
   }
 
-  // ---- Fetch remaining tickers from API ----
-  const BATCH_SIZE = 4;
-  const BATCH_DELAY = 600; // ms between batches
+  // ---- Fetch all missing tickers in parallel (no batching!) ----
   let cacheUpdated = false;
 
-  if (tickersToFetch.length > 0) {
-    async function fetchBatched() {
-      for (let i = 0; i < tickersToFetch.length; i += BATCH_SIZE) {
-        const batch = tickersToFetch.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (ticker) => {
-          const result = await fetchStockPrice(ticker);
-          if (result) {
-            prices[ticker] = result;
-            // Save to cache immediately
-            cache.stocks[ticker] = result;
-            cacheUpdated = true;
-          }
-          loaded++;
-          if (onProgress) onProgress(loaded, totalTickers, ticker);
-        }));
-        // Small delay between batches (except after last batch)
-        if (i + BATCH_SIZE < tickersToFetch.length) {
-          await new Promise(r => setTimeout(r, BATCH_DELAY));
-        }
+  if (tickersToFetch.length > 0 || cachedSGTM === null) {
+    // Launch ALL tickers at once — the proxies handle rate limiting internally
+    const tickerPromises = tickersToFetch.map(async (ticker) => {
+      const result = await fetchStockPrice(ticker);
+      if (result) {
+        prices[ticker] = result;
+        cache.stocks[ticker] = result;
+        cacheUpdated = true;
       }
-    }
+      loaded++;
+      if (onProgress) onProgress(loaded, totalTickers, ticker + (result ? ' ✓' : ' ✗'));
+    });
 
-    // Fetch SGTM in parallel with Yahoo tickers (only if not cached)
+    // SGTM in parallel
     const sgtmPromise = (cachedSGTM === null)
-      ? fetchSGTMPrice().then(r => { loaded++; if (onProgress) onProgress(loaded, totalTickers, 'SGTM'); return r; })
-      : Promise.resolve(null); // already cached, skip
+      ? fetchSGTMPrice().then(r => {
+          loaded++;
+          if (onProgress) onProgress(loaded, totalTickers, 'SGTM' + (r ? ' ✓' : ' ✗'));
+          return r;
+        })
+      : Promise.resolve(null);
 
-    const [, sgtmPrice] = await Promise.all([fetchBatched(), sgtmPromise]);
+    const [, sgtmPrice] = await Promise.all([Promise.all(tickerPromises), sgtmPromise]);
 
-    // Store SGTM in cache if fetched
     if (cachedSGTM === null && sgtmPrice) {
       cachedSGTM = sgtmPrice;
       cache.sgtm = { price: sgtmPrice };
       cacheUpdated = true;
     }
 
-    // Retry pass for failed tickers (after a short delay)
-    const failedTickers = tickersToFetch.filter(t => !prices[t]);
-    if (failedTickers.length > 0) {
-      await new Promise(r => setTimeout(r, 2000));
-      await Promise.all(failedTickers.map(async (ticker) => {
-        const result = await fetchStockPrice(ticker);
-        if (result) {
-          prices[ticker] = result;
-          cache.stocks[ticker] = result;
-          cacheUpdated = true;
-        }
-      }));
-    }
-
-    // Persist cache if anything changed
     if (cacheUpdated) saveCache(cache);
   }
 
+  // ---- Apply prices to portfolio ----
   let updated = false;
 
-  // Update IBKR positions — only price + previousClose from API
-  // ytdOpen/mtdOpen/oneMonthAgo come from data.js (stored once)
   portfolio.amine.ibkr.positions.forEach(pos => {
     if (prices[pos.ticker]) {
       const d = prices[pos.ticker];
@@ -289,7 +282,6 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
     }
   });
 
-  // Update ACN (ESPP) — only price + previousClose
   if (prices['ACN']) {
     const d = prices['ACN'];
     portfolio.market.acnPriceUSD = d.price;
@@ -300,7 +292,6 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
     portfolio.market._acnLive = false;
   }
 
-  // Update SGTM
   let sgtmLive = false;
   if (cachedSGTM) {
     portfolio.market.sgtmPriceMAD = cachedSGTM;
@@ -311,10 +302,98 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
     portfolio.market._sgtmLive = false;
   }
 
+  // List failed tickers for retry
+  const failedTickers = allTickers.filter(t => !prices[t]);
+  if (failedTickers.length > 0) {
+    console.log('[api] Failed tickers after first pass: ' + failedTickers.join(', '));
+  } else {
+    console.log('[api] All tickers loaded successfully!');
+  }
+
   return {
     updated,
     liveCount: Object.keys(prices).length + (sgtmLive ? 1 : 0),
     totalTickers: allTickers.length + 1,
     sgtmLive,
+    failedTickers,
   };
+}
+
+/**
+ * Retry loop: keep fetching failed tickers until all loaded or maxRetries
+ * @param {string[]} failedTickers - tickers that failed on first pass
+ * @param {object} portfolio - mutated with new prices
+ * @param {function} onRetryUpdate - callback(liveCount, totalTickers, retryNum) after each retry round
+ * @param {number} maxRetries - max retry rounds (default 5)
+ * @param {number} delayMs - delay between retry rounds (default 5000)
+ * Returns final { liveCount, totalTickers }
+ */
+export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate, maxRetries, delayMs) {
+  maxRetries = maxRetries || 5;
+  delayMs = delayMs || 5000;
+  let remaining = [...failedTickers];
+  const cache = loadCache();
+  const allTickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
+
+  for (let retry = 1; retry <= maxRetries && remaining.length > 0; retry++) {
+    console.log('[retry] Round ' + retry + '/' + maxRetries + ': ' + remaining.length + ' tickers (' + remaining.join(', ') + ')');
+    await new Promise(r => setTimeout(r, delayMs));
+
+    // Fetch all remaining in parallel
+    const results = await Promise.all(remaining.map(async (ticker) => {
+      const result = await fetchStockPrice(ticker);
+      return { ticker, result };
+    }));
+
+    let anySuccess = false;
+    for (const { ticker, result } of results) {
+      if (result) {
+        // Update portfolio
+        const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === ticker);
+        if (pos) {
+          pos.price = result.price;
+          pos.previousClose = result.previousClose;
+          pos._live = true;
+        }
+        if (ticker === 'ACN') {
+          portfolio.market.acnPriceUSD = result.price;
+          portfolio.market.acnPreviousClose = result.previousClose;
+          portfolio.market._acnLive = true;
+        }
+        // Update cache
+        cache.stocks[ticker] = result;
+        anySuccess = true;
+      }
+    }
+
+    if (anySuccess) saveCache(cache);
+
+    remaining = remaining.filter(t => {
+      const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === t);
+      if (pos) return !pos._live;
+      if (t === 'ACN') return !portfolio.market._acnLive;
+      return true;
+    });
+
+    // Count live
+    const liveCount = allTickers.filter(t => {
+      const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === t);
+      if (pos) return pos._live === true;
+      if (t === 'ACN') return portfolio.market._acnLive === true;
+      return false;
+    }).length + (portfolio.market._sgtmLive ? 1 : 0);
+
+    if (onRetryUpdate) onRetryUpdate(liveCount, allTickers.length + 1, retry);
+
+    if (remaining.length === 0) {
+      console.log('[retry] All tickers loaded after retry round ' + retry + '!');
+      break;
+    }
+  }
+
+  if (remaining.length > 0) {
+    console.log('[retry] Still missing after ' + maxRetries + ' retries: ' + remaining.join(', '));
+  }
+
+  return { remaining };
 }
