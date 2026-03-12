@@ -180,7 +180,8 @@
     </div>
     <div style="font-size:10px;color:var(--gray);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span id="fxBadge">Taux FX : chargement...</span> <span style="opacity:0.5">|</span> <span id="stockBadge">Actions : chargement...</span>
-      <button id="refreshStocksBtn" title="Rafraîchir les cours" style="background:none;border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.7);border-radius:12px;padding:2px 8px;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">&#x21bb; Refresh</button>
+      <button id="refreshStocksBtn" title="Rafraîchir (utilise le cache du jour)" style="background:none;border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.7);border-radius:12px;padding:2px 8px;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">&#x21bb; Refresh</button>
+      <button id="hardRefreshBtn" title="Tout re-télécharger (ignore le cache)" style="background:none;border:1px solid rgba(255,140,0,0.5);color:rgba(255,140,0,0.85);border-radius:12px;padding:2px 8px;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">⚡ Hard Refresh</button>
     </div>
     <div id="stockProgressBar" style="display:none;margin-top:4px;width:100%;max-width:320px;">
       <div style="background:rgba(255,255,255,0.15);border-radius:4px;height:4px;overflow:hidden;">
@@ -1022,7 +1023,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=110"></script>
+<script type="module" src="js/app.js?v=111"></script>
 
 </body>
 </html>
