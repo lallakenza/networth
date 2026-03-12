@@ -74,21 +74,25 @@ export const PORTFOLIO = {
     ibkr: {
       staticNAV: 192878,    // NAV totale du rapport CSV au 09/03/2026
       positions: [
-        // { ticker, shares, price (cours actuel), costBasis (PRU), currency, label, sector, geo }
-        // Cours mis à jour automatiquement par l'API Yahoo Finance
-        { ticker: 'AIR.PA',  shares: 200,  price: 177.90, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france' },
-        { ticker: 'BN.PA',   shares: 200,  price: 70.20,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france' },
-        { ticker: 'DG.PA',   shares: 200,  price: 130.65, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france' },
-        { ticker: 'FGR.PA',  shares: 100,  price: 141.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france' },
-        { ticker: 'MC.PA',   shares: 40,   price: 498.60, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france' },
-        { ticker: 'OR.PA',   shares: 30,   price: 361.90, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france' },
-        { ticker: 'P911.DE', shares: 400,  price: 37.76,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany' },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1927.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france' },
-        { ticker: 'SAN.PA',  shares: 50,   price: 75.82,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france' },
-        { ticker: 'SAP',     shares: 70,   price: 165.60, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany' },
-        { ticker: '4911.T',  shares: 500,  price: 3222,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan' },
-        { ticker: 'IBIT',    shares: 1200, price: 39.43,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto' },
-        { ticker: 'ETHA',    shares: 1100, price: 15.39,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto' },
+        // { ticker, shares, price (cours actuel fallback), costBasis (PRU), currency, label, sector, geo }
+        // price: mis à jour par l'API Yahoo range=1d, sinon fallback statique ci-dessous
+        // ytdOpen/mtdOpen/oneMonthAgo: prix de référence historiques — stockés une fois, mis à jour mensuellement
+        //   ytdOpen = clôture 1er jour de bourse 2026 (2 jan)
+        //   mtdOpen = clôture 1er jour du mois courant (3 mar 2026)
+        //   oneMonthAgo = clôture ~30 jours avant (10 fév 2026)
+        { ticker: 'AIR.PA',  shares: 200,  price: 177.90, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 180.28, oneMonthAgo: 187.24 },
+        { ticker: 'BN.PA',   shares: 200,  price: 70.20,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 71.22, oneMonthAgo: 69.02 },
+        { ticker: 'DG.PA',   shares: 200,  price: 130.65, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 138.40, oneMonthAgo: 133.55 },
+        { ticker: 'FGR.PA',  shares: 100,  price: 141.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 145.60, oneMonthAgo: 135.40 },
+        { ticker: 'MC.PA',   shares: 40,   price: 498.60, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 520.50, oneMonthAgo: 525.10 },
+        { ticker: 'OR.PA',   shares: 30,   price: 361.90, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.95, oneMonthAgo: 391.90 },
+        { ticker: 'P911.DE', shares: 400,  price: 37.76,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 40.27, oneMonthAgo: 41.18 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1927.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1967.00, oneMonthAgo: 2120.00 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 75.82,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 81.45, oneMonthAgo: 82.56 },
+        { ticker: 'SAP',     shares: 70,   price: 165.60, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 },
+        { ticker: '4911.T',  shares: 500,  price: 3222,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3239.00, oneMonthAgo: 3223.00 },
+        { ticker: 'IBIT',    shares: 1200, price: 39.43,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
+        { ticker: 'ETHA',    shares: 1100, price: 15.39,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
       ],
       // ⬇️ Cash multi-devises (IBKR — mis à jour 10 mars 2026 après FX trades)
       cashEUR: 1,            // Solde EUR chez IBKR (vendu 65926 EUR→JPY @ 183.595)
@@ -369,6 +373,10 @@ export const PORTFOLIO = {
     sgtmPriceMAD: 717,       // Cours SGTM en MAD (séance 11 Mar 2026) — casablanca-bourse.com
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 201.63,     // Cours Accenture en USD — mis à jour 11/03/2026
+    // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
+    acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
+    acnMtdOpen: 205.93,      // ACN clôture 3 mar 2026
+    acnOneMonthAgo: 240.86,  // ACN clôture ~10 fév 2026
   },
 };
 

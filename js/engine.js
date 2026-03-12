@@ -115,6 +115,8 @@ function computeIBKRPositions(portfolio, fx) {
       return valEUR - refVal;
     }
 
+    // previousClose comes from live API only (changes daily).
+    // ytdOpen/mtdOpen/oneMonthAgo are stored in data.js (stable reference prices).
     const dailyPL = periodPL(pos.previousClose, true, todayStr);
     const mtdPL = periodPL(pos.mtdOpen, false, mtdStartStr);
     const ytdPL = periodPL(pos.ytdOpen, false, ytdStartStr);

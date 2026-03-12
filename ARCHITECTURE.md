@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v109** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v110** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -71,14 +71,22 @@ Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS 
 
 ```
 fetchStockPrice(ticker):
+  URL: range=1d&interval=1d (très léger, ~1 data point au lieu de 70+)
+  Retourne: { price, previousClose } seulement
   Batch 1 (race): Direct Yahoo + allorigins
   Batch 2 (race, si batch 1 échoue): codetabs + corsproxy.io
   → Si tous échouent : pos._live = false, prix fallback de data.js utilisé
 
 fetchStockPrices():
   - Fetch par groupes de 4 tickers avec 600ms entre chaque batch
-  - Évite le rate-limiting Yahoo (429) qui survient avec 60+ requêtes simultanées
   - Retry automatique des tickers échoués après 2s de pause
+
+IMPORTANT — séparation données live vs stockées:
+  - LIVE (API range=1d): price + previousClose uniquement
+  - STOCKÉ (data.js positions[]): ytdOpen, mtdOpen, oneMonthAgo
+  - Les prix historiques ne changent pas, donc on les stocke une fois dans data.js
+  - Mettre à jour mtdOpen au 1er de chaque mois, oneMonthAgo toutes les 2 semaines
+  - ytdOpen ne change qu'au 1er janvier
 
 fetchSGTMPrice():
   1. Google Finance via allorigins (scrape data-last-price)
