@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=112';
-import { compute } from './engine.js?v=112';
-import { render } from './render.js?v=112';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=112';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=112';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=112';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=113';
+import { compute } from './engine.js?v=113';
+import { render } from './render.js?v=113';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers } from './api.js?v=113';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=113';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=113';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -256,6 +256,22 @@ async function loadStockPrices(forceRefresh) {
     if (progressLabel) progressLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
   }
 
+  function updateBadge(result) {
+    if (!sBadge) return;
+    const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
+    const yahooTotal = result.totalTickers - 1;
+    const allYahooLive = yahooLive >= yahooTotal;
+
+    const statusLabel = yahooLive > 0
+      ? yahooLive + '/' + yahooTotal + ' live'
+      : 'statique (données du ' + DATA_LAST_UPDATE + ')';
+    const sgtmLabel = result.sgtmLive
+      ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
+      : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
+    sBadge.style.color = allYahooLive ? 'var(--green)' : 'var(--red)';
+  }
+
   try {
     // Also re-fetch FX on hard refresh
     if (forceRefresh) {
@@ -268,29 +284,49 @@ async function loadStockPrices(forceRefresh) {
       }
     }
 
+    // ---- First pass: fetch all tickers ----
     const result = await fetchStockPrices(PORTFOLIO, onProgress, forceRefresh);
     if (result.updated) {
       stockSource = 'live';
       refresh();
     }
-    if (sBadge) {
-      const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
-      const yahooTotal = result.totalTickers - 1;
-      const allYahooLive = yahooLive >= yahooTotal;
+    updateBadge(result);
 
-      const statusLabel = yahooLive > 0
-        ? yahooLive + '/' + yahooTotal + ' live'
-        : 'statique (données du ' + DATA_LAST_UPDATE + ')';
-      const sgtmLabel = result.sgtmLive
-        ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
-        : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
-      sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
+    // ---- Retry loop: keep trying failed tickers until all loaded ----
+    if (result.failedTickers && result.failedTickers.length > 0) {
+      if (sBadge) sBadge.textContent += ' (retry en cours...)';
+      if (progressBar) progressBar.style.display = 'block';
 
-      if (allYahooLive) {
-        sBadge.style.color = 'var(--green)';
-      } else {
-        sBadge.style.color = 'var(--red)';
-      }
+      await retryFailedTickers(
+        result.failedTickers,
+        PORTFOLIO,
+        function onRetryUpdate(liveCount, totalTickers, retryNum) {
+          stockSource = 'live';
+          refresh();
+          const yahooLive = liveCount - (PORTFOLIO.market._sgtmLive ? 1 : 0);
+          const yahooTotal = totalTickers - 1;
+          const allYahooLive = yahooLive >= yahooTotal;
+          const sgtmLabel = PORTFOLIO.market._sgtmLive
+            ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
+            : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+          if (sBadge) {
+            sBadge.textContent = 'Actions: ' + yahooLive + '/' + yahooTotal + ' live | SGTM: ' + sgtmLabel;
+            if (!allYahooLive) sBadge.textContent += ' (retry ' + retryNum + '...)';
+            sBadge.style.color = allYahooLive ? 'var(--green)' : 'var(--red)';
+          }
+          if (progressFill) progressFill.style.width = Math.round(liveCount / totalTickers * 100) + '%';
+          if (progressLabel) progressLabel.textContent = 'Retry ' + retryNum + ' — ' + yahooLive + '/' + yahooTotal + ' live';
+        },
+        5,   // maxRetries
+        5000 // 5s between retries
+      );
+
+      // Final badge update after retries
+      const finalLive = PORTFOLIO.amine.ibkr.positions.filter(p => p._live === true).length + (PORTFOLIO.market._acnLive ? 1 : 0);
+      const finalTotal = PORTFOLIO.amine.ibkr.positions.length + 1;
+      const finalSgtm = PORTFOLIO.market._sgtmLive;
+      updateBadge({ liveCount: finalLive + (finalSgtm ? 1 : 0), totalTickers: finalTotal + 1, sgtmLive: finalSgtm });
+      refresh();
     }
   } catch (e) {
     console.warn('Stock fetch error:', e);
