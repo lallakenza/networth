@@ -112,6 +112,10 @@ function extractFromQuote(d) {
 /**
  * Fetch a single ticker — tries ALL proxies × 2 Yahoo endpoints in parallel.
  * Returns { price, previousClose } or null.
+ *
+ * Strategy: collect ALL results. Prefer results that have previousClose.
+ * This avoids the issue where Promise.any picks a fast result without previousClose
+ * while a slower result with previousClose arrives later.
  */
 async function fetchStockPrice(symbol) {
   const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1d&interval=1d';
@@ -119,27 +123,29 @@ async function fetchStockPrice(symbol) {
 
   const attempts = [];
 
-  // Strategy: race ALL proxies for BOTH endpoints
   for (const proxy of PROXIES) {
-    // v8 chart endpoint
     attempts.push(
       fetchWithTimeout(proxy(chartUrl), 10000)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => { const result = extractFromChart(d); if (!result) throw new Error('no data'); return result; })
+        .catch(() => null)
     );
-    // v6 quote endpoint (different response format, different rate limits)
     attempts.push(
       fetchWithTimeout(proxy(quoteUrl), 10000)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => { const result = extractFromQuote(d); if (!result) throw new Error('no data'); return result; })
+        .catch(() => null)
     );
   }
 
-  try {
-    return await Promise.any(attempts);
-  } catch (e) {
-    return null;
-  }
+  // Wait for ALL to settle (with timeout), then pick best result
+  const results = await Promise.all(attempts);
+  const valid = results.filter(r => r && r.price > 0);
+  if (valid.length === 0) return null;
+
+  // Prefer results that have previousClose
+  const withPrevClose = valid.filter(r => r.previousClose && r.previousClose > 0);
+  return withPrevClose.length > 0 ? withPrevClose[0] : valid[0];
 }
 
 // ============================================================
@@ -212,12 +218,16 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
 
   if (!forceRefresh) {
     for (const ticker of allTickers) {
-      if (cache.stocks[ticker]) {
-        prices[ticker] = cache.stocks[ticker];
+      const cached = cache.stocks[ticker];
+      // Only consider fully cached if we have BOTH price AND previousClose
+      if (cached && cached.price > 0 && cached.previousClose && cached.previousClose > 0) {
+        prices[ticker] = cached;
         loaded++;
         if (onProgress) onProgress(loaded, totalTickers, ticker + ' ✓');
       } else {
         tickersToFetch.push(ticker);
+        // If we had a partial cache (price but no previousClose), keep it as fallback
+        if (cached && cached.price > 0) prices[ticker] = cached;
       }
     }
     if (cache.sgtm) {
