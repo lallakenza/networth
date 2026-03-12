@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v110** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v112** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -99,6 +99,27 @@ Si un proxy tombe durablement, le remplacer par un autre. Alternatives connues :
 - `https://thingproxy.freeboard.io/fetch/URL`
 - `https://cors-anywhere.herokuapp.com/URL` (nécessite activation manuelle)
 - Déployer son propre proxy Cloudflare Worker (gratuit, plus fiable)
+
+## Cache localStorage (api.js)
+
+Pour éviter de surcharger les APIs à chaque refresh, les résultats sont cachés dans `localStorage` pour la journée :
+
+```
+Clé : nw_cache_YYYY-MM-DD
+Contenu : { stocks: { TICKER: { price, previousClose } }, fx: { rates }, sgtm: { price } }
+```
+
+**Comportement :**
+- Au chargement : les tickers déjà en cache pour aujourd'hui sont lus depuis localStorage (0 appels API)
+- Seuls les tickers manquants sont requêtés (le "delta")
+- Chaque ticker réussi est sauvegardé immédiatement dans le cache
+- Les entrées des jours précédents sont purgées automatiquement au chargement du module
+
+**Boutons :**
+- **Refresh** (gris) : smart refresh — ne requête que les tickers absents du cache du jour
+- **⚡ Hard Refresh** (orange) : ignore le cache, re-télécharge tout (FX + stocks + SGTM)
+
+**Auto-refresh** : toutes les 10 minutes, smart refresh automatique.
 
 ## Cache busting
 
@@ -341,16 +362,20 @@ Où :
 
 ## Règle de merge des tickers partagés (Amine + Nezha)
 
-Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM via Bourse Casablanca), il faut **merger** les entrées dans les vues agrégées et **séparer** dans les vues détaillées :
+**PRINCIPE FONDAMENTAL** : tout est affiché PAR TICKER (fusionné) partout, **sauf** dans les vues individuelles "Amine" et "Nezha" où la séparation par personne est pertinente.
 
-| Vue | Comportement | Exemple |
+Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM via Bourse Casablanca) :
+
+| Vue / Composant | Comportement | Exemple |
 |-----|-------------|---------|
-| **Treemaps** (couple, geo, nezha, amine) | Merger → une seule entrée | "ESPP Accenture €36K", "SGTM €4K" |
+| **Treemaps** (couple, actions, geo) | Merger → une seule entrée | "ESPP Accenture €36K", "SGTM €4K" |
 | **Positions table** (vue Actions) | Merger → une seule ligne | "Accenture (207 ACN)", "SGTM (64 actions)" |
 | **KPI sub-cards** (vue Couple, expand stocks) | Merger | "ESPP: €36K (Amine 167 + Nezha 40)" |
-| **Nezha Detail table** | Séparer (Nezha only) | "ESPP Accenture (40 ACN @ $202)" |
-| **Amine Detail table** | Séparer (Amine only) | "ESPP Accenture (167 ACN @ $202)" |
-| **P&L breakdowns** (daily, MTD, YTD) | Séparer → "ACN Amine", "ACN Nezha" | Permet de voir la perf individuelle |
-| **Deposit history** | Séparer par owner | Lots ESPP Amine vs Nezha |
+| **P&L breakdowns** (daily, MTD, YTD, 1M) | Merger → "Accenture (ACN)" | Un seul P&L combiné pour le ticker |
+| **P/L non réalisé** (allPos breakdown) | Merger → "Accenture (ACN)" | Valeur + coût combinés |
+| **Donut géo** (vue Couple) | Merger | "Irlande/US (ACN)" inclut Amine+Nezha |
+| **Vue Amine** (detail table) | Séparer (Amine only) | "ESPP Accenture (167 ACN @ $202)" |
+| **Vue Nezha** (detail table) | Séparer (Nezha only) | "ESPP Accenture (40 ACN @ $202)" |
+| **Deposit history / lots** | Séparer par owner | Lots ESPP Amine vs Nezha |
 
-**Principe** : les vues agrégées (treemaps, positions table, sub-cards) merger les tickers partagés. Les tables détaillées par personne (Amine/Nezha detail) et les P&L breakdowns séparent pour l'analyse individuelle.
+**En résumé** : la division par personne n'existe que dans les vues "Amine" et "Nezha". Partout ailleurs (Actions, Couple, treemaps, P&L, positions latentes…), tout est affiché par ticker.

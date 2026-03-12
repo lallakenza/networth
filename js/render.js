@@ -1391,11 +1391,15 @@ function setupKPIDetailPanels(state) {
 
   // Build all positions list for unrealized P&L breakdown
   const allPos = av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
+  // Merge ACN Amine + Nezha into single entry
+  const acnTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
+  const acnTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
+  const acnTotalPL = av.esppUnrealizedPL + (av.nezhaEsppUnrealizedPL || 0);
   allPos.push({
     label: 'Accenture (ACN)', ticker: 'ACN', broker: 'ESPP',
-    valEUR: av.esppCurrentVal, costEUR: av.esppCostBasisEUR,
-    unrealizedPL: av.esppUnrealizedPL,
-    pctPL: av.esppCostBasisEUR > 0 ? (av.esppUnrealizedPL / av.esppCostBasisEUR * 100) : 0,
+    valEUR: acnTotalVal, costEUR: acnTotalCost,
+    unrealizedPL: acnTotalPL,
+    pctPL: acnTotalCost > 0 ? (acnTotalPL / acnTotalCost * 100) : 0,
   });
   if (av.sgtmCostBasisEUR != null) {
     const sgtmPL = av.sgtmTotal - av.sgtmCostBasisEUR;
