@@ -547,9 +547,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
           if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
         });
         const esppPL = esppPeriod(esppRefPrice);
-        if (esppPL !== 0) items.push({ label: 'ACN Amine', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal });
         const nezhaEsppPL = nezhaEsppPeriod(esppRefPrice);
-        if (nezhaEsppPL !== 0) items.push({ label: 'ACN Nezha', ticker: 'ACN', pl: nezhaEsppPL, valEUR: nezhaEsppCurrentVal });
+        const acnTotalPL = esppPL + nezhaEsppPL;
+        if (acnTotalPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: acnTotalPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
         items.sort((a, b) => a.pl - b.pl); // worst first
         return items;
       }

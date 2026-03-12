@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=110';
-import { compute } from './engine.js?v=110';
-import { render } from './render.js?v=110';
-import { fetchFXRates, fetchStockPrices } from './api.js?v=110';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=110';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=110';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=111';
+import { compute } from './engine.js?v=111';
+import { render } from './render.js?v=111';
+import { fetchFXRates, fetchStockPrices } from './api.js?v=111';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=111';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=111';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -211,10 +211,9 @@ restoreFromHash();
 syncNavUI();
 refresh();
 
-// ---- Fetch live data ----
+// ---- Fetch live data (FX) ----
 (async function() {
-  // FX rates
-  const fxResult = await fetchFXRates();
+  const fxResult = await fetchFXRates(false); // use cache if available
   if (fxResult) {
     Object.assign(currentFX, fxResult.rates);
     fxSource = fxResult.source;
@@ -230,7 +229,11 @@ refresh();
 // ---- Stock price loading with progress ----
 let stockRefreshInProgress = false;
 
-async function loadStockPrices() {
+/**
+ * @param {boolean} forceRefresh - true = hard refresh (ignore cache, re-fetch all)
+ *                                 false = smart refresh (only fetch tickers missing from today's cache)
+ */
+async function loadStockPrices(forceRefresh) {
   if (stockRefreshInProgress) return;
   stockRefreshInProgress = true;
 
@@ -239,9 +242,11 @@ async function loadStockPrices() {
   const progressFill = document.getElementById('stockProgressFill');
   const progressLabel = document.getElementById('stockProgressLabel');
   const refreshBtn = document.getElementById('refreshStocksBtn');
+  const hardRefreshBtn = document.getElementById('hardRefreshBtn');
 
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.style.opacity = '0.4'; }
-  if (sBadge) sBadge.textContent = 'Actions : chargement live...';
+  if (hardRefreshBtn) { hardRefreshBtn.disabled = true; hardRefreshBtn.style.opacity = '0.4'; }
+  if (sBadge) sBadge.textContent = forceRefresh ? 'Actions : hard refresh...' : 'Actions : chargement live...';
   if (progressBar) progressBar.style.display = 'block';
   if (progressFill) progressFill.style.width = '0%';
 
@@ -252,15 +257,25 @@ async function loadStockPrices() {
   }
 
   try {
-    const result = await fetchStockPrices(PORTFOLIO, onProgress);
+    // Also re-fetch FX on hard refresh
+    if (forceRefresh) {
+      const fxResult = await fetchFXRates(true);
+      if (fxResult) {
+        Object.assign(currentFX, fxResult.rates);
+        fxSource = fxResult.source;
+        const badge = document.getElementById('fxBadge');
+        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+      }
+    }
+
+    const result = await fetchStockPrices(PORTFOLIO, onProgress, forceRefresh);
     if (result.updated) {
       stockSource = 'live';
       refresh();
     }
     if (sBadge) {
-      // liveCount includes SGTM if live; yahooLive = tickers with Yahoo API that loaded
       const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
-      const yahooTotal = result.totalTickers - 1; // exclude SGTM (no Yahoo API)
+      const yahooTotal = result.totalTickers - 1;
       const allYahooLive = yahooLive >= yahooTotal;
 
       const statusLabel = yahooLive > 0
@@ -271,11 +286,8 @@ async function loadStockPrices() {
         : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
       sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
 
-      // Green if all Yahoo-sourced tickers loaded, red if some failed, gray if all failed
       if (allYahooLive) {
         sBadge.style.color = 'var(--green)';
-      } else if (yahooLive > 0) {
-        sBadge.style.color = 'var(--red)';
       } else {
         sBadge.style.color = 'var(--red)';
       }
@@ -285,17 +297,20 @@ async function loadStockPrices() {
     if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red)'; }
   }
 
-  // Hide progress bar after a short delay
   setTimeout(() => { if (progressBar) progressBar.style.display = 'none'; }, 2000);
   if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.style.opacity = '1'; }
+  if (hardRefreshBtn) { hardRefreshBtn.disabled = false; hardRefreshBtn.style.opacity = '1'; }
   stockRefreshInProgress = false;
 }
 
-// Initial load
-loadStockPrices();
+// Initial load — smart refresh (uses cache)
+loadStockPrices(false);
 
-// Refresh button
-document.getElementById('refreshStocksBtn')?.addEventListener('click', () => loadStockPrices());
+// Refresh button — smart refresh (only missing tickers)
+document.getElementById('refreshStocksBtn')?.addEventListener('click', () => loadStockPrices(false));
 
-// Auto-refresh every 10 minutes
-setInterval(() => loadStockPrices(), 10 * 60 * 1000);
+// Hard Refresh button — force re-fetch all tickers
+document.getElementById('hardRefreshBtn')?.addEventListener('click', () => loadStockPrices(true));
+
+// Auto-refresh every 10 minutes (smart, uses cache)
+setInterval(() => loadStockPrices(false), 10 * 60 * 1000);
