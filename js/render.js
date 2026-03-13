@@ -2679,30 +2679,30 @@ function renderImmoView(state) {
   const _props = iv.properties || [];
   const _fmtK = v => { const a = Math.abs(Math.round(v)); return (v < 0 ? '-' : '') + (a >= 1000 ? (a / 1000).toFixed(0) + 'K' : a + '') + ' \u20ac'; };
 
-  // 1. Equity Brute — breakdown per property
-  _setTip('kpiImmoViewEq', _props.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>'));
+  // 1. Equity Brute — breakdown per property (above to avoid clipping by row 2)
+  _setTip('kpiImmoViewEq', _props.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>'), true);
 
   // 2. Equity Nette (après sortie) — show deduction
   _setTip('kpiImmoViewNetEq', _props.map(p => {
     const ne = p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity;
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ne) + '</b> <span style="color:#fc8181;">(-' + _fmtK(ec) + ' frais)</span>';
-  }).join('<br>'));
+  }).join('<br>'), true);
 
   // 3. Frais de sortie — per property
   _setTip('kpiImmoViewExitCosts', _props.map(p => {
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ec) + '</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>');
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>', true);
 
   // 4. CF Net /mois — per property with sign
   _setTip('kpiImmoViewCF', _props.map(p => {
     const s = p.cf >= 0 ? '+' : '';
     const c = p.cf >= 0 ? '#68d391' : '#fc8181';
     return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>');
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
 
-  // 5. Valeur Totale — per property with dynamic ref (bottom row → above)
+  // 5. Valeur Totale — per property with dynamic ref (above)
   _setTip('kpiImmoViewVal', _props.map(p => {
     const ref = p.referenceValue && p.referenceValue !== p.value
       ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';

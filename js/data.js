@@ -637,17 +637,16 @@ export const IMMO_CONSTANTS = {
       deliveryDate: '2025-07',  // livraison VEFA juillet 2025
       tvaAvantage: 37796,       // économie TVA (20% - 5.5%) × prix HT
       // ── Appréciation réaliste par phase (moyenne pondérée) ──
-      // 2026-2028 : 2.0%/an — quartier encore en chantier, gare pas ouverte,
-      //   peu de commerces, offre neuve abondante qui pèse sur les prix
-      // 2029-2032 : 3.5%/an — gare L15 opérationnelle, ZAC livrée, 20K emplois,
-      //   commerces installés, quartier commence à vivre → rattrapage
-      // 2033+ : 2.0%/an — effet GPE digéré, croissance IDF standard
-      // Moyenne lissée sur 10 ans ≈ 2.5%/an
-      appreciation: 0.025,       // 2.5%/an (moyenne lissée, GPE Ligne 15 Les Ardoines)
+      // 2026-2028 : 1.0%/an — quartier encore en chantier, gare pas ouverte,
+      //   peu de commerces, offre neuve abondante qui pèse sur les prix, marché IDF tendu
+      // 2029-2032 : 2.0%/an — gare L15 opérationnelle, ZAC livrée, rattrapage modéré
+      // 2033+ : 1.5%/an — effet GPE digéré, croissance IDF standard
+      // Moyenne lissée sur 10 ans ≈ 1.5%/an
+      appreciation: 0.015,       // 1.5%/an (moyenne lissée, GPE Ligne 15 Les Ardoines)
       appreciationPhases: [
-        { start: 2026, end: 2028, rate: 0.020, note: 'Quartier en chantier, gare en travaux, offre abondante' },
-        { start: 2029, end: 2032, rate: 0.035, note: 'Gare L15 ouverte, ZAC livrée, commerces, rattrapage' },
-        { start: 2033, end: 2040, rate: 0.020, note: 'Effet GPE digéré, croissance IDF standard' },
+        { start: 2026, end: 2028, rate: 0.010, note: 'Quartier en chantier, gare en travaux, offre abondante' },
+        { start: 2029, end: 2032, rate: 0.020, note: 'Gare L15 ouverte, ZAC livrée, rattrapage modéré' },
+        { start: 2033, end: 2040, rate: 0.015, note: 'Effet GPE digéré, croissance IDF standard' },
       ],
       type: 'T3 — Location nue',
       loyerObjectif: 1200,      // loyer total CC réel perçu (dont partie cash — voir fiscalite.vitry)
