@@ -42,6 +42,15 @@ function purgeOldCache() {
 
 purgeOldCache();
 
+/** Clear all stock & FX entries from today's cache (used by hard refresh) */
+export function clearCache() {
+  try {
+    const key = todayKey();
+    localStorage.removeItem(key);
+    console.log('[cache] Cache cleared for hard refresh');
+  } catch (e) { /* ignore */ }
+}
+
 // ---- CORS Proxy list ----
 // Each proxy wraps a target URL to bypass CORS.
 // Order matters: most reliable first. We race them ALL in parallel.
