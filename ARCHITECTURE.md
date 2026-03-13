@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v127** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v133** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -188,10 +188,11 @@ Clé : nw_cache_YYYY-MM-DD
 Contenu : { stocks: { TICKER: { price, previousClose } }, fx: { rates }, sgtm: { price } }
 ```
 
-**Comportement :**
-- Au chargement : les tickers déjà en cache pour aujourd'hui sont lus depuis localStorage (0 appels API)
-- Seuls les tickers manquants sont requêtés (le "delta")
-- Chaque ticker réussi est sauvegardé immédiatement dans le cache
+**Comportement (stale-while-revalidate, v131+) :**
+- Au chargement : les tickers en cache sont appliqués immédiatement pour un rendu rapide (0 latence)
+- Chaque entrée cache a un timestamp `_ts` (Date.now() au moment du fetch)
+- Si un ticker est en cache mais son `_ts` a plus de 10 min (`CACHE_TTL_MS = 10 * 60 * 1000`), il est re-fetché en arrière-plan
+- Les prix frais remplacent les stale et le dashboard se rafraîchit automatiquement
 - Les entrées des jours précédents sont purgées automatiquement au chargement du module
 
 **Boutons :**
@@ -607,17 +608,27 @@ Le chargement des prix se fait en 2 phases avec rafraichissement progressif de l
 
 **Mapping Yahoo Finance** : Les tickers EUR Euronext sans suffixe (ex: `EDEN`) sont mappés vers `EDEN.PA` pour l'API Yahoo. Le mapping inverse est conservé pour retrouver le ticker original dans le portfolio.
 
-### Badge LIVE/STATIC (v127+)
+### Badge LIVE/STATIC (v127+, fix v128)
 
 - Affiché dans la colonne label (nom de l'action), pas dans la colonne prix
-- **Masqué** en vue "Total" (`_posViewMode === 'total'`), visible uniquement en vue "Unitaire"
+- Visible sur **toutes les vues** (Total et Unitaire)
 - 3 badges : LIVE (bleu), STATIC (rouge = API pas encore chargée), STATIC (gris = SGTM, pas d'API)
 
-### Sort dynamique par période (v127+)
+### Sort dynamique par période (v127+, fix v132)
 
 Le tri de la colonne "Evo" s'adapte à la période sélectionnée (Daily/MTD/1M/YTD) :
-- `_hdefs.evo.sort` est dynamique : `{ daily: 'dailyPct', mtd: 'mtdPct', ... }[_posPeriod]`
+- `_hdefs.evo.sort` est dynamique : `{ daily: 'dailyPL', mtd: 'mtdPL', ... }[_posPeriod]`
+- Trie par **P&L absolu en EUR** (pas par %), cohérent avec ce qui est affiché en vue Total
 - Quand l'utilisateur change de période via `posPeriodToggle`, `_allSortKey` est mis à jour si l'ancien key était un key de période (Pct ou PL)
+- **Null-to-bottom** (v132+) : les positions sans données de période (SGTM, tickers STATIC) sont triées en dernier, quel que soit le sens du tri (asc ou desc). Logique : `if (va == null) return 1; if (vb == null) return -1;`
+
+### Tables de détail triables (v133+)
+
+Les tables "Patrimoine Couple / Amine / Nezha — Detail consolidé" sont triables par clic sur les en-têtes :
+- **Poste** : tri alphabétique (asc par défaut)
+- **Montant** : tri numérique (desc par défaut, du plus grand au plus petit)
+- La ligne **Total** (Net Worth) reste toujours épinglée en bas, indépendamment du tri
+- Utilise le même `makeTableSortable()` que les autres tables
 
 ### Tooltips Cash Productif vs Dormant (v127+)
 
@@ -628,6 +639,13 @@ Les 3 barres (Couple, Amine, Nezha) ont un tooltip au hover qui affiche :
 - Net vs inflation annuel
 
 Les données par compte sont enrichies dans `engine.js` via `byOwner[name].accounts[]`.
+
+### setEur() — mise à jour dynamique des KPIs (fix v129)
+
+`setEur(id, val)` met à jour un élément de KPI par son ID :
+- Met à jour `data-eur` (attribut) ET le `textContent` visible
+- Nécessaire pour que les toggles dynamiques (ex: Villejuif) mettent à jour l'affichage en temps réel
+- Respecte `data-sign` (préfixe +/-) et `data-type` (skip textContent si type="pct")
 
 ### Toggle Villejuif — Immobilier (v127+)
 
