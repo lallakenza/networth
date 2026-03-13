@@ -499,6 +499,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sgtmCostBasisEUR: m.sgtmCostBasisMAD
       ? toEUR((portfolio.amine.sgtm.shares + portfolio.nezha.sgtm.shares) * m.sgtmCostBasisMAD, 'MAD', fx)
       : null,
+    // ACN reference prices for period change columns
+    acnPreviousClose: m.acnPreviousClose || null,
+    acnMtdOpen: m.acnMtdOpen || null,
+    acnYtdOpen: m.acnYtdOpen || null,
+    acnOneMonthAgo: m.acnOneMonthAgo || null,
     // Live flags for UI indicators
     _acnLive: !!m._acnLive,
     _sgtmLive: !!m._sgtmLive,

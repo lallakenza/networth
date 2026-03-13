@@ -629,17 +629,31 @@
   <div id="kpiDetailPanel" class="kpi-detail-panel" style="display:none;"></div>
   <div class="kpi-insight-bar" id="insight-actions"></div>
 
-  <h3>Toutes les Positions — IBKR + ESPP (UBS) + SGTM (Attijari)</h3>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <h3 style="margin:0">Toutes les Positions — IBKR + ESPP (UBS) + SGTM (Attijari)</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div id="posViewToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-mode="total" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Total</button>
+        <button data-mode="unitaire" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Unitaire</button>
+      </div>
+      <div id="posPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-period="daily" class="active" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Daily</button>
+        <button data-period="mtd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
+        <button data-period="oneMonth" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
+        <button data-period="ytd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">YTD</button>
+      </div>
+    </div>
+  </div>
   <table id="allPositionsTable" style="width:100%;">
     <thead><tr>
       <th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>
       <th class="sortable" data-sort="broker">Broker <span class="sort-arrow"></span></th>
       <th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>
-      <th class="num sortable" data-sort="price">Prix <span class="sort-arrow"></span></th>
-      <th class="num sortable" data-sort="costEUR">Co&ucirc;t <span class="sort-arrow"></span></th>
-      <th class="num sortable" data-sort="valEUR">Valeur <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="price" id="thPrixValeur">Valeur <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="costEUR" id="thCout">Co&ucirc;t <span class="sort-arrow"></span></th>
       <th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>
       <th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>
+      <th class="num sortable" data-sort="dailyPct" id="thDaily">Daily <span class="sort-arrow"></span></th>
       <th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>
       <th class="sortable" data-sort="sector">Secteur <span class="sort-arrow"></span></th>
       <th class="sortable" data-sort="geo">G&eacute;o <span class="sort-arrow"></span></th>
@@ -1023,7 +1037,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=117"></script>
+<script type="module" src="js/app.js?v=118"></script>
 
 </body>
 </html>

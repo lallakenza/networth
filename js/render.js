@@ -921,7 +921,11 @@ let _allSortDir = 'desc';
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
+let _posViewMode = 'total'; // 'total' or 'unitaire'
+let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
+
 function renderAllPositions(allPositions, sortKey, sortDir) {
+  const mode = _posViewMode;
   const sorted = [...allPositions];
   if (sortKey) {
     sorted.sort((a, b) => {
@@ -938,12 +942,24 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const tbody = document.getElementById('allPositionsTbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  let totalVal = 0, totalCost = 0;
+
+  // Update column headers based on mode + period
+  const thPV = document.getElementById('thPrixValeur');
+  const thC = document.getElementById('thCout');
+  const thD = document.getElementById('thDaily');
+  const periodLabels = { daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
+  if (thPV) thPV.innerHTML = (mode === 'unitaire' ? 'Prix' : 'Valeur') + ' <span class="sort-arrow"></span>';
+  if (thC) thC.innerHTML = (mode === 'unitaire' ? 'PRU' : 'Co\u00fbt') + ' <span class="sort-arrow"></span>';
+  if (thD) thD.innerHTML = periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L') + ' <span class="sort-arrow"></span>';
+
+  let totalVal = 0, totalCost = 0, totalDailyPL = 0;
   let hasStatic = false;
   let staticVal = 0, liveVal = 0;
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
     totalCost += (pos.costEUR || 0);
+    const periodField = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod];
+    totalDailyPL += (pos[periodField] || 0);
     const hasPL = pos.costEUR != null && pos.costEUR > 0;
     const pl = hasPL ? pos.unrealizedPL : null;
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
@@ -954,19 +970,56 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
     const liveBadge = isStatic
       ? (noAPI
-        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Pas d\'API disponible — prix mis à jour manuellement">STATIC</span>'
-        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible, vérifier les proxies">STATIC</span>')
-      : ' <span style="display:inline-block;background:#c6f6d5;color:#276749;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours en temps réel">LIVE</span>';
+        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Pas d\'API disponible — prix mis \u00e0 jour manuellement">STATIC</span>'
+        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible, v\u00e9rifier les proxies">STATIC</span>')
+      : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours en temps r\u00e9el">LIVE</span>';
+
+    // Prix/Valeur column + Coût column (depends on mode)
+    let colPV, colCost;
+    if (mode === 'unitaire') {
+      colPV = (pos.priceLabel || '\u2014') + liveBadge;
+      // PRU (unit cost basis) = costEUR / shares, formatted in position currency
+      if (hasPL && pos.shares > 0) {
+        const unitCost = pos.costEUR / pos.shares;
+        colCost = '\u20ac ' + unitCost.toFixed(2);
+      } else {
+        colCost = '\u2014';
+      }
+    } else {
+      colPV = fmt(pos.valEUR) + liveBadge;
+      colCost = hasPL ? fmt(pos.costEUR) : '\u2014';
+    }
+
+    // Period evolution column
+    const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
+    const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
+    const periodPL = pos[periodMap[_posPeriod]] || null;
+    const periodPct = pos[periodPctMap[_posPeriod]] || null;
+
+    let evoTxt, evoC;
+    if (mode === 'unitaire') {
+      // Show ticker price change %
+      const dp = periodPct;
+      evoC = dp != null ? (dp >= 0 ? 'pl-pos' : 'pl-neg') : '';
+      const evoS = dp != null ? (dp >= 0 ? '+' : '') : '';
+      evoTxt = dp != null ? evoS + dp.toFixed(1) + '%' : '\u2014';
+    } else {
+      // Show holdings P&L for the period
+      evoC = periodPL != null ? (periodPL >= 0 ? 'pl-pos' : 'pl-neg') : '';
+      const evoS = periodPL != null ? (periodPL >= 0 ? '+' : '') : '';
+      evoTxt = periodPL != null ? evoS + fmt(Math.round(periodPL)) : '\u2014';
+    }
+
     const tr = document.createElement('tr');
     if (isStatic && !noAPI) tr.style.color = '#718096';
     tr.innerHTML = '<td>' + pos.label + '</td>'
       + '<td>' + (pos.broker || '') + '</td>'
       + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + (pos.priceLabel || '\u2014') + liveBadge + '</td>'
-      + '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>'
-      + '<td class="num">' + fmt(pos.valEUR) + '</td>'
+      + '<td class="num">' + colPV + '</td>'
+      + '<td class="num">' + colCost + '</td>'
       + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>'
       + '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>'
+      + '<td class="num ' + evoC + '">' + evoTxt + '</td>'
       + '<td class="num">' + pos.weight.toFixed(1) + '%</td>'
       + '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>'
       + '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>';
@@ -976,13 +1029,24 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const totalPctPL = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
   const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
   const tPlS = totalPL >= 0 ? '+' : '';
+  // Total row evolution column
+  let totalEvoTxt, totalEvoC;
+  if (mode === 'unitaire') {
+    totalEvoTxt = ''; // no meaningful "total unit price change"
+    totalEvoC = '';
+  } else {
+    totalEvoC = totalDailyPL >= 0 ? 'pl-pos' : 'pl-neg';
+    const tES = totalDailyPL >= 0 ? '+' : '';
+    totalEvoTxt = totalDailyPL !== 0 ? tES + fmt(Math.round(totalDailyPL)) : '\u2014';
+  }
   const tr = document.createElement('tr');
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-  tr.innerHTML = '<td><strong>Total (' + sorted.length + ' positions)</strong></td><td></td><td></td><td></td>'
+  tr.innerHTML = '<td><strong>Total (' + sorted.length + ' positions)</strong></td><td></td><td></td>'
+    + '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>'
     + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
-    + '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>'
     + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
     + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
+    + '<td class="num ' + totalEvoC + '"><strong>' + totalEvoTxt + '</strong></td>'
     + '<td class="num">100%</td><td></td><td></td>';
   tbody.appendChild(tr);
 
@@ -1038,6 +1102,24 @@ function setupAllPositionsSort(allPositions) {
       renderAllPositions(allPositions, _allSortKey, _allSortDir);
     });
   });
+
+  // Toggle Unitaire / Total
+  function setupToggle(id, setter) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setter(btn);
+        el.querySelectorAll('button').forEach(b => {
+          if (b === btn) { b.style.background = '#2d3748'; b.style.color = '#fff'; }
+          else { b.style.background = '#fff'; b.style.color = '#4a5568'; }
+        });
+        renderAllPositions(allPositions, _allSortKey, _allSortDir);
+      });
+    });
+  }
+  setupToggle('posViewToggle', btn => { _posViewMode = btn.getAttribute('data-mode'); });
+  setupToggle('posPeriodToggle', btn => { _posPeriod = btn.getAttribute('data-period'); });
 }
 
 // ---- ASSET VIEW RENDERERS ----
@@ -1089,10 +1171,15 @@ function renderActionsView(state) {
 
   // Build unified positions array (IBKR + ESPP + SGTM)
   const totalAllVal = av.totalStocks;
+  const pctFromRef = (price, ref) => (ref && ref > 0 && price > 0) ? ((price - ref) / ref * 100) : null;
   const allPositions = av.ibkrPositions.map(p => ({
     ...p,
     broker: 'IBKR',
     weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
+    dailyPct: pctFromRef(p.price, p.previousClose),
+    mtdPct: pctFromRef(p.price, p.mtdOpen),
+    ytdPct: pctFromRef(p.price, p.ytdOpen),
+    oneMonthPct: pctFromRef(p.price, p.oneMonthAgo),
   }));
 
   // ESPP Accenture (Amine + Nezha merged)
@@ -1100,17 +1187,32 @@ function renderActionsView(state) {
   const esppTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
   const esppTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
   const esppTotalPL = av.esppUnrealizedPL + (av.nezhaEsppUnrealizedPL || 0);
+  // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
+  const esppPeriodPL = (period) => {
+    const bd = av.periodPL[period]?.breakdown;
+    if (bd) { const acnItems = bd.filter(b => b.ticker === 'ACN'); if (acnItems.length) return acnItems.reduce((s, b) => s + b.pl, 0); }
+    return null;
+  };
   allPositions.push({
     label: 'Accenture (' + esppTotalShares + ' ACN)',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
     shares: esppTotalShares,
     price: av.esppPrice,
+    previousClose: av.acnPreviousClose,
     priceLabel: '$' + av.esppPrice.toFixed(2),
     costEUR: esppTotalCost,
     valEUR: esppTotalVal,
     unrealizedPL: esppTotalPL,
     pctPL: esppTotalCost > 0 ? (esppTotalPL / esppTotalCost * 100) : 0,
+    dailyPL: esppPeriodPL('daily'),
+    mtdPL: esppPeriodPL('mtd'),
+    ytdPL: esppPeriodPL('ytd'),
+    oneMonthPL: esppPeriodPL('oneMonth'),
+    dailyPct: pctFromRef(av.esppPrice, av.acnPreviousClose),
+    mtdPct: pctFromRef(av.esppPrice, av.acnMtdOpen),
+    ytdPct: pctFromRef(av.esppPrice, av.acnYtdOpen),
+    oneMonthPct: pctFromRef(av.esppPrice, av.acnOneMonthAgo),
     weight: totalAllVal > 0 ? (esppTotalVal / totalAllVal * 100) : 0,
     sector: 'tech',
     geo: 'us',
@@ -1130,11 +1232,14 @@ function renderActionsView(state) {
     ticker: 'SGTM',
     shares: sgtmShares,
     price: av.sgtmPriceMAD,
+    previousClose: null,
     priceLabel: av.sgtmPriceMAD + ' DH',
     costEUR: sgtmCostBasis,
     valEUR: sgtmTotalVal,
     unrealizedPL: sgtmPL,
     pctPL: sgtmCostBasis > 0 ? (sgtmPL / sgtmCostBasis * 100) : null,
+    dailyPL: null,
+    dailyPct: null,
     weight: totalAllVal > 0 ? (sgtmTotalVal / totalAllVal * 100) : 0,
     sector: 'materials',
     geo: 'morocco',
