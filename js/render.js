@@ -4317,21 +4317,47 @@ function renderWHTRows() {
 function buildDetailTable(selector, rows, totalLabel) {
   const tbody = document.querySelector(selector);
   if (!tbody) return;
+  const table = tbody.closest('table');
   tbody.innerHTML = '';
   let total = 0;
-  rows.forEach(([label, val]) => {
+
+  // Convert rows to sortable data objects
+  const data = rows.map(([label, val]) => {
     total += val;
-    const tr = document.createElement('tr');
-    const cls = val < 0 ? 'neg' : '';
-    const cond = label.includes('conditionnel') ? ' style="color:#92400e;font-style:italic"' : '';
-    tr.innerHTML = '<td' + cond + '>' + label + '</td><td class="num ' + cls + '">' + fmt(val) + '</td>';
-    tbody.appendChild(tr);
+    return { label, val, cond: label.includes('conditionnel') };
   });
-  const totalRow = document.createElement('tr');
-  totalRow.style.fontWeight = '700';
-  totalRow.style.background = '#edf2f7';
-  totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
-  tbody.appendChild(totalRow);
+
+  function renderRows(items) {
+    tbody.innerHTML = '';
+    items.forEach(d => {
+      const tr = document.createElement('tr');
+      const cls = d.val < 0 ? 'neg' : '';
+      const cond = d.cond ? ' style="color:#92400e;font-style:italic"' : '';
+      tr.innerHTML = '<td' + cond + '>' + d.label + '</td><td class="num ' + cls + '">' + fmt(d.val) + '</td>';
+      tbody.appendChild(tr);
+    });
+    // Always append total row at the bottom
+    const totalRow = document.createElement('tr');
+    totalRow.style.fontWeight = '700';
+    totalRow.style.background = '#edf2f7';
+    totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
+    tbody.appendChild(totalRow);
+  }
+
+  renderRows(data);
+
+  // Add sort attributes to headers and make sortable
+  if (table) {
+    const ths = table.querySelectorAll('thead th');
+    if (ths.length >= 2) {
+      if (!ths[0].getAttribute('data-sort')) {
+        ths[0].setAttribute('data-sort', 'label');
+        ths[0].setAttribute('data-sort-type', 'string');
+        ths[1].setAttribute('data-sort', 'val');
+      }
+    }
+    makeTableSortable(table, data, renderRows);
+  }
 }
 
 // ============================================================
