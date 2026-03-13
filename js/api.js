@@ -213,28 +213,55 @@ async function fetchSGTMPrice() {
 // ============================================================
 
 /**
- * Fetch all stock prices (IBKR positions + ACN + SGTM)
+ * Apply a single ticker price to the portfolio (mutates portfolio in place)
+ * @param {string} ticker
+ * @param {object} priceData - { price, previousClose }
  * @param {object} portfolio
- * @param {function} onProgress - callback(loaded, total, ticker)
+ */
+function applyTickerToPortfolio(ticker, priceData, portfolio) {
+  if (ticker === 'ACN') {
+    portfolio.market.acnPriceUSD = priceData.price;
+    portfolio.market.acnPreviousClose = priceData.previousClose;
+    portfolio.market._acnLive = true;
+    return;
+  }
+  const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === ticker);
+  if (pos) {
+    pos.price = priceData.price;
+    pos.previousClose = priceData.previousClose;
+    pos._live = true;
+  }
+}
+
+/**
+ * Fetch all stock prices (IBKR positions + ACN + SGTM)
+ * Progressive: applies each price to portfolio as soon as it loads and calls onTickerLoaded.
+ * @param {object} portfolio
+ * @param {function} onProgress - callback(loaded, total, ticker) for progress bar
  * @param {boolean} forceRefresh - bypass cache
+ * @param {function} [onTickerLoaded] - callback() fired each time a new ticker is applied to portfolio.
+ *                                      Use this to trigger a UI refresh progressively.
  * Returns { updated, liveCount, totalTickers, sgtmLive, failedTickers }
  */
-export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
+export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTickerLoaded) {
   const allTickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
   const totalTickers = allTickers.length + 1; // +1 for SGTM
   let loaded = 0;
   const prices = {};
 
-  // ---- Load from cache ----
+  // ---- Load from cache (apply immediately) ----
   const cache = loadCache();
   let tickersToFetch = [];
   let cachedSGTM = null;
+  let cacheHadUpdates = false;
 
   if (!forceRefresh) {
     for (const ticker of allTickers) {
       const cached = cache.stocks[ticker];
       if (cached && cached.price > 0) {
         prices[ticker] = cached;
+        applyTickerToPortfolio(ticker, cached, portfolio);
+        cacheHadUpdates = true;
         loaded++;
         if (onProgress) onProgress(loaded, totalTickers, ticker + ' ✓');
       } else {
@@ -243,26 +270,40 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
     }
     if (cache.sgtm) {
       cachedSGTM = cache.sgtm.price;
+      portfolio.market.sgtmPriceMAD = cachedSGTM;
+      portfolio.market._sgtmLive = true;
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
     }
+    // Refresh once after applying all cached prices
+    if (cacheHadUpdates && onTickerLoaded) onTickerLoaded();
     console.log('[api] ' + (allTickers.length - tickersToFetch.length) + '/' + allTickers.length + ' from cache, ' + tickersToFetch.length + ' to fetch' + (cachedSGTM !== null ? ', SGTM cached' : ''));
   } else {
     tickersToFetch = [...allTickers];
     console.log('[api] Hard refresh — fetching all ' + totalTickers);
   }
 
+  // Mark non-loaded positions as static
+  portfolio.amine.ibkr.positions.forEach(pos => {
+    if (!prices[pos.ticker]) pos._live = false;
+  });
+  if (!prices['ACN']) portfolio.market._acnLive = false;
+  if (!cachedSGTM) portfolio.market._sgtmLive = false;
+
   // ---- Fetch all missing tickers in parallel (no batching!) ----
+  // Each ticker applies immediately and triggers a progressive UI refresh
   let cacheUpdated = false;
 
   if (tickersToFetch.length > 0 || cachedSGTM === null) {
-    // Launch ALL tickers at once — the proxies handle rate limiting internally
     const tickerPromises = tickersToFetch.map(async (ticker) => {
       const result = await fetchStockPrice(ticker);
       if (result) {
         prices[ticker] = result;
         cache.stocks[ticker] = result;
         cacheUpdated = true;
+        // Apply immediately to portfolio
+        applyTickerToPortfolio(ticker, result, portfolio);
+        if (onTickerLoaded) onTickerLoaded();
       }
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, ticker + (result ? ' ✓' : ' ✗'));
@@ -273,71 +314,88 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh) {
       ? fetchSGTMPrice().then(r => {
           loaded++;
           if (onProgress) onProgress(loaded, totalTickers, 'SGTM' + (r ? ' ✓' : ' ✗'));
+          if (r) {
+            cachedSGTM = r;
+            portfolio.market.sgtmPriceMAD = r;
+            portfolio.market._sgtmLive = true;
+            cache.sgtm = { price: r };
+            cacheUpdated = true;
+            if (onTickerLoaded) onTickerLoaded();
+          }
           return r;
         })
       : Promise.resolve(null);
 
-    const [, sgtmPrice] = await Promise.all([Promise.all(tickerPromises), sgtmPromise]);
-
-    if (cachedSGTM === null && sgtmPrice) {
-      cachedSGTM = sgtmPrice;
-      cache.sgtm = { price: sgtmPrice };
-      cacheUpdated = true;
-    }
+    await Promise.all([Promise.all(tickerPromises), sgtmPromise]);
 
     if (cacheUpdated) saveCache(cache);
   }
 
-  // ---- Apply prices to portfolio ----
-  let updated = false;
-
-  portfolio.amine.ibkr.positions.forEach(pos => {
-    if (prices[pos.ticker]) {
-      const d = prices[pos.ticker];
-      pos.price = d.price;
-      pos.previousClose = d.previousClose;
-      pos._live = true;
-      updated = true;
-    } else {
-      pos._live = false;
-    }
-  });
-
-  if (prices['ACN']) {
-    const d = prices['ACN'];
-    portfolio.market.acnPriceUSD = d.price;
-    portfolio.market.acnPreviousClose = d.previousClose;
-    portfolio.market._acnLive = true;
-    updated = true;
-  } else {
-    portfolio.market._acnLive = false;
-  }
-
-  let sgtmLive = false;
-  if (cachedSGTM) {
-    portfolio.market.sgtmPriceMAD = cachedSGTM;
-    portfolio.market._sgtmLive = true;
-    sgtmLive = true;
-    updated = true;
-  } else {
-    portfolio.market._sgtmLive = false;
-  }
-
-  // List failed tickers for retry
+  // Build result
+  const sgtmLive = !!cachedSGTM;
   const failedTickers = allTickers.filter(t => !prices[t]);
   if (failedTickers.length > 0) {
     console.log('[api] Failed tickers after first pass: ' + failedTickers.join(', '));
   } else {
-    console.log('[api] All tickers loaded successfully!');
+    console.log('[api] All held tickers loaded successfully!');
   }
 
   return {
-    updated,
+    updated: Object.keys(prices).length > 0 || sgtmLive,
     liveCount: Object.keys(prices).length + (sgtmLive ? 1 : 0),
     totalTickers: allTickers.length + 1,
     sgtmLive,
     failedTickers,
   };
+}
+
+/**
+ * Fetch prices for sold stocks (closed positions not in current portfolio).
+ * Only call this AFTER all held stocks loaded successfully (0 failures).
+ * Applies prices to portfolio._soldPrices for "Si gardé auj." calculations.
+ * @param {string[]} soldTickers - tickers to fetch (Yahoo format)
+ * @param {object} portfolio - mutated: portfolio._soldPrices[ticker] = { price, previousClose }
+ * @param {function} [onTickerLoaded] - callback after each sold ticker loads
+ * Returns { loaded, failed }
+ */
+export async function fetchSoldStockPrices(soldTickers, portfolio, onTickerLoaded) {
+  if (!soldTickers || soldTickers.length === 0) return { loaded: 0, failed: 0 };
+
+  const cache = loadCache();
+  if (!portfolio._soldPrices) portfolio._soldPrices = {};
+  let loadedCount = 0;
+  let failedCount = 0;
+
+  console.log('[api] Fetching ' + soldTickers.length + ' sold stock prices in background...');
+
+  const promises = soldTickers.map(async (ticker) => {
+    // Check cache first
+    const cached = cache.stocks[ticker];
+    if (cached && cached.price > 0) {
+      portfolio._soldPrices[ticker] = cached;
+      loadedCount++;
+      console.log('[api] Sold ' + ticker + ' from cache: ' + cached.price);
+      if (onTickerLoaded) onTickerLoaded();
+      return;
+    }
+    // Fetch live
+    const result = await fetchStockPrice(ticker);
+    if (result) {
+      portfolio._soldPrices[ticker] = result;
+      cache.stocks[ticker] = result;
+      loadedCount++;
+      console.log('[api] Sold ' + ticker + ' live: ' + result.price);
+      if (onTickerLoaded) onTickerLoaded();
+    } else {
+      failedCount++;
+      console.log('[api] Sold ' + ticker + ' FAILED');
+    }
+  });
+
+  await Promise.all(promises);
+  saveCache(cache);
+  console.log('[api] Sold stocks done: ' + loadedCount + ' loaded, ' + failedCount + ' failed');
+  return { loaded: loadedCount, failed: failedCount };
 }
 
 /**

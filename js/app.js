@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=126';
-import { compute } from './engine.js?v=126';
-import { render } from './render.js?v=126';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers } from './api.js?v=126';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=126';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=126';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=127';
+import { compute } from './engine.js?v=127';
+import { render } from './render.js?v=127';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices } from './api.js?v=127';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=127';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=127';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -256,6 +256,19 @@ async function loadStockPrices(forceRefresh) {
     if (progressLabel) progressLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
   }
 
+  // Throttled refresh: max once every 800ms to avoid thrashing
+  let _refreshTimer = null;
+  let _refreshPending = false;
+  function throttledRefresh() {
+    if (_refreshTimer) { _refreshPending = true; return; }
+    stockSource = 'live';
+    refresh();
+    _refreshTimer = setTimeout(() => {
+      _refreshTimer = null;
+      if (_refreshPending) { _refreshPending = false; throttledRefresh(); }
+    }, 800);
+  }
+
   function updateBadge(result) {
     if (!sBadge) return;
     const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
@@ -284,12 +297,10 @@ async function loadStockPrices(forceRefresh) {
       }
     }
 
-    // ---- First pass: fetch all tickers ----
-    const result = await fetchStockPrices(PORTFOLIO, onProgress, forceRefresh);
-    if (result.updated) {
-      stockSource = 'live';
-      refresh();
-    }
+    // ---- First pass: fetch all tickers (progressive — refresh UI as each loads) ----
+    const result = await fetchStockPrices(PORTFOLIO, onProgress, forceRefresh, throttledRefresh);
+    // Final refresh with all data applied
+    if (result.updated) { stockSource = 'live'; refresh(); }
     updateBadge(result);
 
     // ---- Retry loop: keep trying failed tickers until all loaded ----
@@ -327,6 +338,56 @@ async function loadStockPrices(forceRefresh) {
       const finalSgtm = PORTFOLIO.market._sgtmLive;
       updateBadge({ liveCount: finalLive + (finalSgtm ? 1 : 0), totalTickers: finalTotal + 1, sgtmLive: finalSgtm });
       refresh();
+    }
+
+    // ---- Background: fetch sold stock prices (only if ALL held stocks loaded) ----
+    const allHeldLoaded = result.failedTickers.length === 0;
+    if (allHeldLoaded) {
+      const heldTickers = new Set(PORTFOLIO.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']));
+      // Collect unique tickers from closed positions (trades) that are not currently held
+      // Need to map to Yahoo ticker format: EUR stocks without .PA need it added
+      const allTrades = PORTFOLIO.amine.ibkr.trades || [];
+      const soldTickerSet = new Set();
+      const soldTickerMap = {}; // yahooTicker → originalTicker
+      allTrades.forEach(t => {
+        if (!t.ticker || heldTickers.has(t.ticker) || t.ticker === 'EUR.JPY' || t.type === 'fx') return;
+        // Check if this ticker already has a suffix or is USD (no .PA needed)
+        let yahooTicker = t.ticker;
+        if (t.currency === 'EUR' && !t.ticker.includes('.')) {
+          yahooTicker = t.ticker + '.PA'; // Euronext Paris
+        }
+        if (!heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
+          soldTickerSet.add(yahooTicker);
+          soldTickerMap[yahooTicker] = t.ticker;
+        }
+      });
+      // Also check Degiro trades
+      const degiroTrades = PORTFOLIO.amine.degiro?.trades || [];
+      degiroTrades.forEach(t => {
+        if (!t.ticker || t.type === 'fx') return;
+        let yahooTicker = t.ticker;
+        if (t.currency === 'EUR' && !t.ticker.includes('.')) {
+          yahooTicker = t.ticker + '.PA';
+        }
+        if (!heldTickers.has(t.ticker) && !heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
+          soldTickerSet.add(yahooTicker);
+          soldTickerMap[yahooTicker] = t.ticker;
+        }
+      });
+
+      const soldTickers = [...soldTickerSet];
+      if (soldTickers.length > 0) {
+        console.log('[app] Fetching sold stock prices in background:', soldTickers);
+        const soldResult = await fetchSoldStockPrices(soldTickers, PORTFOLIO, throttledRefresh);
+        // Map Yahoo tickers back to original tickers for engine.js lookup
+        if (soldResult.loaded > 0) {
+          const sp = PORTFOLIO._soldPrices || {};
+          Object.entries(soldTickerMap).forEach(([yahoo, orig]) => {
+            if (sp[yahoo] && !sp[orig]) { sp[orig] = sp[yahoo]; }
+          });
+          refresh(); // Final refresh with sold prices
+        }
+      }
     }
   } catch (e) {
     console.warn('Stock fetch error:', e);

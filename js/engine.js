@@ -59,7 +59,8 @@ function computeIBKRPositions(portfolio, fx) {
   const todayStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
   const ytdStartStr = now.getFullYear() + '-01-01';
   const mtdStartStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-01';
-  const oneMonthAgoDate = new Date(now.getTime() - 30 * 86400000);
+  // 1M = same day last month (calendar month, not 30 days)
+  const oneMonthAgoDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
   const oneMonthStr = oneMonthAgoDate.getFullYear() + '-' + pad2(oneMonthAgoDate.getMonth() + 1) + '-' + pad2(oneMonthAgoDate.getDate());
 
   const positions = ibkr.positions.map(pos => {
@@ -298,10 +299,20 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Total qty sold
     const totalQtySold = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0), 0);
     // "What if I held": look up current live price for this ticker
+    // Priority: 1) live position in IBKR, 2) sold stock prices from background fetch
     const livePos = ibkrPositions.find(p => p.ticker === cp.ticker);
+    const soldPrices = portfolio._soldPrices || {};
     if (livePos && totalQtySold > 0) {
       cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share
       cp._ifHeldValueEUR = totalQtySold * cp._ifHeldPriceEUR;
+      cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
+    } else if (soldPrices[cp.ticker] && totalQtySold > 0) {
+      // Use background-fetched sold stock price
+      const sp = soldPrices[cp.ticker];
+      const cur = cp._allTrades.length > 0 ? cp._allTrades[0].currency : 'EUR';
+      const priceEUR = cur === 'USD' ? sp.price / fx.USD : cur === 'JPY' ? sp.price / fx.JPY : sp.price;
+      cp._ifHeldPriceEUR = priceEUR;
+      cp._ifHeldValueEUR = totalQtySold * priceEUR;
       cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
     }
   });
@@ -662,8 +673,8 @@ function computeCashView(portfolio, fx) {
 
   // Per-owner breakdown
   const byOwner = {
-    Amine:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0 },
-    Nezha:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0 },
+    Amine:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0, accounts: [] },
+    Nezha:  { total: 0, yielding: 0, nonYielding: 0, weightedYieldSum: 0, accounts: [] },
   };
 
   accounts.forEach(a => {
@@ -681,9 +692,11 @@ function computeCashView(portfolio, fx) {
     const ow = byOwner[a.owner];
     if (ow) {
       ow.total += a.valEUR;
-      if (a.yield >= PRODUCTIVE_THRESHOLD) { ow.yielding += a.valEUR; }
+      const isProductive = a.yield >= PRODUCTIVE_THRESHOLD;
+      if (isProductive) { ow.yielding += a.valEUR; }
       else { ow.nonYielding += a.valEUR; }
       ow.weightedYieldSum += a.valEUR * (a.yield || 0);
+      ow.accounts.push({ label: a.label, valEUR: a.valEUR, yield: a.yield || 0, productive: isProductive });
     }
   });
 
