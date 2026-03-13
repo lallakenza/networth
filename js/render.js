@@ -923,6 +923,28 @@ const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'J
 
 let _posViewMode = 'total'; // 'total' or 'unitaire'
 let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
+let _expandedTicker = null; // currently expanded row
+// Column visibility config: { key: { label, on, modeOnly? } }
+const _colConfig = {
+  broker:  { label: 'Broker',  on: false },
+  shares:  { label: 'Qté',     on: true },
+  pv:      { label: 'Prix/Val',on: true },
+  cost:    { label: 'Coût/PRU',on: true },
+  pl:      { label: 'P/L',     on: true, modeOnly: 'total' },
+  pctPL:   { label: '% P/L',   on: true, modeOnly: 'total' },
+  evo:     { label: 'Évolution',on: true },
+  weight:  { label: 'Poids',   on: true },
+  sector:  { label: 'Secteur', on: true },
+  geo:     { label: 'Géo',     on: true },
+};
+
+function _isColVisible(key) {
+  const c = _colConfig[key];
+  if (!c) return false;
+  if (!c.on) return false;
+  if (c.modeOnly && c.modeOnly !== _posViewMode) return false;
+  return true;
+}
 
 function renderAllPositions(allPositions, sortKey, sortDir) {
   const mode = _posViewMode;
@@ -931,124 +953,169 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     sorted.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
       if (typeof va === 'string') {
-        va = (va || '').toLowerCase();
-        vb = (vb || '').toLowerCase();
+        va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       }
       va = va || 0; vb = vb || 0;
       return sortDir === 'asc' ? va - vb : vb - va;
     });
   }
+  const table = document.getElementById('allPositionsTable');
   const tbody = document.getElementById('allPositionsTbody');
-  if (!tbody) return;
+  if (!tbody || !table) return;
   tbody.innerHTML = '';
-
-  // Update column headers based on mode + period
-  const thPV = document.getElementById('thPrixValeur');
-  const thC = document.getElementById('thCout');
-  const thD = document.getElementById('thDaily');
   const periodLabels = { daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
-  if (thPV) thPV.innerHTML = (mode === 'unitaire' ? 'Prix' : 'Valeur') + ' <span class="sort-arrow"></span>';
-  if (thC) thC.innerHTML = (mode === 'unitaire' ? 'PRU' : 'Co\u00fbt') + ' <span class="sort-arrow"></span>';
-  if (thD) thD.innerHTML = periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L') + ' <span class="sort-arrow"></span>';
+  const vis = (k) => _isColVisible(k);
 
-  let totalVal = 0, totalCost = 0, totalDailyPL = 0;
-  let hasStatic = false;
-  let staticVal = 0, liveVal = 0;
+  // Rebuild thead dynamically
+  const thead = table.querySelector('thead');
+  if (thead) {
+    thead.innerHTML = '<tr>'
+      + '<th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>'
+      + (vis('broker')  ? '<th class="sortable" data-sort="broker">Broker <span class="sort-arrow"></span></th>' : '')
+      + (vis('shares')  ? '<th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>' : '')
+      + (vis('pv')      ? '<th class="num sortable" data-sort="' + (mode === 'unitaire' ? 'price' : 'valEUR') + '">' + (mode === 'unitaire' ? 'Prix' : 'Valeur') + ' <span class="sort-arrow"></span></th>' : '')
+      + (vis('cost')    ? '<th class="num sortable" data-sort="costEUR">' + (mode === 'unitaire' ? 'PRU' : 'Co\u00fbt') + ' <span class="sort-arrow"></span></th>' : '')
+      + (vis('pl')      ? '<th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>' : '')
+      + (vis('pctPL')   ? '<th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>' : '')
+      + (vis('evo')     ? '<th class="num sortable" data-sort="dailyPct">' + periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L') + ' <span class="sort-arrow"></span></th>' : '')
+      + (vis('weight')  ? '<th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>' : '')
+      + (vis('sector')  ? '<th class="sortable" data-sort="sector">Secteur <span class="sort-arrow"></span></th>' : '')
+      + (vis('geo')     ? '<th class="sortable" data-sort="geo">G\u00e9o <span class="sort-arrow"></span></th>' : '')
+      + '</tr>';
+  }
+
+  let totalVal = 0, totalCost = 0, totalEvoPL = 0;
+  let hasStatic = false, staticVal = 0, liveVal = 0;
+
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
     totalCost += (pos.costEUR || 0);
     const periodField = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod];
-    totalDailyPL += (pos[periodField] || 0);
+    totalEvoPL += (pos[periodField] || 0);
     const hasPL = pos.costEUR != null && pos.costEUR > 0;
     const pl = hasPL ? pos.unrealizedPL : null;
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = pos._live !== true;
-    const noAPI = pos.ticker === 'SGTM'; // SGTM has no Yahoo Finance API — static is expected
+    const noAPI = pos.ticker === 'SGTM';
     if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
     const liveBadge = isStatic
       ? (noAPI
-        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Pas d\'API disponible — prix mis \u00e0 jour manuellement">STATIC</span>'
-        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours statique — API indisponible, v\u00e9rifier les proxies">STATIC</span>')
-      : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Cours en temps r\u00e9el">LIVE</span>';
+        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>'
+        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>')
+      : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
 
-    // Prix/Valeur column + Coût column (depends on mode)
     let colPV, colCost;
     if (mode === 'unitaire') {
       colPV = (pos.priceLabel || '\u2014') + liveBadge;
-      // PRU (unit cost basis) = costEUR / shares, formatted in position currency
-      if (hasPL && pos.shares > 0) {
-        const unitCost = pos.costEUR / pos.shares;
-        colCost = '\u20ac ' + unitCost.toFixed(2);
-      } else {
-        colCost = '\u2014';
-      }
+      colCost = (hasPL && pos.shares > 0) ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014';
     } else {
       colPV = fmt(pos.valEUR) + liveBadge;
       colCost = hasPL ? fmt(pos.costEUR) : '\u2014';
     }
 
-    // Period evolution column
     const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
     const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
-    const periodPL = pos[periodMap[_posPeriod]] || null;
-    const periodPct = pos[periodPctMap[_posPeriod]] || null;
-
+    const ePL = pos[periodMap[_posPeriod]] || null;
+    const ePct = pos[periodPctMap[_posPeriod]] || null;
     let evoTxt, evoC;
     if (mode === 'unitaire') {
-      // Show ticker price change %
-      const dp = periodPct;
-      evoC = dp != null ? (dp >= 0 ? 'pl-pos' : 'pl-neg') : '';
-      const evoS = dp != null ? (dp >= 0 ? '+' : '') : '';
-      evoTxt = dp != null ? evoS + dp.toFixed(1) + '%' : '\u2014';
+      evoC = ePct != null ? (ePct >= 0 ? 'pl-pos' : 'pl-neg') : '';
+      evoTxt = ePct != null ? (ePct >= 0 ? '+' : '') + ePct.toFixed(1) + '%' : '\u2014';
     } else {
-      // Show holdings P&L for the period
-      evoC = periodPL != null ? (periodPL >= 0 ? 'pl-pos' : 'pl-neg') : '';
-      const evoS = periodPL != null ? (periodPL >= 0 ? '+' : '') : '';
-      evoTxt = periodPL != null ? evoS + fmt(Math.round(periodPL)) : '\u2014';
+      evoC = ePL != null ? (ePL >= 0 ? 'pl-pos' : 'pl-neg') : '';
+      evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
     }
 
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
     tr.innerHTML = '<td>' + pos.label + '</td>'
-      + '<td>' + (pos.broker || '') + '</td>'
-      + '<td class="num">' + pos.shares + '</td>'
-      + '<td class="num">' + colPV + '</td>'
-      + '<td class="num">' + colCost + '</td>'
-      + '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>'
-      + '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>'
-      + '<td class="num ' + evoC + '">' + evoTxt + '</td>'
-      + '<td class="num">' + pos.weight.toFixed(1) + '%</td>'
-      + '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>'
-      + '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>';
+      + (vis('broker')  ? '<td>' + (pos.broker || '') + '</td>' : '')
+      + (vis('shares')  ? '<td class="num">' + pos.shares + '</td>' : '')
+      + (vis('pv')      ? '<td class="num">' + colPV + '</td>' : '')
+      + (vis('cost')    ? '<td class="num">' + colCost + '</td>' : '')
+      + (vis('pl')      ? '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>' : '')
+      + (vis('pctPL')   ? '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>' : '')
+      + (vis('evo')     ? '<td class="num ' + evoC + '">' + evoTxt + '</td>' : '')
+      + (vis('weight')  ? '<td class="num">' + pos.weight.toFixed(1) + '%</td>' : '')
+      + (vis('sector')  ? '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>' : '')
+      + (vis('geo')     ? '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>' : '');
     tbody.appendChild(tr);
+
+    // Click handler → expand/collapse trade history
+    tr.addEventListener('click', () => {
+      const existingDetail = tr.nextElementSibling;
+      if (existingDetail && existingDetail.classList.contains('trade-detail-row')) {
+        existingDetail.remove();
+        _expandedTicker = null;
+        tr.style.background = '';
+        return;
+      }
+      // Collapse any other expanded row
+      tbody.querySelectorAll('.trade-detail-row').forEach(r => r.remove());
+      tbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
+      _expandedTicker = pos.ticker;
+      tr.style.background = '#f7fafc';
+
+      const trades = (pos._trades || []).filter(t => t.type === 'buy' || t.type === 'sell');
+      const colSpan = 1 + Object.keys(_colConfig).filter(k => vis(k)).length;
+      const detailTr = document.createElement('tr');
+      detailTr.className = 'trade-detail-row';
+      detailTr.style.background = '#f7fafc';
+      if (trades.length === 0) {
+        detailTr.innerHTML = '<td colspan="' + colSpan + '" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun historique d\'achat disponible</td>';
+      } else {
+        let html = '<td colspan="' + colSpan + '" style="padding:0"><div style="padding:8px 16px;font-size:12px">'
+          + '<table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+          + '<thead><tr style="color:#718096;font-weight:600"><td style="padding:3px 12px 3px 0">Date</td><td style="padding:3px 12px">Type</td><td class="num" style="padding:3px 12px">Qté</td><td class="num" style="padding:3px 12px">Prix</td><td class="num" style="padding:3px 12px">Coût</td></tr></thead><tbody>';
+        trades.sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
+          const tC = t.type === 'sell' ? 'color:#c53030' : '';
+          const typeLabel = t.label || (t.type === 'buy' ? 'Achat' : 'Vente');
+          const currSym = t.currency === 'USD' ? '$' : t.currency === 'JPY' ? '\u00a5' : t.currency === 'MAD' ? '' : '\u20ac ';
+          const currSuffix = t.currency === 'MAD' ? ' DH' : '';
+          const priceTxt = t.costBasis ? currSym + Number(t.costBasis).toFixed(2) + currSuffix : '\u2014';
+          const costTxt = t.cost ? (t.currency === 'MAD' ? Math.round(t.cost) + ' DH' : fmt(Math.round(t.cost))) : '\u2014';
+          html += '<tr style="' + tC + '"><td style="padding:3px 12px 3px 0">' + t.date + '</td><td style="padding:3px 12px">' + typeLabel + '</td><td class="num" style="padding:3px 12px">' + t.qty + '</td><td class="num" style="padding:3px 12px">' + priceTxt + '</td><td class="num" style="padding:3px 12px">' + costTxt + '</td></tr>';
+        });
+        html += '</tbody></table></div></td>';
+        detailTr.innerHTML = html;
+      }
+      tr.after(detailTr);
+    });
   });
+
+  // Total row
   const totalPL = totalVal - totalCost;
   const totalPctPL = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
   const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
   const tPlS = totalPL >= 0 ? '+' : '';
-  // Total row evolution column
-  let totalEvoTxt, totalEvoC;
-  if (mode === 'unitaire') {
-    totalEvoTxt = ''; // no meaningful "total unit price change"
-    totalEvoC = '';
-  } else {
-    totalEvoC = totalDailyPL >= 0 ? 'pl-pos' : 'pl-neg';
-    const tES = totalDailyPL >= 0 ? '+' : '';
-    totalEvoTxt = totalDailyPL !== 0 ? tES + fmt(Math.round(totalDailyPL)) : '\u2014';
+  let totalEvoTxt = '', totalEvoC = '';
+  if (mode !== 'unitaire' && totalEvoPL !== 0) {
+    totalEvoC = totalEvoPL >= 0 ? 'pl-pos' : 'pl-neg';
+    totalEvoTxt = (totalEvoPL >= 0 ? '+' : '') + fmt(Math.round(totalEvoPL));
   }
+  const visCount = 1 + Object.keys(_colConfig).filter(k => vis(k)).length;
   const tr = document.createElement('tr');
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-  tr.innerHTML = '<td><strong>Total (' + sorted.length + ' positions)</strong></td><td></td><td></td>'
-    + '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>'
-    + '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>'
-    + '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>'
-    + '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>'
-    + '<td class="num ' + totalEvoC + '"><strong>' + totalEvoTxt + '</strong></td>'
-    + '<td class="num">100%</td><td></td><td></td>';
+  let totalHtml = '<td><strong>Total (' + sorted.length + ' positions)</strong></td>';
+  if (vis('broker'))  totalHtml += '<td></td>';
+  if (vis('shares'))  totalHtml += '<td></td>';
+  if (vis('pv'))      totalHtml += '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>';
+  if (vis('cost'))    totalHtml += '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>';
+  if (vis('pl'))      totalHtml += '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>';
+  if (vis('pctPL'))   totalHtml += '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>';
+  if (vis('evo'))     totalHtml += '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>';
+  if (vis('weight'))  totalHtml += '<td class="num">100%</td>';
+  if (vis('sector'))  totalHtml += '<td></td>';
+  if (vis('geo'))     totalHtml += '<td></td>';
+  tr.innerHTML = totalHtml;
   tbody.appendChild(tr);
+
+  // Render column chips
+  _renderColumnChips(allPositions);
 
   // Footnote for static prices
   const footnote = document.getElementById('actionsStaticFootnote');
@@ -1073,8 +1140,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     }
   }
 
-  // Update arrow indicators
-  const table = document.getElementById('allPositionsTable');
+  // Update arrow indicators on current table
   if (table) {
     table.querySelectorAll('.sort-arrow').forEach(a => { a.className = 'sort-arrow'; });
     if (sortKey) {
@@ -1082,28 +1148,54 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       if (active) active.className = 'sort-arrow ' + sortDir;
     }
   }
+
+  // Re-bind sort on dynamically rebuilt thead
+  if (thead) {
+    thead.querySelectorAll('.sortable').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        const key = th.getAttribute('data-sort');
+        if (_allSortKey === key) _allSortDir = _allSortDir === 'asc' ? 'desc' : 'asc';
+        else { _allSortKey = key; _allSortDir = (key === 'label' || key === 'broker' || key === 'sector' || key === 'geo') ? 'asc' : 'desc'; }
+        renderAllPositions(allPositions, _allSortKey, _allSortDir);
+      });
+    });
+  }
+}
+
+/** Render column toggle chips below the table */
+function _renderColumnChips(allPositions) {
+  let container = document.getElementById('colChipsContainer');
+  if (!container) {
+    const tbl = document.getElementById('allPositionsTable');
+    if (!tbl) return;
+    container = document.createElement('div');
+    container.id = 'colChipsContainer';
+    container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center';
+    tbl.parentNode.insertBefore(container, tbl.nextSibling);
+  }
+  container.innerHTML = '<span style="font-size:11px;color:#a0aec0;margin-right:4px">Colonnes :</span>';
+  Object.entries(_colConfig).forEach(([key, cfg]) => {
+    const active = _isColVisible(key);
+    const hidden = cfg.modeOnly && cfg.modeOnly !== _posViewMode; // hidden by mode
+    const chip = document.createElement('button');
+    chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:pointer;transition:all .15s;'
+      + (hidden ? 'opacity:0.35;' : '')
+      + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748' : 'background:#fff;color:#718096');
+    chip.textContent = cfg.label;
+    if (hidden) { chip.title = 'Visible uniquement en mode ' + cfg.modeOnly; chip.style.cursor = 'not-allowed'; }
+    else {
+      chip.addEventListener('click', () => {
+        _colConfig[key].on = !_colConfig[key].on;
+        renderAllPositions(allPositions, _allSortKey, _allSortDir);
+      });
+    }
+    container.appendChild(chip);
+  });
 }
 
 function setupAllPositionsSort(allPositions) {
-  const table = document.getElementById('allPositionsTable');
-  if (!table) return;
-  const thead = table.querySelector('thead');
-  const newThead = thead.cloneNode(true);
-  thead.parentNode.replaceChild(newThead, thead);
-  newThead.querySelectorAll('.sortable').forEach(th => {
-    th.addEventListener('click', () => {
-      const key = th.getAttribute('data-sort');
-      if (_allSortKey === key) {
-        _allSortDir = _allSortDir === 'asc' ? 'desc' : 'asc';
-      } else {
-        _allSortKey = key;
-        _allSortDir = (key === 'label' || key === 'broker' || key === 'sector' || key === 'geo') ? 'asc' : 'desc';
-      }
-      renderAllPositions(allPositions, _allSortKey, _allSortDir);
-    });
-  });
-
-  // Toggle Unitaire / Total
+  // Toggle Unitaire / Total + Period
   function setupToggle(id, setter) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1172,6 +1264,7 @@ function renderActionsView(state) {
   // Build unified positions array (IBKR + ESPP + SGTM)
   const totalAllVal = av.totalStocks;
   const pctFromRef = (price, ref) => (ref && ref > 0 && price > 0) ? ((price - ref) / ref * 100) : null;
+  const allTrades = av.trades || [];
   const allPositions = av.ibkrPositions.map(p => ({
     ...p,
     broker: 'IBKR',
@@ -1180,9 +1273,23 @@ function renderActionsView(state) {
     mtdPct: pctFromRef(p.price, p.mtdOpen),
     ytdPct: pctFromRef(p.price, p.ytdOpen),
     oneMonthPct: pctFromRef(p.price, p.oneMonthAgo),
+    _trades: allTrades.filter(t => t.ticker === p.ticker),
   }));
 
-  // ESPP Accenture (Amine + Nezha merged)
+  // ESPP Accenture (Amine + Nezha merged) — build trade history from lots
+  const p = state.portfolio;
+  const esppLotsAmine = (p.amine.espp.lots || []).map(l => ({
+    date: l.date, type: 'buy', ticker: 'ACN', qty: l.shares,
+    costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
+    label: 'ESPP Amine (' + l.source + ')',
+  }));
+  const esppLotsNezha = (p.nezha && p.nezha.espp && p.nezha.espp.lots || []).map(l => ({
+    date: l.date, type: 'buy', ticker: 'ACN', qty: l.shares,
+    costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
+    label: 'ESPP Nezha (' + l.source + ')',
+  }));
+  const esppAllTrades = [...esppLotsAmine, ...esppLotsNezha];
+
   const esppTotalShares = av.esppShares + (av.nezhaEsppShares || 0);
   const esppTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
   const esppTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
@@ -1217,6 +1324,7 @@ function renderActionsView(state) {
     sector: 'tech',
     geo: 'us',
     _live: av._acnLive,
+    _trades: esppAllTrades,
   });
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
@@ -1244,6 +1352,10 @@ function renderActionsView(state) {
     sector: 'materials',
     geo: 'morocco',
     _live: av._sgtmLive,
+    _trades: [
+      ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO Amine' }] : []),
+      ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO Nezha' }] : []),
+    ],
   });
 
   // Render unified table
