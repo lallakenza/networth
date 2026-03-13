@@ -1038,8 +1038,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
-    const showBadge = _posViewMode !== 'total';
-    let rowHtml = '<td>' + pos.label + (showBadge ? liveBadge : '') + '</td>';
+    let rowHtml = '<td>' + pos.label + liveBadge + '</td>';
     _colOrder.forEach(k => { if (vis(k)) rowHtml += _cells[k](); });
     tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
