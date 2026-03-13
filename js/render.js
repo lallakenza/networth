@@ -2554,9 +2554,15 @@ function renderImmoView(state) {
       const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + regimeDisplay + '</span>' : '';
       const netEq = prop.exitCosts ? prop.exitCosts.netEquityAfterExit : prop.equity;
       const netEqClass = netEq >= 0 ? 'pl-pos' : 'pl-neg';
+      // Dynamic valuation label: show reference → current if different
+      const valLabel = prop.referenceValue && prop.referenceValue !== prop.value
+        ? '<div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur est. <span style="font-size:9px;color:var(--gray);">(réf ' + fmt(prop.referenceValue) + ' ' + (prop.valueDate || '') + ')</span></div>'
+        : '<div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur</div>';
       card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
         + '<div class="prop-owner">' + prop.owner + ' <span style="font-size:10px;color:var(--accent);margin-left:4px;">▸ voir détails</span></div>'
         + '<div class="prop-kpis">'
+        + '<div class="prop-kpi">' + valLabel + '</div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.crd) + '</div><div class="pk-label">CRD</div></div>'
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity brute</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'

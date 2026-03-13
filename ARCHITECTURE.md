@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v113** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v122** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -31,12 +31,52 @@ data.js  →  engine.js  →  render.js  →  DOM (index.html)
 
 ## Comment ajouter un nouveau bien immobilier
 
-1. **data.js** : ajouter dans `PORTFOLIO.{owner}.immo` un objet avec `value`, `appreciation`, `purchaseDate`, `purchasePrice`, `surface`
+1. **data.js** : ajouter dans `PORTFOLIO.{owner}.immo` un objet avec `value`, `valueDate`, `appreciation`, `purchaseDate`, `purchasePrice`, `surface`
 2. **data.js** : ajouter les prêts dans `IMMO_CONSTANTS.loans.{key}Loans[]`
 3. **data.js** : ajouter les charges dans `IMMO_CONSTANTS.charges.{key}`
 4. **data.js** : ajouter le loyer dans `IMMO_CONSTANTS.properties.{key}`
 5. **engine.js** : `buildProperty()` le détecte automatiquement via `IMMO_CONSTANTS`
 6. **render.js** : les property cards se génèrent dynamiquement
+
+## Estimation dynamique de la valeur des biens (engine.js → buildProperty)
+
+La valeur d'un bien évolue dans le temps grâce au taux d'appréciation, à partir d'une **date de référence** (`valueDate`).
+
+### Principe
+
+Chaque bien dans `PORTFOLIO.{owner}.immo.{key}` a :
+- `value` : valeur estimée à la date de référence (en EUR)
+- `valueDate` : date de cette estimation au format `'YYYY-MM'` (ex: `'2025-09'`)
+
+Au chargement, `engine.js` calcule la valeur actuelle par capitalisation mensuelle :
+```
+valeur_actuelle = value × (1 + taux_appreciation / 12) ^ mois_depuis_valueDate
+```
+
+Le taux d'appréciation utilise les `appreciationPhases` de `IMMO_CONSTANTS.properties.{key}` si disponibles (taux différent par période), sinon le taux global `appreciation`.
+
+### Ajuster la valeur à tout moment
+
+Pour recalibrer l'estimation d'un bien (ex: après une expertise, un comparatif marché) :
+1. Mettre à jour `value` avec la nouvelle estimation dans `data.js`
+2. Mettre à jour `valueDate` avec la date de cette nouvelle estimation
+3. Toute la projection future repart de ce nouveau point de référence
+
+Exemple : si en mars 2026 une expertise évalue Vitry à 310K :
+```javascript
+vitry: { value: 310000, valueDate: '2026-03', ... }
+```
+
+### Données exposées par engine.js
+
+Chaque propriété retournée par `buildProperty()` inclut :
+- `value` : valeur dynamique actuelle (calculée)
+- `referenceValue` : valeur de référence (celle de data.js)
+- `valueDate` : date de la référence
+
+### Impact sur les projections
+
+Les projections (`computeNetWorthProjection`) utilisent `prop.value` (= valeur dynamique actuelle) comme point de départ et capitalisent vers le futur. Pas de double comptage : l'appréciation de `valueDate` → aujourd'hui est dans `prop.value`, la projection calcule de aujourd'hui → futur.
 
 ## Comment ajouter un nouveau compte cash
 

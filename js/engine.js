@@ -1455,6 +1455,36 @@ function computeImmoView(portfolio, fx) {
 
   // Helper to build property with fiscal data
   function buildProperty(name, owner, propData, chargesConfig, loanKey, conditional) {
+    // ── Dynamic property valuation ──
+    // Value evolves from valueDate using appreciation rate (compound monthly)
+    const propMeta0 = IC.properties[loanKey] || {};
+    const appreciationRate0 = propMeta0.appreciation || 0;
+    let currentValue = propData.value;
+    const valueDateStr = propData.valueDate || null;
+    if (valueDateStr && appreciationRate0 > 0) {
+      const [vy, vm] = valueDateStr.split('-').map(Number);
+      const now0 = new Date();
+      const monthsSinceRef = (now0.getFullYear() - vy) * 12 + (now0.getMonth() + 1 - vm);
+      if (monthsSinceRef > 0) {
+        // Use phase-specific rates if available
+        const phases = propMeta0.appreciationPhases || [];
+        let val = propData.value;
+        let refYear = vy;
+        let refMonth = vm;
+        for (let m = 0; m < monthsSinceRef; m++) {
+          const yr = refYear + Math.floor((refMonth + m - 1) / 12);
+          let rate = appreciationRate0;
+          for (const ph of phases) { if (yr >= ph.start && yr <= ph.end) { rate = ph.rate; break; } }
+          val *= (1 + rate / 12);
+        }
+        currentValue = Math.round(val);
+      }
+    }
+    // Replace propData.value with currentValue everywhere below
+    const _val = currentValue;
+    const _refValue = propData.value;
+    const _refDate = valueDateStr;
+
     const charges = chargesConfig.pret + chargesConfig.assurance + chargesConfig.pno + chargesConfig.tf + chargesConfig.copro;
     // loyerHC: rent portion (excluding tenant charges provision)
     const loyerHC = propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0);
@@ -1532,13 +1562,13 @@ function computeImmoView(portfolio, fx) {
     } else if (IC.loans && IC.loans[loanKey]) {
       loanCRDs = [{ name: 'Prêt principal', crd: computedCRD, rate: IC.loans[loanKey].rate || 0 }];
     }
-    const exitCosts = computeExitCosts(loanKey, propData.value, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
+    const exitCosts = computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
     // ── Wealth creation breakdown (computed dynamically) ──
     const currentAmortRow = amort ? amort.schedule[amort.currentIdx] : null;
     const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
     const appreciationRate = (IC.properties[loanKey] || {}).appreciation || 0;
-    const appreciationMois = propData.value * appreciationRate / 12;
+    const appreciationMois = _val * appreciationRate / 12;
     // For conditional properties (not signed / not delivered): no CF, no capital — only appreciation
     const wealthCF = conditional ? 0 : cf;
     const wealthCapital = conditional ? 0 : capitalAmortiMois;
@@ -1546,15 +1576,16 @@ function computeImmoView(portfolio, fx) {
 
     return {
       name, owner, conditional: conditional || false,
-      value: propData.value, crd: computedCRD, equity: propData.value - computedCRD,
-      ltv: (computedCRD / propData.value * 100),
+      value: _val, referenceValue: _refValue, valueDate: _refDate,
+      crd: computedCRD, equity: _val - computedCRD,
+      ltv: (computedCRD / _val * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
       monthlyPret: chargesConfig.pret,
       monthlyAssurance: chargesConfig.assurance,
       loyer, loyerHC, chargesLoc, parking, totalRevenue, cf,
-      yieldGross: (totalRevenue * 12 / propData.value * 100),
-      yieldNet: (cf * 12 / propData.value * 100),
-      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / propData.value * 100) : null,
+      yieldGross: (totalRevenue * 12 / _val * 100),
+      yieldNet: (cf * 12 / _val * 100),
+      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / _val * 100) : null,
       wealthCreation: Math.round(wealthCreationComputed),
       wealthBreakdown: {
         capitalAmorti: Math.round(capitalAmortiMois),
