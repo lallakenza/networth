@@ -1081,6 +1081,9 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
         });
         const hasMultiOwner = new Set(enriched.map(t => t.owner)).size > 1;
 
+        // Current unit price label for this position
+        const _curPriceLabel = pos.priceLabel || '';
+
         function renderTradeTable(items) {
           const hPad = 'padding:3px 10px';
           const hPad0 = 'padding:3px 10px 3px 0';
@@ -1092,6 +1095,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
             + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="qty">Qté</td>'
             + '<td style="' + hPad + ';' + sty + '" data-tsort="label">Type</td>'
             + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="costBasis">PRU</td>'
+            + '<td class="num" style="' + hPad + '">Prix actuel</td>'
             + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="valEUR">Valeur</td>'
             + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="plEUR">P/L</td>'
             + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="plPct">P/L %</td>'
@@ -1110,6 +1114,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
               + '<td class="num" style="' + hPad + '">' + t.qty + '</td>'
               + '<td style="' + hPad + '">' + typeLabel + '</td>'
               + '<td class="num" style="' + hPad + '">' + priceTxt + '</td>'
+              + '<td class="num" style="' + hPad + ';color:var(--accent)">' + _curPriceLabel + '</td>'
               + '<td class="num" style="' + hPad + '">' + fmt(Math.round(t.valEUR)) + '</td>'
               + '<td class="num" style="' + hPad + ';' + plC + '">' + plS + fmt(Math.round(t.plEUR)) + '</td>'
               + '<td class="num" style="' + hPad + ';' + plC + '">' + (t.plPct !== null ? plS + t.plPct.toFixed(1) + '%' : '\u2014') + '</td>'
@@ -2535,6 +2540,69 @@ function renderImmoView(state) {
     exitEl.textContent = fmt(Math.round(iv.totalExitCosts || 0));
     exitEl.setAttribute('data-eur', Math.round(iv.totalExitCosts || 0));
   }
+
+  // ── Hover tooltips for immobilier KPIs ──
+  function _setTip(elId, html) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const kpiEl = el.closest('.kpi');
+    if (!kpiEl) return;
+    let tip = kpiEl.querySelector('.kpi-tooltip');
+    if (!tip) { tip = document.createElement('div'); tip.className = 'kpi-tooltip'; kpiEl.appendChild(tip); }
+    tip.innerHTML = html;
+  }
+  const _props = iv.properties || [];
+  const _fmtK = v => { const a = Math.abs(Math.round(v)); return (v < 0 ? '-' : '') + (a >= 1000 ? (a / 1000).toFixed(0) + 'K' : a + '') + ' \u20ac'; };
+
+  // 1. Equity Brute — breakdown per property
+  _setTip('kpiImmoViewEq', _props.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>'));
+
+  // 2. Equity Nette (après sortie) — show deduction
+  _setTip('kpiImmoViewNetEq', _props.map(p => {
+    const ne = p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity;
+    const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
+    return p.name + ' : <b>' + _fmtK(ne) + '</b> <span style="color:#fc8181;">(-' + _fmtK(ec) + ' frais)</span>';
+  }).join('<br>'));
+
+  // 3. Frais de sortie — per property
+  _setTip('kpiImmoViewExitCosts', _props.map(p => {
+    const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
+    return p.name + ' : <b>' + _fmtK(ec) + '</b>';
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>');
+
+  // 4. CF Net /mois — per property with sign
+  _setTip('kpiImmoViewCF', _props.map(p => {
+    const s = p.cf >= 0 ? '+' : '';
+    const c = p.cf >= 0 ? '#68d391' : '#fc8181';
+    return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>');
+
+  // 5. Valeur Totale — per property with dynamic ref
+  _setTip('kpiImmoViewVal', _props.map(p => {
+    const ref = p.referenceValue && p.referenceValue !== p.value
+      ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
+    return p.name + ' : <b>' + _fmtK(p.value) + '</b>' + ref;
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>');
+
+  // 6. CRD Total — per property
+  _setTip('kpiImmoViewCRD', _props.map(p =>
+    p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#a0aec0">(fin ' + p.endYear + ')</span>'
+  ).join('<br>'));
+
+  // 7. Création Richesse /mois — breakdown by type
+  const wb = iv.wealthBreakdown || {};
+  _setTip('kpiImmoViewWealth',
+    'Capital amorti : <b>' + fmt(wb.capitalAmorti || 0) + ' \u20ac</b><br>'
+    + 'Appr\u00e9ciation : <b>' + fmt(wb.appreciation || 0) + ' \u20ac</b><br>'
+    + 'Cash flow : <b>' + fmt(wb.cashflow || 0) + ' \u20ac</b>'
+    + (wb.effortEpargne ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(wb.effortEpargne) + ' \u20ac</span>' : '')
+    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt((iv.totalWealthCreation || 0) * 12) + ' \u20ac/an</span>'
+  );
+
+  // 8. LTV Moyen — per property
+  _setTip('kpiImmoViewLTV', _props.map(p =>
+    p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#a0aec0">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
+  ).join('<br>'));
 
   // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');
