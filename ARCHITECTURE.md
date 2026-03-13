@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v133** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v135** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -629,6 +629,25 @@ Les tables "Patrimoine Couple / Amine / Nezha — Detail consolidé" sont triabl
 - **Montant** : tri numérique (desc par défaut, du plus grand au plus petit)
 - La ligne **Total** (Net Worth) reste toujours épinglée en bas, indépendamment du tri
 - Utilise le même `makeTableSortable()` que les autres tables
+
+### FX auto-refresh & cache TTL (v134+)
+
+- **FX_TTL_MS** = 5 minutes : les taux FX sont re-fetchés automatiquement toutes les 5 min via `setInterval(() => refreshFX(true), 5 * 60 * 1000)`
+- **Stale-while-revalidate** : si le cache FX est périmé (>5 min), on retourne les données stale immédiatement puis on re-fetch en background
+- Le badge FX affiche l'**heure** (HH:MM) et non la date
+- `_ts` timestamp sur chaque entrée cache (stocks et FX) pour vérifier la fraîcheur
+
+### Hard refresh — cache clear (v135+)
+
+- Le bouton "Hard Refresh" appelle `clearCache()` qui supprime entièrement le localStorage du jour avant de re-fetcher
+- Avant v135, le hard refresh re-fetchait tout mais ne vidait pas le cache → si un fetch échouait, l'ancienne donnée stale persistait
+- `stockRefreshInProgress` ne bloque plus le hard refresh : `if (stockRefreshInProgress && !forceRefresh) return;`
+
+### Footer FX timestamp dynamique (v135+)
+
+- Le footer affiche la date et l'heure de la dernière mise à jour FX : `(màj 13/03/2026 à 14:30)`
+- Mis à jour automatiquement à chaque fetch FX (initial, auto-refresh 5 min, hard refresh)
+- Span `#fxTimestamp` dans le footer, alimenté par `updateFxTimestamp()` dans app.js
 
 ### Tooltips Cash Productif vs Dormant (v127+)
 

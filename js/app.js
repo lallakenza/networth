@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=134';
-import { compute } from './engine.js?v=134';
-import { render } from './render.js?v=134';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices } from './api.js?v=134';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=134';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=134';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=135';
+import { compute } from './engine.js?v=135';
+import { render } from './render.js?v=135';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=135';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=135';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=135';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -212,6 +212,14 @@ syncNavUI();
 refresh();
 
 // ---- Fetch live data (FX) ----
+function updateFxTimestamp() {
+  const el = document.getElementById('fxTimestamp');
+  if (el) {
+    const now = new Date();
+    el.textContent = '(màj ' + now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ')';
+  }
+}
+
 async function refreshFX(force) {
   const fxResult = await fetchFXRates(force);
   if (fxResult) {
@@ -219,6 +227,7 @@ async function refreshFX(force) {
     fxSource = fxResult.source;
     const badge = document.getElementById('fxBadge');
     if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+    updateFxTimestamp();
     refresh();
     // If stale, immediately re-fetch in background
     if (fxResult.stale) {
@@ -227,6 +236,7 @@ async function refreshFX(force) {
         Object.assign(currentFX, fresh.rates);
         fxSource = fresh.source;
         if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+        updateFxTimestamp();
         refresh();
       }
     }
@@ -261,6 +271,9 @@ async function loadStockPrices(forceRefresh) {
 
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.style.opacity = '0.4'; }
   if (hardRefreshBtn) { hardRefreshBtn.disabled = true; hardRefreshBtn.style.opacity = '0.4'; }
+  // Hard refresh: clear entire cache first so we start from scratch
+  if (forceRefresh) clearCache();
+
   if (sBadge) sBadge.textContent = forceRefresh ? 'Actions : hard refresh...' : 'Actions : chargement live...';
   if (progressBar) progressBar.style.display = 'block';
   if (progressFill) progressFill.style.width = '0%';
@@ -309,6 +322,7 @@ async function loadStockPrices(forceRefresh) {
         fxSource = fxResult.source;
         const badge = document.getElementById('fxBadge');
         if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+        updateFxTimestamp();
       }
     }
 
