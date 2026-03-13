@@ -937,6 +937,7 @@ const _colConfig = {
   sector:  { label: 'Secteur', on: true },
   geo:     { label: 'Géo',     on: true },
 };
+let _colOrder = Object.keys(_colConfig);
 
 function _isColVisible(key) {
   const c = _colConfig[key];
@@ -967,22 +968,26 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const periodLabels = { daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
   const vis = (k) => _isColVisible(k);
 
-  // Rebuild thead dynamically
+  // Column header definitions
+  const _hdefs = {
+    broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
+    shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
+    pv:      { sort: mode === 'unitaire' ? 'price' : 'valEUR', label: mode === 'unitaire' ? 'Prix' : 'Valeur', cls: 'num sortable' },
+    cost:    { sort: 'costEUR', label: mode === 'unitaire' ? 'PRU' : 'Co\u00fbt', cls: 'num sortable' },
+    pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
+    pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
+    evo:     { sort: 'dailyPct', label: periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L'), cls: 'num sortable' },
+    weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
+    sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
+    geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
+  };
+
+  // Rebuild thead dynamically based on _colOrder
   const thead = table.querySelector('thead');
   if (thead) {
-    thead.innerHTML = '<tr>'
-      + '<th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>'
-      + (vis('broker')  ? '<th class="sortable" data-sort="broker">Broker <span class="sort-arrow"></span></th>' : '')
-      + (vis('shares')  ? '<th class="num sortable" data-sort="shares">Qte <span class="sort-arrow"></span></th>' : '')
-      + (vis('pv')      ? '<th class="num sortable" data-sort="' + (mode === 'unitaire' ? 'price' : 'valEUR') + '">' + (mode === 'unitaire' ? 'Prix' : 'Valeur') + ' <span class="sort-arrow"></span></th>' : '')
-      + (vis('cost')    ? '<th class="num sortable" data-sort="costEUR">' + (mode === 'unitaire' ? 'PRU' : 'Co\u00fbt') + ' <span class="sort-arrow"></span></th>' : '')
-      + (vis('pl')      ? '<th class="num sortable" data-sort="unrealizedPL">P/L <span class="sort-arrow"></span></th>' : '')
-      + (vis('pctPL')   ? '<th class="num sortable" data-sort="pctPL">% <span class="sort-arrow"></span></th>' : '')
-      + (vis('evo')     ? '<th class="num sortable" data-sort="dailyPct">' + periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L') + ' <span class="sort-arrow"></span></th>' : '')
-      + (vis('weight')  ? '<th class="num sortable" data-sort="weight">Poids <span class="sort-arrow"></span></th>' : '')
-      + (vis('sector')  ? '<th class="sortable" data-sort="sector">Secteur <span class="sort-arrow"></span></th>' : '')
-      + (vis('geo')     ? '<th class="sortable" data-sort="geo">G\u00e9o <span class="sort-arrow"></span></th>' : '')
-      + '</tr>';
+    let hdr = '<tr><th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>';
+    _colOrder.forEach(k => { if (!vis(k)) return; const d = _hdefs[k]; hdr += '<th class="' + d.cls + '" data-sort="' + d.sort + '">' + d.label + ' <span class="sort-arrow"></span></th>'; });
+    thead.innerHTML = hdr + '</tr>';
   }
 
   let totalVal = 0, totalCost = 0, totalEvoPL = 0;
@@ -1029,20 +1034,25 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
     }
 
+    // Cell renderers per column key
+    const _cells = {
+      broker:  () => '<td>' + (pos.broker || '') + '</td>',
+      shares:  () => '<td class="num">' + pos.shares + '</td>',
+      pv:      () => '<td class="num">' + colPV + '</td>',
+      cost:    () => '<td class="num">' + colCost + '</td>',
+      pl:      () => '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>',
+      pctPL:   () => '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>',
+      evo:     () => '<td class="num ' + evoC + '">' + evoTxt + '</td>',
+      weight:  () => '<td class="num">' + pos.weight.toFixed(1) + '%</td>',
+      sector:  () => '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>',
+      geo:     () => '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>',
+    };
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
-    tr.innerHTML = '<td>' + pos.label + '</td>'
-      + (vis('broker')  ? '<td>' + (pos.broker || '') + '</td>' : '')
-      + (vis('shares')  ? '<td class="num">' + pos.shares + '</td>' : '')
-      + (vis('pv')      ? '<td class="num">' + colPV + '</td>' : '')
-      + (vis('cost')    ? '<td class="num">' + colCost + '</td>' : '')
-      + (vis('pl')      ? '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>' : '')
-      + (vis('pctPL')   ? '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>' : '')
-      + (vis('evo')     ? '<td class="num ' + evoC + '">' + evoTxt + '</td>' : '')
-      + (vis('weight')  ? '<td class="num">' + pos.weight.toFixed(1) + '%</td>' : '')
-      + (vis('sector')  ? '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>' : '')
-      + (vis('geo')     ? '<td>' + (GEO_LABELS[pos.geo] || pos.geo || '\u2014') + '</td>' : '');
+    let rowHtml = '<td>' + pos.label + '</td>';
+    _colOrder.forEach(k => { if (vis(k)) rowHtml += _cells[k](); });
+    tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
 
     // Click handler → expand/collapse trade history
@@ -1061,27 +1071,110 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       tr.style.background = '#f7fafc';
 
       const trades = (pos._trades || []).filter(t => t.type === 'buy' || t.type === 'sell');
-      const colSpan = 1 + Object.keys(_colConfig).filter(k => vis(k)).length;
+      const colSpan = 1 + _colOrder.filter(k => vis(k)).length;
       const detailTr = document.createElement('tr');
       detailTr.className = 'trade-detail-row';
       detailTr.style.background = '#f7fafc';
       if (trades.length === 0) {
         detailTr.innerHTML = '<td colspan="' + colSpan + '" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun historique d\'achat disponible</td>';
       } else {
-        let html = '<td colspan="' + colSpan + '" style="padding:0"><div style="padding:8px 16px;font-size:12px">'
-          + '<table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
-          + '<thead><tr style="color:#718096;font-weight:600"><td style="padding:3px 12px 3px 0">Date</td><td style="padding:3px 12px">Type</td><td class="num" style="padding:3px 12px">Qté</td><td class="num" style="padding:3px 12px">Prix</td><td class="num" style="padding:3px 12px">Coût</td></tr></thead><tbody>';
-        trades.sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
-          const tC = t.type === 'sell' ? 'color:#c53030' : '';
-          const typeLabel = t.label || (t.type === 'buy' ? 'Achat' : 'Vente');
-          const currSym = t.currency === 'USD' ? '$' : t.currency === 'JPY' ? '\u00a5' : t.currency === 'MAD' ? '' : '\u20ac ';
-          const currSuffix = t.currency === 'MAD' ? ' DH' : '';
-          const priceTxt = t.costBasis ? currSym + Number(t.costBasis).toFixed(2) + currSuffix : '\u2014';
-          const costTxt = t.cost ? (t.currency === 'MAD' ? Math.round(t.cost) + ' DH' : fmt(Math.round(t.cost))) : '\u2014';
-          html += '<tr style="' + tC + '"><td style="padding:3px 12px 3px 0">' + t.date + '</td><td style="padding:3px 12px">' + typeLabel + '</td><td class="num" style="padding:3px 12px">' + t.qty + '</td><td class="num" style="padding:3px 12px">' + priceTxt + '</td><td class="num" style="padding:3px 12px">' + costTxt + '</td></tr>';
+        // Compute per-trade P/L using position-level EUR price per share
+        const eurPerShare = pos.shares > 0 ? pos.valEUR / pos.shares : 0;
+        let _tradeSortKey = 'date', _tradeSortDir = 'asc';
+        const enriched = trades.map(t => {
+          const valEUR = t.qty * eurPerShare;
+          // Cost in EUR: approximate using current FX for non-EUR
+          let costEUR = t.cost || 0;
+          if (t.currency === 'USD' && _fx.USD) costEUR = t.cost / _fx.USD;
+          else if (t.currency === 'MAD' && _fx.MAD) costEUR = t.cost / _fx.MAD;
+          else if (t.currency === 'JPY' && _fx.JPY) costEUR = t.cost / _fx.JPY;
+          const plEUR = valEUR - costEUR;
+          const plPct = costEUR > 0 ? ((valEUR / costEUR - 1) * 100) : null;
+          return { ...t, valEUR, costEUR, plEUR, plPct, owner: t.owner || 'Amine' };
         });
-        html += '</tbody></table></div></td>';
-        detailTr.innerHTML = html;
+        const hasMultiOwner = new Set(enriched.map(t => t.owner)).size > 1;
+
+        function renderTradeTable(items) {
+          const hPad = 'padding:3px 10px';
+          const hPad0 = 'padding:3px 10px 3px 0';
+          const sty = 'cursor:pointer;user-select:none';
+          let h = '<table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+            + '<thead><tr style="color:#718096;font-weight:600">'
+            + '<td style="' + hPad0 + ';' + sty + '" data-tsort="date">Date ▾</td>'
+            + (hasMultiOwner ? '<td style="' + hPad + ';' + sty + '" data-tsort="owner">Qui</td>' : '')
+            + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="qty">Qté</td>'
+            + '<td style="' + hPad + ';' + sty + '" data-tsort="label">Type</td>'
+            + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="costBasis">PRU</td>'
+            + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="valEUR">Valeur</td>'
+            + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="plEUR">P/L</td>'
+            + '<td class="num" style="' + hPad + ';' + sty + '" data-tsort="plPct">P/L %</td>'
+            + '</tr></thead><tbody>';
+          items.forEach(t => {
+            const tC = t.type === 'sell' ? 'color:#c53030' : '';
+            const typeLabel = t.label || (t.type === 'buy' ? 'Achat' : 'Vente');
+            const currSym = t.currency === 'USD' ? '$' : t.currency === 'JPY' ? '\u00a5' : t.currency === 'MAD' ? '' : '\u20ac ';
+            const currSuffix = t.currency === 'MAD' ? ' DH' : '';
+            const priceTxt = t.costBasis ? currSym + Number(t.costBasis).toFixed(2) + currSuffix : '\u2014';
+            const plC = t.plEUR >= 0 ? 'color:#38a169' : 'color:#c53030';
+            const plS = t.plEUR >= 0 ? '+' : '';
+            h += '<tr style="' + tC + '">'
+              + '<td style="' + hPad0 + '">' + t.date + '</td>'
+              + (hasMultiOwner ? '<td style="' + hPad + '">' + t.owner + '</td>' : '')
+              + '<td class="num" style="' + hPad + '">' + t.qty + '</td>'
+              + '<td style="' + hPad + '">' + typeLabel + '</td>'
+              + '<td class="num" style="' + hPad + '">' + priceTxt + '</td>'
+              + '<td class="num" style="' + hPad + '">' + fmt(Math.round(t.valEUR)) + '</td>'
+              + '<td class="num" style="' + hPad + ';' + plC + '">' + plS + fmt(Math.round(t.plEUR)) + '</td>'
+              + '<td class="num" style="' + hPad + ';' + plC + '">' + (t.plPct !== null ? plS + t.plPct.toFixed(1) + '%' : '\u2014') + '</td>'
+              + '</tr>';
+          });
+          h += '</tbody></table>';
+          return h;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'padding:8px 16px;font-size:12px';
+        wrapper.innerHTML = renderTradeTable(enriched);
+        // Make trade table headers sortable
+        wrapper.querySelectorAll('[data-tsort]').forEach(th => {
+          th.addEventListener('click', () => {
+            const sk = th.getAttribute('data-tsort');
+            if (_tradeSortKey === sk) _tradeSortDir = _tradeSortDir === 'asc' ? 'desc' : 'asc';
+            else { _tradeSortKey = sk; _tradeSortDir = (sk === 'date' || sk === 'owner' || sk === 'label') ? 'asc' : 'desc'; }
+            const sorted2 = [...enriched].sort((a, b) => {
+              let va = a[sk], vb = b[sk];
+              if (typeof va === 'string') { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); return _tradeSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+              va = va || 0; vb = vb || 0;
+              return _tradeSortDir === 'asc' ? va - vb : vb - va;
+            });
+            wrapper.innerHTML = renderTradeTable(sorted2);
+            // Re-bind sort on new headers
+            wrapper.querySelectorAll('[data-tsort]').forEach(th2 => th2.dispatchEvent || null);
+            // Recursive re-bind — simpler: just re-run the click handler setup
+            _bindTradeSort(wrapper, enriched);
+          });
+        });
+        function _bindTradeSort(el, data) {
+          el.querySelectorAll('[data-tsort]').forEach(th2 => {
+            th2.style.cursor = 'pointer';
+            th2.addEventListener('click', () => {
+              const sk2 = th2.getAttribute('data-tsort');
+              if (_tradeSortKey === sk2) _tradeSortDir = _tradeSortDir === 'asc' ? 'desc' : 'asc';
+              else { _tradeSortKey = sk2; _tradeSortDir = (sk2 === 'date' || sk2 === 'owner' || sk2 === 'label') ? 'asc' : 'desc'; }
+              const s2 = [...data].sort((a, b) => {
+                let va = a[sk2], vb = b[sk2];
+                if (typeof va === 'string') { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); return _tradeSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+                va = va || 0; vb = vb || 0;
+                return _tradeSortDir === 'asc' ? va - vb : vb - va;
+              });
+              el.innerHTML = renderTradeTable(s2);
+              _bindTradeSort(el, data);
+            });
+          });
+        }
+
+        detailTr.innerHTML = '<td colspan="' + colSpan + '" style="padding:0"></td>';
+        detailTr.firstChild.appendChild(wrapper);
       }
       tr.after(detailTr);
     });
@@ -1097,22 +1190,25 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     totalEvoC = totalEvoPL >= 0 ? 'pl-pos' : 'pl-neg';
     totalEvoTxt = (totalEvoPL >= 0 ? '+' : '') + fmt(Math.round(totalEvoPL));
   }
-  const visCount = 1 + Object.keys(_colConfig).filter(k => vis(k)).length;
-  const tr = document.createElement('tr');
-  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+  const visCount = 1 + _colOrder.filter(k => vis(k)).length;
+  const _totCells = {
+    broker:  () => '<td></td>',
+    shares:  () => '<td></td>',
+    pv:      () => '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>',
+    cost:    () => '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>',
+    pl:      () => '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>',
+    pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
+    evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
+    weight:  () => '<td class="num">100%</td>',
+    sector:  () => '<td></td>',
+    geo:     () => '<td></td>',
+  };
+  const ttr = document.createElement('tr');
+  ttr.style.fontWeight = '700'; ttr.style.background = '#edf2f7';
   let totalHtml = '<td><strong>Total (' + sorted.length + ' positions)</strong></td>';
-  if (vis('broker'))  totalHtml += '<td></td>';
-  if (vis('shares'))  totalHtml += '<td></td>';
-  if (vis('pv'))      totalHtml += '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>';
-  if (vis('cost'))    totalHtml += '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>';
-  if (vis('pl'))      totalHtml += '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>';
-  if (vis('pctPL'))   totalHtml += '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>';
-  if (vis('evo'))     totalHtml += '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>';
-  if (vis('weight'))  totalHtml += '<td class="num">100%</td>';
-  if (vis('sector'))  totalHtml += '<td></td>';
-  if (vis('geo'))     totalHtml += '<td></td>';
-  tr.innerHTML = totalHtml;
-  tbody.appendChild(tr);
+  _colOrder.forEach(k => { if (vis(k)) totalHtml += _totCells[k](); });
+  ttr.innerHTML = totalHtml;
+  tbody.appendChild(ttr);
 
   // Render column chips
   _renderColumnChips(allPositions);
@@ -1163,7 +1259,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   }
 }
 
-/** Render column toggle chips below the table */
+/** Render column toggle chips below the table — draggable for reorder */
 function _renderColumnChips(allPositions) {
   let container = document.getElementById('colChipsContainer');
   if (!container) {
@@ -1175,21 +1271,67 @@ function _renderColumnChips(allPositions) {
     tbl.parentNode.insertBefore(container, tbl.nextSibling);
   }
   container.innerHTML = '<span style="font-size:11px;color:#a0aec0;margin-right:4px">Colonnes :</span>';
-  Object.entries(_colConfig).forEach(([key, cfg]) => {
+  // Tooltip element for mode-locked columns
+  let tooltip = document.getElementById('colChipTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'colChipTooltip';
+    tooltip.style.cssText = 'position:fixed;background:#2d3748;color:#fff;font-size:10px;padding:4px 10px;border-radius:6px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;white-space:nowrap';
+    document.body.appendChild(tooltip);
+  }
+  let _dragKey = null;
+  _colOrder.forEach(key => {
+    const cfg = _colConfig[key];
     const active = _isColVisible(key);
-    const hidden = cfg.modeOnly && cfg.modeOnly !== _posViewMode; // hidden by mode
+    const lockedByMode = cfg.modeOnly && cfg.modeOnly !== _posViewMode;
     const chip = document.createElement('button');
-    chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:pointer;transition:all .15s;'
-      + (hidden ? 'opacity:0.35;' : '')
+    chip.setAttribute('data-col', key);
+    chip.draggable = true;
+    chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:grab;transition:all .15s;'
+      + (lockedByMode ? 'opacity:0.35;cursor:not-allowed;' : '')
       + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748' : 'background:#fff;color:#718096');
     chip.textContent = cfg.label;
-    if (hidden) { chip.title = 'Visible uniquement en mode ' + cfg.modeOnly; chip.style.cursor = 'not-allowed'; }
-    else {
-      chip.addEventListener('click', () => {
-        _colConfig[key].on = !_colConfig[key].on;
-        renderAllPositions(allPositions, _allSortKey, _allSortDir);
-      });
-    }
+
+    // Click: toggle visibility (or show tooltip if locked by mode)
+    chip.addEventListener('click', () => {
+      if (lockedByMode) {
+        const modeLabel = cfg.modeOnly === 'total' ? 'Total' : 'Unitaire';
+        tooltip.textContent = 'Disponible uniquement en vue ' + modeLabel;
+        const r = chip.getBoundingClientRect();
+        tooltip.style.left = r.left + 'px';
+        tooltip.style.top = (r.top - 28) + 'px';
+        tooltip.style.opacity = '1';
+        setTimeout(() => { tooltip.style.opacity = '0'; }, 1500);
+        return;
+      }
+      _colConfig[key].on = !_colConfig[key].on;
+      renderAllPositions(allPositions, _allSortKey, _allSortDir);
+    });
+
+    // Drag & drop for reorder
+    chip.addEventListener('dragstart', (e) => {
+      _dragKey = key;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', key);
+      chip.style.opacity = '0.4';
+    });
+    chip.addEventListener('dragend', () => { chip.style.opacity = lockedByMode ? '0.35' : '1'; _dragKey = null; });
+    chip.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; chip.style.borderColor = '#4299e1'; chip.style.boxShadow = '0 0 0 2px rgba(66,153,225,0.4)'; });
+    chip.addEventListener('dragleave', () => { chip.style.borderColor = active ? '#2d3748' : '#cbd5e0'; chip.style.boxShadow = 'none'; });
+    chip.addEventListener('drop', (e) => {
+      e.preventDefault();
+      chip.style.borderColor = active ? '#2d3748' : '#cbd5e0';
+      chip.style.boxShadow = 'none';
+      const draggedKey = e.dataTransfer.getData('text/plain');
+      if (!draggedKey || draggedKey === key) return;
+      const fromIdx = _colOrder.indexOf(draggedKey);
+      const toIdx = _colOrder.indexOf(key);
+      if (fromIdx < 0 || toIdx < 0) return;
+      _colOrder.splice(fromIdx, 1);
+      _colOrder.splice(toIdx, 0, draggedKey);
+      renderAllPositions(allPositions, _allSortKey, _allSortDir);
+    });
+
     container.appendChild(chip);
   });
 }
@@ -1273,7 +1415,7 @@ function renderActionsView(state) {
     mtdPct: pctFromRef(p.price, p.mtdOpen),
     ytdPct: pctFromRef(p.price, p.ytdOpen),
     oneMonthPct: pctFromRef(p.price, p.oneMonthAgo),
-    _trades: allTrades.filter(t => t.ticker === p.ticker),
+    _trades: allTrades.filter(t => t.ticker === p.ticker).map(t => ({ ...t, owner: 'Amine' })),
   }));
 
   // ESPP Accenture (Amine + Nezha merged) — build trade history from lots
@@ -1281,12 +1423,12 @@ function renderActionsView(state) {
   const esppLotsAmine = (p.amine.espp.lots || []).map(l => ({
     date: l.date, type: 'buy', ticker: 'ACN', qty: l.shares,
     costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
-    label: 'ESPP Amine (' + l.source + ')',
+    label: 'ESPP (' + l.source + ')', owner: 'Amine',
   }));
   const esppLotsNezha = (p.nezha && p.nezha.espp && p.nezha.espp.lots || []).map(l => ({
     date: l.date, type: 'buy', ticker: 'ACN', qty: l.shares,
     costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
-    label: 'ESPP Nezha (' + l.source + ')',
+    label: 'ESPP (' + l.source + ')', owner: 'Nezha',
   }));
   const esppAllTrades = [...esppLotsAmine, ...esppLotsNezha];
 
@@ -1353,8 +1495,8 @@ function renderActionsView(state) {
     geo: 'morocco',
     _live: av._sgtmLive,
     _trades: [
-      ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO Amine' }] : []),
-      ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO Nezha' }] : []),
+      ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Amine' }] : []),
+      ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
     ],
   });
 
