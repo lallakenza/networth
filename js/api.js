@@ -10,6 +10,7 @@
 
 // ---- Cache helpers ----
 const CACHE_PREFIX = 'nw_cache_';
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
 function todayKey() {
   const d = new Date();
@@ -255,29 +256,41 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
   let cachedSGTM = null;
   let cacheHadUpdates = false;
 
+  const now = Date.now();
   if (!forceRefresh) {
     for (const ticker of allTickers) {
       const cached = cache.stocks[ticker];
       if (cached && cached.price > 0) {
+        // Apply cached price immediately for fast first render
         prices[ticker] = cached;
         applyTickerToPortfolio(ticker, cached, portfolio);
         cacheHadUpdates = true;
         loaded++;
         if (onProgress) onProgress(loaded, totalTickers, ticker + ' ✓');
+        // If cache is stale (>TTL), also schedule a re-fetch
+        if (!cached._ts || (now - cached._ts) > CACHE_TTL_MS) {
+          tickersToFetch.push(ticker);
+        }
       } else {
         tickersToFetch.push(ticker);
       }
     }
-    if (cache.sgtm) {
+    if (cache.sgtm && cache.sgtm.price) {
       cachedSGTM = cache.sgtm.price;
       portfolio.market.sgtmPriceMAD = cachedSGTM;
       portfolio.market._sgtmLive = true;
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
+      // Also re-fetch SGTM if stale
     }
     // Refresh once after applying all cached prices
     if (cacheHadUpdates && onTickerLoaded) onTickerLoaded();
-    console.log('[api] ' + (allTickers.length - tickersToFetch.length) + '/' + allTickers.length + ' from cache, ' + tickersToFetch.length + ' to fetch' + (cachedSGTM !== null ? ', SGTM cached' : ''));
+    const freshCount = allTickers.length - tickersToFetch.length;
+    const staleCount = tickersToFetch.length - allTickers.filter(t => !cache.stocks[t] || !cache.stocks[t].price).length;
+    console.log('[api] ' + freshCount + '/' + allTickers.length + ' fresh cache'
+      + (staleCount > 0 ? ', ' + staleCount + ' stale (re-fetching)' : '')
+      + ', ' + (tickersToFetch.length - staleCount) + ' no cache'
+      + (cachedSGTM !== null ? ', SGTM cached' : ''));
   } else {
     tickersToFetch = [...allTickers];
     console.log('[api] Hard refresh — fetching all ' + totalTickers);
@@ -298,6 +311,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
     const tickerPromises = tickersToFetch.map(async (ticker) => {
       const result = await fetchStockPrice(ticker);
       if (result) {
+        result._ts = Date.now(); // cache timestamp for TTL
         prices[ticker] = result;
         cache.stocks[ticker] = result;
         cacheUpdated = true;
@@ -318,7 +332,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
             cachedSGTM = r;
             portfolio.market.sgtmPriceMAD = r;
             portfolio.market._sgtmLive = true;
-            cache.sgtm = { price: r };
+            cache.sgtm = { price: r, _ts: Date.now() };
             cacheUpdated = true;
             if (onTickerLoaded) onTickerLoaded();
           }
@@ -381,6 +395,7 @@ export async function fetchSoldStockPrices(soldTickers, portfolio, onTickerLoade
     // Fetch live
     const result = await fetchStockPrice(ticker);
     if (result) {
+      result._ts = Date.now();
       portfolio._soldPrices[ticker] = result;
       cache.stocks[ticker] = result;
       loadedCount++;
@@ -440,6 +455,7 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
           portfolio.market._acnLive = true;
         }
         // Update cache
+        result._ts = Date.now();
         cache.stocks[ticker] = result;
         anySuccess = true;
       }
