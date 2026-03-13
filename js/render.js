@@ -884,7 +884,13 @@ function updateAllDataEur() {
 
 function setEur(id, val) {
   const el = document.getElementById(id);
-  if (el) el.dataset.eur = val;
+  if (!el) return;
+  el.dataset.eur = val;
+  // Update visible text immediately (for toggles like Villejuif)
+  if (el.dataset.type !== 'pct') {
+    const sign = el.dataset.sign || '';
+    el.textContent = sign + fmt(val);
+  }
 }
 
 function setText(id, text) {
@@ -2415,29 +2421,38 @@ function renderCashView(state) {
     barsContainer._rows = rows;
     barsContainer._showAmounts = false;
 
+    const MAX_ACCTS = 5; // max accounts per category in tooltip
     function buildBarTooltip(r) {
       const prodAccts = r.accounts.filter(a => a.productive).sort((a, b) => b.valEUR - a.valEUR);
       const dormAccts = r.accounts.filter(a => !a.productive).sort((a, b) => b.valEUR - a.valEUR);
       const avgYield = r.total > 0 ? (r.yieldSum / r.total * 100).toFixed(1) : '0.0';
       const net = r.yieldSum - r.total * inflRate;
+      // % relative to total cash
+      const pctOf = v => r.total > 0 ? (v / r.total * 100).toFixed(1) : '0.0';
 
       let html = '<div style="font-weight:700;margin-bottom:6px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px;">'
         + r.label + ' — ' + fmt(r.total) + ' total · Rdt moy ' + avgYield + '%</div>';
 
-      if (prodAccts.length > 0) {
-        html += '<div style="color:#68d391;font-weight:600;font-size:11px;margin:4px 0 2px;">PRODUCTIF (' + fmt(r.yielding) + ')</div>';
-        prodAccts.forEach(a => {
-          html += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
-            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + (a.yield * 100).toFixed(1) + '%</span></div>';
+      function renderAcctList(accts, color, catLabel, catTotal) {
+        if (accts.length === 0) return '';
+        let h = '<div style="color:' + color + ';font-weight:600;font-size:11px;margin:4px 0 2px;">' + catLabel + ' (' + fmt(catTotal) + ' · ' + pctOf(catTotal) + '%)</div>';
+        const shown = accts.slice(0, MAX_ACCTS);
+        const rest = accts.slice(MAX_ACCTS);
+        shown.forEach(a => {
+          h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
+            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + pctOf(a.valEUR) + '%</span></div>';
         });
+        if (rest.length > 0) {
+          const restTotal = rest.reduce((s, a) => s + a.valEUR, 0);
+          h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;color:#a0aec0;">'
+            + '<span>+ ' + rest.length + ' autres</span><span>' + fmt(restTotal) + ' · ' + pctOf(restTotal) + '%</span></div>';
+        }
+        return h;
       }
-      if (dormAccts.length > 0) {
-        html += '<div style="color:#fc8181;font-weight:600;font-size:11px;margin:6px 0 2px;">DORMANT (' + fmt(r.nonYielding) + ')</div>';
-        dormAccts.forEach(a => {
-          html += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
-            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + (a.yield * 100).toFixed(1) + '%</span></div>';
-        });
-      }
+
+      html += renderAcctList(prodAccts, '#68d391', 'PRODUCTIF', r.yielding);
+      html += renderAcctList(dormAccts, '#fc8181', 'DORMANT', r.nonYielding);
+
       html += '<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:6px;padding-top:4px;font-size:11px;text-align:center;">'
         + 'Net vs inflation : <span style="color:' + (net >= 0 ? '#68d391' : '#fc8181') + ';font-weight:600;">'
         + (net >= 0 ? '+' : '') + fmt(Math.round(net)) + '/an</span></div>';
