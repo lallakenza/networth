@@ -232,8 +232,8 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 300000, crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 0, loyerTotalCC: 1200, loyerDeclareCC: 600 },
-      // value: 300K = 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
+      vitry: { value: 300000, valueDate: '2025-09', crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 0, loyerTotalCC: 1200, loyerDeclareCC: 600 },
+      // value: 300K = estimation sept 2025, 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
       // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
       // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
       // Prime neuf limitée à +5-8% car quartier encore en chantier :
@@ -350,14 +350,15 @@ export const PORTFOLIO = {
     // Caution locative Rueil — dépôt de garantie reçu du locataire, à rembourser au départ
     cautionRueil: 2600, // EUR — à déduire du patrimoine net (dette envers locataire)
     immo: {
-      // { value: valeur estimée, crd: capital restant dû, loyer: loyer mensuel }
-      rueil:     { value: 280000, crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
-      // value: 280K = 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
+      // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
+      // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
+      rueil:     { value: 280000, valueDate: '2025-09', crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
+      // value: 280K = estimation sept 2025, 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
-      villejuif: { value: 370000, crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
-      // value: 370K = 68.92m² × ~5 369€/m² (VEFA neuf, en construction)
+      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
+      // value: 370K = estimation sept 2025, 68.92m² × ~5 369€/m² (VEFA neuf, en construction)
       // Opération totale : 349 456€ avec remise résident Villejuif
       // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
