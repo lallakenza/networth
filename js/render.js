@@ -926,29 +926,27 @@ let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
 // Column visibility config: { key: { label, on, modeOnly? } }
 const _colConfig = {
-  broker:  { label: 'Broker',  on: false },
-  shares:  { label: 'Qté',     on: true },
-  pv:      { label: 'Prix/Val',on: true },
-  cost:    { label: 'Coût/PRU',on: true },
-  pl:      { label: 'P/L',     on: true, modeOnly: 'total' },
-  pctPL:   { label: '% P/L',   on: true, modeOnly: 'total' },
-  evo:     { label: 'Évolution',on: true },
-  weight:  { label: 'Poids',   on: true },
-  sector:  { label: 'Secteur', on: true },
-  geo:     { label: 'Géo',     on: true },
+  broker:  { label: 'Broker',   on: false },
+  shares:  { label: 'Qté',      on: true },
+  prix:    { label: 'Prix',     on: false },
+  valeur:  { label: 'Valeur',   on: true },
+  pru:     { label: 'PRU',      on: false },
+  cout:    { label: 'Coût',     on: true },
+  pl:      { label: 'P/L',      on: true },
+  pctPL:   { label: '% P/L',    on: true },
+  evo:     { label: 'Évolution', on: true },
+  weight:  { label: 'Poids',    on: true },
+  sector:  { label: 'Secteur',  on: true },
+  geo:     { label: 'Géo',      on: true },
 };
 let _colOrder = Object.keys(_colConfig);
 
 function _isColVisible(key) {
   const c = _colConfig[key];
-  if (!c) return false;
-  if (!c.on) return false;
-  if (c.modeOnly && c.modeOnly !== _posViewMode) return false;
-  return true;
+  return c && c.on;
 }
 
 function renderAllPositions(allPositions, sortKey, sortDir) {
-  const mode = _posViewMode;
   const sorted = [...allPositions];
   if (sortKey) {
     sorted.sort((a, b) => {
@@ -972,11 +970,13 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const _hdefs = {
     broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
     shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
-    pv:      { sort: mode === 'unitaire' ? 'price' : 'valEUR', label: mode === 'unitaire' ? 'Prix' : 'Valeur', cls: 'num sortable' },
-    cost:    { sort: 'costEUR', label: mode === 'unitaire' ? 'PRU' : 'Co\u00fbt', cls: 'num sortable' },
+    prix:    { sort: 'price', label: 'Prix', cls: 'num sortable' },
+    valeur:  { sort: 'valEUR', label: 'Valeur', cls: 'num sortable' },
+    pru:     { sort: 'pruEUR', label: 'PRU', cls: 'num sortable' },
+    cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
-    evo:     { sort: 'dailyPct', label: periodLabels[_posPeriod] + (mode === 'unitaire' ? ' %' : ' P&L'), cls: 'num sortable' },
+    evo:     { sort: 'dailyPct', label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
@@ -1012,34 +1012,21 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
         : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>')
       : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
 
-    let colPV, colCost;
-    if (mode === 'unitaire') {
-      colPV = (pos.priceLabel || '\u2014') + liveBadge;
-      colCost = (hasPL && pos.shares > 0) ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014';
-    } else {
-      colPV = fmt(pos.valEUR) + liveBadge;
-      colCost = hasPL ? fmt(pos.costEUR) : '\u2014';
-    }
-
     const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
     const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
     const ePL = pos[periodMap[_posPeriod]] || null;
     const ePct = pos[periodPctMap[_posPeriod]] || null;
-    let evoTxt, evoC;
-    if (mode === 'unitaire') {
-      evoC = ePct != null ? (ePct >= 0 ? 'pl-pos' : 'pl-neg') : '';
-      evoTxt = ePct != null ? (ePct >= 0 ? '+' : '') + ePct.toFixed(1) + '%' : '\u2014';
-    } else {
-      evoC = ePL != null ? (ePL >= 0 ? 'pl-pos' : 'pl-neg') : '';
-      evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
-    }
+    const evoC = ePL != null ? (ePL >= 0 ? 'pl-pos' : 'pl-neg') : '';
+    const evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
 
     // Cell renderers per column key
     const _cells = {
       broker:  () => '<td>' + (pos.broker || '') + '</td>',
       shares:  () => '<td class="num">' + pos.shares + '</td>',
-      pv:      () => '<td class="num">' + colPV + '</td>',
-      cost:    () => '<td class="num">' + colCost + '</td>',
+      prix:    () => '<td class="num">' + (pos.priceLabel || '\u2014') + liveBadge + '</td>',
+      valeur:  () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
+      pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014') + '</td>',
+      cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>',
       pl:      () => '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>',
       pctPL:   () => '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>',
       evo:     () => '<td class="num ' + evoC + '">' + evoTxt + '</td>',
@@ -1186,7 +1173,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const tPlC = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
   const tPlS = totalPL >= 0 ? '+' : '';
   let totalEvoTxt = '', totalEvoC = '';
-  if (mode !== 'unitaire' && totalEvoPL !== 0) {
+  if (totalEvoPL !== 0) {
     totalEvoC = totalEvoPL >= 0 ? 'pl-pos' : 'pl-neg';
     totalEvoTxt = (totalEvoPL >= 0 ? '+' : '') + fmt(Math.round(totalEvoPL));
   }
@@ -1194,8 +1181,10 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const _totCells = {
     broker:  () => '<td></td>',
     shares:  () => '<td></td>',
-    pv:      () => '<td class="num"><strong>' + (mode === 'unitaire' ? '' : fmt(totalVal)) + '</strong></td>',
-    cost:    () => '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>',
+    prix:    () => '<td></td>',
+    valeur:  () => '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>',
+    pru:     () => '<td></td>',
+    cout:    () => '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>',
     pl:      () => '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>',
     pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
     evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
@@ -1271,39 +1260,19 @@ function _renderColumnChips(allPositions) {
     tbl.parentNode.insertBefore(container, tbl.nextSibling);
   }
   container.innerHTML = '<span style="font-size:11px;color:#a0aec0;margin-right:4px">Colonnes :</span>';
-  // Tooltip element for mode-locked columns
-  let tooltip = document.getElementById('colChipTooltip');
-  if (!tooltip) {
-    tooltip = document.createElement('div');
-    tooltip.id = 'colChipTooltip';
-    tooltip.style.cssText = 'position:fixed;background:#2d3748;color:#fff;font-size:10px;padding:4px 10px;border-radius:6px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;white-space:nowrap';
-    document.body.appendChild(tooltip);
-  }
   let _dragKey = null;
   _colOrder.forEach(key => {
     const cfg = _colConfig[key];
     const active = _isColVisible(key);
-    const lockedByMode = cfg.modeOnly && cfg.modeOnly !== _posViewMode;
     const chip = document.createElement('button');
     chip.setAttribute('data-col', key);
     chip.draggable = true;
     chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:grab;transition:all .15s;'
-      + (lockedByMode ? 'opacity:0.35;cursor:not-allowed;' : '')
       + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748' : 'background:#fff;color:#718096');
     chip.textContent = cfg.label;
 
-    // Click: toggle visibility (or show tooltip if locked by mode)
+    // Click: toggle visibility
     chip.addEventListener('click', () => {
-      if (lockedByMode) {
-        const modeLabel = cfg.modeOnly === 'total' ? 'Total' : 'Unitaire';
-        tooltip.textContent = 'Disponible uniquement en vue ' + modeLabel;
-        const r = chip.getBoundingClientRect();
-        tooltip.style.left = r.left + 'px';
-        tooltip.style.top = (r.top - 28) + 'px';
-        tooltip.style.opacity = '1';
-        setTimeout(() => { tooltip.style.opacity = '0'; }, 1500);
-        return;
-      }
       _colConfig[key].on = !_colConfig[key].on;
       renderAllPositions(allPositions, _allSortKey, _allSortDir);
     });
@@ -1315,7 +1284,7 @@ function _renderColumnChips(allPositions) {
       e.dataTransfer.setData('text/plain', key);
       chip.style.opacity = '0.4';
     });
-    chip.addEventListener('dragend', () => { chip.style.opacity = lockedByMode ? '0.35' : '1'; _dragKey = null; });
+    chip.addEventListener('dragend', () => { chip.style.opacity = '1'; _dragKey = null; });
     chip.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; chip.style.borderColor = '#4299e1'; chip.style.boxShadow = '0 0 0 2px rgba(66,153,225,0.4)'; });
     chip.addEventListener('dragleave', () => { chip.style.borderColor = active ? '#2d3748' : '#cbd5e0'; chip.style.boxShadow = 'none'; });
     chip.addEventListener('drop', (e) => {
@@ -1352,7 +1321,19 @@ function setupAllPositionsSort(allPositions) {
       });
     });
   }
-  setupToggle('posViewToggle', btn => { _posViewMode = btn.getAttribute('data-mode'); });
+  setupToggle('posViewToggle', btn => {
+    const m = btn.getAttribute('data-mode');
+    _posViewMode = m;
+    if (m === 'total') {
+      _colConfig.valeur.on = true;  _colConfig.prix.on = false;
+      _colConfig.cout.on = true;    _colConfig.pru.on = false;
+      _colConfig.pl.on = true;      _colConfig.pctPL.on = true;
+    } else {
+      _colConfig.valeur.on = false; _colConfig.prix.on = true;
+      _colConfig.cout.on = false;   _colConfig.pru.on = true;
+      _colConfig.pl.on = false;     _colConfig.pctPL.on = false;
+    }
+  });
   setupToggle('posPeriodToggle', btn => { _posPeriod = btn.getAttribute('data-period'); });
 }
 
@@ -1499,6 +1480,9 @@ function renderActionsView(state) {
       ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
     ],
   });
+
+  // Add pruEUR for sorting
+  allPositions.forEach(p => { p.pruEUR = p.costEUR && p.shares > 0 ? p.costEUR / p.shares : 0; });
 
   // Render unified table
   renderAllPositions(allPositions, null, null);
