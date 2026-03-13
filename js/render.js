@@ -39,11 +39,14 @@ function makeTableSortable(tableEl, data, renderRowsFn) {
       }
       const sorted = [...data].sort((a, b) => {
         let va = a[key], vb = b[key];
-        if (isStr || typeof va === 'string') {
+        if (isStr || typeof va === 'string' || typeof vb === 'string') {
           va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
           return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
         }
-        va = va || 0; vb = vb || 0;
+        const aNull = (va == null), bNull = (vb == null);
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
         return sortDir === 'asc' ? va - vb : vb - va;
       });
       renderRowsFn(sorted);
@@ -958,11 +961,15 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   if (sortKey) {
     sorted.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
-      if (typeof va === 'string') {
+      if (typeof va === 'string' || typeof vb === 'string') {
         va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       }
-      va = va || 0; vb = vb || 0;
+      // Push null/undefined to the bottom regardless of sort direction
+      const aNull = (va == null), bNull = (vb == null);
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
       return sortDir === 'asc' ? va - vb : vb - va;
     });
   }
@@ -983,7 +990,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
-    evo:     { sort: ({ daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' }[_posPeriod] || 'dailyPct'), label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
+    evo:     { sort: ({ daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod] || 'dailyPL'), label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
