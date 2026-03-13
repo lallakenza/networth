@@ -921,6 +921,7 @@ let _allSortDir = 'desc';
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
+let _immoIncludeVillejuif = true; // toggle for Villejuif (achat futur)
 let _posViewMode = 'total'; // 'total' or 'unitaire'
 let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
@@ -976,7 +977,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
-    evo:     { sort: 'dailyPct', label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
+    evo:     { sort: ({ daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' }[_posPeriod] || 'dailyPct'), label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
@@ -1023,7 +1024,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const _cells = {
       broker:  () => '<td>' + (pos.broker || '') + '</td>',
       shares:  () => '<td class="num">' + pos.shares + '</td>',
-      prix:    () => '<td class="num">' + (pos.priceLabel || '\u2014') + liveBadge + '</td>',
+      prix:    () => '<td class="num">' + (pos.priceLabel || '\u2014') + '</td>',
       valeur:  () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
       pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014') + '</td>',
       cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>',
@@ -1037,7 +1038,8 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
-    let rowHtml = '<td>' + pos.label + '</td>';
+    const showBadge = _posViewMode !== 'total';
+    let rowHtml = '<td>' + pos.label + (showBadge ? liveBadge : '') + '</td>';
     _colOrder.forEach(k => { if (vis(k)) rowHtml += _cells[k](); });
     tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
@@ -1339,7 +1341,17 @@ function setupAllPositionsSort(allPositions) {
       _colConfig.pl.on = false;     _colConfig.pctPL.on = false;
     }
   });
-  setupToggle('posPeriodToggle', btn => { _posPeriod = btn.getAttribute('data-period'); });
+  setupToggle('posPeriodToggle', btn => {
+    _posPeriod = btn.getAttribute('data-period');
+    // If user was sorting by an evo/period column, update the sort key to match new period
+    const periodSortKeys = ['dailyPct', 'mtdPct', 'oneMonthPct', 'ytdPct', 'dailyPL', 'mtdPL', 'oneMonthPL', 'ytdPL'];
+    if (_allSortKey && periodSortKeys.includes(_allSortKey)) {
+      const isPct = _allSortKey.endsWith('Pct');
+      const pctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
+      const plMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
+      _allSortKey = isPct ? pctMap[_posPeriod] : plMap[_posPeriod];
+    }
+  });
 }
 
 // ---- ASSET VIEW RENDERERS ----
@@ -1544,9 +1556,14 @@ function renderActionsView(state) {
                 const diffS = diff >= 0 ? '+' : '';
                 ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
               }
+              // Calculate unit price: use t.price, or derive from amount/qty
+              let unitPrice = t.price;
+              if (!unitPrice && t.qty) {
+                unitPrice = isSell ? (t.proceeds || 0) / t.qty : (t.cost || 0) / t.qty;
+              }
               const currSym = t.currency === 'USD' ? '$' : t.currency === 'MAD' ? '' : '\u20ac ';
               const currSuffix = t.currency === 'MAD' ? ' DH' : '';
-              const priceTxt = t.price ? currSym + Number(t.price).toFixed(2) + currSuffix : '\u2014';
+              const priceTxt = unitPrice ? currSym + Number(unitPrice).toFixed(2) + currSuffix : '\u2014';
               h += '<tr style="' + tColor + '">'
                 + '<td style="' + hp + '">' + t.date + '</td>'
                 + '<td style="' + hp + '">' + (isSell ? 'Vente' : 'Achat') + '</td>'
@@ -1561,7 +1578,7 @@ function renderActionsView(state) {
               const diff = cp._ifHeldValueEUR - cp.proceedsEUR;
               const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
               const diffS = diff >= 0 ? '+' : '';
-              h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gardé</td>'
+              h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
                 + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR)) + '</td>'
                 + '<td class="num" style="' + hp + ';' + diffCls + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + ' (' + diffS + fmt(Math.round(diff)) + ')</td></tr>';
             }
@@ -1655,9 +1672,14 @@ function renderActionsView(state) {
                 const diffS = diff >= 0 ? '+' : '';
                 ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
               }
+              // Calculate unit price: use t.price, or derive from amount/qty
+              let unitPrice = t.price;
+              if (!unitPrice && t.qty) {
+                unitPrice = isSell ? (t.proceeds || 0) / t.qty : (t.cost || 0) / t.qty;
+              }
               const currSym = t.currency === 'USD' ? '$' : t.currency === 'MAD' ? '' : '\u20ac ';
               const currSuffix = t.currency === 'MAD' ? ' DH' : '';
-              const priceTxt = t.price ? currSym + Number(t.price).toFixed(2) + currSuffix : '\u2014';
+              const priceTxt = unitPrice ? currSym + Number(unitPrice).toFixed(2) + currSuffix : '\u2014';
               h += '<tr style="' + tColor + '">'
                 + '<td style="' + hp + '">' + t.date + '</td>'
                 + '<td style="' + hp + '">' + (isSell ? 'Vente' : 'Achat') + '</td>'
@@ -2370,34 +2392,68 @@ function renderCashView(state) {
     makeTableSortable(cashTable, cashData, renderCashRowsFlat);
   }
 
-  // Yield bars — Couple, Amine, Nezha (click to toggle % ↔ montants)
+  // Yield bars — Couple, Amine, Nezha (click to toggle % ↔ montants, hover for breakdown)
   const barsContainer = document.getElementById('cashYieldBars');
   if (barsContainer && cv.totalCash > 0) {
     const inflRate = 0.03;
+    // Build per-account lists for each row
+    const allAccounts = cv.accounts.filter(a => !a.isDebt).map(a => ({
+      label: a.label, valEUR: a.valEUR, yield: a.yield || 0, productive: (a.yield || 0) >= 0.03
+    }));
+    const amineAccts = cv.byOwner ? cv.byOwner.Amine.accounts : [];
+    const nezhaAccts = cv.byOwner ? cv.byOwner.Nezha.accounts : [];
+
     const rows = [
       { label: 'Couple', yielding: cv.totalYielding, nonYielding: cv.totalNonYielding, total: cv.totalCash,
-        yieldSum: cv.weightedAvgYield * cv.totalCash },
+        yieldSum: cv.weightedAvgYield * cv.totalCash, accounts: allAccounts },
       ...(cv.byOwner ? [
         { label: 'Amine', yielding: cv.byOwner.Amine.yielding, nonYielding: cv.byOwner.Amine.nonYielding,
-          total: cv.byOwner.Amine.total, yieldSum: cv.byOwner.Amine.weightedYieldSum },
+          total: cv.byOwner.Amine.total, yieldSum: cv.byOwner.Amine.weightedYieldSum, accounts: amineAccts },
         { label: 'Nezha', yielding: cv.byOwner.Nezha.yielding, nonYielding: cv.byOwner.Nezha.nonYielding,
-          total: cv.byOwner.Nezha.total, yieldSum: cv.byOwner.Nezha.weightedYieldSum },
+          total: cv.byOwner.Nezha.total, yieldSum: cv.byOwner.Nezha.weightedYieldSum, accounts: nezhaAccts },
       ] : []),
     ];
-    // Store data for toggle
     barsContainer._rows = rows;
     barsContainer._showAmounts = false;
 
+    function buildBarTooltip(r) {
+      const prodAccts = r.accounts.filter(a => a.productive).sort((a, b) => b.valEUR - a.valEUR);
+      const dormAccts = r.accounts.filter(a => !a.productive).sort((a, b) => b.valEUR - a.valEUR);
+      const avgYield = r.total > 0 ? (r.yieldSum / r.total * 100).toFixed(1) : '0.0';
+      const net = r.yieldSum - r.total * inflRate;
+
+      let html = '<div style="font-weight:700;margin-bottom:6px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px;">'
+        + r.label + ' — ' + fmt(r.total) + ' total · Rdt moy ' + avgYield + '%</div>';
+
+      if (prodAccts.length > 0) {
+        html += '<div style="color:#68d391;font-weight:600;font-size:11px;margin:4px 0 2px;">PRODUCTIF (' + fmt(r.yielding) + ')</div>';
+        prodAccts.forEach(a => {
+          html += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
+            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + (a.yield * 100).toFixed(1) + '%</span></div>';
+        });
+      }
+      if (dormAccts.length > 0) {
+        html += '<div style="color:#fc8181;font-weight:600;font-size:11px;margin:6px 0 2px;">DORMANT (' + fmt(r.nonYielding) + ')</div>';
+        dormAccts.forEach(a => {
+          html += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
+            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + (a.yield * 100).toFixed(1) + '%</span></div>';
+        });
+      }
+      html += '<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:6px;padding-top:4px;font-size:11px;text-align:center;">'
+        + 'Net vs inflation : <span style="color:' + (net >= 0 ? '#68d391' : '#fc8181') + ';font-weight:600;">'
+        + (net >= 0 ? '+' : '') + fmt(Math.round(net)) + '/an</span></div>';
+      return html;
+    }
+
     function renderYieldBars() {
       const showAmt = barsContainer._showAmounts;
-      barsContainer.innerHTML = rows.map(r => {
+      barsContainer.innerHTML = rows.map((r, idx) => {
         if (r.total <= 0) return '';
         const pctProd = Math.round(r.yielding / r.total * 100);
         const pctDorm = 100 - pctProd;
         const net = r.yieldSum - r.total * inflRate;
         const netStr = (net >= 0 ? '+' : '') + fmt(Math.round(net));
         const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
-        // Build segments — skip 0% segments
         let segs = '';
         if (pctProd > 0) {
           const prodLabel = showAmt ? fmt(r.yielding, true) : pctProd + '%';
@@ -2407,7 +2463,7 @@ function renderCashView(state) {
           const dormLabel = showAmt ? fmt(r.nonYielding, true) : pctDorm + '%';
           segs += '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + dormLabel + '</div>';
         }
-        return '<div style="display:flex;align-items:center;gap:10px;">'
+        return '<div class="yield-bar-row" data-bar-idx="' + idx + '" style="display:flex;align-items:center;gap:10px;position:relative;">'
           + '<span style="min-width:52px;font-weight:600;font-size:13px;">' + r.label + '</span>'
           + '<div class="meter-bar" style="height:28px;flex:1;cursor:pointer;" data-yieldbar="1">' + segs + '</div>'
           + '<span style="min-width:100px;text-align:right;font-size:13px;font-weight:600;color:' + netColor + '">' + netStr + '/an</span>'
@@ -2415,13 +2471,50 @@ function renderCashView(state) {
       }).join('');
     }
     renderYieldBars();
-    // Click to toggle
+
+    // Click to toggle % ↔ montants
     barsContainer.onclick = (e) => {
       if (e.target.closest('[data-yieldbar]') || e.target.closest('.mb-seg')) {
         barsContainer._showAmounts = !barsContainer._showAmounts;
         renderYieldBars();
       }
     };
+
+    // Hover tooltip
+    let barTip = null;
+    barsContainer.addEventListener('mouseenter', (e) => {
+      const row = e.target.closest('.yield-bar-row');
+      if (!row) return;
+      const idx = parseInt(row.getAttribute('data-bar-idx'));
+      const r = rows[idx];
+      if (!r) return;
+      if (!barTip) {
+        barTip = document.createElement('div');
+        barTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
+          + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;';
+        document.body.appendChild(barTip);
+      }
+      barTip.innerHTML = buildBarTooltip(r);
+      barTip.style.display = 'block';
+      const rect = row.getBoundingClientRect();
+      barTip.style.left = (rect.left + rect.width / 2 - 150) + 'px';
+      barTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
+    }, true);
+    barsContainer.addEventListener('mouseover', (e) => {
+      const row = e.target.closest('.yield-bar-row');
+      if (!row || !barTip) return;
+      const idx = parseInt(row.getAttribute('data-bar-idx'));
+      const r = rows[idx];
+      if (!r) return;
+      barTip.innerHTML = buildBarTooltip(r);
+      const rect = row.getBoundingClientRect();
+      barTip.style.left = (rect.left + rect.width / 2 - 150) + 'px';
+      barTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
+      barTip.style.display = 'block';
+    });
+    barsContainer.addEventListener('mouseleave', () => {
+      if (barTip) barTip.style.display = 'none';
+    });
   }
 
   // JPY note
@@ -2503,14 +2596,14 @@ function renderCashView(state) {
   }
 }
 
-function renderWealthBreakdown(iv) {
+function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
   const section = document.getElementById('wealthBreakdownSection');
   const content = document.getElementById('wealthBreakdownContent');
   if (!section || !content || !iv.totalWealthBreakdown) return;
 
-  const tb = iv.totalWealthBreakdown;
-  const total = iv.totalWealthCreation;
-  const props = iv.properties;
+  const tb = filteredTotals ? filteredTotals.wealthBreakdown : iv.totalWealthBreakdown;
+  const total = filteredTotals ? filteredTotals.wealthCreation : iv.totalWealthCreation;
+  const props = filteredProps || iv.properties;
 
   // Bar width helper (proportional to total)
   const maxComp = Math.max(Math.abs(tb.capitalAmorti), Math.abs(tb.appreciation), Math.abs(tb.cashflow), 1);
@@ -2596,15 +2689,57 @@ function renderWealthBreakdown(iv) {
 
 function renderImmoView(state) {
   const iv = state.immoView;
+
+  // ── Villejuif toggle wiring ──
+  const vilToggle = document.getElementById('immoVillejuifToggle');
+  const vilCheck = document.getElementById('immoVillejuifCheck');
+  function updateVilToggleUI() {
+    if (vilCheck) {
+      vilCheck.style.background = _immoIncludeVillejuif ? 'var(--accent)' : '#fff';
+      vilCheck.style.borderColor = _immoIncludeVillejuif ? 'var(--accent)' : '#cbd5e0';
+      vilCheck.style.color = _immoIncludeVillejuif ? '#fff' : 'transparent';
+    }
+  }
+  if (vilToggle && !vilToggle._wired) {
+    vilToggle._wired = true;
+    vilToggle.addEventListener('click', () => {
+      _immoIncludeVillejuif = !_immoIncludeVillejuif;
+      updateVilToggleUI();
+      renderImmoView(state);
+    });
+  }
+  updateVilToggleUI();
+
+  // ── Filter properties based on toggle ──
+  const filteredProps = _immoIncludeVillejuif
+    ? iv.properties
+    : iv.properties.filter(p => p.loanKey !== 'villejuif');
+  const fp = filteredProps; // shorthand
+
+  // Recompute KPIs from filtered set
+  const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
+  const fTotalValue = fp.reduce((s, p) => s + p.value, 0);
+  const fTotalCRD = fp.reduce((s, p) => s + p.crd, 0);
+  const fTotalCF = fp.reduce((s, p) => s + p.cf, 0);
+  const fTotalWealthCreation = fp.reduce((s, p) => s + p.wealthCreation, 0);
+  const fTotalWealthBreakdown = {
+    capitalAmorti: fp.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
+    appreciation: fp.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.appreciation : 0), 0),
+    cashflow: fp.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.cashflow : 0), 0),
+  };
+  const fAvgLTV = fTotalValue > 0 ? (fTotalCRD / fTotalValue * 100) : 0;
+  const fTotalExitCosts = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
+  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : 0), 0);
+
   // KPIs
-  setEur('kpiImmoViewEq', iv.totalEquity);
-  setEur('kpiImmoViewVal', iv.totalValue);
-  setEur('kpiImmoViewCRD', iv.totalCRD);
-  setText('kpiImmoViewWealth', '+' + fmt(iv.totalWealthCreation) + '/mois');
-  setText('kpiImmoViewLTV', iv.avgLTV.toFixed(1) + '%');
+  setEur('kpiImmoViewEq', fTotalEquity);
+  setEur('kpiImmoViewVal', fTotalValue);
+  setEur('kpiImmoViewCRD', fTotalCRD);
+  setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
+  setText('kpiImmoViewLTV', fAvgLTV.toFixed(1) + '%');
 
   // ── Wealth creation breakdown section ──
-  renderWealthBreakdown(iv);
+  renderWealthBreakdown(iv, fp, { wealthBreakdown: fTotalWealthBreakdown, wealthCreation: fTotalWealthCreation });
 
   // ── Wealth projection chart ──
   const projSection = document.getElementById('wealthProjectionSection');
@@ -2646,23 +2781,24 @@ function renderImmoView(state) {
       });
     });
   }
-  const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
-  const cfSign = iv.totalCF >= 0 ? '+' : '';
-  setText('kpiImmoViewCF', cfSign + fmt(iv.totalCF) + '/mois');
-  document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
+  const cfCls = fTotalCF >= 0 ? 'pl-pos' : 'pl-neg';
+  const cfSign = fTotalCF >= 0 ? '+' : '';
+  setText('kpiImmoViewCF', cfSign + fmt(fTotalCF) + '/mois');
+  const cfEl = document.getElementById('kpiImmoViewCF');
+  if (cfEl) { cfEl.classList.remove('pl-pos', 'pl-neg'); cfEl.classList.add(cfCls); }
 
   // Exit costs KPIs (net equity after exit)
   const neaeEl = document.getElementById('kpiImmoViewNetEq');
   if (neaeEl) {
-    const neae = iv.totalNetEquityAfterExit || 0;
+    const neae = fTotalNetEquityAfterExit || 0;
     neaeEl.textContent = fmt(Math.round(neae));
     neaeEl.setAttribute('data-eur', Math.round(neae));
     neaeEl.className = 'value ' + (neae >= 0 ? 'pl-pos' : 'pl-neg');
   }
   const exitEl = document.getElementById('kpiImmoViewExitCosts');
   if (exitEl) {
-    exitEl.textContent = fmt(Math.round(iv.totalExitCosts || 0));
-    exitEl.setAttribute('data-eur', Math.round(iv.totalExitCosts || 0));
+    exitEl.textContent = fmt(Math.round(fTotalExitCosts || 0));
+    exitEl.setAttribute('data-eur', Math.round(fTotalExitCosts || 0));
   }
 
   // ── Hover tooltips for immobilier KPIs ──
@@ -2676,58 +2812,58 @@ function renderImmoView(state) {
     if (above) tip.classList.add('above'); else tip.classList.remove('above');
     tip.innerHTML = html;
   }
-  const _props = iv.properties || [];
   const _fmtK = v => { const a = Math.abs(Math.round(v)); return (v < 0 ? '-' : '') + (a >= 1000 ? (a / 1000).toFixed(0) + 'K' : a + '') + ' \u20ac'; };
+  const _vilNote = !_immoIncludeVillejuif ? '<br><span style="color:#fbd38d;font-size:10px">Hors Villejuif (achat futur)</span>' : '';
 
   // 1. Equity Brute — breakdown per property (above to avoid clipping by row 2)
-  _setTip('kpiImmoViewEq', _props.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>'), true);
+  _setTip('kpiImmoViewEq', fp.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>') + _vilNote, true);
 
   // 2. Equity Nette (après sortie) — show deduction
-  _setTip('kpiImmoViewNetEq', _props.map(p => {
+  _setTip('kpiImmoViewNetEq', fp.map(p => {
     const ne = p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity;
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ne) + '</b> <span style="color:#fc8181;">(-' + _fmtK(ec) + ' frais)</span>';
-  }).join('<br>'), true);
+  }).join('<br>') + _vilNote, true);
 
   // 3. Frais de sortie — per property
-  _setTip('kpiImmoViewExitCosts', _props.map(p => {
+  _setTip('kpiImmoViewExitCosts', fp.map(p => {
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ec) + '</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>', true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>' + _vilNote, true);
 
   // 4. CF Net /mois — per property with sign
-  _setTip('kpiImmoViewCF', _props.map(p => {
+  _setTip('kpiImmoViewCF', fp.map(p => {
     const s = p.cf >= 0 ? '+' : '';
     const c = p.cf >= 0 ? '#68d391' : '#fc8181';
     return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>' + _vilNote, true);
 
   // 5. Valeur Totale — per property with dynamic ref (above)
-  _setTip('kpiImmoViewVal', _props.map(p => {
+  _setTip('kpiImmoViewVal', fp.map(p => {
     const ref = p.referenceValue && p.referenceValue !== p.value
       ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
     return p.name + ' : <b>' + _fmtK(p.value) + '</b>' + ref;
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>', true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>' + _vilNote, true);
 
   // 6. CRD Total — per property (bottom row → above)
-  _setTip('kpiImmoViewCRD', _props.map(p =>
+  _setTip('kpiImmoViewCRD', fp.map(p =>
     p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#a0aec0">(fin ' + p.endYear + ')</span>'
-  ).join('<br>'), true);
+  ).join('<br>') + _vilNote, true);
 
   // 7. Création Richesse /mois — breakdown by type (bottom row → above)
-  const wb = iv.totalWealthBreakdown || {};
   _setTip('kpiImmoViewWealth',
-    'Capital amorti : <b>' + fmt(wb.capitalAmorti || 0) + '</b><br>'
-    + 'Appr\u00e9ciation : <b>' + fmt(wb.appreciation || 0) + '</b><br>'
-    + 'Cash flow : <b>' + fmt(wb.cashflow || 0) + '</b>'
-    + (wb.effortEpargne ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(wb.effortEpargne) + '</span>' : '')
-    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt((iv.totalWealthCreation || 0) * 12) + '/an</span>'
+    'Capital amorti : <b>' + fmt(fTotalWealthBreakdown.capitalAmorti || 0) + '</b><br>'
+    + 'Appr\u00e9ciation : <b>' + fmt(fTotalWealthBreakdown.appreciation || 0) + '</b><br>'
+    + 'Cash flow : <b>' + fmt(fTotalWealthBreakdown.cashflow || 0) + '</b>'
+    + (fTotalWealthBreakdown.cashflow < 0 ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(Math.abs(fTotalWealthBreakdown.cashflow)) + '</span>' : '')
+    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt(fTotalWealthCreation * 12) + '/an</span>'
+    + _vilNote
   , true);
 
   // 8. LTV Moyen — per property (bottom row → above)
-  _setTip('kpiImmoViewLTV', _props.map(p =>
+  _setTip('kpiImmoViewLTV', fp.map(p =>
     p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#a0aec0">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
-  ).join('<br>'), true);
+  ).join('<br>') + _vilNote, true);
 
   // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');
@@ -2735,7 +2871,9 @@ function renderImmoView(state) {
     grid.innerHTML = '';
     iv.properties.forEach((prop, idx) => {
       const card = document.createElement('div');
+      const isExcluded = !_immoIncludeVillejuif && prop.loanKey === 'villejuif';
       card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
+      if (isExcluded) card.style.opacity = '0.45';
       card.dataset.loanKey = prop.loanKey;
       const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
       const cfSign = prop.cf >= 0 ? '+' : '';

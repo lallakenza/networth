@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v125** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v127** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -596,3 +596,45 @@ Les tableaux de positions fermées (IBKR et Degiro) sont cliquables. Au clic sur
 - **CF NET** : utiliser `fmt()` pour inclure le symbole `€`, pas `iv.totalCF + '/mois'` directement
 - **Prix actions** : format `€ XX.XX` (Unicode `\u20ac` + espace), jamais `XX.XX EUR`
 - `_fmtK(val)` : helper local pour tooltips immo, format compact `XK €` ou `X €`
+
+### Chargement progressif des prix actions (v127+)
+
+Le chargement des prix se fait en 2 phases avec rafraichissement progressif de l'UI :
+
+1. **Held stocks** : `fetchStockPrices()` dans `api.js` accepte un callback `onTickerLoaded`. Pour chaque ticker chargé (cache ou API), le prix est appliqué immédiatement au portfolio via `applyTickerToPortfolio()`, puis le callback déclenche un `throttledRefresh()` (800ms debounce dans `app.js`) qui fait `compute()` + `render()`.
+
+2. **Sold stocks** : Seulement si TOUS les held stocks sont chargés sans erreur, `fetchSoldStockPrices()` est appelé en background. Les prix sont stockés dans `portfolio._soldPrices[ticker]` et utilisés par `engine.js` pour calculer `_ifHeldPriceEUR` / `_ifHeldValueEUR` dans les positions fermées.
+
+**Mapping Yahoo Finance** : Les tickers EUR Euronext sans suffixe (ex: `EDEN`) sont mappés vers `EDEN.PA` pour l'API Yahoo. Le mapping inverse est conservé pour retrouver le ticker original dans le portfolio.
+
+### Badge LIVE/STATIC (v127+)
+
+- Affiché dans la colonne label (nom de l'action), pas dans la colonne prix
+- **Masqué** en vue "Total" (`_posViewMode === 'total'`), visible uniquement en vue "Unitaire"
+- 3 badges : LIVE (bleu), STATIC (rouge = API pas encore chargée), STATIC (gris = SGTM, pas d'API)
+
+### Sort dynamique par période (v127+)
+
+Le tri de la colonne "Evo" s'adapte à la période sélectionnée (Daily/MTD/1M/YTD) :
+- `_hdefs.evo.sort` est dynamique : `{ daily: 'dailyPct', mtd: 'mtdPct', ... }[_posPeriod]`
+- Quand l'utilisateur change de période via `posPeriodToggle`, `_allSortKey` est mis à jour si l'ancien key était un key de période (Pct ou PL)
+
+### Tooltips Cash Productif vs Dormant (v127+)
+
+Les 3 barres (Couple, Amine, Nezha) ont un tooltip au hover qui affiche :
+- Montant total et rendement moyen
+- Liste des comptes productifs (≥3%) triés par montant décroissant
+- Liste des comptes dormants (<3%) triés par montant décroissant
+- Net vs inflation annuel
+
+Les données par compte sont enrichies dans `engine.js` via `byOwner[name].accounts[]`.
+
+### Toggle Villejuif — Immobilier (v127+)
+
+Un bouton checkbox "Inclure Villejuif (achat futur)" en haut de la vue Immobilier permet d'exclure Villejuif des KPIs agrégés :
+- Variable : `_immoIncludeVillejuif` (booléen, défaut `true`)
+- Quand désactivé : les 8 KPIs (Equity, Valeur, CRD, CF, Wealth, LTV, Exit Costs, Net Equity) sont recalculés à partir des propriétés filtrées (sans Villejuif)
+- Les tooltips affichent "Hors Villejuif (achat futur)" quand le toggle est off
+- La carte Villejuif dans la grille est visuellement atténuée (opacity 0.45)
+- Le tableau wealth breakdown et les charts respectent aussi le filtre
+- Les tables de détail (prêts, fiscalité, CF) restent complètes (affichent les 3 biens)

@@ -780,7 +780,13 @@
 
 <!-- ============ VUE IMMOBILIER ============ -->
 <div class="card hidden" data-view="immobilier">
-  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Portefeuille Immobilier</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2 style="margin:0;"><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Portefeuille Immobilier</h2>
+    <div id="immoVillejuifToggle" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray);cursor:pointer;user-select:none;padding:4px 10px;border:1px solid #cbd5e0;border-radius:6px;background:#fff;">
+      <span id="immoVillejuifCheck" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;border:1.5px solid #cbd5e0;font-size:11px;font-weight:700;color:#fff;background:#fff;transition:all .15s;">&#10003;</span>
+      <span>Inclure Villejuif <span style="color:#a0aec0">(achat futur)</span></span>
+    </div>
+  </div>
   <div class="kpi-strip" id="kpi-immo" style="grid-template-columns: repeat(4, 1fr);">
     <div class="kpi gold"><div class="value" id="kpiImmoViewEq" data-eur="0">--</div><div class="label">Equity Brute</div></div>
     <div class="kpi green"><div class="value" id="kpiImmoViewNetEq" data-eur="0">--</div><div class="label">Equity Nette (apr&egrave;s sortie)</div></div>
@@ -1030,7 +1036,7 @@
 
 </div>
 
-<script type="module" src="js/app.js?v=126"></script>
+<script type="module" src="js/app.js?v=127"></script>
 
 </body>
 </html>
