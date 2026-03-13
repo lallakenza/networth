@@ -1498,6 +1498,7 @@ function renderActionsView(state) {
   const closedTable = document.getElementById('actionsClosedTable');
   if (closedTbody) {
     const closedData = av.closedPositions.map(cp => ({ ...cp, label: cp.label + ' (' + cp.ticker + ')' }));
+    let _expandedClosed = null;
     function renderClosedRows(items) {
       closedTbody.innerHTML = '';
       let totalClosed = 0;
@@ -1506,7 +1507,69 @@ function renderActionsView(state) {
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
         tr.innerHTML = '<td>' + cp.label + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        tr.addEventListener('click', () => {
+          closedTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
+          closedTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
+          if (_expandedClosed === cp.ticker) { _expandedClosed = null; return; }
+          _expandedClosed = cp.ticker;
+          tr.style.background = '#f7fafc';
+          const trades = cp._allTrades || [];
+          const detailTr = document.createElement('tr');
+          detailTr.className = 'closed-detail-row';
+          detailTr.style.background = '#f7fafc';
+          if (trades.length === 0) {
+            detailTr.innerHTML = '<td colspan="2" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun détail disponible</td>';
+          } else {
+            const hp = 'padding:3px 10px';
+            let h = '<td colspan="2" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+              + '<thead><tr style="color:#718096;font-weight:600">'
+              + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
+              + '<td class="num" style="' + hp + '">Qté</td><td class="num" style="' + hp + '">Prix</td>'
+              + '<td class="num" style="' + hp + '">Montant</td>'
+              + '<td class="num" style="' + hp + '">Si gardé auj.</td>'
+              + '</tr></thead><tbody>';
+            trades.forEach(t => {
+              const isSell = t.type === 'sell';
+              const tColor = isSell ? 'color:#c53030' : '';
+              const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
+              const amtLabel = isSell ? fmt(Math.round(amt)) : fmt(Math.round(amt));
+              // "If held" column: for sells, show what the qty would be worth today
+              let ifHeld = '\u2014';
+              if (isSell && cp._ifHeldPriceEUR && t.qty) {
+                const hypothetical = t.qty * cp._ifHeldPriceEUR;
+                const diff = hypothetical - amt;
+                const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
+                const diffS = diff >= 0 ? '+' : '';
+                ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
+              }
+              const currSym = t.currency === 'USD' ? '$' : t.currency === 'MAD' ? '' : '\u20ac ';
+              const currSuffix = t.currency === 'MAD' ? ' DH' : '';
+              const priceTxt = t.price ? currSym + Number(t.price).toFixed(2) + currSuffix : '\u2014';
+              h += '<tr style="' + tColor + '">'
+                + '<td style="' + hp + '">' + t.date + '</td>'
+                + '<td style="' + hp + '">' + (isSell ? 'Vente' : 'Achat') + '</td>'
+                + '<td class="num" style="' + hp + '">' + (t.qty || '') + '</td>'
+                + '<td class="num" style="' + hp + '">' + priceTxt + '</td>'
+                + '<td class="num" style="' + hp + '">' + amtLabel + '</td>'
+                + '<td class="num" style="' + hp + '">' + ifHeld + '</td>'
+                + '</tr>';
+            });
+            // Summary: if held total
+            if (cp._ifHeldValueEUR) {
+              const diff = cp._ifHeldValueEUR - cp.proceedsEUR;
+              const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
+              const diffS = diff >= 0 ? '+' : '';
+              h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gardé</td>'
+                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + ' (' + diffS + fmt(Math.round(diff)) + ')</td></tr>';
+            }
+            h += '</tbody></table></td>';
+            detailTr.innerHTML = h;
+          }
+          tr.after(detailTr);
+        });
         closedTbody.appendChild(tr);
       });
       const tr = document.createElement('tr');
@@ -1541,10 +1604,11 @@ function renderActionsView(state) {
     cashTbody.appendChild(tr);
   }
 
-  // Degiro closed positions
+  // Degiro closed positions (expandable)
   const degiroTbody = document.getElementById('degiroClosedTbody');
   const degiroTable = document.getElementById('degiroClosedTable');
   if (degiroTbody) {
+    let _expandedDegiroClosed = null;
     function renderDegiroRows(items) {
       degiroTbody.innerHTML = '';
       let totalCost = 0, totalProceeds = 0, totalDegiro = 0;
@@ -1555,7 +1619,67 @@ function renderActionsView(state) {
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
         tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        tr.addEventListener('click', () => {
+          degiroTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
+          degiroTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
+          if (_expandedDegiroClosed === cp.ticker) { _expandedDegiroClosed = null; return; }
+          _expandedDegiroClosed = cp.ticker;
+          tr.style.background = '#f7fafc';
+          const trades = cp._allTrades || [];
+          const detailTr = document.createElement('tr');
+          detailTr.className = 'closed-detail-row';
+          detailTr.style.background = '#f7fafc';
+          if (trades.length === 0) {
+            detailTr.innerHTML = '<td colspan="4" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun d\u00e9tail disponible</td>';
+          } else {
+            const hp = 'padding:3px 10px';
+            let h = '<td colspan="4" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+              + '<thead><tr style="color:#718096;font-weight:600">'
+              + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
+              + '<td class="num" style="' + hp + '">Qt\u00e9</td><td class="num" style="' + hp + '">Prix</td>'
+              + '<td class="num" style="' + hp + '">Montant</td>'
+              + '<td class="num" style="' + hp + '">Si gard\u00e9 auj.</td>'
+              + '</tr></thead><tbody>';
+            trades.forEach(t => {
+              const isSell = t.type === 'sell';
+              const tColor = isSell ? 'color:#c53030' : '';
+              const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
+              const amtLabel = fmt(Math.round(amt));
+              let ifHeld = '\u2014';
+              if (isSell && cp._ifHeldPriceEUR && t.qty) {
+                const hypothetical = t.qty * cp._ifHeldPriceEUR;
+                const diff = hypothetical - amt;
+                const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
+                const diffS = diff >= 0 ? '+' : '';
+                ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
+              }
+              const currSym = t.currency === 'USD' ? '$' : t.currency === 'MAD' ? '' : '\u20ac ';
+              const currSuffix = t.currency === 'MAD' ? ' DH' : '';
+              const priceTxt = t.price ? currSym + Number(t.price).toFixed(2) + currSuffix : '\u2014';
+              h += '<tr style="' + tColor + '">'
+                + '<td style="' + hp + '">' + t.date + '</td>'
+                + '<td style="' + hp + '">' + (isSell ? 'Vente' : 'Achat') + '</td>'
+                + '<td class="num" style="' + hp + '">' + (t.qty || '') + '</td>'
+                + '<td class="num" style="' + hp + '">' + priceTxt + '</td>'
+                + '<td class="num" style="' + hp + '">' + amtLabel + '</td>'
+                + '<td class="num" style="' + hp + '">' + ifHeld + '</td>'
+                + '</tr>';
+            });
+            if (cp._ifHeldValueEUR) {
+              const diff = cp._ifHeldValueEUR - (cp.proceedsEUR || 0);
+              const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
+              const diffS = diff >= 0 ? '+' : '';
+              h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
+                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR || 0)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + ' (' + diffS + fmt(Math.round(diff)) + ')</td></tr>';
+            }
+            h += '</tbody></table></td>';
+            detailTr.innerHTML = h;
+          }
+          tr.after(detailTr);
+        });
         degiroTbody.appendChild(tr);
       });
       const tr = document.createElement('tr');
@@ -2524,7 +2648,7 @@ function renderImmoView(state) {
   }
   const cfCls = iv.totalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = iv.totalCF >= 0 ? '+' : '';
-  setText('kpiImmoViewCF', cfSign + iv.totalCF + '/mois');
+  setText('kpiImmoViewCF', cfSign + fmt(iv.totalCF) + '/mois');
   document.getElementById('kpiImmoViewCF')?.classList.add(cfCls);
 
   // Exit costs KPIs (net equity after exit)
@@ -2542,13 +2666,14 @@ function renderImmoView(state) {
   }
 
   // ── Hover tooltips for immobilier KPIs ──
-  function _setTip(elId, html) {
+  function _setTip(elId, html, above) {
     const el = document.getElementById(elId);
     if (!el) return;
     const kpiEl = el.closest('.kpi');
     if (!kpiEl) return;
     let tip = kpiEl.querySelector('.kpi-tooltip');
     if (!tip) { tip = document.createElement('div'); tip.className = 'kpi-tooltip'; kpiEl.appendChild(tip); }
+    if (above) tip.classList.add('above'); else tip.classList.remove('above');
     tip.innerHTML = html;
   }
   const _props = iv.properties || [];
@@ -2577,19 +2702,19 @@ function renderImmoView(state) {
     return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
   }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>');
 
-  // 5. Valeur Totale — per property with dynamic ref
+  // 5. Valeur Totale — per property with dynamic ref (bottom row → above)
   _setTip('kpiImmoViewVal', _props.map(p => {
     const ref = p.referenceValue && p.referenceValue !== p.value
       ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
     return p.name + ' : <b>' + _fmtK(p.value) + '</b>' + ref;
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>');
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>', true);
 
-  // 6. CRD Total — per property
+  // 6. CRD Total — per property (bottom row → above)
   _setTip('kpiImmoViewCRD', _props.map(p =>
     p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#a0aec0">(fin ' + p.endYear + ')</span>'
-  ).join('<br>'));
+  ).join('<br>'), true);
 
-  // 7. Création Richesse /mois — breakdown by type
+  // 7. Création Richesse /mois — breakdown by type (bottom row → above)
   const wb = iv.totalWealthBreakdown || {};
   _setTip('kpiImmoViewWealth',
     'Capital amorti : <b>' + fmt(wb.capitalAmorti || 0) + '</b><br>'
@@ -2597,12 +2722,12 @@ function renderImmoView(state) {
     + 'Cash flow : <b>' + fmt(wb.cashflow || 0) + '</b>'
     + (wb.effortEpargne ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(wb.effortEpargne) + '</span>' : '')
     + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt((iv.totalWealthCreation || 0) * 12) + '/an</span>'
-  );
+  , true);
 
-  // 8. LTV Moyen — per property
+  // 8. LTV Moyen — per property (bottom row → above)
   _setTip('kpiImmoViewLTV', _props.map(p =>
     p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#a0aec0">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
-  ).join('<br>'));
+  ).join('<br>'), true);
 
   // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');

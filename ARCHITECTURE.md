@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v122** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v125** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -554,13 +554,45 @@ Les KPIs de la vue Actions sont cliquables (`data-detail="detailXxx"`) et ouvren
 - Les positions à |P&L| < 0.5€ sont masquées avec compteur "(N à €0 masqués)"
 - Panels disponibles : P&L Daily, MTD, 1M, YTD, Total Actions, P/L Non Réalisé, P/L Réalisé, Dépôts, Dividendes/TWR
 
-### Tooltips immobilier
+### Tooltips immobilier (v123+)
 
 Les 8 KPIs de la vue Immobilier affichent un tooltip au survol avec la décomposition par bien :
+
 - Equity brute/nette : montant par propriété
 - Frais de sortie : IRA + PV immo + agence par propriété
 - CF net : détail par propriété avec signe +/-
 - Valeur totale : valeur estimée dynamique avec référence (date + montant initial)
 - CRD : montant par propriété avec année de fin de prêt
-- Création richesse : décomposition capital amorti / appréciation / cash flow
+- Création richesse : décomposition capital amorti / appréciation / cash flow (uses `iv.totalWealthBreakdown`, NOT `iv.wealthBreakdown`)
 - LTV : ratio par propriété (CRD / valeur)
+
+**Positionnement** : les tooltips de la 1ère rangée (Equity Brute, Equity Nette, Frais Sortie, CF Net) s'affichent **en dessous** (classe par défaut `.kpi-tooltip`). Les tooltips de la 2ème rangée (Valeur Totale, CRD, Création Richesse, LTV) s'affichent **au-dessus** (classe `.kpi-tooltip.above`) pour éviter d'être coupés par le bord de page.
+
+**Helper** : `_setTip(elId, html, above)` dans `renderImmoView()` — le 3e paramètre `above` (boolean) ajoute la classe `.above` au tooltip.
+
+### Positions fermées expandables (v125+)
+
+Les tableaux de positions fermées (IBKR et Degiro) sont cliquables. Au clic sur une ligne :
+
+1. Les sous-tableaux existants se ferment (single-expansion : `_expandedClosed` / `_expandedDegiroClosed`)
+2. Un sous-tableau s'ouvre avec les colonnes : Date, Type (Achat/Vente), Qté, Prix, Montant, Si gardé auj.
+3. Les ventes sont en rouge, les achats en noir
+4. **"Si gardé auj."** : pour chaque vente, affiche la valeur hypothétique si les actions n'avaient pas été vendues + le diff (vert si gain manqué, rouge si bonne vente)
+5. Ligne résumé "Total si gardé" comparant le produit réel vs la valeur hypothétique totale
+
+**Données engine.js** : chaque position fermée agrégée inclut :
+
+- `_allTrades` : tableau chronologique de tous les trades (buy + sell) pour ce ticker
+- `_ifHeldPriceEUR` : prix unitaire actuel en EUR (depuis la position live IBKR)
+- `_ifHeldValueEUR` : `totalQtySold × _ifHeldPriceEUR`
+- `_ifHeldPL` : `_ifHeldValueEUR - costEUR`
+
+⚠ `_ifHeldPriceEUR` n'est disponible que si le ticker a encore une position ouverte dans IBKR (sinon pas de cours live).
+
+### Devises et formatage
+
+- `fmt(val)` : formatte en EUR avec `€ X XXX` (respecte la devise active via `_currency`)
+- `fmtAxis(val)` : pour axes charts, notation K/M
+- **CF NET** : utiliser `fmt()` pour inclure le symbole `€`, pas `iv.totalCF + '/mois'` directement
+- **Prix actions** : format `€ XX.XX` (Unicode `\u20ac` + espace), jamais `XX.XX EUR`
+- `_fmtK(val)` : helper local pour tooltips immo, format compact `XK €` ou `X €`
