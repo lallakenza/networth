@@ -2590,13 +2590,13 @@ function renderImmoView(state) {
   ).join('<br>'));
 
   // 7. Création Richesse /mois — breakdown by type
-  const wb = iv.wealthBreakdown || {};
+  const wb = iv.totalWealthBreakdown || {};
   _setTip('kpiImmoViewWealth',
-    'Capital amorti : <b>' + fmt(wb.capitalAmorti || 0) + ' \u20ac</b><br>'
-    + 'Appr\u00e9ciation : <b>' + fmt(wb.appreciation || 0) + ' \u20ac</b><br>'
-    + 'Cash flow : <b>' + fmt(wb.cashflow || 0) + ' \u20ac</b>'
-    + (wb.effortEpargne ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(wb.effortEpargne) + ' \u20ac</span>' : '')
-    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt((iv.totalWealthCreation || 0) * 12) + ' \u20ac/an</span>'
+    'Capital amorti : <b>' + fmt(wb.capitalAmorti || 0) + '</b><br>'
+    + 'Appr\u00e9ciation : <b>' + fmt(wb.appreciation || 0) + '</b><br>'
+    + 'Cash flow : <b>' + fmt(wb.cashflow || 0) + '</b>'
+    + (wb.effortEpargne ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(wb.effortEpargne) + '</span>' : '')
+    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt((iv.totalWealthCreation || 0) * 12) + '/an</span>'
   );
 
   // 8. LTV Moyen — per property
