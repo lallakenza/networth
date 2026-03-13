@@ -417,3 +417,24 @@ Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM
 | **Deposit history / lots** | Séparer par owner | Lots ESPP Amine vs Nezha |
 
 **En résumé** : la division par personne n'existe que dans les vues "Amine" et "Nezha". Partout ailleurs (Actions, Couple, treemaps, P&L, positions latentes…), tout est affiché par ticker.
+
+## Tableau des positions (vue Actions)
+
+Le tableau unifié "Toutes les Positions" dispose de deux toggles interactifs :
+
+### Toggle 1 : Total / Unitaire
+- **Total** (défaut) : colonnes Valeur (€ total) + Coût (€ total)
+- **Unitaire** : colonnes Prix (cours unitaire avec devise) + PRU (prix de revient unitaire en €)
+
+### Toggle 2 : Période (Daily / MTD / 1M / YTD)
+La colonne d'évolution change selon la période sélectionnée :
+- **En mode Total** : affiche le P&L en € de la période (combien mes holdings ont évolué, tenant compte des achats/ventes intra-période)
+- **En mode Unitaire** : affiche le % de variation du prix de l'action sur la période (indépendant de quand on a acheté)
+
+### Badges
+- **LIVE** (bleu `#bee3f8`) : cours en temps réel via API Yahoo Finance
+- **STATIC** (gris `#e2e8f0` pour SGTM, rouge `#fed7d7` si API indisponible) : cours statique
+
+### Couleurs gains/pertes
+- Vert (`pl-pos`) pour les gains, Rouge (`pl-neg`) pour les pertes
+- Appliqué aux colonnes P/L, %, et la colonne d'évolution de période
