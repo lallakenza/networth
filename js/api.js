@@ -62,13 +62,23 @@ function fetchWithTimeout(url, timeoutMs) {
 // ============================================================
 // FX RATES
 // ============================================================
+const FX_TTL_MS = 5 * 60 * 1000; // 5 minutes — re-fetch FX after this
+
 export async function fetchFXRates(forceRefresh) {
-  if (!forceRefresh) {
-    const cache = loadCache();
-    if (cache.fx) {
-      console.log('[cache] FX rates loaded from cache');
-      return { rates: cache.fx.rates, source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')' };
+  const cache = loadCache();
+  const now = Date.now();
+  const timeLabel = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  if (!forceRefresh && cache.fx && cache.fx.rates) {
+    const fresh = cache.fx._ts && (now - cache.fx._ts) < FX_TTL_MS;
+    if (fresh) {
+      console.log('[cache] FX rates loaded from cache (fresh, age ' + Math.round((now - cache.fx._ts) / 1000) + 's)');
+      return { rates: cache.fx.rates, source: 'live (' + timeLabel + ')' };
     }
+    // Stale cache — return it immediately but also trigger background re-fetch
+    console.log('[cache] FX rates from stale cache, will re-fetch in background');
+    // Return stale data now, caller should also call fetchFXRates(true) in background
+    return { rates: cache.fx.rates, source: 'live (' + timeLabel + ')', stale: true };
   }
 
   try {
@@ -77,13 +87,14 @@ export async function fetchFXRates(forceRefresh) {
     const data = await res.json();
     if (data.result === 'success' && data.rates) {
       const rates = { EUR: 1, AED: data.rates.AED, MAD: data.rates.MAD, USD: data.rates.USD, JPY: data.rates.JPY };
-      const cache = loadCache();
-      cache.fx = { rates };
-      saveCache(cache);
-      return { rates, source: 'live (' + new Date().toLocaleDateString('fr-FR') + ')' };
+      const c = loadCache();
+      c.fx = { rates, _ts: Date.now() };
+      saveCache(c);
+      console.log('[api] FX rates fetched live:', JSON.stringify(rates));
+      return { rates, source: 'live (' + timeLabel + ')' };
     }
   } catch (e) {
-    console.warn('FX API indisponible:', e.message);
+    console.warn('[api] FX API indisponible:', e.message);
   }
   return null;
 }
