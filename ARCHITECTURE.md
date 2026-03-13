@@ -21,6 +21,7 @@ data.js  →  engine.js  →  render.js  →  DOM (index.html)
 
 | Fichier | Rôle | Quand modifier |
 |---------|------|----------------|
+| `js/app.js` | Point d'entrée. Orchestre DATA → ENGINE → RENDER. Gère le routing des vues, le switch devise, le chargement FX/stocks. | Changement de vue, devise, refresh |
 | `js/data.js` | Données brutes en devise native (AED, MAD, EUR, USD, JPY). Constantes immo, taux, créances. | Mise à jour bimensuelle des soldes, ajout de compte/bien |
 | `js/engine.js` | Calculs purs : `compute(PORTFOLIO, fx)` → state object. Pas de DOM. | Ajout de logique de calcul (nouveau type d'actif, diagnostic) |
 | `js/render.js` | Lecture du state → mise à jour du DOM. Exports : `render(state)`, `fmt()` | Ajout d'affichage, modification de layout |
@@ -214,6 +215,32 @@ Système générique — ne jamais hardcoder de noms de comptes :
 - `jpy_leverage` : info sur l'emprunt JPY si > 5K€
 - `action_plan` : étapes générées dynamiquement à partir des diagnostics ci-dessus
 
+## Fonctions principales engine.js
+
+| Fonction | Rôle |
+|----------|------|
+| `compute(portfolio, fx)` | Point d'entrée. Retourne le state complet (couple, amine, nezha, cashView, actionsView, immoView, budgetView) |
+| `computeIBKRPositions()` | Calcule valeur EUR, P&L, period P&L (daily/MTD/YTD/1M) pour chaque position IBKR |
+| `computeCashView()` | Construit la liste de comptes cash avec yields, diagnostics dormants |
+| `buildProperty()` | Construit un objet propriété complet : valeur dynamique, CRD, equity, CF, fiscalité, exit costs |
+| `computeAmortizationSchedule()` | Tableau d'amortissement d'un prêt (mensualité, capital, intérêts, CRD) |
+| `computeMultiLoanSchedule()` | Combine plusieurs prêts (ex: Vitry 2 prêts) avec assurance |
+| `computeFiscalite()` | Calcul fiscal : loyer déclaré, charges déductibles, régime réel/micro → impôt mensuel |
+| `computeExitCosts()` | Frais de sortie : IRA, plus-value immo, frais agence, notaire |
+| `computeExitCostsAtYear()` | Exit costs projetés à une année future (pour projections) |
+| `computeNetWorthProjection()` | Projection mensuelle sur 20 ans : capital amorti + appréciation + CF + exit costs |
+| `computeVillejuifRegimeComparison()` | Compare régimes fiscaux pour Villejuif VEFA (LMNP réel vs micro) |
+
+## Analyse dividendes et WHT (engine.js)
+
+Le système analyse les dividendes projetés et la retenue à la source (WHT) pour chaque position :
+- **DIV_YIELDS** (data.js) : yield annuel par ticker
+- **DIV_CALENDAR** (data.js) : prochaines dates ex-dividende
+- **WHT_RATES** (data.js) : taux WHT par géographie (FR 30%, US 15%, JP 15%, etc.)
+- Calcul automatique : dividende projeté, WHT retenu, net après WHT
+- Recommandation keep/switch vers ETF capitalisant si WHT élevé
+- Alertes ex-date dans les 90 jours (diagnostic `dividend-wht`)
+
 ## Vues (tabs)
 
 | Tab | ID | State key |
@@ -224,7 +251,14 @@ Système générique — ne jamais hardcoder de noms de comptes :
 | Cash | `cash` | `state.cashView` |
 | Actions | `actions` | `state.actionsView` |
 | Immobilier | `immobilier` | `state.immoView` |
+| Créances | `creances` | `state.creancesView` |
 | Budget | `budget` | `state.budgetView` |
+
+### Vue Créances
+Suivi des créances (prêts à des tiers) avec statut : en_cours, relancé, en_retard, recouvré, litige. Chaque item a un montant, une date de dernier contact, et un calcul du coût d'opportunité (manque à gagner vs placement).
+
+### Vue Budget
+Suivi mensuel des dépenses par catégorie (Dubai, France, Digital). Comparaison budget réel vs projeté.
 
 ## Mise à jour des données — Checklist
 
@@ -430,6 +464,14 @@ Où :
 
 **Note ESPP** : tous les lots ESPP (ACN) sont antérieurs à 2023. La formule simple `shares × (currentPrice - refPrice)` reste correcte pour ESPP car aucun trade n'a eu lieu pendant les périodes calculées.
 
+## Variables CSS (index.html)
+
+Palette de couleurs définie en variables CSS :
+- `--primary` : texte principal, `--accent` : bleu actions, `--red` : pertes, `--green` : gains
+- `--gray` : texte secondaire, `--bg` : fond, `--card` : fond carte, `--gold` : immobilier
+
+Classes utilitaires : `.pl-pos` (vert gains), `.pl-neg` (rouge pertes), `.num` (alignement droite)
+
 ## Conventions
 
 - Montants en devise native dans data.js, conversion en EUR dans engine.js via `toEUR()`
@@ -478,3 +520,47 @@ La colonne d'évolution change selon la période sélectionnée :
 ### Couleurs gains/pertes
 - Vert (`pl-pos`) pour les gains, Rouge (`pl-neg`) pour les pertes
 - Appliqué aux colonnes P/L, %, et la colonne d'évolution de période
+
+### Système de colonnes interactives (v119+)
+
+Le tableau utilise `_colConfig` (visibilité) et `_colOrder` (ordre) pour un contrôle dynamique :
+
+**Colonnes disponibles** : broker, shares, prix, valeur, pru, cout, pl, pctPL, evo, weight, sector, geo — chacune activable/désactivable indépendamment.
+
+**Chips de colonnes** (barre sous le tableau) :
+- Cliquer un chip → toggle la visibilité de la colonne
+- Glisser-déposer un chip (HTML5 Drag & Drop) → réordonner les colonnes
+- Les chips actifs sont en fond sombre, les inactifs en fond clair
+
+**Preset Total / Unitaire** :
+- Total : active valeur + cout + pl + pctPL, désactive prix + pru
+- Unitaire : active prix + pru, désactive valeur + cout + pl + pctPL
+- Les colonnes peuvent être modifiées manuellement après un preset
+
+### Historique des trades (expandable rows)
+
+Cliquer sur une ligne de position déplie un sous-tableau avec l'historique d'achat/vente :
+- Un seul ticker déplié à la fois (le précédent se replie)
+- Colonnes : Date, Qui (si multi-owner), Qté, Type, PRU, Prix actuel, Valeur, P/L, P/L %
+- **Prix actuel** : cours live du ticker (même valeur pour chaque lot, en bleu)
+- **P/L par lot** : calculé comme `qty × prix_actuel_EUR - coût_lot_EUR`
+- En-têtes triables (clic pour trier asc/desc)
+- Owner : Amine ou Nezha pour les tickers partagés (ESPP, SGTM)
+
+### KPI detail panels (vue Actions)
+
+Les KPIs de la vue Actions sont cliquables (`data-detail="detailXxx"`) et ouvrent un panneau détaillé :
+- **Two-column layout** pour les P&L : pertes (rouge, gauche) / gains (vert, droite)
+- Les positions à |P&L| < 0.5€ sont masquées avec compteur "(N à €0 masqués)"
+- Panels disponibles : P&L Daily, MTD, 1M, YTD, Total Actions, P/L Non Réalisé, P/L Réalisé, Dépôts, Dividendes/TWR
+
+### Tooltips immobilier
+
+Les 8 KPIs de la vue Immobilier affichent un tooltip au survol avec la décomposition par bien :
+- Equity brute/nette : montant par propriété
+- Frais de sortie : IRA + PV immo + agence par propriété
+- CF net : détail par propriété avec signe +/-
+- Valeur totale : valeur estimée dynamique avec référence (date + montant initial)
+- CRD : montant par propriété avec année de fin de prêt
+- Création richesse : décomposition capital amorti / appréciation / cash flow
+- LTV : ratio par propriété (CRD / valeur)
