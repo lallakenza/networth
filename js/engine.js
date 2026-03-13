@@ -68,7 +68,7 @@ function computeIBKRPositions(portfolio, fx) {
     const unrealizedPL = valEUR - costEUR;
     const pctPL = costEUR > 0 ? (unrealizedPL / costEUR * 100) : 0;
     let priceLabel = '';
-    if (pos.currency === 'EUR') priceLabel = pos.price.toFixed(2) + ' EUR';
+    if (pos.currency === 'EUR') priceLabel = '\u20ac ' + pos.price.toFixed(2);
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
     else if (pos.currency === 'JPY') priceLabel = '\u00a5' + Math.round(pos.price);
 
@@ -280,14 +280,30 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const byTickerSource = {};
   allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
     const key = (t.source || 'ibkr') + ':' + t.ticker;
-    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr' };
+    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [] };
     byTickerSource[key].pl += (t.realizedPL || 0);
     byTickerSource[key].costEUR += (t.cost || 0);
     byTickerSource[key].proceedsEUR += (t.proceeds || 0);
     byTickerSource[key].sells++;
     byTickerSource[key].lastDate = t.date;
+    byTickerSource[key]._trades.push(t);
     // Keep most recent label (post-split label wins over pre-split)
     if (!byTickerSource[key].lastDate || t.date >= byTickerSource[key].lastDate) byTickerSource[key].label = t.label;
+  });
+  // Enrich with buy trades + "what if I held" current value
+  Object.values(byTickerSource).forEach(cp => {
+    // Gather all trades (buy + sell) for this ticker+source
+    const allForTicker = allTradesUnified.filter(t => t.ticker === cp.ticker && (t.source || 'ibkr') === cp.source);
+    cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
+    // Total qty sold
+    const totalQtySold = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0), 0);
+    // "What if I held": look up current live price for this ticker
+    const livePos = ibkrPositions.find(p => p.ticker === cp.ticker);
+    if (livePos && totalQtySold > 0) {
+      cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share
+      cp._ifHeldValueEUR = totalQtySold * cp._ifHeldPriceEUR;
+      cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
+    }
   });
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
@@ -523,6 +539,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     degiroClosedPositions: degiroOnlyClosed.map(t => ({
       ticker: t.ticker, label: t.label, pl: t.pl || 0,
       costEUR: t.costEUR || 0, proceedsEUR: t.proceedsEUR || 0,
+      _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL,
     })),
     degiroRealizedPL,
     // Cross-platform
