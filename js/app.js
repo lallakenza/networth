@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=133';
-import { compute } from './engine.js?v=133';
-import { render } from './render.js?v=133';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices } from './api.js?v=133';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=133';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=133';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=134';
+import { compute } from './engine.js?v=134';
+import { render } from './render.js?v=134';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices } from './api.js?v=134';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=134';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=134';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -212,19 +212,33 @@ syncNavUI();
 refresh();
 
 // ---- Fetch live data (FX) ----
-(async function() {
-  const fxResult = await fetchFXRates(false); // use cache if available
+async function refreshFX(force) {
+  const fxResult = await fetchFXRates(force);
   if (fxResult) {
     Object.assign(currentFX, fxResult.rates);
     fxSource = fxResult.source;
     const badge = document.getElementById('fxBadge');
     if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
     refresh();
+    // If stale, immediately re-fetch in background
+    if (fxResult.stale) {
+      const fresh = await fetchFXRates(true);
+      if (fresh) {
+        Object.assign(currentFX, fresh.rates);
+        fxSource = fresh.source;
+        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+        refresh();
+      }
+    }
   } else {
     const badge = document.getElementById('fxBadge');
     if (badge) badge.textContent = 'Taux FX ' + fxSource;
   }
-})();
+}
+refreshFX(false);
+
+// Auto-refresh FX every 5 minutes
+setInterval(() => refreshFX(true), 5 * 60 * 1000);
 
 // ---- Stock price loading with progress ----
 let stockRefreshInProgress = false;
@@ -234,7 +248,8 @@ let stockRefreshInProgress = false;
  *                                 false = smart refresh (only fetch tickers missing from today's cache)
  */
 async function loadStockPrices(forceRefresh) {
-  if (stockRefreshInProgress) return;
+  // Allow hard refresh to interrupt a smart refresh in progress
+  if (stockRefreshInProgress && !forceRefresh) return;
   stockRefreshInProgress = true;
 
   const sBadge = document.getElementById('stockBadge');
