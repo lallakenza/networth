@@ -277,6 +277,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
   let cacheHadUpdates = false;
 
   const now = Date.now();
+  const staleTickers = new Set(); // tickers already counted from cache but need re-fetch
   if (!forceRefresh) {
     for (const ticker of allTickers) {
       const cached = cache.stocks[ticker];
@@ -290,6 +291,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
         // If cache is stale (>TTL), also schedule a re-fetch
         if (!cached._ts || (now - cached._ts) > CACHE_TTL_MS) {
           tickersToFetch.push(ticker);
+          staleTickers.add(ticker); // already counted, don't re-count
         }
       } else {
         tickersToFetch.push(ticker);
@@ -339,8 +341,11 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
         applyTickerToPortfolio(ticker, result, portfolio);
         if (onTickerLoaded) onTickerLoaded();
       }
-      loaded++;
-      if (onProgress) onProgress(loaded, totalTickers, ticker + (result ? ' ✓' : ' ✗'));
+      // Don't double-count tickers already counted from stale cache
+      if (!staleTickers.has(ticker)) {
+        loaded++;
+        if (onProgress) onProgress(loaded, totalTickers, ticker + (result ? ' ✓' : ' ✗'));
+      }
     });
 
     // SGTM in parallel

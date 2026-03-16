@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=136';
-import { compute } from './engine.js?v=136';
-import { render } from './render.js?v=136';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=136';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=136';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=136';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=137';
+import { compute } from './engine.js?v=137';
+import { render } from './render.js?v=137';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=137';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=137';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=137';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -379,24 +379,11 @@ async function loadStockPrices(forceRefresh) {
       const soldTickerSet = new Set();
       const soldTickerMap = {}; // yahooTicker → originalTicker
       allTrades.forEach(t => {
-        if (!t.ticker || heldTickers.has(t.ticker) || t.ticker === 'EUR.JPY' || t.type === 'fx') return;
-        // Check if this ticker already has a suffix or is USD (no .PA needed)
-        let yahooTicker = t.ticker;
-        if (t.currency === 'EUR' && !t.ticker.includes('.')) {
+        if (!t.ticker || t.ticker === 'MISC' || heldTickers.has(t.ticker) || t.ticker === 'EUR.JPY' || t.type === 'fx') return;
+        // Use explicit yahooTicker if provided, otherwise derive from currency
+        let yahooTicker = t.yahooTicker || t.ticker;
+        if (!t.yahooTicker && t.currency === 'EUR' && !t.ticker.includes('.')) {
           yahooTicker = t.ticker + '.PA'; // Euronext Paris
-        }
-        if (!heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
-          soldTickerSet.add(yahooTicker);
-          soldTickerMap[yahooTicker] = t.ticker;
-        }
-      });
-      // Also check Degiro trades
-      const degiroTrades = PORTFOLIO.amine.degiro?.trades || [];
-      degiroTrades.forEach(t => {
-        if (!t.ticker || t.type === 'fx') return;
-        let yahooTicker = t.ticker;
-        if (t.currency === 'EUR' && !t.ticker.includes('.')) {
-          yahooTicker = t.ticker + '.PA';
         }
         if (!heldTickers.has(t.ticker) && !heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
           soldTickerSet.add(yahooTicker);
