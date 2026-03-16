@@ -1525,14 +1525,33 @@ function renderActionsView(state) {
     let _expandedClosed = null;
     function renderClosedRows(items) {
       closedTbody.innerHTML = '';
-      let totalClosed = 0;
+      let totalClosed = 0, totalIfHeld = 0, totalIfHeldDiff = 0, totalProceeds = 0;
       items.forEach(cp => {
         totalClosed += cp.pl;
+        totalProceeds += (cp.proceedsEUR || 0);
+        // "Si gardé auj." columns for main row
+        const ifHeldVal = cp._ifHeldValueEUR || 0;
+        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
+        const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
+        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
+        cp._ifHeldPLvsProceeds = diffVsSale;
+        cp._ifHeldPctVsSale = pctVsSale;
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.innerHTML = '<td>' + cp.label + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        let ifHeldCols = '';
+        if (ifHeldVal) {
+          const dCls = diffVsSale >= 0 ? 'pl-pos' : 'pl-neg';
+          const dS = diffVsSale >= 0 ? '+' : '';
+          const pS = pctVsSale >= 0 ? '+' : '';
+          ifHeldCols = '<td class="num">' + fmt(Math.round(ifHeldVal)) + '</td>'
+            + '<td class="num ' + dCls + '">' + dS + fmt(Math.round(diffVsSale)) + '</td>'
+            + '<td class="num ' + dCls + '">' + pS + pctVsSale.toFixed(0) + '%</td>';
+        } else {
+          ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
+        }
+        tr.innerHTML = '<td>' + cp.label + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>' + ifHeldCols;
         tr.addEventListener('click', () => {
           closedTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
           closedTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
@@ -1544,31 +1563,35 @@ function renderActionsView(state) {
           detailTr.className = 'closed-detail-row';
           detailTr.style.background = '#f7fafc';
           if (trades.length === 0) {
-            detailTr.innerHTML = '<td colspan="2" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun détail disponible</td>';
+            detailTr.innerHTML = '<td colspan="5" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun détail disponible</td>';
           } else {
             const hp = 'padding:3px 10px';
-            let h = '<td colspan="2" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+            let h = '<td colspan="5" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
               + '<thead><tr style="color:#718096;font-weight:600">'
               + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
               + '<td class="num" style="' + hp + '">Qté</td><td class="num" style="' + hp + '">Prix</td>'
               + '<td class="num" style="' + hp + '">Montant</td>'
-              + '<td class="num" style="' + hp + '">Si gardé auj.</td>'
+              + '<td class="num" style="' + hp + '">Valeur auj.</td>'
+              + '<td class="num" style="' + hp + '">+/- value</td>'
+              + '<td class="num" style="' + hp + '">%</td>'
               + '</tr></thead><tbody>';
             trades.forEach(t => {
               const isSell = t.type === 'sell';
               const tColor = isSell ? 'color:#c53030' : '';
               const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
-              const amtLabel = isSell ? fmt(Math.round(amt)) : fmt(Math.round(amt));
-              // "If held" column: for sells, show what the qty would be worth today
-              let ifHeld = '\u2014';
+              const amtLabel = fmt(Math.round(amt));
+              let ifHeldDetailCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
               if (isSell && cp._ifHeldPriceEUR && t.qty) {
                 const hypothetical = t.qty * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
+                const pct = amt > 0 ? (diff / amt * 100) : 0;
                 const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
                 const diffS = diff >= 0 ? '+' : '';
-                ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
+                const pctS = pct >= 0 ? '+' : '';
+                ifHeldDetailCols = '<td class="num" style="' + hp + '">' + fmt(Math.round(hypothetical)) + '</td>'
+                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
+                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td>';
               }
-              // Calculate unit price: use t.price, or derive from amount/qty
               let unitPrice = t.price;
               if (!unitPrice && t.qty) {
                 unitPrice = isSell ? (t.proceeds || 0) / t.qty : (t.cost || 0) / t.qty;
@@ -1582,17 +1605,20 @@ function renderActionsView(state) {
                 + '<td class="num" style="' + hp + '">' + (t.qty || '') + '</td>'
                 + '<td class="num" style="' + hp + '">' + priceTxt + '</td>'
                 + '<td class="num" style="' + hp + '">' + amtLabel + '</td>'
-                + '<td class="num" style="' + hp + '">' + ifHeld + '</td>'
+                + ifHeldDetailCols
                 + '</tr>';
             });
-            // Summary: if held total
             if (cp._ifHeldValueEUR) {
               const diff = cp._ifHeldValueEUR - cp.proceedsEUR;
+              const pct = cp.proceedsEUR > 0 ? (diff / cp.proceedsEUR * 100) : 0;
               const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
               const diffS = diff >= 0 ? '+' : '';
+              const pctS = pct >= 0 ? '+' : '';
               h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
                 + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR)) + '</td>'
-                + '<td class="num" style="' + hp + ';' + diffCls + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + ' (' + diffS + fmt(Math.round(diff)) + ')</td></tr>';
+                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td></tr>';
             }
             h += '</tbody></table></td>';
             detailTr.innerHTML = h;
@@ -1605,7 +1631,19 @@ function renderActionsView(state) {
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
       const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
       const ts = totalClosed >= 0 ? '+' : '';
-      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>' + ts + fmt(totalClosed) + '</strong></td>';
+      let totalIfHeldCols = '';
+      if (totalIfHeld > 0) {
+        const tDCls = totalIfHeldDiff >= 0 ? 'pl-pos' : 'pl-neg';
+        const tDS = totalIfHeldDiff >= 0 ? '+' : '';
+        const tPct = totalProceeds > 0 ? (totalIfHeldDiff / totalProceeds * 100) : 0;
+        const tPS = tPct >= 0 ? '+' : '';
+        totalIfHeldCols = '<td class="num"><strong>' + fmt(Math.round(totalIfHeld)) + '</strong></td>'
+          + '<td class="num ' + tDCls + '"><strong>' + tDS + fmt(Math.round(totalIfHeldDiff)) + '</strong></td>'
+          + '<td class="num ' + tDCls + '"><strong>' + tPS + tPct.toFixed(0) + '%</strong></td>';
+      } else {
+        totalIfHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
+      }
+      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>' + ts + fmt(totalClosed) + '</strong></td>' + totalIfHeldCols;
       closedTbody.appendChild(tr);
     }
     renderClosedRows(closedData);
@@ -1640,16 +1678,36 @@ function renderActionsView(state) {
     let _expandedDegiroClosed = null;
     function renderDegiroRows(items) {
       degiroTbody.innerHTML = '';
-      let totalCost = 0, totalProceeds = 0, totalDegiro = 0;
+      let totalCost = 0, totalProceeds = 0, totalDegiro = 0, totalIfHeld = 0, totalIfHeldDiff = 0;
       items.forEach(cp => {
         totalCost += (cp.costEUR || 0);
         totalProceeds += (cp.proceedsEUR || 0);
         totalDegiro += cp.pl;
+        // "Si gardé auj." columns
+        const ifHeldVal = cp._ifHeldValueEUR || 0;
+        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
+        const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
+        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
+        // Store computed values for sorting
+        cp._ifHeldPLvsProceeds = diffVsSale;
+        cp._ifHeldPctVsSale = pctVsSale;
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>';
+        // If held columns
+        let ifHeldCols = '';
+        if (ifHeldVal) {
+          const dCls = diffVsSale >= 0 ? 'pl-pos' : 'pl-neg';
+          const dS = diffVsSale >= 0 ? '+' : '';
+          const pS = pctVsSale >= 0 ? '+' : '';
+          ifHeldCols = '<td class="num">' + fmt(Math.round(ifHeldVal)) + '</td>'
+            + '<td class="num ' + dCls + '">' + dS + fmt(Math.round(diffVsSale)) + '</td>'
+            + '<td class="num ' + dCls + '">' + pS + pctVsSale.toFixed(0) + '%</td>';
+        } else {
+          ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
+        }
+        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>' + ifHeldCols;
         tr.addEventListener('click', () => {
           degiroTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
           degiroTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
@@ -1664,25 +1722,31 @@ function renderActionsView(state) {
             detailTr.innerHTML = '<td colspan="4" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun d\u00e9tail disponible</td>';
           } else {
             const hp = 'padding:3px 10px';
-            let h = '<td colspan="4" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+            let h = '<td colspan="7" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
               + '<thead><tr style="color:#718096;font-weight:600">'
               + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
               + '<td class="num" style="' + hp + '">Qt\u00e9</td><td class="num" style="' + hp + '">Prix</td>'
               + '<td class="num" style="' + hp + '">Montant</td>'
-              + '<td class="num" style="' + hp + '">Si gard\u00e9 auj.</td>'
+              + '<td class="num" style="' + hp + '">Valeur auj.</td>'
+              + '<td class="num" style="' + hp + '">+/- value</td>'
+              + '<td class="num" style="' + hp + '">%</td>'
               + '</tr></thead><tbody>';
             trades.forEach(t => {
               const isSell = t.type === 'sell';
               const tColor = isSell ? 'color:#c53030' : '';
               const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
               const amtLabel = fmt(Math.round(amt));
-              let ifHeld = '\u2014';
+              let ifHeldCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
               if (isSell && cp._ifHeldPriceEUR && t.qty) {
                 const hypothetical = t.qty * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
+                const pct = amt > 0 ? (diff / amt * 100) : 0;
                 const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
                 const diffS = diff >= 0 ? '+' : '';
-                ifHeld = fmt(Math.round(hypothetical)) + ' <span style="font-size:10px;' + diffCls + '">(' + diffS + fmt(Math.round(diff)) + ')</span>';
+                const pctS = pct >= 0 ? '+' : '';
+                ifHeldCols = '<td class="num" style="' + hp + '">' + fmt(Math.round(hypothetical)) + '</td>'
+                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
+                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td>';
               }
               // Calculate unit price: use t.price, or derive from amount/qty
               let unitPrice = t.price;
@@ -1698,16 +1762,20 @@ function renderActionsView(state) {
                 + '<td class="num" style="' + hp + '">' + (t.qty || '') + '</td>'
                 + '<td class="num" style="' + hp + '">' + priceTxt + '</td>'
                 + '<td class="num" style="' + hp + '">' + amtLabel + '</td>'
-                + '<td class="num" style="' + hp + '">' + ifHeld + '</td>'
+                + ifHeldCols
                 + '</tr>';
             });
             if (cp._ifHeldValueEUR) {
               const diff = cp._ifHeldValueEUR - (cp.proceedsEUR || 0);
+              const pct = (cp.proceedsEUR || 0) > 0 ? (diff / (cp.proceedsEUR || 1) * 100) : 0;
               const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
               const diffS = diff >= 0 ? '+' : '';
+              const pctS = pct >= 0 ? '+' : '';
               h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
                 + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR || 0)) + '</td>'
-                + '<td class="num" style="' + hp + ';' + diffCls + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + ' (' + diffS + fmt(Math.round(diff)) + ')</td></tr>';
+                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
+                + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td></tr>';
             }
             h += '</tbody></table></td>';
             detailTr.innerHTML = h;
@@ -1720,7 +1788,20 @@ function renderActionsView(state) {
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
       const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
       const ds = totalDegiro >= 0 ? '+' : '';
-      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ds + fmt(totalDegiro) + '</strong></td>';
+      // Total "si gardé" columns
+      let totalIfHeldCols = '';
+      if (totalIfHeld > 0) {
+        const tDCls = totalIfHeldDiff >= 0 ? 'pl-pos' : 'pl-neg';
+        const tDS = totalIfHeldDiff >= 0 ? '+' : '';
+        const tPct = totalProceeds > 0 ? (totalIfHeldDiff / totalProceeds * 100) : 0;
+        const tPS = tPct >= 0 ? '+' : '';
+        totalIfHeldCols = '<td class="num"><strong>' + fmt(Math.round(totalIfHeld)) + '</strong></td>'
+          + '<td class="num ' + tDCls + '"><strong>' + tDS + fmt(Math.round(totalIfHeldDiff)) + '</strong></td>'
+          + '<td class="num ' + tDCls + '"><strong>' + tPS + tPct.toFixed(0) + '%</strong></td>';
+      } else {
+        totalIfHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
+      }
+      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ds + fmt(totalDegiro) + '</strong></td>' + totalIfHeldCols;
       degiroTbody.appendChild(tr);
     }
     renderDegiroRows(av.degiroClosedPositions);

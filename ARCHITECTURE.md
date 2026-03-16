@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v135** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v136** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -648,6 +648,19 @@ Les tables "Patrimoine Couple / Amine / Nezha — Detail consolidé" sont triabl
 - Le footer affiche la date et l'heure de la dernière mise à jour FX : `(màj 13/03/2026 à 14:30)`
 - Mis à jour automatiquement à chaque fetch FX (initial, auto-refresh 5 min, hard refresh)
 - Span `#fxTimestamp` dans le footer, alimenté par `updateFxTimestamp()` dans app.js
+
+### Positions fermées — colonnes "Si gardé auj." (v136+)
+
+Les tables de positions fermées (IBKR 12 mois + Degiro historique) affichent 3 colonnes "Si gardé auj." dans les rows principales :
+- **Valeur** : valeur hypothétique si les parts vendues étaient encore détenues aujourd'hui (`_ifHeldValueEUR`)
+- **+/- value** : écart entre la valeur hypothétique et le produit de vente réel (`_ifHeldValueEUR - proceedsEUR`)
+- **%** : pourcentage de l'écart par rapport au produit de vente (`diffVsSale / proceedsEUR * 100`)
+- Les mêmes 3 colonnes apparaissent dans les sous-tables de détail (per-trade) quand on clique sur une position
+- Données calculées dans `engine.js` : `_ifHeldPriceEUR`, `_ifHeldValueEUR`, `_ifHeldPL`
+
+### Projection — NW sans arret masqué par défaut (v136+)
+
+La ligne pointillée "NW sans arret" dans les charts de projection (simulators.js) est masquée par défaut (`hidden: true`). L'utilisateur peut l'activer via la légende du graphique.
 
 ### Tooltips Cash Productif vs Dormant (v127+)
 
