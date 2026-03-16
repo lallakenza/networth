@@ -187,7 +187,7 @@ function buildSimChart(canvasId, chartKey, result) {
   ];
 
   if (stopYears > 0) {
-    datasets.push({ label: 'NW sans arret', data: [...dataNWNoStop], borderColor: 'rgba(39,103,73,0.35)', borderDash: [4,6], tension: 0.3, pointRadius: 0, borderWidth: 2, fill: false, _actual: dataNWNoStop });
+    datasets.push({ label: 'NW sans arret', data: [...dataNWNoStop], borderColor: 'rgba(39,103,73,0.35)', borderDash: [4,6], tension: 0.3, pointRadius: 0, borderWidth: 2, fill: false, _actual: dataNWNoStop, hidden: true });
   }
 
   // Store originals for reset
