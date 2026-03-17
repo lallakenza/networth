@@ -296,24 +296,24 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Gather all trades (buy + sell) for this ticker+source
     const allForTicker = allTradesUnified.filter(t => t.ticker === cp.ticker && (t.source || 'ibkr') === cp.source);
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
-    // Total qty sold
-    const totalQtySold = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0), 0);
+    // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
+    const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
     // "What if I held": look up current live price for this ticker
     // Priority: 1) live position in IBKR (exact or with .PA suffix), 2) sold stock prices from background fetch
     const livePos = ibkrPositions.find(p => p.ticker === cp.ticker)
       || ibkrPositions.find(p => p.ticker === cp.ticker + '.PA');
     const soldPrices = portfolio._soldPrices || {};
-    if (livePos && totalQtySold > 0) {
-      cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share
-      cp._ifHeldValueEUR = totalQtySold * cp._ifHeldPriceEUR;
+    if (livePos && totalQtySoldAdj > 0) {
+      cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share (post-split price)
+      cp._ifHeldValueEUR = totalQtySoldAdj * cp._ifHeldPriceEUR;
       cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
-    } else if (soldPrices[cp.ticker] && totalQtySold > 0) {
-      // Use background-fetched sold stock price
+    } else if (soldPrices[cp.ticker] && totalQtySoldAdj > 0) {
+      // Use background-fetched sold stock price (post-split price from Yahoo)
       const sp = soldPrices[cp.ticker];
       const cur = cp._allTrades.length > 0 ? cp._allTrades[0].currency : 'EUR';
       const priceEUR = cur === 'USD' ? sp.price / fx.USD : cur === 'JPY' ? sp.price / fx.JPY : sp.price;
       cp._ifHeldPriceEUR = priceEUR;
-      cp._ifHeldValueEUR = totalQtySold * priceEUR;
+      cp._ifHeldValueEUR = totalQtySoldAdj * priceEUR;
       cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
     }
   });

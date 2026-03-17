@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v136** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v140** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -661,6 +661,29 @@ Les tables de positions fermées (IBKR 12 mois + Degiro historique) affichent 3 
 ### Projection — NW sans arret masqué par défaut (v136+)
 
 La ligne pointillée "NW sans arret" dans les charts de projection (simulators.js) est masquée par défaut (`hidden: true`). L'utilisateur peut l'activer via la légende du graphique.
+
+### Sold ticker mapping fixes (v137-v139)
+
+Plusieurs bugs empêchaient le calcul "Si gardé auj." pour les positions fermées Degiro :
+
+1. **Devises incorrectes** (v137) : les actions US (NVDA, SPOT, DIS, INFY) avaient `currency: 'EUR'` au lieu de `'USD'`, causant un suffixe `.PA` erroné pour l'API Yahoo. Corrigé dans `data.js`.
+2. **`yahooTicker` explicite** (v137) : ajout du champ `yahooTicker` sur les trades dont le ticker Degiro diffère du ticker Yahoo (ex: `MC` → `yahooTicker: 'MC.PA'` pour LVMH, `EUCAR` → `yahooTicker: 'EUCAR.PA'` pour Europcar).
+3. **Progress counter double-count** (v137) : les tickers stale (en cache mais périmés) étaient comptés deux fois dans le compteur de progression. Corrigé avec un `staleTickers` Set dans `api.js`.
+4. **`allHeldLoaded` gate** (v138) : le fetch des prix sold était bloqué si un seul held ticker échouait via CORS. Gate supprimée — les prix sold se chargent toujours en background.
+5. **LVMH ticker lookup** (v138) : `engine.js` ne trouvait pas la position live IBKR `MC.PA` quand le trade Degiro utilisait `MC`. Ajout d'un fallback `.PA` dans le lookup : `ibkrPositions.find(p => p.ticker === cp.ticker + '.PA')`.
+6. **Degiro trades non collectés** (v139) : `app.js` ne collectait que `ibkr.trades` pour les sold tickers, ignorant `allTrades` (Degiro). Corrigé avec `const allTrades = (ibkr.trades || []).concat(allTrades || [])`.
+
+### Stock split support — `splitFactor` (v140+)
+
+Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le calcul "Si gardé auj." doit ajuster la quantité.
+
+**Champ `splitFactor`** (data.js) : multiplicateur optionnel sur un trade. Ex: `splitFactor: 10` signifie que chaque action vendue correspond à 10 actions post-split.
+
+**Calcul ajusté** :
+- `engine.js` : `totalQtySoldAdj = sells.reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0)` — la quantité totale vendue est multipliée par le split factor
+- `render.js` : dans les sous-tables de détail per-trade, `hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR`
+
+**Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
 
 ### Tooltips Cash Productif vs Dormant (v127+)
 
