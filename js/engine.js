@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=145';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=146';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -281,8 +281,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const byTickerSource = {};
   allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
     const key = (t.source || 'ibkr') + ':' + t.ticker;
-    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [], _hasReportPL: false };
-    if (typeof t.realizedPL === 'number') byTickerSource[key]._hasReportPL = true;
+    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [], _hasReportPL: false, _reportPLCount: 0 };
+    if (typeof t.realizedPL === 'number') { byTickerSource[key]._hasReportPL = true; byTickerSource[key]._reportPLCount++; }
     byTickerSource[key].pl += (t.realizedPL || 0);
     byTickerSource[key].costEUR += (t.cost || 0);
     byTickerSource[key].proceedsEUR += (t.proceeds || 0);
@@ -299,8 +299,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
     // Accumulate cost from buy trades (sell trades have cost:'')
     cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + (t.cost || 0), 0);
-    // Compute actual P/L when costEUR is known (Degiro trades have realizedPL='')
-    if (!cp.pl && cp.costEUR > 0) cp.pl = cp.proceedsEUR - cp.costEUR;
+    // Compute P/L:
+    // - If ALL sells have report PL → use summed report PL (accurate, EUR, includes FX+commissions)
+    // - If PARTIAL or NO report + cost data available → use proceeds-cost (native currency approx)
+    // - Otherwise → keep pl=0 (no data)
+    const allSellsCoveredByReport = cp._hasReportPL && cp._reportPLCount === cp.sells;
+    if (allSellsCoveredByReport) {
+      // cp.pl already correct from summing realizedPL during aggregation
+    } else if (cp.costEUR > 0) {
+      cp.pl = cp.proceedsEUR - cp.costEUR; // native currency approximation
+    }
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
     const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
     // "What if I held": look up current live price for this ticker
