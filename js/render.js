@@ -1582,7 +1582,7 @@ function renderActionsView(state) {
               const amtLabel = fmt(Math.round(amt));
               let ifHeldDetailCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
               if (isSell && cp._ifHeldPriceEUR && t.qty) {
-                const hypothetical = t.qty * cp._ifHeldPriceEUR;
+                const hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
                 const pct = amt > 0 ? (diff / amt * 100) : 0;
                 const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
@@ -1738,7 +1738,7 @@ function renderActionsView(state) {
               const amtLabel = fmt(Math.round(amt));
               let ifHeldCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
               if (isSell && cp._ifHeldPriceEUR && t.qty) {
-                const hypothetical = t.qty * cp._ifHeldPriceEUR;
+                const hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
                 const pct = amt > 0 ? (diff / amt * 100) : 0;
                 const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
