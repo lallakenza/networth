@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=144';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=145';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -281,7 +281,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const byTickerSource = {};
   allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
     const key = (t.source || 'ibkr') + ':' + t.ticker;
-    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [] };
+    if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [], _hasReportPL: false };
+    if (typeof t.realizedPL === 'number') byTickerSource[key]._hasReportPL = true;
     byTickerSource[key].pl += (t.realizedPL || 0);
     byTickerSource[key].costEUR += (t.cost || 0);
     byTickerSource[key].proceedsEUR += (t.proceeds || 0);
@@ -298,6 +299,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
     // Accumulate cost from buy trades (sell trades have cost:'')
     cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + (t.cost || 0), 0);
+    // Compute actual P/L when costEUR is known (Degiro trades have realizedPL='')
+    if (!cp.pl && cp.costEUR > 0) cp.pl = cp.proceedsEUR - cp.costEUR;
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
     const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
     // "What if I held": look up current live price for this ticker
@@ -330,8 +333,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
   const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
-  // For Track Record: only count trades with known P/L (exclude Degiro sell-only with no cost basis)
-  const withKnownPL = allClosed.filter(p => p.pl !== 0 || (p.costEUR > 0));
+  // For Track Record: only count trades with known P/L
+  // Include if: (a) has report-based realizedPL, OR (b) has both buy cost and sell proceeds (can compute P/L)
+  // Exclude: sell-only trades from 2020/2025 with no report data and no buy cost
+  const withKnownPL = allClosed.filter(p => p._hasReportPL || (p.costEUR > 0 && p.proceedsEUR > 0));
   const winners = withKnownPL.filter(p => p.pl > 0);
   const losers = withKnownPL.filter(p => p.pl < 0);
   const winRate = withKnownPL.length > 0 ? (winners.length / withKnownPL.length * 100) : 0;
@@ -563,11 +568,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     degiroClosedPositions: degiroOnlyClosed.map(t => {
       const cost = t.costEUR || 0;
       const proceeds = t.proceedsEUR || 0;
-      // P/L: use realizedPL if available, else proceeds-cost (only meaningful when cost>0)
       const pl = t.pl || (cost > 0 ? (proceeds - cost) : 0);
-      const hasCost = cost > 0; // flag to distinguish "no cost data" from "cost=0"
+      // hasCost: true if we have buy cost data OR report-based P/L (can show meaningful numbers)
+      const hasCost = cost > 0 || t._hasReportPL;
       return {
-        ticker: t.ticker, label: t.label, pl, hasCost,
+        ticker: t.ticker, label: t.label, pl, hasCost, _hasReportPL: t._hasReportPL,
         costEUR: cost, proceedsEUR: proceeds,
         _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
       };
