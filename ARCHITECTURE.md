@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v140** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v141** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -684,6 +684,23 @@ Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le c
 - `render.js` : dans les sous-tables de détail per-trade, `hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR`
 
 **Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
+
+### Extraction complète trades Degiro via Gmail (v141)
+
+Extraction exhaustive de l'historique complet des transactions Degiro depuis les emails `notifications@degiro.fr` (compte am.koraibi@gmail.com). 50 emails "Avis d'opéré" analysés (août 2020 — avril 2025).
+
+**Modifications data.js :**
+- `allTrades` : 45 → 59 entrées (14 trades manquants ajoutés depuis 5 emails multi-ordres)
+- Trades ajoutés : LVMH (achat 12), GME (buy+sell 20), Capgemini (vente 36), Crédit Agricole (vente 280 + achat 140), Visa (vente 5), Europcar (achat 4500), SAP (vente 15), Juventus (vente 1000), FedEx (vente 7+10), Bouygues (vente 50), IBM (vente 10)
+- ADP : corrigé qty 2→8 (4 fills : 2+2+1+3 @ 106.90)
+- NVDA splitFactor : achat 2020-09-03 → `splitFactor: 40` (4:1 Jul 2021 + 10:1 Jun 2024)
+- NVDA splitFactor : achat 2021-08-17 → `splitFactor: 10` (10:1 Jun 2024 seulement)
+
+**Cohérence vérifiée :**
+- 5 tickers parfaitement équilibrés : EUCAR, GME, IBM, JUVE, MC
+- 16 tickers sell-only (positions pré-tracking, achetées avant août 2020)
+- 7 tickers partiellement matchés (achats pré-tracking)
+- 3 tickers buy-only : FIT (acquisition Google), SHLL/SNPR (SPACs)
 
 ### Tooltips Cash Productif vs Dormant (v127+)
 
