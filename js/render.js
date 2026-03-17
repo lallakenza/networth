@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=143';
-import { getGrandTotal } from './engine.js?v=143';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=144';
+import { getGrandTotal } from './engine.js?v=144';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1717,8 +1717,9 @@ function renderActionsView(state) {
         } else {
           ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
         }
-        const costCell = cp.hasCost ? fmt(cp.costEUR) : '\u2014';
-        const plCell = cp.hasCost ? (s + fmt(cp.pl)) : '\u2014';
+        const naCss = 'color:#cbd5e0;font-size:11px';
+        const costCell = cp.hasCost ? fmt(cp.costEUR) : '<span style="' + naCss + '">n/a</span>';
+        const plCell = cp.hasCost ? (s + fmt(cp.pl)) : '<span style="' + naCss + '">n/a</span>';
         const plCls = cp.hasCost ? cls : '';
         tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + costCell + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + plCls + '">' + plCell + '</td>' + ifHeldCols;
         tr.addEventListener('click', () => {
@@ -1829,6 +1830,8 @@ function renderActionsView(state) {
       tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ds + fmt(totalDegiro) + '</strong></td>' + totalIfHeldCols;
       degiroTbody.appendChild(tr);
     }
+    // Default sort: proceeds descending (biggest trades first for Top 10)
+    av.degiroClosedPositions.sort((a, b) => (b.proceedsEUR || 0) - (a.proceedsEUR || 0));
     renderDegiroRows(av.degiroClosedPositions);
     makeTableSortable(degiroTable, av.degiroClosedPositions, renderDegiroRows);
   }

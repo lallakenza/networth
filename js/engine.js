@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=143';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=144';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -330,9 +330,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
   const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
-  const winners = allClosed.filter(p => p.pl > 0);
-  const losers = allClosed.filter(p => p.pl < 0);
-  const winRate = allClosed.length > 0 ? (winners.length / allClosed.length * 100) : 0;
+  // For Track Record: only count trades with known P/L (exclude Degiro sell-only with no cost basis)
+  const withKnownPL = allClosed.filter(p => p.pl !== 0 || (p.costEUR > 0));
+  const winners = withKnownPL.filter(p => p.pl > 0);
+  const losers = withKnownPL.filter(p => p.pl < 0);
+  const winRate = withKnownPL.length > 0 ? (winners.length / withKnownPL.length * 100) : 0;
   const totalWins = winners.reduce((s, p) => s + p.pl, 0);
   const totalLosses = Math.abs(losers.reduce((s, p) => s + p.pl, 0));
   insights.push({
@@ -341,7 +343,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     winRate: winRate,
     winners: winners.length,
     losers: losers.length,
-    totalTrades: allClosed.length,
+    totalTrades: withKnownPL.length,
     totalWins: totalWins,
     totalLosses: totalLosses,
     profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
