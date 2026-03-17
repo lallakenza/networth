@@ -293,18 +293,85 @@ export const PORTFOLIO = {
     // Champs manquants = données non disponibles (trades historiques Degiro)
     allTrades: [
       // ═══════════════════════════════════════════════════
-      //  DEGIRO — positions fermées (compte clôturé avr 2025)
-      //  Dates approximatives — seuls cost/proceeds/PL connus
+      //  DEGIRO — Historique complet (2020-2025)
+      //  Compte clôturé avril 2025
+      //  Source: Gmail notifications@degiro.fr
       // ═══════════════════════════════════════════════════
-      { date: '2025-04-14', ticker: 'NVDA',  label: 'NVIDIA',                   type: 'sell', qty: 540,   price: '',    currency: 'USD', cost: 8067,   proceeds: 48264, realizedPL: 40197, commission: '', costBasis: '', source: 'degiro', note: 'Liquidation Degiro — 540 actions post-split 10:1' },
-      { date: '2023-07-15', ticker: 'NVDA',  label: 'NVIDIA',                   type: 'sell', qty: 4,     price: '',    currency: 'USD', cost: 539,    proceeds: 1721,  realizedPL: 1182,  commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: '4 pre-split 10:1 (juin 2024) → 40 actions auj.' },
-      { date: '2021-08-15', ticker: 'MC',    label: 'LVMH',                     type: 'sell', qty: 16,    price: '',    currency: 'EUR', cost: 6104,   proceeds: 11230, realizedPL: 5126,  commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA', note: 'Vendu août 2021' },
-      { date: '2023-07-15', ticker: 'SAP',   label: 'SAP SE',                   type: 'sell', qty: 27,    price: '',    currency: 'EUR', cost: 2804,   proceeds: 3650,  realizedPL: 846,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu juil 2023' },
-      { date: '2021-08-01', ticker: 'EUCAR', label: 'Europcar',                 type: 'sell', qty: 19300, price: '',    currency: 'EUR', cost: 7422,   proceeds: 9489,  realizedPL: 2067,  commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: 'Vendu jun-août 2021 (delisted)' },
-      { date: '2025-02-15', ticker: 'SPOT',  label: 'Spotify',                  type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: 500,   proceeds: 1214,  realizedPL: 714,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu fév 2025 @ 606.89€' },
-      { date: '2025-02-15', ticker: 'DIS',   label: 'Walt Disney',              type: 'sell', qty: 35,    price: '',    currency: 'USD', cost: 5614,   proceeds: 5379,  realizedPL: -235,  commission: '', costBasis: '', source: 'degiro', note: '30 vendu sep 2021, 5 vendu fév 2025' },
-      { date: '2025-04-14', ticker: 'INFY',  label: 'Infosys ADR',              type: 'sell', qty: 300,   price: '',    currency: 'USD', cost: 4433,   proceeds: 4708,  realizedPL: 182,   commission: '', costBasis: '', source: 'degiro', note: 'Vendu avr 2025 (liquidation)' },
-      { date: '2025-04-14', ticker: 'MISC',  label: 'Autres (FedEx, IBM, Fitbit, Juve...)', type: 'sell', qty: 0, price: '', currency: 'EUR', cost: 0, proceeds: 1000, realizedPL: 1000, commission: '', costBasis: '', source: 'degiro', note: 'Net ~1000€ positions mineures' },
+
+      // ──────────────────────────────────────────────────
+      // 2020 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2020-08-14', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',             type: 'buy',  qty: 4,     price: 386,    currency: 'EUR', cost: 1544,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
+      { date: '2020-08-19', ticker: 'PM',    label: 'Philip Morris International',   type: 'sell', qty: 20,    price: 79.55,  currency: 'USD', cost: '',     proceeds: 1591, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-24', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 35,    price: 8.484,  currency: 'EUR', cost: 297,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2020-08-24', ticker: 'CAP',   label: 'Capgemini',                     type: 'buy',  qty: 10,    price: 115.4,  currency: 'EUR', cost: 1154,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2020-08-25', ticker: 'SW',    label: 'Sodexo',                        type: 'sell', qty: 7,     price: 61.4,   currency: 'EUR', cost: '',     proceeds: 430, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SW.PA' },
+      { date: '2020-08-25', ticker: 'CCL',   label: 'Carnival Corporation',          type: 'sell', qty: 10,    price: 15.41,  currency: 'USD', cost: '',     proceeds: 154, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-25', ticker: 'CGC',   label: 'Canopy Growth Corporation',     type: 'sell', qty: 50,    price: 16.51,  currency: 'USD', cost: '',     proceeds: 826, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-25', ticker: 'GOOS',  label: 'Canada Goose Holdings',         type: 'sell', qty: 9,     price: 23.87,  currency: 'USD', cost: '',     proceeds: 215, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-26', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'buy',  qty: 7,     price: 215.8,  currency: 'USD', cost: 1511,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-09-03', ticker: 'NKE',   label: 'Nike Inc',                      type: 'sell', qty: 10,    price: 116.7,  currency: 'USD', cost: '',     proceeds: 1167, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-09-03', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 2,     price: 518,    currency: 'USD', cost: 1036,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 40, note: 'Pre 4:1 (Jul 2021) + 10:1 (Jun 2024) splits' },
+      { date: '2020-10-12', ticker: 'SAN',   label: 'Sanofi',                        type: 'sell', qty: 2,     price: 86.4,   currency: 'EUR', cost: '',     proceeds: 173, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SAN.PA' },
+      { date: '2020-11-13', ticker: 'AF',    label: 'Air France-KLM',                type: 'sell', qty: 300,   price: 3.874,  currency: 'EUR', cost: '',     proceeds: 1162, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AF.PA' },
+      { date: '2020-11-13', ticker: 'KORI',  label: 'Korian (Clariane)',             type: 'sell', qty: 50,    price: 29.14,  currency: 'EUR', cost: '',     proceeds: 1457, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'KORI.PA' },
+      { date: '2020-11-13', ticker: 'ADP',   label: 'Aéroports de Paris',            type: 'sell', qty: 8,     price: 106.9,  currency: 'EUR', cost: '',     proceeds: 855, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ADP.PA', note: '4 fills: 2+2+1+3 @ 106.90' },
+      { date: '2020-11-13', ticker: 'BA',    label: 'Boeing Company',                type: 'sell', qty: 15,    price: 186.5,  currency: 'USD', cost: '',     proceeds: 2798, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-11-20', ticker: 'HTZ',   label: 'Hertz Global Holdings',         type: 'sell', qty: 100,   price: 1.13,   currency: 'USD', cost: '',     proceeds: 113, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-12-18', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'buy',  qty: 20,    price: 127.3,  currency: 'USD', cost: 2546,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-12-18', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'buy',  qty: 200,   price: 16.19,  currency: 'USD', cost: 3238,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+
+      // ──────────────────────────────────────────────────
+      // 2021 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2021-01-04', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'buy',  qty: 100,   price: 6.85,   currency: 'USD', cost: 685,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Multi-fill: 50+50 = 100 total' },
+      { date: '2021-01-07', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'buy',  qty: 1000,  price: 0.813,  currency: 'EUR', cost: 813,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI' },
+      { date: '2021-01-22', ticker: 'IBM',   label: 'IBM Corporation',               type: 'buy',  qty: 10,    price: 118.2,  currency: 'USD', cost: 1182,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '7 shares + 3 shares at same price' },
+      { date: '2021-01-29', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'buy',  qty: 12,    price: 502.8,  currency: 'EUR', cost: 6034,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA', note: '2 fills: 7+5 @ 502.80' },
+      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'buy',  qty: 20,    price: 340.93, currency: 'USD', cost: 6819,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'GME mania — same day buy/sell' },
+      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'sell', qty: 20,    price: 331.74, currency: 'USD', cost: '',     proceeds: 6635, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'GME mania — sold at loss same day' },
+      { date: '2021-01-29', ticker: 'CAP',   label: 'Capgemini',                     type: 'sell', qty: 36,    price: 119.85, currency: 'EUR', cost: '',     proceeds: 4315, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'sell', qty: 280,   price: 9.404,  currency: 'EUR', cost: '',     proceeds: 2633, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 140,   price: 9.398,  currency: 'EUR', cost: 1316,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2021-01-29', ticker: 'V',     label: 'Visa Inc',                      type: 'sell', qty: 5,     price: 198.15, currency: 'USD', cost: '',     proceeds: 991, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-02-08', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 1000,  price: 0.427,  currency: 'EUR', cost: 427,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-09', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.443,  currency: 'EUR', cost: 1329,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-10', ticker: 'ATO',   label: 'Atos SE',                       type: 'sell', qty: 20,    price: 65.4,   currency: 'EUR', cost: '',     proceeds: 1308, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ATO.PA' },
+      { date: '2021-02-11', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 4500,  price: 0.318,  currency: 'EUR', cost: 1431,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '4 fills: 977+902+1900+721 @ 0.318' },
+      { date: '2021-02-11', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'sell', qty: 15,    price: 131.85, currency: 'USD', cost: '',     proceeds: 1978, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '2 fills: 13+2 @ 131.85' },
+      { date: '2021-02-15', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 800,   price: 0.323,  currency: 'EUR', cost: 258,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.342,  currency: 'EUR', cost: 1026,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 7000,  price: 0.344,  currency: 'EUR', cost: 2408,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '2560@0.344 + 4440@0.344 (merged)' },
+      { date: '2021-03-01', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'sell', qty: 1000,  price: 0.8304, currency: 'EUR', cost: '',     proceeds: 830, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI' },
+      { date: '2021-03-01', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 7,     price: 260.7,  currency: 'USD', cost: '',     proceeds: 1825, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-01', ticker: 'EN',    label: 'Bouygues',                      type: 'sell', qty: 50,    price: 34.22,  currency: 'EUR', cost: '',     proceeds: 1711, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
+      { date: '2021-03-09', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 10,    price: 259.5,  currency: 'USD', cost: '',     proceeds: 2595, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '2 fills: 4+6 @ 259.50' },
+      { date: '2021-03-09', ticker: 'IBM',   label: 'IBM Corporation',               type: 'sell', qty: 10,    price: 124.89, currency: 'USD', cost: '',     proceeds: 1249, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-09', ticker: 'SHLL',  label: 'Tortoise Acquisition Corp',     type: 'buy',  qty: 200,   price: 12.01,  currency: 'USD', cost: 2402,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SPAC → SNPR merger' },
+      { date: '2021-03-10', ticker: 'SHLL',  label: 'Tortoise Acquisition Corp',     type: 'buy',  qty: 150,   price: 11.505, currency: 'USD', cost: 1726,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '50@11.52 + 100@11.505 (merged)', yahooTicker: 'SNPR' },
+      { date: '2021-03-10', ticker: 'SHLL',  label: 'Tortoise Acquisition Corp',     type: 'buy',  qty: 40,    price: 11.5,   currency: 'USD', cost: 460,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-05-10', ticker: 'SNPR',  label: 'Tortoise Acquisition II Corp',  type: 'buy',  qty: 200,   price: 9.99,   currency: 'USD', cost: 1998,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-06-24', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 3500,  price: 0.463,  currency: 'EUR', cost: '',     proceeds: 1621, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-08-06', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'sell', qty: 16,    price: 701.9,  currency: 'EUR', cost: '',     proceeds: 11230, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
+      { date: '2021-08-09', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 15800, price: 0.498,  currency: 'EUR', cost: '',     proceeds: 7864, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '11816@0.498 + 3984@0.498 (merged)' },
+      { date: '2021-08-17', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 30,    price: 194.15, currency: 'USD', cost: 5825,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
+      { date: '2021-08-19', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'buy',  qty: 20,    price: 173.1,  currency: 'USD', cost: 3462,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-09-24', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 30,    price: 175.45, currency: 'USD', cost: '',     proceeds: 5264, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '26+4 fills at same price (merged)' },
+
+      // ──────────────────────────────────────────────────
+      // 2023 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE',                        type: 'sell', qty: 27,    price: 135.2,  currency: 'EUR', cost: '',     proceeds: 3650, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR)' },
+      { date: '2023-07-27', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 4,     price: 473.4,  currency: 'USD', cost: '',     proceeds: 1894, realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
+
+      // ──────────────────────────────────────────────────
+      // 2025 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2025-02-27', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 5,     price: 112.9,  currency: 'USD', cost: '',     proceeds: 565, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2025-02-27', ticker: 'SPOT',  label: 'Spotify Technology SA',         type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: '',     proceeds: 1214, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 8973, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'April 2025 sell (from email)' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 440,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 39481, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'April 2025 sell (from email)' },
+      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 300,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 5085, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '100@16.95 + 200@16.95 (merged)' },
     ],
 
     // ──────────────────────────────────────────────────────
@@ -386,7 +453,7 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '13/03/2026';
+export const DATA_LAST_UPDATE = '17/03/2026';
 
 // ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
