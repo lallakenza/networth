@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v143** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v144** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -685,7 +685,7 @@ Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le c
 
 **Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
 
-### Fix tableau Degiro + prix statiques + Top 10 (v143)
+### Fix tableau Degiro + prix statiques + Top 10 (v144)
 
 **Bug fix :** Colonne "Coût" affichait €0 — le code accumulait `cost` depuis les trades sell (où cost='') au lieu des trades buy. Corrigé dans engine.js.
 
