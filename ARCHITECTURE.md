@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v141** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v142** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -684,6 +684,30 @@ Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le c
 - `render.js` : dans les sous-tables de détail per-trade, `hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR`
 
 **Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
+
+### Sanity check corporate actions sur tous les tickers (v142)
+
+Vérification systématique de tous les tickers pour splits, reverse splits, fusions, acquisitions et faillites. 7 corrections appliquées :
+
+**Reverse splits (splitFactor: 0.1) :**
+- JUVE (buy + sell) : reverse split 10:1 (Jan 2024)
+- AF : reverse split 10:1 (Aug 2023)
+- CGC : reverse split 10:1 (Dec 2023)
+
+**Faillite (splitFactor: 0) :**
+- HTZ : Ch.11 bankruptcy Jun 2021 — anciennes actions annulées
+
+**Ticker merger :**
+- SHLL → HYLN : 3 entrées buy corrigées (merger Oct 2020)
+
+**Acquisitions (sell entries ajoutés) :**
+- FIT : vente 100 @ $7.35 — acquisition Google (Jan 2021)
+- SNPR : vente 200 @ $0.86 — acquisition Shell/VLTA (Mar 2023)
+
+**Ticker rebrand :**
+- KORI : yahooTicker mis à jour KORI.PA → CLARI.PA (Korian → Clariane)
+
+`allTrades` : 59 → 61 entrées.
 
 ### Extraction complète trades Degiro via Gmail (v141)
 
