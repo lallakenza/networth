@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=99';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=143';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -561,9 +561,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     degiroClosedPositions: degiroOnlyClosed.map(t => {
       const cost = t.costEUR || 0;
       const proceeds = t.proceedsEUR || 0;
-      const pl = t.pl || (proceeds - cost);  // fallback: proceeds - cost when realizedPL is empty
+      // P/L: use realizedPL if available, else proceeds-cost (only meaningful when cost>0)
+      const pl = t.pl || (cost > 0 ? (proceeds - cost) : 0);
+      const hasCost = cost > 0; // flag to distinguish "no cost data" from "cost=0"
       return {
-        ticker: t.ticker, label: t.label, pl,
+        ticker: t.ticker, label: t.label, pl, hasCost,
         costEUR: cost, proceedsEUR: proceeds,
         _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
       };
