@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=99';
-import { getGrandTotal } from './engine.js?v=99';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=143';
+import { getGrandTotal } from './engine.js?v=143';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1717,7 +1717,10 @@ function renderActionsView(state) {
         } else {
           ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
         }
-        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + fmt(cp.costEUR || 0) + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>' + ifHeldCols;
+        const costCell = cp.hasCost ? fmt(cp.costEUR) : '\u2014';
+        const plCell = cp.hasCost ? (s + fmt(cp.pl)) : '\u2014';
+        const plCls = cp.hasCost ? cls : '';
+        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + costCell + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + plCls + '">' + plCell + '</td>' + ifHeldCols;
         tr.addEventListener('click', () => {
           degiroTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
           degiroTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
