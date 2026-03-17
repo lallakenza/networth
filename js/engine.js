@@ -299,8 +299,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Total qty sold
     const totalQtySold = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0), 0);
     // "What if I held": look up current live price for this ticker
-    // Priority: 1) live position in IBKR, 2) sold stock prices from background fetch
-    const livePos = ibkrPositions.find(p => p.ticker === cp.ticker);
+    // Priority: 1) live position in IBKR (exact or with .PA suffix), 2) sold stock prices from background fetch
+    const livePos = ibkrPositions.find(p => p.ticker === cp.ticker)
+      || ibkrPositions.find(p => p.ticker === cp.ticker + '.PA');
     const soldPrices = portfolio._soldPrices || {};
     if (livePos && totalQtySold > 0) {
       cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share
