@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=137';
-import { compute } from './engine.js?v=137';
-import { render } from './render.js?v=137';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=137';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=137';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=137';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=138';
+import { compute } from './engine.js?v=138';
+import { render } from './render.js?v=138';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=138';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=138';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=138';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -369,23 +369,23 @@ async function loadStockPrices(forceRefresh) {
       refresh();
     }
 
-    // ---- Background: fetch sold stock prices (only if ALL held stocks loaded) ----
-    const allHeldLoaded = result.failedTickers.length === 0;
-    if (allHeldLoaded) {
+    // ---- Background: fetch sold stock prices (always, even if some held tickers failed) ----
+    {
       const heldTickers = new Set(PORTFOLIO.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']));
       // Collect unique tickers from closed positions (trades) that are not currently held
-      // Need to map to Yahoo ticker format: EUR stocks without .PA need it added
       const allTrades = PORTFOLIO.amine.ibkr.trades || [];
       const soldTickerSet = new Set();
       const soldTickerMap = {}; // yahooTicker → originalTicker
       allTrades.forEach(t => {
-        if (!t.ticker || t.ticker === 'MISC' || heldTickers.has(t.ticker) || t.ticker === 'EUR.JPY' || t.type === 'fx') return;
+        if (!t.ticker || t.ticker === 'MISC' || t.ticker === 'EUR.JPY' || t.type === 'fx') return;
+        // Skip if currently held (live price already available via engine.js)
+        if (heldTickers.has(t.ticker)) return;
         // Use explicit yahooTicker if provided, otherwise derive from currency
         let yahooTicker = t.yahooTicker || t.ticker;
         if (!t.yahooTicker && t.currency === 'EUR' && !t.ticker.includes('.')) {
           yahooTicker = t.ticker + '.PA'; // Euronext Paris
         }
-        if (!heldTickers.has(t.ticker) && !heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
+        if (!heldTickers.has(yahooTicker) && !soldTickerSet.has(yahooTicker)) {
           soldTickerSet.add(yahooTicker);
           soldTickerMap[yahooTicker] = t.ticker;
         }
