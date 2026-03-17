@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v142** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v143** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -684,6 +684,16 @@ Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le c
 - `render.js` : dans les sous-tables de détail per-trade, `hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR`
 
 **Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
+
+### Fix tableau Degiro + prix statiques + Top 10 (v143)
+
+**Bug fix :** Colonne "Coût" affichait €0 — le code accumulait `cost` depuis les trades sell (où cost='') au lieu des trades buy. Corrigé dans engine.js.
+
+**Bug fix :** Colonne "P/L" affichait +€0 — fallback `proceeds - cost` ajouté quand `realizedPL` est vide (trades Degiro).
+
+**Prix statiques :** Ajout de `DEGIRO_STATIC_PRICES` dans data.js avec prix approximatifs (mars 2026) pour tous les tickers Degiro vendus. Utilisés comme fallback avant que l'API Yahoo ne retourne les prix live. Flag `_staticPrice` propagé pour identification.
+
+**Top 10 :** Le tableau Degiro affiche maintenant les 10 premières positions par défaut, avec un bouton "Voir les N positions ▼" pour déplier. Les totaux sont toujours calculés sur l'ensemble.
 
 ### Sanity check corporate actions sur tous les tickers (v142)
 

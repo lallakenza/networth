@@ -458,6 +458,43 @@ export const PORTFOLIO = {
 export const DATA_LAST_UPDATE = '17/03/2026';
 
 // ════════════════════════════════════════════════════════════
+// PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
+// Prix post-split en devise native. Mis à jour manuellement.
+// Les API Yahoo écrasent ces valeurs dès le fetch terminé.
+// ════════════════════════════════════════════════════════════
+export const DEGIRO_STATIC_PRICES = {
+  // US stocks (USD)
+  NVDA:  { price: 182.78, currency: 'USD' },
+  DIS:   { price: 98.61,  currency: 'USD' },
+  BA:    { price: 209.89, currency: 'USD' },
+  NKE:   { price: 53.98,  currency: 'USD' },
+  PM:    { price: 174.71, currency: 'USD' },
+  CCL:   { price: 24.63,  currency: 'USD' },
+  GOOS:  { price: 10.50,  currency: 'USD' },
+  V:     { price: 307.14, currency: 'USD' },
+  FDX:   { price: 392.86, currency: 'USD' },
+  IBM:   { price: 223.35, currency: 'USD' },
+  GME:   { price: 23.28,  currency: 'USD' },
+  SPOT:  { price: 515.01, currency: 'USD' },
+  INFY:  { price: 13.52,  currency: 'USD' },
+  SAP:   { price: 189.97, currency: 'USD' },  // ADR price (NYSE)
+  CGC:   { price: 1.02,   currency: 'USD' },
+  HYLN:  { price: 2.01,   currency: 'USD' },
+  // European stocks (EUR)
+  MC:    { price: 479.00, currency: 'EUR' },
+  CAP:   { price: 107.80, currency: 'EUR' },
+  ACA:   { price: 18.06,  currency: 'EUR' },
+  EN:    { price: 140.30, currency: 'EUR' },
+  AF:    { price: 9.57,   currency: 'EUR' },  // post reverse split 10:1
+  CLARI: { price: 3.83,   currency: 'EUR' },  // ex-KORI
+  KORI:  { price: 3.83,   currency: 'EUR' },  // alias → Clariane
+  ADP:   { price: 111.80, currency: 'EUR' },
+  ATO:   { price: 36.86,  currency: 'EUR' },
+  SAN:   { price: 83.00,  currency: 'EUR' },
+  JUVE:  { price: 2.17,   currency: 'EUR' },  // post reverse split 10:1
+};
+
+// ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
 //
 // ⚠️  Pour IBKR : les taux ci-dessous sont les taux NOMINAUX

@@ -1671,23 +1671,33 @@ function renderActionsView(state) {
     cashTbody.appendChild(tr);
   }
 
-  // Degiro closed positions (expandable)
+  // Degiro closed positions (expandable, Top 10 by default)
   const degiroTbody = document.getElementById('degiroClosedTbody');
   const degiroTable = document.getElementById('degiroClosedTable');
   if (degiroTbody) {
     let _expandedDegiroClosed = null;
+    let _degiroShowAll = false;
+    const DEGIRO_TOP_N = 10;
     function renderDegiroRows(items) {
       degiroTbody.innerHTML = '';
+      // Always compute totals on ALL items, but only render visible rows
       let totalCost = 0, totalProceeds = 0, totalDegiro = 0, totalIfHeld = 0, totalIfHeldDiff = 0;
       items.forEach(cp => {
         totalCost += (cp.costEUR || 0);
         totalProceeds += (cp.proceedsEUR || 0);
         totalDegiro += cp.pl;
+        const ifHeldVal = cp._ifHeldValueEUR || 0;
+        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
+        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
+      });
+      // Determine visible rows
+      const visibleItems = _degiroShowAll ? items : items.slice(0, DEGIRO_TOP_N);
+      const hiddenCount = items.length - visibleItems.length;
+      visibleItems.forEach(cp => {
         // "Si gardé auj." columns
         const ifHeldVal = cp._ifHeldValueEUR || 0;
         const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
         const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
-        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
         // Store computed values for sorting
         cp._ifHeldPLvsProceeds = diffVsSale;
         cp._ifHeldPctVsSale = pctVsSale;
@@ -1784,6 +1794,18 @@ function renderActionsView(state) {
         });
         degiroTbody.appendChild(tr);
       });
+      // "Voir tout" / "Top 10" toggle button
+      if (items.length > DEGIRO_TOP_N) {
+        const toggleTr = document.createElement('tr');
+        toggleTr.style.cursor = 'pointer';
+        const btnLabel = _degiroShowAll ? 'Top ' + DEGIRO_TOP_N + ' \u25B2' : 'Voir les ' + items.length + ' positions \u25BC';
+        toggleTr.innerHTML = '<td colspan="7" style="text-align:center;padding:10px;color:#4a7cbc;font-size:13px;font-weight:500">' + btnLabel + '</td>';
+        toggleTr.addEventListener('click', () => {
+          _degiroShowAll = !_degiroShowAll;
+          renderDegiroRows(items);
+        });
+        degiroTbody.appendChild(toggleTr);
+      }
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
       const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';

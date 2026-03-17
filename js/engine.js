@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC } from './data.js?v=99';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=99';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -296,6 +296,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Gather all trades (buy + sell) for this ticker+source
     const allForTicker = allTradesUnified.filter(t => t.ticker === cp.ticker && (t.source || 'ibkr') === cp.source);
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
+    // Accumulate cost from buy trades (sell trades have cost:'')
+    cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + (t.cost || 0), 0);
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
     const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
     // "What if I held": look up current live price for this ticker
@@ -315,6 +317,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       cp._ifHeldPriceEUR = priceEUR;
       cp._ifHeldValueEUR = totalQtySoldAdj * priceEUR;
       cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
+    } else if (DEGIRO_STATIC_PRICES[cp.ticker] && totalQtySoldAdj > 0) {
+      // Fallback: static prices from data.js (before API fetch completes)
+      const sp = DEGIRO_STATIC_PRICES[cp.ticker];
+      const priceEUR = sp.currency === 'USD' ? sp.price / fx.USD : sp.currency === 'JPY' ? sp.price / fx.JPY : sp.price;
+      cp._ifHeldPriceEUR = priceEUR;
+      cp._ifHeldValueEUR = totalQtySoldAdj * priceEUR;
+      cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
+      cp._staticPrice = true; // flag for render to show "static" indicator
     }
   });
   const allClosed = Object.values(byTickerSource);
@@ -548,11 +558,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     trades: allTradesUnified,
     depositHistory: depositHistory,
     // Degiro — aggregated by ticker (pre-split + post-split merged)
-    degiroClosedPositions: degiroOnlyClosed.map(t => ({
-      ticker: t.ticker, label: t.label, pl: t.pl || 0,
-      costEUR: t.costEUR || 0, proceedsEUR: t.proceedsEUR || 0,
-      _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL,
-    })),
+    degiroClosedPositions: degiroOnlyClosed.map(t => {
+      const cost = t.costEUR || 0;
+      const proceeds = t.proceedsEUR || 0;
+      const pl = t.pl || (proceeds - cost);  // fallback: proceeds - cost when realizedPL is empty
+      return {
+        ticker: t.ticker, label: t.label, pl,
+        costEUR: cost, proceedsEUR: proceeds,
+        _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
+      };
+    }),
     degiroRealizedPL,
     // Cross-platform
     combinedRealizedPL,
