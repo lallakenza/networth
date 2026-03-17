@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=138';
-import { compute } from './engine.js?v=138';
-import { render } from './render.js?v=138';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=138';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=138';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=138';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=139';
+import { compute } from './engine.js?v=139';
+import { render } from './render.js?v=139';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache } from './api.js?v=139';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut } from './charts.js?v=139';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=139';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -373,7 +373,8 @@ async function loadStockPrices(forceRefresh) {
     {
       const heldTickers = new Set(PORTFOLIO.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']));
       // Collect unique tickers from closed positions (trades) that are not currently held
-      const allTrades = PORTFOLIO.amine.ibkr.trades || [];
+      // ibkr.trades has IBKR trades, allTrades has Degiro trades — merge both
+      const allTrades = (PORTFOLIO.amine.ibkr.trades || []).concat(PORTFOLIO.amine.allTrades || []);
       const soldTickerSet = new Set();
       const soldTickerMap = {}; // yahooTicker → originalTicker
       allTrades.forEach(t => {
