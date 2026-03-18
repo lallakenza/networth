@@ -3090,8 +3090,20 @@ function renderImmoView(state) {
 
     // Show alert if villejuif will be meublé OR already triggered
     if (rueilProp) {
-      let html = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:16px 0;">'
-        + '<h4 style="color:#1e40af;margin:0 0 12px;">Seuil LMP — Nezha</h4>'
+      // ═══ COMPACT BANNER (always visible) ═══
+      let html = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;margin:12px 0;cursor:pointer;"'
+        + ' onclick="var d=this.nextElementSibling;d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.lmp-arrow\').textContent=d.style.display===\'none\'?\'▸\':\'▾\'">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+        + '<div style="font-size:13px;color:#1e40af;">'
+        + '<strong>Seuil LMP</strong> — Rueil seul: <span style="color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(rueilLoyer)) + '€/an (' + (isRueilAloneLMP ? 'LMP' : 'LMNP') + ')</span> · '
+        + 'Après Villejuif: <span style="color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(totalLoyerAnnuel)) + '€/an ' + (isCombinedLMP ? '→ LMP auto' : '') + '</span>'
+        + '</div>'
+        + '<span class="lmp-arrow" style="color:#1e40af;font-size:14px;">▸</span>'
+        + '</div>'
+        + '</div>'
+        + '<div style="display:none;">'
+        + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0;">'
+        + '<h4 style="color:#1e40af;margin:0 0 12px;">Seuil LMP — Détails</h4>'
         + '<p style="font-size:13px;color:#1e3a5f;margin:0 0 12px;">'
         + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique quand les recettes meublées dépassent <strong>23 000\u20ac/an</strong> ET les revenus d\'activité du foyer fiscal.'
         + '</p>'
@@ -3201,7 +3213,9 @@ function renderImmoView(state) {
         + '<div id="lmpExitCostsTable" style="display:none;margin-top:8px;overflow-x:auto;font-size:11px;"></div>'
         + '</div>';
 
-      html += '</div>';
+      html += '</div>'
+        + '</div>'; // Close the hidden container
+
       lmpSection.innerHTML = html;
 
       // ═══ Populate Exit Costs Comparison Table ═══
