@@ -929,18 +929,17 @@ export const IMMO_CONSTANTS = {
         cave: false,
         exposure: 'Sud-Ouest',
         floorPlan: {
-          // Constraint solver: V=27.5°, all rooms 0.000% area error
-          // Chambres: parallelograms (Ch2 332×339cm, Ch1 302×372cm from plan cotes)
-          // Séjour: L-shaped pentagon, Loggia: thin trapezoid between wings
-          viewBox: '-139.4 -5 539.0 278.2',
+          // Constraint solver: V=27.5°, hexagonal séjour, 0.001% max error
+          // Topology: utility block (top) → séjour hexagon (center) → loggia + chambres (bottom wings)
+          viewBox: '-171.2 -5 544.4 339.3',
           rooms: [
-            { name: 'Salle de bain', surface: 5.45, color: '#94a3b8', points: '73.2,0 150.7,0 150.7,63.3 73.2,63.3' },
-            { name: 'Entrée', surface: 3.6, color: '#94a3b8', points: '150.7,0 201.9,0 201.9,63.3 150.7,63.3' },
-            { name: 'WC', surface: 2.32, color: '#94a3b8', points: '201.9,0 255.0,0 255.0,39.3 201.9,39.3' },
-            { name: 'Séjour/Cuisine', surface: 35.09, color: '#3b82f6', points: '0,0 73.2,0 73.2,63.3 288.0,63.3 325.6,135.6 -70.6,135.6' },
-            { name: 'Loggia', surface: 9.51, color: '#d69e2e', points: '-70.6,135.6 325.6,135.6 336.5,156.6 -81.5,156.6' },
-            { name: 'Chambre 2', surface: 11.24, color: '#22c55e', points: '-81.5,156.6 18.1,156.6 -34.8,258.1 -134.4,258.1' },
-            { name: 'Chambre 1', surface: 11.24, color: '#22c55e', points: '245.9,156.6 336.5,156.6 394.6,268.2 304.0,268.2' },
+            { name: 'Salle de bain', surface: 5.45, color: '#94a3b8', points: '0,0 77.5,0 77.5,63.3 0,63.3' },
+            { name: 'Entrée', surface: 3.6, color: '#94a3b8', points: '77.5,0 128.7,0 128.7,63.3 77.5,63.3' },
+            { name: 'WC', surface: 2.32, color: '#94a3b8', points: '128.7,0 181.8,0 181.8,39.3 128.7,39.3' },
+            { name: 'Séjour/Cuisine', surface: 35.09, color: '#3b82f6', points: '66.6,63.3 229.8,63.3 299.3,196.9 -102.5,196.9 -85.9,165.0 66.6,165.0' },
+            { name: 'Loggia', surface: 9.51, color: '#d69e2e', points: '-102.5,196.9 299.3,196.9 310.1,217.7 -113.3,217.7' },
+            { name: 'Chambre 2', surface: 11.24, color: '#22c55e', points: '-113.3,217.7 -13.7,217.7 -66.6,319.2 -166.2,319.2' },
+            { name: 'Chambre 1', surface: 11.24, color: '#22c55e', points: '219.5,217.7 310.1,217.7 368.2,329.3 277.6,329.3' },
           ],
         },
       },
