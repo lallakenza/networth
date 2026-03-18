@@ -3611,6 +3611,9 @@ function renderFloorPlanSVG(floorPlan, rooms) {
 function renderPropertyInfoCard(details) {
   if (!details) return '';
 
+  // Generate unique ID to prevent conflicts when multiple cards exist
+  const uniqueId = 'propCard_' + Math.random().toString(36).substr(2, 6);
+
   // Color mapping for rooms
   const roomColors = {
     'Séjour': '#3b82f6',
@@ -3639,119 +3642,133 @@ function renderPropertyInfoCard(details) {
     return '#cbd5e0';
   };
 
-  // Calculate room bar with hover tooltips
-  let roomBar = '';
-  if (details.rooms && details.rooms.length > 0 && details.surfaceTotale > 0) {
-    details.rooms.forEach(room => {
-      if (room.surface && room.surface > 0) {
-        const pct = (room.surface / details.surfaceTotale) * 100;
-        const minPct = Math.max(pct, 3); // Min width 3% for visibility
-        const color = getRoomColor(room.name);
-        const displayPct = Math.max(pct, 3);
+  let html = '<div style="border:1px solid var(--border, #e7e5e4);border-radius:8px;overflow:hidden;margin-bottom:16px;">';
 
-        roomBar += '<div style="position:relative;flex:' + pct.toFixed(4) + ';min-width:' + displayPct + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;overflow:hidden;transition:all 0.3s ease;cursor:pointer;" ';
-        roomBar += 'onmouseenter="(function(el){el.style.minHeight=\'32px\';el.querySelector(\'.room-tip\').style.opacity=\'1\';el.querySelector(\'.room-tip\').style.visibility=\'visible\';})(this)" ';
-        roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
-        roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">' + room.name + '</span>';
-        roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
-        roomBar += room.name + ' — ' + room.surface.toFixed(1) + ' m²</div>';
-        roomBar += '</div>';
+  // === LEVEL 1: BANNER (always visible) ===
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--surface, #fff);">';
+
+  // Left: type, lot, floor, building, developer
+  html += '<div>';
+  html += '<span style="font-weight:700;font-size:15px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '') + '</span>';
+  html += '<span style="color:#78716c;font-size:13px;margin-left:8px;">';
+  const bannerParts = [];
+  if (details.floor) bannerParts.push(details.floor);
+  if (details.building) bannerParts.push(details.building);
+  if (details.developer) bannerParts.push(details.developer);
+  html += bannerParts.join(' · ');
+  html += '</span>';
+  html += '</div>';
+
+  // Right: surface
+  html += '<div style="text-align:right;">';
+  if (details.surfaceHabitable) {
+    html += '<span style="font-size:16px;font-weight:700;">' + details.surfaceHabitable.toFixed(1) + ' m²</span>';
+  }
+  if (details.loggia) {
+    html += '<span style="color:#b45309;font-size:12px;margin-left:6px;">+ ' + details.loggia.toFixed(1) + ' m² log</span>';
+  }
+  html += '</div>';
+
+  html += '</div>'; // end banner
+
+  // === BUTTONS ROW ===
+  html += '<div style="display:flex;border-top:1px solid var(--border, #e7e5e4);background:#fafaf9;">';
+
+  // Details button
+  html += '<button onclick="var d=document.getElementById(\'' + uniqueId + '_details\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=d.style.display===\'none\'?\'\u25BC\':\'\u25B2\'" ';
+  html += 'style="flex:1;padding:8px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:#78716c;transition:color 0.2s;">';
+  html += 'D\u00e9tails <span>\u25BC</span></button>';
+
+  // Plan button (only if floorPlan exists)
+  if (details.floorPlan) {
+    html += '<button onclick="var d=document.getElementById(\'' + uniqueId + '_plan\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" ';
+    html += 'style="flex:1;padding:8px;border:none;border-left:1px solid var(--border, #e7e5e4);background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:#1e3a5f;transition:color 0.2s;">';
+    html += 'Voir le plan</button>';
+  }
+
+  html += '</div>';
+
+  // === LEVEL 2: DETAILS (hidden by default) ===
+  html += '<div id="' + uniqueId + '_details" style="display:none;padding:16px;border-top:1px solid var(--border, #e7e5e4);">';
+
+  // Room bar
+  if (details.rooms && details.rooms.length > 0) {
+    const total = details.surfaceTotale || details.rooms.reduce((s, r) => s + (r.surface || 0), 0);
+    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin-bottom:12px;">';
+
+    details.rooms.forEach(r => {
+      if (r.surface && r.surface > 0) {
+        const pct = (r.surface / total) * 100;
+        const displayPct = Math.max(pct, 3);
+        const color = getRoomColor(r.name);
+        html += '<div style="position:relative;flex:0 0 ' + displayPct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,0.3);transition:filter 0.2s;" ';
+        html += 'onmouseenter="this.querySelector(\'.bar-tip\').style.opacity=1" onmouseleave="this.querySelector(\'.bar-tip\').style.opacity=0">';
+        html += '<span style="color:white;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;">' + r.name + '</span>';
+        // Tooltip
+        html += '<div class="bar-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1c1917;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:5;">';
+        html += r.name + (r.surface ? ' — ' + r.surface.toFixed(1) + ' m²' : '') + '</div>';
+        html += '</div>';
       }
     });
 
     // Add loggia if present
-    if (details.loggia && details.loggia > 0) {
-      const loggiaSize = details.loggia;
-      const loggiaPct = (loggiaSize / details.surfaceTotale) * 100;
-      const displayPct = Math.max(loggiaPct, 3);
-
-      roomBar += '<div style="position:relative;flex:' + loggiaPct.toFixed(4) + ';min-width:' + displayPct + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;overflow:hidden;transition:all 0.3s ease;cursor:pointer;" ';
-      roomBar += 'onmouseenter="(function(el){el.style.minHeight=\'32px\';el.querySelector(\'.room-tip\').style.opacity=\'1\';el.querySelector(\'.room-tip\').style.visibility=\'visible\';})(this)" ';
-      roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
-      roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">Loggia</span>';
-      roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
-      roomBar += 'Loggia — ' + loggiaSize.toFixed(1) + ' m²</div>';
-      roomBar += '</div>';
+    if (details.loggia) {
+      const pct = (details.loggia / total) * 100;
+      const displayPct = Math.max(pct, 3);
+      html += '<div style="flex:0 0 ' + displayPct.toFixed(1) + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;" onmouseenter="this.querySelector(\'.bar-tip\').style.opacity=1" onmouseleave="this.querySelector(\'.bar-tip\').style.opacity=0">';
+      html += '<span style="color:white;font-size:9px;">Loggia</span>';
+      html += '<div class="bar-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1c1917;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:5;">';
+      html += 'Loggia — ' + details.loggia.toFixed(1) + ' m²</div></div>';
     }
+
+    html += '</div>';
   }
 
-  // Build characteristic pills
-  let pillsHtml = '';
-  const pills = [];
-
-  if (details.exposure) pills.push({ text: '☀ ' + details.exposure, bg: '#e2e8f0' });
-  if (details.dpe) pills.push({ text: '🏷 DPE ' + details.dpe, bg: '#c6f6d5' });
-  if (details.norm) pills.push({ text: '🏗 ' + details.norm, bg: '#bee3f8' });
+  // Characteristics pills
+  let pills = [];
+  if (details.exposure) pills.push({ text: '\u263C ' + details.exposure, bg: '#e2e8f0' });
+  if (details.dpe) pills.push({ text: 'DPE ' + details.dpe, bg: '#c6f6d5' });
+  if (details.norm) pills.push({ text: details.norm, bg: '#bee3f8' });
   if (details.parking !== null && details.parking !== undefined) {
-    pills.push({ text: '🅿 ' + (details.parking ? 'Parking' : 'Pas de parking'), bg: details.parking ? '#c6f6d5' : '#fed7d7' });
+    pills.push({ text: details.parking ? 'Parking' : 'Pas de parking', bg: details.parking ? '#c6f6d5' : '#fed7d7' });
   }
   if (details.cave !== null && details.cave !== undefined) {
-    pills.push({ text: details.cave ? '📦 Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
+    pills.push({ text: details.cave ? 'Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
   }
 
-  pills.forEach(pill => {
-    pillsHtml += '<span style="background:' + pill.bg + ';border-radius:12px;padding:4px 10px;font-size:11px;display:inline-block;margin-right:6px;margin-bottom:6px;transition:all 0.3s ease;border:1px solid rgba(0,0,0,0.05);">' + pill.text + '</span>';
-  });
-
-  // Build the card HTML
-  let html = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;transition:all 0.3s ease;">';
-
-  // Row 1: Premium header with type, lot, floor, building + surface info
-  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">';
-  html += '<div style="flex:1;">';
-  html += '<div style="font-weight:700;font-size:15px;color:#1a202c;letter-spacing:-0.5px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</div>';
-  const headerInfo = [];
-  if (details.floor) headerInfo.push(details.floor);
-  if (details.building) headerInfo.push(details.building);
-  if (details.developer) headerInfo.push(details.developer);
-  if (headerInfo.length > 0) {
-    html += '<div style="color:#718096;font-size:12px;margin-top:4px;letter-spacing:-0.3px;">' + headerInfo.join(' · ') + '</div>';
-  }
-  html += '</div>';
-  html += '<div style="text-align:right;flex-shrink:0;margin-left:16px;">';
-  if (details.surfaceHabitable) {
-    html += '<div style="font-weight:700;font-size:18px;color:#3182ce;letter-spacing:-0.5px;">' + details.surfaceHabitable.toFixed(2) + ' m²</div>';
-    html += '<div style="font-size:11px;color:#718096;margin-top:2px;">Habitable</div>';
-    if (details.loggia) html += '<div style="font-weight:600;font-size:12px;color:#d69e2e;margin-top:4px;">+ ' + details.loggia.toFixed(2) + ' m² loggia</div>';
-  }
-  html += '</div>';
-  html += '</div>';
-
-  // Row 2: Interactive room bar with hover tooltips
-  if (roomBar) {
-    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin-bottom:12px;background:#f7fafc;border:1px solid #e2e8f0;gap:0;transition:all 0.3s ease;">';
-    html += roomBar;
+  if (pills.length > 0) {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
+    pills.forEach(pill => {
+      html += '<span style="background:' + pill.bg + ';border-radius:12px;padding:4px 10px;font-size:11px;display:inline-block;border:1px solid rgba(0,0,0,0.05);">' + pill.text + '</span>';
+    });
     html += '</div>';
   }
 
-  // Row 3: Characteristics as pills
-  if (pillsHtml) {
-    html += '<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;">';
-    html += pillsHtml;
+  // Room list (compact grid)
+  if (details.rooms && details.rooms.length > 0) {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:4px;font-size:12px;">';
+    details.rooms.forEach(r => {
+      if (r.surface && r.surface > 0) {
+        html += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #f5f5f4;">';
+        html += '<span style="color:#78716c;">' + r.name + '</span>';
+        html += '<span style="font-weight:600;">' + r.surface.toFixed(1) + ' m²</span>';
+        html += '</div>';
+      }
+    });
     html += '</div>';
   }
 
-  // Floor plan
+  html += '</div>'; // end details
+
+  // === LEVEL 3: PLAN (hidden by default) ===
   if (details.floorPlan) {
-    html += '<div style="margin-top:12px;">';
+    html += '<div id="' + uniqueId + '_plan" style="display:none;padding:16px;border-top:1px solid var(--border, #e7e5e4);background:#fafaf9;">';
     html += renderFloorPlanSVG(details.floorPlan, details.rooms);
     html += '</div>';
   }
 
-  // Additional info footer (compact)
-  const footerItems = [];
-  if (details.program) footerItems.push('Prog: ' + details.program);
-  if (details.yearBuilt) footerItems.push('Année: ' + details.yearBuilt);
-  if (details.tantiemes) footerItems.push('Tantiemes: ' + details.tantiemes);
-  if (details.caveLots) footerItems.push('Annexes: ' + details.caveLots.join(', '));
+  html += '</div>'; // end card
 
-  if (footerItems.length > 0) {
-    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#718096;line-height:1.5;">';
-    html += footerItems.join(' · ');
-    html += '</div>';
-  }
-
-  html += '</div>';
   return html;
 }
 
