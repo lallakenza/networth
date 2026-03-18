@@ -237,7 +237,7 @@ export const PORTFOLIO = {
     // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 300000, valueDate: '2025-09', crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 0, loyerTotalCC: 1200, loyerDeclareCC: 600 },
+      vitry: { value: 300000, valueDate: '2025-09', crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 },
       // value: 300K = estimation sept 2025, 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
       // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
       // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
@@ -769,7 +769,7 @@ export const IMMO_CONSTANTS = {
         { start: 2033, end: 2040, rate: 0.015, note: 'Effet GPE digéré, croissance IDF standard' },
       ],
       type: 'T3 — Location nue',
-      loyerObjectif: 1200,      // loyer total CC réel perçu (dont partie cash — voir fiscalite.vitry)
+      loyerObjectif: 1270,      // loyer total CC réel perçu : 1050 HC + 150 charges + 70 parking
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
       ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2025 },
       details: {

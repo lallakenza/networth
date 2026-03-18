@@ -849,14 +849,53 @@ Nouveau graphe en barres empilées dans le détail de chaque propriété :
 - Données calculées par `computePVAbattementSchedule()` dans engine.js
 - Canvas `pvAbattementChart` dans index.html, rendu par `buildPVAbattementChart()` dans charts.js
 
+### Détails appartements — Property Info Cards (v148)
+
+Ajout des détails de chaque appartement depuis les plans (Nexity, Fair' Promotion, acte de vente) :
+- `details` object dans `IC.properties[loanKey]` avec rooms[], surfaces, étage, lot, exposition, DPE, etc.
+- `renderPropertyInfoCard(details)` dans render.js : barre colorée des pièces + métriques
+- Intégré dans `renderAptView()` pour les vues #apt_vitry, #apt_rueil, #apt_villejuif
+- Intégré dans `renderPropertyDetail()` pour le panel de détail dans la vue Immo
+
+### Section LMP — Seuil et comparaison LMNP vs LMP (v148)
+
+Section dans la vue Immobilier qui analyse le risque de passage LMP pour Nezha :
+- Comparaison seuil : aujourd'hui (Rueil seul ~15 600€/an) vs après Villejuif (~37 200€/an > 23K€ seuil)
+- Tableau fiscal sur loyer : LMNP (IR 20% + PS 17.2%) vs LMP (IR 20% + SSI ~40%)
+- Tableau exit costs LMNP vs LMP sur 25 ans (dépliable)
+- Note non-résident : condition "recettes > revenus d'activité" auto-remplie
+
+### Manque à gagner Cash (v148)
+
+Remplacement du donut "Répartition par Devise" par un panneau "Manque à gagner" :
+- Pour chaque personne, calcule le rendement perdu sur le cash rapportant <6%
+- Affiche le manque à gagner en €/jour, €/mois, €/an (en rouge)
+- Utilise `cashView.byOwner` et `cashView.accounts` pour les calculs dynamiques
+
+### Fix données Vitry — parking 70€ (v148)
+
+- Parking: 0 → 70€/mois dans data.js (loué séparément en cash)
+- `loyerTotalCC`: 1200 → 1270€/mois (HC 1050 + charges 150 + parking 70)
+- `loyerObjectif`: 1200 → 1270€/mois
+- Impact CF Vitry : -223€/mois → -153€/mois
+
+### Fix données Rueil (v148)
+
+- `purchasePrice`: 255K → 240K (prix acte notarié, hors frais)
+- Banque : LCL → Crédit Mutuel Franconville (confirmé par acte)
+- `lmnpStartDate`: ajouté (oct 2025 — date du bail Docusign)
+- Amortissement LMNP calculé depuis la date de passage en LMNP (pas depuis l'achat 2019)
+- L15 Sud : ouverture corrigée à avril 2027
+
 ### Audit KPIs v148
 
 Tous les KPIs et projections ont été audités :
 - ✅ Equity par bien (Vitry, Rueil, Villejuif) : correct
 - ✅ Exit costs avec réintégration amortissements LMNP (loi finances 2025) : correct
 - ✅ Couple NW avec `villejuifSigned: false` : correct (exclusion + reservation fees)
-- ✅ CF projection : charges, rent growth, loan end dates corrects
+- ✅ CF projection : charges, rent growth, loan end dates, parking corrects
 - ✅ Track Record : win rate, realized P/L corrects
 - ✅ Appréciation par phases : corrigée dans wealth projection (engine.js)
 - ✅ Simulateurs : equity nette composée pour les 3 propriétés
 - ✅ Banque Rueil : Crédit Mutuel Franconville (confirmé par acte notarié)
+- ✅ Parking Vitry : 70€/mois intégré dans les revenus
