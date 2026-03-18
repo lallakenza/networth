@@ -1397,6 +1397,54 @@ export function computeExitCostsAtYear(loanKey, targetYear, projectedValue, purc
 }
 
 /**
+ * Compute PV abattement schedule for years 1-30 (for tax visualization chart)
+ * Returns array of {year, abattIR, abattPS, taxIR_pct, taxPS_pct, net_pct}
+ */
+export function computePVAbattementSchedule() {
+  const EC = EXIT_COSTS;
+  const schedule = [];
+
+  for (let year = 1; year <= 30; year++) {
+    // Compute abattement IR (cumulative % from brackets)
+    let totalAbattIR = 0;
+    for (const bracket of EC.irAbattement) {
+      for (let y = bracket.fromYear; y <= bracket.toYear && y <= year; y++) {
+        totalAbattIR += bracket.ratePerYear;
+      }
+    }
+    if (year >= 22) totalAbattIR = 1; // Fully exempt after 22 years
+    const abattIR = Math.min(1, totalAbattIR);
+
+    // Compute abattement PS (cumulative % from brackets)
+    let totalAbattPS = 0;
+    for (const bracket of EC.psAbattement) {
+      for (let y = bracket.fromYear; y <= bracket.toYear && y <= year; y++) {
+        totalAbattPS += bracket.ratePerYear;
+      }
+    }
+    if (year >= 30) totalAbattPS = 1; // Fully exempt after 30 years
+    const abattPS = Math.min(1, totalAbattPS);
+
+    // Tax percentages (on 100€ gross gain, what % goes to taxes)
+    const taxIR_pct = (1 - abattIR) * EC.irRate * 100;
+    const taxPS_pct = (1 - abattPS) * EC.psRate * 100;
+    const totalTax_pct = taxIR_pct + taxPS_pct;
+    const net_pct = 100 - totalTax_pct;
+
+    schedule.push({
+      year,
+      abattIR: Math.round(abattIR * 100),
+      abattPS: Math.round(abattPS * 100),
+      taxIR_pct: Math.round(taxIR_pct * 100) / 100,
+      taxPS_pct: Math.round(taxPS_pct * 100) / 100,
+      net_pct: Math.round(net_pct * 100) / 100,
+    });
+  }
+
+  return schedule;
+}
+
+/**
  * Compute JEANBRUN vs LMNP comparison for Villejuif over N years
  */
 function computeVillejuifRegimeComparison() {
@@ -1627,6 +1675,9 @@ function computeImmoView(portfolio, fx) {
     }
     const exitCosts = computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
+    // ── PV Abattement schedule (for chart visualization) ──
+    const pvAbattementSchedule = computePVAbattementSchedule();
+
     // ── Wealth creation breakdown (computed dynamically) ──
     const currentAmortRow = amort ? amort.schedule[amort.currentIdx] : null;
     const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
@@ -1669,6 +1720,7 @@ function computeImmoView(portfolio, fx) {
       deductibleChargesAnnuel: deductibleCharges * 12,
       loyerDeclareAnnuel,
       exitCosts,
+      pvAbattementSchedule,
     };
   }
 
