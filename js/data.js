@@ -737,9 +737,12 @@ export const IMMO_CONSTANTS = {
     // Vitry : loyerDeclare (500€/mois) est dans portfolio.amine.immo.vitry
     // Régime réel : on déduit intérêts d'emprunt, assurance, PNO, TF, copro
     // TMI 20% + PS 17.2% = taux effectif ~37% sur le revenu net
-    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2025-10' },
     // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
-    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp' },
+    // lmnpStartDate: date de passage en LMNP (bail signé sept 2025, prise effet oct 2025)
+    // Amortissement commence à cette date, pas à la date d'achat (2019)
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2029-09' },
+    // lmnpStartDate: livraison + début location estimé sept 2029
   },
   // ──────────────────────────────────────────────────────
   // MÉTADONNÉES PROPRIÉTÉS — surface, adresse, prix, appréciation
@@ -769,6 +772,34 @@ export const IMMO_CONSTANTS = {
       loyerObjectif: 1200,      // loyer total CC réel perçu (dont partie cash — voir fiscalite.vitry)
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
       ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2025 },
+      details: {
+        lot: '3302',
+        floor: 'R+3 (4ème étage)',
+        building: 'Bâtiment 3',
+        type: 'T3',
+        yearBuilt: 2023,
+        developer: 'Nexity',
+        program: 'ZAC Gare des Ardoines (84 logements)',
+        norm: 'RE2020',
+        heating: 'Chauffage collectif',
+        dpe: 'A',
+        rooms: [
+          { name: 'Entrée', surface: 5.85 },
+          { name: 'Séjour', surface: 21.28 },
+          { name: 'Cuisine', surface: 8.52 },
+          { name: 'Chambre 1', surface: 12.38 },
+          { name: 'Chambre 2', surface: 9.95 },
+          { name: 'Salle de bain', surface: 4.87 },
+          { name: 'WC', surface: 2.09 },
+          { name: 'Dégagement', surface: 2.20 },
+        ],
+        surfaceHabitable: 67.14,
+        loggia: 8.1,
+        surfaceTotale: 75.24,
+        parking: true,
+        cave: false,
+        exposure: 'Sud-Ouest',
+      },
     },
     rueil: {
       address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
@@ -790,6 +821,31 @@ export const IMMO_CONSTANTS = {
       ],
       type: 'T3 meublé — LMNP',
       ligne15: { station: 'Rueil-Suresnes', distance: '15-20 min à pied', opening: '2030-2032' },
+      details: {
+        lot: '894',
+        floor: 'RDC',
+        building: 'Bâtiment IX, escalier A',
+        type: 'T3',
+        yearBuilt: '1949-1974',
+        developer: null,
+        program: 'Résidence Montbrison',
+        norm: null,
+        heating: 'Chauffage collectif, eau chaude collective',
+        dpe: null,
+        rooms: [
+          { name: 'Salon', surface: null },
+          { name: 'Chambre 1', surface: null },
+          { name: 'Chambre 2', surface: null },
+        ],
+        surfaceHabitable: 55.66,
+        loggia: null,
+        surfaceTotale: 55.66,
+        parking: false,
+        cave: true,
+        caveLots: ['924 (cave)', '954 (séchoir)'],
+        tantiemes: '249/100000',
+        exposure: null,
+      },
     },
     villejuif: {
       address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
@@ -812,6 +868,32 @@ export const IMMO_CONSTANTS = {
       ],
       type: 'T3 — VEFA — LMNP',
       ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: 2026 },
+      details: {
+        lot: 'A27',
+        floor: '2ème étage',
+        building: null,
+        type: 'T3',
+        yearBuilt: 2029,
+        developer: 'Fair\' Promotion',
+        program: '167 Aragon (Villejuif)',
+        norm: 'RE2020, PMR évolutif',
+        heating: null,
+        dpe: null,
+        rooms: [
+          { name: 'Entrée', surface: 3.60 },
+          { name: 'Séjour/Cuisine', surface: 35.09 },
+          { name: 'Chambre 1', surface: 11.24 },
+          { name: 'Chambre 2', surface: 11.24 },
+          { name: 'Salle de bain', surface: 5.45 },
+          { name: 'WC', surface: 2.32 },
+        ],
+        surfaceHabitable: 68.94,
+        loggia: 9.51,
+        surfaceTotale: 78.45,
+        parking: false,
+        cave: false,
+        exposure: 'Sud-Ouest',
+      },
     },
   },
 };

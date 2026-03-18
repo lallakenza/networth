@@ -3307,6 +3307,139 @@ function renderTimelineHTML(timeline) {
   return html;
 }
 
+// ============ PROPERTY INFO CARD (Details) ============
+function renderPropertyInfoCard(details) {
+  if (!details) return '';
+
+  // Color mapping for rooms
+  const roomColors = {
+    'Séjour': '#3182ce',
+    'Séjour/Cuisine': '#3182ce',
+    'Salon': '#3182ce',
+    'Cuisine': '#3182ce',
+    'Entrée': '#a0aec0',
+    'Dégagement': '#a0aec0',
+    'Chambre': '#48bb78',
+    'Chambre 1': '#48bb78',
+    'Chambre 2': '#48bb78',
+    'Salle de bain': '#a0aec0',
+    'Salle d\'eau': '#a0aec0',
+    'WC': '#a0aec0',
+  };
+
+  const getRoomColor = (name) => {
+    for (const key in roomColors) {
+      if (name.toLowerCase().includes(key.toLowerCase())) {
+        return roomColors[key];
+      }
+    }
+    return '#cbd5e0';
+  };
+
+  // Calculate room bar segments
+  let roomBar = '';
+  if (details.rooms && details.rooms.length > 0 && details.surfaceTotale > 0) {
+    details.rooms.forEach(room => {
+      if (room.surface && room.surface > 0) {
+        const pct = (room.surface / details.surfaceTotale) * 100;
+        const color = getRoomColor(room.name);
+        const label = room.name.substring(0, 8) + (room.surface ? ' ' + room.surface.toFixed(1) : '');
+        roomBar += '<div style="width:' + pct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;white-space:nowrap;">' + label + '</div>';
+      }
+    });
+  }
+
+  // Build metrics grid
+  let metricsHtml = '';
+  const metrics = [];
+
+  if (details.exposure) metrics.push({ label: 'Exposition', value: details.exposure });
+  if (details.dpe) metrics.push({ label: 'DPE', value: details.dpe });
+  if (details.parking !== null && details.parking !== undefined) metrics.push({ label: 'Parking', value: details.parking ? 'Oui' : 'Non' });
+  if (details.cave !== null && details.cave !== undefined) metrics.push({ label: 'Cave', value: details.cave ? 'Oui' : 'Non' });
+  if (details.norm) metrics.push({ label: 'Norme', value: details.norm });
+  if (details.heating) metrics.push({ label: 'Chauffage', value: details.heating.substring(0, 20) });
+
+  metrics.forEach((m, i) => {
+    metricsHtml += '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid #e2e8f0;">';
+    metricsHtml += '<span style="color:#718096;display:inline-block;width:100px;">' + m.label + ':</span>';
+    metricsHtml += '<strong>' + m.value + '</strong>';
+    metricsHtml += '</div>';
+  });
+
+  // Rooms list with surfaces
+  let roomsListHtml = '';
+  if (details.rooms && details.rooms.length > 0) {
+    details.rooms.forEach(room => {
+      const surface = room.surface ? room.surface.toFixed(2) + ' m²' : '—';
+      const color = getRoomColor(room.name);
+      roomsListHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e2e8f0;">';
+      roomsListHtml += '<div><span style="display:inline-block;width:12px;height:12px;background:' + color + ';border-radius:3px;margin-right:8px;vertical-align:middle;"></span><span>' + room.name + '</span></div>';
+      roomsListHtml += '<span style="color:#718096;font-size:12px;">' + surface + '</span>';
+      roomsListHtml += '</div>';
+    });
+  }
+
+  // Build the card HTML
+  let html = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">';
+
+  // Header
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">';
+  html += '<div>';
+  html += '<span style="font-weight:700;font-size:15px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</span>';
+  const headerInfo = [];
+  if (details.floor) headerInfo.push(details.floor);
+  if (details.building) headerInfo.push(details.building);
+  if (details.developer) headerInfo.push(details.developer);
+  if (headerInfo.length > 0) {
+    html += '<div style="color:#718096;font-size:12px;margin-top:4px;">' + headerInfo.join(' · ') + '</div>';
+  }
+  html += '</div>';
+  html += '<div style="text-align:right;font-size:12px;color:#4a5568;">';
+  if (details.surfaceHabitable) {
+    html += '<strong>' + details.surfaceHabitable.toFixed(2) + ' m²</strong> hab.';
+    if (details.loggia) html += '<br />' + details.loggia.toFixed(2) + ' m² loggia';
+  }
+  html += '</div>';
+  html += '</div>';
+
+  // Room breakdown bar
+  if (roomBar) {
+    html += '<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;margin-bottom:12px;border:1px solid #cbd5e0;">';
+    html += roomBar;
+    html += '</div>';
+  }
+
+  // Metrics grid (left side)
+  if (metricsHtml) {
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-size:12px;font-weight:600;color:#2d3748;margin-bottom:6px;">Caractéristiques</div>';
+    html += '<div>' + metricsHtml + '</div>';
+    html += '</div>';
+  }
+
+  // Rooms list (if available)
+  if (roomsListHtml) {
+    html += '<div>';
+    html += '<div style="font-size:12px;font-weight:600;color:#2d3748;margin-bottom:6px;">Pièces</div>';
+    html += '<div>' + roomsListHtml + '</div>';
+    html += '</div>';
+  }
+
+  // Additional info if present
+  if (details.program || details.yearBuilt || details.tantiemes) {
+    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#718096;">';
+    if (details.program) html += '<div>Programme: <strong>' + details.program + '</strong></div>';
+    if (details.yearBuilt) html += '<div>Année: <strong>' + details.yearBuilt + '</strong></div>';
+    if (details.tantiemes) html += '<div>Tantièmes: <strong>' + details.tantiemes + '</strong></div>';
+    if (details.caveLots) html += '<div>Lots annexes: <strong>' + details.caveLots.join(', ') + '</strong></div>';
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
 // ============ PROPERTY DETAIL PANEL ============
 function renderPropertyDetail(state, prop) {
   const meta = prop.propertyMeta || {};
@@ -3316,6 +3449,13 @@ function renderPropertyDetail(state, prop) {
   // Title
   const titleEl = document.getElementById('propDetailTitle');
   if (titleEl) titleEl.textContent = prop.name + (meta.address ? ' — ' + meta.address : '');
+
+  // ── Section 0: Property Info Card (Details) ──
+  const infoCardEl = document.getElementById('propDetailInfo');
+  if (infoCardEl) {
+    const details = meta.details || null;
+    infoCardEl.innerHTML = renderPropertyInfoCard(details);
+  }
 
   // ── Section 1: Fiche ──
   const ficheEl = document.getElementById('propDetailFiche');
