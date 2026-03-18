@@ -1234,3 +1234,90 @@ Audit de la complétude de ARCHITECTURE.md vs le code réel :
 - Simulator architecture (generic engine + property equity computer)
 - Error handling & fallback strategies
 - Stock source strategy ('live' vs 'statique')
+
+### Méthode de construction des plans SVG (v149)
+
+**Objectif** : Construire des plans d'appartement SVG interactifs dont les surfaces proportionnelles correspondent aux surfaces réelles (erreur <5%).
+
+#### Étape 1 — Sources de données
+Pour chaque appartement, rassembler :
+- **Plan architectural** (PDF du promoteur/notaire, ex: Nexity, Fair' Promotion)
+- **Certificat Loi Carrez** (surfaces exactes par pièce)
+- **Croquis** (si pas de plan archi)
+
+#### Étape 2 — Extraction des dimensions
+1. Convertir le plan PDF en image haute résolution (400 dpi) : `pdftoppm -png -r 400 plan.pdf output`
+2. Cropper la zone du plan uniquement (sans légendes/tableaux)
+3. Scanner les murs avec un script Python + Pillow :
+   - Scanner des lignes horizontales et verticales
+   - Détecter les murs noirs (pixels < 80 en grayscale)
+   - Trouver les centres des murs et leurs largeurs
+   - Tracer les murs diagonaux (pour les plans non-orthogonaux comme Villejuif)
+
+#### Étape 3 — Construction du modèle géométrique
+1. Définir chaque pièce comme un polygone (liste de points SVG)
+2. Utiliser la **formule du lacet (Shoelace)** pour calculer l'aire de chaque polygone
+3. Définir un **facteur d'échelle** : `px_per_m2 = total_SVG_area / total_target_m2`
+4. Ajuster les dimensions de chaque pièce pour que `SVG_area / px_per_m2 ≈ target_m2`
+
+#### Étape 4 — Validation (OBLIGATOIRE)
+Pour chaque pièce, vérifier :
+- **Erreur de surface** : `|computed_m2 - target_m2| / target_m2 < 5%`
+- **Pas de chevauchement** : les bounding boxes des pièces adjacentes ne se croisent pas (sauf edges partagés)
+- **Adjacence correcte** : les pièces qui se touchent partagent des coordonnées exactes
+
+Script de validation Python :
+```python
+def polygon_area(pts):
+    n = len(pts)
+    return abs(sum(pts[i][0]*pts[(i+1)%n][1] - pts[(i+1)%n][0]*pts[i][1] for i in range(n))) / 2
+
+total_target = sum(room.target for room in rooms)
+total_svg = sum(polygon_area(room.pts) for room in rooms)
+scale = total_svg / total_target
+
+for room in rooms:
+    computed = polygon_area(room.pts) / scale
+    error = abs(computed - room.target) / room.target * 100
+    assert error < 5, f"{room.name}: {error:.1f}% error"
+```
+
+#### Étape 5 — Itération
+Si la validation échoue :
+1. Identifier les pièces avec erreur >5%
+2. Ajuster `width × height` pour que `width × height / scale ≈ target_m2`
+3. Re-valider
+4. Répéter jusqu'à ce que TOUTES les pièces passent
+
+#### Étape 6 — Intégration dans data.js
+Ajouter `floorPlan` dans `IMMO_CONSTANTS.properties[loanKey].details` :
+```javascript
+floorPlan: {
+  viewBox: 'minX minY width height',
+  schematic: true/false,  // true si pas de plan archi
+  rooms: [
+    { name: 'Nom', surface: X.XX, color: '#hex', points: 'x1,y1 x2,y2 ...' },
+  ],
+},
+```
+
+#### Types de polygones
+- **Rectangle** : 4 points (pièces orthogonales)
+- **L-shape** : 6 points (séjour en L)
+- **Trapèze** : 4 points avec bords non parallèles (loggia)
+- **Parallélogramme** : 4 points avec bords inclinés (chambres dans ailes V)
+
+#### Couleurs standard
+- Bleu `#3b82f6` : espaces de vie (séjour, cuisine, salon)
+- Vert `#22c55e` : chambres
+- Gris `#94a3b8` : utilités (SdB, WC, entrée, dégagement)
+- Or `#d69e2e` : loggia/extérieur
+
+#### Résultats de validation v149
+| Appartement | Max erreur | Status |
+|---|---|---|
+| Vitry 3302 | 2.1% | ✅ PASS |
+| Rueil (Loi Carrez) | 4.6% | ✅ PASS |
+| Villejuif A27 | 40.8% | ❌ FAIL (itération en cours) |
+
+Le plan Villejuif nécessite encore du travail — les chambres en parallélogramme (murs diagonaux V) ont des aires SVG disproportionnées par rapport aux petites pièces (SdB, Entrée, WC). La forme V est visuellement correcte mais les proportions d'aire ne sont pas calibrées.
