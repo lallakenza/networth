@@ -3541,6 +3541,43 @@ function renderTimelineHTML(timeline) {
 }
 
 // ============ PROPERTY INFO CARD (Details) ============
+function renderFloorPlanSVG(floorPlan, rooms) {
+  if (!floorPlan || !floorPlan.rooms) return '';
+
+  let svg = '<svg viewBox="' + floorPlan.viewBox + '" style="width:100%;max-width:500px;margin:0 auto;display:block;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">';
+
+  floorPlan.rooms.forEach(r => {
+    const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
+    const surface = roomData ? roomData.surface : null;
+    const surfaceText = surface ? r.name + ' — ' + surface + ' m²' : r.name;
+
+    // Room rectangle
+    svg += '<g class="floor-room" style="cursor:pointer;">';
+    svg += '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" ';
+    svg += 'fill="' + r.color + '" fill-opacity="0.3" stroke="' + r.color + '" stroke-width="1.5" rx="3" ';
+    svg += 'onmouseenter="this.setAttribute(\'fill-opacity\',\'0.6\');this.nextElementSibling.nextElementSibling.style.opacity=1" ';
+    svg += 'onmouseleave="this.setAttribute(\'fill-opacity\',\'0.3\');this.nextElementSibling.nextElementSibling.style.opacity=0"/>';
+
+    // Room name (always visible)
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const fontSize = Math.min(r.w / 6, r.h / 3, 14);
+    svg += '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="middle" ';
+    svg += 'font-size="' + fontSize + '" fill="#2d3748" font-weight="600" pointer-events="none">' + r.name + '</text>';
+
+    // Surface tooltip (shown on hover)
+    if (surface) {
+      svg += '<text x="' + cx + '" y="' + (cy + fontSize + 2) + '" text-anchor="middle" dominant-baseline="middle" ';
+      svg += 'font-size="' + (fontSize * 0.75) + '" fill="#4a5568" pointer-events="none" style="opacity:0;transition:opacity 0.15s;">';
+      svg += surface + ' m²</text>';
+    }
+
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
 function renderPropertyInfoCard(details) {
   if (!details) return '';
 
@@ -3552,12 +3589,15 @@ function renderPropertyInfoCard(details) {
     'Cuisine': '#3182ce',
     'Entrée': '#a0aec0',
     'Dégagement': '#a0aec0',
+    'Loggia': '#d69e2e',
     'Chambre': '#48bb78',
     'Chambre 1': '#48bb78',
     'Chambre 2': '#48bb78',
     'Salle de bain': '#a0aec0',
     'Salle d\'eau': '#a0aec0',
+    'Sdb': '#a0aec0',
     'WC': '#a0aec0',
+    'Dgt': '#a0aec0',
   };
 
   const getRoomColor = (name) => {
@@ -3569,103 +3609,115 @@ function renderPropertyInfoCard(details) {
     return '#cbd5e0';
   };
 
-  // Calculate room bar segments
+  // Calculate room bar with hover tooltips
   let roomBar = '';
   if (details.rooms && details.rooms.length > 0 && details.surfaceTotale > 0) {
     details.rooms.forEach(room => {
       if (room.surface && room.surface > 0) {
         const pct = (room.surface / details.surfaceTotale) * 100;
+        const minPct = Math.max(pct, 3); // Min width 3% for visibility
         const color = getRoomColor(room.name);
-        const label = room.name.substring(0, 8) + (room.surface ? ' ' + room.surface.toFixed(1) : '');
-        roomBar += '<div style="width:' + pct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;white-space:nowrap;">' + label + '</div>';
+        const displayPct = Math.max(pct, 3);
+
+        roomBar += '<div style="position:relative;width:' + pct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;min-width:' + displayPct + '%;' + (pct < 3 ? 'margin:0 2px;' : '') + '" ';
+        roomBar += 'onmouseenter="this.querySelector(\'.room-tip\').style.opacity=1" ';
+        roomBar += 'onmouseleave="this.querySelector(\'.room-tip\').style.opacity=0">';
+        roomBar += '<span style="font-size:9px;white-space:nowrap;">' + room.name + '</span>';
+        roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:10;">';
+        roomBar += room.name + ' — ' + room.surface.toFixed(2) + ' m²</div>';
+        roomBar += '</div>';
       }
     });
+
+    // Add loggia if present
+    if (details.loggia && details.loggia > 0) {
+      const loggiaSize = details.loggia;
+      const loggiaPct = (loggiaSize / details.surfaceTotale) * 100;
+      const displayPct = Math.max(loggiaPct, 3);
+
+      roomBar += '<div style="position:relative;width:' + loggiaPct.toFixed(1) + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;min-width:' + displayPct + '%;' + (loggiaPct < 3 ? 'margin:0 2px;' : '') + '" ';
+      roomBar += 'onmouseenter="this.querySelector(\'.room-tip\').style.opacity=1" ';
+      roomBar += 'onmouseleave="this.querySelector(\'.room-tip\').style.opacity=0">';
+      roomBar += '<span style="font-size:9px;white-space:nowrap;">Loggia</span>';
+      roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:10;">';
+      roomBar += 'Loggia — ' + loggiaSize.toFixed(2) + ' m²</div>';
+      roomBar += '</div>';
+    }
   }
 
-  // Build metrics grid
-  let metricsHtml = '';
-  const metrics = [];
+  // Build characteristic pills
+  let pillsHtml = '';
+  const pills = [];
 
-  if (details.exposure) metrics.push({ label: 'Exposition', value: details.exposure });
-  if (details.dpe) metrics.push({ label: 'DPE', value: details.dpe });
-  if (details.parking !== null && details.parking !== undefined) metrics.push({ label: 'Parking', value: details.parking ? 'Oui' : 'Non' });
-  if (details.cave !== null && details.cave !== undefined) metrics.push({ label: 'Cave', value: details.cave ? 'Oui' : 'Non' });
-  if (details.norm) metrics.push({ label: 'Norme', value: details.norm });
-  if (details.heating) metrics.push({ label: 'Chauffage', value: details.heating.substring(0, 20) });
+  if (details.exposure) pills.push({ text: details.exposure, bg: '#e2e8f0' });
+  if (details.dpe) pills.push({ text: 'DPE ' + details.dpe, bg: '#c6f6d5' });
+  if (details.norm) pills.push({ text: details.norm, bg: '#bee3f8' });
+  if (details.parking !== null && details.parking !== undefined) {
+    pills.push({ text: details.parking ? 'Parking' : 'Pas de parking', bg: details.parking ? '#c6f6d5' : '#fed7d7' });
+  }
+  if (details.cave !== null && details.cave !== undefined) {
+    pills.push({ text: details.cave ? 'Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
+  }
 
-  metrics.forEach((m, i) => {
-    metricsHtml += '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid #e2e8f0;">';
-    metricsHtml += '<span style="color:#718096;display:inline-block;width:100px;">' + m.label + ':</span>';
-    metricsHtml += '<strong>' + m.value + '</strong>';
-    metricsHtml += '</div>';
+  pills.forEach(pill => {
+    pillsHtml += '<span style="background:' + pill.bg + ';border-radius:12px;padding:3px 10px;font-size:11px;display:inline-block;margin-right:6px;margin-bottom:6px;">' + pill.text + '</span>';
   });
 
-  // Rooms list with surfaces
-  let roomsListHtml = '';
-  if (details.rooms && details.rooms.length > 0) {
-    details.rooms.forEach(room => {
-      const surface = room.surface ? room.surface.toFixed(2) + ' m²' : '—';
-      const color = getRoomColor(room.name);
-      roomsListHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e2e8f0;">';
-      roomsListHtml += '<div><span style="display:inline-block;width:12px;height:12px;background:' + color + ';border-radius:3px;margin-right:8px;vertical-align:middle;"></span><span>' + room.name + '</span></div>';
-      roomsListHtml += '<span style="color:#718096;font-size:12px;">' + surface + '</span>';
-      roomsListHtml += '</div>';
-    });
-  }
-
   // Build the card HTML
-  let html = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">';
+  let html = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;">';
 
-  // Header
-  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">';
+  // Row 1: Header with type, lot, floor, building + surface info
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">';
   html += '<div>';
-  html += '<span style="font-weight:700;font-size:15px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</span>';
+  html += '<span style="font-weight:700;font-size:14px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</span>';
   const headerInfo = [];
   if (details.floor) headerInfo.push(details.floor);
   if (details.building) headerInfo.push(details.building);
   if (details.developer) headerInfo.push(details.developer);
   if (headerInfo.length > 0) {
-    html += '<div style="color:#718096;font-size:12px;margin-top:4px;">' + headerInfo.join(' · ') + '</div>';
+    html += '<div style="color:#718096;font-size:11px;margin-top:3px;">' + headerInfo.join(' · ') + '</div>';
   }
   html += '</div>';
-  html += '<div style="text-align:right;font-size:12px;color:#4a5568;">';
+  html += '<div style="text-align:right;font-size:11px;color:#4a5568;">';
   if (details.surfaceHabitable) {
-    html += '<strong>' + details.surfaceHabitable.toFixed(2) + ' m²</strong> hab.';
-    if (details.loggia) html += '<br />' + details.loggia.toFixed(2) + ' m² loggia';
+    html += '<strong>' + details.surfaceHabitable.toFixed(2) + '</strong> m² hab.';
+    if (details.loggia) html += '<br /><strong>' + details.loggia.toFixed(2) + '</strong> m² loggia';
   }
   html += '</div>';
   html += '</div>';
 
-  // Room breakdown bar
+  // Row 2: Interactive room bar with hover tooltips
   if (roomBar) {
-    html += '<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;margin-bottom:12px;border:1px solid #cbd5e0;">';
+    html += '<div style="display:flex;height:22px;border-radius:6px;overflow:hidden;margin-bottom:10px;border:1px solid #cbd5e0;">';
     html += roomBar;
     html += '</div>';
   }
 
-  // Metrics grid (left side)
-  if (metricsHtml) {
-    html += '<div style="margin-bottom:12px;">';
-    html += '<div style="font-size:12px;font-weight:600;color:#2d3748;margin-bottom:6px;">Caractéristiques</div>';
-    html += '<div>' + metricsHtml + '</div>';
+  // Row 3: Characteristics as pills
+  if (pillsHtml) {
+    html += '<div style="margin-bottom:10px;">';
+    html += pillsHtml;
     html += '</div>';
   }
 
-  // Rooms list (if available)
-  if (roomsListHtml) {
-    html += '<div>';
-    html += '<div style="font-size:12px;font-weight:600;color:#2d3748;margin-bottom:6px;">Pièces</div>';
-    html += '<div>' + roomsListHtml + '</div>';
+  // Floor plan
+  if (details.floorPlan) {
+    html += '<div style="margin-top:10px;">';
+    html += '<div style="font-size:11px;font-weight:600;color:#4a5568;margin-bottom:6px;">Plan</div>';
+    html += renderFloorPlanSVG(details.floorPlan, details.rooms);
     html += '</div>';
   }
 
-  // Additional info if present
-  if (details.program || details.yearBuilt || details.tantiemes) {
-    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#718096;">';
-    if (details.program) html += '<div>Programme: <strong>' + details.program + '</strong></div>';
-    if (details.yearBuilt) html += '<div>Année: <strong>' + details.yearBuilt + '</strong></div>';
-    if (details.tantiemes) html += '<div>Tantièmes: <strong>' + details.tantiemes + '</strong></div>';
-    if (details.caveLots) html += '<div>Lots annexes: <strong>' + details.caveLots.join(', ') + '</strong></div>';
+  // Additional info footer (compact)
+  const footerItems = [];
+  if (details.program) footerItems.push('Prog: ' + details.program);
+  if (details.yearBuilt) footerItems.push('Année: ' + details.yearBuilt);
+  if (details.tantiemes) footerItems.push('Tantiemes: ' + details.tantiemes);
+  if (details.caveLots) footerItems.push('Annexes: ' + details.caveLots.join(', '));
+
+  if (footerItems.length > 0) {
+    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#718096;">';
+    html += footerItems.join(' · ');
     html += '</div>';
   }
 
