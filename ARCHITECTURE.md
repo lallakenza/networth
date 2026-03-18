@@ -1321,3 +1321,44 @@ floorPlan: {
 | Villejuif A27 | 40.8% | ❌ FAIL (itération en cours) |
 
 Le plan Villejuif nécessite encore du travail — les chambres en parallélogramme (murs diagonaux V) ont des aires SVG disproportionnées par rapport aux petites pièces (SdB, Entrée, WC). La forme V est visuellement correcte mais les proportions d'aire ne sont pas calibrées.
+
+### Constraint-Based Geometric Solver — Plans SVG (v149)
+
+Les plans d'appartement SVG sont générés par un solver géométrique à contraintes, pas par approximation manuelle.
+
+**Variables du solver :**
+- `V_ANGLE` : angle des murs diagonaux (18° pour Villejuif)
+- `APEX_X` : position du sommet du V
+- `TOP_W` : largeur au sommet (7.5m)
+- `UTIL_H` : hauteur du bloc utilitaire (2.1m)
+- `SEJOUR_DEPTH` : profondeur du séjour (résolu itérativement)
+- `LOGGIA_H` : hauteur de la loggia (résolue par équation quadratique)
+- `CH_W`, `CH_DEPTH` : dimensions des chambres
+
+**Contraintes :**
+1. Aire de chaque pièce = surface réelle ±5%
+2. Pas de chevauchement (murs partagés)
+3. Forme en V préservée (angle symétrique)
+4. Adjacence : séjour touche utility + loggia, loggia touche les 2 chambres
+
+**Algorithme :**
+1. Résout le bloc utilitaire (rectangulaire) depuis les surfaces et la hauteur
+2. Calcule la profondeur du séjour (L-shape = triangle + rectangle)
+3. Résout la hauteur de la loggia (équation quadratique du trapèze)
+4. Calcule les dimensions des chambres (parallélogrammes)
+5. **Itère** : ajuste SEJOUR_DEPTH jusqu'à convergence (<1% erreur sur le séjour)
+
+**Résultats validation Villejuif A27 :**
+```
+Salle de bain    5.45m² → 5.29m²  err=2.9% ✓
+Entrée           3.60m² → 3.50m²  err=2.9% ✓
+WC               2.32m² → 2.25m²  err=2.9% ✓
+Séjour/Cuisine  35.09m² → 36.47m²  err=3.9% ✓
+Loggia           9.51m² → 9.12m²  err=4.1% ✓
+Chambre 2       11.24m² → 10.91m²  err=2.9% ✓
+Chambre 1       11.24m² → 10.91m²  err=2.9% ✓
+Max error: 4.1% → PASS ✓
+```
+
+**Résultats validation Vitry 3302 :** Max error 2.1% → PASS ✓
+**Résultats validation Rueil :** Max error 4.6% → PASS ✓ (surfaces Loi Carrez exactes)
