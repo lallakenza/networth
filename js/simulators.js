@@ -76,7 +76,7 @@ function runSimulatorGeneric(config) {
     const isContributing = m < stopMonth;
     const gainsNow = liquidNow - startLiquidBase - cumContributions;
 
-    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+    if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       dataNW.push(Math.round(totalNW));
@@ -85,9 +85,13 @@ function runSimulatorGeneric(config) {
       dataGains.push(Math.round(immoNow + startLiquidBase + cumContributions + gainsNow));
       dataNWNoStop.push(Math.round(totalNWns));
       if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
-      // Per-property snapshot
+      // Per-property snapshot — computed equity uses absolute value directly
       props.forEach((p, pi) => {
-        immoBreakdownData[pi].push(Math.round(p.startEquity + propCumGrowth[pi]));
+        if (p._computedEquity) {
+          immoBreakdownData[pi].push(Math.round(p.growthFn(m)));
+        } else {
+          immoBreakdownData[pi].push(Math.round(p.startEquity + propCumGrowth[pi]));
+        }
       });
     }
 
@@ -95,15 +99,9 @@ function runSimulatorGeneric(config) {
 
     const immoGrowth = immoGrowthFn(m);
     cumImmoReturns += immoGrowth;
-    // Track per-property growth
+    // Track per-property growth (for non-computed equity properties)
     props.forEach((p, pi) => {
-      // Check if this is a "computed equity" property (returns absolute value, not increment)
-      const isComputedEquity = p._computedEquity === true;
-      if (isComputedEquity) {
-        // For computed equity properties (like Villejuif), store absolute values
-        propCumGrowth[pi] = p.growthFn(m) - p.startEquity;
-      } else {
-        // For regular properties, accumulate monthly increments
+      if (!p._computedEquity) {
         propCumGrowth[pi] += p.growthFn(m);
       }
     });
@@ -330,7 +328,10 @@ function buildSimChart(canvasId, chartKey, result) {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
+      scales: {
+        x: { ticks: { maxTicksLimit: 24, maxRotation: 45, minRotation: 45 } },
+        y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 }
+      }
     },
     plugins: [
       // Stop line plugin
@@ -585,7 +586,7 @@ function runNezhaSimulator(state) {
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
   for (let m = 0; m <= months; m++) {
-    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+    if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       const rueilEq = computeRueilEquity(m);
@@ -696,7 +697,10 @@ function runNezhaSimulator(state) {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
+      scales: {
+        x: { ticks: { maxTicksLimit: 24, maxRotation: 45, minRotation: 45 } },
+        y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 }
+      }
     },
     plugins: [{
       id: 'villejuifLine',
