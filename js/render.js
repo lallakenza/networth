@@ -3066,37 +3066,213 @@ function renderImmoView(state) {
 
     // Show alert if villejuif will be meublé OR already triggered
     if (rueilProp) {
-      let html = '<div style="background:#fffbeb;border:2px solid #d97706;border-radius:12px;padding:16px;margin:16px 0;">'
-        + '<h4 style="color:#92400e;margin:0 0 12px;">⚠️ Alerte LMP — Nezha</h4>'
-        + '<p style="font-size:13px;color:#78350f;margin:0 0 12px;">'
-        + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique automatiquement quand les recettes locatives meublées dépassent <strong>23 000€/an</strong> ET dépassent les revenus d\'activité du foyer fiscal.'
+      let html = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:16px 0;">'
+        + '<h4 style="color:#1e40af;margin:0 0 12px;">Seuil LMP — Nezha</h4>'
+        + '<p style="font-size:13px;color:#1e3a5f;margin:0 0 12px;">'
+        + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique quand les recettes meublées dépassent <strong>23 000\u20ac/an</strong> ET les revenus d\'activité du foyer fiscal.'
         + '</p>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
-        + '<div style="background:#fef3c7;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#92400e;">Aujourd\'hui (Rueil seul)</div>'
+        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
+        + '<div style="font-size:11px;color:#1e40af;">Aujourd\'hui (Rueil seul)</div>'
         + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? '✗ Au-dessus du seuil → LMP auto' : '✓ Sous le seuil LMNP') + '</div>'
+        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
-        + '<div style="background:#fef3c7;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#92400e;">Après Villejuif (2029)</div>'
+        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
+        + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2029)</div>'
         + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? '✗ Au-dessus du seuil → LMP auto' : '✓ Sous le seuil LMNP') + '</div>'
+        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
         + '</div>'
-        + '<div style="font-size:12px;color:#78350f;">'
+        + '<div style="font-size:12px;color:#1e3a5f;">'
         + '<strong>Impacts du passage LMP :</strong>'
         + '<ul style="margin:6px 0;padding-left:20px;">'
-        + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le bénéfice net (vs 17.2% PS en LMNP)</li>'
-        + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> même pour non-résident</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">Déficit imputable</span> sur le revenu global (avantage)</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">PV professionnelle</span> : exonération totale si >5 ans ET CA <90K€</li>'
+        + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le b\u00e9n\u00e9fice net (vs 17.2% PS en LMNP)</li>'
+        + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> m\u00eame pour non-r\u00e9sident</li>'
+        + '<li><span style="color:#16a34a;font-weight:600;">D\u00e9ficit imputable</span> sur le revenu global (avantage)</li>'
+        + '<li><span style="color:#16a34a;font-weight:600;">PV professionnelle</span> : exon\u00e9ration totale si >5 ans ET CA <90K\u20ac</li>'
         + '</ul>'
         + '</div>'
-        + '<div style="background:#fef9c3;border-radius:6px;padding:10px;font-size:11px;color:#713f12;margin-top:8px;">'
-        + '<strong>Non-résident :</strong> Nezha n\'a pas de revenus d\'activité en France → la condition "recettes > revenus d\'activité" est automatiquement remplie. Dès que Villejuif est loué en meublé, le statut LMP s\'applique.'
-        + '</div>'
+        + '<div style="background:#e0e7ff;border-radius:6px;padding:10px;font-size:11px;color:#312e81;margin-top:8px;">'
+        + '<strong>Non-r\u00e9sident :</strong> Nezha n\'a pas de revenus d\'activit\u00e9 en France \u2192 la condition "recettes > revenus d\'activit\u00e9" est automatiquement remplie. D\u00e8s que Villejuif est lou\u00e9 en meubl\u00e9, le statut LMP s\'applique.'
         + '</div>';
+
+      // ═══ FEATURE 2: Tax on Rental Income Breakdown ═══
+      html += '<div style="margin-top:16px;background:#fef9c3;border-radius:8px;padding:12px;">'
+        + '<h5 style="color:#92400e;margin:0 0 12px;font-size:13px;">📊 Impact fiscal sur 1 000€ de revenu locatif net</h5>';
+
+      if (rueilProp) {
+        const monthlyRent = rueilProp.loyer || 1300;
+        const monthlyAmortizationLMNP = (240000 * 0.80 * 0.02) / 12; // ~320€
+        const taxableIncomeLMNP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
+        const taxableIncomeLMP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
+
+        const irRate = 0.20;
+        const psRateLMNP = 0.172;
+        const ssiRateLMP = 0.40;
+
+        const irLMNP = Math.round(taxableIncomeLMNP * irRate);
+        const psLMNP = Math.round(taxableIncomeLMNP * psRateLMNP);
+        const totalTaxLMNP = irLMNP + psLMNP;
+        const netAfterTaxLMNP = monthlyRent - totalTaxLMNP;
+
+        const irLMP = Math.round(taxableIncomeLMP * irRate);
+        const ssiLMP = Math.round(taxableIncomeLMP * ssiRateLMP);
+        const totalTaxLMP = irLMP + ssiLMP;
+        const netAfterTaxLMP = monthlyRent - totalTaxLMP;
+
+        html += '<div style="overflow-x:auto;font-size:12px;">'
+          + '<table style="width:100%;border-collapse:collapse;margin-top:8px;">'
+          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
+          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">LMNP réel</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">LMP</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
+          + '<td style="padding:6px;text-align:left;">Loyer net mensuel</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
+          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">Amortissement (~' + Math.round(monthlyAmortizationLMNP) + '€)</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:1px solid #fef3c7;background:#fef9c3;">'
+          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu imposable</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMNP)) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMP)) + '€</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
+          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">IR (20%)</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMNP) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMP) + '€</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
+          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">PS (17.2%) / SSI (~40%)</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(psLMNP) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-size:11px;color:#dc2626;font-weight:600;">−' + fmt(ssiLMP) + '€</td>'
+          + '</tr>'
+          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
+          + '<td style="padding:6px;text-align:left;font-weight:600;">Total fiscal</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(totalTaxLMNP) + '€</td>'
+          + '<td style="padding:6px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(totalTaxLMP) + '€</td>'
+          + '</tr>'
+          + '<tr style="background:#fef9c3;">'
+          + '<td style="padding:8px;text-align:left;font-weight:600;">Net après impôt</td>'
+          + '<td style="padding:8px;text-align:right;font-weight:600;color:#16a34a;">' + fmt(Math.round(netAfterTaxLMNP)) + '€</td>'
+          + '<td style="padding:8px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(Math.round(netAfterTaxLMP)) + '€</td>'
+          + '</tr>'
+          + '</table>'
+          + '</div>';
+      }
+
+      html += '</div>';
+
+      // ═══ FEATURE 1: LMNP vs LMP Exit Costs Comparison ═══
+      html += '<div style="margin-top:16px;background:#fffbeb;border:1px solid #d97706;border-radius:8px;padding:12px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === \'none\' ? \'block\' : \'none\';this.querySelector(\'.toggle-arrow\').style.transform = this.nextElementSibling.style.display === \'none\' ? \'rotate(0deg)\' : \'rotate(180deg)\';">'
+        + '<h5 style="color:#92400e;margin:0;font-size:13px;">🔍 Voir comparaison LMNP vs LMP (2026-2050)</h5>'
+        + '<span class="toggle-arrow" style="display:inline-block;font-size:16px;transition:transform 200ms;">▼</span>'
+        + '</div>'
+        + '<div id="lmpExitCostsTable" style="display:none;margin-top:8px;overflow-x:auto;font-size:11px;"></div>'
+        + '</div>';
+
+      html += '</div>';
       lmpSection.innerHTML = html;
+
+      // ═══ Populate Exit Costs Comparison Table ═══
+      setTimeout(() => {
+        const tableDiv = document.getElementById('lmpExitCostsTable');
+        if (tableDiv && rueilProp) {
+          const purchasePrice = 240000; // IC.properties.rueil.purchasePrice
+          const lmnpStartDate = '2025-10'; // [year, month]
+          const [lmnpYear, lmnpMonth] = lmnpStartDate.split('-').map(Number);
+
+          let tableHtml = '<table style="width:100%;border-collapse:collapse;background:white;">'
+            + '<thead style="background:#fef3c7;border-bottom:2px solid #d97706;position:sticky;top:0;">'
+            + '<tr>'
+            + '<th style="padding:6px;text-align:center;font-size:10px;">Année</th>'
+            + '<th style="padding:6px;text-align:center;font-size:10px;">Détention</th>'
+            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: PV Nette</th>'
+            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: Taxe</th>'
+            + '<th style="padding:6px;text-align:right;font-size:10px;">LMP: Exonération</th>'
+            + '<th style="padding:6px;text-align:right;font-size:10px;">Différence</th>'
+            + '</tr>'
+            + '</thead>'
+            + '<tbody>';
+
+          // Simulate 2026-2050
+          for (let year = 2026; year <= 2050; year++) {
+            const holdingYears = year - 2019; // Purchase in 2019
+            const lmnpYears = year - lmnpYear; // LMNP starts 2025-10
+
+            // Project value with 1% annual appreciation
+            let projectedValue = purchasePrice;
+            for (let y = 2019; y < year; y++) {
+              projectedValue *= 1.01;
+            }
+
+            // LMNP: Calculate amortissements
+            const totalAmortLMNP = Math.max(0, purchasePrice * 0.80 * 0.02 * Math.max(0, lmnpYears));
+
+            // LMNP: Plus-value brute = salePrice - (purchasePrice + 7.5%) + amortissements réintégrés
+            const fraisAcquisition = purchasePrice * 0.075;
+            const pvBruteLMNP = projectedValue - (purchasePrice + fraisAcquisition) + totalAmortLMNP;
+
+            // LMNP: Apply abattements
+            let irAbattLMNP = 0, psAbattLMNP = 0;
+            if (holdingYears >= 22) {
+              irAbattLMNP = 1;
+            } else if (holdingYears >= 6) {
+              irAbattLMNP = Math.min(1, (holdingYears - 6) * 0.06 + (holdingYears > 22 ? 0.04 : 0));
+            }
+            if (holdingYears >= 30) {
+              psAbattLMNP = 1;
+            } else if (holdingYears >= 23) {
+              psAbattLMNP = Math.min(1, (holdingYears - 22) * 0.016 + (holdingYears - 23) * 0.09);
+            } else if (holdingYears >= 6) {
+              psAbattLMNP = Math.min(1, (holdingYears - 6) * 0.0165);
+            }
+
+            const pvNetteIRLMNP = pvBruteLMNP * (1 - irAbattLMNP);
+            const pvNettePS = pvBruteLMNP * (1 - psAbattLMNP);
+            const irLMNP = Math.round(pvNetteIRLMNP * 0.19);
+            const psLMNP = Math.round(pvNettePS * 0.172);
+            const taxLMNP = irLMNP + psLMNP;
+
+            // LMP: Short-term (amortissements) taxed at 37.2%, Long-term (appreciation) at 30%
+            // BUT: Full exemption if > 5 years AND CA < 90K€/an
+            let taxLMP = 0;
+            const annualCA = rueilProp.loyer * 12; // ~15.6K€
+            if (lmnpYears >= 5 && annualCA < 90000) {
+              // Exonération totale
+              taxLMP = 0;
+            } else {
+              // Part amortissements (short-term): 37.2%
+              const pvAmortissements = totalAmortLMNP;
+              const pvAppreciation = pvBruteLMNP - pvAmortissements;
+              const taxAmortissements = Math.round(pvAmortissements * 0.372);
+              const taxAppreciation = Math.round(pvAppreciation * 0.30);
+              taxLMP = taxAmortissements + taxAppreciation;
+            }
+
+            const difference = taxLMNP - taxLMP;
+            const detentionStr = holdingYears + ' ans';
+
+            tableHtml += '<tr style="border-bottom:1px solid #e5e5e5;background:' + (year % 2 === 0 ? '#fafafa' : '#fff') + ';">'
+              + '<td style="padding:4px;text-align:center;font-size:10px;font-weight:600;">' + year + '</td>'
+              + '<td style="padding:4px;text-align:center;font-size:10px;">' + detentionStr + '</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;">' + fmt(Math.round(pvBruteLMNP)) + '€</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:#dc2626;">' + fmt(taxLMNP) + '€</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (taxLMP === 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(taxLMP) + '€</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (difference >= 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(difference) + '€</td>'
+              + '</tr>';
+          }
+
+          tableHtml += '</tbody></table>';
+          tableDiv.innerHTML = tableHtml;
+        }
+      }, 0);
     } else {
       lmpSection.innerHTML = '';
     }
