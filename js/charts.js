@@ -517,48 +517,69 @@ function buildActionsSectorDonut(state) {
   });
 }
 
-// ============ CASH YIELD POTENTIAL (replaces currency donut) ============
+// ============ CASH YIELD GAP — MANQUE A GAGNER ============
 function buildCashYieldPotential(state) {
   const el = document.getElementById('cashCurrencyChart');
   if (!el) return;
-  // Hide the canvas, use parent container for HTML
   el.style.display = 'none';
   const parent = el.parentElement;
-  // Remove any previous yield potential HTML
   const prev = parent.querySelector('.yield-potential');
   if (prev) prev.remove();
 
-  const targetRate = 0.06; // 6% annual
+  const TARGET = 0.06;
   const cv = state.cashView;
-  const amineCash = cv.byOwner && cv.byOwner.Amine ? cv.byOwner.Amine.total : 0;
-  const nezhaCash = cv.byOwner && cv.byOwner.Nezha ? cv.byOwner.Nezha.total : 0;
-  const coupleCash = cv.totalCash || (amineCash + nezhaCash);
+  if (!cv || !cv.accounts) return;
+
+  // For each person, find accounts below 6% and compute the gap
+  function computeGap(ownerFilter) {
+    const accts = cv.accounts.filter(ownerFilter);
+    let subOptimalCash = 0, currentYieldOnSubOptimal = 0;
+    accts.forEach(a => {
+      const y = a.yield || 0;
+      const bal = a.valEUR || 0;
+      if (y < TARGET && bal > 0) {
+        subOptimalCash += bal;
+        currentYieldOnSubOptimal += bal * y;
+      }
+    });
+    const potentialYield = subOptimalCash * TARGET;
+    const gap = potentialYield - currentYieldOnSubOptimal;
+    return { subOptimalCash, currentYieldOnSubOptimal, potentialYield, gap };
+  }
 
   const rows = [
-    { name: 'Couple', cash: coupleCash, color: '#2b6cb0' },
-    { name: 'Amine', cash: amineCash, color: '#48bb78' },
-    { name: 'Nezha', cash: nezhaCash, color: '#ed8936' },
+    { name: 'Couple', ...computeGap(() => true), color: '#2b6cb0' },
+    { name: 'Amine', ...computeGap(a => a.owner === 'Amine'), color: '#48bb78' },
+    { name: 'Nezha', ...computeGap(a => a.owner === 'Nezha'), color: '#ed8936' },
   ];
 
-  let html = '<div class="yield-potential" style="padding:8px 0;">';
-  html += '<div style="font-size:14px;font-weight:700;color:#2d3748;margin-bottom:12px;">Potentiel \u00e0 6% / an</div>';
+  let html = '<div class="yield-potential" style="padding:4px 0;">';
   rows.forEach(r => {
-    const annual = r.cash * targetRate;
-    const daily = annual / 365;
-    const currentYield = cv.accounts ? cv.accounts.filter(a => r.name === 'Couple' ? true : a.owner === r.name).reduce((s,a) => s + (a.balanceEUR * (a.yield || 0)), 0) : 0;
-    const gap = annual - currentYield;
-    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:8px 12px;background:#f7fafc;border-radius:8px;">';
-    html += '<div style="width:60px;font-weight:600;color:' + r.color + ';">' + r.name + '</div>';
-    html += '<div style="flex:1;text-align:center;">';
-    html += '<div style="font-size:18px;font-weight:700;color:#276749;">+' + fmt(Math.round(annual)) + '<span style="font-size:11px;font-weight:400;color:#718096;">/an</span></div>';
-    html += '<div style="font-size:13px;color:#4a5568;">+' + fmt(Math.round(daily)) + '/jour</div>';
+    if (r.gap <= 0) return; // no gap = all accounts already >= 6%
+    const daily = r.gap / 365;
+    const monthly = r.gap / 12;
+    html += '<div style="margin-bottom:12px;padding:10px 14px;background:#fff5f5;border-left:3px solid #e53e3e;border-radius:6px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">';
+    html += '<span style="font-weight:700;color:' + r.color + ';">' + r.name + '</span>';
+    html += '<span style="font-size:11px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous les 6%</span>';
     html += '</div>';
-    html += '<div style="text-align:right;font-size:11px;color:#a0aec0;">';
-    html += 'Cash: ' + fmt(Math.round(r.cash), true);
+    html += '<div style="display:flex;gap:16px;align-items:baseline;">';
+    html += '<div style="text-align:center;flex:1;">';
+    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(daily)) + '</div>';
+    html += '<div style="font-size:10px;color:#718096;">/jour</div>';
+    html += '</div>';
+    html += '<div style="text-align:center;flex:1;">';
+    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(monthly)) + '</div>';
+    html += '<div style="font-size:10px;color:#718096;">/mois</div>';
+    html += '</div>';
+    html += '<div style="text-align:center;flex:1;">';
+    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(r.gap)) + '</div>';
+    html += '<div style="font-size:10px;color:#718096;">/an</div>';
+    html += '</div>';
     html += '</div>';
     html += '</div>';
   });
-  html += '<div style="font-size:10px;color:#a0aec0;text-align:center;margin-top:4px;">Si 100% du cash \u00e9tait plac\u00e9 \u00e0 6% (ex: Mashreq NEO+, Wio Savings)</div>';
+  html += '<div style="font-size:10px;color:#a0aec0;text-align:center;margin-top:2px;">Rendement perdu sur le cash rapportant &lt;6% vs placement \u00e0 6% (Mashreq NEO+, Wio Savings)</div>';
   html += '</div>';
   parent.insertAdjacentHTML('beforeend', html);
 }
