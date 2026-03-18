@@ -3045,6 +3045,62 @@ function renderImmoView(state) {
     });
   }
 
+  // ── LMP Alert Section (Nezha) ──
+  const lmpSection = document.getElementById('lmpAlertSection');
+  if (lmpSection) {
+    const rueilProp = iv.properties.find(p => p.loanKey === 'rueil');
+    const villejuifProp = iv.properties.find(p => p.loanKey === 'villejuif');
+
+    // Calculate LMP thresholds
+    const LMP_THRESHOLD = 23000; // €/an
+    const rueilLoyer = rueilProp ? (rueilProp.loyer * 12) : 0; // Annual rent
+    const villejuifLoyer = villejuifProp && !villejuifProp.conditional ? (villejuifProp.loyer * 12) : 0; // Annual rent (once meublé)
+    const totalLoyerAnnuel = rueilLoyer + villejuifLoyer;
+
+    // LMP is triggered when:
+    // 1. Recettes meublées > 23,000€/an AND
+    // 2. Recettes > revenus d'activité (auto-met for non-resident Nezha)
+    const isRueilAloneLMP = rueilLoyer > LMP_THRESHOLD;
+    const isCombinedLMP = totalLoyerAnnuel > LMP_THRESHOLD;
+
+    // Show alert if villejuif will be meublé OR already triggered
+    if (rueilProp) {
+      let html = '<div style="background:#fffbeb;border:2px solid #d97706;border-radius:12px;padding:16px;margin:16px 0;">'
+        + '<h4 style="color:#92400e;margin:0 0 12px;">⚠️ Alerte LMP — Nezha</h4>'
+        + '<p style="font-size:13px;color:#78350f;margin:0 0 12px;">'
+        + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique automatiquement quand les recettes locatives meublées dépassent <strong>23 000€/an</strong> ET dépassent les revenus d\'activité du foyer fiscal.'
+        + '</p>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
+        + '<div style="background:#fef3c7;border-radius:8px;padding:12px;text-align:center;">'
+        + '<div style="font-size:11px;color:#92400e;">Aujourd\'hui (Rueil seul)</div>'
+        + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
+        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? '✗ Au-dessus du seuil → LMP auto' : '✓ Sous le seuil LMNP') + '</div>'
+        + '</div>'
+        + '<div style="background:#fef3c7;border-radius:8px;padding:12px;text-align:center;">'
+        + '<div style="font-size:11px;color:#92400e;">Après Villejuif (2029)</div>'
+        + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
+        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? '✗ Au-dessus du seuil → LMP auto' : '✓ Sous le seuil LMNP') + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div style="font-size:12px;color:#78350f;">'
+        + '<strong>Impacts du passage LMP :</strong>'
+        + '<ul style="margin:6px 0;padding-left:20px;">'
+        + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le bénéfice net (vs 17.2% PS en LMNP)</li>'
+        + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> même pour non-résident</li>'
+        + '<li><span style="color:#16a34a;font-weight:600;">Déficit imputable</span> sur le revenu global (avantage)</li>'
+        + '<li><span style="color:#16a34a;font-weight:600;">PV professionnelle</span> : exonération totale si >5 ans ET CA <90K€</li>'
+        + '</ul>'
+        + '</div>'
+        + '<div style="background:#fef9c3;border-radius:6px;padding:10px;font-size:11px;color:#713f12;margin-top:8px;">'
+        + '<strong>Non-résident :</strong> Nezha n\'a pas de revenus d\'activité en France → la condition "recettes > revenus d\'activité" est automatiquement remplie. Dès que Villejuif est loué en meublé, le statut LMP s\'applique.'
+        + '</div>'
+        + '</div>';
+      lmpSection.innerHTML = html;
+    } else {
+      lmpSection.innerHTML = '';
+    }
+  }
+
   // Loans table
   const loansTbody = document.getElementById('immoLoansTbody');
   if (loansTbody) {
