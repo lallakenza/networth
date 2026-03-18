@@ -3542,7 +3542,7 @@ function renderTimelineHTML(timeline) {
 
 // ============ PROPERTY INFO CARD (Details) ============
 function renderFloorPlanSVG(floorPlan, rooms) {
-  if (!floorPlan || !floorPlan.image || !floorPlan.rooms) return '';
+  if (!floorPlan || !floorPlan.rooms) return '';
 
   // Helper function to compute polygon centroid
   function getCentroid(pointsStr) {
@@ -3552,34 +3552,87 @@ function renderFloorPlanSVG(floorPlan, rooms) {
     return [cx / pts.length, cy / pts.length];
   }
 
-  let html = '<div style="position:relative;max-width:600px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">';
+  const isSchematic = floorPlan.schematic === true;
+  const viewBox = floorPlan.viewBox || '0 0 100 100';
+  const viewBoxParts = viewBox.split(' ');
+  const vbWidth = parseFloat(viewBoxParts[2]);
+  const vbHeight = parseFloat(viewBoxParts[3]);
+  const aspectRatio = vbHeight / vbWidth;
 
-  // Background image
-  html += '<img src="' + floorPlan.image + '" alt="Floor plan" style="width:100%;display:block;border-radius:8px;">';
+  let html = '<div class="plan-wrap" style="position:relative;width:100%;max-width:600px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.15);background:#fff;">';
 
-  // SVG overlay container
-  const aspectRatio = floorPlan.height / floorPlan.width;
-  html += '<svg viewBox="0 0 100 ' + (aspectRatio * 100).toFixed(2) + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:8px;">';
+  // Schematic mode: no background image, pure SVG
+  if (isSchematic) {
+    html += '<svg viewBox="' + viewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block;background:#f7fafc;padding:12px;box-sizing:border-box;">';
+    html += '<defs><style>';
+    html += '.plan-room-schem { fill-opacity: 0.12; stroke-width: 1; transition: all 0.3s ease; cursor: pointer; }';
+    html += '.plan-room-schem:hover { fill-opacity: 0.35; stroke-width: 1.5; }';
+    html += '.plan-room-label { font-size: 10px; font-weight: 600; text-anchor: middle; pointer-events: none; fill: #2d3748; transition: all 0.3s ease; }';
+    html += '.plan-room-surface { font-size: 7px; text-anchor: middle; pointer-events: none; fill: #718096; }';
+    html += '</style></defs>';
 
-  // Room overlay styles
-  html += '<defs><style>';
-  html += '.plan-room { fill-opacity: 0.02; stroke-opacity: 0.1; stroke-width: 0.15; transition: all 0.2s ease; cursor: pointer; }';
-  html += '.plan-room:hover { fill-opacity: 0.3; stroke-opacity: 0.6; }';
-  html += '</style></defs>';
+    floorPlan.rooms.forEach(r => {
+      // Parse polygon points to calculate bounding box for room label
+      const pts = r.points.split(' ').map(p => p.split(',').map(Number));
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      pts.forEach(p => {
+        minX = Math.min(minX, p[0]);
+        maxX = Math.max(maxX, p[0]);
+        minY = Math.min(minY, p[1]);
+        maxY = Math.max(maxY, p[1]);
+      });
+      const labelX = (minX + maxX) / 2;
+      const labelY = (minY + maxY) / 2;
 
-  floorPlan.rooms.forEach(r => {
-    const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
-    const displaySurface = r.surface || (roomData ? roomData.surface : null);
-    const [cx, cy] = getCentroid(r.points);
+      const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
+      const displaySurface = r.surface || (roomData ? roomData.surface : null);
 
-    // Room polygon overlay
-    html += '<polygon class="plan-room" points="' + r.points + '" ';
-    html += 'fill="' + r.color + '" stroke="' + r.color + '">';
-    html += '<title>' + r.name + (displaySurface ? ' — ' + displaySurface.toFixed(2) + ' m²' : '') + '</title>';
-    html += '</polygon>';
-  });
+      // Room polygon
+      html += '<polygon class="plan-room-schem" points="' + r.points + '" ';
+      html += 'fill="' + r.color + '" stroke="' + r.color + '" ';
+      html += 'style="transition:all 0.3s ease;cursor:pointer;" ';
+      html += 'data-room="' + r.name + '" data-surface="' + (displaySurface ? displaySurface.toFixed(2) : '—') + '">';
+      html += '</polygon>';
 
-  html += '</svg>';
+      // Room label
+      html += '<text class="plan-room-label" x="' + labelX + '" y="' + labelY + '" dy="-4">' + r.name + '</text>';
+      if (displaySurface) {
+        html += '<text class="plan-room-surface" x="' + labelX + '" y="' + (labelY + 8) + '">' + displaySurface.toFixed(1) + ' m²</text>';
+      }
+    });
+
+    html += '</svg>';
+  } else {
+    // Image mode: background image with SVG overlay
+    html += '<img src="' + floorPlan.image + '" alt="Floor plan" style="width:100%;display:block;border-radius:0;">';
+    html += '<svg viewBox="' + viewBox + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:0;">';
+    html += '<defs><style>';
+    html += '.plan-room { fill-opacity: 0.02; stroke-opacity: 0.15; stroke-width: 0.3; transition: all 0.3s ease; cursor: pointer; }';
+    html += '.plan-room:hover { fill-opacity: 0.4; stroke-opacity: 0.8; filter: drop-shadow(0 0 1px rgba(0,0,0,0.2)); }';
+    html += '</style></defs>';
+
+    floorPlan.rooms.forEach(r => {
+      const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
+      const displaySurface = r.surface || (roomData ? roomData.surface : null);
+      const [cx, cy] = getCentroid(r.points);
+
+      // Room polygon overlay with inline event handlers
+      html += '<polygon class="plan-room" points="' + r.points + '" ';
+      html += 'fill="white" stroke="' + r.color + '" ';
+      html += 'style="transition:all 0.3s ease;cursor:pointer;" ';
+      html += 'onmouseenter="(function(el){el.style.fillOpacity=\'0.4\';el.style.strokeOpacity=\'0.8\';var t=el.closest(\'.plan-wrap\').querySelector(\'.plan-tooltip\');if(t){t.innerHTML=\'<div style=\\\"font-weight:700;font-size:14px;margin-bottom:4px;\\\">' + r.name + '</div><div style=\\\"font-size:16px;font-weight:700;color:' + r.color + ';\\\">' + (displaySurface ? displaySurface.toFixed(2) : '—') + '</div><div style=\\\"font-size:12px;color:#718096;margin-top:3px;\\\">m²</div>\';t.style.opacity=\'1\'}})(this)" ';
+      html += 'onmouseleave="(function(el){el.style.fillOpacity=\'0.02\';el.style.strokeOpacity=\'0.15\';var t=el.closest(\'.plan-wrap\').querySelector(\'.plan-tooltip\');if(t)t.style.opacity=\'0\'})(this)" ';
+      html += '/>';
+    });
+
+    html += '</svg>';
+  }
+
+  // Floating tooltip (only for image mode, positioned absolutely within the wrapper)
+  if (!isSchematic) {
+    html += '<div class="plan-tooltip" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.98);backdrop-filter:blur(8px);border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:12px 16px;min-width:100px;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>';
+  }
+
   html += '</div>';
 
   return html;
@@ -3626,11 +3679,11 @@ function renderPropertyInfoCard(details) {
         const color = getRoomColor(room.name);
         const displayPct = Math.max(pct, 3);
 
-        roomBar += '<div style="position:relative;width:' + pct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;min-width:' + displayPct + '%;' + (pct < 3 ? 'margin:0 2px;' : '') + '" ';
-        roomBar += 'onmouseenter="this.querySelector(\'.room-tip\').style.opacity=1" ';
-        roomBar += 'onmouseleave="this.querySelector(\'.room-tip\').style.opacity=0">';
-        roomBar += '<span style="font-size:9px;white-space:nowrap;">' + room.name + '</span>';
-        roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:10;">';
+        roomBar += '<div style="position:relative;flex:' + pct.toFixed(4) + ';min-width:' + displayPct + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;overflow:hidden;transition:all 0.3s ease;cursor:pointer;" ';
+        roomBar += 'onmouseenter="(function(el){el.style.minHeight=\'32px\';el.querySelector(\'.room-tip\').style.opacity=\'1\';el.querySelector(\'.room-tip\').style.visibility=\'visible\';})(this)" ';
+        roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
+        roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">' + room.name + '</span>';
+        roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
         roomBar += room.name + ' — ' + room.surface.toFixed(2) + ' m²</div>';
         roomBar += '</div>';
       }
@@ -3642,11 +3695,11 @@ function renderPropertyInfoCard(details) {
       const loggiaPct = (loggiaSize / details.surfaceTotale) * 100;
       const displayPct = Math.max(loggiaPct, 3);
 
-      roomBar += '<div style="position:relative;width:' + loggiaPct.toFixed(1) + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:600;overflow:hidden;min-width:' + displayPct + '%;' + (loggiaPct < 3 ? 'margin:0 2px;' : '') + '" ';
-      roomBar += 'onmouseenter="this.querySelector(\'.room-tip\').style.opacity=1" ';
-      roomBar += 'onmouseleave="this.querySelector(\'.room-tip\').style.opacity=0">';
-      roomBar += '<span style="font-size:9px;white-space:nowrap;">Loggia</span>';
-      roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:10;">';
+      roomBar += '<div style="position:relative;flex:' + loggiaPct.toFixed(4) + ';min-width:' + displayPct + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;overflow:hidden;transition:all 0.3s ease;cursor:pointer;" ';
+      roomBar += 'onmouseenter="(function(el){el.style.minHeight=\'32px\';el.querySelector(\'.room-tip\').style.opacity=\'1\';el.querySelector(\'.room-tip\').style.visibility=\'visible\';})(this)" ';
+      roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
+      roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">Loggia</span>';
+      roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
       roomBar += 'Loggia — ' + loggiaSize.toFixed(2) + ' m²</div>';
       roomBar += '</div>';
     }
@@ -3656,61 +3709,61 @@ function renderPropertyInfoCard(details) {
   let pillsHtml = '';
   const pills = [];
 
-  if (details.exposure) pills.push({ text: details.exposure, bg: '#e2e8f0' });
-  if (details.dpe) pills.push({ text: 'DPE ' + details.dpe, bg: '#c6f6d5' });
-  if (details.norm) pills.push({ text: details.norm, bg: '#bee3f8' });
+  if (details.exposure) pills.push({ text: '☀ ' + details.exposure, bg: '#e2e8f0' });
+  if (details.dpe) pills.push({ text: '🏷 DPE ' + details.dpe, bg: '#c6f6d5' });
+  if (details.norm) pills.push({ text: '🏗 ' + details.norm, bg: '#bee3f8' });
   if (details.parking !== null && details.parking !== undefined) {
-    pills.push({ text: details.parking ? 'Parking' : 'Pas de parking', bg: details.parking ? '#c6f6d5' : '#fed7d7' });
+    pills.push({ text: '🅿 ' + (details.parking ? 'Parking' : 'Pas de parking'), bg: details.parking ? '#c6f6d5' : '#fed7d7' });
   }
   if (details.cave !== null && details.cave !== undefined) {
-    pills.push({ text: details.cave ? 'Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
+    pills.push({ text: details.cave ? '📦 Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
   }
 
   pills.forEach(pill => {
-    pillsHtml += '<span style="background:' + pill.bg + ';border-radius:12px;padding:3px 10px;font-size:11px;display:inline-block;margin-right:6px;margin-bottom:6px;">' + pill.text + '</span>';
+    pillsHtml += '<span style="background:' + pill.bg + ';border-radius:12px;padding:4px 10px;font-size:11px;display:inline-block;margin-right:6px;margin-bottom:6px;transition:all 0.3s ease;border:1px solid rgba(0,0,0,0.05);">' + pill.text + '</span>';
   });
 
   // Build the card HTML
-  let html = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  let html = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;transition:all 0.3s ease;">';
 
-  // Row 1: Header with type, lot, floor, building + surface info
-  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">';
-  html += '<div>';
-  html += '<span style="font-weight:700;font-size:14px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</span>';
+  // Row 1: Premium header with type, lot, floor, building + surface info
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">';
+  html += '<div style="flex:1;">';
+  html += '<div style="font-weight:700;font-size:15px;color:#1a202c;letter-spacing:-0.5px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '—') + '</div>';
   const headerInfo = [];
   if (details.floor) headerInfo.push(details.floor);
   if (details.building) headerInfo.push(details.building);
   if (details.developer) headerInfo.push(details.developer);
   if (headerInfo.length > 0) {
-    html += '<div style="color:#718096;font-size:11px;margin-top:3px;">' + headerInfo.join(' · ') + '</div>';
+    html += '<div style="color:#718096;font-size:12px;margin-top:4px;letter-spacing:-0.3px;">' + headerInfo.join(' · ') + '</div>';
   }
   html += '</div>';
-  html += '<div style="text-align:right;font-size:11px;color:#4a5568;">';
+  html += '<div style="text-align:right;flex-shrink:0;margin-left:16px;">';
   if (details.surfaceHabitable) {
-    html += '<strong>' + details.surfaceHabitable.toFixed(2) + '</strong> m² hab.';
-    if (details.loggia) html += '<br /><strong>' + details.loggia.toFixed(2) + '</strong> m² loggia';
+    html += '<div style="font-weight:700;font-size:18px;color:#3182ce;letter-spacing:-0.5px;">' + details.surfaceHabitable.toFixed(2) + ' m²</div>';
+    html += '<div style="font-size:11px;color:#718096;margin-top:2px;">Habitable</div>';
+    if (details.loggia) html += '<div style="font-weight:600;font-size:12px;color:#d69e2e;margin-top:4px;">+ ' + details.loggia.toFixed(2) + ' m² loggia</div>';
   }
   html += '</div>';
   html += '</div>';
 
   // Row 2: Interactive room bar with hover tooltips
   if (roomBar) {
-    html += '<div style="display:flex;height:22px;border-radius:6px;overflow:hidden;margin-bottom:10px;border:1px solid #cbd5e0;">';
+    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin-bottom:12px;background:#f7fafc;border:1px solid #e2e8f0;gap:0;transition:all 0.3s ease;">';
     html += roomBar;
     html += '</div>';
   }
 
   // Row 3: Characteristics as pills
   if (pillsHtml) {
-    html += '<div style="margin-bottom:10px;">';
+    html += '<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;">';
     html += pillsHtml;
     html += '</div>';
   }
 
   // Floor plan
   if (details.floorPlan) {
-    html += '<div style="margin-top:10px;">';
-    html += '<div style="font-size:11px;font-weight:600;color:#4a5568;margin-bottom:6px;">Plan</div>';
+    html += '<div style="margin-top:12px;">';
     html += renderFloorPlanSVG(details.floorPlan, details.rooms);
     html += '</div>';
   }
@@ -3723,7 +3776,7 @@ function renderPropertyInfoCard(details) {
   if (details.caveLots) footerItems.push('Annexes: ' + details.caveLots.join(', '));
 
   if (footerItems.length > 0) {
-    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#718096;">';
+    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#718096;line-height:1.5;">';
     html += footerItems.join(' · ');
     html += '</div>';
   }
