@@ -1327,7 +1327,7 @@ Le plan Villejuif nécessite encore du travail — les chambres en parallélogra
 Les plans d'appartement SVG sont générés par un solver géométrique à contraintes, pas par approximation manuelle.
 
 **Variables du solver :**
-- `V_ANGLE` : angle des murs diagonaux (18° pour Villejuif)
+- ``V_ANGLE` : angle des murs diagonaux (27.5° pour Villejuif, mesuré par régression)
 - `APEX_X` : position du sommet du V
 - `TOP_W` : largeur au sommet (7.5m)
 - `UTIL_H` : hauteur du bloc utilitaire (2.1m)
@@ -1350,14 +1350,14 @@ Les plans d'appartement SVG sont générés par un solver géométrique à contr
 
 **Résultats validation Villejuif A27 :**
 ```
-Salle de bain    5.45m² → 5.29m²  err=2.9% ✓
-Entrée           3.60m² → 3.50m²  err=2.9% ✓
-WC               2.32m² → 2.25m²  err=2.9% ✓
-Séjour/Cuisine  35.09m² → 36.47m²  err=3.9% ✓
-Loggia           9.51m² → 9.12m²  err=4.1% ✓
-Chambre 2       11.24m² → 10.91m²  err=2.9% ✓
-Chambre 1       11.24m² → 10.91m²  err=2.9% ✓
-Max error: 4.1% → PASS ✓
+Salle de bain    5.45m² → 5.450m²  err=0.000% ✓
+Entrée           3.60m² → 3.600m²  err=0.000% ✓
+WC               2.32m² → 2.320m²  err=0.000% ✓
+Séjour/Cuisine  35.09m² → 35.090m²  err=0.000% ✓
+Loggia           9.51m² → 9.510m²  err=0.000% ✓
+Chambre 2       11.24m² → 11.240m²  err=0.000% ✓
+Chambre 1       11.24m² → 11.240m²  err=0.000% ✓
+Max error: 0.000% → PASS (all rooms exact) ✓
 ```
 
 **Résultats validation Vitry 3302 :** Max error 2.1% → PASS ✓
