@@ -79,20 +79,28 @@ function runSimulatorGeneric(config) {
     if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
-      dataNW.push(Math.round(totalNW));
-      dataImmo.push(Math.round(immoNow));
-      dataBase.push(Math.round(immoNow + startLiquidBase + cumContributions));
-      dataGains.push(Math.round(immoNow + startLiquidBase + cumContributions + gainsNow));
-      dataNWNoStop.push(Math.round(totalNWns));
-      if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
-      // Per-property snapshot — computed equity uses absolute value directly
+
+      // Compute immo from property sum (ensures consistency with per-property breakdown)
+      let immoFromProps = 0;
       props.forEach((p, pi) => {
+        let propVal;
         if (p._computedEquity) {
-          immoBreakdownData[pi].push(Math.round(p.growthFn(m)));
+          propVal = Math.round(p.growthFn(m));
         } else {
-          immoBreakdownData[pi].push(Math.round(p.startEquity + propCumGrowth[pi]));
+          propVal = Math.round(p.startEquity + propCumGrowth[pi]);
         }
+        immoBreakdownData[pi].push(propVal);
+        immoFromProps += propVal;
       });
+      // If no breakdown props, fall back to delta-based immo
+      const immoVal = props.length > 0 ? immoFromProps : Math.round(immoNow);
+
+      dataNW.push(Math.round(immoVal + liquidNow));
+      dataImmo.push(immoVal);
+      dataBase.push(Math.round(immoVal + startLiquidBase + cumContributions));
+      dataGains.push(Math.round(immoVal + startLiquidBase + cumContributions + gainsNow));
+      dataNWNoStop.push(Math.round(immoVal + liquidNS));
+      if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
     }
 
     if (totalNW >= 1000000 && month1M === -1) month1M = m;
@@ -444,11 +452,19 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
       projValue *= (1 + getRate(y));
     }
 
+    // Also apply partial-year appreciation for months within current year
+    const partialMonths = targetMonth - 1; // months elapsed in target year
+    if (partialMonths > 0) {
+      projValue *= Math.pow(1 + getRate(targetYear), partialMonths / 12);
+    }
+
     const grossEquity = projValue - crd;
 
-    // Subtract exit costs for this property at target year (if available)
-    const yearEC = exitCostsByYearProp[targetYear];
-    const propEC = yearEC ? (yearEC[loanKey] || 0) : 0;
+    // Interpolate exit costs between years to avoid staircase effect
+    const ecThisYear = (exitCostsByYearProp[targetYear] || {})[loanKey] || 0;
+    const ecNextYear = (exitCostsByYearProp[targetYear + 1] || {})[loanKey] || ecThisYear;
+    const monthFrac = (targetMonth - 1) / 12; // 0 = Jan, 0.917 = Dec
+    const propEC = ecThisYear + (ecNextYear - ecThisYear) * monthFrac;
 
     return Math.max(0, grossEquity - propEC);
   };
