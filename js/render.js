@@ -3544,69 +3544,65 @@ function renderTimelineHTML(timeline) {
 function renderFloorPlanSVG(floorPlan, rooms) {
   if (!floorPlan || !floorPlan.rooms) return '';
 
-  // Helper function to compute polygon centroid
-  function getCentroid(pointsStr) {
-    const pts = pointsStr.split(' ').map(p => p.split(',').map(Number));
-    let cx = 0, cy = 0;
-    pts.forEach(p => { cx += p[0]; cy += p[1]; });
-    return [cx / pts.length, cy / pts.length];
-  }
-
   const isSchematic = floorPlan.schematic === true;
   const viewBox = floorPlan.viewBox || '0 0 100 100';
-  const viewBoxParts = viewBox.split(' ');
-  const vbWidth = parseFloat(viewBoxParts[2]);
-  const vbHeight = parseFloat(viewBoxParts[3]);
-  const aspectRatio = vbHeight / vbWidth;
 
-  let html = '<div class="plan-wrap" style="position:relative;width:100%;max-width:600px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.15);background:#fff;">';
+  let html = '<div style="max-width:550px;margin:8px auto;">';
+  html += '<svg viewBox="' + viewBox + '" style="width:100%;display:block;border-radius:8px;';
+  html += isSchematic ? 'background:#f8fafc;border:1px solid #e2e8f0;' : 'background:#fefefe;border:1px solid #e7e5e4;';
+  html += '">';
 
-  // Schematic mode: no background image, pure SVG
-  if (isSchematic) {
-    html += '<svg viewBox="' + viewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block;background:#f7fafc;padding:12px;box-sizing:border-box;">';
-    html += '<defs><style>';
-    html += '.plan-room-schem { fill-opacity: 0.12; stroke-width: 1; transition: all 0.3s ease; cursor: pointer; }';
-    html += '.plan-room-schem:hover { fill-opacity: 0.35; stroke-width: 1.5; }';
-    html += '.plan-room-label { font-size: 10px; font-weight: 600; text-anchor: middle; pointer-events: none; fill: #2d3748; transition: all 0.3s ease; }';
-    html += '.plan-room-surface { font-size: 7px; text-anchor: middle; pointer-events: none; fill: #718096; }';
-    html += '</style></defs>';
+  // CSS styles inside SVG
+  html += '<style>';
+  html += '.room-g polygon { transition: fill-opacity 0.25s, stroke-width 0.25s; }';
+  html += '.room-g:hover polygon { fill-opacity: 0.35; stroke-width: 1.2; }';
+  html += '.room-g .room-surface { opacity: 0.4; transition: opacity 0.25s; }';
+  html += '.room-g:hover .room-surface { opacity: 1; }';
+  html += '.room-g .room-name { transition: font-weight 0.25s; }';
+  html += '.room-g:hover .room-name { font-weight: 700; }';
+  html += '</style>';
 
-    floorPlan.rooms.forEach(r => {
-      // Parse polygon points to calculate bounding box for room label
-      const pts = r.points.split(' ').map(p => p.split(',').map(Number));
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      pts.forEach(p => {
-        minX = Math.min(minX, p[0]);
-        maxX = Math.max(maxX, p[0]);
-        minY = Math.min(minY, p[1]);
-        maxY = Math.max(maxY, p[1]);
-      });
-      const labelX = (minX + maxX) / 2;
-      const labelY = (minY + maxY) / 2;
+  floorPlan.rooms.forEach(r => {
+    const roomData = rooms ? rooms.find(rd => rd.name === r.name || rd.name.startsWith(r.name.split('/')[0])) : null;
+    const surface = r.surface || (roomData ? roomData.surface : null);
 
-      const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
-      const displaySurface = r.surface || (roomData ? roomData.surface : null);
+    // Compute centroid
+    const pts = r.points.split(' ').map(p => p.split(',').map(Number));
+    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
 
-      // Room polygon
-      html += '<polygon class="plan-room-schem" points="' + r.points + '" ';
-      html += 'fill="' + r.color + '" stroke="' + r.color + '" ';
-      html += 'style="transition:all 0.3s ease;cursor:pointer;" ';
-      html += 'data-room="' + r.name + '" data-surface="' + (displaySurface ? displaySurface.toFixed(2) : '—') + '">';
-      html += '</polygon>';
+    // Font size based on room area (larger rooms get larger text)
+    const area = surface || 5;
+    const fontSize = Math.min(Math.max(area > 20 ? 4.5 : area > 10 ? 3.5 : area > 5 ? 2.8 : 2.2, 2), 5);
 
-      // Room label
-      html += '<text class="plan-room-label" x="' + labelX + '" y="' + labelY + '" dy="-4">' + r.name + '</text>';
-      if (displaySurface) {
-        html += '<text class="plan-room-surface" x="' + labelX + '" y="' + (labelY + 8) + '">' + displaySurface.toFixed(1) + ' m²</text>';
-      }
-    });
+    html += '<g class="room-g" style="cursor:pointer;">';
 
-    html += '</svg>';
-  } else {
-    // Image mode: display the architectural plan image directly (no SVG overlay)
-    html += '<img src="' + floorPlan.image + '" alt="Plan" style="width:100%;display:block;">';
-  }
+    // Room polygon
+    html += '<polygon points="' + r.points + '" ';
+    html += 'fill="' + r.color + '" fill-opacity="' + (isSchematic ? '0.12' : '0.08') + '" ';
+    html += 'stroke="' + r.color + '" stroke-width="0.8" stroke-linejoin="round"/>';
 
+    // Room name
+    html += '<text class="room-name" x="' + cx + '" y="' + (cy - (surface ? fontSize * 0.3 : 0)) + '" ';
+    html += 'text-anchor="middle" dominant-baseline="middle" ';
+    html += 'font-size="' + fontSize + '" font-weight="500" fill="#1c1917" font-family="DM Sans, sans-serif">';
+    html += r.name + '</text>';
+
+    // Surface (shown below name)
+    if (surface) {
+      html += '<text class="room-surface" x="' + cx + '" y="' + (cy + fontSize * 0.9) + '" ';
+      html += 'text-anchor="middle" dominant-baseline="middle" ';
+      html += 'font-size="' + (fontSize * 0.7) + '" fill="#78716c" font-family="DM Sans, sans-serif">';
+      html += surface.toFixed(1) + ' m\u00b2</text>';
+    }
+
+    // Tooltip (native SVG title)
+    html += '<title>' + r.name + (surface ? ' \u2014 ' + surface.toFixed(2) + ' m\u00b2' : '') + '</title>';
+
+    html += '</g>';
+  });
+
+  html += '</svg>';
   html += '</div>';
 
   return html;
@@ -3617,21 +3613,21 @@ function renderPropertyInfoCard(details) {
 
   // Color mapping for rooms
   const roomColors = {
-    'Séjour': '#3182ce',
-    'Séjour/Cuisine': '#3182ce',
-    'Salon': '#3182ce',
-    'Cuisine': '#3182ce',
-    'Entrée': '#a0aec0',
-    'Dégagement': '#a0aec0',
+    'Séjour': '#3b82f6',
+    'Séjour/Cuisine': '#3b82f6',
+    'Salon': '#3b82f6',
+    'Cuisine': '#3b82f6',
+    'Entrée': '#94a3b8',
+    'Dégagement': '#94a3b8',
     'Loggia': '#d69e2e',
-    'Chambre': '#48bb78',
-    'Chambre 1': '#48bb78',
-    'Chambre 2': '#48bb78',
-    'Salle de bain': '#a0aec0',
-    'Salle d\'eau': '#a0aec0',
-    'Sdb': '#a0aec0',
-    'WC': '#a0aec0',
-    'Dgt': '#a0aec0',
+    'Chambre': '#22c55e',
+    'Chambre 1': '#22c55e',
+    'Chambre 2': '#22c55e',
+    'Salle de bain': '#94a3b8',
+    'Salle d\'eau': '#94a3b8',
+    'Sdb': '#94a3b8',
+    'WC': '#94a3b8',
+    'Dgt': '#94a3b8',
   };
 
   const getRoomColor = (name) => {
@@ -3658,7 +3654,7 @@ function renderPropertyInfoCard(details) {
         roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
         roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">' + room.name + '</span>';
         roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
-        roomBar += room.name + ' — ' + room.surface.toFixed(2) + ' m²</div>';
+        roomBar += room.name + ' — ' + room.surface.toFixed(1) + ' m²</div>';
         roomBar += '</div>';
       }
     });
@@ -3674,7 +3670,7 @@ function renderPropertyInfoCard(details) {
       roomBar += 'onmouseleave="(function(el){el.style.minHeight=\'28px\';el.querySelector(\'.room-tip\').style.opacity=\'0\';el.querySelector(\'.room-tip\').style.visibility=\'hidden\';})(this)">';
       roomBar += '<span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;">Loggia</span>';
       roomBar += '<div class="room-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(26,32,44,0.95);backdrop-filter:blur(4px);color:white;padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;visibility:hidden;transition:all 0.25s ease;pointer-events:none;margin-bottom:6px;z-index:20;border:1px solid rgba(255,255,255,0.1);">';
-      roomBar += 'Loggia — ' + loggiaSize.toFixed(2) + ' m²</div>';
+      roomBar += 'Loggia — ' + loggiaSize.toFixed(1) + ' m²</div>';
       roomBar += '</div>';
     }
   }
