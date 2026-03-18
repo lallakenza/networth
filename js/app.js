@@ -219,7 +219,11 @@ function updateFxTimestamp() {
   const el = document.getElementById('fxTimestamp');
   if (el) {
     const now = new Date();
-    el.textContent = '(màj ' + now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ')';
+    const day = now.toLocaleDateString('fr-FR', { day: '2-digit' });
+    const month = now.toLocaleDateString('fr-FR', { month: 'long' });
+    const year = now.getFullYear();
+    const time = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    el.textContent = ' — Dernière MAJ : ' + day + ' ' + month + ' ' + year + ' à ' + time;
   }
 }
 

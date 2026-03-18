@@ -1015,6 +1015,13 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   let totalVal = 0, totalCost = 0, totalEvoPL = 0;
   let hasStatic = false, staticVal = 0, liveVal = 0;
 
+  // First pass: detect if there are any static positions
+  sorted.forEach(pos => {
+    const isStatic = pos._live !== true;
+    const noAPI = pos.ticker === 'SGTM';
+    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
+  });
+
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
     totalCost += (pos.costEUR || 0);
@@ -1027,12 +1034,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = pos._live !== true;
     const noAPI = pos.ticker === 'SGTM';
-    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
     const liveBadge = isStatic
       ? (noAPI
         ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>'
         : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>')
-      : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
+      : (hasStatic ? ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>' : '');
 
     const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
     const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
@@ -1286,7 +1292,7 @@ function _renderColumnChips(allPositions) {
     container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center';
     tbl.parentNode.insertBefore(container, tbl.nextSibling);
   }
-  container.innerHTML = '<span style="font-size:11px;color:#a0aec0;margin-right:4px">Colonnes :</span>';
+  container.innerHTML = '<span style="font-size:10px;color:#a0aec0;margin-right:6px;opacity:0.75">Colonnes :</span>';
   let _dragKey = null;
   _colOrder.forEach(key => {
     const cfg = _colConfig[key];
@@ -1294,8 +1300,8 @@ function _renderColumnChips(allPositions) {
     const chip = document.createElement('button');
     chip.setAttribute('data-col', key);
     chip.draggable = true;
-    chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:grab;transition:all .15s;'
-      + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748' : 'background:#fff;color:#718096');
+    chip.style.cssText = 'font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid #e7e5e4;cursor:grab;transition:all .15s;opacity:0.8;'
+      + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748;opacity:1' : 'background:#fff;color:#78716c');
     chip.textContent = cfg.label;
 
     // Click: toggle visibility
@@ -2417,6 +2423,7 @@ function renderCashView(state) {
         hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
         tbody.appendChild(hdr);
         let ownerYieldAnn = 0, ownerMissed = 0;
+        let acctIndex = 0;
         ownerAccounts.forEach(a => {
           const isDebt = a.isDebt;
           const isNeg = a.valEUR < 0;
@@ -2438,6 +2445,7 @@ function renderCashView(state) {
           ownerMissed += a.missed;
           const tr = document.createElement('tr');
           tr.style.borderLeft = '3px solid ' + borderColor;
+          if (acctIndex % 2 === 1) tr.style.background = '#fafaf9';
           if (isNeg) tr.style.background = '#fff5f5';
           tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
             + '<td>' + a.owner + '</td>'
@@ -2448,6 +2456,7 @@ function renderCashView(state) {
             + '<td class="num">' + yieldAnnStr + '</td>'
             + '<td class="num">' + missedStr + '</td>';
           tbody.appendChild(tr);
+          acctIndex++;
         });
         grandTotalYieldAnn += ownerYieldAnn;
         grandTotalMissed += ownerMissed;
