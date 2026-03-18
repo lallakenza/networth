@@ -1159,3 +1159,55 @@ Example: -4,590,694 JPY balance (18/03/2026)
 ```
 
 Used in `ibkrJPYBorrowCost()` function (engine.js).
+
+### UX Audit & 20 Fixes (v148 — Session 18/03/2026)
+
+Audit complet réalisé avec le skill `frontend-design` d'Anthropic + inspection Chrome live.
+
+**Batch 1 — Fixes 1-5 :**
+1. ✅ Villejuif warning caché sur les vues non pertinentes (actions/cash/budget/creances)
+2. ✅ KPI labels : uppercase → title case (plus lisible)
+3. ✅ Loading skeleton pendant le fetch API initial
+4. ✅ Immo KPIs : class `.primary` sur Equity Brute/Nette (hiérarchie visuelle)
+5. ✅ FX status bar : prominence réduite (opacity + font-size)
+
+**Batch 2 — Fixes 6-20 :**
+6. ✅ Treemap : hide labels sur segments < 1200px² (évite overlap)
+7. ✅ Column toggle pills : réduites (10px, opacity 0.8)
+8. ✅ Manque à gagner : rouge → amber (opportunité, pas erreur)
+9. ✅ Viewport meta : déjà présent (vérifié)
+10. ✅ Footer timestamp : format complet "Dernière MAJ : 18 mars 2026 à 21:48"
+11. ⏭ Delta indicator : nécessite historique (skipped)
+12. ✅ Double €€ sur axe Y : symbole dupliqué supprimé dans budget chart
+13. ✅ Donut legends : padding et box sizes augmentés
+14. ✅ Hard Refresh : ⚡ texte → 🔄 icône subtile
+15. ⏭ Slider labels : fonctionnent correctement (skipped)
+16. ✅ LIVE badge : caché quand toutes les positions sont live
+17. ✅ Cash table : alternating row colors (#fafaf9)
+18. ✅ Budget charts : min-height augmenté à 280px
+19. ⏭ Close button : géré par navigation standard (skipped)
+20. ✅ Favicon : 💰 SVG ajouté
+
+**Bug fix supplémentaire :**
+- ✅ `villejuifNote` (HTML statique) caché dynamiquement dans render() selon la vue
+
+### Documentation Completeness Audit (v148)
+
+Audit de la complétude de ARCHITECTURE.md vs le code réel :
+
+**Documenté (ajouté dans cette session) :**
+- State Object Schema (structure complète de compute())
+- View Routing (10 vues + hash routing)
+- API Strategy (FX, stocks, CORS proxies, cache TTL, fallback)
+- Chart Registry (16 instances Chart.js avec canvas IDs)
+- Data Exports (18 exports de data.js avec types)
+- Key Formulas (equity, PV abattement, LMNP amort, carry cost)
+
+**Encore à documenter (v149+) :**
+- Liste complète des fonctions privées de engine.js (~20 fonctions)
+- Liste complète des fonctions render.js (~25+ fonctions)
+- Liste complète des chart builders (~30 fonctions)
+- HTML section/view mapping détaillé
+- Simulator architecture (generic engine + property equity computer)
+- Error handling & fallback strategies
+- Stock source strategy ('live' vs 'statique')
