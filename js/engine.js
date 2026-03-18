@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=148';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=149';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2495,8 +2495,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity;
   const nbBiens = villejuifSigned ? 3 : 2;
 
+  // Calculate delta from previous NW in history
+  const previousNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.coupleNW : null;
+  const nwDelta = previousNW ? coupleNW - previousNW : null;
+  const nwDeltaPct = previousNW ? ((coupleNW - previousNW) / previousNW * 100) : null;
+
   const couple = {
     nw: coupleNW,
+    nwDelta: nwDelta,
+    nwDeltaPct: nwDeltaPct,
     immoEquity: coupleImmoEquity, // net (after exit costs)
     immoEquityBrute: coupleImmoEquityBrute,
     immoValue: coupleImmoValue,
@@ -2829,7 +2836,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     creancesView,
     budgetView,
     dividendAnalysis,
-    // nwHistory removed v86
+    nwHistory: NW_HISTORY,
   };
 }
 

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=148';
-import { getGrandTotal } from './engine.js?v=148';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=149';
+import { getGrandTotal } from './engine.js?v=149';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -177,6 +177,11 @@ function renderKPIs(state, view) {
 
   // Set KPI values
   setEur('kpiCoupleNW', s.couple.nw);
+  // Add delta indicator for couple NW
+  if (s.couple.nwDelta !== null && s.couple.nwDeltaPct !== null) {
+    setDelta('kpiCoupleNW', s.couple.nwDelta, s.couple.nwDeltaPct, 'ce mois');
+  }
+
   setEur('kpiCoupleAmNW', s.amine.nw);
   setEur('kpiCoupleNzNW', s.nezha.nw);
   setEur('kpiCoupleImmo', s.couple.immoEquity);
@@ -929,6 +934,23 @@ function setSubPct(id, pct) {
   const sign = pct >= 0 ? '+' : '';
   span.textContent = sign + pct.toFixed(1) + '%';
   span.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct >= 0 ? '#276749' : '#c53030') + ';';
+  el.insertAdjacentElement('afterend', span);
+}
+
+// Add delta indicator showing change since last data point
+function setDelta(id, deltaVal, deltaPct, timeframe) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Remove existing delta if any
+  const existing = el.parentElement?.querySelector('.kpi-delta');
+  if (existing) existing.remove();
+  // Create delta element
+  const span = document.createElement('span');
+  span.className = 'kpi-delta';
+  const sign = deltaVal >= 0 ? '+' : '';
+  const color = deltaVal >= 0 ? '#16a34a' : '#dc2626';
+  span.textContent = sign + fmt(deltaVal) + ' (' + sign + deltaPct.toFixed(1) + '%) ' + timeframe;
+  span.style.cssText = 'display:block;font-size:11px;font-weight:500;margin-top:2px;color:' + color + ';';
   el.insertAdjacentElement('afterend', span);
 }
 
