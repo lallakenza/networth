@@ -685,6 +685,23 @@ Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le c
 
 **Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
 
+### Fix partial report coverage — NVIDIA, DIS (v146)
+
+**Problème** : Quand seulement CERTAINES ventes d'un ticker avaient un `realizedPL` officiel (rapport annuel), le moteur sommait les P/L partiels et les utilisait comme P/L total. Résultat : NVIDIA +1 192€ (1 seule vente sur 3 avec rapport) au lieu de +43 487€ (proceeds-cost).
+
+**Correction** : Ajout de `_reportPLCount` dans l'agrégation des ventes. La logique :
+- Si TOUTES les ventes ont un `realizedPL` officiel → utiliser la somme (EUR, précis)
+- Si seulement CERTAINES → fallback sur `proceedsEUR - costEUR` (devise native, approximatif)
+- Track Record : filtre `_hasReportPL || (costEUR > 0 && proceedsEUR > 0)`
+
+### Enrichissement Degiro P/L depuis rapports annuels (v145)
+
+Ajout de `realizedPL` (EUR) depuis les rapports annuels Degiro 2021 et 2023 sur 19 ventes :
+- 2021 : FIT, GME, CAP, ACA, V, ATO, SAP, JUVE, FDX (×2), EN, IBM, EUCAR (×2), MC, DIS
+- 2023 : SNPR, SAP, NVDA
+- Track Record corrigé : 11% → 86% win rate (19W/3L, profit factor 8.9×)
+- Ajout dividendes Degiro : 2021 (194.19€ net), 2023 (183.25€ net)
+
 ### Fix tableau Degiro + prix statiques + Top 10 (v144)
 
 **Bug fix :** Colonne "Coût" affichait €0 — le code accumulait `cost` depuis les trades sell (où cost='') au lieu des trades buy. Corrigé dans engine.js.
@@ -778,13 +795,68 @@ Un bouton checkbox "Inclure Villejuif (achat futur)" en haut de la vue Immobilie
 
 **Correction complémentaire (engine.js)** : La projection de richesse (`wealthProjection`) utilisait un taux d'appréciation fixe (`propMeta.appreciation`) au lieu des phases (`appreciationPhases`). Corrigé pour itérer année par année avec le taux de phase applicable.
 
+### Simulateurs — Computed Equity pour toutes les propriétés (v148)
+
+Les 3 simulateurs (couple, Amine, Nezha) utilisent maintenant `makeComputePropertyEquity()` — une fonction générique qui calcule l'equity nette absolue de chaque propriété à chaque mois :
+
+1. Convertit le mois simulateur en date calendaire (YYYY-MM)
+2. Cherche le CRD dans le tableau d'amortissement
+3. Applique l'appréciation par phases (ex: Villejuif 3%→1.5%, Rueil 0.5%→1.5%)
+4. Applique l'appréciation intra-année (partielle)
+5. Soustrait les exit costs projetés (interpolés linéairement entre années)
+6. Retourne `Math.max(0, valeur_projetée - CRD - exit_costs)`
+
+Le flag `_computedEquity: true` dans `immoBreakdown` permet à `runSimulatorGeneric` de traiter ces valeurs comme absolues. Le `dataImmo` total est calculé comme la somme des propriétés (pas via cumul de deltas) pour garantir la cohérence tooltip.
+
+Granularité : mensuelle (chaque mois = 1 data point). `maxTicksLimit: 24` sur l'axe X.
+
+### Données IBKR — v147-148
+
+- Mise à jour des prix statiques au close 16/03/2026 (CSV IBKR Q1 2026)
+- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40 TGATE + 60 SBF)
+- Position DG réduite de 200 → 100 actions
+- Deleverage JPY : 13 111 EUR → 2 406 458 JPY @ 183.545 le 18/03
+- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
+
+### Timelines propriétés (v148)
+
+Ajout de timelines pour Rueil et Villejuif dans `EXIT_COSTS` (data.js) :
+
+**Rueil** (données de l'acte de vente + bail Docusign) :
+- Achat : 240 000€ le 5 novembre 2019 (vendeuse Mme Candalot)
+- Prêt : Crédit Mutuel Franconville (251 200€ à 1.20%, 25 ans)
+- RP Nezha : nov 2019 → sept 2025
+- Passage LMNP : bail meublé signé 25/09/2025, début location 04/10/2025
+- Locataires : Marouane El Mejjati & Myriem Kadri Hassani (1 300€ HC + 150€ charges)
+- Milestones PV : exonération IR à 22 ans (2041), IR+PS à 30 ans (2049)
+
+**Villejuif** (VEFA en cours) :
+- Réservation : avril 2025 (3 600€ versés)
+- Prêts LCL : 287K + 32K, franchise 36 mois (intérêts capitalisés)
+- Livraison : été 2029
+- Milestones : choix régime fiscal, ouverture L15 Sud (2026), fin franchise (2028)
+
+Fonction helper `renderTimelineHTML()` dans render.js pour générer les timelines de façon générique.
+
+### Chart PV Abattements (v148)
+
+Nouveau graphe en barres empilées dans le détail de chaque propriété :
+- Montre pour chaque année de détention (1 à 30) le % de la PV qui va à :
+  - Net (vert) : ce que tu gardes
+  - IR (rouge) : impôt 19% × (1 - abattement IR)
+  - PS (orange) : prélèvements sociaux 17.2% × (1 - abattement PS)
+- Ligne verticale à la durée de détention actuelle
+- Données calculées par `computePVAbattementSchedule()` dans engine.js
+- Canvas `pvAbattementChart` dans index.html, rendu par `buildPVAbattementChart()` dans charts.js
+
 ### Audit KPIs v148
 
 Tous les KPIs et projections ont été audités :
 - ✅ Equity par bien (Vitry, Rueil, Villejuif) : correct
-- ✅ Exit costs et net equity : correct
+- ✅ Exit costs avec réintégration amortissements LMNP (loi finances 2025) : correct
 - ✅ Couple NW avec `villejuifSigned: false` : correct (exclusion + reservation fees)
 - ✅ CF projection : charges, rent growth, loan end dates corrects
 - ✅ Track Record : win rate, realized P/L corrects
 - ✅ Appréciation par phases : corrigée dans wealth projection (engine.js)
-- ✅ Simulateur Villejuif : corrigé (schedule-based equity)
+- ✅ Simulateurs : equity nette composée pour les 3 propriétés
+- ✅ Banque Rueil : Crédit Mutuel Franconville (confirmé par acte notarié)
