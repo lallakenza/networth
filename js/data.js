@@ -861,6 +861,19 @@ export const IMMO_CONSTANTS = {
         caveLots: ['924 (cave)', '954 (séchoir)'],
         tantiemes: '249/100000',
         exposure: null,
+        floorPlan: {
+          schematic: true,
+          viewBox: '0 0 100 80',
+          rooms: [
+            { name: 'Salon', surface: null, color: '#3182ce', points: '2,2 2,45 65,45 65,2' },
+            { name: 'Chambre 1', surface: null, color: '#48bb78', points: '2,47 2,78 42,78 42,47' },
+            { name: 'Chambre 2', surface: null, color: '#48bb78', points: '44,47 44,78 75,78 75,47' },
+            { name: 'Cuisine', surface: null, color: '#3182ce', points: '67,2 67,25 98,25 98,2' },
+            { name: 'Salle de bain', surface: null, color: '#a0aec0', points: '67,27 67,45 90,45 90,27' },
+            { name: 'WC', surface: null, color: '#a0aec0', points: '92,27 92,45 98,45 98,27' },
+            { name: 'Entrée', surface: null, color: '#a0aec0', points: '77,47 77,60 98,60 98,47' },
+          ],
+        },
       },
     },
     villejuif: {
