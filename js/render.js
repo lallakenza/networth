@@ -3441,6 +3441,9 @@ function renderPropertyDetail(state, prop) {
     if (typeof window.buildExitProjectionChart === 'function') {
       window.buildExitProjectionChart(state, prop);
     }
+    if (typeof window.buildPVAbattementChart === 'function') {
+      window.buildPVAbattementChart(prop, 'pvAbattementChart');
+    }
   }, 50);
 }
 

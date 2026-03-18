@@ -1398,10 +1398,178 @@ export function buildWealthProjectionChart(state, mode, group) {
   });
 }
 
+// ============ PV ABATTEMENT CHART (TAX BREAKDOWN BY HOLDING PERIOD) ============
+function buildPVAbattementChart(propData, canvasId) {
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+  if (charts[canvasId]) { charts[canvasId].destroy(); delete charts[canvasId]; }
+
+  const schedule = propData.pvAbattementSchedule || [];
+  if (!schedule || schedule.length === 0) return;
+
+  // Filter to show years: 1, 5, 6, 10, 15, 20, 22, 25, 30
+  const displayYears = [1, 5, 6, 10, 15, 20, 22, 25, 30];
+  const filtered = schedule.filter(s => displayYears.includes(s.year));
+
+  // Prepare data
+  const labels = filtered.map(s => s.year + ' ans');
+  const netData = filtered.map(s => s.net_pct);
+  const irData = filtered.map(s => s.taxIR_pct);
+  const psData = filtered.map(s => s.taxPS_pct);
+
+  // Current holding period (floor: between purchase date and today)
+  const IC = IMMO_CONSTANTS;
+  const propMeta = IC.properties[propData.loanKey] || {};
+  const purchaseDate = propMeta.purchaseDate || '2023-01';
+  const [pY, pM] = purchaseDate.split('-').map(Number);
+  const now = new Date();
+  const holdingYears = (now.getFullYear() - pY) + (now.getMonth() + 1 - pM) / 12;
+  const currentYear = Math.floor(holdingYears);
+
+  const ctx = el.getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Net (ce que vous gardez)',
+          data: netData,
+          backgroundColor: '#48bb78',
+          borderColor: '#38a169',
+          borderWidth: 1,
+        },
+        {
+          label: 'IR (impôt sur le revenu)',
+          data: irData,
+          backgroundColor: '#f56565',
+          borderColor: '#c53030',
+          borderWidth: 1,
+        },
+        {
+          label: 'PS (prélèvements sociaux)',
+          data: psData,
+          backgroundColor: '#ed8936',
+          borderColor: '#c05621',
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      indexAxis: undefined,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            boxWidth: 14,
+            padding: 12,
+            font: { size: 11 },
+            generateLabels: function(chart) {
+              const datasets = chart.data.datasets;
+              return datasets.map((ds, i) => ({
+                text: ds.label,
+                fillStyle: ds.backgroundColor,
+                hidden: false,
+                index: i,
+              }));
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%';
+            },
+            afterLabel: function(ctx) {
+              // Show abattement info on hover
+              const yearIdx = ctx.dataIndex;
+              const data = filtered[yearIdx];
+              if (data) {
+                const abattIRLabel = 'Abatt. IR: ' + data.abattIR + '%';
+                const abattPSLabel = 'Abatt. PS: ' + data.abattPS + '%';
+                if (ctx.dataset.label.includes('IR')) return abattIRLabel;
+                if (ctx.dataset.label.includes('PS')) return abattPSLabel;
+              }
+              return '';
+            },
+          },
+        },
+        title: {
+          display: true,
+          text: 'Imposition de la plus-value en fonction de la durée de détention',
+          font: { size: 13, weight: '600' },
+          padding: { bottom: 12 },
+        },
+        annotation: {
+          drawTime: 'afterDatasetsDraw',
+          annotations: {},
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { font: { size: 10 } },
+          grid: { display: false },
+        },
+        y: {
+          stacked: true,
+          min: 0,
+          max: 40,
+          ticks: {
+            callback: function(v) { return v.toFixed(0) + '%'; },
+            font: { size: 10 },
+          },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+      },
+    },
+    plugins: [
+      {
+        id: 'currentYearLine',
+        afterDatasetsDraw(chart) {
+          // Draw vertical line at current holding period if within range
+          if (currentYear >= 1 && currentYear <= 30) {
+            const foundIdx = filtered.findIndex(s => s.year === currentYear);
+            if (foundIdx >= 0) {
+              const xScale = chart.scales.x;
+              const yScale = chart.scales.y;
+              const xPos = xScale.getPixelForValue(foundIdx);
+              const yStart = yScale.getPixelForValue(yScale.max);
+              const yEnd = yScale.getPixelForValue(yScale.min);
+
+              const ctx = chart.ctx;
+              ctx.save();
+              ctx.strokeStyle = '#2d3748';
+              ctx.lineWidth = 2;
+              ctx.setLineDash([5, 5]);
+              ctx.beginPath();
+              ctx.moveTo(xPos, yStart);
+              ctx.lineTo(xPos, yEnd);
+              ctx.stroke();
+              ctx.restore();
+
+              // Add label "Période actuelle"
+              ctx.save();
+              ctx.font = 'bold 11px sans-serif';
+              ctx.fillStyle = '#2d3748';
+              ctx.textAlign = 'center';
+              ctx.fillText('Période actuelle (' + currentYear + ' ans)', xPos, yStart - 8);
+              ctx.restore();
+            }
+          }
+        },
+      },
+    ],
+  });
+}
+
 // Make available globally for render.js
 window.buildPropertyDetailCharts = buildPropertyDetailCharts;
 window.buildExitProjectionChart = buildExitProjectionChart;
 window.buildWealthProjectionChart = buildWealthProjectionChart;
+window.buildPVAbattementChart = buildPVAbattementChart;
 
 // ============ BUDGET DONUTS ============
 function buildBudgetZoneDonut(state) {

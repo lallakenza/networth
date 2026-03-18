@@ -94,10 +94,10 @@ export const PORTFOLIO = {
         { ticker: 'IBIT',    shares: 1200, price: 41.94,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
         { ticker: 'ETHA',    shares: 1100, price: 17.61,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
       ],
-      // ⬇️ Cash multi-devises (IBKR — mis à jour 17/03/2026 après vente DG)
-      cashEUR: 13114,        // Solde EUR chez IBKR: ~0 + 13120 (vente 100 DG) - 6.56 (commissions)
-      cashUSD: 0,            // Solde USD chez IBKR au 17/03/2026
-      cashJPY: -6997153,     // Solde JPY chez IBKR au 17/03/2026
+      // ⬇️ Cash multi-devises (IBKR — mis à jour 18/03/2026 après deleverage JPY)
+      cashEUR: -1,           // Solde EUR chez IBKR au 18/03/2026
+      cashUSD: 0,            // Solde USD chez IBKR au 18/03/2026
+      cashJPY: -4590694,     // Solde JPY chez IBKR au 18/03/2026 (après rachat 13111 EUR→JPY)
       // Performance metrics (April 2025 - March 2026)
       meta: {
         twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
@@ -222,6 +222,8 @@ export const PORTFOLIO = {
         // ─── JPY deleverage 10 mars 2026 ───
         { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
         { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
+        // ─── JPY deleverage 18 mars 2026 ───
+        { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -317.78, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
       ],
     },
 
@@ -924,17 +926,17 @@ export const EXIT_COSTS = {
     lmnpAmortReintegration: true,
     note: 'LMNP réel : amortissements réintégrés dans la PV depuis 2025 (loi de finances 2025)',
     timeline: [
-      { date: '2019-11', event: 'Acte notarié signé (5 novembre 2019)', icon: 'doc', done: true },
-      { date: '2019-12', event: 'Début prêt LCL (251K€ à 1.20%, 25 ans)', icon: 'bank', done: true },
+      { date: '2019-11', event: 'Acte notarié signé (5 nov 2019) — achat 240K€', icon: 'doc', done: true },
+      { date: '2019-12', event: 'Début prêt Crédit Mutuel Franconville (251K€ à 1.20%, 25 ans)', icon: 'bank', done: true },
       { date: '2019-12', event: 'Résidence principale Nezha', icon: 'home', done: true },
-      { date: '2025-09', event: 'Bail meublé signé (Docusign 25/09/2025) — passage en LMNP', icon: 'doc', done: true },
+      { date: '2025-09', event: 'Bail meublé signé (Docusign 25/09/2025) — passage LMNP réel', icon: 'doc', done: true },
       { date: '2025-10', event: 'Début location meublée (1 300€ HC + 150€ charges)', icon: 'key', done: true },
-      { date: '2025-11', event: '6 ans détention — abattement PV IR commence', icon: 'tax', done: true },
+      { date: '2025-11', event: '6 ans détention — abattement PV IR 6%', icon: 'tax', done: true },
       { date: '2026-10', event: 'Fin bail initial (1 an) → reconduction tacite', icon: 'doc' },
       { date: '2030-11', event: '11 ans détention — abattement IR 36%, PS 8.25%', icon: 'tax' },
-      { date: '2041-11', event: '22 ans détention — exonération totale IR', icon: 'free' },
-      { date: '2044-12', event: 'Fin prêt LCL (25 ans)', icon: 'check' },
-      { date: '2049-11', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
+      { date: '2041-11', event: '22 ans détention — exonération totale IR (100%)', icon: 'free' },
+      { date: '2044-12', event: 'Fin prêt Crédit Mutuel (25 ans)', icon: 'check' },
+      { date: '2049-11', event: '30 ans détention — exonération totale IR + PS (100%)', icon: 'free' },
     ],
   },
   villejuif: {
