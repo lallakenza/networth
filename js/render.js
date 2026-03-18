@@ -105,7 +105,7 @@ export function render(state, view, currency) {
     renderDynamicInsights(state, view);
     renderCoupleTable(state);
     renderAmineTable(state);
-    renderNezhaTable(state);
+    renderNezhaTable(state, view);
     renderIBKRPositionsSimple(state);
     renderImmoKPIs(state);
     renderImmoPcts(state);
@@ -424,7 +424,10 @@ function renderExpandSubs(state, view) {
     }
     const villejuifP = propMap.villejuif;
     if (villejuifP) {
-      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>');
+      // Only show "non signe" warning in immobilier and property-specific views
+      const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
+      const showWarning = relevantViews.includes(view);
+      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + (showWarning ? '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>' : ''));
     }
 
     // ── Dynamic Résumé Immobilier table ──
@@ -739,7 +742,7 @@ function renderAmineTable(state) {
   buildDetailTable('#amineDetailTable tbody', rows, 'Net Worth Amine');
 }
 
-function renderNezhaTable(state) {
+function renderNezhaTable(state, view) {
   const s = state;
   const p = state.portfolio;
   const sgtmLabel = p.nezha.sgtm.shares + ' actions SGTM @ ' + p.market.sgtmPriceMAD + ' DH';
@@ -772,17 +775,22 @@ function renderNezhaTable(state) {
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
   tr.innerHTML = '<td><strong>Net Worth Nezha (actuel)</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
   tbody.appendChild(tr);
-  // Villejuif conditionnel
-  tr = document.createElement('tr');
-  tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span></strong></td>';
-  tbody.appendChild(tr);
-  tr = document.createElement('tr');
-  tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
-  tbody.appendChild(tr);
-  tr = document.createElement('tr');
-  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-  tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + s.nezha.villejuifEquity) + '</strong></td>';
-  tbody.appendChild(tr);
+
+  // Only show Villejuif section in immobilier and property-specific views
+  const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
+  if (relevantViews.includes(view)) {
+    // Villejuif conditionnel
+    tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span></strong></td>';
+    tbody.appendChild(tr);
+    tr = document.createElement('tr');
+    tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
+    tbody.appendChild(tr);
+    tr = document.createElement('tr');
+    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+    tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + s.nezha.villejuifEquity) + '</strong></td>';
+    tbody.appendChild(tr);
+  }
 }
 
 function renderIBKRPositionsSimple(state) {
