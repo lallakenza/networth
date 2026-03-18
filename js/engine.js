@@ -1652,9 +1652,15 @@ function computeImmoView(portfolio, fx) {
     const [py, pm] = purchaseDateStr.split('-').map(Number);
     const now = new Date();
     const holdingYears = (now.getFullYear() - py) + (now.getMonth() + 1 - pm) / 12;
-    // Estimate total amortissements (LMNP réel)
-    const fiscType = IC.fiscalite && IC.fiscalite[loanKey] ? IC.fiscalite[loanKey].type : 'nu';
-    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdingYears)) : 0;
+    // Estimate total amortissements (LMNP réel) — from lmnpStartDate, not purchaseDate
+    const fiscConfig2 = IC.fiscalite && IC.fiscalite[loanKey];
+    const fiscType = fiscConfig2 ? fiscConfig2.type : 'nu';
+    let lmnpYears = holdingYears;
+    if (fiscType === 'lmnp' && fiscConfig2 && fiscConfig2.lmnpStartDate) {
+      const [ly, lm] = fiscConfig2.lmnpStartDate.split('-').map(Number);
+      lmnpYears = Math.max(0, (now.getFullYear() - ly) + (now.getMonth() + 1 - lm) / 12);
+    }
+    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYears)) : 0;
     // Build per-loan CRDs for IRA computation
     let loanCRDs = null;
     if (amort && amort.subSchedules) {
@@ -1874,11 +1880,15 @@ function computeImmoView(portfolio, fx) {
         const row = sched.find(r => r.date === dateJune) || sched.find(r => r.date >= dateJune);
         crd = row ? row.remainingCRD : 0;
       }
-      // LMNP amortissements
+      // LMNP amortissements — from lmnpStartDate, not purchaseDate
       const fiscConfig = IC.fiscalite && IC.fiscalite[lk];
       const fiscType = fiscConfig ? fiscConfig.type : 'nu';
-      const yearsHeld = yr - pY2;
-      const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, yearsHeld)) : 0;
+      let lmnpYearsProj = yr - pY2; // default: years since purchase
+      if (fiscType === 'lmnp' && fiscConfig && fiscConfig.lmnpStartDate) {
+        const [ly] = fiscConfig.lmnpStartDate.split('-').map(Number);
+        lmnpYearsProj = Math.max(0, yr - ly);
+      }
+      const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYearsProj)) : 0;
       // Per-loan CRDs for IRA
       let loanCRDs = null;
       if (amort && amort.subSchedules) {
