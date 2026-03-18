@@ -3289,6 +3289,24 @@ function renderImmoView(state) {
   }
 }
 
+// ============ TIMELINE RENDERING HELPER ============
+function renderTimelineHTML(timeline) {
+  if (!timeline || timeline.length === 0) return '';
+  let html = '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
+  html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
+  const now = new Date();
+  timeline.forEach(t => {
+    const [ty, tm] = t.date.split('-').map(Number);
+    const tDate = new Date(ty, tm - 1);
+    const isPast = tDate < now;
+    const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
+    const marker = isPast ? '✓' : '▸';
+    html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 // ============ PROPERTY DETAIL PANEL ============
 function renderPropertyDetail(state, prop) {
   const meta = prop.propertyMeta || {};
@@ -3823,26 +3841,34 @@ function renderAptView(state, loanKey) {
     });
 
     // Timeline
-    html += '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
-    html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
-    const now = new Date();
-    vc.timeline.forEach(t => {
-      const [ty, tm] = t.date.split('-').map(Number);
-      const tDate = new Date(ty, tm - 1);
-      const isPast = tDate < now;
-      const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
-      const marker = isPast ? '✓' : '▸';
-      html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
-    });
-    html += '</div>';
+    html += renderTimelineHTML(vc.timeline);
     html += '</div>';
 
     // Fiscal simulator
     html += '<div id="aptVitryFiscal" style="margin-bottom:24px;"></div>';
   }
 
+  // ── Section 4: Rueil-specific — Timeline ──
+  if (loanKey === 'rueil') {
+    const ec = EXIT_COSTS.rueil;
+    if (ec && ec.timeline) {
+      html += '<div style="background:#f7fafc;border:1px solid #cbd5e0;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Échéances importantes</h3>';
+      html += renderTimelineHTML(ec.timeline);
+      html += '</div>';
+    }
+  }
+
   // ── Section 4: Villejuif-specific — VEFA Timeline + Regime comparison ──
   if (loanKey === 'villejuif') {
+    // Timeline from EXIT_COSTS
+    const ec = EXIT_COSTS.villejuif;
+    if (ec && ec.timeline) {
+      html += '<div style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#0284c7;">Échéances VEFA</h3>';
+      html += renderTimelineHTML(ec.timeline);
+      html += '</div>';
+    }
     // VEFA Timeline
     if (prop.vefaConfig) {
       html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
