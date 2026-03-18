@@ -46,7 +46,7 @@ export function rebuildAllCharts(state, view) {
     buildActionsTreemap(state);
   }
   if (view === 'cash') {
-    buildCashCurrencyDonut(state);
+    buildCashYieldPotential(state);
   }
   if (view === 'immobilier') {
     buildImmoViewEquityBar(state);
@@ -517,25 +517,50 @@ function buildActionsSectorDonut(state) {
   });
 }
 
-// ============ CASH CURRENCY DONUT ============
-function buildCashCurrencyDonut(state) {
+// ============ CASH YIELD POTENTIAL (replaces currency donut) ============
+function buildCashYieldPotential(state) {
   const el = document.getElementById('cashCurrencyChart');
   if (!el) return;
-  const byCur = state.cashView.byCurrency;
-  const colors = { EUR: '#2b6cb0', AED: '#48bb78', MAD: '#ed8936', USD: '#9f7aea' };
-  const entries = Object.entries(byCur).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
-  const total = entries.reduce((s,[,v]) => s + v, 0);
+  // Hide the canvas, use parent container for HTML
+  el.style.display = 'none';
+  const parent = el.parentElement;
+  // Remove any previous yield potential HTML
+  const prev = parent.querySelector('.yield-potential');
+  if (prev) prev.remove();
 
-  charts.cashCurrency = new Chart(el, {
-    type: 'doughnut',
-    data: {
-      labels: entries.map(([k]) => k),
-      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
-        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/total*100).toFixed(1) + '%)' } } } }
+  const targetRate = 0.06; // 6% annual
+  const cv = state.cashView;
+  const amineCash = cv.byOwner && cv.byOwner.Amine ? cv.byOwner.Amine.total : 0;
+  const nezhaCash = cv.byOwner && cv.byOwner.Nezha ? cv.byOwner.Nezha.total : 0;
+  const coupleCash = cv.totalCash || (amineCash + nezhaCash);
+
+  const rows = [
+    { name: 'Couple', cash: coupleCash, color: '#2b6cb0' },
+    { name: 'Amine', cash: amineCash, color: '#48bb78' },
+    { name: 'Nezha', cash: nezhaCash, color: '#ed8936' },
+  ];
+
+  let html = '<div class="yield-potential" style="padding:8px 0;">';
+  html += '<div style="font-size:14px;font-weight:700;color:#2d3748;margin-bottom:12px;">Potentiel \u00e0 6% / an</div>';
+  rows.forEach(r => {
+    const annual = r.cash * targetRate;
+    const daily = annual / 365;
+    const currentYield = cv.accounts ? cv.accounts.filter(a => r.name === 'Couple' ? true : a.owner === r.name).reduce((s,a) => s + (a.balanceEUR * (a.yield || 0)), 0) : 0;
+    const gap = annual - currentYield;
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:8px 12px;background:#f7fafc;border-radius:8px;">';
+    html += '<div style="width:60px;font-weight:600;color:' + r.color + ';">' + r.name + '</div>';
+    html += '<div style="flex:1;text-align:center;">';
+    html += '<div style="font-size:18px;font-weight:700;color:#276749;">+' + fmt(Math.round(annual)) + '<span style="font-size:11px;font-weight:400;color:#718096;">/an</span></div>';
+    html += '<div style="font-size:13px;color:#4a5568;">+' + fmt(Math.round(daily)) + '/jour</div>';
+    html += '</div>';
+    html += '<div style="text-align:right;font-size:11px;color:#a0aec0;">';
+    html += 'Cash: ' + fmt(Math.round(r.cash), true);
+    html += '</div>';
+    html += '</div>';
   });
+  html += '<div style="font-size:10px;color:#a0aec0;text-align:center;margin-top:4px;">Si 100% du cash \u00e9tait plac\u00e9 \u00e0 6% (ex: Mashreq NEO+, Wio Savings)</div>';
+  html += '</div>';
+  parent.insertAdjacentHTML('beforeend', html);
 }
 
 // ============ IMMO VIEW EQUITY BAR ============
