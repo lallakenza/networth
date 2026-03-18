@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v148** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v149** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -1203,7 +1203,30 @@ Audit de la complétude de ARCHITECTURE.md vs le code réel :
 - Data Exports (18 exports de data.js avec types)
 - Key Formulas (equity, PV abattement, LMNP amort, carry cost)
 
-**Encore à documenter (v149+) :**
+### v149 Features
+
+**Feature 1: Net Worth History Evolution Chart**
+- Source: `NW_HISTORY` in `data.js` (array of {date, coupleNW, amineNW, nezhaNW, note})
+- Chart function: `buildNWHistoryChart()` in `charts.js` (enabled, was disabled in v86)
+- Canvas element: `nwHistoryChart` in `index.html` (added after coupleTreemap)
+- Displays: Line chart with Couple NW (green fill), Amine NW (dashed blue), Nezha NW (dashed orange)
+- Tooltip: Shows % change between consecutive data points + annotations (notes field)
+- Automatically filters null values (2026-03 live update)
+
+**Feature 2: Delta Indicators on KPIs**
+- Location: Below couple NW KPI (kpiCoupleNW)
+- Data: `couple.nwDelta` and `couple.nwDeltaPct` computed in `engine.js`
+- Calculation: previousNW = NW_HISTORY[length-2].coupleNW; delta = currentNW - previousNW
+- Display function: `setDelta()` in `render.js` (similar to setSubPct)
+- Colors: Green if positive, Red if negative
+- Format: "+€2,340 (+0.3%) ce mois"
+
+**Feature 3: Version v149 Bump**
+- Updated: index.html, app.js, charts.js, engine.js, render.js
+- All module imports now use ?v=149
+- ARCHITECTURE.md version bumped
+
+**Encore à documenter (v150+) :**
 - Liste complète des fonctions privées de engine.js (~20 fonctions)
 - Liste complète des fonctions render.js (~25+ fonctions)
 - Liste complète des chart builders (~30 fonctions)
