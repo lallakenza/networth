@@ -923,6 +923,19 @@ export const EXIT_COSTS = {
     // sont désormais réintégrés dans le calcul de la PV (art. 150 VB bis CGI)
     lmnpAmortReintegration: true,
     note: 'LMNP réel : amortissements réintégrés dans la PV depuis 2025 (loi de finances 2025)',
+    timeline: [
+      { date: '2019-11', event: 'Acte notarié signé (5 novembre 2019)', icon: 'doc', done: true },
+      { date: '2019-12', event: 'Début prêt LCL (251K€ à 1.20%, 25 ans)', icon: 'bank', done: true },
+      { date: '2019-12', event: 'Résidence principale Nezha', icon: 'home', done: true },
+      { date: '2025-09', event: 'Bail meublé signé (Docusign 25/09/2025) — passage en LMNP', icon: 'doc', done: true },
+      { date: '2025-10', event: 'Début location meublée (1 300€ HC + 150€ charges)', icon: 'key', done: true },
+      { date: '2025-11', event: '6 ans détention — abattement PV IR commence', icon: 'tax', done: true },
+      { date: '2026-10', event: 'Fin bail initial (1 an) → reconduction tacite', icon: 'doc' },
+      { date: '2030-11', event: '11 ans détention — abattement IR 36%, PS 8.25%', icon: 'tax' },
+      { date: '2041-11', event: '22 ans détention — exonération totale IR', icon: 'free' },
+      { date: '2044-12', event: 'Fin prêt LCL (25 ans)', icon: 'check' },
+      { date: '2049-11', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
+    ],
   },
   villejuif: {
     // VEFA en cours — pas encore livré
@@ -930,6 +943,19 @@ export const EXIT_COSTS = {
     // Si LMNP réel : même règle de réintégration des amortissements
     lmnpAmortReintegration: true,
     note: 'VEFA — choix régime à faire avant livraison (été 2029)',
+    timeline: [
+      { date: '2025-04', event: 'Signature VEFA (réservation — 3 600€ versés)', icon: 'doc', done: true },
+      { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank' },
+      { date: '2026-06', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant livraison', icon: 'tax' },
+      { date: '2026-12', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
+      { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
+      { date: '2029-06', event: 'Livraison VEFA + remise des clés', icon: 'key' },
+      { date: '2029-09', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
+      { date: '2031-06', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
+      { date: '2035-04', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
+      { date: '2052-08', event: 'Fin prêts LCL (Prêt 1 + Prêt 2)', icon: 'check' },
+      { date: '2055-04', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
+    ],
   },
 };
 
