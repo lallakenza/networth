@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=146';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES } from './data.js?v=148';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1863,7 +1863,8 @@ function computeImmoView(portfolio, fx) {
       const lk = prop.loanKey;
       const amort = amortSchedules[lk];
       const propMeta = IC.properties[lk] || {};
-      const appreciationRate = propMeta.appreciation || 0;
+      const defaultRate = propMeta.appreciation || 0;
+      const phases = propMeta.appreciationPhases || [];
 
       // Is this property operational at month m?
       const isVillejuif = lk === 'villejuif';
@@ -1881,10 +1882,25 @@ function computeImmoView(portfolio, fx) {
         }
       }
 
-      // Appreciation: compound year by year
+      // Appreciation: compound year by year using phased rates
       const yearsFromNow = m / 12;
-      const compoundedValue = prop.value * Math.pow(1 + appreciationRate, yearsFromNow);
-      const appreciationM = compoundedValue * appreciationRate / 12;
+      let compoundedValue = prop.value;
+      let currentRate = defaultRate;
+      for (let yr = projStartY; yr < y; yr++) {
+        let rate = defaultRate;
+        for (const ph of phases) { if (yr >= ph.start && yr <= ph.end) { rate = ph.rate; break; } }
+        compoundedValue *= (1 + rate);
+        currentRate = rate;
+      }
+      // Partial year for current year
+      const partialMonths = mo - 1; // months elapsed in current year
+      if (partialMonths > 0) {
+        let rate = defaultRate;
+        for (const ph of phases) { if (y >= ph.start && y <= ph.end) { rate = ph.rate; break; } }
+        compoundedValue *= Math.pow(1 + rate, partialMonths / 12);
+        currentRate = rate;
+      }
+      const appreciationM = compoundedValue * currentRate / 12;
 
       // Cash flow: when operational, with IRL rent growth + charge inflation + loan end detection
       let cfM = 0;
