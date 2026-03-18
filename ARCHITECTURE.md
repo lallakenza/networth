@@ -852,10 +852,36 @@ Nouveau graphe en barres empilées dans le détail de chaque propriété :
 ### Détails appartements — Property Info Cards (v148)
 
 Ajout des détails de chaque appartement depuis les plans (Nexity, Fair' Promotion, acte de vente) :
-- `details` object dans `IC.properties[loanKey]` avec rooms[], surfaces, étage, lot, exposition, DPE, etc.
-- `renderPropertyInfoCard(details)` dans render.js : barre colorée des pièces + métriques
+- `details` object dans `IC.properties[loanKey]` avec rooms[], surfaces, étage, lot, exposition, DPE, floorPlan
+- `renderPropertyInfoCard(details)` dans render.js : barre cliquable des pièces + métriques en pills
 - Intégré dans `renderAptView()` pour les vues #apt_vitry, #apt_rueil, #apt_villejuif
 - Intégré dans `renderPropertyDetail()` pour le panel de détail dans la vue Immo
+
+### Plans d'appartement SVG interactifs (v148)
+
+Plans SVG calculés mathématiquement à partir des cotes architecturales. Chaque pièce est un polygone dont la surface SVG correspond exactement à la surface réelle (tolérance <0.3m²).
+
+**Vitry 3302** (9 pièces, viewBox `-380 -30 912 978`) :
+- Plan en L : loggia à gauche, cuisine et entrée en haut, séjour central en L
+- Chambres en bas séparées par le dégagement
+- Cotes : Cuisine 280×304, Entrée 179×327, Séjour L-shape (21.28m²), Ch1 390×317, Ch2 327×304
+- Sources : plan Nexity série notaire indice 3, 22/11/2022
+
+**Villejuif A27** (7 pièces, viewBox `-166 -30 1212 1028`) :
+- Plan en V : murs diagonaux à 8° de la verticale, chambres dans les ailes
+- Séjour/Cuisine trapézoïdal 35.09m², loggia en bande entre les ailes
+- Cotes : SdB 258×211, Entrée 171×211, WC 177×131, Ch2 332×336, Ch1 302×369
+- Sources : plan Fair' Promotion indice A, mai 2025
+
+**Rueil** (8 pièces, schématique, viewBox `-20 -20 940 660`) :
+- Plan basé sur le croquis du propriétaire (pas de plan archi)
+- Layout : Cuisine/Entrée/Salon en haut, Ch2/SdB-WC/Ch1 en bas
+- Surfaces nulles (pas de cotes exactes disponibles)
+
+**Interaction** :
+- Barre des pièces : affiche les noms uniquement, superficie au clic (toggle)
+- Plan SVG : hover CSS pur (fill-opacity 8% → 35%), tooltip native SVG `<title>`
+- Couleurs : bleu (#3b82f6) espaces de vie, vert (#22c55e) chambres, gris (#94a3b8) utilités, or (#d69e2e) loggia
 
 ### Section LMP — Seuil et comparaison LMNP vs LMP (v148)
 
@@ -887,6 +913,57 @@ Remplacement du donut "Répartition par Devise" par un panneau "Manque à gagner
 - Amortissement LMNP calculé depuis la date de passage en LMNP (pas depuis l'achat 2019)
 - L15 Sud : ouverture corrigée à avril 2027
 
+### Jeanbrun collapsible (v148)
+
+Section Jeanbrun dans la vue Villejuif rendue collapsible :
+- Bannière rouge : "Dispositif Jeanbrun non retenu — loyer plafonné trop bas (1 215€ vs 1 700€ marché)"
+- Détails masqués par défaut, affichés au clic sur "Voir les détails ▼"
+- Contenu : calcul loyer plafonné, réduction d'impôt, conditions d'éligibilité, avantages/inconvénients
+
+### Chart PV Abattements par propriété (v148)
+
+Graphe en barres empilées montrant pour chaque année de détention (1-30 ans) :
+- Net (vert) : ce que le vendeur garde
+- IR (rouge) : 19% × (1 - abattement IR cumulé)
+- PS (orange) : 17.2% × (1 - abattement PS cumulé)
+- Ligne verticale à la durée de détention actuelle
+- Fonction `computePVAbattementSchedule()` dans engine.js
+- Canvas `pvAbattementChart`, rendu par `buildPVAbattementChart()` dans charts.js
+
+### Redesign CSS — "Patrimoine Précis" (v148)
+
+Refonte visuelle appliquée depuis le skill `frontend-design` d'Anthropic :
+- **Typographie** : DM Sans (body, données) + Instrument Serif (titres) via Google Fonts
+- **Couleurs** : fond off-white chaud (#fafaf9), navy profond nav (#1e3a5f), bordures warm gray (#e7e5e4)
+- **Navigation** : tabs uppercase avec letter-spacing 0.3px, underline animé pour l'onglet actif
+- **KPI cards** : ombres subtiles, animations fadeUp en cascade (0.05s entre chaque)
+- **Tables** : headers uppercase letter-spaced, hover states, densité professionnelle
+- **Micro-animations** : @keyframes fadeUp, transitions 0.2s ease partout
+- **Tabular numerics** : font-variant-numeric: tabular-nums pour les colonnes de chiffres
+
+### Données IBKR — v147-148
+
+- Mise à jour des prix statiques au close 16/03/2026 (CSV IBKR Q1 2026)
+- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40 TGATE + 60 SBF)
+- Position DG réduite de 200 → 100 actions
+- Deleverage JPY : 13 111 EUR → 2 406 458 JPY @ 183.545 le 18/03
+- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
+
+### Prompt dashboard patrimonial pour amis (v148)
+
+Prompt en 3 phases créé dans `/mnt/outputs/prompt-dashboard-patrimonial.md` :
+1. Phase 1 : inventaire du patrimoine via questions (Claude guide l'utilisateur)
+2. Phase 2 : construction du site (architecture data/engine/render/charts/simulators/api/app)
+3. Phase 3 : enrichissement par documents (relevés, contrats, tableaux d'amortissement)
+Personnalisé pour Anas & Rania, contexte Europe/Maroc.
+
+### Drafts Gmail (v148)
+
+- Draft Degiro sur am.koraibi@gmail.com → clients@degiro.fr (rapports 2020-2025)
+- Draft BoursoBank sur amine.koraibi@gmail.com → contact@boursobank.com
+  - Numéros PEA complets retrouvés dans les emails de clôture
+  - Timeline complète reconstruite : CTO (avr 2020), PEA (juil 2021), PEA-PME (sept 2024)
+
 ### Audit KPIs v148
 
 Tous les KPIs et projections ont été audités :
@@ -896,6 +973,8 @@ Tous les KPIs et projections ont été audités :
 - ✅ CF projection : charges, rent growth, loan end dates, parking corrects
 - ✅ Track Record : win rate, realized P/L corrects
 - ✅ Appréciation par phases : corrigée dans wealth projection (engine.js)
-- ✅ Simulateurs : equity nette composée pour les 3 propriétés
+- ✅ Simulateurs : equity nette composée (amort schedule + appreciation + exit costs)
 - ✅ Banque Rueil : Crédit Mutuel Franconville (confirmé par acte notarié)
 - ✅ Parking Vitry : 70€/mois intégré dans les revenus
+- ✅ Plans SVG : surfaces calculées matchent les surfaces réelles (<0.3m² tolérance)
+- ✅ BP Vitry : intérêts seuls août-déc 2025, capital à partir de jan 2026

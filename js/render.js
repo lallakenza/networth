@@ -3691,36 +3691,33 @@ function renderPropertyInfoCard(details) {
   // === LEVEL 2: DETAILS (hidden by default) ===
   html += '<div id="' + uniqueId + '_details" style="display:none;padding:16px;border-top:1px solid var(--border, #e7e5e4);">';
 
-  // Room bar
+  // Room bar — click to reveal surface
   if (details.rooms && details.rooms.length > 0) {
     const total = details.surfaceTotale || details.rooms.reduce((s, r) => s + (r.surface || 0), 0);
-    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin-bottom:12px;">';
-
-    details.rooms.forEach(r => {
+    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin:10px 0;font-size:10px;">';
+    details.rooms.forEach((r, i) => {
       if (r.surface && r.surface > 0) {
-        const pct = (r.surface / total) * 100;
-        const displayPct = Math.max(pct, 3);
+        const pct = Math.max(3, r.surface / total * 100);
         const color = getRoomColor(r.name);
-        html += '<div style="position:relative;flex:0 0 ' + displayPct.toFixed(1) + '%;background:' + color + ';display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,0.3);transition:filter 0.2s;" ';
-        html += 'onmouseenter="this.querySelector(\'.bar-tip\').style.opacity=1" onmouseleave="this.querySelector(\'.bar-tip\').style.opacity=0">';
-        html += '<span style="color:white;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;">' + r.name + '</span>';
-        // Tooltip
-        html += '<div class="bar-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1c1917;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:5;">';
-        html += r.name + (r.surface ? ' — ' + r.surface.toFixed(1) + ' m²' : '') + '</div>';
+        html += '<div style="flex:' + pct + ';background:' + color + ';display:flex;align-items:center;justify-content:center;';
+        html += 'color:white;cursor:pointer;position:relative;transition:all 0.2s;min-width:0;overflow:hidden;white-space:nowrap;" ';
+        html += 'onclick="var s=this.querySelector(\'.rs\');if(s.style.display===\'block\'){s.style.display=\'none\'}else{this.parentElement.querySelectorAll(\'.rs\').forEach(function(e){e.style.display=\'none\'});s.style.display=\'block\'}">';
+        html += '<span style="padding:0 4px;font-size:9px;">' + r.name + '</span>';
+        html += '<div class="rs" style="display:none;position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:5;">';
+        html += r.name + ' — ' + (r.surface ? r.surface.toFixed(1) : '?') + ' m²</div>';
         html += '</div>';
       }
     });
-
     // Add loggia if present
     if (details.loggia) {
-      const pct = (details.loggia / total) * 100;
-      const displayPct = Math.max(pct, 3);
-      html += '<div style="flex:0 0 ' + displayPct.toFixed(1) + '%;background:#d69e2e;display:flex;align-items:center;justify-content:center;" onmouseenter="this.querySelector(\'.bar-tip\').style.opacity=1" onmouseleave="this.querySelector(\'.bar-tip\').style.opacity=0">';
-      html += '<span style="color:white;font-size:9px;">Loggia</span>';
-      html += '<div class="bar-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1c1917;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;margin-bottom:4px;z-index:5;">';
-      html += 'Loggia — ' + details.loggia.toFixed(1) + ' m²</div></div>';
+      const pct = Math.max(3, details.loggia / total * 100);
+      html += '<div style="flex:' + pct + ';background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;position:relative;transition:all 0.2s;" ';
+      html += 'onclick="var s=this.querySelector(\'.rs\');if(s.style.display===\'block\'){s.style.display=\'none\'}else{this.parentElement.querySelectorAll(\'.rs\').forEach(function(e){e.style.display=\'none\'});s.style.display=\'block\'}">';
+      html += '<span style="padding:0 4px;font-size:9px;">Loggia</span>';
+      html += '<div class="rs" style="display:none;position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:5;">';
+      html += 'Loggia — ' + details.loggia.toFixed(1) + ' m²</div>';
+      html += '</div>';
     }
-
     html += '</div>';
   }
 
@@ -3744,19 +3741,6 @@ function renderPropertyInfoCard(details) {
     html += '</div>';
   }
 
-  // Room list (compact grid)
-  if (details.rooms && details.rooms.length > 0) {
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:4px;font-size:12px;">';
-    details.rooms.forEach(r => {
-      if (r.surface && r.surface > 0) {
-        html += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #f5f5f4;">';
-        html += '<span style="color:#78716c;">' + r.name + '</span>';
-        html += '<span style="font-weight:600;">' + r.surface.toFixed(1) + ' m²</span>';
-        html += '</div>';
-      }
-    });
-    html += '</div>';
-  }
 
   html += '</div>'; // end details
 
@@ -4405,7 +4389,7 @@ function renderAptView(state, loanKey) {
       html += '</div>';
     }
 
-    // ── JEANBRUN Constraints & Loyer Plafonné — Detailed section ──
+    // ── JEANBRUN Constraints & Loyer Plafonné — Detailed section (COLLAPSIBLE) ──
     const jb = VILLEJUIF_REGIMES.jeanbrun;
     const vBase = VILLEJUIF_REGIMES.base;
     const plafond = jb.plafondLoyer;
@@ -4414,7 +4398,19 @@ function renderAptView(state, loanKey) {
     const loyerMeuble = vBase.loyerMeubleHC;
     const manqueAGagner = loyerMarche - plafond.loyerMaxMensuel;
 
-    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    const jbCollapsibleId = 'jeanbrun_' + Math.random().toString(36).substr(2, 6);
+
+    // Warning banner + collapsible toggle
+    html += '<div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:12px;padding:12px 16px;margin-bottom:24px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
+    html += '<div style="font-size:13px;color:#c53030;"><strong>⚠️ Dispositif Jeanbrun non retenu</strong> — loyer plafonné trop bas (1 215€ vs 1 700€ marché)</div>';
+    html += '<button onclick="var d=document.getElementById(\'' + jbCollapsibleId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" style="flex-shrink:0;padding:6px 12px;background:#c53030;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">';
+    html += 'Voir les détails ▼</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Hidden detailed section
+    html += '<div id="' + jbCollapsibleId + '" style="display:none;background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
     html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes JEANBRUN — Loyer Plafonné & Obligations</h3>';
 
     // Loyer plafonné calculation
@@ -4468,7 +4464,8 @@ function renderAptView(state, loanKey) {
     html += '</ul></div>';
     html += '</div>';
 
-    html += '</div>';
+    html += '</div>'; // close collapsible Jeanbrun section
+    html += '</div>'; // close warning banner
   }
 
   // ── Section 5: Exit projection chart + table ──
