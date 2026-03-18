@@ -3603,34 +3603,8 @@ function renderFloorPlanSVG(floorPlan, rooms) {
 
     html += '</svg>';
   } else {
-    // Image mode: background image with SVG overlay
-    html += '<img src="' + floorPlan.image + '" alt="Floor plan" style="width:100%;display:block;border-radius:0;">';
-    html += '<svg viewBox="' + viewBox + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:0;">';
-    html += '<defs><style>';
-    html += '.plan-room { fill-opacity: 0.02; stroke-opacity: 0.15; stroke-width: 0.3; transition: all 0.3s ease; cursor: pointer; }';
-    html += '.plan-room:hover { fill-opacity: 0.4; stroke-opacity: 0.8; filter: drop-shadow(0 0 1px rgba(0,0,0,0.2)); }';
-    html += '</style></defs>';
-
-    floorPlan.rooms.forEach(r => {
-      const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
-      const displaySurface = r.surface || (roomData ? roomData.surface : null);
-      const [cx, cy] = getCentroid(r.points);
-
-      // Room polygon overlay with inline event handlers
-      html += '<polygon class="plan-room" points="' + r.points + '" ';
-      html += 'fill="white" stroke="' + r.color + '" ';
-      html += 'style="transition:all 0.3s ease;cursor:pointer;" ';
-      html += 'onmouseenter="(function(el){el.style.fillOpacity=\'0.4\';el.style.strokeOpacity=\'0.8\';var t=el.closest(\'.plan-wrap\').querySelector(\'.plan-tooltip\');if(t){t.innerHTML=\'<div style=\\\"font-weight:700;font-size:14px;margin-bottom:4px;\\\">' + r.name + '</div><div style=\\\"font-size:16px;font-weight:700;color:' + r.color + ';\\\">' + (displaySurface ? displaySurface.toFixed(2) : '—') + '</div><div style=\\\"font-size:12px;color:#718096;margin-top:3px;\\\">m²</div>\';t.style.opacity=\'1\'}})(this)" ';
-      html += 'onmouseleave="(function(el){el.style.fillOpacity=\'0.02\';el.style.strokeOpacity=\'0.15\';var t=el.closest(\'.plan-wrap\').querySelector(\'.plan-tooltip\');if(t)t.style.opacity=\'0\'})(this)" ';
-      html += '/>';
-    });
-
-    html += '</svg>';
-  }
-
-  // Floating tooltip (only for image mode, positioned absolutely within the wrapper)
-  if (!isSchematic) {
-    html += '<div class="plan-tooltip" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.98);backdrop-filter:blur(8px);border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:12px 16px;min-width:100px;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>';
+    // Image mode: display the architectural plan image directly (no SVG overlay)
+    html += '<img src="' + floorPlan.image + '" alt="Plan" style="width:100%;display:block;">';
   }
 
   html += '</div>';
