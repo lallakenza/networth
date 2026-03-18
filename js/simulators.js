@@ -383,8 +383,12 @@ function buildSimChart(canvasId, chartKey, result) {
 }
 
 // ============ GENERIC PROPERTY EQUITY COMPUTER ============
-// Computes absolute equity (not delta) for any property based on amort schedule + phased appreciation
+// Computes absolute NET equity (after exit costs) for any property
+// based on amort schedule + phased appreciation - projected exit costs
 function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
+  // Pre-extract exit costs by year for this property
+  const exitCostsByYearProp = (iv && iv.exitCostsByYearProp) || {};
+
   return (m) => {
     if (!iv || !iv.amortSchedules || !iv.amortSchedules[loanKey]) return 0;
 
@@ -418,6 +422,8 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
         break;
       }
     }
+    // If past last schedule entry, loan is paid off
+    if (sched.length > 0 && dateStr > sched[sched.length - 1].date) crd = 0;
 
     // Property appreciation using phases
     const propMeta = IC.properties[loanKey] || {};
@@ -430,14 +436,20 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
       return propMeta.appreciation || 0.02;
     }
 
-    // Compound appreciation from 2025 (property purchase) to target year
+    // Compound appreciation from current year (propertyInitialValue is already current market value)
     let projValue = propertyInitialValue;
-    const purchaseYear = 2025;
-    for (let y = purchaseYear; y < targetYear; y++) {
+    const startYear = new Date().getFullYear(); // 2026
+    for (let y = startYear; y < targetYear; y++) {
       projValue *= (1 + getRate(y));
     }
 
-    return Math.max(0, projValue - crd);
+    const grossEquity = projValue - crd;
+
+    // Subtract exit costs for this property at target year (if available)
+    const yearEC = exitCostsByYearProp[targetYear];
+    const propEC = yearEC ? (yearEC[loanKey] || 0) : 0;
+
+    return Math.max(0, grossEquity - propEC);
   };
 }
 
@@ -462,13 +474,18 @@ function runCoupleSimulator(state) {
   const computeRueilEquity = makeComputePropertyEquity(iv, 'rueil', iv?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
   const computeVillejuifEquity = makeComputePropertyEquity(iv, 'villejuif', iv?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
 
+  // Compute initial equity at m=0 to align startEquity with computePropertyEquity(0)
+  const vitryEq0 = computeVitryEquity(0);
+  const rueilEq0 = computeRueilEquity(0);
+  const computedImmo0 = vitryEq0 + rueilEq0; // Villejuif not operational at m=0
+
   // Track previous total immo equity for delta calculation
-  let prevImmoTotal = coupleImmo;
+  let prevImmoTotal = computedImmo0;
 
   const result = runSimulatorGeneric({
     prefix: 'cplSim', monthlySavings, pctActions, returnActions,
     returnCash: 0.06, horizonYears, stopYears,
-    startNW: coupleNW, startImmoEquity: coupleImmo,
+    startNW: coupleNW - coupleImmo + computedImmo0, startImmoEquity: computedImmo0,
     startPoolActions: couplePoolActions, startPoolCash: couplePoolCash,
     staticAssets: coupleStatic, existingGains: 45000,
     immoGrowthFn: (m) => {
@@ -484,13 +501,13 @@ function runCoupleSimulator(state) {
     immoBreakdown: [
       {
         label: 'Vitry',
-        startEquity: s.amine.vitryEquity,
+        startEquity: vitryEq0,
         growthFn: computeVitryEquity,
         _computedEquity: true
       },
       {
         label: 'Rueil',
-        startEquity: s.nezha.rueilEquity,
+        startEquity: rueilEq0,
         growthFn: computeRueilEquity,
         _computedEquity: true
       },
@@ -521,13 +538,14 @@ function runAmineSimulator(state) {
   const iv = s.immoView;
   const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
 
-  // Track previous total immo equity for delta calculation
-  let prevImmoTotal = s.amine.vitryEquity;
+  // Align starting equity with what computeVitryEquity(0) returns
+  const vitryEq0 = computeVitryEquity(0);
+  let prevImmoTotal = vitryEq0;
 
   const result = runSimulatorGeneric({
     prefix: 'amSim', monthlySavings, pctActions, returnActions,
     returnCash: 0.06, horizonYears, stopYears,
-    startNW: s.amine.nw, startImmoEquity: s.amine.vitryEquity,
+    startNW: s.amine.nw - s.amine.vitryEquity + vitryEq0, startImmoEquity: vitryEq0,
     startPoolActions: s.pools.actions, startPoolCash: aminePoolCash,
     staticAssets: amineStatic, existingGains: 45000,
     immoGrowthFn: (m) => {
