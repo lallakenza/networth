@@ -3054,8 +3054,9 @@ function renderImmoView(state) {
     // Calculate LMP thresholds
     const LMP_THRESHOLD = 23000; // €/an
     const rueilLoyer = rueilProp ? (rueilProp.loyer * 12) : 0; // Annual rent
-    const villejuifLoyer = villejuifProp && !villejuifProp.conditional ? (villejuifProp.loyer * 12) : 0; // Annual rent (once meublé)
-    const totalLoyerAnnuel = rueilLoyer + villejuifLoyer;
+    // For "after Villejuif" projection: use future loyer even if not yet operational
+    const villejuifFutureLoyer = villejuifProp ? ((villejuifProp.loyer || villejuifProp.totalRevenue || 1700) * 12) : 0;
+    const totalLoyerAnnuel = rueilLoyer + villejuifFutureLoyer;
 
     // LMP is triggered when:
     // 1. Recettes meublées > 23,000€/an AND
@@ -3896,6 +3897,12 @@ function renderAptView(state, loanKey) {
   const ec = prop.exitCosts || {};
 
   let html = '';
+
+  // ── Section 0: Property Info Card (detailed plan info) ──
+  const details = meta.details || null;
+  if (details) {
+    html += renderPropertyInfoCard(details);
+  }
 
   // ── Section 1: Fiche propriété + Exit costs KPIs ──
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">';
