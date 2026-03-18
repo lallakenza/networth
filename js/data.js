@@ -72,7 +72,7 @@ export const PORTFOLIO = {
     // cashJPY est NÉGATIF = emprunt (short JPY pour levier)
     // ──────────────────────────────────────────────────────
     ibkr: {
-      staticNAV: 192878,    // NAV totale du rapport CSV au 09/03/2026
+      staticNAV: 197076,    // NAV totale du rapport CSV au 16/03/2026
       positions: [
         // { ticker, shares, price (cours actuel fallback), costBasis (PRU), currency, label, sector, geo }
         // price: mis à jour par l'API Yahoo range=1d, sinon fallback statique ci-dessous
@@ -80,30 +80,30 @@ export const PORTFOLIO = {
         //   ytdOpen = clôture 1er jour de bourse 2026 (2 jan)
         //   mtdOpen = clôture 1er jour du mois courant (3 mar 2026)
         //   oneMonthAgo = clôture ~30 jours avant (10 fév 2026)
-        { ticker: 'AIR.PA',  shares: 200,  price: 170.54, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 180.28, oneMonthAgo: 187.24 },
-        { ticker: 'BN.PA',   shares: 200,  price: 71.44,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 71.22, oneMonthAgo: 69.02 },
-        { ticker: 'DG.PA',   shares: 200,  price: 130.60, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 138.40, oneMonthAgo: 133.55 },
-        { ticker: 'FGR.PA',  shares: 100,  price: 136.05, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 145.60, oneMonthAgo: 135.40 },
-        { ticker: 'MC.PA',   shares: 40,   price: 492.60, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 520.50, oneMonthAgo: 525.10 },
-        { ticker: 'OR.PA',   shares: 30,   price: 355.30, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.95, oneMonthAgo: 391.90 },
-        { ticker: 'P911.DE', shares: 400,  price: 37.24,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 40.27, oneMonthAgo: 41.18 },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1902.50, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1967.00, oneMonthAgo: 2120.00 },
-        { ticker: 'SAN.PA',  shares: 50,   price: 76.68,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 81.45, oneMonthAgo: 82.56 },
-        { ticker: 'SAP',     shares: 70,   price: 167.66, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 },
-        { ticker: '4911.T',  shares: 500,  price: 3012,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3239.00, oneMonthAgo: 3223.00 },
-        { ticker: 'IBIT',    shares: 1200, price: 41.64,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
-        { ticker: 'ETHA',    shares: 1100, price: 16.55,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
+        { ticker: 'AIR.PA',  shares: 200,  price: 169.96, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 180.28, oneMonthAgo: 187.24 },
+        { ticker: 'BN.PA',   shares: 200,  price: 72.84,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 71.22, oneMonthAgo: 69.02 },
+        { ticker: 'DG.PA',   shares: 100,  price: 131.20, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 138.40, oneMonthAgo: 133.55 },
+        { ticker: 'FGR.PA',  shares: 100,  price: 134.60, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 145.60, oneMonthAgo: 135.40 },
+        { ticker: 'MC.PA',   shares: 40,   price: 479.00, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 520.50, oneMonthAgo: 525.10 },
+        { ticker: 'OR.PA',   shares: 30,   price: 352.05, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.95, oneMonthAgo: 391.90 },
+        { ticker: 'P911.DE', shares: 400,  price: 36.64,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 40.27, oneMonthAgo: 41.18 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1879.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1967.00, oneMonthAgo: 2120.00 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 76.51,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 81.45, oneMonthAgo: 82.56 },
+        { ticker: 'SAP',     shares: 70,   price: 165.46, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 },
+        { ticker: '4911.T',  shares: 500,  price: 3032,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3239.00, oneMonthAgo: 3223.00 },
+        { ticker: 'IBIT',    shares: 1200, price: 41.94,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
+        { ticker: 'ETHA',    shares: 1100, price: 17.61,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
       ],
-      // ⬇️ Cash multi-devises (IBKR — mis à jour 10 mars 2026 après FX trades)
-      cashEUR: 1,            // Solde EUR chez IBKR (vendu 65926 EUR→JPY @ 183.595)
-      cashUSD: 2,            // Solde USD chez IBKR (vendu 14480 USD→JPY @ 158.090)
-      cashJPY: -6997258,     // Solde JPY chez IBKR (-21390085 + 12103684 + 2289143)
+      // ⬇️ Cash multi-devises (IBKR — mis à jour 17/03/2026 après vente DG)
+      cashEUR: 13114,        // Solde EUR chez IBKR: ~0 + 13120 (vente 100 DG) - 6.56 (commissions)
+      cashUSD: 0,            // Solde USD chez IBKR au 17/03/2026
+      cashJPY: -6997153,     // Solde JPY chez IBKR au 17/03/2026
       // Performance metrics (April 2025 - March 2026)
       meta: {
         twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
-        realizedPL: 5924,      // Total realized P/L stocks: EDEN +569.59, GLE +4807.34, QQQM +3750.01, NXI +399.58, WLN -3202, forex PL -568.07 + misc 167.55
+        realizedPL: 6798,      // +5924 précédent + ~874 (DG 100×(131.20-122.46))
         dividends: 648,        // Gross dividends received (all-time)
-        commissions: -872,     // Commissions + transaction fees (all-time)
+        commissions: -879,     // -872 précédent - 6.56 (DG sells)
       },
       // ── Historique des dépôts IBKR ──
       // Source : rapport IBKR "Deposits & Withdrawals"
@@ -201,6 +201,9 @@ export const PORTFOLIO = {
         // Total EDEN P/L: 110.96 + 242.89 + 395.81 - 353.80 + 173.73 = +569.59
         // ─── NXI sell — vente totale ───
         { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',            type: 'sell', qty: 2000, price: 9.62,    currency: 'EUR', proceeds: 19240, realizedPL: 399.58,  commission: -9.62, costBasis: 9.535 , source: 'ibkr' },
+        // ─── DG vente partielle (100/200) — 17 mars 2026 ───
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 40,   price: 131.20,  currency: 'EUR', proceeds: 5248,  realizedPL: '',  commission: -3.00, costBasis: 122.46 , source: 'ibkr' },
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: '',  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },
 
         // ═══════════════════════════════════════════════════
         //  FX TRADES — conversions de devises & carry trade
@@ -461,7 +464,7 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '17/03/2026';
+export const DATA_LAST_UPDATE = '18/03/2026';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
