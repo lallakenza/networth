@@ -237,7 +237,7 @@ function buildAmineDonut(state) {
       datasets: [{ data: items.map(i => i.val), backgroundColor: items.map(i => i.color), borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 6 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
   });
 }
@@ -252,7 +252,7 @@ function buildNezhaDonut(state) {
       datasets: [{ data: [n.rueilEquity, n.villejuifEquity, n.cashFrance, n.cashMaroc, n.sgtm, n.recvOmar], backgroundColor: ['#2b6cb0','#2c7a7b','#48bb78','#9ae6b4','#ed8936','#cbd5e0'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
   });
 }
@@ -268,7 +268,7 @@ function buildGeoChart(state) {
       datasets: [{ data: [Math.round(geoIBKR*0.53), Math.round(geoIBKR*0.21), Math.round(s.amine.espp+s.nezha.espp), Math.round(geoIBKR*0.10), Math.round(geoIBKR*0.03), Math.round(s.amine.sgtm+s.nezha.sgtm)], backgroundColor: ['#2b6cb0','#9f7aea','#48bb78','#ed8936','#e53e3e','#d69e2e'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
         tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a,b)=>a+b,0); return c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/t*100).toFixed(1) + '%)'; } } } } }
   });
 }
@@ -558,23 +558,23 @@ function buildCashYieldPotential(state) {
     if (r.gap <= 0) return; // no gap = all accounts already >= 6%
     const daily = r.gap / 365;
     const monthly = r.gap / 12;
-    html += '<div style="margin-bottom:12px;padding:10px 14px;background:#fff5f5;border-left:3px solid #e53e3e;border-radius:6px;">';
+    html += '<div style="margin-bottom:12px;padding:10px 14px;background:#fffbeb;border-left:3px solid #d97706;border-radius:6px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">';
     html += '<span style="font-weight:700;color:' + r.color + ';">' + r.name + '</span>';
     html += '<span style="font-size:11px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous les 6%</span>';
     html += '</div>';
     html += '<div style="display:flex;gap:16px;align-items:baseline;">';
     html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(daily)) + '</div>';
-    html += '<div style="font-size:10px;color:#718096;">/jour</div>';
+    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(daily)) + '</div>';
+    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/jour</div>';
     html += '</div>';
     html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(monthly)) + '</div>';
-    html += '<div style="font-size:10px;color:#718096;">/mois</div>';
+    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(monthly)) + '</div>';
+    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/mois</div>';
     html += '</div>';
     html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#e53e3e;">-' + fmt(Math.round(r.gap)) + '</div>';
-    html += '<div style="font-size:10px;color:#718096;">/an</div>';
+    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(r.gap)) + '</div>';
+    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/an</div>';
     html += '</div>';
     html += '</div>';
     html += '</div>';
@@ -738,7 +738,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
             const w = ctx.raw.w || 0; const h = ctx.raw.h || 0;
             const area = w * h;
             if (isCategoryHeader(d)) return label;
-            if (area < 600) return '';
+            if (area < 1200) return ''; // Hide all labels on segments < 1200px²
             if (area < 1500) return label.length > 6 ? label.substring(0, 5) + '.' : label;
             if (area < 3000) {
               if (w < 80 && label.length > 8) return label.substring(0, 7) + '.';
@@ -1434,7 +1434,7 @@ export function buildWealthProjectionChart(state, mode, group) {
         y: {
           stacked: true,
           ticks: {
-            callback: function(v) { return '€' + fmtAxis(v); },
+            callback: function(v) { return fmtAxis(v); },
             font: { size: 10 },
           },
           grid: { color: 'rgba(0,0,0,0.06)' },
@@ -1638,7 +1638,7 @@ function buildBudgetZoneDonut(state) {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+        legend: { position: 'bottom', labels: { padding: 12, boxWidth: 14, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
@@ -1665,7 +1665,7 @@ function buildBudgetTypeDonut(state) {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+        legend: { position: 'bottom', labels: { padding: 12, boxWidth: 14, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
