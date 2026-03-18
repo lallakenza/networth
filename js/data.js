@@ -855,19 +855,19 @@ export const IMMO_CONSTANTS = {
       purchaseDate: '2025-04',  // signature VEFA
       deliveryDate: '2029-06',  // livraison été 2029
       // ── Appréciation réaliste par phase ──
-      // 2025-2028 : 3.0%/an — L15 Sud ouverture fin 2026, déjà L14 prolongée,
+      // 2025-2028 : 3.0%/an — L15 Sud ouverture avril 2027, déjà L14 prolongée,
       //   en face station Villejuif Louis Aragon (future L15), pôle santé Gustave Roussy
       //   MeilleursAgents: Bd Gorki ~5 138€/m², hausse +20% entre 2021-2025
       //   efficity: 5 050€/m² jan 2026, +6% vs ville
-      // 2029+ : 1.5%/an — livraison du bien, L15 roulera depuis 3 ans, effet déjà pricé
+      // 2029+ : 1.5%/an — livraison du bien, L15 roulera depuis 2 ans, effet déjà pricé
       // Moyenne lissée sur 10 ans ≈ 2.0%/an
       appreciation: 0.02,        // 2.0%/an (moyenne lissée, hub L14+L15, pôle santé)
       appreciationPhases: [
         { start: 2025, end: 2028, rate: 0.030, note: 'Anticipation L15 + L14 déjà là, pôle santé Gustave Roussy' },
-        { start: 2029, end: 2040, rate: 0.015, note: 'Livraison bien, L15 roulera depuis 3 ans, effet pricé' },
+        { start: 2029, end: 2040, rate: 0.015, note: 'Livraison bien, L15 roulera depuis 2 ans, effet pricé' },
       ],
       type: 'T3 — VEFA — LMNP',
-      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: 2026 },
+      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-04' },
       details: {
         lot: 'A27',
         floor: '2ème étage',
@@ -1031,7 +1031,7 @@ export const EXIT_COSTS = {
       { date: '2025-04', event: 'Signature VEFA (réservation — 3 600€ versés)', icon: 'doc', done: true },
       { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank' },
       { date: '2026-06', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant livraison', icon: 'tax' },
-      { date: '2026-12', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
+      { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
       { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
       { date: '2029-06', event: 'Livraison VEFA + remise des clés', icon: 'key' },
       { date: '2029-09', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
