@@ -3601,73 +3601,6 @@ function renderTimelineHTML(timeline) {
 }
 
 // ============ PROPERTY INFO CARD (Details) ============
-function renderFloorPlanSVG(floorPlan, rooms) {
-  if (!floorPlan || !floorPlan.rooms) return '';
-
-  const isSchematic = floorPlan.schematic === true;
-  const viewBox = floorPlan.viewBox || '0 0 100 100';
-
-  let html = '<div style="max-width:550px;margin:8px auto;">';
-  html += '<svg viewBox="' + viewBox + '" style="width:100%;display:block;border-radius:8px;';
-  html += isSchematic ? 'background:#f8fafc;border:1px solid #e2e8f0;' : 'background:#fefefe;border:1px solid #e7e5e4;';
-  html += '">';
-
-  // CSS styles inside SVG
-  html += '<style>';
-  html += '.room-g polygon { transition: fill-opacity 0.25s, stroke-width 0.25s; }';
-  html += '.room-g:hover polygon { fill-opacity: 0.35; stroke-width: 1.2; }';
-  html += '.room-g .room-surface { opacity: 0.4; transition: opacity 0.25s; }';
-  html += '.room-g:hover .room-surface { opacity: 1; }';
-  html += '.room-g .room-name { transition: font-weight 0.25s; }';
-  html += '.room-g:hover .room-name { font-weight: 700; }';
-  html += '</style>';
-
-  floorPlan.rooms.forEach(r => {
-    const roomData = rooms ? rooms.find(rd => rd.name === r.name || rd.name.startsWith(r.name.split('/')[0])) : null;
-    const surface = r.surface || (roomData ? roomData.surface : null);
-
-    // Compute centroid
-    const pts = r.points.split(' ').map(p => p.split(',').map(Number));
-    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-    const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-
-    // Font size based on room area (larger rooms get larger text)
-    const area = surface || 5;
-    const fontSize = Math.min(Math.max(area > 20 ? 4.5 : area > 10 ? 3.5 : area > 5 ? 2.8 : 2.2, 2), 5);
-
-    html += '<g class="room-g" style="cursor:pointer;">';
-
-    // Room polygon
-    html += '<polygon points="' + r.points + '" ';
-    html += 'fill="' + r.color + '" fill-opacity="' + (isSchematic ? '0.12' : '0.08') + '" ';
-    html += 'stroke="' + r.color + '" stroke-width="0.8" stroke-linejoin="round"/>';
-
-    // Room name
-    html += '<text class="room-name" x="' + cx + '" y="' + (cy - (surface ? fontSize * 0.3 : 0)) + '" ';
-    html += 'text-anchor="middle" dominant-baseline="middle" ';
-    html += 'font-size="' + fontSize + '" font-weight="500" fill="#1c1917" font-family="DM Sans, sans-serif">';
-    html += r.name + '</text>';
-
-    // Surface (shown below name)
-    if (surface) {
-      html += '<text class="room-surface" x="' + cx + '" y="' + (cy + fontSize * 0.9) + '" ';
-      html += 'text-anchor="middle" dominant-baseline="middle" ';
-      html += 'font-size="' + (fontSize * 0.7) + '" fill="#78716c" font-family="DM Sans, sans-serif">';
-      html += surface.toFixed(1) + ' m\u00b2</text>';
-    }
-
-    // Tooltip (native SVG title)
-    html += '<title>' + r.name + (surface ? ' \u2014 ' + surface.toFixed(2) + ' m\u00b2' : '') + '</title>';
-
-    html += '</g>';
-  });
-
-  html += '</svg>';
-  html += '</div>';
-
-  return html;
-}
-
 function renderPropertyInfoCard(details) {
   if (!details) return '';
 
@@ -3739,13 +3672,6 @@ function renderPropertyInfoCard(details) {
   html += 'style="flex:1;padding:8px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:#78716c;transition:color 0.2s;">';
   html += 'D\u00e9tails <span>\u25BC</span></button>';
 
-  // Plan button (only if floorPlan exists)
-  if (details.floorPlan) {
-    html += '<button onclick="var d=document.getElementById(\'' + uniqueId + '_plan\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" ';
-    html += 'style="flex:1;padding:8px;border:none;border-left:1px solid var(--border, #e7e5e4);background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:#1e3a5f;transition:color 0.2s;">';
-    html += 'Voir le plan</button>';
-  }
-
   html += '</div>';
 
   // === LEVEL 2: DETAILS (hidden by default) ===
@@ -3801,15 +3727,62 @@ function renderPropertyInfoCard(details) {
     html += '</div>';
   }
 
+  // Room dimensions display
+  if (details.rooms && details.rooms.length > 0) {
+    html += '<div style="margin:10px 0;">';
+    html += '<div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Dimensions des pièces</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;">';
+    details.rooms.forEach(r => {
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:4px;">';
+      html += '<span style="color:#4a5568;">' + r.name + '</span>';
+      if (r.surface) {
+        html += '<span style="font-weight:600;">' + r.surface.toFixed(2) + ' m²</span>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
 
-  html += '</div>'; // end details
+    // Total habitable surface
+    if (details.surfaceHabitable) {
+      html += '<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;border-top:1px solid #e2e8f0;font-weight:600;font-size:12px;">';
+      html += '<span>Surface habitable</span>';
+      html += '<span>' + details.surfaceHabitable.toFixed(2) + ' m²</span>';
+      html += '</div>';
+    }
 
-  // === LEVEL 3: PLAN (hidden by default) ===
-  if (details.floorPlan) {
-    html += '<div id="' + uniqueId + '_plan" style="display:none;padding:16px;border-top:1px solid var(--border, #e7e5e4);background:#fafaf9;">';
-    html += renderFloorPlanSVG(details.floorPlan, details.rooms);
+    // Loggia if applicable
+    if (details.loggia) {
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 8px;font-size:11px;color:#d69e2e;">';
+      html += '<span>+ Loggia</span>';
+      html += '<span>' + details.loggia.toFixed(2) + ' m²</span>';
+      html += '</div>';
+    }
+
     html += '</div>';
   }
+
+  // Extra property info section
+  let extraInfo = [];
+  if (details.yearBuilt) extraInfo.push({ label: 'Année construction', value: details.yearBuilt });
+  if (details.developer) extraInfo.push({ label: 'Promoteur', value: details.developer });
+  if (details.program) extraInfo.push({ label: 'Programme', value: details.program });
+  if (details.tantiemes) extraInfo.push({ label: 'Tantièmes', value: details.tantiemes });
+  if (details.caveLots && details.caveLots.length > 0) extraInfo.push({ label: 'Lots caves', value: details.caveLots.join(', ') });
+  if (details.norm) extraInfo.push({ label: 'Norme', value: details.norm });
+
+  if (extraInfo.length > 0) {
+    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
+    html += '<div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Informations supplémentaires</div>';
+    extraInfo.forEach(info => {
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;">';
+      html += '<span style="color:#78716c;">' + info.label + '</span>';
+      html += '<span style="color:#1c1917;font-weight:500;">' + info.value + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div>'; // end details
 
   html += '</div>'; // end card
 

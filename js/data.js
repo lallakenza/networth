@@ -799,21 +799,6 @@ export const IMMO_CONSTANTS = {
         parking: true,
         cave: false,
         exposure: 'Sud-Ouest',
-        floorPlan: {
-          // Constraint solver: all rooms <0.01% error. Dimensions in meters × 10
-          viewBox: '-5 -5 95.4 105.0',
-          rooms: [
-            { name: 'Loggia', surface: 8.1, color: '#d69e2e', points: '0,0 35.2,0 35.2,23.0 0,23.0' },
-            { name: 'Cuisine', surface: 8.52, color: '#3b82f6', points: '35.2,0 63.3,0 63.3,30.4 35.2,30.4' },
-            { name: 'Entrée', surface: 5.85, color: '#94a3b8', points: '63.3,0 81.0,0 81.0,33.0 63.3,33.0' },
-            { name: 'Séjour', surface: 21.28, color: '#3b82f6', points: '0,23.0 35.2,23.0 35.2,30.4 63.3,30.4 63.3,59.9 0,59.9' },
-            { name: 'WC', surface: 2.09, color: '#94a3b8', points: '63.3,33.0 79.2,33.0 79.2,46.1 63.3,46.1' },
-            { name: 'Salle de bain', surface: 4.87, color: '#94a3b8', points: '63.3,46.1 85.4,46.1 85.4,68.1 63.3,68.1' },
-            { name: 'Dgt', surface: 2.2, color: '#94a3b8', points: '35.2,59.9 48.7,59.9 48.7,76.3 35.2,76.3' },
-            { name: 'Chambre 1', surface: 12.38, color: '#22c55e', points: '0,59.9 35.2,59.9 35.2,95.0 0,95.0' },
-            { name: 'Chambre 2', surface: 9.95, color: '#22c55e', points: '48.7,59.9 85.4,59.9 85.4,87.0 48.7,87.0' },
-          ],
-        },
       },
     },
     rueil: {
@@ -865,21 +850,6 @@ export const IMMO_CONSTANTS = {
         caveLots: ['924 (cave)', '954 (séchoir)'],
         tantiemes: '249/100000',
         exposure: null,
-        floorPlan: {
-          schematic: true,
-          // Constraint solver: all rooms 0.000% error. Loi Carrez exact surfaces.
-          viewBox: '-5 -5 98.0 86.4',
-          rooms: [
-            { name: 'Cuisine', surface: 6.11, color: '#3b82f6', points: '0,9.6 23.0,9.6 23.0,36.1 0,36.1' },
-            { name: 'Entrée', surface: 4.39, color: '#94a3b8', points: '23.0,13.0 42.0,13.0 42.0,36.1 23.0,36.1' },
-            { name: 'Salon', surface: 16.62, color: '#3b82f6', points: '42.0,0 88.0,0 88.0,36.1 42.0,36.1' },
-            { name: 'Chambre 2', surface: 9.6, color: '#22c55e', points: '0,38.1 28.0,38.1 28.0,72.4 0,72.4' },
-            { name: 'Dégagement', surface: 3.25, color: '#94a3b8', points: '28.0,38.1 58.0,38.1 58.0,49.0 28.0,49.0' },
-            { name: 'Salle de bain', surface: 3.21, color: '#94a3b8', points: '28.0,49.0 44.0,49.0 44.0,69.0 28.0,69.0' },
-            { name: 'WC', surface: 0.99, color: '#94a3b8', points: '44.0,49.0 54.0,49.0 54.0,58.9 44.0,58.9' },
-            { name: 'Chambre 1', surface: 11.49, color: '#22c55e', points: '58.0,38.1 88.0,38.1 88.0,76.4 58.0,76.4' },
-          ],
-        },
       },
     },
     villejuif: {
@@ -928,20 +898,6 @@ export const IMMO_CONSTANTS = {
         parking: false,
         cave: false,
         exposure: 'Sud-Ouest',
-        floorPlan: {
-          // Constraint solver: V=27.5°, hexagonal séjour, 0.001% max error
-          // Topology: utility block (top) → séjour hexagon (center) → loggia + chambres (bottom wings)
-          viewBox: '-171.2 -5 544.4 339.3',
-          rooms: [
-            { name: 'Salle de bain', surface: 5.45, color: '#94a3b8', points: '0,0 77.5,0 77.5,63.3 0,63.3' },
-            { name: 'Entrée', surface: 3.6, color: '#94a3b8', points: '77.5,0 128.7,0 128.7,63.3 77.5,63.3' },
-            { name: 'WC', surface: 2.32, color: '#94a3b8', points: '128.7,0 181.8,0 181.8,39.3 128.7,39.3' },
-            { name: 'Séjour/Cuisine', surface: 35.09, color: '#3b82f6', points: '66.6,63.3 229.8,63.3 299.3,196.9 -102.5,196.9 -85.9,165.0 66.6,165.0' },
-            { name: 'Loggia', surface: 9.51, color: '#d69e2e', points: '-102.5,196.9 299.3,196.9 310.1,217.7 -113.3,217.7' },
-            { name: 'Chambre 2', surface: 11.24, color: '#22c55e', points: '-113.3,217.7 -13.7,217.7 -66.6,319.2 -166.2,319.2' },
-            { name: 'Chambre 1', surface: 11.24, color: '#22c55e', points: '219.5,217.7 310.1,217.7 368.2,329.3 277.6,329.3' },
-          ],
-        },
       },
     },
   },
