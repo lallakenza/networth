@@ -211,6 +211,9 @@ restoreFromHash();
 syncNavUI();
 refresh();
 
+// Hide loading overlay after initial data load
+document.getElementById('loadingOverlay')?.classList.add('hidden');
+
 // ---- Fetch live data (FX) ----
 function updateFxTimestamp() {
   const el = document.getElementById('fxTimestamp');

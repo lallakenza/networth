@@ -978,3 +978,184 @@ Tous les KPIs et projections ont été audités :
 - ✅ Parking Vitry : 70€/mois intégré dans les revenus
 - ✅ Plans SVG : surfaces calculées matchent les surfaces réelles (<0.3m² tolérance)
 - ✅ BP Vitry : intérêts seuls août-déc 2025, capital à partir de jan 2026
+
+## State Object Schema
+
+The `compute()` function (from engine.js) returns a complete state object with the following structure:
+
+```javascript
+state = {
+  // Person-specific net worth rollups
+  couple: { nw, immoEquity, immoEquityBrute, immoValue, immoCRD, nbBiens, ... },
+  amine: { nw, ibkr, espp, sgtm, uae, moroccoCash, vitryEquity, vehicles, recvPro, recvPersonal, tva, ... },
+  nezha: { nw, espp, revolutEUR, creditMutuel, livretA, lclDepots, cashMaroc, cashUAE, villejuifEquity, rueilEquity, recvOmar, cautionRueil, sgtm, ... },
+
+  // Consolidated asset views
+  pools: { actions, cash },  // global action + cash tallies
+  cashView: { accounts[], totalCash, byCurrency, byOwner, diagnostics, ... },
+  immoView: { properties[], amortSchedules, wealthProjection, totalWealthCreation, ... },
+  actionsView: { positions[], closedPositions[], insights, twr, ... },
+  creancesView: { items[], total, ... },
+  budgetView: { expenses[], total, ... },
+
+  // Hierarchical drilldown data (by view)
+  categories: [...],  // couple view breakdown
+  amineCategories, nezhaCategories,  // person-specific breakdowns
+  viewConfig: { couple: {...}, amine: {...}, nezha: {...} },  // metadata + NW refs
+
+  // Time series
+  nwHistory: [...],  // historical net worth by date
+
+  // Formatting & state
+  fx: { EUR: 1, AED, MAD, USD, JPY },  // exchange rates
+  portfolio: PORTFOLIO,  // raw data reference
+  ibkrPositions: [...],  // computed positions with price/P&L
+}
+```
+
+## View Routing
+
+Views represent different analytical scopes:
+
+| View | Type | Purpose |
+|------|------|---------|
+| `couple` | Person | Combined household (Amine + Nezha) |
+| `amine` | Person | Amine's personal net worth |
+| `nezha` | Person | Nezha's personal net worth |
+| `actions` | Asset | All stocks, ETFs, crypto (IBKR + ESPP + SGTM) |
+| `cash` | Asset | All cash accounts (UAE, Maroc, France) |
+| `immobilier` | Asset | Real estate portfolio overview |
+| `apt_vitry` | Property | Vitry-sur-Seine (19 Rue Nathalie Lemel) detail |
+| `apt_rueil` | Property | Rueil-Malmaison (21 Allée des Glycines) detail |
+| `apt_villejuif` | Property | Villejuif (167 Bd Maxime Gorki) detail |
+| `creances` | Asset | Receivables & recovery analysis |
+| `budget` | Asset | Monthly expense tracking |
+
+**URL Hash Routing:** Hash fragments (#couple, #amine, #actions, etc.) stored in window.location.hash. Sub-views (apt_*) rendered as secondary options under immobilier main tab.
+
+## API Strategy
+
+### FX Rates
+
+- **Source:** open.er-api.com/v6 (was frankfurter.dev — OUTDATED in docs)
+- **Fallback:** FX_STATIC in data.js (hardcoded rates for offline mode)
+- **Cache:** localStorage, 5-minute TTL
+- **Refresh:** Automatic every 5 minutes via setInterval in app.js
+
+### Stock Prices
+
+- **Source:** Yahoo Finance v8 chart endpoint (range=1d, interval=1d)
+- **Tickers:** IBKR positions + ESPP + SGTM + closed position history
+- **CORS Strategy:** 6 proxies raced in parallel via Promise.any():
+  - `query1.finance.yahoo.com/v10/finance/quoteSummary/`
+  - `query2.finance.yahoo.com/v10/finance/quoteSummary/`
+  - ... (6 total)
+- **Cache:** localStorage per ticker, 10-minute TTL
+- **Fallback:** Static prices in data.js (market.acnPriceUSD, market.sgtmPriceMAD, ibkr.positions[].price)
+- **SGTM Special:** No API (MAD-listed stock, illiquid) — always uses static price
+
+### Error Handling & Retries
+
+- Failed tickers retried once via `retryFailedTickers()`
+- If all proxies fail, display "⚠️ Some prices stale" badge and use last-known values
+- Sold positions prices fetched separately to show historical P&L
+
+## Chart Registry
+
+All Chart.js instances managed centrally in charts.js:
+
+| Chart | Builder Function | Canvas ID | View |
+|-------|-----------------|-----------|------|
+| Couple Donut | `buildCoupleDonut()` | `#coupleDrillDown` | couple |
+| Amine Donut | `buildAmineDonut()` | `#amineDonut` | amine |
+| Nezha Donut | `buildNezhaDonut()` | `#nezhaDonut` | nezha |
+| Geo Breakdown | `buildGeoChart()` | `#geoChart` | couple/amine/nezha |
+| Immo Equity Bar | `buildImmoEquityBar()` | `#immoViewEquityChart` | immobilier |
+| Immo Projection | `buildImmoProjection()` | `#immoProjectionChart` | immobilier |
+| CF Projection | `buildCFProjection()` | `#cfProjectionChart` | couple/amine/nezha |
+| Wealth Projection | `buildWealthProjection()` | `#wealthProjectionChart` | immobilier |
+| Actions Geo | `buildActionsGeo()` | `#actionsGeoDonut` | actions |
+| Actions Sector | `buildActionsSector()` | `#actionsSectorDonut` | actions |
+| Actions Treemap | `buildActionsTreemap()` | `#actionsTreemapChart` | actions |
+| Cash Currency Yield | (HTML overlay, no canvas) | `#cashCurrencyChart` | cash |
+| Budget Zone | `buildBudgetZone()` | `#budgetZoneChart` | budget |
+| Budget Type | `buildBudgetType()` | `#budgetTypeChart` | budget |
+| PV Abattement | `buildPVAbattement()` | `#pvAbattementChart` | immobilier |
+| NW History | `buildNWHistory()` | `#nwHistoryChart` | couple |
+
+All charts destroyed and rebuilt on view switch via `rebuildAllCharts(state, view)`.
+
+## Data Exports from data.js
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `PORTFOLIO` | Object | Complete raw portfolio data (AED, MAD, EUR, USD, JPY native currencies) |
+| `CURRENCY_CONFIG` | Object | Symbol mapping, symbol-after flag, display names |
+| `CASH_YIELDS` | Object | Interest rates by account (Mashreq 3%, Wio 6%, etc.) |
+| `IMMO_CONSTANTS` | Object | Tax rates, notary fees, agency fees, insurance rates |
+| `EXIT_COSTS` | Object | Selling costs by property type (agency 4%, notary 7-8%, staging 2%) |
+| `VITRY_CONSTRAINTS` | Object | Rent cap, occupancy rules, loan parameters |
+| `VILLEJUIF_REGIMES` | Object | Tax regimes (Jeanbrun, micro-BIC, LMNP rules) |
+| `FX_STATIC` | Object | Fallback FX rates when API fails |
+| `DATA_LAST_UPDATE` | String | Human-readable date of last data refresh |
+
+## Key Formulas
+
+### Real Estate Equity Calculation
+
+```
+Equity brute = value - CRD
+Equity nette = max(0, salePrice - exitCosts - CRD)
+  where exitCosts = agency(4%) + notary(7-8%) + staging(2%) + broker fees
+```
+
+### Capital Gains Tax (PV — Plus-Value)
+
+```
+PV brute = salePrice - (purchasePrice + 7.5% acquisition frais) + amort_reintegration
+
+Abattement IR (Income Tax):
+  1-5 years: 0%
+  6-21 years: 6% per year
+  22 years: 4%
+  → 100% exemption after 22 years
+
+Abattement PS (Social Tax):
+  1-5 years: 0%
+  6-21 years: 1.65% per year
+  22 years: 1.6%
+  9-30 years: 9% per year
+  → 100% exemption after 30 years
+
+Taxe IR = PV brute × (1 - cumAbattementIR) × 19%
+Taxe PS = PV brute × (1 - cumAbattementPS) × 17.2%
+```
+
+### LMNP Depreciation Reintegration
+
+```
+Annual amortization = purchasePrice × 80% × 2% × yearsInLMNPStatus
+  (only counted from lmnpStartDate, not purchase date)
+
+Example (Rueil, purchased 2019, LMNP from Oct 2025):
+  = 240,000 × 0.80 × 0.02 × 0.5 years
+  = 1,920€/year (pro-rata to Oct 2026)
+```
+
+### JPY Carry Trade Cost (IBKR Negative Balance)
+
+IBKR applies tiered borrow rates on negative JPY positions:
+
+```
+Tier 1: First 500K JPY @ 5.5% p.a.
+Tier 2: Next 1M JPY @ 6.5% p.a.
+Tier 3: 1.5M+ JPY @ 7.5% p.a.
+
+Example: -4,590,694 JPY balance (18/03/2026)
+  Tier 1: 500,000 × 5.5% / 365 = 75.34 JPY/day
+  Tier 2: 1,000,000 × 6.5% / 365 = 178.08 JPY/day
+  Tier 3: 3,090,694 × 7.5% / 365 = 635.80 JPY/day
+  Total: ~889 JPY/day cost (~0.48€/day @ 183.5 JPY/EUR)
+```
+
+Used in `ibkrJPYBorrowCost()` function (engine.js).
