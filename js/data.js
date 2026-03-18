@@ -581,7 +581,7 @@ export const FX_STATIC = {
 
 // Symboles devises pour affichage
 export const CURRENCY_CONFIG = {
-  symbols: { EUR: '\u20ac', AED: 'Dhs', MAD: 'DH', USD: '$', JPY: '\u00a5' },
+  symbols: { EUR: '\u20ac', AED: '\u062f.\u0625', MAD: 'DH', USD: '$', JPY: '\u00a5' },
   symbolAfter: { MAD: true },
 };
 
