@@ -773,7 +773,7 @@ export const IMMO_CONSTANTS = {
     rueil: {
       address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
       surface: 55.66,           // m²
-      purchasePrice: 255000,    // prix d'achat TTC + frais notaire
+      purchasePrice: 240000,    // prix d'achat acte notarié (5 nov 2019) — hors frais notaire
       purchaseDate: '2019-11',  // acte notarié 5 novembre 2019
       purchaseDateLabel: '5 novembre 2019',
       // ── Appréciation réaliste par phase ──
