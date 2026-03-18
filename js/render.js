@@ -3542,40 +3542,47 @@ function renderTimelineHTML(timeline) {
 
 // ============ PROPERTY INFO CARD (Details) ============
 function renderFloorPlanSVG(floorPlan, rooms) {
-  if (!floorPlan || !floorPlan.rooms) return '';
+  if (!floorPlan || !floorPlan.image || !floorPlan.rooms) return '';
 
-  let svg = '<svg viewBox="' + floorPlan.viewBox + '" style="width:100%;max-width:500px;margin:0 auto;display:block;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">';
+  // Helper function to compute polygon centroid
+  function getCentroid(pointsStr) {
+    const pts = pointsStr.split(' ').map(p => p.split(',').map(Number));
+    let cx = 0, cy = 0;
+    pts.forEach(p => { cx += p[0]; cy += p[1]; });
+    return [cx / pts.length, cy / pts.length];
+  }
+
+  let html = '<div style="position:relative;max-width:600px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">';
+
+  // Background image
+  html += '<img src="' + floorPlan.image + '" alt="Floor plan" style="width:100%;display:block;border-radius:8px;">';
+
+  // SVG overlay container
+  const aspectRatio = floorPlan.height / floorPlan.width;
+  html += '<svg viewBox="0 0 100 ' + (aspectRatio * 100).toFixed(2) + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:8px;">';
+
+  // Room overlay styles
+  html += '<defs><style>';
+  html += '.plan-room { fill-opacity: 0.02; stroke-opacity: 0.1; stroke-width: 0.15; transition: all 0.2s ease; cursor: pointer; }';
+  html += '.plan-room:hover { fill-opacity: 0.3; stroke-opacity: 0.6; }';
+  html += '</style></defs>';
 
   floorPlan.rooms.forEach(r => {
     const roomData = rooms ? rooms.find(rd => rd.name === r.name) : null;
-    const surface = roomData ? roomData.surface : null;
-    const surfaceText = surface ? r.name + ' — ' + surface + ' m²' : r.name;
+    const displaySurface = r.surface || (roomData ? roomData.surface : null);
+    const [cx, cy] = getCentroid(r.points);
 
-    // Room rectangle
-    svg += '<g class="floor-room" style="cursor:pointer;">';
-    svg += '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" ';
-    svg += 'fill="' + r.color + '" fill-opacity="0.3" stroke="' + r.color + '" stroke-width="1.5" rx="3" ';
-    svg += 'onmouseenter="this.setAttribute(\'fill-opacity\',\'0.6\');this.nextElementSibling.nextElementSibling.style.opacity=1" ';
-    svg += 'onmouseleave="this.setAttribute(\'fill-opacity\',\'0.3\');this.nextElementSibling.nextElementSibling.style.opacity=0"/>';
-
-    // Room name (always visible)
-    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-    const fontSize = Math.min(r.w / 6, r.h / 3, 14);
-    svg += '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="middle" ';
-    svg += 'font-size="' + fontSize + '" fill="#2d3748" font-weight="600" pointer-events="none">' + r.name + '</text>';
-
-    // Surface tooltip (shown on hover)
-    if (surface) {
-      svg += '<text x="' + cx + '" y="' + (cy + fontSize + 2) + '" text-anchor="middle" dominant-baseline="middle" ';
-      svg += 'font-size="' + (fontSize * 0.75) + '" fill="#4a5568" pointer-events="none" style="opacity:0;transition:opacity 0.15s;">';
-      svg += surface + ' m²</text>';
-    }
-
-    svg += '</g>';
+    // Room polygon overlay
+    html += '<polygon class="plan-room" points="' + r.points + '" ';
+    html += 'fill="' + r.color + '" stroke="' + r.color + '">';
+    html += '<title>' + r.name + (displaySurface ? ' — ' + displaySurface.toFixed(2) + ' m²' : '') + '</title>';
+    html += '</polygon>';
   });
 
-  svg += '</svg>';
-  return svg;
+  html += '</svg>';
+  html += '</div>';
+
+  return html;
 }
 
 function renderPropertyInfoCard(details) {
