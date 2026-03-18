@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v144** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v148** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -762,3 +762,29 @@ Un bouton checkbox "Inclure Villejuif (achat futur)" en haut de la vue Immobilie
 - La carte Villejuif dans la grille est visuellement atténuée (opacity 0.45)
 - Le tableau wealth breakdown et les charts respectent aussi le filtre
 - Les tables de détail (prêts, fiscalité, CF) restent complètes (affichent les 3 biens)
+
+### Fix Villejuif Equity Projection — Simulateurs (v148)
+
+**Problème** : Les simulateurs (couple + Nezha) utilisaient un `wealthCreation` mensuel fixe pour Villejuif. Ce taux fixe ne capturait pas la transition franchise (36 mois, intérêts capitalisés) → amortissement. Résultat : equity Villejuif à 121K en 2045 au lieu de ~380K.
+
+**Correction** :
+- Ajout de `computeVillejuifEquity(m)` dans les simulateurs couple et Nezha
+- La fonction calcule l'equity absolue à chaque mois en :
+  1. Convertissant le mois simulateur en date calendaire (YYYY-MM)
+  2. Cherchant le CRD dans le tableau d'amortissement (`amortSchedules.villejuif.schedule`)
+  3. Appliquant l'appréciation par phases (3%/an 2025-2028, 1.5%/an 2029+)
+  4. Retournant `valeur_projetée - CRD`
+- Flag `_computedEquity: true` dans `immoBreakdown` pour que `runSimulatorGeneric` traite les valeurs comme absolues (pas incrémentales)
+
+**Correction complémentaire (engine.js)** : La projection de richesse (`wealthProjection`) utilisait un taux d'appréciation fixe (`propMeta.appreciation`) au lieu des phases (`appreciationPhases`). Corrigé pour itérer année par année avec le taux de phase applicable.
+
+### Audit KPIs v148
+
+Tous les KPIs et projections ont été audités :
+- ✅ Equity par bien (Vitry, Rueil, Villejuif) : correct
+- ✅ Exit costs et net equity : correct
+- ✅ Couple NW avec `villejuifSigned: false` : correct (exclusion + reservation fees)
+- ✅ CF projection : charges, rent growth, loan end dates corrects
+- ✅ Track Record : win rate, realized P/L corrects
+- ✅ Appréciation par phases : corrigée dans wealth projection (engine.js)
+- ✅ Simulateur Villejuif : corrigé (schedule-based equity)

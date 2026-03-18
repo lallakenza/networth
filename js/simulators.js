@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=146';
-import { IMMO_CONSTANTS } from './data.js?v=146';
+import { fmt, fmtAxis } from './render.js?v=148';
+import { IMMO_CONSTANTS } from './data.js?v=148';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -96,7 +96,17 @@ function runSimulatorGeneric(config) {
     const immoGrowth = immoGrowthFn(m);
     cumImmoReturns += immoGrowth;
     // Track per-property growth
-    props.forEach((p, pi) => { propCumGrowth[pi] += p.growthFn(m); });
+    props.forEach((p, pi) => {
+      // Check if this is a "computed equity" property (returns absolute value, not increment)
+      const isComputedEquity = p._computedEquity === true;
+      if (isComputedEquity) {
+        // For computed equity properties (like Villejuif), store absolute values
+        propCumGrowth[pi] = p.growthFn(m) - p.startEquity;
+      } else {
+        // For regular properties, accumulate monthly increments
+        propCumGrowth[pi] += p.growthFn(m);
+      }
+    });
 
     poolActions *= (1 + monthlyReturnActions);
     poolCash *= (1 + monthlyReturnCash);
@@ -403,10 +413,71 @@ function runCoupleSimulator(state) {
     immoBreakdown: (() => {
       const iv = s.immoView;
       const wv = (key) => iv ? (iv.properties.find(p => p.loanKey === key) || {}).wealthCreation || 0 : 0;
+
+      // For Villejuif, compute equity from schedule instead of fixed wealth creation
+      const computeVillejuifEquity = (m) => {
+        if (m < IC.villejuifStartMonth) return 0;
+        if (!iv || !iv.amortSchedules || !iv.amortSchedules.villejuif) return 0;
+
+        const amort = iv.amortSchedules.villejuif;
+        const prop = iv.properties.find(p => p.loanKey === 'villejuif');
+        if (!prop) return 0;
+
+        const sched = amort.schedule;
+        if (!sched || sched.length === 0) return 0;
+
+        // Convert simulator month to actual date string (YYYY-MM)
+        // Simulator m=0 = March 2026, m=1 = April 2026, etc.
+        const simBaseDate = new Date(2026, 2, 1); // March 1, 2026
+        const targetDate = new Date(simBaseDate);
+        targetDate.setMonth(targetDate.getMonth() + m);
+        const targetYear = targetDate.getFullYear();
+        const targetMonth = targetDate.getMonth() + 1; // 1-indexed
+        const dateStr = targetYear + '-' + String(targetMonth).padStart(2, '0');
+
+        // Find the closest schedule entry for this date
+        let crd = 0;
+        let foundIdx = -1;
+        for (let i = 0; i < sched.length; i++) {
+          if (sched[i].date === dateStr) {
+            crd = sched[i].remainingCRD;
+            foundIdx = i;
+            break;
+          }
+          // If exact match not found, use the last schedule entry <= this date
+          if (sched[i].date < dateStr) {
+            crd = sched[i].remainingCRD;
+            foundIdx = i;
+          } else {
+            break;
+          }
+        }
+
+        // Property appreciation using phases
+        const propMeta = IC.properties.villejuif || {};
+        const phases = propMeta.appreciationPhases || [];
+
+        function getRate(year) {
+          for (let i = 0; i < phases.length; i++) {
+            if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+          }
+          return propMeta.appreciation || 0.02;
+        }
+
+        // Compound appreciation from 2025 (property purchase) to current year
+        let projValue = prop.value;
+        const purchaseYear = 2025;
+        for (let y = purchaseYear; y < targetYear; y++) {
+          projValue *= (1 + getRate(y));
+        }
+
+        return Math.max(0, projValue - crd);
+      };
+
       return [
         { label: 'Vitry', startEquity: s.amine.vitryEquity, growthFn: () => wv('vitry') },
         { label: 'Rueil', startEquity: s.nezha.rueilEquity, growthFn: () => wv('rueil') },
-        { label: 'Villejuif', startEquity: s.nezha.villejuifEquity, growthFn: (m) => m >= IC.villejuifStartMonth ? wv('villejuif') : 0 },
+        { label: 'Villejuif', startEquity: 0, growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0, _computedEquity: true },
       ];
     })()
   });
@@ -457,13 +528,68 @@ function runNezhaSimulator(state) {
   let sgtmNz = s.nezha.sgtm;
 
   const monthlyApprecRueil = s.nezha.rueilValue * appreciation / 12;
-  const monthlyApprecVillejuif = s.nezha.villejuifValue * appreciation / 12;
   const monthlyCashReturn = cashReturn / 12;
 
   // Wealth creation from computed state (no hardcoded values)
   const ivNz = s.immoView;
   const wcRueil = ivNz ? (ivNz.properties.find(p => p.loanKey === 'rueil') || {}).wealthCreation || 0 : 0;
-  const wcVillejuif = ivNz ? (ivNz.properties.find(p => p.loanKey === 'villejuif') || {}).wealthCreation || 0 : 0;
+
+  // Compute Villejuif equity from schedule at each month
+  const computeVillejuifEqNezha = (m) => {
+    if (m < IC.villejuifStartMonth) return 0;
+    if (!ivNz || !ivNz.amortSchedules || !ivNz.amortSchedules.villejuif) return 0;
+
+    const amort = ivNz.amortSchedules.villejuif;
+    const prop = ivNz.properties.find(p => p.loanKey === 'villejuif');
+    if (!prop) return 0;
+
+    const sched = amort.schedule;
+    if (!sched || sched.length === 0) return 0;
+
+    // Convert simulator month to actual date string (YYYY-MM)
+    // Simulator m=0 = March 2026, m=1 = April 2026, etc.
+    const simBaseDate = new Date(2026, 2, 1); // March 1, 2026
+    const targetDate = new Date(simBaseDate);
+    targetDate.setMonth(targetDate.getMonth() + m);
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth() + 1; // 1-indexed
+    const dateStr = targetYear + '-' + String(targetMonth).padStart(2, '0');
+
+    // Find the closest schedule entry for this date
+    let crd = 0;
+    for (let i = 0; i < sched.length; i++) {
+      if (sched[i].date === dateStr) {
+        crd = sched[i].remainingCRD;
+        break;
+      }
+      // Use the last schedule entry <= this date
+      if (sched[i].date < dateStr) {
+        crd = sched[i].remainingCRD;
+      } else {
+        break;
+      }
+    }
+
+    // Property appreciation using phases
+    const propMeta = IC.properties.villejuif || {};
+    const phases = propMeta.appreciationPhases || [];
+
+    function getRate(year) {
+      for (let i = 0; i < phases.length; i++) {
+        if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+      }
+      return propMeta.appreciation || 0.02;
+    }
+
+    // Compound appreciation from 2025 (property purchase) to current year
+    let projValue = prop.value;
+    const purchaseYear = 2025;
+    for (let y = purchaseYear; y < targetYear; y++) {
+      projValue *= (1 + getRate(y));
+    }
+
+    return Math.max(0, projValue - crd);
+  };
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
@@ -472,12 +598,14 @@ function runNezhaSimulator(state) {
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       dataRueil.push(Math.round(rueilEq));
-      dataVillejuif.push(Math.round(villejuifEq));
+      // Use computed Villejuif equity from schedule
+      const currentVillejuifEq = m >= IC.villejuifStartMonth ? computeVillejuifEqNezha(m) : 0;
+      dataVillejuif.push(Math.round(currentVillejuifEq));
       dataCash.push(Math.round(cashNz + sgtmNz));
-      dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
+      dataTotal.push(Math.round(rueilEq + currentVillejuifEq + cashNz + sgtmNz));
     }
     rueilEq += wcRueil + monthlyApprecRueil;
-    if (m >= IC.villejuifStartMonth) villejuifEq += wcVillejuif + monthlyApprecVillejuif;
+    // For loop calculation, update rueilEq; villejuifEq is computed from schedule
     cashNz *= (1 + monthlyCashReturn);
     sgtmNz *= (1 + 0.07 / 12);
   }
