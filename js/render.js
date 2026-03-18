@@ -125,6 +125,13 @@ export function render(state, view, currency) {
 
   renderBadges(state);
   updateAllDataEur();
+
+  // Hide Villejuif warning on views where it's irrelevant
+  const vjNote = document.getElementById('villejuifNote');
+  if (vjNote) {
+    const showVjViews = ['couple', 'nezha', 'immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
+    vjNote.style.display = showVjViews.includes(view) ? '' : 'none';
+  }
 }
 
 // ---- Individual render functions ----
