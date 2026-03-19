@@ -833,10 +833,16 @@ function buildAmortChart(state) {
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
+  // Filter loan keys based on Villejuif toggle
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
+  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+
   // Build date-indexed lookup for each loan
   const dateMaps = {};
   const allDates = new Set();
-  for (const [key, amort] of Object.entries(schedules)) {
+  for (const key of loanKeys) {
+    const amort = schedules[key];
+    if (!amort) continue;
     dateMaps[key] = {};
     // Add initial CRD at start date (month 0 = full principal)
     const s0 = amort.schedule[0];
@@ -857,14 +863,16 @@ function buildAmortChart(state) {
   const sortedDates = [...allDates].sort();
   const labels = [];
   const datasets = {};
-  for (const key of Object.keys(schedules)) { datasets[key] = []; }
+  for (const key of loanKeys) { datasets[key] = []; }
 
   // Sample every 12 entries for readability
   const step = 12;
   for (let i = 0; i < sortedDates.length; i += step) {
     const d = sortedDates[i];
     labels.push(d);
-    for (const [key, dmap] of Object.entries(dateMaps)) {
+    for (const key of loanKeys) {
+      const dmap = dateMaps[key];
+      if (!dmap) continue;
       if (dmap[d] !== undefined) {
         datasets[key].push(Math.round(dmap[d]));
       } else {
@@ -879,9 +887,9 @@ function buildAmortChart(state) {
     }
   }
 
-  const chartDatasets = Object.entries(datasets).map(([key, data]) => ({
+  const chartDatasets = loanKeys.map(key => ({
     label: loanNames[key] || key,
-    data,
+    data: datasets[key],
     borderColor: loanColors[key] || '#a0aec0',
     backgroundColor: (loanColors[key] || '#a0aec0') + '20',
     fill: true,
@@ -930,7 +938,8 @@ function buildImmoViewProjection(state) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-based
   const projYears = [2027, 2028, 2029, 2030, 2031, 2032];
-  const loanKeys = ['vitry', 'rueil', 'villejuif'];
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
+  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
