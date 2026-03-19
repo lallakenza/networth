@@ -257,9 +257,66 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Cross-platform total current value (excl SGTM which is not a brokerage)
   const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp;
 
+  // ── Compute P&L of CLOSED positions per period ──
+  // Positions fully sold during the year still contribute to period P&L.
+  // For each sell trade in the period: P&L = proceeds - (shares × refPrice at period start)
+  // If bought during the period (no refPrice): P&L = realizedPL (proceeds - cost)
+  const ibkrSellTrades = (ibkr.trades || []).filter(t => t.type === 'sell' && t.source === 'ibkr');
+
+  function closedPeriodPL(periodStartDate, getRefPrice) {
+    let total = 0;
+    // Only count sells of tickers that are NOT in current positions (fully closed)
+    const openTickers = new Set(ibkr.positions.map(p => p.ticker));
+    ibkrSellTrades.forEach(t => {
+      if (t.date >= periodStartDate && !openTickers.has(t.ticker)) {
+        // This sell was during the period AND the position is now fully closed
+        const refPrice = getRefPrice(t.ticker);
+        if (refPrice && refPrice > 0) {
+          // P&L = proceeds - (shares × refPrice at period start), in EUR
+          const refVal = toEUR(t.qty * refPrice, t.currency, fx);
+          const proceedsEUR = toEUR(t.proceeds, t.currency, fx);
+          total += proceedsEUR - refVal;
+        } else if (typeof t.realizedPL === 'number') {
+          // Bought and sold within the period — use realized P/L
+          total += toEUR(t.realizedPL, t.currency, fx);
+        }
+      }
+    });
+    return total;
+  }
+
+  // Build ytdOpen price lookup from positions data
+  const ytdOpenPrices = {};
+  ibkr.positions.forEach(p => { ytdOpenPrices[p.ticker] = p.ytdOpen; });
+  // Also add ytdOpen for closed positions from static data (if available)
+  // GLE, WLN, EDEN, NXI had ytdOpen prices stored before they were sold
+  // These should ideally be in data.js, but we can estimate from trade history
+
+  // For now: if a ticker was sold and has no ytdOpen, use costBasis as fallback
+  // (meaning full realized P/L counts for the period)
+  ibkrSellTrades.forEach(t => {
+    if (!ytdOpenPrices[t.ticker]) {
+      ytdOpenPrices[t.ticker] = t.costBasis || 0; // fallback: use cost
+    }
+  });
+
+  const closedYtdPL = closedPeriodPL(ytdStartStr, ticker => ytdOpenPrices[ticker]);
+  const closedMtdPL = closedPeriodPL(mtdStartStr, ticker => {
+    const pos = ibkr.positions.find(p => p.ticker === ticker);
+    return pos ? pos.mtdOpen : (ytdOpenPrices[ticker] || 0); // fallback
+  });
+  const closedOneMonthPL = closedPeriodPL(oneMonthStr, ticker => {
+    const pos = ibkr.positions.find(p => p.ticker === ticker);
+    return pos ? pos.oneMonthAgo : (ytdOpenPrices[ticker] || 0);
+  });
+  const closedDailyPL = closedPeriodPL(todayStr, ticker => {
+    const pos = ibkr.positions.find(p => p.ticker === ticker);
+    return pos ? pos.previousClose : 0;
+  });
+
   // Pre-compute YTD P&L for benchmark comparison
-  // IBKR only
-  const ibkrYtdPL = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0);
+  // IBKR only — now includes closed positions P&L
+  const ibkrYtdPL = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0) + closedYtdPL;
   const ibkrStartOfYear = totalPositionsVal - ibkrYtdPL;
   const ibkrYtdPct = ibkrStartOfYear > 0 ? (ibkrYtdPL / ibkrStartOfYear * 100) : 0;
   // Total portfolio (IBKR + ESPP Amine + ESPP Nezha + SGTM)
@@ -625,10 +682,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
       return {
-        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
-        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen), hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
-        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen), hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
-        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo), hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
+        // closedXxxPL adds P&L from positions FULLY SOLD during the period
+        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL + closedDailyPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
+        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen) + closedMtdPL, hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
+        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen) + closedYtdPL, hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
+        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo) + closedOneMonthPL, hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
       };
     })(),
   };
