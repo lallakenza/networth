@@ -4405,57 +4405,7 @@ function renderAptView(state, loanKey) {
       html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
     }
 
-    // JEANBRUN vs LMNP comparison
-    const cmp = iv.villejuifRegimeComparison;
-    if (cmp && cmp.summary) {
-      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">';
-      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h3>';
-
-      // Summary KPIs
-      const delta = cmp.summary.delta;
-      const winColor = delta > 0 ? '#276749' : '#c05621';
-      html += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
-      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:18px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:11px;color:#718096;">Régime recommandé</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:11px;color:#718096;">Avantage sur 10 ans</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:11px;color:#718096;">Réduction JEANBRUN totale</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.lmnpAmortAnnuel) + '/an</div><div style="font-size:11px;color:#718096;">Amortissement LMNP</div></div>';
-      html += '</div>';
-
-      // Comparison table
-      html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
-        + '<thead><tr><th>Année</th>'
-        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
-        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
-        + '<th class="num" style="background:#f0fff4;">Δ LMNP-JB</th></tr></thead><tbody>';
-      for (let y = 0; y < cmp.jeanbrun.length; y++) {
-        const jb = cmp.jeanbrun[y];
-        const lm = cmp.lmnp[y];
-        const d = lm.cumGain - jb.cumGain;
-        const dColor = d > 0 ? '#276749' : '#c53030';
-        html += '<tr><td><strong>' + jb.year + '</strong></td>'
-          + '<td class="num">' + jb.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(jb.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(jb.cumGain)) + '</td>'
-          + '<td class="num">' + lm.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(lm.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(lm.cumGain)) + '</td>'
-          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
-      }
-      html += '</tbody></table></div>';
-
-      // LMP warning
-      if (cmp.summary.lmpRisque) {
-        html += '<div style="margin-top:12px;padding:10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:8px;font-size:12px;color:#c53030;">'
-          + '<strong>⚠️ Risque LMP :</strong> Recettes meublées totales (Villejuif + Rueil) = ' + cmp.summary.lmpRecettesTotales.toLocaleString('fr-FR') + '€/an > seuil 23 000€. '
-          + 'En tant que non-résident sans revenus d\'activité en France, le passage en LMP pourrait être automatique. '
-          + 'Conséquences : cotisations sociales SSI ~40% sur le bénéfice.'
-          + '</div>';
-      }
-
-      html += '</div>';
-    }
-
-    // ── JEANBRUN Constraints & Loyer Plafonné — Detailed section (COLLAPSIBLE) ──
+    // ── JEANBRUN — All content inside collapsible section ──
     const jb = VILLEJUIF_REGIMES.jeanbrun;
     const vBase = VILLEJUIF_REGIMES.base;
     const plafond = jb.plafondLoyer;
@@ -4529,6 +4479,41 @@ function renderAptView(state, loanKey) {
     jb.inconvenients.forEach(i => { html += '<li>' + i + '</li>'; });
     html += '</ul></div>';
     html += '</div>';
+
+    // ── JEANBRUN vs LMNP comparison table (inside collapsible) ──
+    const cmp = iv.villejuifRegimeComparison;
+    if (cmp && cmp.summary) {
+      html += '<div style="margin-top:16px;border-top:1px solid #fbd38d;padding-top:16px;">';
+      html += '<h4 style="margin:0 0 12px;font-size:14px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h4>';
+      const delta = cmp.summary.delta;
+      const winColor = delta > 0 ? '#276749' : '#c05621';
+      html += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
+      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:10px;color:#718096;">Recommandé</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:10px;color:#718096;">Avantage 10 ans</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:10px;color:#718096;">Réduction JB totale</div></div>';
+      html += '</div>';
+      html += '<div style="overflow-x:auto;"><table style="font-size:0.75rem;width:100%;">'
+        + '<thead><tr><th>Année</th>'
+        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
+        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
+        + '<th class="num" style="background:#f0fff4;">\u0394 LMNP-JB</th></tr></thead><tbody>';
+      for (let y = 0; y < cmp.jeanbrun.length; y++) {
+        const jbRow = cmp.jeanbrun[y];
+        const lmRow = cmp.lmnp[y];
+        const d = lmRow.cumGain - jbRow.cumGain;
+        const dColor = d > 0 ? '#276749' : '#c53030';
+        html += '<tr><td><strong>' + jbRow.year + '</strong></td>'
+          + '<td class="num">' + jbRow.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(jbRow.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(jbRow.cumGain)) + '</td>'
+          + '<td class="num">' + lmRow.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(lmRow.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(lmRow.cumGain)) + '</td>'
+          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+      html += '</div>';
+    }
 
     html += '</div>'; // close collapsible Jeanbrun section
     html += '</div>'; // close warning banner
