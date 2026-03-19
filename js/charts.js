@@ -1230,7 +1230,8 @@ export function buildExitProjectionChart(state, prop, canvasId) {
       datasets: [
         { label: 'Net (ce que tu gardes)', data: dataNet, backgroundColor: '#276749', stack: 'breakdown' },
         { label: 'Impôts PV', data: dataTaxes, backgroundColor: '#c53030', stack: 'breakdown' },
-        { label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' },
+        // TVA clawback only relevant for Vitry — hide if all zeros
+        ...(dataTVA.some(v => v > 0) ? [{ label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' }] : []),
         { label: 'IRA + frais', data: dataIRA.map((v, i) => v + dataCosts[i]), backgroundColor: '#d69e2e', stack: 'breakdown' },
         { label: 'CRD restant', data: dataCRD, backgroundColor: '#a0aec0', stack: 'breakdown' },
       ]
