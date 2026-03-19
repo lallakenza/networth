@@ -158,6 +158,22 @@ function runSimulatorGeneric(config) {
   const finalImmoTotal = startImmoEquity + cumImmoReturns;
   const pctImmoFinalNW = (finalImmoTotal / finalNW * 100).toFixed(1);
 
+  // Compute exact 1M date
+  let m1MDateLabel = '';
+  let m1MMotivation = '';
+  if (month1M >= 0) {
+    const d1mExact = new Date(2026, 2 + month1M, 1);
+    m1MDateLabel = d1mExact.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const yearsTo1M = (month1M / 12).toFixed(1);
+    m1MMotivation = '<br><div style="margin-top:8px;padding:10px 14px;background:#f0fff4;border-left:3px solid #16a34a;border-radius:6px;font-size:13px;">'
+      + '\ud83c\udfaf <strong>1 000 000\u20ac atteint en ' + m1MDateLabel + '</strong> (' + yearsTo1M + ' ans).<br>'
+      + '<span style="color:#276749;">'
+      + (month1M <= 24 ? 'Vous \u00eates \u00e0 moins de 2 ans du million. Chaque mois investi acc\u00e9l\u00e8re l\'\u00e9cart. Ne l\u00e2chez rien !'
+        : month1M <= 60 ? 'Le million est \u00e0 port\u00e9e de main. Les int\u00e9r\u00eats compos\u00e9s font le gros du travail \u2014 la discipline paie.'
+        : 'La patience est votre meilleur alli\u00e9. Chaque euro investi aujourd\u2019hui vaut ' + Math.round(Math.pow(1 + (returnActions || 0.10), month1M/12)) + '\u20ac dans ' + yearsTo1M + ' ans.')
+      + '</span></div>';
+  }
+
   let insightHtml;
   if (stopYears > 0) {
     const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
@@ -168,14 +184,14 @@ function runSimulatorGeneric(config) {
       'NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> (+' + fmt(Math.round(totalGrowth)) + '). ' +
       'Croissance : contributions ' + pctContrib + '% | gains marche ' + pctMarket + '% | immo ' + pctImmo + '%.<br>' +
       'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').<br>' +
-      '<span style="color:var(--red)">Cout de l\'arret : ' + fmt(Math.round(costOfStopping)) + '</span>. ' +
-      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '<span style="color:var(--red)">1M non atteint.</span>');
+      '<span style="color:var(--red)">Cout de l\'arret : ' + fmt(Math.round(costOfStopping)) + '</span>.' +
+      m1MMotivation;
   } else {
     insightHtml =
       '<strong>Resume :</strong> NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> en ' + horizonYears + ' ans (+' + fmt(Math.round(totalGrowth)) + ').<br>' +
       'Croissance : contributions ' + pctContrib + '% (' + fmt(Math.round(cumContributions)) + ') | gains marche ' + pctMarket + '% (' + fmt(Math.round(finalGains)) + ') | immo ' + pctImmo + '% (' + fmt(Math.round(finalImmoGrowth)) + ').<br>' +
-      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + '). ' +
-      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '1M non atteint dans cet horizon.');
+      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').' +
+      m1MMotivation;
   }
   document.getElementById(prefix + 'Insight').innerHTML = insightHtml;
 
