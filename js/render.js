@@ -132,6 +132,17 @@ export function render(state, view, currency) {
     const showVjViews = ['couple', 'nezha', 'immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
     vjNote.style.display = showVjViews.includes(view) ? '' : 'none';
   }
+
+  // Hide NW History chart container if NW_HISTORY is empty
+  const nwHistCanvas = document.getElementById('nwHistoryChart');
+  if (nwHistCanvas) {
+    const container = nwHistCanvas.closest('.card');
+    if (container && (!state.nwHistory || state.nwHistory.length < 2 || !state.nwHistory.some(h => h.coupleNW))) {
+      container.style.display = 'none';
+    } else if (container) {
+      container.style.display = '';
+    }
+  }
 }
 
 // ---- Individual render functions ----

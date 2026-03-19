@@ -366,6 +366,7 @@ function buildImmoProjection(state) {
 // ============ CF PROJECTION 10 ANS ============
 export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
 
   const YEARS = 10;
   const START_YEAR = 2026;
@@ -411,8 +412,8 @@ export function buildCFProjection(state) {
 
     vitryData.push(vitryCF);
     rueilData.push(rueilCF);
-    villejuifData.push(villejuifCF);
-    totalData.push(vitryCF + rueilCF + villejuifCF);
+    villejuifData.push(includeVillejuif ? villejuifCF : 0);
+    totalData.push(vitryCF + rueilCF + (includeVillejuif ? villejuifCF : 0));
   }
 
   // Build chart
@@ -428,8 +429,8 @@ export function buildCFProjection(state) {
         { label: 'Equilibre (0)', data: zeroLine, borderColor: '#e53e3e', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
         { label: 'Vitry', data: vitryData, borderColor: '#4a5568', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
         { label: 'Rueil', data: rueilData, borderColor: '#2b6cb0', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-        { label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-        { label: 'Total 3 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
+        ...(includeVillejuif ? [{ label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 }] : []),
+        { label: includeVillejuif ? 'Total 3 biens' : 'Total 2 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
       ]
     },
     options: {
@@ -1276,7 +1277,8 @@ export function buildWealthProjectionChart(state, mode, group) {
   // Property names and colors for "par appart" mode
   const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
   const propColors = { vitry: '#3182ce', rueil: '#2f855a', villejuif: '#ed8936' };
-  const propKeys = Object.keys(proj[0]?.perProp || {});
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
+  const propKeys = Object.keys(proj[0]?.perProp || {}).filter(k => includeVillejuif || k !== 'villejuif');
 
   // Group by year first (used for both modes)
   const byYear = {};
