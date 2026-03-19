@@ -2922,6 +2922,7 @@ function renderImmoView(state) {
     ? iv.properties
     : iv.properties.filter(p => p.loanKey !== 'villejuif');
   const fp = filteredProps; // shorthand
+  iv._filteredProperties = fp; // expose filtered list for other renderers
 
   // Recompute KPIs from filtered set
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
@@ -3127,8 +3128,8 @@ function renderImmoView(state) {
   // ── LMP Alert Section (Nezha) ──
   const lmpSection = document.getElementById('lmpAlertSection');
   if (lmpSection) {
-    const rueilProp = iv.properties.find(p => p.loanKey === 'rueil');
-    const villejuifProp = iv.properties.find(p => p.loanKey === 'villejuif');
+    const rueilProp = fp.find(p => p.loanKey === 'rueil');
+    const villejuifProp = _immoIncludeVillejuif ? iv.properties.find(p => p.loanKey === 'villejuif') : null;
 
     // Calculate LMP thresholds
     const LMP_THRESHOLD = 23000; // €/an
@@ -3439,7 +3440,7 @@ function renderImmoView(state) {
   if (fiscTbody) {
     fiscTbody.innerHTML = '';
     let totalImpot = 0;
-    iv.properties.forEach(prop => {
+    fp.forEach(prop => {
       const f = prop.fiscalite;
       if (!f) return;
       totalImpot += f.totalImpot;
@@ -3486,7 +3487,7 @@ function renderImmoView(state) {
   const cfTableEl = document.getElementById('immoCFTable');
   if (cfTableEl) {
     let html = '<table style="margin-top:10px;"><thead><tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr></thead><tbody>';
-    iv.properties.forEach((prop, i) => {
+    fp.forEach((prop, i) => {
       const cd = prop.chargesDetail || {};
       const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
       const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
@@ -3516,8 +3517,8 @@ function renderImmoView(state) {
   // ── CF Analysis ──
   const cfAnalysis = document.getElementById('immoCFAnalysis');
   if (cfAnalysis) {
-    const autofinP = iv.properties.filter(p => !p.conditional && p.cf >= 0);
-    const deficitP = iv.properties.filter(p => !p.conditional && p.cf < 0);
+    const autofinP = fp.filter(p => !p.conditional && p.cf >= 0);
+    const deficitP = fp.filter(p => !p.conditional && p.cf < 0);
     let text = '<strong>Analyse :</strong> ';
     autofinP.forEach(p => { text += p.name + ' est autofinance (+' + Math.round(p.cf) + '/mois : revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
     deficitP.forEach(p => { text += p.name + ' a un deficit de ' + Math.round(p.cf) + '/mois (revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
