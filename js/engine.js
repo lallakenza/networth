@@ -2392,8 +2392,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
   const amineNW = amineTotalAssets + amineTva;
 
+  // Calculate delta from previous NW in history
+  const previousAmineNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.amineNW : null;
+  const amineNWDelta = previousAmineNW ? amineNW - previousAmineNW : null;
+  const amineNWDeltaPct = previousAmineNW ? ((amineNW - previousAmineNW) / previousAmineNW * 100) : null;
+
   const amine = {
     nw: amineNW,
+    nwDelta: amineNWDelta,
+    nwDeltaPct: amineNWDeltaPct,
     ibkr: amineIbkr,
     espp: amineEspp,
     sgtm: amineSgtm,
@@ -2451,8 +2458,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR;
   const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
 
+  // Calculate delta from previous NW in history
+  const previousNezhaNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.nezhaNW : null;
+  const nezhaNWDelta = previousNezhaNW ? nezhaNW - previousNezhaNW : null;
+  const nezhaNWDeltaPct = previousNezhaNW ? ((nezhaNW - previousNezhaNW) / previousNezhaNW * 100) : null;
+
   const nezha = {
     nw: nezhaNW,
+    nwDelta: nezhaNWDelta,
+    nwDeltaPct: nezhaNWDeltaPct,
     nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: nezhaRueilCRD,

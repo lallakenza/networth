@@ -554,32 +554,28 @@ function buildCashYieldPotential(state) {
   ];
 
   let html = '<div class="yield-potential" style="padding:4px 0;">';
-  rows.forEach(r => {
-    if (r.gap <= 0) return; // no gap = all accounts already >= 6%
+  // Filter to only rows with gap > 0
+  const activeRows = rows.filter(r => r.gap > 0);
+
+  if (activeRows.length === 0) {
+    // No gaps, don't show anything
+    return;
+  }
+
+  html += '<div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:6px;">Manque à gagner (cash &lt;6%)</div>';
+  html += '<div style="display:flex;gap:12px;font-size:12px;">';
+
+  activeRows.forEach(r => {
     const daily = r.gap / 365;
-    const monthly = r.gap / 12;
-    html += '<div style="margin-bottom:12px;padding:10px 14px;background:#fffbeb;border-left:3px solid #d97706;border-radius:6px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">';
-    html += '<span style="font-weight:700;color:' + r.color + ';">' + r.name + '</span>';
-    html += '<span style="font-size:11px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous les 6%</span>';
-    html += '</div>';
-    html += '<div style="display:flex;gap:16px;align-items:baseline;">';
-    html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(daily)) + '</div>';
-    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/jour</div>';
-    html += '</div>';
-    html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(monthly)) + '</div>';
-    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/mois</div>';
-    html += '</div>';
-    html += '<div style="text-align:center;flex:1;">';
-    html += '<div style="font-size:20px;font-weight:800;color:#92400e;">-' + fmt(Math.round(r.gap)) + '</div>';
-    html += '<div style="font-size:10px;color:#92400e;opacity:0.7">/an</div>';
-    html += '</div>';
-    html += '</div>';
+    const annual = r.gap;
+    html += '<div style="flex:1;text-align:center;padding:8px;background:#fffbeb;border-radius:6px;">';
+    html += '<div style="font-size:11px;color:#78716c;">' + r.name + '</div>';
+    html += '<div style="font-size:16px;font-weight:700;color:#92400e;">-' + fmt(Math.round(daily)) + '/jour</div>';
+    html += '<div style="font-size:10px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous 6% | -' + fmt(Math.round(annual)) + '/an</div>';
     html += '</div>';
   });
-  html += '<div style="font-size:10px;color:#a0aec0;text-align:center;margin-top:2px;">Rendement perdu sur le cash rapportant &lt;6% vs placement \u00e0 6% (Mashreq NEO+, Wio Savings)</div>';
+
+  html += '</div>';
   html += '</div>';
   parent.insertAdjacentHTML('beforeend', html);
 }
