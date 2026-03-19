@@ -2936,7 +2936,8 @@ function renderImmoView(state) {
   };
   const fAvgLTV = fTotalValue > 0 ? (fTotalCRD / fTotalValue * 100) : 0;
   const fTotalExitCosts = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
-  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : 0), 0);
+  // Floor each property's net equity at 0 before summing (can't sell at a loss)
+  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + Math.max(0, p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity), 0);
 
   // KPIs
   setEur('kpiImmoViewEq', fTotalEquity);
@@ -4544,9 +4545,10 @@ function renderAptView(state, loanKey) {
   const [py, pm] = (meta.purchaseDate || '2023-01').split('-').map(Number);
   const fiscType = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[loanKey] ? IMMO_CONSTANTS.fiscalite[loanKey].type : 'nu';
 
+  const showTVACol = loanKey === 'vitry'; // TVA clawback only applies to Vitry
   html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
     + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
-    + '<th class="num">Taxe PV</th><th class="num">TVA claw.</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
+    + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + '<th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
   for (let yr = 2026; yr <= 2040; yr += 2) {
     const holdYears = (yr - py) + (6 - pm) / 12;  // approx mid-year
@@ -4562,7 +4564,7 @@ function renderAptView(state, loanKey) {
       + '<td class="num">' + Math.round(exitSim.abattementIR * 100) + '%</td>'
       + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
       + '<td class="num">' + fmt(exitSim.totalTaxPV) + '</td>'
-      + '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>'
+      + (showTVACol ? '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>' : '')
       + '<td class="num" style="color:#c53030;font-weight:600;">' + fmt(exitSim.totalExitCosts) + '</td>'
       + '<td class="num" style="color:' + neColor + ';font-weight:600;">' + fmt(Math.round(exitSim.netEquityAfterExit)) + '</td>'
       + '</tr>';
