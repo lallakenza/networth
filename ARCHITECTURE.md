@@ -1362,3 +1362,280 @@ Max error: 0.000% → PASS (all rooms exact) ✓
 
 **Résultats validation Vitry 3302 :** Max error 2.1% → PASS ✓
 **Résultats validation Rueil :** Max error 4.6% → PASS ✓ (surfaces Loi Carrez exactes)
+
+---
+
+## Fonctionnalités non documentées — Engine (engine.js)
+
+### Fonctions de calcul des vues
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `toEUR(amount, currency, fx)` | amount, currency, fx rates | Convertit un montant dans la devise fournie vers EUR en utilisant les taux FX |
+| `computeIBKR(portfolio, fx, stockSource)` | portfolio, fx, stockSource ('live' ou 'statique') | Calcule NAV IBKR totale depuis positions + cash multi-devises (EUR/USD/JPY) |
+| `computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp)` | portfolio, fx, computed components | Agrège toutes les positions actions (IBKR, ESPP Amine, ESPP Nezha, SGTM) + allocation geo/sector + dépôts + dividendes + P/L réalisé |
+| `computeCreancesView(portfolio, fx)` | portfolio, fx | Traite créances (prêts à tiers) par statut, calcule inflation cost, jours de retard, % recouvrement |
+| `computeBudgetView(portfolio, fx)` | portfolio, fx | Agrège dépenses personnelles (BUDGET_EXPENSES) et dépenses d'investissement (charges immo) par zone/type |
+| `computeDividendAnalysis(ibkrPositions, fx)` | ibkrPositions, fx | Analyse dividendes projetés, WHT par position et géographie, recommande switch vers ETF si WHT élevé |
+
+### Fonctions d'amortissement (immo)
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `computeSubLoanSchedule(loan)` | loan (properties: principal, rate, startDate, periods[], ...) | Tableau d'amortissement mensuel pour prêt multi-période (PTZ, BP, etc.) avec phases déférées/taux variables |
+| `computeMultiLoanSchedule(subLoans, insuranceMonthly)` | subLoans[], insuranceMonthly | Combine plusieurs prêts d'un même bien, agrège intérêts, CRD, assurance |
+| `computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscConfig, loanInterestAnnuel)` | loyer déclaré, loyer total, charges, regime, taux, intérêts | Calcule impôt par régime (micro-foncier, micro-BIC, LMNP réel, LMNP amort) avec abattements |
+| `computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate, loanCRDs)` | tous paramètres, optional targetDate pour projection | Calcul exit costs: plus-value, abattements IR/PS, surtaxe immo, frais agence, frais notaire, TVA clawback |
+
+### Fonctions spécialisées
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `computePVAbattementSchedule()` | (aucun) | Retourne table abattement PV en fonction années de détention (tableau abattement[years]=pct) |
+| `computeVillejuifRegimeComparison()` | (aucun) | Compare 2 régimes VEFA Villejuif: LMNP réel vs micro-BIC (calcule impôts et recommande) |
+| `computeImmoView(portfolio, fx)` | portfolio, fx | Construit vue immobilière complète: propriétés, CRD, équité, CF, fiscalité, exit costs, projections NW 20 ans |
+| `getGrandTotal(state)` | state | Extrait patrimoine total (sum couple.nw + creances expected value, ou par propriétaire pour vue personnelle) |
+
+---
+
+## Fonctionnalités non documentées — Render (render.js)
+
+### Fonctions de rendu principales
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `fmt(eurVal, compact)` | montant EUR, optional compact flag | Formate montant EUR avec séparateurs (123.456€ ou 123K€ si compact) |
+| `renderHeader(state, view)` | state, view | Affiche header avec titre vue + date update données |
+| `renderKPIs(state, view)` | state, view | Affiche KPIs principaux (NW total, P/L YTD, actions/cash/immo, etc.) |
+| `renderCategoryCards(state, view)` | state, view | Affiche cartes catégories actifs (IBKR, ESPP, SGTM, immo, etc.) avec valeurs |
+| `renderCategoryPcts(state, view)` | state, view | Affiche % allocation par catégorie (pie chart proportions) |
+| `renderExpandSubs(state, view)` | state, view | Render des sous-cartes détail (ex: ESPP par personne) quand catégorie est agrandie |
+
+### Fonctions de rendu par vue
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `renderCoupleTable(state)` | state | Table couple avec NW par personne et total |
+| `renderAmineTable(state)` | state | Détail actifs Amine (cash, stocks, immo, créances, TVA) |
+| `renderNezhaTable(state, view)` | state, view | Détail actifs Nezha (cash, stocks, immo, créances) |
+| `renderIBKRPositionsSimple(state)` | state | Liste positions IBKR mini (ticker, shares, valeur EUR) |
+| `renderImmoKPIs(state)` | state | KPIs immobilier (total equity, valeur propriétés, cash flow, exit costs) |
+| `renderBadges(state)` | state | Badges status (live stock prices, stale cache, etc.) |
+| `renderImmoPcts(state)` | state | % equity par propriété |
+| `renderAllPositions(allPositions, sortKey, sortDir)` | positions merged (IBKR+ESPP+SGTM), sort params | Table détaillée toutes positions: ticker, shares, valeur, P&L, %allocation, sector, geo |
+| `setupAllPositionsSort(allPositions)` | allPositions | Attache event handlers aux headers de colonne pour tri dynamique |
+
+### Fonctions spécialisées render
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `renderDynamicInsights(state, view)` | state, view | Génère insights dynamiques (diagnostics dormants, opportunités placement, etc.) basés sur state |
+| `setupKPIDetailPanels(state)` | state | Crée panneaux modales pour chaque KPI cliquable (breakdowns P/L daily/MTD/YTD/1M, dépôts, dividendes) |
+| `renderActionsView(state)` | state | Vue Actions complète: tables positions, KPI details, treemaps geo/sector, gestion des colonnes visibles |
+| `renderCashView(state)` | state | Vue Cash: liste comptes par zone/yield, diagnostics dormants, recommandations placement |
+| `renderImmoView(state)` | state | Vue Immobilière: cartes propriétés détail, KPIs, FX timeline, simulation exit, régime fiscal |
+| `renderCreancesView(state)` | state | Vue Créances: table créances avec status, % recouvrement, daysOverdue, recommandations follow-up |
+| `renderBudgetView(state)` | state | Vue Budget: dépenses personnelles vs investissement, par zone/type, réels vs projetés |
+| `renderWHTAnalysis(state)` | state | Analyse WHT: positions avec dividendes, taux WHT, recommandations switch vs ETF |
+| `attachKPIInsights(state, view)` | state, view | Attache insights générés au header de la vue (icône avec tooltip) |
+
+### Fonctions utilitaires rendu
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `updateAllDataEur()` | (aucun) | Met à jour tous les montants EUR DOM (sync devise à jour) |
+| `setEur(id, val)` | id element, valeur EUR | Définit textContent de #id à fmt(val) |
+| `setText(id, text)` | id element, texte | Définit textContent #id |
+| `setSubPct(id, pct)` | id element, pourcentage | Affiche pourcentage formaté |
+| `setDelta(id, deltaVal, deltaPct, timeframe)` | id, delta montant, delta %, période | Affiche delta flèche (↑ rouge/vert) avec % et période |
+| `setHTML(id, html)` | id element, HTML | Définit innerHTML #id (safe si état connu) |
+
+---
+
+## Fonctionnalités non documentées — Charts (charts.js)
+
+### Gestion du cycle des graphiques
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `destroyAllCharts()` | (aucun) | Détruit tous les graphiques Chart.js stockés dans `charts{}` pour éviter fuites mémoire |
+| `rebuildAllCharts(state, view)` | state, view | Crée TOUS les graphiques requis pour une vue (couple → 6 graphiques, actions → 3, etc.) |
+| `coupleChartZoomOut()` | (aucun) | Réinitialise zoom couple drilldown à vue agrégée (appelé par clic "Retour" sur segment) |
+
+### Builders Donut/Sector
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildAmineDonut(state)` | state | Donut répartition actifs Amine (IBKR, cash, immo, ESPP, etc.) |
+| `buildNezhaDonut(state)` | state | Donut répartition actifs Nezha |
+| `buildActionsGeoDonut(state)` | state | Donut allocation géographique (US, France, Japon, Maroc, Irlande) |
+| `buildActionsSectorDonut(state)` | state | Donut allocation secteur (tech, banking, energy, etc.) |
+
+### Builders Bar/Projection
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildImmoEquityBar(state)` | state | Bar equity par propriété (Vitry, Rueil, Villejuif) |
+| `buildImmoProjection(state)` | state | Line chart équité immo + intérêts sur 10 ans |
+| `buildImmoViewEquityBar(state)` | state | Bar détail (immo view): equity + CRD + valeur brute par propriété |
+| `buildImmoViewProjection(state)` | state | Projection détail: NW 20 ans avec CF immo + appreciation |
+| `buildAmortChart(state)` | state | Amortization chart pour une propriété (capital vs intérêts au fil du temps) |
+| `buildCashYieldPotential(state)` | state | Bar rendement potential cash par compte (improvement vs rendement actuel) |
+
+### Builders Treemap
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)` | canvas id, chart key, categories, total, label | Crée treemap générique (CATS = {label, value}) avec couleurs et labels |
+| `buildCoupleTreemap(state)` | state | Treemap répartition couple par catégorie |
+| `buildAmineTreemap(state)` | state | Treemap répartition Amine |
+| `buildNezhaTreemap(state)` | state | Treemap répartition Nezha |
+| `buildActionsTreemap(state)` | state | Treemap répartition actions par ticker |
+
+### Builders géométriques (immobilier)
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildCoupleDrillDown(state, clickedIdx)` | state, optional segment index | Drilldown couple: clic sur segment donut → table détail (comptes sous-jacents) |
+| `buildGeoChart(state)` | state | SVG map géographie (US, France, Japon, Maroc) avec proportions par localisation |
+| `buildPropertyDetailCharts(state, prop)` | state, property object | Crée 3 graphiques détail propriété: amort schedule, exit cost projection, NW projection |
+| `buildExitProjectionChart(state, prop, canvasId)` | state, property, canvas id | Projection exit costs au fil des années (montant nets après impôts, frais) |
+| `buildCFProjection(state)` | state | Projection cash flow immo 20 ans (loyer - charges - intérêts + appréciation) |
+| `buildWealthProjectionChart(state, mode, group)` | state, mode ('couple'/'amine'/'nezha'), group | Projection NW 20 ans par personne ou couple (avec/sans stop contributions) |
+
+### Builders spécialisés
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildPVAbattementChart(propData, canvasId)` | property details, canvas id | Chart abattement plus-value en fonction années détention |
+| `buildBudgetZoneDonut(state)` | state | Donut budget par zone (Dubai, France, Digital) |
+| `buildBudgetTypeDonut(state)` | state | Donut budget par type dépense (personnel vs investissement) |
+
+### Builders internes
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `buildNWHistoryChart(state)` | state | (v86+: historique NW supprimé) — reste pour référence |
+| `buildSimChart(canvasId, chartKey, result)` | canvas id, chart key, simulator result | Crée graphique depuis résultats simulateur (monthly NW, immo, base, gains) |
+
+---
+
+## Fonctionnalités non documentées — Simulators (simulators.js)
+
+### Engine simulateur générique
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `runSimulatorGeneric(config)` | config object (monthlySavings, pctActions, returnActions, returnCash, horizonYears, stopYears, startNW, startImmoEquity, startPoolActions, startPoolCash, staticAssets, immoGrowthFn, existingGains, immoBreakdown) | Monte projection NW sur 20 ans avec contributions optionnelles, allocation % actions/cash, retours, et croissance immo custom |
+| `makeComputePropertyEquity(iv, loanKey, propertyInitialValue)` | immoView, loan key, initial value | Factory function retournant fonction(months) qui calcule equity propriété à mois M (avec amort + appreciation) |
+
+### Simulateurs spécialisés
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `runCoupleSimulator(state)` | state | Lance simulateur couple avec paramètres sliders du DOM (épargne, allocation, retours, horizon) |
+| `runAmineSimulator(state)` | state | Lance simulateur Amine (actifs personnels + immo Vitry) |
+| `runNezhaSimulator(state)` | state | Lance simulateur Nezha (actifs personnels + immo Rueil) |
+| `runOpportunityCostSim()` | (aucun) | Calcule cost d'opportunité JPY short vs EUR (si l'emprunt JPY existe et > 5K) |
+
+### Gestion sliders
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `initSimulators(state)` | state | Initialise sliders (range inputs) avec valeurs par défaut du state |
+| `bindSimulatorEvents(state, refreshFn)` | state, function de refresh | Attache event listeners sur sliders pour re-run simulateurs et refresh charts |
+
+---
+
+## Fonctionnalités non documentées — API (api.js)
+
+### Gestion cache localStorage
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `todayKey()` | (aucun) | Retourne clé cache du jour (format: nw_cache_YYYY-MM-DD) |
+| `loadCache()` | (aucun) | Charge cache localStorage pour aujourd'hui (ou vide si absent) |
+| `saveCache(cache)` | cache object | Sauvegarde cache dans localStorage avec clé du jour |
+| `purgeOldCache()` | (aucun) | Supprime toutes les clés cache des jours précédents (exécuté au chargement module) |
+
+### Fetch FX et stocks
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `fetchWithTimeout(url, timeoutMs)` | URL, timeout ms | Fetch avec timeout AbortSignal (10s par défaut) |
+| `fetchFXRates(forceRefresh)` | optional forceRefresh flag | Récupère taux FX EUR→AED/MAD/USD/JPY depuis er-api.com (TTL 5 min), fallback cache |
+| `fetchStockPrices(portfolio, onProgress, forceRefresh, onTickerLoaded)` | portfolio, callbacks progress/loaded, flags | Lance tous les tickers en parallèle (12 requêtes/ticker: 6 proxies × 2 endpoints Yahoo), retry loop si échecks |
+| `fetchSoldStockPrices(soldTickers, portfolio, onTickerLoaded)` | sold tickers list, portfolio, callback | Même logique que fetchStockPrices mais seulement pour positions clôturées (Degiro) |
+| `retryFailedTickers(failedTickers, portfolio, onRetryUpdate, maxRetries, delayMs)` | failed list, portfolio, callback, max retries, delay | Relance tickers manquants en boucle (5s entre rounds, max 5 rounds) jusqu'à succès ou timeout |
+
+### Extracteurs de données
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `extractFromChart(d)` | response data from Yahoo /v8/finance/chart | Parse réponse chart (prix, previousClose, timestamps OHLC) |
+| `extractFromQuote(d)` | response data from Yahoo /v6/finance/quote | Parse réponse quote (prix, previousClose, changePercent) |
+| `applyTickerToPortfolio(ticker, priceData, portfolio)` | ticker, {price, previousClose}, portfolio | Met à jour position ticker dans portfolio avec prix live |
+
+---
+
+## Fonctionnalités non documentées — App (app.js)
+
+### Routing et hash
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `updateHash()` | (aucun) | Met à jour URL hash depuis currentView/currentSubView (ex: #immobilier, #apt_vitry) |
+| `restoreFromHash()` | (aucun) | Lit URL hash au chargement et restaure vue (couple par défaut) |
+| `syncNavUI()` | (aucun) | Synchronise boutons nav actif et sous-nav immo visible selon currentView |
+
+### Refresh central
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `refresh()` | (aucun) | Orchestre pipeline complet: compute(PORTFOLIO) → render → charts → simulators (si person view) |
+
+### Gestion événements
+
+| Fonction | Paramètres | Rôle |
+|----------|-----------|------|
+| `toggleCat(cat)` | category name | Toggle expand/collapse d'une catégorie d'actifs (IBKR, cash, immo, etc.) |
+| `updateFxTimestamp()` | (aucun) | Met à jour badge avec timestamp du dernier refresh FX (live ou cache) |
+
+---
+
+## Fonctionnalités non documentées — HTML/CSS (index.html)
+
+### Structure sections principales
+
+| ID/Class | Rôle |
+|----------|------|
+| `.view-switcher` | Boutons tabs principaux (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget) |
+| `#immoSubNav` | Sub-tabs immobilier (Vitry, Rueil, Villejuif) — visible seulement si immo view |
+| `.kpi-section` | Section KPIs en haut de chaque vue (NW, P/L, allocations) |
+| `.detail-panel` | Panneau modal détail KPI (ouvert au clic sur KPI) |
+| `.positions-table` | Table dynamique positions (Actions view) avec colonnes filtrables et tri |
+| `.property-card` | Carte propriété (Immobilier view) avec données immo, CRD, fiscalité |
+| `.simulator-section` | Sliders simulateur (Couple/Amine/Nezha views) avec inputs et graphique projection |
+
+### Variables CSS principales
+
+| Variable | Rôle |
+|----------|------|
+| `--primary` | Couleur texte principal |
+| `--accent` | Bleu actions |
+| `--red` | Pertes / négatif |
+| `--green` | Gains / positif |
+| `--gray` | Texte secondaire |
+| `--bg` | Fond page |
+| `--card` | Fond cartes/panels |
+| `--gold` | Immobilier |
+
+### Classes utilitaires
+
+| Classe | Rôle |
+|--------|------|
+| `.pl-pos` | Texte vert (P&L positif) |
+| `.pl-neg` | Texte rouge (P&L négatif) |
+| `.num` | Alignement droite, font monospace |
+| `.kpi-clickable` | Indique KPI cliquable (cursor pointer, hover effect) |
+| `.active` | État actif (nav button, sort direction) |
