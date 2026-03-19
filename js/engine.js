@@ -258,6 +258,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp;
 
   // ── Compute P&L of CLOSED positions per period ──
+  // Date strings for period boundaries (same as computeIBKRPositions)
+  const _now = new Date();
+  const _pad2 = n => String(n).padStart(2, '0');
+  const ytdStartStr = _now.getFullYear() + '-01-01';
+  const mtdStartStr = _now.getFullYear() + '-' + _pad2(_now.getMonth() + 1) + '-01';
+  const todayStr = _now.getFullYear() + '-' + _pad2(_now.getMonth() + 1) + '-' + _pad2(_now.getDate());
+  const _oneMonthAgo = new Date(_now.getFullYear(), _now.getMonth() - 1, _now.getDate());
+  const oneMonthStr = _oneMonthAgo.getFullYear() + '-' + _pad2(_oneMonthAgo.getMonth() + 1) + '-' + _pad2(_oneMonthAgo.getDate());
   // Positions fully sold during the year still contribute to period P&L.
   // For each sell trade in the period: P&L = proceeds - (shares × refPrice at period start)
   // If bought during the period (no refPrice): P&L = realizedPL (proceeds - cost)
