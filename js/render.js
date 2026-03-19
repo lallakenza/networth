@@ -187,6 +187,10 @@ function renderKPIs(state, view) {
   setEur('kpiCoupleImmo', s.couple.immoEquity);
 
   setEur('kpiAmNW', s.amine.nw);
+  // Add delta indicator for amine NW
+  if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
+    setDelta('kpiAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, 'ce mois');
+  }
   setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
   setEur('kpiAmVitry', s.amine.vitryEquity);
   // TWR dynamic from state (was hardcoded)
@@ -195,6 +199,10 @@ function renderKPIs(state, view) {
   }
 
   setEur('kpiNzNW', s.nezha.nw);
+  // Add delta indicator for nezha NW
+  if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
+    setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, 'ce mois');
+  }
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
   setEur('kpiNzCash', s.nezha.cash + s.nezha.recvOmar);
@@ -1415,6 +1423,10 @@ function renderActionsView(state) {
   const av = state.actionsView;
   // KPIs — cross-platform
   setEur('kpiActionsTotal', av.totalStocks);
+  // Add delta indicator for actions total (use couple NW delta as proxy)
+  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
+    setDelta('kpiActionsTotal', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
+  }
   const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
   const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
   setText('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
@@ -2408,6 +2420,10 @@ function renderCashView(state) {
   const cv = state.cashView;
   // KPIs
   setEur('kpiCashTotal', cv.totalCash);
+  // Add delta indicator for cash total (use couple NW delta as proxy)
+  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
+    setDelta('kpiCashTotal', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
+  }
   setText('kpiCashAvgYield', (cv.weightedAvgYield * 100).toFixed(1) + '%');
   setText('kpiCashInflation', '-' + fmt(cv.monthlyInflationCost));
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
@@ -2909,6 +2925,10 @@ function renderImmoView(state) {
 
   // KPIs
   setEur('kpiImmoViewEq', fTotalEquity);
+  // Add delta indicator for immo equity (use couple NW delta as proxy)
+  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
+    setDelta('kpiImmoViewEq', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
+  }
   setEur('kpiImmoViewVal', fTotalValue);
   setEur('kpiImmoViewCRD', fTotalCRD);
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
