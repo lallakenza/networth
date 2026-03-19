@@ -1289,17 +1289,25 @@ export function buildWealthProjectionChart(state, mode, group) {
       byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, exitSavings: 0, total: 0, count: 0 };
       propKeys.forEach(k => { byYear[y][k] = 0; });
     }
-    byYear[y].capital += row.capital;
-    byYear[y].appreciation += row.appreciation;
-    byYear[y].cashflow += row.cashflow;
-    byYear[y].exitSavings += row.exitSavings || 0;
-    byYear[y].total += row.total;
-    byYear[y].count++;
-    // Per-property totals
+    // Sum only from filtered properties (respects Villejuif toggle)
+    let rowCapital = 0, rowApprec = 0, rowCF = 0, rowExit = 0, rowTotal = 0;
     propKeys.forEach(k => {
       const pp = row.perProp[k];
-      if (pp) byYear[y][k] += pp.total;
+      if (pp) {
+        rowCapital += pp.capital || 0;
+        rowApprec += pp.appreciation || 0;
+        rowCF += pp.cashflow || 0;
+        rowExit += pp.exitSavings || 0;
+        rowTotal += pp.total || 0;
+        byYear[y][k] += pp.total;
+      }
     });
+    byYear[y].capital += rowCapital;
+    byYear[y].appreciation += rowApprec;
+    byYear[y].cashflow += rowCF;
+    byYear[y].exitSavings += rowExit;
+    byYear[y].total += rowTotal;
+    byYear[y].count++;
   });
   const years = Object.keys(byYear).sort();
   // Exclude last year if partial (< 12 months)

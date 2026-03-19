@@ -2881,7 +2881,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     + '<div style="margin-top:16px;padding:12px 16px;background:#f0fff4;border-radius:8px;border-left:3px solid var(--green);font-size:12px;line-height:1.6;color:#2d3748">'
     + '<strong>Comment lire ce tableau :</strong><br>'
     + '<strong>Capital amorti</strong> = part du pr\u00eat rembours\u00e9e qui augmente votre equity (le locataire paie, la banque rembourse).<br>'
-    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an, Villejuif 2%/an L14+L15).<br>'
+    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an' + (_immoIncludeVillejuif ? ', Villejuif 2%/an L14+L15' : '') + ').<br>'
     + '<strong>Cash flow</strong> = loyers - toutes charges (pr\u00eat + assurance + PNO + TF + copro). N\u00e9gatif = effort d\u2019\u00e9pargne mensuel.'
     + (tb.cashflow < 0 ? '<br><em>M\u00eame avec un effort de ' + fmt(Math.abs(tb.cashflow)) + '/mois, vous cr\u00e9ez ' + fmt(total) + '/mois de richesse nette. Le levier bancaire travaille pour vous.</em>' : '')
     + '</div>';
