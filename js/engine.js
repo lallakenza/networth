@@ -2393,6 +2393,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineNW = amineTotalAssets + amineTva;
 
   // Calculate delta from previous NW in history + compute timeframe label
+  // NW_HISTORY is empty (v150), so deltas are always null
   const _prevEntry = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2] : null;
   const previousAmineNW = _prevEntry?.amineNW || null;
   const amineNWDelta = previousAmineNW ? amineNW - previousAmineNW : null;
@@ -2469,6 +2470,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
 
   // Calculate delta from previous NW in history
+  // NW_HISTORY is empty (v150), so deltas are always null
   const previousNezhaNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.nezhaNW : null;
   const nezhaNWDelta = previousNezhaNW ? nezhaNW - previousNezhaNW : null;
   const nezhaNWDeltaPct = previousNezhaNW ? ((nezhaNW - previousNezhaNW) / previousNezhaNW * 100) : null;
@@ -2522,6 +2524,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // Calculate couple delta as SUM of individual deltas (ensures consistency: couple delta = amine delta + nezha delta)
   // Using individual deltas instead of coupleNW history because NW_HISTORY.coupleNW may not equal amineNW+nezhaNW
+  // NW_HISTORY is empty (v150), so deltas are always null
   const nwDelta = (amineNWDelta !== null && nezhaNWDelta !== null) ? amineNWDelta + nezhaNWDelta : null;
   const previousCoupleNW = nwDelta !== null ? coupleNW - nwDelta : null;
   const nwDeltaPct = previousCoupleNW ? (nwDelta / previousCoupleNW * 100) : null;
