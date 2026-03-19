@@ -202,8 +202,8 @@ export const PORTFOLIO = {
         // ─── NXI sell — vente totale ───
         { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',            type: 'sell', qty: 2000, price: 9.62,    currency: 'EUR', proceeds: 19240, realizedPL: 399.58,  commission: -9.62, costBasis: 9.535 , source: 'ibkr' },
         // ─── DG vente partielle (100/200) — 17 mars 2026 ───
-        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 40,   price: 131.20,  currency: 'EUR', proceeds: 5248,  realizedPL: '',  commission: -3.00, costBasis: 122.46 , source: 'ibkr' },
-        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: '',  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 40,   price: 131.20,  currency: 'EUR', proceeds: 5248,  realizedPL: 349.60,  commission: -3.00, costBasis: 122.46 , source: 'ibkr' },  // 40×(131.20-122.46)
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: 524.40,  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },  // 60×(131.20-122.46)
 
         // ═══════════════════════════════════════════════════
         //  FX TRADES — conversions de devises & carry trade
