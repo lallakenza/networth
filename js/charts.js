@@ -294,6 +294,7 @@ function buildImmoEquityBar(state) {
 function buildImmoProjection(state) {
   const el = document.getElementById('immoProjectionChart');
   if (!el) return;
+  if (charts.immoProj) { charts.immoProj.destroy(); delete charts.immoProj; }
 
   // Dynamic projection from current property values + appreciation rates
   const iv = state.immoView;
@@ -305,7 +306,8 @@ function buildImmoProjection(state) {
   const projYears = [];
   for (let y = currentYear + 1; y <= currentYear + 7; y++) projYears.push(y);
 
-  const loanKeys = ['vitry', 'rueil', 'villejuif'];
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
+  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
@@ -584,7 +586,9 @@ function buildCashYieldPotential(state) {
 function buildImmoViewEquityBar(state) {
   const el = document.getElementById('immoViewEquityChart');
   if (!el) return;
-  const props = state.immoView.properties;
+  if (charts.immoViewEq) { charts.immoViewEq.destroy(); delete charts.immoViewEq; }
+  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
+  const props = includeVillejuif ? state.immoView.properties : state.immoView.properties.filter(p => p.loanKey !== 'villejuif');
   charts.immoViewEq = new Chart(el, {
     type: 'bar',
     data: {
