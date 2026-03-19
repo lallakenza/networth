@@ -1641,3 +1641,132 @@ Max error: 0.000% → PASS (all rooms exact) ✓
 | `.num` | Alignement droite, font monospace |
 | `.kpi-clickable` | Indique KPI cliquable (cursor pointer, hover effect) |
 | `.active` | État actif (nav button, sort direction) |
+
+## Session 19-20 mars 2026 — Changelog complet
+
+### v147 — Mise à jour IBKR (18 mars)
+- Prix statiques mis à jour au close 16/03/2026 (CSV IBKR Q1 2026)
+- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40+60)
+- DG position réduite de 200 → 100 actions
+- Deleverage JPY : 13 111 EUR → JPY @ 183.545 le 18/03
+- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
+- NAV : 192 878 → 197 076, realizedPL : 5 924 → 6 798
+
+### v148 — Corrections majeures + UX
+**Simulateurs (couple, Amine, Nezha) :**
+- `makeComputePropertyEquity()` : equity nette calculée depuis amort schedule + appréciation par phases + exit costs interpolés
+- Flag `_computedEquity: true` pour valeurs absolues dans `immoBreakdown`
+- Granularité mensuelle (chaque mois = 1 point) avec `maxTicksLimit: 24`
+- Fix saut initial : snapshot direct depuis `growthFn(m)` pour propriétés computed
+
+**Engine (wealth projection) :**
+- Appréciation par phases dans la projection de richesse (était taux fixe)
+
+**Données immobilier :**
+- Rueil purchasePrice : 255K → 240K (acte notarié, Crédit Mutuel Franconville)
+- LMNP amortissement depuis `lmnpStartDate` (oct 2025 pour Rueil, sept 2029 pour Villejuif)
+- Vitry parking : 0 → 70€/mois, loyerTotalCC : 1200 → 1270
+- L15 Sud ouverture : déc 2026 → avril 2027
+- BP timeline : intérêts seuls août-déc 2025, capital jan 2026
+
+**Détails appartements :**
+- Ajout `details` object (rooms, surfaces, étage, lot, exposition, DPE) pour 3 propriétés
+- `renderPropertyInfoCard()` : barre colorée des pièces + métriques en pills
+- Surface au clic uniquement (pas en permanence)
+- Surfaces Loi Carrez exactes pour Rueil (certificat)
+
+**Section LMP :**
+- Bannière compacte collapsible (1 ligne, détails au clic)
+- Tableau fiscal LMNP vs LMP sur loyer Rueil
+- Tableau exit costs LMNP vs LMP 25 ans (collapsible)
+
+**Jeanbrun :**
+- Section collapsible : "non retenu — loyer plafonné trop bas (1 215€ vs 1 700€)"
+
+**Cash :**
+- Manque à gagner : 3 mini-cartes horizontales (compact), amber
+- Rendement perdu par jour/mois/an sur cash <6%
+
+**Timelines propriétés :**
+- Rueil : acte 2019, RP Nezha, bail LMNP oct 2025, abattements PV
+- Villejuif : VEFA, prêts LCL, L15 Sud, livraison 2029
+- Vitry : BP intérêts seuls → capital, PTZ différé, TVA 5.5%
+
+**Chart PV Abattements :**
+- Barres empilées IR/PS/Net par année de détention (1-30 ans)
+- Ligne verticale à la durée actuelle
+
+**Redesign CSS "Patrimoine Précis" :**
+- DM Sans (body) + Instrument Serif (titres) via Google Fonts
+- Fond off-white #fafaf9, navy nav #1e3a5f, bordures warm gray
+- KPI cards : fadeUp animations, hover shadows
+- Tables : headers uppercase letter-spaced, hover states
+- Micro-animations 0.2s ease partout
+
+**20 UX fixes :**
+1. Villejuif warning caché sur vues non pertinentes
+2. KPI labels title case
+3. Loading skeleton
+4. Immo KPIs hiérarchie visuelle
+5. FX status bar réduit
+6. Treemap labels overlap fix
+7. Column toggle pills réduits
+8. Manque à gagner amber
+9. Footer timestamp formaté
+10. Double €€ fixé
+11. Donut legends espacées
+12. Hard Refresh → 🔄
+13. LIVE badge conditionnel
+14. Cash table alternating rows
+15. Budget charts min-height
+16. Favicon 💰
+
+### v149 — Features + data quality
+**NW History chart :** (désactivé — NW_HISTORY vidé car données inventées)
+
+**Delta indicators :**
+- Couple NW = amine delta + nezha delta (somme des individuels, pas historique)
+- Timeframe dynamique ("sur X mois" calculé depuis date NW_HISTORY)
+- Deltas sur couple/amine/nezha views uniquement (pas cash/actions/immo)
+
+**NW_HISTORY cleanup :**
+- Données historiques supprimées (étaient inventées, pas réelles)
+- Deltas et chart se réactiveront quand vraies données mensuelles ajoutées
+
+**DG realizedPL fix :**
+- Ventes DG 17/03 : realizedPL '' → 349.60 + 524.40 (calculé)
+
+**Villejuif toggle fix :**
+- Toggle "Inclure Villejuif" rafraîchit maintenant TOUTE la page
+- `window._appRefresh()` exposé par app.js
+- Charts equity bar + projection filtrent par `_immoIncludeVillejuif`
+
+**Documentation complète :**
+- +276 lignes documentant 119 fonctionnalités non documentées
+- Engine (14), Render (30), Charts (29), Simulators (8), API (12), App (6), HTML/CSS (20)
+
+### Plans SVG (tentative et abandon)
+- Tentative de plans SVG interactifs pour les 3 appartements
+- Solver géométrique à contraintes (27.5° V-angle, 0% error)
+- Résultat visuellement insatisfaisant malgré précision mathématique
+- **Décision : supprimé** — remplacé par tableau de dimensions des pièces
+- Room bar avec surface au clic conservée
+
+### Données vérifiées par audit financier
+- ✅ NW formula : coupleNW = amineNW + nezhaNW (véhicules dans amineNW)
+- ✅ Shiseido JPY : conversion correcte via toEUR(shares×price, 'JPY', fx)
+- ✅ Deposits IBKR : 202 886€ (somme vérifiée)
+- ✅ Exit costs : purchasePrice 240K, frais 7.5%, LMNP depuis lmnpStartDate
+- ✅ Cash accounts : 13 comptes (7 Amine + 6 Nezha) tous inclus
+- ✅ FX rates : EUR=1, AED=4.25, MAD=10.85, USD=1.16, JPY=183
+- ✅ Track record : win rate 77.8%, profit factor 2.78
+
+### Prompt dashboard patrimonial
+- Créé pour Anas & Rania dans `/mnt/outputs/prompt-dashboard-patrimonial.md`
+- 3 phases : inventaire → construction → enrichissement par documents
+- Contexte Europe/Maroc, multi-devises
+
+### Drafts Gmail
+- Degiro sur am.koraibi@gmail.com → clients@degiro.fr
+- BoursoBank sur amine.koraibi@gmail.com → contact@boursobank.com
+- Numéros PEA complets retrouvés dans emails de clôture
