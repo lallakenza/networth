@@ -995,7 +995,7 @@ const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'J
 let _immoIncludeVillejuif = true; // toggle for Villejuif (achat futur)
 window._immoIncludeVillejuif = () => _immoIncludeVillejuif; // expose for charts
 let _posViewMode = 'total'; // 'total' or 'unitaire'
-let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
+let _posPeriod = 'all'; // 'all', 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
 // Column visibility config: { key: { label, on, modeOnly? } }
 const _colConfig = {
@@ -1040,11 +1040,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const tbody = document.getElementById('allPositionsTbody');
   if (!tbody || !table) return;
   tbody.innerHTML = '';
-  const periodLabels = { daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
+  const periodLabels = { all: 'All', daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
   const vis = (k) => _isColVisible(k);
 
-  // Column header definitions
-  const _hdefs = {
+  // Column header definitions - vary based on period
+  const _hdefs = _posPeriod === 'all' ? {
     broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
     shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
     prix:    { sort: 'price', label: 'Prix', cls: 'num sortable' },
@@ -1053,17 +1053,33 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
-    evo:     { sort: ({ daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod] || 'dailyPL'), label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
+    weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
+    sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
+    geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
+  } : {
+    broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
+    shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
+    prix:    { sort: 'price', label: 'Prix', cls: 'num sortable' },
+    valeur_debut: { sort: 'valeur_debut', label: 'Valeur d\u00e9but', cls: 'num sortable' },
+    valeur_actuelle: { sort: 'valEUR', label: 'Valeur actuelle', cls: 'num sortable' },
+    pru:     { sort: 'pruEUR', label: 'PRU', cls: 'num sortable' },
+    pl_periode: { sort: 'pl_periode', label: 'P/L p\u00e9riode', cls: 'num sortable' },
+    pctPL_periode: { sort: 'pctPL_periode', label: '% p\u00e9riode', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
   };
 
-  // Rebuild thead dynamically based on _colOrder
+  // Adjust column order based on period
+  let colOrder = _posPeriod === 'all' ?
+    ['shares', 'valeur', 'cout', 'pl', 'pctPL', 'weight', 'sector', 'geo'] :
+    ['shares', 'valeur_debut', 'valeur_actuelle', 'pl_periode', 'pctPL_periode', 'weight', 'sector', 'geo'];
+
+  // Rebuild thead dynamically based on colOrder
   const thead = table.querySelector('thead');
   if (thead) {
     let hdr = '<tr><th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>';
-    _colOrder.forEach(k => { if (!vis(k)) return; const d = _hdefs[k]; hdr += '<th class="' + d.cls + '" data-sort="' + d.sort + '">' + d.label + ' <span class="sort-arrow"></span></th>'; });
+    colOrder.forEach(k => { const d = _hdefs[k]; if (!d) return; hdr += '<th class="' + d.cls + '" data-sort="' + d.sort + '">' + d.label + ' <span class="sort-arrow"></span></th>'; });
     thead.innerHTML = hdr + '</tr>';
   }
 
@@ -1103,15 +1119,27 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
 
     // Cell renderers per column key
+    const refPriceMap = { daily: pos.price, mtd: pos.mtdOpen, oneMonth: pos.oneMonthOpen, ytd: pos.ytdOpen };
+    const refPrice = _posPeriod === 'all' ? null : (refPriceMap[_posPeriod] || pos.price);
+    const valeurDebut = refPrice && pos.shares ? Math.round(refPrice * pos.shares) : null;
+    const plPeriode = pos[periodMap[_posPeriod]] || null;
+    const pctPeriode = pos[periodPctMap[_posPeriod]] || null;
+    const plPeriodeC = plPeriode != null ? (plPeriode >= 0 ? 'pl-pos' : 'pl-neg') : '';
+    const plPeriodeS = plPeriode != null ? (plPeriode >= 0 ? '+' : '') : '';
+
     const _cells = {
       broker:  () => '<td>' + (pos.broker || '') + '</td>',
       shares:  () => '<td class="num">' + pos.shares + '</td>',
       prix:    () => '<td class="num">' + (pos.priceLabel || '\u2014') + '</td>',
       valeur:  () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
+      valeur_debut: () => '<td class="num">' + (valeurDebut !== null ? fmt(valeurDebut) : '\u2014') + '</td>',
+      valeur_actuelle: () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
       pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014') + '</td>',
       cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>',
       pl:      () => '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>',
+      pl_periode: () => '<td class="num ' + plPeriodeC + '">' + (plPeriode !== null ? plPeriodeS + fmt(Math.round(plPeriode)) : '\u2014') + '</td>',
       pctPL:   () => '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>',
+      pctPL_periode: () => '<td class="num ' + plPeriodeC + '">' + (pctPeriode !== null ? plPeriodeS + pctPeriode.toFixed(1) + '%' : '\u2014') + '</td>',
       evo:     () => '<td class="num ' + evoC + '">' + evoTxt + '</td>',
       weight:  () => '<td class="num">' + pos.weight.toFixed(1) + '%</td>',
       sector:  () => '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>',
@@ -1121,7 +1149,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
     let rowHtml = '<td>' + pos.label + liveBadge + '</td>';
-    _colOrder.forEach(k => { if (vis(k)) rowHtml += _cells[k](); });
+    colOrder.forEach(k => { const cellFn = _cells[k]; if (cellFn) rowHtml += cellFn(); });
     tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
 
@@ -1265,16 +1293,20 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     totalEvoC = totalEvoPL >= 0 ? 'pl-pos' : 'pl-neg';
     totalEvoTxt = (totalEvoPL >= 0 ? '+' : '') + fmt(Math.round(totalEvoPL));
   }
-  const visCount = 1 + _colOrder.filter(k => vis(k)).length;
+  const visCount = 1 + colOrder.length;
   const _totCells = {
     broker:  () => '<td></td>',
     shares:  () => '<td></td>',
     prix:    () => '<td></td>',
     valeur:  () => '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>',
+    valeur_debut: () => '<td class="num"><strong>' + fmt(totalVal - totalEvoPL) + '</strong></td>',
+    valeur_actuelle: () => '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>',
     pru:     () => '<td></td>',
     cout:    () => '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>',
     pl:      () => '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>',
+    pl_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
+    pctPL_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoPL && totalVal ? (totalEvoPL >= 0 ? '+' : '') + (totalEvoPL / (totalVal - totalEvoPL) * 100).toFixed(1) : '\u2014') + '%</strong></td>',
     evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     weight:  () => '<td class="num">100%</td>',
     sector:  () => '<td></td>',
@@ -1283,7 +1315,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const ttr = document.createElement('tr');
   ttr.style.fontWeight = '700'; ttr.style.background = '#edf2f7';
   let totalHtml = '<td><strong>Total (' + sorted.length + ' positions)</strong></td>';
-  _colOrder.forEach(k => { if (vis(k)) totalHtml += _totCells[k](); });
+  colOrder.forEach(k => { const cellFn = _totCells[k]; if (cellFn) totalHtml += cellFn(); });
   ttr.innerHTML = totalHtml;
   tbody.appendChild(ttr);
 

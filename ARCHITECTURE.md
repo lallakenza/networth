@@ -1770,3 +1770,41 @@ Max error: 0.000% → PASS (all rooms exact) ✓
 - Degiro sur am.koraibi@gmail.com → clients@degiro.fr
 - BoursoBank sur amine.koraibi@gmail.com → contact@boursobank.com
 - Numéros PEA complets retrouvés dans emails de clôture
+
+### Password Protection (v149)
+
+Le site est protégé par un mot de passe simple avec persistance cookie.
+
+**Mécanisme :**
+- Gate HTML en `position:fixed` couvrant toute la page
+- Hash Java-style du mot de passe (pas cryptographique, suffisant pour la confidentialité)
+- Cookie `nw_auth` valide 365 jours, `SameSite=Strict`
+- Si cookie présent et valide → gate masquée automatiquement
+- Si mot de passe incorrect → message d'erreur, rechargement du champ
+
+**Pour changer le mot de passe :**
+1. Calculer le nouveau hash : `node -e "function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}return h.toString();} console.log(hashStr('NOUVEAU_MDP'));"`
+2. Remplacer `AUTH_HASH` dans index.html
+
+### Bouton "All" — Vue par défaut du tableau positions (v149)
+
+**Avant :** vue par défaut = Daily, colonnes fixes (Valeur, Coût, P/L, %)
+**Après :** vue par défaut = All, colonnes dynamiques selon la période
+
+| Mode | Colonnes |
+|------|----------|
+| All | Position, Qté, Valeur, Coût, P/L, %, Poids, Secteur, Géo |
+| Daily/MTD/1M/YTD | Position, Qté, Début période, Valeur actuelle, P/L période, % période, Poids, Secteur, Géo |
+
+"Début période" = shares × refPrice (ytdOpen pour YTD, mtdOpen pour MTD, etc.)
+
+### Redirections apt_*.html (v149)
+
+Les anciennes pages standalone (apt_vitry.html, apt_rueil.html, apt_villejuif.html)
+redirigent maintenant vers `index.html#apt_*` via meta refresh + JS redirect.
+
+### Closed Positions P&L in Period KPIs (v149)
+
+Les P&L par période (Daily, MTD, 1M, YTD) incluent maintenant le P&L des positions
+complètement vendues pendant la période. `closedPeriodPL()` dans engine.js calcule
+la différence entre les proceeds et la valeur de début de période pour chaque vente.

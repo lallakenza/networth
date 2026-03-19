@@ -816,6 +816,64 @@
 </head>
 <body>
 
+<div id="authGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#1e3a5f;display:flex;align-items:center;justify-content:center;z-index:10000;">
+  <div style="text-align:center;max-width:360px;padding:40px;">
+    <div style="font-family:'Instrument Serif',serif;font-size:28px;color:white;margin-bottom:8px;">Dashboard Patrimonial</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:24px;">Amine & Nezha Koraibi</div>
+    <input id="authInput" type="password" placeholder="Mot de passe"
+      style="width:100%;padding:12px 16px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.1);color:white;font-size:15px;outline:none;box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter')document.getElementById('authBtn').click()">
+    <button id="authBtn" onclick="checkAuth()"
+      style="width:100%;margin-top:12px;padding:12px;background:white;color:#1e3a5f;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+      Accéder
+    </button>
+    <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
+  </div>
+</div>
+
+<script>
+// Simple hash-based password check (not cryptographically secure, but sufficient for privacy)
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h.toString();
+}
+
+const AUTH_HASH = '1659296'; // hash of '6314'
+const AUTH_COOKIE = 'nw_auth';
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;SameSite=Strict';
+}
+
+function checkAuth() {
+  const input = document.getElementById('authInput').value;
+  if (hashStr(input) === AUTH_HASH) {
+    setCookie(AUTH_COOKIE, AUTH_HASH, 365); // valid for 1 year
+    document.getElementById('authGate').style.display = 'none';
+  } else {
+    document.getElementById('authError').style.display = 'block';
+    document.getElementById('authInput').value = '';
+    document.getElementById('authInput').focus();
+  }
+}
+
+// Auto-check cookie on load
+if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
+  document.getElementById('authGate').style.display = 'none';
+}
+</script>
+
 <div id="loadingOverlay" class="loading-overlay">
   <div style="text-align:center;">
     <div style="font-family:'Instrument Serif',serif;font-size:24px;color:#1e3a5f;">Dashboard Patrimonial</div>
@@ -1008,21 +1066,21 @@
   <!-- EXPANDABLE: Immo -->
   <div class="cat-expand" id="expand-immo">
     <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
-      <a href="apt_vitry.html" class="sub-card">
+      <a href="index.html#apt_vitry" class="sub-card">
         <div class="sub-icon">&#x1F3E0;</div>
         <div class="sub-title">Vitry-sur-Seine</div>
         <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span id="subVitryCrdDetail" data-eur="293000">--</span></div>
         <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
         <div class="sub-badge" id="subVitryCFBadge">--</div>
       </a>
-      <a href="apt_rueil.html" class="sub-card">
+      <a href="index.html#apt_rueil" class="sub-card">
         <div class="sub-icon">&#x1F3E1;</div>
         <div class="sub-title">Rueil-Malmaison</div>
         <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span id="subRueilCrdDetail" data-eur="272000">--</span></div>
         <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
         <div class="sub-badge" id="subRueilCFBadge">--</div>
       </a>
-      <a href="apt_villejuif.html" class="sub-card">
+      <a href="index.html#apt_villejuif" class="sub-card">
         <div class="sub-icon">&#x1F3D7;&#xFE0F;</div>
         <div class="sub-title">VEFA Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div>
         <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span id="subVillejuifCrdDetail" data-eur="360000">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3.6K payee</span></div>
@@ -1299,7 +1357,8 @@
         <button data-mode="unitaire" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Unitaire</button>
       </div>
       <div id="posPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
-        <button data-period="daily" class="active" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Daily</button>
+        <button data-period="all" class="active" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">All</button>
+        <button data-period="daily" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Daily</button>
         <button data-period="mtd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
         <button data-period="oneMonth" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
         <button data-period="ytd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">YTD</button>
