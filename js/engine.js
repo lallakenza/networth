@@ -2392,15 +2392,25 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
   const amineNW = amineTotalAssets + amineTva;
 
-  // Calculate delta from previous NW in history
-  const previousAmineNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.amineNW : null;
+  // Calculate delta from previous NW in history + compute timeframe label
+  const _prevEntry = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2] : null;
+  const previousAmineNW = _prevEntry?.amineNW || null;
   const amineNWDelta = previousAmineNW ? amineNW - previousAmineNW : null;
   const amineNWDeltaPct = previousAmineNW ? ((amineNW - previousAmineNW) / previousAmineNW * 100) : null;
+  // Compute timeframe label from NW_HISTORY dates
+  let nwDeltaTimeframe = 'vs dernier point';
+  if (_prevEntry?.date) {
+    const [py, pm] = _prevEntry.date.split('-').map(Number);
+    const now = new Date();
+    const months = (now.getFullYear() - py) * 12 + (now.getMonth() + 1 - pm);
+    nwDeltaTimeframe = months <= 1 ? 'ce mois' : months < 12 ? 'sur ' + months + ' mois' : 'sur ' + Math.round(months/12) + ' an' + (months >= 24 ? 's' : '');
+  }
 
   const amine = {
     nw: amineNW,
     nwDelta: amineNWDelta,
     nwDeltaPct: amineNWDeltaPct,
+    nwDeltaTimeframe: nwDeltaTimeframe,
     ibkr: amineIbkr,
     espp: amineEspp,
     sgtm: amineSgtm,
@@ -2467,6 +2477,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nw: nezhaNW,
     nwDelta: nezhaNWDelta,
     nwDeltaPct: nezhaNWDeltaPct,
+    nwDeltaTimeframe: nwDeltaTimeframe,
     nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: nezhaRueilCRD,
@@ -2509,15 +2520,17 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity;
   const nbBiens = villejuifSigned ? 3 : 2;
 
-  // Calculate delta from previous NW in history
-  const previousNW = NW_HISTORY && NW_HISTORY.length > 1 ? NW_HISTORY[NW_HISTORY.length - 2]?.coupleNW : null;
-  const nwDelta = previousNW ? coupleNW - previousNW : null;
-  const nwDeltaPct = previousNW ? ((coupleNW - previousNW) / previousNW * 100) : null;
+  // Calculate couple delta as SUM of individual deltas (ensures consistency: couple delta = amine delta + nezha delta)
+  // Using individual deltas instead of coupleNW history because NW_HISTORY.coupleNW may not equal amineNW+nezhaNW
+  const nwDelta = (amineNWDelta !== null && nezhaNWDelta !== null) ? amineNWDelta + nezhaNWDelta : null;
+  const previousCoupleNW = nwDelta !== null ? coupleNW - nwDelta : null;
+  const nwDeltaPct = previousCoupleNW ? (nwDelta / previousCoupleNW * 100) : null;
 
   const couple = {
     nw: coupleNW,
     nwDelta: nwDelta,
     nwDeltaPct: nwDeltaPct,
+    nwDeltaTimeframe: nwDeltaTimeframe,
     immoEquity: coupleImmoEquity, // net (after exit costs)
     immoEquityBrute: coupleImmoEquityBrute,
     immoValue: coupleImmoValue,

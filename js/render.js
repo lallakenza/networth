@@ -179,23 +179,23 @@ function renderKPIs(state, view) {
   setEur('kpiCoupleNW', s.couple.nw);
   // Add delta indicator for couple NW
   if (s.couple.nwDelta !== null && s.couple.nwDeltaPct !== null) {
-    setDelta('kpiCoupleNW', s.couple.nwDelta, s.couple.nwDeltaPct, 'ce mois');
+    setDelta('kpiCoupleNW', s.couple.nwDelta, s.couple.nwDeltaPct, s.couple.nwDeltaTimeframe);
   }
 
   setEur('kpiCoupleAmNW', s.amine.nw);
   if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
-    setDelta('kpiCoupleAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, 'ce mois');
+    setDelta('kpiCoupleAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, s.amine.nwDeltaTimeframe);
   }
   setEur('kpiCoupleNzNW', s.nezha.nw);
   if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
-    setDelta('kpiCoupleNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, 'ce mois');
+    setDelta('kpiCoupleNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
   }
   setEur('kpiCoupleImmo', s.couple.immoEquity);
 
   setEur('kpiAmNW', s.amine.nw);
   // Add delta indicator for amine NW
   if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
-    setDelta('kpiAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, 'ce mois');
+    setDelta('kpiAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, s.amine.nwDeltaTimeframe);
   }
   setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
   setEur('kpiAmVitry', s.amine.vitryEquity);
@@ -207,7 +207,7 @@ function renderKPIs(state, view) {
   setEur('kpiNzNW', s.nezha.nw);
   // Add delta indicator for nezha NW
   if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
-    setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, 'ce mois');
+    setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
   }
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
