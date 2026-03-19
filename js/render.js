@@ -183,7 +183,13 @@ function renderKPIs(state, view) {
   }
 
   setEur('kpiCoupleAmNW', s.amine.nw);
+  if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
+    setDelta('kpiCoupleAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, 'ce mois');
+  }
   setEur('kpiCoupleNzNW', s.nezha.nw);
+  if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
+    setDelta('kpiCoupleNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, 'ce mois');
+  }
   setEur('kpiCoupleImmo', s.couple.immoEquity);
 
   setEur('kpiAmNW', s.amine.nw);
@@ -1423,10 +1429,6 @@ function renderActionsView(state) {
   const av = state.actionsView;
   // KPIs — cross-platform
   setEur('kpiActionsTotal', av.totalStocks);
-  // Add delta indicator for actions total (use couple NW delta as proxy)
-  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
-    setDelta('kpiActionsTotal', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
-  }
   const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
   const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
   setText('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
@@ -2420,10 +2422,6 @@ function renderCashView(state) {
   const cv = state.cashView;
   // KPIs
   setEur('kpiCashTotal', cv.totalCash);
-  // Add delta indicator for cash total (use couple NW delta as proxy)
-  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
-    setDelta('kpiCashTotal', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
-  }
   setText('kpiCashAvgYield', (cv.weightedAvgYield * 100).toFixed(1) + '%');
   setText('kpiCashInflation', '-' + fmt(cv.monthlyInflationCost));
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
@@ -2926,9 +2924,6 @@ function renderImmoView(state) {
   // KPIs
   setEur('kpiImmoViewEq', fTotalEquity);
   // Add delta indicator for immo equity (use couple NW delta as proxy)
-  if (state.couple.nwDelta !== null && state.couple.nwDeltaPct !== null) {
-    setDelta('kpiImmoViewEq', state.couple.nwDelta, state.couple.nwDeltaPct, 'ce mois');
-  }
   setEur('kpiImmoViewVal', fTotalValue);
   setEur('kpiImmoViewCRD', fTotalCRD);
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
