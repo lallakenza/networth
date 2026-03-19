@@ -1318,14 +1318,11 @@ export const VILLEJUIF_REGIMES = {
 // dynamiquement par engine.js avec les valeurs actuelles.
 // Pour ajouter un point : insérer AVANT la dernière ligne.
 // ════════════════════════════════════════════════════════════
-export const NW_HISTORY = [
-  { date: '2024-01', coupleNW: 380000, amineNW: 240000, nezhaNW: 95000, note: 'Début tracking' },
-  { date: '2024-06', coupleNW: 450000, amineNW: 300000, nezhaNW: 105000 },
-  { date: '2024-12', coupleNW: 550000, amineNW: 370000, nezhaNW: 130000 },
-  { date: '2025-04', coupleNW: 600000, amineNW: 400000, nezhaNW: 150000, note: 'Signature Villejuif' },
-  { date: '2025-09', coupleNW: 650000, amineNW: 440000, nezhaNW: 160000 },
-  { date: '2026-03', coupleNW: null, amineNW: null, nezhaNW: null }, // ← rempli live
-];
+// NW_HISTORY: Removed invented historical data (v150)
+// This array should be populated with real historical net worth snapshots
+// Structure: [{ date: 'YYYY-MM', coupleNW, amineNW, nezhaNW, note? }, ...]
+// ════════════════════════════════════════════════════════════
+export const NW_HISTORY = [];
 
 // ════════════════════════════════════════════════════════════
 // TAUX WHT (Withholding Tax) PAR PAYS

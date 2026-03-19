@@ -1206,20 +1206,22 @@ Audit de la complétude de ARCHITECTURE.md vs le code réel :
 ### v149 Features
 
 **Feature 1: Net Worth History Evolution Chart**
-- Source: `NW_HISTORY` in `data.js` (array of {date, coupleNW, amineNW, nezhaNW, note})
+- Source: `NW_HISTORY` in `data.js` (array of {date, coupleNW, amineNW, nezhaNW, note}) — EMPTY as of v150
 - Chart function: `buildNWHistoryChart()` in `charts.js` (enabled, was disabled in v86)
 - Canvas element: `nwHistoryChart` in `index.html` (added after coupleTreemap)
+- Status: Chart gracefully handles empty NW_HISTORY (returns early if no data)
 - Displays: Line chart with Couple NW (green fill), Amine NW (dashed blue), Nezha NW (dashed orange)
 - Tooltip: Shows % change between consecutive data points + annotations (notes field)
-- Automatically filters null values (2026-03 live update)
+- Note: v150 removed invented historical data. NW_HISTORY should be populated with real data when available.
 
 **Feature 2: Delta Indicators on KPIs**
 - Location: Below couple NW KPI (kpiCoupleNW)
-- Data: `couple.nwDelta` and `couple.nwDeltaPct` computed in `engine.js`
-- Calculation: previousNW = NW_HISTORY[length-2].coupleNW; delta = currentNW - previousNW
-- Display function: `setDelta()` in `render.js` (similar to setSubPct)
+- Data: `couple.nwDelta` and `couple.nwDeltaPct` computed in `engine.js` — NULL when NW_HISTORY is empty (v150)
+- Calculation: previousNW = NW_HISTORY[length-2].coupleNW; delta = currentNW - previousNW (only if history available)
+- Display function: `setDelta()` in `render.js` with null guards (similar to setSubPct)
 - Colors: Green if positive, Red if negative
 - Format: "+€2,340 (+0.3%) ce mois"
+- Status v150: Indicators hidden when NW_HISTORY is empty (setDelta guards prevent rendering)
 
 **Feature 3: Version v149 Bump**
 - Updated: index.html, app.js, charts.js, engine.js, render.js
