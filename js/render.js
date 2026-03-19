@@ -1020,6 +1020,15 @@ function _isColVisible(key) {
 }
 
 function renderAllPositions(allPositions, sortKey, sortDir) {
+  // Enrich positions with period-specific sort fields
+  const _periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
+  const _pField = _periodMap[_posPeriod];
+  allPositions.forEach(pos => {
+    pos.pl_periode = _pField ? (pos[_pField] || 0) : pos.unrealizedPL;
+    // valeur_debut = current value - period P&L (since start = end - change)
+    pos.valeur_debut = pos.valEUR - (pos.pl_periode || 0);
+    pos.pctPL_periode = pos.valeur_debut > 0 ? (pos.pl_periode / pos.valeur_debut * 100) : 0;
+  });
   const sorted = [...allPositions];
   if (sortKey) {
     sorted.sort((a, b) => {
