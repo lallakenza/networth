@@ -96,6 +96,9 @@ function refresh() {
   }
 }
 
+// Expose refresh globally for use by render.js (Villejuif toggle etc.)
+window._appRefresh = refresh;
+
 // ---- Event handlers ----
 
 // View switching

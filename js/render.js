@@ -982,6 +982,7 @@ const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'L
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
 let _immoIncludeVillejuif = true; // toggle for Villejuif (achat futur)
+window._immoIncludeVillejuif = () => _immoIncludeVillejuif; // expose for charts
 let _posViewMode = 'total'; // 'total' or 'unitaire'
 let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
@@ -2895,7 +2896,12 @@ function renderImmoView(state) {
     vilToggle.addEventListener('click', () => {
       _immoIncludeVillejuif = !_immoIncludeVillejuif;
       updateVilToggleUI();
-      renderImmoView(state);
+      // Refresh entire page (KPIs + charts + tables + projections)
+      if (typeof window._appRefresh === 'function') {
+        window._appRefresh();
+      } else {
+        renderImmoView(state); // fallback
+      }
     });
   }
   updateVilToggleUI();
