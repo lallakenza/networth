@@ -517,3 +517,164 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
 
   return { remaining };
 }
+
+// ============================================================
+// HISTORICAL PRICES — YTD daily OHLC for portfolio evolution chart
+// ============================================================
+// Fetches Yahoo Finance chart data (range=ytd, interval=1d) for
+// each ticker. Returns a map: { ticker: { dates: [...], closes: [...] } }
+// Also fetches FX historical rates (EURUSD=X, EURJPY=X) for conversion.
+//
+// IMPORTANT: Call this ONLY after current stock prices are loaded,
+// so we don't overload the API with too many parallel requests.
+//
+// Cache key: separate from daily price cache, stored as 'nw_hist_YYYY-MM-DD'
+// TTL: 1 hour (historical data doesn't change during the day)
+
+const HIST_CACHE_PREFIX = 'nw_hist_';
+const HIST_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function histCacheKey() {
+  const d = new Date();
+  return HIST_CACHE_PREFIX + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function loadHistCache() {
+  try {
+    const raw = localStorage.getItem(histCacheKey());
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    // Check TTL
+    if (cache._ts && (Date.now() - cache._ts) < HIST_CACHE_TTL_MS) return cache;
+    return null; // stale
+  } catch (e) { return null; }
+}
+
+function saveHistCache(data) {
+  try {
+    data._ts = Date.now();
+    localStorage.setItem(histCacheKey(), JSON.stringify(data));
+    // Purge old hist caches
+    const today = histCacheKey();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(HIST_CACHE_PREFIX) && key !== today) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (e) { /* quota exceeded — ignore */ }
+}
+
+/**
+ * Fetch YTD daily close prices for a single ticker via Yahoo Finance chart API.
+ * @param {string} symbol - Yahoo Finance ticker (e.g., 'AIR.PA', 'IBIT', '4911.T')
+ * @returns {{ dates: string[], closes: number[] } | null}
+ */
+async function fetchTickerHistory(symbol) {
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d';
+  const attempts = [];
+
+  for (const proxy of PROXIES) {
+    attempts.push(
+      fetchWithTimeout(proxy(url), 12000)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(d => {
+          const result = d?.chart?.result?.[0];
+          if (!result) throw new Error('no data');
+          const timestamps = result.timestamp;
+          const closes = result.indicators?.quote?.[0]?.close;
+          if (!timestamps || !closes || timestamps.length === 0) throw new Error('no OHLC');
+
+          // Convert timestamps (Unix seconds) to YYYY-MM-DD strings
+          const dates = timestamps.map(ts => {
+            const dt = new Date(ts * 1000);
+            return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+          });
+
+          // Fill null closes with previous valid value (forward-fill)
+          const filledCloses = [];
+          let lastValid = null;
+          for (let i = 0; i < closes.length; i++) {
+            if (closes[i] != null && closes[i] > 0) { lastValid = closes[i]; }
+            filledCloses.push(lastValid);
+          }
+
+          return { dates, closes: filledCloses };
+        })
+    );
+  }
+
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    console.warn('[hist] Failed to fetch history for ' + symbol);
+    return null;
+  }
+}
+
+/**
+ * Fetch YTD historical prices for all given tickers + FX rates.
+ * Returns { tickers: { [ticker]: { dates, closes } }, fx: { usd: { dates, closes }, jpy: { dates, closes } } }
+ *
+ * @param {string[]} tickers - Yahoo Finance tickers to fetch
+ * @param {function} [onProgress] - callback(loaded, total, ticker) for progress
+ * @returns {object} Historical data map
+ */
+export async function fetchHistoricalPricesYTD(tickers, onProgress) {
+  // Check cache first
+  const cached = loadHistCache();
+  if (cached && cached.tickers && cached.fx) {
+    // Validate cache has all requested tickers
+    const missing = tickers.filter(t => !cached.tickers[t]);
+    if (missing.length === 0) {
+      console.log('[hist] All historical data from cache (' + tickers.length + ' tickers + FX)');
+      return cached;
+    }
+    console.log('[hist] Cache hit but missing ' + missing.length + ' tickers, re-fetching all');
+  }
+
+  const total = tickers.length + 2; // +2 for EURUSD + EURJPY
+  let loaded = 0;
+  const result = { tickers: {}, fx: {} };
+
+  // Fetch all tickers + FX in parallel (max ~18 tickers + 2 FX = 20 parallel groups)
+  const allPromises = [];
+
+  // Stock tickers
+  for (const ticker of tickers) {
+    allPromises.push(
+      fetchTickerHistory(ticker).then(data => {
+        loaded++;
+        if (data) result.tickers[ticker] = data;
+        if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
+      })
+    );
+  }
+
+  // FX: EUR/USD and EUR/JPY (Yahoo uses inverted format for some pairs)
+  // EURUSD=X gives EUR→USD rate, so 1 EUR = X USD
+  allPromises.push(
+    fetchTickerHistory('EURUSD=X').then(data => {
+      loaded++;
+      if (data) result.fx.usd = data;
+      if (onProgress) onProgress(loaded, total, 'EUR/USD' + (data ? ' ✓' : ' ✗'));
+    })
+  );
+  allPromises.push(
+    fetchTickerHistory('EURJPY=X').then(data => {
+      loaded++;
+      if (data) result.fx.jpy = data;
+      if (onProgress) onProgress(loaded, total, 'EUR/JPY' + (data ? ' ✓' : ' ✗'));
+    })
+  );
+
+  await Promise.all(allPromises);
+
+  // Save to cache
+  saveHistCache(result);
+
+  const loadedCount = Object.keys(result.tickers).length;
+  console.log('[hist] Fetched ' + loadedCount + '/' + tickers.length + ' ticker histories + FX (USD: ' + (result.fx.usd ? '✓' : '✗') + ', JPY: ' + (result.fx.jpy ? '✓' : '✗') + ')');
+
+  return result;
+}

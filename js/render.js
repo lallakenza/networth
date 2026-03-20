@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=149';
-import { getGrandTotal } from './engine.js?v=149';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=147';
+import { getGrandTotal } from './engine.js?v=147';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -105,7 +105,7 @@ export function render(state, view, currency) {
     renderDynamicInsights(state, view);
     renderCoupleTable(state);
     renderAmineTable(state);
-    renderNezhaTable(state, view);
+    renderNezhaTable(state);
     renderIBKRPositionsSimple(state);
     renderImmoKPIs(state);
     renderImmoPcts(state);
@@ -125,24 +125,6 @@ export function render(state, view, currency) {
 
   renderBadges(state);
   updateAllDataEur();
-
-  // Hide Villejuif warning on views where it's irrelevant
-  const vjNote = document.getElementById('villejuifNote');
-  if (vjNote) {
-    const showVjViews = ['couple', 'nezha', 'immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
-    vjNote.style.display = showVjViews.includes(view) ? '' : 'none';
-  }
-
-  // Hide NW History chart container if NW_HISTORY is empty
-  const nwHistCanvas = document.getElementById('nwHistoryChart');
-  if (nwHistCanvas) {
-    const container = nwHistCanvas.closest('.card');
-    if (container && (!state.nwHistory || state.nwHistory.length < 2 || !state.nwHistory.some(h => h.coupleNW))) {
-      container.style.display = 'none';
-    } else if (container) {
-      container.style.display = '';
-    }
-  }
 }
 
 // ---- Individual render functions ----
@@ -188,26 +170,11 @@ function renderKPIs(state, view) {
 
   // Set KPI values
   setEur('kpiCoupleNW', s.couple.nw);
-  // Add delta indicator for couple NW
-  if (s.couple.nwDelta !== null && s.couple.nwDeltaPct !== null) {
-    setDelta('kpiCoupleNW', s.couple.nwDelta, s.couple.nwDeltaPct, s.couple.nwDeltaTimeframe);
-  }
-
   setEur('kpiCoupleAmNW', s.amine.nw);
-  if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
-    setDelta('kpiCoupleAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, s.amine.nwDeltaTimeframe);
-  }
   setEur('kpiCoupleNzNW', s.nezha.nw);
-  if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
-    setDelta('kpiCoupleNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
-  }
   setEur('kpiCoupleImmo', s.couple.immoEquity);
 
   setEur('kpiAmNW', s.amine.nw);
-  // Add delta indicator for amine NW
-  if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
-    setDelta('kpiAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, s.amine.nwDeltaTimeframe);
-  }
   setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
   setEur('kpiAmVitry', s.amine.vitryEquity);
   // TWR dynamic from state (was hardcoded)
@@ -216,10 +183,6 @@ function renderKPIs(state, view) {
   }
 
   setEur('kpiNzNW', s.nezha.nw);
-  // Add delta indicator for nezha NW
-  if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
-    setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
-  }
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
   setEur('kpiNzCash', s.nezha.cash + s.nezha.recvOmar);
@@ -461,10 +424,7 @@ function renderExpandSubs(state, view) {
     }
     const villejuifP = propMap.villejuif;
     if (villejuifP) {
-      // Only show "non signe" warning in immobilier and property-specific views
-      const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
-      const showWarning = relevantViews.includes(view);
-      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + (showWarning ? '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>' : ''));
+      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>');
     }
 
     // ── Dynamic Résumé Immobilier table ──
@@ -779,7 +739,7 @@ function renderAmineTable(state) {
   buildDetailTable('#amineDetailTable tbody', rows, 'Net Worth Amine');
 }
 
-function renderNezhaTable(state, view) {
+function renderNezhaTable(state) {
   const s = state;
   const p = state.portfolio;
   const sgtmLabel = p.nezha.sgtm.shares + ' actions SGTM @ ' + p.market.sgtmPriceMAD + ' DH';
@@ -812,22 +772,17 @@ function renderNezhaTable(state, view) {
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
   tr.innerHTML = '<td><strong>Net Worth Nezha (actuel)</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
   tbody.appendChild(tr);
-
-  // Only show Villejuif section in immobilier and property-specific views
-  const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
-  if (relevantViews.includes(view)) {
-    // Villejuif conditionnel
-    tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span></strong></td>';
-    tbody.appendChild(tr);
-    tr = document.createElement('tr');
-    tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
-    tbody.appendChild(tr);
-    tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + s.nezha.villejuifEquity) + '</strong></td>';
-    tbody.appendChild(tr);
-  }
+  // Villejuif conditionnel
+  tr = document.createElement('tr');
+  tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span></strong></td>';
+  tbody.appendChild(tr);
+  tr = document.createElement('tr');
+  tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
+  tbody.appendChild(tr);
+  tr = document.createElement('tr');
+  tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
+  tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + s.nezha.villejuifEquity) + '</strong></td>';
+  tbody.appendChild(tr);
 }
 
 function renderIBKRPositionsSimple(state) {
@@ -962,23 +917,6 @@ function setSubPct(id, pct) {
   el.insertAdjacentElement('afterend', span);
 }
 
-// Add delta indicator showing change since last data point
-function setDelta(id, deltaVal, deltaPct, timeframe) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  // Remove existing delta if any
-  const existing = el.parentElement?.querySelector('.kpi-delta');
-  if (existing) existing.remove();
-  // Create delta element
-  const span = document.createElement('span');
-  span.className = 'kpi-delta';
-  const sign = deltaVal >= 0 ? '+' : '';
-  const color = deltaVal >= 0 ? '#16a34a' : '#dc2626';
-  span.textContent = sign + fmt(deltaVal) + ' (' + sign + deltaPct.toFixed(1) + '%) ' + timeframe;
-  span.style.cssText = 'display:block;font-size:11px;font-weight:500;margin-top:2px;color:' + color + ';';
-  el.insertAdjacentElement('afterend', span);
-}
-
 function setHTML(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
@@ -993,9 +931,8 @@ const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'L
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
 let _immoIncludeVillejuif = true; // toggle for Villejuif (achat futur)
-window._immoIncludeVillejuif = () => _immoIncludeVillejuif; // expose for charts
 let _posViewMode = 'total'; // 'total' or 'unitaire'
-let _posPeriod = 'all'; // 'all', 'daily', 'mtd', 'oneMonth', 'ytd'
+let _posPeriod = 'daily'; // 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
 // Column visibility config: { key: { label, on, modeOnly? } }
 const _colConfig = {
@@ -1020,15 +957,6 @@ function _isColVisible(key) {
 }
 
 function renderAllPositions(allPositions, sortKey, sortDir) {
-  // Enrich positions with period-specific sort fields
-  const _periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
-  const _pField = _periodMap[_posPeriod];
-  allPositions.forEach(pos => {
-    pos.pl_periode = _pField ? (pos[_pField] || 0) : pos.unrealizedPL;
-    // valeur_debut = current value - period P&L (since start = end - change)
-    pos.valeur_debut = pos.valEUR - (pos.pl_periode || 0);
-    pos.pctPL_periode = pos.valeur_debut > 0 ? (pos.pl_periode / pos.valeur_debut * 100) : 0;
-  });
   const sorted = [...allPositions];
   if (sortKey) {
     sorted.sort((a, b) => {
@@ -1049,11 +977,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const tbody = document.getElementById('allPositionsTbody');
   if (!tbody || !table) return;
   tbody.innerHTML = '';
-  const periodLabels = { all: 'All', daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
+  const periodLabels = { daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
   const vis = (k) => _isColVisible(k);
 
-  // Column header definitions - vary based on period
-  const _hdefs = _posPeriod === 'all' ? {
+  // Column header definitions
+  const _hdefs = {
     broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
     shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
     prix:    { sort: 'price', label: 'Prix', cls: 'num sortable' },
@@ -1062,45 +990,22 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
-    weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
-    sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
-    geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
-  } : {
-    broker:  { sort: 'broker', label: 'Broker', cls: 'sortable' },
-    shares:  { sort: 'shares', label: 'Qte', cls: 'num sortable' },
-    prix:    { sort: 'price', label: 'Prix', cls: 'num sortable' },
-    valeur_debut: { sort: 'valeur_debut', label: 'Valeur d\u00e9but', cls: 'num sortable' },
-    valeur_actuelle: { sort: 'valEUR', label: 'Valeur actuelle', cls: 'num sortable' },
-    pru:     { sort: 'pruEUR', label: 'PRU', cls: 'num sortable' },
-    pl_periode: { sort: 'pl_periode', label: 'P/L p\u00e9riode', cls: 'num sortable' },
-    pctPL_periode: { sort: 'pctPL_periode', label: '% p\u00e9riode', cls: 'num sortable' },
+    evo:     { sort: ({ daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod] || 'dailyPL'), label: periodLabels[_posPeriod] + ' P&L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
   };
 
-  // Adjust column order based on period
-  let colOrder = _posPeriod === 'all' ?
-    ['shares', 'valeur', 'cout', 'pl', 'pctPL', 'weight', 'sector', 'geo'] :
-    ['shares', 'valeur_debut', 'valeur_actuelle', 'pl_periode', 'pctPL_periode', 'weight', 'sector', 'geo'];
-
-  // Rebuild thead dynamically based on colOrder
+  // Rebuild thead dynamically based on _colOrder
   const thead = table.querySelector('thead');
   if (thead) {
     let hdr = '<tr><th class="sortable" data-sort="label">Position <span class="sort-arrow"></span></th>';
-    colOrder.forEach(k => { const d = _hdefs[k]; if (!d) return; hdr += '<th class="' + d.cls + '" data-sort="' + d.sort + '">' + d.label + ' <span class="sort-arrow"></span></th>'; });
+    _colOrder.forEach(k => { if (!vis(k)) return; const d = _hdefs[k]; hdr += '<th class="' + d.cls + '" data-sort="' + d.sort + '">' + d.label + ' <span class="sort-arrow"></span></th>'; });
     thead.innerHTML = hdr + '</tr>';
   }
 
   let totalVal = 0, totalCost = 0, totalEvoPL = 0;
   let hasStatic = false, staticVal = 0, liveVal = 0;
-
-  // First pass: detect if there are any static positions
-  sorted.forEach(pos => {
-    const isStatic = pos._live !== true;
-    const noAPI = pos.ticker === 'SGTM';
-    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
-  });
 
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
@@ -1114,11 +1019,12 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = pos._live !== true;
     const noAPI = pos.ticker === 'SGTM';
+    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
     const liveBadge = isStatic
       ? (noAPI
         ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>'
         : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>')
-      : (hasStatic ? ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>' : '');
+      : ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
 
     const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
     const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
@@ -1128,27 +1034,15 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
 
     // Cell renderers per column key
-    const refPriceMap = { daily: pos.price, mtd: pos.mtdOpen, oneMonth: pos.oneMonthOpen, ytd: pos.ytdOpen };
-    const refPrice = _posPeriod === 'all' ? null : (refPriceMap[_posPeriod] || pos.price);
-    const valeurDebut = refPrice && pos.shares ? Math.round(refPrice * pos.shares) : null;
-    const plPeriode = pos[periodMap[_posPeriod]] || null;
-    const pctPeriode = pos[periodPctMap[_posPeriod]] || null;
-    const plPeriodeC = plPeriode != null ? (plPeriode >= 0 ? 'pl-pos' : 'pl-neg') : '';
-    const plPeriodeS = plPeriode != null ? (plPeriode >= 0 ? '+' : '') : '';
-
     const _cells = {
       broker:  () => '<td>' + (pos.broker || '') + '</td>',
       shares:  () => '<td class="num">' + pos.shares + '</td>',
       prix:    () => '<td class="num">' + (pos.priceLabel || '\u2014') + '</td>',
       valeur:  () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
-      valeur_debut: () => '<td class="num">' + (valeurDebut !== null ? fmt(valeurDebut) : '\u2014') + '</td>',
-      valeur_actuelle: () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
       pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014') + '</td>',
       cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>',
       pl:      () => '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>',
-      pl_periode: () => '<td class="num ' + plPeriodeC + '">' + (plPeriode !== null ? plPeriodeS + fmt(Math.round(plPeriode)) : '\u2014') + '</td>',
       pctPL:   () => '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>',
-      pctPL_periode: () => '<td class="num ' + plPeriodeC + '">' + (pctPeriode !== null ? plPeriodeS + pctPeriode.toFixed(1) + '%' : '\u2014') + '</td>',
       evo:     () => '<td class="num ' + evoC + '">' + evoTxt + '</td>',
       weight:  () => '<td class="num">' + pos.weight.toFixed(1) + '%</td>',
       sector:  () => '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>',
@@ -1158,7 +1052,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     tr.style.cursor = 'pointer';
     if (isStatic && !noAPI) tr.style.color = '#718096';
     let rowHtml = '<td>' + pos.label + liveBadge + '</td>';
-    colOrder.forEach(k => { const cellFn = _cells[k]; if (cellFn) rowHtml += cellFn(); });
+    _colOrder.forEach(k => { if (vis(k)) rowHtml += _cells[k](); });
     tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
 
@@ -1302,20 +1196,16 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     totalEvoC = totalEvoPL >= 0 ? 'pl-pos' : 'pl-neg';
     totalEvoTxt = (totalEvoPL >= 0 ? '+' : '') + fmt(Math.round(totalEvoPL));
   }
-  const visCount = 1 + colOrder.length;
+  const visCount = 1 + _colOrder.filter(k => vis(k)).length;
   const _totCells = {
     broker:  () => '<td></td>',
     shares:  () => '<td></td>',
     prix:    () => '<td></td>',
     valeur:  () => '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>',
-    valeur_debut: () => '<td class="num"><strong>' + fmt(totalVal - totalEvoPL) + '</strong></td>',
-    valeur_actuelle: () => '<td class="num"><strong>' + fmt(totalVal) + '</strong></td>',
     pru:     () => '<td></td>',
     cout:    () => '<td class="num"><strong>' + fmt(totalCost) + '</strong></td>',
     pl:      () => '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>',
-    pl_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
-    pctPL_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoPL && totalVal ? (totalEvoPL >= 0 ? '+' : '') + (totalEvoPL / (totalVal - totalEvoPL) * 100).toFixed(1) : '\u2014') + '%</strong></td>',
     evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     weight:  () => '<td class="num">100%</td>',
     sector:  () => '<td></td>',
@@ -1324,7 +1214,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   const ttr = document.createElement('tr');
   ttr.style.fontWeight = '700'; ttr.style.background = '#edf2f7';
   let totalHtml = '<td><strong>Total (' + sorted.length + ' positions)</strong></td>';
-  colOrder.forEach(k => { const cellFn = _totCells[k]; if (cellFn) totalHtml += cellFn(); });
+  _colOrder.forEach(k => { if (vis(k)) totalHtml += _totCells[k](); });
   ttr.innerHTML = totalHtml;
   tbody.appendChild(ttr);
 
@@ -1388,7 +1278,7 @@ function _renderColumnChips(allPositions) {
     container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center';
     tbl.parentNode.insertBefore(container, tbl.nextSibling);
   }
-  container.innerHTML = '<span style="font-size:10px;color:#a0aec0;margin-right:6px;opacity:0.75">Colonnes :</span>';
+  container.innerHTML = '<span style="font-size:11px;color:#a0aec0;margin-right:4px">Colonnes :</span>';
   let _dragKey = null;
   _colOrder.forEach(key => {
     const cfg = _colConfig[key];
@@ -1396,8 +1286,8 @@ function _renderColumnChips(allPositions) {
     const chip = document.createElement('button');
     chip.setAttribute('data-col', key);
     chip.draggable = true;
-    chip.style.cssText = 'font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid #e7e5e4;cursor:grab;transition:all .15s;opacity:0.8;'
-      + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748;opacity:1' : 'background:#fff;color:#78716c');
+    chip.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #cbd5e0;cursor:grab;transition:all .15s;'
+      + (active ? 'background:#2d3748;color:#fff;border-color:#2d3748' : 'background:#fff;color:#718096');
     chip.textContent = cfg.label;
 
     // Click: toggle visibility
@@ -2519,7 +2409,6 @@ function renderCashView(state) {
         hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
         tbody.appendChild(hdr);
         let ownerYieldAnn = 0, ownerMissed = 0;
-        let acctIndex = 0;
         ownerAccounts.forEach(a => {
           const isDebt = a.isDebt;
           const isNeg = a.valEUR < 0;
@@ -2541,7 +2430,6 @@ function renderCashView(state) {
           ownerMissed += a.missed;
           const tr = document.createElement('tr');
           tr.style.borderLeft = '3px solid ' + borderColor;
-          if (acctIndex % 2 === 1) tr.style.background = '#fafaf9';
           if (isNeg) tr.style.background = '#fff5f5';
           tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
             + '<td>' + a.owner + '</td>'
@@ -2552,7 +2440,6 @@ function renderCashView(state) {
             + '<td class="num">' + yieldAnnStr + '</td>'
             + '<td class="num">' + missedStr + '</td>';
           tbody.appendChild(tr);
-          acctIndex++;
         });
         grandTotalYieldAnn += ownerYieldAnn;
         grandTotalMissed += ownerMissed;
@@ -2922,7 +2809,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     + '<div style="margin-top:16px;padding:12px 16px;background:#f0fff4;border-radius:8px;border-left:3px solid var(--green);font-size:12px;line-height:1.6;color:#2d3748">'
     + '<strong>Comment lire ce tableau :</strong><br>'
     + '<strong>Capital amorti</strong> = part du pr\u00eat rembours\u00e9e qui augmente votre equity (le locataire paie, la banque rembourse).<br>'
-    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an' + (_immoIncludeVillejuif ? ', Villejuif 2%/an L14+L15' : '') + ').<br>'
+    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an, Villejuif 2%/an L14+L15).<br>'
     + '<strong>Cash flow</strong> = loyers - toutes charges (pr\u00eat + assurance + PNO + TF + copro). N\u00e9gatif = effort d\u2019\u00e9pargne mensuel.'
     + (tb.cashflow < 0 ? '<br><em>M\u00eame avec un effort de ' + fmt(Math.abs(tb.cashflow)) + '/mois, vous cr\u00e9ez ' + fmt(total) + '/mois de richesse nette. Le levier bancaire travaille pour vous.</em>' : '')
     + '</div>';
@@ -2948,12 +2835,7 @@ function renderImmoView(state) {
     vilToggle.addEventListener('click', () => {
       _immoIncludeVillejuif = !_immoIncludeVillejuif;
       updateVilToggleUI();
-      // Refresh entire page (KPIs + charts + tables + projections)
-      if (typeof window._appRefresh === 'function') {
-        window._appRefresh();
-      } else {
-        renderImmoView(state); // fallback
-      }
+      renderImmoView(state);
     });
   }
   updateVilToggleUI();
@@ -2963,7 +2845,6 @@ function renderImmoView(state) {
     ? iv.properties
     : iv.properties.filter(p => p.loanKey !== 'villejuif');
   const fp = filteredProps; // shorthand
-  iv._filteredProperties = fp; // expose filtered list for other renderers
 
   // Recompute KPIs from filtered set
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
@@ -2978,12 +2859,10 @@ function renderImmoView(state) {
   };
   const fAvgLTV = fTotalValue > 0 ? (fTotalCRD / fTotalValue * 100) : 0;
   const fTotalExitCosts = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
-  // Floor each property's net equity at 0 before summing (can't sell at a loss)
-  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + Math.max(0, p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity), 0);
+  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : 0), 0);
 
   // KPIs
   setEur('kpiImmoViewEq', fTotalEquity);
-  // Add delta indicator for immo equity (use couple NW delta as proxy)
   setEur('kpiImmoViewVal', fTotalValue);
   setEur('kpiImmoViewCRD', fTotalCRD);
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
@@ -3166,253 +3045,6 @@ function renderImmoView(state) {
     });
   }
 
-  // ── LMP Alert Section (Nezha) ──
-  const lmpSection = document.getElementById('lmpAlertSection');
-  if (lmpSection) {
-    const rueilProp = fp.find(p => p.loanKey === 'rueil');
-    const villejuifProp = _immoIncludeVillejuif ? iv.properties.find(p => p.loanKey === 'villejuif') : null;
-
-    // Calculate LMP thresholds
-    const LMP_THRESHOLD = 23000; // €/an
-    const rueilLoyer = rueilProp ? (rueilProp.loyer * 12) : 0; // Annual rent
-    // For "after Villejuif" projection: use future loyer even if not yet operational
-    const villejuifFutureLoyer = villejuifProp ? ((villejuifProp.loyer || villejuifProp.totalRevenue || 1700) * 12) : 0;
-    const totalLoyerAnnuel = rueilLoyer + villejuifFutureLoyer;
-
-    // LMP is triggered when:
-    // 1. Recettes meublées > 23,000€/an AND
-    // 2. Recettes > revenus d'activité (auto-met for non-resident Nezha)
-    const isRueilAloneLMP = rueilLoyer > LMP_THRESHOLD;
-    const isCombinedLMP = totalLoyerAnnuel > LMP_THRESHOLD;
-
-    // Show alert if villejuif will be meublé OR already triggered
-    if (rueilProp) {
-      // ═══ COMPACT BANNER (always visible) ═══
-      let html = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;margin:12px 0;cursor:pointer;"'
-        + ' onclick="var d=this.nextElementSibling;d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.lmp-arrow\').textContent=d.style.display===\'none\'?\'▸\':\'▾\'">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-        + '<div style="font-size:13px;color:#1e40af;">'
-        + '<strong>Seuil LMP</strong> — Rueil seul: <span style="color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(rueilLoyer)) + '€/an (' + (isRueilAloneLMP ? 'LMP' : 'LMNP') + ')</span> · '
-        + 'Après Villejuif: <span style="color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(totalLoyerAnnuel)) + '€/an ' + (isCombinedLMP ? '→ LMP auto' : '') + '</span>'
-        + '</div>'
-        + '<span class="lmp-arrow" style="color:#1e40af;font-size:14px;">▸</span>'
-        + '</div>'
-        + '</div>'
-        + '<div style="display:none;">'
-        + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0;">'
-        + '<h4 style="color:#1e40af;margin:0 0 12px;">Seuil LMP — Détails</h4>'
-        + '<p style="font-size:13px;color:#1e3a5f;margin:0 0 12px;">'
-        + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique quand les recettes meublées dépassent <strong>23 000\u20ac/an</strong> ET les revenus d\'activité du foyer fiscal.'
-        + '</p>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
-        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#1e40af;">Aujourd\'hui (Rueil seul)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
-        + '</div>'
-        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2029)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
-        + '</div>'
-        + '</div>'
-        + '<div style="font-size:12px;color:#1e3a5f;">'
-        + '<strong>Impacts du passage LMP :</strong>'
-        + '<ul style="margin:6px 0;padding-left:20px;">'
-        + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le b\u00e9n\u00e9fice net (vs 17.2% PS en LMNP)</li>'
-        + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> m\u00eame pour non-r\u00e9sident</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">D\u00e9ficit imputable</span> sur le revenu global (avantage)</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">PV professionnelle</span> : exon\u00e9ration totale si >5 ans ET CA <90K\u20ac</li>'
-        + '</ul>'
-        + '</div>'
-        + '<div style="background:#e0e7ff;border-radius:6px;padding:10px;font-size:11px;color:#312e81;margin-top:8px;">'
-        + '<strong>Non-r\u00e9sident :</strong> Nezha n\'a pas de revenus d\'activit\u00e9 en France \u2192 la condition "recettes > revenus d\'activit\u00e9" est automatiquement remplie. D\u00e8s que Villejuif est lou\u00e9 en meubl\u00e9, le statut LMP s\'applique.'
-        + '</div>';
-
-      // ═══ FEATURE 2: Tax on Rental Income Breakdown ═══
-      html += '<div style="margin-top:16px;background:#fef9c3;border-radius:8px;padding:12px;">'
-        + '<h5 style="color:#92400e;margin:0 0 12px;font-size:13px;">📊 Impact fiscal sur 1 000€ de revenu locatif net</h5>';
-
-      if (rueilProp) {
-        const monthlyRent = rueilProp.loyer || 1300;
-        const monthlyAmortizationLMNP = (240000 * 0.80 * 0.02) / 12; // ~320€
-        const taxableIncomeLMNP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
-        const taxableIncomeLMP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
-
-        const irRate = 0.20;
-        const psRateLMNP = 0.172;
-        const ssiRateLMP = 0.40;
-
-        const irLMNP = Math.round(taxableIncomeLMNP * irRate);
-        const psLMNP = Math.round(taxableIncomeLMNP * psRateLMNP);
-        const totalTaxLMNP = irLMNP + psLMNP;
-        const netAfterTaxLMNP = monthlyRent - totalTaxLMNP;
-
-        const irLMP = Math.round(taxableIncomeLMP * irRate);
-        const ssiLMP = Math.round(taxableIncomeLMP * ssiRateLMP);
-        const totalTaxLMP = irLMP + ssiLMP;
-        const netAfterTaxLMP = monthlyRent - totalTaxLMP;
-
-        html += '<div style="overflow-x:auto;font-size:12px;">'
-          + '<table style="width:100%;border-collapse:collapse;margin-top:8px;">'
-          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">LMNP réel</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">LMP</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;">Loyer net mensuel</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">Amortissement (~' + Math.round(monthlyAmortizationLMNP) + '€)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fef9c3;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu imposable</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMNP)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMP)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">IR (20%)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">PS (17.2%) / SSI (~40%)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(psLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#dc2626;font-weight:600;">−' + fmt(ssiLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Total fiscal</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(totalTaxLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(totalTaxLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="background:#fef9c3;">'
-          + '<td style="padding:8px;text-align:left;font-weight:600;">Net après impôt</td>'
-          + '<td style="padding:8px;text-align:right;font-weight:600;color:#16a34a;">' + fmt(Math.round(netAfterTaxLMNP)) + '€</td>'
-          + '<td style="padding:8px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(Math.round(netAfterTaxLMP)) + '€</td>'
-          + '</tr>'
-          + '</table>'
-          + '</div>';
-      }
-
-      html += '</div>';
-
-      // ═══ FEATURE 1: LMNP vs LMP Exit Costs Comparison ═══
-      html += '<div style="margin-top:16px;background:#fffbeb;border:1px solid #d97706;border-radius:8px;padding:12px;">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === \'none\' ? \'block\' : \'none\';this.querySelector(\'.toggle-arrow\').style.transform = this.nextElementSibling.style.display === \'none\' ? \'rotate(0deg)\' : \'rotate(180deg)\';">'
-        + '<h5 style="color:#92400e;margin:0;font-size:13px;">🔍 Voir comparaison LMNP vs LMP (2026-2050)</h5>'
-        + '<span class="toggle-arrow" style="display:inline-block;font-size:16px;transition:transform 200ms;">▼</span>'
-        + '</div>'
-        + '<div id="lmpExitCostsTable" style="display:none;margin-top:8px;overflow-x:auto;font-size:11px;"></div>'
-        + '</div>';
-
-      html += '</div>'
-        + '</div>'; // Close the hidden container
-
-      lmpSection.innerHTML = html;
-
-      // ═══ Populate Exit Costs Comparison Table ═══
-      setTimeout(() => {
-        const tableDiv = document.getElementById('lmpExitCostsTable');
-        if (tableDiv && rueilProp) {
-          const purchasePrice = 240000; // IC.properties.rueil.purchasePrice
-          const lmnpStartDate = '2025-10'; // [year, month]
-          const [lmnpYear, lmnpMonth] = lmnpStartDate.split('-').map(Number);
-
-          let tableHtml = '<table style="width:100%;border-collapse:collapse;background:white;">'
-            + '<thead style="background:#fef3c7;border-bottom:2px solid #d97706;position:sticky;top:0;">'
-            + '<tr>'
-            + '<th style="padding:6px;text-align:center;font-size:10px;">Année</th>'
-            + '<th style="padding:6px;text-align:center;font-size:10px;">Détention</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: PV Nette</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: Taxe</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMP: Exonération</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">Différence</th>'
-            + '</tr>'
-            + '</thead>'
-            + '<tbody>';
-
-          // Simulate 2026-2050
-          for (let year = 2026; year <= 2050; year++) {
-            const holdingYears = year - 2019; // Purchase in 2019
-            const lmnpYears = year - lmnpYear; // LMNP starts 2025-10
-
-            // Project value with 1% annual appreciation
-            let projectedValue = purchasePrice;
-            for (let y = 2019; y < year; y++) {
-              projectedValue *= 1.01;
-            }
-
-            // LMNP: Calculate amortissements
-            const totalAmortLMNP = Math.max(0, purchasePrice * 0.80 * 0.02 * Math.max(0, lmnpYears));
-
-            // LMNP: Plus-value brute = salePrice - (purchasePrice + 7.5%) + amortissements réintégrés
-            const fraisAcquisition = purchasePrice * 0.075;
-            const pvBruteLMNP = projectedValue - (purchasePrice + fraisAcquisition) + totalAmortLMNP;
-
-            // LMNP: Apply abattements
-            let irAbattLMNP = 0, psAbattLMNP = 0;
-            if (holdingYears >= 22) {
-              irAbattLMNP = 1;
-            } else if (holdingYears >= 6) {
-              irAbattLMNP = Math.min(1, (holdingYears - 6) * 0.06 + (holdingYears > 22 ? 0.04 : 0));
-            }
-            if (holdingYears >= 30) {
-              psAbattLMNP = 1;
-            } else if (holdingYears >= 23) {
-              psAbattLMNP = Math.min(1, (holdingYears - 22) * 0.016 + (holdingYears - 23) * 0.09);
-            } else if (holdingYears >= 6) {
-              psAbattLMNP = Math.min(1, (holdingYears - 6) * 0.0165);
-            }
-
-            const pvNetteIRLMNP = pvBruteLMNP * (1 - irAbattLMNP);
-            const pvNettePS = pvBruteLMNP * (1 - psAbattLMNP);
-            const irLMNP = Math.round(pvNetteIRLMNP * 0.19);
-            const psLMNP = Math.round(pvNettePS * 0.172);
-            const taxLMNP = irLMNP + psLMNP;
-
-            // LMP: Short-term (amortissements) taxed at 37.2%, Long-term (appreciation) at 30%
-            // BUT: Full exemption if > 5 years AND CA < 90K€/an
-            let taxLMP = 0;
-            const annualCA = rueilProp.loyer * 12; // ~15.6K€
-            if (lmnpYears >= 5 && annualCA < 90000) {
-              // Exonération totale
-              taxLMP = 0;
-            } else {
-              // Part amortissements (short-term): 37.2%
-              const pvAmortissements = totalAmortLMNP;
-              const pvAppreciation = pvBruteLMNP - pvAmortissements;
-              const taxAmortissements = Math.round(pvAmortissements * 0.372);
-              const taxAppreciation = Math.round(pvAppreciation * 0.30);
-              taxLMP = taxAmortissements + taxAppreciation;
-            }
-
-            const difference = taxLMNP - taxLMP;
-            const detentionStr = holdingYears + ' ans';
-
-            tableHtml += '<tr style="border-bottom:1px solid #e5e5e5;background:' + (year % 2 === 0 ? '#fafafa' : '#fff') + ';">'
-              + '<td style="padding:4px;text-align:center;font-size:10px;font-weight:600;">' + year + '</td>'
-              + '<td style="padding:4px;text-align:center;font-size:10px;">' + detentionStr + '</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;">' + fmt(Math.round(pvBruteLMNP)) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:#dc2626;">' + fmt(taxLMNP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (taxLMP === 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(taxLMP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (difference >= 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(difference) + '€</td>'
-              + '</tr>';
-          }
-
-          tableHtml += '</tbody></table>';
-          tableDiv.innerHTML = tableHtml;
-        }
-      }, 0);
-    } else {
-      lmpSection.innerHTML = '';
-    }
-  }
-
   // Loans table
   const loansTbody = document.getElementById('immoLoansTbody');
   if (loansTbody) {
@@ -3481,7 +3113,7 @@ function renderImmoView(state) {
   if (fiscTbody) {
     fiscTbody.innerHTML = '';
     let totalImpot = 0;
-    fp.forEach(prop => {
+    iv.properties.forEach(prop => {
       const f = prop.fiscalite;
       if (!f) return;
       totalImpot += f.totalImpot;
@@ -3528,7 +3160,7 @@ function renderImmoView(state) {
   const cfTableEl = document.getElementById('immoCFTable');
   if (cfTableEl) {
     let html = '<table style="margin-top:10px;"><thead><tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr></thead><tbody>';
-    fp.forEach((prop, i) => {
+    iv.properties.forEach((prop, i) => {
       const cd = prop.chargesDetail || {};
       const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
       const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
@@ -3558,8 +3190,8 @@ function renderImmoView(state) {
   // ── CF Analysis ──
   const cfAnalysis = document.getElementById('immoCFAnalysis');
   if (cfAnalysis) {
-    const autofinP = fp.filter(p => !p.conditional && p.cf >= 0);
-    const deficitP = fp.filter(p => !p.conditional && p.cf < 0);
+    const autofinP = iv.properties.filter(p => !p.conditional && p.cf >= 0);
+    const deficitP = iv.properties.filter(p => !p.conditional && p.cf < 0);
     let text = '<strong>Analyse :</strong> ';
     autofinP.forEach(p => { text += p.name + ' est autofinance (+' + Math.round(p.cf) + '/mois : revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
     deficitP.forEach(p => { text += p.name + ' a un deficit de ' + Math.round(p.cf) + '/mois (revenus ' + Math.round(p.totalRevenue) + ' vs charges ' + Math.round(p.charges) + '). '; });
@@ -3657,213 +3289,6 @@ function renderImmoView(state) {
   }
 }
 
-// ============ TIMELINE RENDERING HELPER ============
-function renderTimelineHTML(timeline) {
-  if (!timeline || timeline.length === 0) return '';
-  let html = '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
-  html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
-  const now = new Date();
-  timeline.forEach(t => {
-    const [ty, tm] = t.date.split('-').map(Number);
-    const tDate = new Date(ty, tm - 1);
-    const isPast = tDate < now;
-    const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
-    const marker = isPast ? '✓' : '▸';
-    html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
-  });
-  html += '</div>';
-  return html;
-}
-
-// ============ PROPERTY INFO CARD (Details) ============
-function renderPropertyInfoCard(details) {
-  if (!details) return '';
-
-  // Generate unique ID to prevent conflicts when multiple cards exist
-  const uniqueId = 'propCard_' + Math.random().toString(36).substr(2, 6);
-
-  // Color mapping for rooms
-  const roomColors = {
-    'Séjour': '#3b82f6',
-    'Séjour/Cuisine': '#3b82f6',
-    'Salon': '#3b82f6',
-    'Cuisine': '#3b82f6',
-    'Entrée': '#94a3b8',
-    'Dégagement': '#94a3b8',
-    'Loggia': '#d69e2e',
-    'Chambre': '#22c55e',
-    'Chambre 1': '#22c55e',
-    'Chambre 2': '#22c55e',
-    'Salle de bain': '#94a3b8',
-    'Salle d\'eau': '#94a3b8',
-    'Sdb': '#94a3b8',
-    'WC': '#94a3b8',
-    'Dgt': '#94a3b8',
-  };
-
-  const getRoomColor = (name) => {
-    for (const key in roomColors) {
-      if (name.toLowerCase().includes(key.toLowerCase())) {
-        return roomColors[key];
-      }
-    }
-    return '#cbd5e0';
-  };
-
-  let html = '<div style="border:1px solid var(--border, #e7e5e4);border-radius:8px;overflow:hidden;margin-bottom:16px;">';
-
-  // === LEVEL 1: BANNER (always visible) ===
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--surface, #fff);">';
-
-  // Left: type, lot, floor, building, developer
-  html += '<div>';
-  html += '<span style="font-weight:700;font-size:15px;">' + (details.type || 'Appartement') + ' n°' + (details.lot || '') + '</span>';
-  html += '<span style="color:#78716c;font-size:13px;margin-left:8px;">';
-  const bannerParts = [];
-  if (details.floor) bannerParts.push(details.floor);
-  if (details.building) bannerParts.push(details.building);
-  if (details.developer) bannerParts.push(details.developer);
-  html += bannerParts.join(' · ');
-  html += '</span>';
-  html += '</div>';
-
-  // Right: surface
-  html += '<div style="text-align:right;">';
-  if (details.surfaceHabitable) {
-    html += '<span style="font-size:16px;font-weight:700;">' + details.surfaceHabitable.toFixed(1) + ' m²</span>';
-  }
-  if (details.loggia) {
-    html += '<span style="color:#b45309;font-size:12px;margin-left:6px;">+ ' + details.loggia.toFixed(1) + ' m² log</span>';
-  }
-  html += '</div>';
-
-  html += '</div>'; // end banner
-
-  // === BUTTONS ROW ===
-  html += '<div style="display:flex;border-top:1px solid var(--border, #e7e5e4);background:#fafaf9;">';
-
-  // Details button
-  html += '<button onclick="var d=document.getElementById(\'' + uniqueId + '_details\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=d.style.display===\'none\'?\'\u25BC\':\'\u25B2\'" ';
-  html += 'style="flex:1;padding:8px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:#78716c;transition:color 0.2s;">';
-  html += 'D\u00e9tails <span>\u25BC</span></button>';
-
-  html += '</div>';
-
-  // === LEVEL 2: DETAILS (hidden by default) ===
-  html += '<div id="' + uniqueId + '_details" style="display:none;padding:16px;border-top:1px solid var(--border, #e7e5e4);">';
-
-  // Room bar — click to reveal surface
-  if (details.rooms && details.rooms.length > 0) {
-    const total = details.surfaceTotale || details.rooms.reduce((s, r) => s + (r.surface || 0), 0);
-    html += '<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;margin:10px 0;font-size:10px;">';
-    details.rooms.forEach((r, i) => {
-      if (r.surface && r.surface > 0) {
-        const pct = Math.max(3, r.surface / total * 100);
-        const color = getRoomColor(r.name);
-        html += '<div style="flex:' + pct + ';background:' + color + ';display:flex;align-items:center;justify-content:center;';
-        html += 'color:white;cursor:pointer;position:relative;transition:all 0.2s;min-width:0;overflow:hidden;white-space:nowrap;" ';
-        html += 'onclick="var s=this.querySelector(\'.rs\');if(s.style.display===\'block\'){s.style.display=\'none\'}else{this.parentElement.querySelectorAll(\'.rs\').forEach(function(e){e.style.display=\'none\'});s.style.display=\'block\'}">';
-        html += '<span style="padding:0 4px;font-size:9px;">' + r.name + '</span>';
-        html += '<div class="rs" style="display:none;position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:5;">';
-        html += r.name + ' — ' + (r.surface ? r.surface.toFixed(1) : '?') + ' m²</div>';
-        html += '</div>';
-      }
-    });
-    // Add loggia if present
-    if (details.loggia) {
-      const pct = Math.max(3, details.loggia / total * 100);
-      html += '<div style="flex:' + pct + ';background:#d69e2e;display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;position:relative;transition:all 0.2s;" ';
-      html += 'onclick="var s=this.querySelector(\'.rs\');if(s.style.display===\'block\'){s.style.display=\'none\'}else{this.parentElement.querySelectorAll(\'.rs\').forEach(function(e){e.style.display=\'none\'});s.style.display=\'block\'}">';
-      html += '<span style="padding:0 4px;font-size:9px;">Loggia</span>';
-      html += '<div class="rs" style="display:none;position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:5;">';
-      html += 'Loggia — ' + details.loggia.toFixed(1) + ' m²</div>';
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-
-  // Characteristics pills
-  let pills = [];
-  if (details.exposure) pills.push({ text: '\u263C ' + details.exposure, bg: '#e2e8f0' });
-  if (details.dpe) pills.push({ text: 'DPE ' + details.dpe, bg: '#c6f6d5' });
-  if (details.norm) pills.push({ text: details.norm, bg: '#bee3f8' });
-  if (details.parking !== null && details.parking !== undefined) {
-    pills.push({ text: details.parking ? 'Parking' : 'Pas de parking', bg: details.parking ? '#c6f6d5' : '#fed7d7' });
-  }
-  if (details.cave !== null && details.cave !== undefined) {
-    pills.push({ text: details.cave ? 'Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
-  }
-
-  if (pills.length > 0) {
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
-    pills.forEach(pill => {
-      html += '<span style="background:' + pill.bg + ';border-radius:12px;padding:4px 10px;font-size:11px;display:inline-block;border:1px solid rgba(0,0,0,0.05);">' + pill.text + '</span>';
-    });
-    html += '</div>';
-  }
-
-  // Room dimensions display
-  if (details.rooms && details.rooms.length > 0) {
-    html += '<div style="margin:10px 0;">';
-    html += '<div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Dimensions des pièces</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;">';
-    details.rooms.forEach(r => {
-      html += '<div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:4px;">';
-      html += '<span style="color:#4a5568;">' + r.name + '</span>';
-      if (r.surface) {
-        html += '<span style="font-weight:600;">' + r.surface.toFixed(2) + ' m²</span>';
-      }
-      html += '</div>';
-    });
-    html += '</div>';
-
-    // Total habitable surface
-    if (details.surfaceHabitable) {
-      html += '<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;border-top:1px solid #e2e8f0;font-weight:600;font-size:12px;">';
-      html += '<span>Surface habitable</span>';
-      html += '<span>' + details.surfaceHabitable.toFixed(2) + ' m²</span>';
-      html += '</div>';
-    }
-
-    // Loggia if applicable
-    if (details.loggia) {
-      html += '<div style="display:flex;justify-content:space-between;padding:4px 8px;font-size:11px;color:#d69e2e;">';
-      html += '<span>+ Loggia</span>';
-      html += '<span>' + details.loggia.toFixed(2) + ' m²</span>';
-      html += '</div>';
-    }
-
-    html += '</div>';
-  }
-
-  // Extra property info section
-  let extraInfo = [];
-  if (details.yearBuilt) extraInfo.push({ label: 'Année construction', value: details.yearBuilt });
-  if (details.developer) extraInfo.push({ label: 'Promoteur', value: details.developer });
-  if (details.program) extraInfo.push({ label: 'Programme', value: details.program });
-  if (details.tantiemes) extraInfo.push({ label: 'Tantièmes', value: details.tantiemes });
-  if (details.caveLots && details.caveLots.length > 0) extraInfo.push({ label: 'Lots caves', value: details.caveLots.join(', ') });
-  if (details.norm) extraInfo.push({ label: 'Norme', value: details.norm });
-
-  if (extraInfo.length > 0) {
-    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
-    html += '<div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Informations supplémentaires</div>';
-    extraInfo.forEach(info => {
-      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;">';
-      html += '<span style="color:#78716c;">' + info.label + '</span>';
-      html += '<span style="color:#1c1917;font-weight:500;">' + info.value + '</span>';
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  html += '</div>'; // end details
-
-  html += '</div>'; // end card
-
-  return html;
-}
-
 // ============ PROPERTY DETAIL PANEL ============
 function renderPropertyDetail(state, prop) {
   const meta = prop.propertyMeta || {};
@@ -3873,13 +3298,6 @@ function renderPropertyDetail(state, prop) {
   // Title
   const titleEl = document.getElementById('propDetailTitle');
   if (titleEl) titleEl.textContent = prop.name + (meta.address ? ' — ' + meta.address : '');
-
-  // ── Section 0: Property Info Card (Details) ──
-  const infoCardEl = document.getElementById('propDetailInfo');
-  if (infoCardEl) {
-    const details = meta.details || null;
-    infoCardEl.innerHTML = renderPropertyInfoCard(details);
-  }
 
   // ── Section 1: Fiche ──
   const ficheEl = document.getElementById('propDetailFiche');
@@ -4004,9 +3422,6 @@ function renderPropertyDetail(state, prop) {
     }
     if (typeof window.buildExitProjectionChart === 'function') {
       window.buildExitProjectionChart(state, prop);
-    }
-    if (typeof window.buildPVAbattementChart === 'function') {
-      window.buildPVAbattementChart(prop, 'pvAbattementChart');
     }
   }, 50);
 }
@@ -4265,12 +3680,6 @@ function renderAptView(state, loanKey) {
 
   let html = '';
 
-  // ── Section 0: Property Info Card (detailed plan info) ──
-  const details = meta.details || null;
-  if (details) {
-    html += renderPropertyInfoCard(details);
-  }
-
   // ── Section 1: Fiche propriété + Exit costs KPIs ──
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">';
 
@@ -4414,40 +3823,82 @@ function renderAptView(state, loanKey) {
     });
 
     // Timeline
-    html += renderTimelineHTML(vc.timeline);
+    html += '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
+    html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
+    const now = new Date();
+    vc.timeline.forEach(t => {
+      const [ty, tm] = t.date.split('-').map(Number);
+      const tDate = new Date(ty, tm - 1);
+      const isPast = tDate < now;
+      const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
+      const marker = isPast ? '✓' : '▸';
+      html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
+    });
+    html += '</div>';
     html += '</div>';
 
     // Fiscal simulator
     html += '<div id="aptVitryFiscal" style="margin-bottom:24px;"></div>';
   }
 
-  // ── Section 4: Rueil-specific — Timeline ──
-  if (loanKey === 'rueil') {
-    const ec = EXIT_COSTS.rueil;
-    if (ec && ec.timeline) {
-      html += '<div style="background:#f7fafc;border:1px solid #cbd5e0;border-radius:12px;padding:16px;margin-bottom:24px;">';
-      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Échéances importantes</h3>';
-      html += renderTimelineHTML(ec.timeline);
-      html += '</div>';
-    }
-  }
-
   // ── Section 4: Villejuif-specific — VEFA Timeline + Regime comparison ──
   if (loanKey === 'villejuif') {
-    // Timeline from EXIT_COSTS
-    const ec = EXIT_COSTS.villejuif;
-    if (ec && ec.timeline) {
-      html += '<div style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;">';
-      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#0284c7;">Échéances VEFA</h3>';
-      html += renderTimelineHTML(ec.timeline);
-      html += '</div>';
-    }
     // VEFA Timeline
     if (prop.vefaConfig) {
       html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
     }
 
-    // ── JEANBRUN — All content inside collapsible section ──
+    // JEANBRUN vs LMNP comparison
+    const cmp = iv.villejuifRegimeComparison;
+    if (cmp && cmp.summary) {
+      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h3>';
+
+      // Summary KPIs
+      const delta = cmp.summary.delta;
+      const winColor = delta > 0 ? '#276749' : '#c05621';
+      html += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:18px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:11px;color:#718096;">Régime recommandé</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:11px;color:#718096;">Avantage sur 10 ans</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:11px;color:#718096;">Réduction JEANBRUN totale</div></div>';
+      html += '<div class="detail-metric" style="flex:1;min-width:140px;"><div style="font-size:16px;font-weight:700;">' + fmt(cmp.summary.lmnpAmortAnnuel) + '/an</div><div style="font-size:11px;color:#718096;">Amortissement LMNP</div></div>';
+      html += '</div>';
+
+      // Comparison table
+      html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
+        + '<thead><tr><th>Année</th>'
+        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
+        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
+        + '<th class="num" style="background:#f0fff4;">Δ LMNP-JB</th></tr></thead><tbody>';
+      for (let y = 0; y < cmp.jeanbrun.length; y++) {
+        const jb = cmp.jeanbrun[y];
+        const lm = cmp.lmnp[y];
+        const d = lm.cumGain - jb.cumGain;
+        const dColor = d > 0 ? '#276749' : '#c53030';
+        html += '<tr><td><strong>' + jb.year + '</strong></td>'
+          + '<td class="num">' + jb.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(jb.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(jb.cumGain)) + '</td>'
+          + '<td class="num">' + lm.loyer + '</td>'
+          + '<td class="num">' + fmt(Math.round(lm.cfNet)) + '</td>'
+          + '<td class="num">' + fmt(Math.round(lm.cumGain)) + '</td>'
+          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+
+      // LMP warning
+      if (cmp.summary.lmpRisque) {
+        html += '<div style="margin-top:12px;padding:10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:8px;font-size:12px;color:#c53030;">'
+          + '<strong>⚠️ Risque LMP :</strong> Recettes meublées totales (Villejuif + Rueil) = ' + cmp.summary.lmpRecettesTotales.toLocaleString('fr-FR') + '€/an > seuil 23 000€. '
+          + 'En tant que non-résident sans revenus d\'activité en France, le passage en LMP pourrait être automatique. '
+          + 'Conséquences : cotisations sociales SSI ~40% sur le bénéfice.'
+          + '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    // ── JEANBRUN Constraints & Loyer Plafonné — Detailed section ──
     const jb = VILLEJUIF_REGIMES.jeanbrun;
     const vBase = VILLEJUIF_REGIMES.base;
     const plafond = jb.plafondLoyer;
@@ -4456,19 +3907,7 @@ function renderAptView(state, loanKey) {
     const loyerMeuble = vBase.loyerMeubleHC;
     const manqueAGagner = loyerMarche - plafond.loyerMaxMensuel;
 
-    const jbCollapsibleId = 'jeanbrun_' + Math.random().toString(36).substr(2, 6);
-
-    // Warning banner + collapsible toggle
-    html += '<div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:12px;padding:12px 16px;margin-bottom:24px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
-    html += '<div style="font-size:13px;color:#c53030;"><strong>⚠️ Dispositif Jeanbrun non retenu</strong> — loyer plafonné trop bas (1 215€ vs 1 700€ marché)</div>';
-    html += '<button onclick="var d=document.getElementById(\'' + jbCollapsibleId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" style="flex-shrink:0;padding:6px 12px;background:#c53030;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">';
-    html += 'Voir les détails ▼</button>';
-    html += '</div>';
-    html += '</div>';
-
-    // Hidden detailed section
-    html += '<div id="' + jbCollapsibleId + '" style="display:none;background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
     html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes JEANBRUN — Loyer Plafonné & Obligations</h3>';
 
     // Loyer plafonné calculation
@@ -4522,43 +3961,7 @@ function renderAptView(state, loanKey) {
     html += '</ul></div>';
     html += '</div>';
 
-    // ── JEANBRUN vs LMNP comparison table (inside collapsible) ──
-    const cmp = iv.villejuifRegimeComparison;
-    if (cmp && cmp.summary) {
-      html += '<div style="margin-top:16px;border-top:1px solid #fbd38d;padding-top:16px;">';
-      html += '<h4 style="margin:0 0 12px;font-size:14px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h4>';
-      const delta = cmp.summary.delta;
-      const winColor = delta > 0 ? '#276749' : '#c05621';
-      html += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:10px;color:#718096;">Recommandé</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:10px;color:#718096;">Avantage 10 ans</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:10px;color:#718096;">Réduction JB totale</div></div>';
-      html += '</div>';
-      html += '<div style="overflow-x:auto;"><table style="font-size:0.75rem;width:100%;">'
-        + '<thead><tr><th>Année</th>'
-        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
-        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
-        + '<th class="num" style="background:#f0fff4;">\u0394 LMNP-JB</th></tr></thead><tbody>';
-      for (let y = 0; y < cmp.jeanbrun.length; y++) {
-        const jbRow = cmp.jeanbrun[y];
-        const lmRow = cmp.lmnp[y];
-        const d = lmRow.cumGain - jbRow.cumGain;
-        const dColor = d > 0 ? '#276749' : '#c53030';
-        html += '<tr><td><strong>' + jbRow.year + '</strong></td>'
-          + '<td class="num">' + jbRow.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(jbRow.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(jbRow.cumGain)) + '</td>'
-          + '<td class="num">' + lmRow.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(lmRow.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(lmRow.cumGain)) + '</td>'
-          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
-      }
-      html += '</tbody></table></div>';
-      html += '</div>';
-    }
-
-    html += '</div>'; // close collapsible Jeanbrun section
-    html += '</div>'; // close warning banner
+    html += '</div>';
   }
 
   // ── Section 5: Exit projection chart + table ──
@@ -4572,10 +3975,9 @@ function renderAptView(state, loanKey) {
   const [py, pm] = (meta.purchaseDate || '2023-01').split('-').map(Number);
   const fiscType = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[loanKey] ? IMMO_CONSTANTS.fiscalite[loanKey].type : 'nu';
 
-  const showTVACol = loanKey === 'vitry'; // TVA clawback only applies to Vitry
   html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
     + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
-    + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + '<th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
+    + '<th class="num">Taxe PV</th><th class="num">TVA claw.</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
   for (let yr = 2026; yr <= 2040; yr += 2) {
     const holdYears = (yr - py) + (6 - pm) / 12;  // approx mid-year
@@ -4591,7 +3993,7 @@ function renderAptView(state, loanKey) {
       + '<td class="num">' + Math.round(exitSim.abattementIR * 100) + '%</td>'
       + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
       + '<td class="num">' + fmt(exitSim.totalTaxPV) + '</td>'
-      + (showTVACol ? '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>' : '')
+      + '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>'
       + '<td class="num" style="color:#c53030;font-weight:600;">' + fmt(exitSim.totalExitCosts) + '</td>'
       + '<td class="num" style="color:' + neColor + ';font-weight:600;">' + fmt(Math.round(exitSim.netEquityAfterExit)) + '</td>'
       + '</tr>';

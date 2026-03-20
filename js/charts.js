@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=149';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=149';
-import { IMMO_CONSTANTS } from './data.js?v=149';
+import { fmt, fmtAxis } from './render.js?v=147';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=147';
+import { IMMO_CONSTANTS } from './data.js?v=147';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -46,7 +46,7 @@ export function rebuildAllCharts(state, view) {
     buildActionsTreemap(state);
   }
   if (view === 'cash') {
-    buildCashYieldPotential(state);
+    buildCashCurrencyDonut(state);
   }
   if (view === 'immobilier') {
     buildImmoViewEquityBar(state);
@@ -59,7 +59,7 @@ export function rebuildAllCharts(state, view) {
   }
 
   if (PERSON_VIEWS.includes(view)) {
-    buildNWHistoryChart(state);
+    // buildNWHistoryChart removed v86 — no real historical data
     buildCoupleTreemap(state);
   }
 }
@@ -237,7 +237,7 @@ function buildAmineDonut(state) {
       datasets: [{ data: items.map(i => i.val), backgroundColor: items.map(i => i.color), borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 6 } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
   });
 }
@@ -252,7 +252,7 @@ function buildNezhaDonut(state) {
       datasets: [{ data: [n.rueilEquity, n.villejuifEquity, n.cashFrance, n.cashMaroc, n.sgtm, n.recvOmar], backgroundColor: ['#2b6cb0','#2c7a7b','#48bb78','#9ae6b4','#ed8936','#cbd5e0'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) } } } }
   });
 }
@@ -268,7 +268,7 @@ function buildGeoChart(state) {
       datasets: [{ data: [Math.round(geoIBKR*0.53), Math.round(geoIBKR*0.21), Math.round(s.amine.espp+s.nezha.espp), Math.round(geoIBKR*0.10), Math.round(geoIBKR*0.03), Math.round(s.amine.sgtm+s.nezha.sgtm)], backgroundColor: ['#2b6cb0','#9f7aea','#48bb78','#ed8936','#e53e3e','#d69e2e'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
         tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a,b)=>a+b,0); return c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/t*100).toFixed(1) + '%)'; } } } } }
   });
 }
@@ -294,7 +294,6 @@ function buildImmoEquityBar(state) {
 function buildImmoProjection(state) {
   const el = document.getElementById('immoProjectionChart');
   if (!el) return;
-  if (charts.immoProj) { charts.immoProj.destroy(); delete charts.immoProj; }
 
   // Dynamic projection from current property values + appreciation rates
   const iv = state.immoView;
@@ -306,8 +305,7 @@ function buildImmoProjection(state) {
   const projYears = [];
   for (let y = currentYear + 1; y <= currentYear + 7; y++) projYears.push(y);
 
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+  const loanKeys = ['vitry', 'rueil', 'villejuif'];
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
@@ -366,7 +364,6 @@ function buildImmoProjection(state) {
 // ============ CF PROJECTION 10 ANS ============
 export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
 
   const YEARS = 10;
   const START_YEAR = 2026;
@@ -412,8 +409,8 @@ export function buildCFProjection(state) {
 
     vitryData.push(vitryCF);
     rueilData.push(rueilCF);
-    villejuifData.push(includeVillejuif ? villejuifCF : 0);
-    totalData.push(vitryCF + rueilCF + (includeVillejuif ? villejuifCF : 0));
+    villejuifData.push(villejuifCF);
+    totalData.push(vitryCF + rueilCF + villejuifCF);
   }
 
   // Build chart
@@ -429,8 +426,8 @@ export function buildCFProjection(state) {
         { label: 'Equilibre (0)', data: zeroLine, borderColor: '#e53e3e', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
         { label: 'Vitry', data: vitryData, borderColor: '#4a5568', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
         { label: 'Rueil', data: rueilData, borderColor: '#2b6cb0', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-        ...(includeVillejuif ? [{ label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 }] : []),
-        { label: includeVillejuif ? 'Total 3 biens' : 'Total 2 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
+        { label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+        { label: 'Total 3 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
       ]
     },
     options: {
@@ -520,76 +517,32 @@ function buildActionsSectorDonut(state) {
   });
 }
 
-// ============ CASH YIELD GAP — MANQUE A GAGNER ============
-function buildCashYieldPotential(state) {
+// ============ CASH CURRENCY DONUT ============
+function buildCashCurrencyDonut(state) {
   const el = document.getElementById('cashCurrencyChart');
   if (!el) return;
-  el.style.display = 'none';
-  const parent = el.parentElement;
-  const prev = parent.querySelector('.yield-potential');
-  if (prev) prev.remove();
+  const byCur = state.cashView.byCurrency;
+  const colors = { EUR: '#2b6cb0', AED: '#48bb78', MAD: '#ed8936', USD: '#9f7aea' };
+  const entries = Object.entries(byCur).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  const total = entries.reduce((s,[,v]) => s + v, 0);
 
-  const TARGET = 0.06;
-  const cv = state.cashView;
-  if (!cv || !cv.accounts) return;
-
-  // For each person, find accounts below 6% and compute the gap
-  function computeGap(ownerFilter) {
-    const accts = cv.accounts.filter(ownerFilter);
-    let subOptimalCash = 0, currentYieldOnSubOptimal = 0;
-    accts.forEach(a => {
-      const y = a.yield || 0;
-      const bal = a.valEUR || 0;
-      if (y < TARGET && bal > 0) {
-        subOptimalCash += bal;
-        currentYieldOnSubOptimal += bal * y;
-      }
-    });
-    const potentialYield = subOptimalCash * TARGET;
-    const gap = potentialYield - currentYieldOnSubOptimal;
-    return { subOptimalCash, currentYieldOnSubOptimal, potentialYield, gap };
-  }
-
-  const rows = [
-    { name: 'Couple', ...computeGap(() => true), color: '#2b6cb0' },
-    { name: 'Amine', ...computeGap(a => a.owner === 'Amine'), color: '#48bb78' },
-    { name: 'Nezha', ...computeGap(a => a.owner === 'Nezha'), color: '#ed8936' },
-  ];
-
-  let html = '<div class="yield-potential" style="padding:4px 0;">';
-  // Filter to only rows with gap > 0
-  const activeRows = rows.filter(r => r.gap > 0);
-
-  if (activeRows.length === 0) {
-    // No gaps, don't show anything
-    return;
-  }
-
-  html += '<div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:6px;">Manque à gagner (cash &lt;6%)</div>';
-  html += '<div style="display:flex;gap:12px;font-size:12px;">';
-
-  activeRows.forEach(r => {
-    const daily = r.gap / 365;
-    const annual = r.gap;
-    html += '<div style="flex:1;text-align:center;padding:8px;background:#fffbeb;border-radius:6px;">';
-    html += '<div style="font-size:11px;color:#78716c;">' + r.name + '</div>';
-    html += '<div style="font-size:16px;font-weight:700;color:#92400e;">-' + fmt(Math.round(daily)) + '/jour</div>';
-    html += '<div style="font-size:10px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous 6% | -' + fmt(Math.round(annual)) + '/an</div>';
-    html += '</div>';
+  charts.cashCurrency = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/total*100).toFixed(1) + '%)' } } } }
   });
-
-  html += '</div>';
-  html += '</div>';
-  parent.insertAdjacentHTML('beforeend', html);
 }
 
 // ============ IMMO VIEW EQUITY BAR ============
 function buildImmoViewEquityBar(state) {
   const el = document.getElementById('immoViewEquityChart');
   if (!el) return;
-  if (charts.immoViewEq) { charts.immoViewEq.destroy(); delete charts.immoViewEq; }
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const props = includeVillejuif ? state.immoView.properties : state.immoView.properties.filter(p => p.loanKey !== 'villejuif');
+  const props = state.immoView.properties;
   charts.immoViewEq = new Chart(el, {
     type: 'bar',
     data: {
@@ -739,7 +692,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
             const w = ctx.raw.w || 0; const h = ctx.raw.h || 0;
             const area = w * h;
             if (isCategoryHeader(d)) return label;
-            if (area < 1200) return ''; // Hide all labels on segments < 1200px²
+            if (area < 600) return '';
             if (area < 1500) return label.length > 6 ? label.substring(0, 5) + '.' : label;
             if (area < 3000) {
               if (w < 80 && label.length > 8) return label.substring(0, 7) + '.';
@@ -833,16 +786,10 @@ function buildAmortChart(state) {
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
-  // Filter loan keys based on Villejuif toggle
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
-
   // Build date-indexed lookup for each loan
   const dateMaps = {};
   const allDates = new Set();
-  for (const key of loanKeys) {
-    const amort = schedules[key];
-    if (!amort) continue;
+  for (const [key, amort] of Object.entries(schedules)) {
     dateMaps[key] = {};
     // Add initial CRD at start date (month 0 = full principal)
     const s0 = amort.schedule[0];
@@ -863,16 +810,14 @@ function buildAmortChart(state) {
   const sortedDates = [...allDates].sort();
   const labels = [];
   const datasets = {};
-  for (const key of loanKeys) { datasets[key] = []; }
+  for (const key of Object.keys(schedules)) { datasets[key] = []; }
 
   // Sample every 12 entries for readability
   const step = 12;
   for (let i = 0; i < sortedDates.length; i += step) {
     const d = sortedDates[i];
     labels.push(d);
-    for (const key of loanKeys) {
-      const dmap = dateMaps[key];
-      if (!dmap) continue;
+    for (const [key, dmap] of Object.entries(dateMaps)) {
       if (dmap[d] !== undefined) {
         datasets[key].push(Math.round(dmap[d]));
       } else {
@@ -887,9 +832,9 @@ function buildAmortChart(state) {
     }
   }
 
-  const chartDatasets = loanKeys.map(key => ({
+  const chartDatasets = Object.entries(datasets).map(([key, data]) => ({
     label: loanNames[key] || key,
-    data: datasets[key],
+    data,
     borderColor: loanColors[key] || '#a0aec0',
     backgroundColor: (loanColors[key] || '#a0aec0') + '20',
     fill: true,
@@ -938,8 +883,7 @@ function buildImmoViewProjection(state) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-based
   const projYears = [2027, 2028, 2029, 2030, 2031, 2032];
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+  const loanKeys = ['vitry', 'rueil', 'villejuif'];
   const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
@@ -1239,8 +1183,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
       datasets: [
         { label: 'Net (ce que tu gardes)', data: dataNet, backgroundColor: '#276749', stack: 'breakdown' },
         { label: 'Impôts PV', data: dataTaxes, backgroundColor: '#c53030', stack: 'breakdown' },
-        // TVA clawback only relevant for Vitry — hide if all zeros
-        ...(dataTVA.some(v => v > 0) ? [{ label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' }] : []),
+        { label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' },
         { label: 'IRA + frais', data: dataIRA.map((v, i) => v + dataCosts[i]), backgroundColor: '#d69e2e', stack: 'breakdown' },
         { label: 'CRD restant', data: dataCRD, backgroundColor: '#a0aec0', stack: 'breakdown' },
       ]
@@ -1287,8 +1230,7 @@ export function buildWealthProjectionChart(state, mode, group) {
   // Property names and colors for "par appart" mode
   const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
   const propColors = { vitry: '#3182ce', rueil: '#2f855a', villejuif: '#ed8936' };
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const propKeys = Object.keys(proj[0]?.perProp || {}).filter(k => includeVillejuif || k !== 'villejuif');
+  const propKeys = Object.keys(proj[0]?.perProp || {});
 
   // Group by year first (used for both modes)
   const byYear = {};
@@ -1298,25 +1240,17 @@ export function buildWealthProjectionChart(state, mode, group) {
       byYear[y] = { capital: 0, appreciation: 0, cashflow: 0, exitSavings: 0, total: 0, count: 0 };
       propKeys.forEach(k => { byYear[y][k] = 0; });
     }
-    // Sum only from filtered properties (respects Villejuif toggle)
-    let rowCapital = 0, rowApprec = 0, rowCF = 0, rowExit = 0, rowTotal = 0;
+    byYear[y].capital += row.capital;
+    byYear[y].appreciation += row.appreciation;
+    byYear[y].cashflow += row.cashflow;
+    byYear[y].exitSavings += row.exitSavings || 0;
+    byYear[y].total += row.total;
+    byYear[y].count++;
+    // Per-property totals
     propKeys.forEach(k => {
       const pp = row.perProp[k];
-      if (pp) {
-        rowCapital += pp.capital || 0;
-        rowApprec += pp.appreciation || 0;
-        rowCF += pp.cashflow || 0;
-        rowExit += pp.exitSavings || 0;
-        rowTotal += pp.total || 0;
-        byYear[y][k] += pp.total;
-      }
+      if (pp) byYear[y][k] += pp.total;
     });
-    byYear[y].capital += rowCapital;
-    byYear[y].appreciation += rowApprec;
-    byYear[y].cashflow += rowCF;
-    byYear[y].exitSavings += rowExit;
-    byYear[y].total += rowTotal;
-    byYear[y].count++;
   });
   const years = Object.keys(byYear).sort();
   // Exclude last year if partial (< 12 months)
@@ -1454,180 +1388,13 @@ export function buildWealthProjectionChart(state, mode, group) {
         y: {
           stacked: true,
           ticks: {
-            callback: function(v) { return fmtAxis(v); },
+            callback: function(v) { return '€' + fmtAxis(v); },
             font: { size: 10 },
           },
           grid: { color: 'rgba(0,0,0,0.06)' },
         },
       },
     },
-  });
-}
-
-// ============ PV ABATTEMENT CHART (TAX BREAKDOWN BY HOLDING PERIOD) ============
-function buildPVAbattementChart(propData, canvasId) {
-  const el = document.getElementById(canvasId);
-  if (!el) return;
-  if (charts[canvasId]) { charts[canvasId].destroy(); delete charts[canvasId]; }
-
-  const schedule = propData.pvAbattementSchedule || [];
-  if (!schedule || schedule.length === 0) return;
-
-  // Filter to show years: 1, 5, 6, 10, 15, 20, 22, 25, 30
-  const displayYears = [1, 5, 6, 10, 15, 20, 22, 25, 30];
-  const filtered = schedule.filter(s => displayYears.includes(s.year));
-
-  // Prepare data
-  const labels = filtered.map(s => s.year + ' ans');
-  const netData = filtered.map(s => s.net_pct);
-  const irData = filtered.map(s => s.taxIR_pct);
-  const psData = filtered.map(s => s.taxPS_pct);
-
-  // Current holding period (floor: between purchase date and today)
-  const IC = IMMO_CONSTANTS;
-  const propMeta = IC.properties[propData.loanKey] || {};
-  const purchaseDate = propMeta.purchaseDate || '2023-01';
-  const [pY, pM] = purchaseDate.split('-').map(Number);
-  const now = new Date();
-  const holdingYears = (now.getFullYear() - pY) + (now.getMonth() + 1 - pM) / 12;
-  const currentYear = Math.floor(holdingYears);
-
-  const ctx = el.getContext('2d');
-  charts[canvasId] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Net (ce que vous gardez)',
-          data: netData,
-          backgroundColor: '#48bb78',
-          borderColor: '#38a169',
-          borderWidth: 1,
-        },
-        {
-          label: 'IR (impôt sur le revenu)',
-          data: irData,
-          backgroundColor: '#f56565',
-          borderColor: '#c53030',
-          borderWidth: 1,
-        },
-        {
-          label: 'PS (prélèvements sociaux)',
-          data: psData,
-          backgroundColor: '#ed8936',
-          borderColor: '#c05621',
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: {
-      indexAxis: undefined,
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: {
-            boxWidth: 14,
-            padding: 12,
-            font: { size: 11 },
-            generateLabels: function(chart) {
-              const datasets = chart.data.datasets;
-              return datasets.map((ds, i) => ({
-                text: ds.label,
-                fillStyle: ds.backgroundColor,
-                hidden: false,
-                index: i,
-              }));
-            },
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label: function(ctx) {
-              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%';
-            },
-            afterLabel: function(ctx) {
-              // Show abattement info on hover
-              const yearIdx = ctx.dataIndex;
-              const data = filtered[yearIdx];
-              if (data) {
-                const abattIRLabel = 'Abatt. IR: ' + data.abattIR + '%';
-                const abattPSLabel = 'Abatt. PS: ' + data.abattPS + '%';
-                if (ctx.dataset.label.includes('IR')) return abattIRLabel;
-                if (ctx.dataset.label.includes('PS')) return abattPSLabel;
-              }
-              return '';
-            },
-          },
-        },
-        title: {
-          display: true,
-          text: 'Imposition de la plus-value en fonction de la durée de détention',
-          font: { size: 13, weight: '600' },
-          padding: { bottom: 12 },
-        },
-        annotation: {
-          drawTime: 'afterDatasetsDraw',
-          annotations: {},
-        },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { font: { size: 10 } },
-          grid: { display: false },
-        },
-        y: {
-          stacked: true,
-          min: 0,
-          max: 40,
-          ticks: {
-            callback: function(v) { return v.toFixed(0) + '%'; },
-            font: { size: 10 },
-          },
-          grid: { color: 'rgba(0,0,0,0.06)' },
-        },
-      },
-    },
-    plugins: [
-      {
-        id: 'currentYearLine',
-        afterDatasetsDraw(chart) {
-          // Draw vertical line at current holding period if within range
-          if (currentYear >= 1 && currentYear <= 30) {
-            const foundIdx = filtered.findIndex(s => s.year === currentYear);
-            if (foundIdx >= 0) {
-              const xScale = chart.scales.x;
-              const yScale = chart.scales.y;
-              const xPos = xScale.getPixelForValue(foundIdx);
-              const yStart = yScale.getPixelForValue(yScale.max);
-              const yEnd = yScale.getPixelForValue(yScale.min);
-
-              const ctx = chart.ctx;
-              ctx.save();
-              ctx.strokeStyle = '#2d3748';
-              ctx.lineWidth = 2;
-              ctx.setLineDash([5, 5]);
-              ctx.beginPath();
-              ctx.moveTo(xPos, yStart);
-              ctx.lineTo(xPos, yEnd);
-              ctx.stroke();
-              ctx.restore();
-
-              // Add label "Période actuelle"
-              ctx.save();
-              ctx.font = 'bold 11px sans-serif';
-              ctx.fillStyle = '#2d3748';
-              ctx.textAlign = 'center';
-              ctx.fillText('Période actuelle (' + currentYear + ' ans)', xPos, yStart - 8);
-              ctx.restore();
-            }
-          }
-        },
-      },
-    ],
   });
 }
 
@@ -1635,7 +1402,6 @@ function buildPVAbattementChart(propData, canvasId) {
 window.buildPropertyDetailCharts = buildPropertyDetailCharts;
 window.buildExitProjectionChart = buildExitProjectionChart;
 window.buildWealthProjectionChart = buildWealthProjectionChart;
-window.buildPVAbattementChart = buildPVAbattementChart;
 
 // ============ BUDGET DONUTS ============
 function buildBudgetZoneDonut(state) {
@@ -1658,7 +1424,7 @@ function buildBudgetZoneDonut(state) {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 12, boxWidth: 14, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
@@ -1685,9 +1451,344 @@ function buildBudgetTypeDonut(state) {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 12, boxWidth: 14, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
         tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + '/mois (' + (c.parsed / total * 100).toFixed(0) + '%)' } }
       }
     }
   });
+}
+
+// ============================================================
+// PORTFOLIO YTD EVOLUTION CHART
+// ============================================================
+// Displays the daily evolution of the IBKR portfolio value (in EUR)
+// since January 1st, 2026, considering:
+// - Positions held at YTD start → valued from Jan 1
+// - Positions bought mid-year → valued only from purchase date
+// - Positions sold mid-year → excluded after sell date
+// - Multi-currency conversion (USD, JPY → EUR) using historical FX
+//
+// Methodology:
+// 1. Build a daily "holdings map" from trades: for each day, know
+//    exactly how many shares of each ticker are held
+// 2. Multiply shares × closing price for that day
+// 3. Convert non-EUR positions using historical FX rates
+// 4. Sum = portfolio total value in EUR for that day
+// 5. Chart line: value (EUR) over time. Color: green if above
+//    starting value, red if below.
+// ============================================================
+
+/**
+ * Build the YTD portfolio evolution line chart.
+ *
+ * @param {object} portfolio - PORTFOLIO from data.js (for trades, positions, FX_STATIC)
+ * @param {object} historicalData - from fetchHistoricalPricesYTD():
+ *   { tickers: { [ticker]: { dates, closes } }, fx: { usd: {dates, closes}, jpy: {dates, closes} } }
+ * @param {object} fxStatic - FX_STATIC fallback rates
+ */
+export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic) {
+  const el = document.getElementById('portfolioYTDChart');
+  if (!el) return;
+  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+
+  const ytdStart = '2026-01-01';
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+  // ── Step 1: Build the trade timeline ──
+  // Collect all IBKR stock trades in 2026 (buy/sell, no FX)
+  const trades = (portfolio.amine.ibkr.trades || [])
+    .filter(t => t.type !== 'fx' && t.date >= ytdStart && t.date <= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build initial holdings at YTD start (positions that existed before 2026)
+  // We reconstruct from current positions + reverse-apply 2026 trades
+  const currentHoldings = {};
+  portfolio.amine.ibkr.positions.forEach(p => {
+    currentHoldings[p.ticker] = { shares: p.shares, currency: p.currency };
+  });
+
+  // Also track sold positions that don't exist in current portfolio
+  // Reverse trades to get YTD-start state
+  const ytdStartHoldings = {};
+
+  // Start with current holdings
+  Object.entries(currentHoldings).forEach(([ticker, data]) => {
+    ytdStartHoldings[ticker] = { shares: data.shares, currency: data.currency };
+  });
+
+  // Reverse 2026 trades: undo buys (subtract) and undo sells (add back)
+  const trades2026 = [...trades].reverse();
+  trades2026.forEach(t => {
+    if (!ytdStartHoldings[t.ticker]) {
+      ytdStartHoldings[t.ticker] = { shares: 0, currency: t.currency };
+    }
+    if (t.type === 'buy') {
+      ytdStartHoldings[t.ticker].shares -= t.qty;
+    } else if (t.type === 'sell') {
+      ytdStartHoldings[t.ticker].shares += t.qty;
+    }
+  });
+
+  // Remove tickers with 0 shares at YTD start
+  Object.keys(ytdStartHoldings).forEach(k => {
+    if (ytdStartHoldings[k].shares <= 0) delete ytdStartHoldings[k];
+  });
+
+  console.log('[chart] YTD start holdings:', JSON.stringify(ytdStartHoldings));
+
+  // ── Step 2: Build trade events timeline (sorted by date) ──
+  const tradeEvents = trades.map(t => ({
+    date: t.date,
+    ticker: t.ticker,
+    type: t.type,
+    qty: t.qty,
+    currency: t.currency,
+  }));
+
+  // ── Step 3: Collect all trading dates from historical data ──
+  // Use the ticker with the most data points as the reference calendar
+  let refDates = [];
+  Object.values(historicalData.tickers).forEach(td => {
+    if (td.dates.length > refDates.length) refDates = td.dates;
+  });
+
+  if (refDates.length === 0) {
+    console.warn('[chart] No historical dates available, skipping YTD chart');
+    return;
+  }
+
+  // Filter to only YTD dates
+  refDates = refDates.filter(d => d >= ytdStart && d <= todayStr);
+
+  // ── Step 4: For each date, compute portfolio value ──
+  // Helper: get close price for a ticker on a given date (or nearest earlier date)
+  function getClose(ticker, date) {
+    const td = historicalData.tickers[ticker];
+    if (!td) return null;
+    // Binary search for exact date or nearest earlier
+    let idx = td.dates.indexOf(date);
+    if (idx >= 0) return td.closes[idx];
+    // Find the last date <= target
+    for (let i = td.dates.length - 1; i >= 0; i--) {
+      if (td.dates[i] <= date) return td.closes[i];
+    }
+    return null;
+  }
+
+  // Helper: get EUR/USD or EUR/JPY rate for a date
+  function getFxRate(currency, date) {
+    if (currency === 'EUR') return 1;
+    const fxData = currency === 'USD' ? historicalData.fx.usd : historicalData.fx.jpy;
+    if (!fxData) {
+      // Fallback to static
+      return currency === 'USD' ? (fxStatic.USD || 1.04) : (fxStatic.JPY || 161);
+    }
+    let idx = fxData.dates.indexOf(date);
+    if (idx >= 0 && fxData.closes[idx]) return fxData.closes[idx];
+    // Find nearest earlier
+    for (let i = fxData.dates.length - 1; i >= 0; i--) {
+      if (fxData.dates[i] <= date && fxData.closes[i]) return fxData.closes[i];
+    }
+    return currency === 'USD' ? (fxStatic.USD || 1.04) : (fxStatic.JPY || 161);
+  }
+
+  // Track holdings state day by day
+  const holdings = {};
+  Object.entries(ytdStartHoldings).forEach(([ticker, data]) => {
+    holdings[ticker] = { shares: data.shares, currency: data.currency };
+  });
+
+  let tradeIdx = 0;
+  const chartLabels = [];
+  const chartValues = [];
+  const depositTimeline = []; // Track cumulative deposits for cost basis line
+  let cumulativeDeposits2026 = 0;
+
+  // Get deposits in 2026
+  const deposits2026 = (portfolio.amine.ibkr.deposits || [])
+    .filter(d => d.date >= ytdStart)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Calculate total deposits up to YTD start (baseline)
+  const depositsPreYTD = (portfolio.amine.ibkr.deposits || [])
+    .filter(d => d.date < ytdStart)
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  for (const date of refDates) {
+    // Apply any trades that happened on or before this date
+    while (tradeIdx < tradeEvents.length && tradeEvents[tradeIdx].date <= date) {
+      const t = tradeEvents[tradeIdx];
+      if (!holdings[t.ticker]) {
+        holdings[t.ticker] = { shares: 0, currency: t.currency };
+      }
+      if (t.type === 'buy') {
+        holdings[t.ticker].shares += t.qty;
+      } else if (t.type === 'sell') {
+        holdings[t.ticker].shares -= t.qty;
+        if (holdings[t.ticker].shares <= 0) delete holdings[t.ticker];
+      }
+      tradeIdx++;
+    }
+
+    // Track deposits up to this date
+    deposits2026.forEach(d => {
+      if (d.date <= date && d.date > (chartLabels[chartLabels.length - 1] || '')) {
+        cumulativeDeposits2026 += d.amount;
+      }
+    });
+
+    // Compute portfolio value for this date
+    let totalEUR = 0;
+    Object.entries(holdings).forEach(([ticker, data]) => {
+      if (data.shares <= 0) return;
+      const price = getClose(ticker, date);
+      if (price == null) return; // No data for this ticker on this date
+
+      const valueNative = data.shares * price;
+      const fxRate = getFxRate(data.currency, date);
+
+      // Convert to EUR: value_native / fx_rate
+      // EUR/USD rate means 1 EUR = X USD, so USD→EUR = value / rate
+      // EUR/JPY rate means 1 EUR = X JPY, so JPY→EUR = value / rate
+      const valueEUR = valueNative / fxRate;
+      totalEUR += valueEUR;
+    });
+
+    // Also add IBKR cash (static, doesn't change daily — small amounts)
+    const ibkrCashEUR = (portfolio.amine.ibkr.cashEUR || 0)
+      + (portfolio.amine.ibkr.cashUSD || 0) / getFxRate('USD', date)
+      + (portfolio.amine.ibkr.cashJPY || 0) / getFxRate('JPY', date);
+    totalEUR += ibkrCashEUR;
+
+    chartLabels.push(date);
+    chartValues.push(Math.round(totalEUR));
+    depositTimeline.push(depositsPreYTD + cumulativeDeposits2026);
+  }
+
+  if (chartLabels.length === 0) {
+    console.warn('[chart] No data points for YTD chart');
+    return;
+  }
+
+  // ── Step 5: Build the chart ──
+  const startValue = chartValues[0];
+  const endValue = chartValues[chartValues.length - 1];
+  const plEUR = endValue - startValue;
+  const plPct = ((endValue / startValue - 1) * 100).toFixed(2);
+  const isPositive = plEUR >= 0;
+
+  // Format dates for display (DD/MM)
+  const displayLabels = chartLabels.map(d => {
+    const parts = d.split('-');
+    return parts[2] + '/' + parts[1];
+  });
+
+  // Gradient fill
+  const ctx = el.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
+  if (isPositive) {
+    gradient.addColorStop(0, 'rgba(72, 187, 120, 0.3)');
+    gradient.addColorStop(1, 'rgba(72, 187, 120, 0.01)');
+  } else {
+    gradient.addColorStop(0, 'rgba(229, 62, 62, 0.3)');
+    gradient.addColorStop(1, 'rgba(229, 62, 62, 0.01)');
+  }
+
+  // Update title
+  const titleEl = document.getElementById('ytdChartTitle');
+  if (titleEl) {
+    titleEl.innerHTML = 'Evolution IBKR YTD — ' +
+      '<span style="color:' + (isPositive ? 'var(--green)' : 'var(--red)') + '">' +
+      (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
+  }
+
+  // Update KPIs
+  const ytdStartEl = document.getElementById('ytdStartValue');
+  const ytdEndEl = document.getElementById('ytdEndValue');
+  if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
+  if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
+
+  charts.portfolioYTD = new Chart(el, {
+    type: 'line',
+    data: {
+      labels: displayLabels,
+      datasets: [
+        {
+          label: 'Portefeuille IBKR (EUR)',
+          data: chartValues,
+          borderColor: isPositive ? '#48bb78' : '#e53e3e',
+          backgroundColor: gradient,
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+          fill: true,
+          tension: 0.3,
+        },
+        {
+          label: 'Valeur au 1er jan.',
+          data: chartValues.map(() => startValue),
+          borderColor: '#a0aec0',
+          borderWidth: 1,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { size: 10 },
+            maxTicksLimit: 15,
+            maxRotation: 0,
+          },
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: {
+            font: { size: 10 },
+            callback: v => fmtAxis(v),
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(45, 55, 72, 0.95)',
+          titleFont: { size: 12 },
+          bodyFont: { size: 12 },
+          padding: 10,
+          callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const idx = items[0].dataIndex;
+              // Full date format
+              const parts = chartLabels[idx].split('-');
+              return parts[2] + '/' + parts[1] + '/' + parts[0];
+            },
+            label: item => {
+              if (item.datasetIndex === 1) return 'Ref. 1er jan: ' + fmt(startValue);
+              const val = item.parsed.y;
+              const diff = val - startValue;
+              const pct = ((val / startValue - 1) * 100).toFixed(2);
+              return 'Valeur: ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
+            },
+          },
+        },
+      },
+    },
+  });
+
+  console.log('[chart] YTD portfolio chart built: ' + chartLabels.length + ' data points, P/L: ' + (isPositive ? '+' : '') + plEUR + ' EUR');
 }
