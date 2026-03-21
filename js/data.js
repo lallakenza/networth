@@ -223,7 +223,7 @@ export const PORTFOLIO = {
         { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
         { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
         // ─── JPY deleverage 18 mars 2026 ───
-        { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -317.78, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
+        { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -1.73, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
       ],
     },
 

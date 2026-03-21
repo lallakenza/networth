@@ -430,6 +430,8 @@ async function loadStockPrices(forceRefresh) {
         const ytdTickerSet = new Set();
         // Current held positions
         PORTFOLIO.amine.ibkr.positions.forEach(p => ytdTickerSet.add(p.ticker));
+        // Add ESPP Accenture for YTD chart
+        ytdTickerSet.add('ACN');
         // Sold positions from 2026 trades (need historical prices for period they were held)
         (PORTFOLIO.amine.ibkr.trades || []).forEach(t => {
           if (t.type === 'fx') return;
@@ -466,6 +468,24 @@ async function loadStockPrices(forceRefresh) {
           startingNAV: 209495 // IBKR Jan 1 NAV = current NAV + abs(YTD loss)
         });
         console.log('[app] YTD portfolio chart built successfully');
+
+        // Bind scope toggle buttons
+        document.querySelectorAll('#ytdScopeToggle button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            // Update active button styling
+            document.querySelectorAll('#ytdScopeToggle button').forEach(b => {
+              b.style.background = '#fff'; b.style.color = '#4a5568';
+            });
+            btn.style.background = '#2d3748'; btn.style.color = '#fff';
+            // Rebuild chart with new scope
+            const scope = btn.dataset.scope;
+            buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+              startingNAV: 209495,
+              includeESPP: scope === 'all',
+              includeSGTM: scope === 'all',
+            });
+          });
+        });
       } catch (e) {
         console.warn('[app] YTD chart error:', e);
         const ytdProgress = document.getElementById('ytdChartProgress');
