@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=166';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=167';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -205,7 +205,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const degiroRealizedPL = degiro.totalRealizedPL || 0;
 
   // Combined realized P/L (IBKR + Degiro)
-  const ibkrRealizedPL = meta.realizedPL || 0;
+  // Compute IBKR realized P/L dynamically from trade data (not hardcoded meta)
+  // Each trade's realizedPL is in its native currency → convert to EUR
+  let ibkrRealizedPL = 0;
+  (ibkr.trades || []).filter(t => t.type === 'sell' && t.source === 'ibkr').forEach(t => {
+    if (typeof t.realizedPL === 'number') {
+      ibkrRealizedPL += toEUR(t.realizedPL, t.currency, fx);
+    }
+  });
   const combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
 
   // Cross-platform deposits — detailed history with FX comparison
