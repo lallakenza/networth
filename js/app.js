@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=157';
-import { compute } from './engine.js?v=157';
-import { render } from './render.js?v=157';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=157';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=157';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=157';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=158';
+import { compute } from './engine.js?v=158';
+import { render } from './render.js?v=158';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=158';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=158';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=158';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -362,13 +362,17 @@ function updateKPIsFromChart(chartData) {
     const sign = v >= 0 ? '+' : '';
     el.textContent = sign + fmt(v);
     el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
-    // Update sub-percentage
-    const subEl = el.parentElement?.querySelector('.kpi-sub');
-    if (subEl && refValue && refValue > 0) {
-      const pct = (value / refValue * 100).toFixed(1);
-      const pSign = value >= 0 ? '+' : '';
-      subEl.textContent = pSign + pct + '%';
-      subEl.className = 'kpi-sub ' + (value >= 0 ? 'pl-pos' : 'pl-neg');
+    // Update sub-percentage (class: kpi-sub-pct, set by setSubPct in render.js)
+    if (refValue && refValue > 0) {
+      const pct = value / refValue * 100;
+      const existing = el.parentElement?.querySelector('.kpi-sub-pct');
+      if (existing) existing.remove();
+      const span = document.createElement('span');
+      span.className = 'kpi-sub-pct';
+      const pSign = pct >= 0 ? '+' : '';
+      span.textContent = pSign + pct.toFixed(1) + '%';
+      span.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct >= 0 ? '#276749' : '#c53030') + ';';
+      el.insertAdjacentElement('afterend', span);
     }
   }
 
@@ -385,9 +389,46 @@ function updateKPIsFromChart(chartData) {
     twrEl.className = 'value ' + (twrPct >= 0 ? 'pl-pos' : 'pl-neg');
   }
 
+  // ── Aggregate cost items for breakdown details ──
+  const costItems = chartData.costItems || [];
+  // Helper: sum costs in a date range and aggregate by category
+  function aggregateCosts(startDate, endDate) {
+    const cats = { interest: { eur: 0, usd: 0, jpy: 0 }, ftt: 0, dividends: 0 };
+    costItems.forEach(c => {
+      if (c.date > startDate && c.date <= endDate) {
+        if (c.label.startsWith('Interest')) {
+          cats.interest.eur += c.eurAmount || 0;
+          cats.interest.usd += c.usdAmount || 0;
+          cats.interest.jpy += c.jpyAmount || 0;
+        } else if (c.label.startsWith('FTT')) {
+          cats.ftt += c.eurAmount || 0;
+        } else if (c.label.startsWith('Div')) {
+          cats.dividends += c.eurAmount || 0;
+        }
+      }
+    });
+    // Convert to EUR (approximate using last known FX)
+    const fxUSD = FX_STATIC.USD || 1.04;
+    const fxJPY = FX_STATIC.JPY || 161;
+    const interestEUR = cats.interest.eur + cats.interest.usd / fxUSD + cats.interest.jpy / fxJPY;
+    return { interestEUR, fttEUR: cats.ftt, dividendsEUR: cats.dividends };
+  }
+
+  // Store cost breakdowns for each period on window for render.js detail generators
+  window._chartKPIData = {
+    daily: { pl: plDaily, pct: prevNAV > 0 ? (plDaily / prevNAV * 100) : 0, costs: aggregateCosts(prevDate, lastDate) },
+    mtd: { pl: plMTD, pct: navBeforeMTD > 0 ? (plMTD / navBeforeMTD * 100) : 0, costs: aggregateCosts(prevMtdDate, lastDate) },
+    oneMonth: { pl: pl1M, pct: navBefore1M > 0 ? (pl1M / navBefore1M * 100) : 0, costs: aggregateCosts(prevDate1M, lastDate) },
+    ytd: { pl: plYTD, pct: ytdStartNAV > 0 ? (plYTD / ytdStartNAV * 100) : 0, costs: aggregateCosts('2025-12-31', lastDate) },
+    twr: twrPct,
+  };
+
   console.log('[kpi-chart] Updated KPIs from chart: Daily=' + Math.round(plDaily) +
     ', MTD=' + Math.round(plMTD) + ', 1M=' + Math.round(pl1M) +
-    ', YTD=' + Math.round(plYTD) + ', TWR=' + twrPct.toFixed(2) + '%');
+    ', YTD=' + Math.round(plYTD) + ', TWR=' + twrPct.toFixed(2) + '%' +
+    ', YTD costs: int=' + Math.round(window._chartKPIData.ytd.costs.interestEUR) +
+    ', ftt=' + Math.round(window._chartKPIData.ytd.costs.fttEUR) +
+    ', div=' + Math.round(window._chartKPIData.ytd.costs.dividendsEUR));
 }
 
 // ---- Stock price loading with progress ----
