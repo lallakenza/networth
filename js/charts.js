@@ -1745,7 +1745,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // ── Determine simulation mode (YTD or 1Y) ──
   const mode = (options && options.mode) || 'ytd';
-  const START_DATE = mode === '1y' ? '2025-04-01' : '2026-01-01';
+  // 1Y: dynamically compute 1 year ago from today (covers full 365 days)
+  let START_DATE;
+  if (mode === '1y') {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    START_DATE = d.toISOString().slice(0, 10);
+  } else {
+    START_DATE = '2026-01-01';
+  }
   const todayStr = new Date().toISOString().slice(0, 10);
 
   // ── ESPP + SGTM scope options ──
@@ -2317,7 +2325,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
   if (ytdStartLabel) {
     if (mode === '1y') {
-      ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> avr 2025';
+      // Dynamic label: show actual start date
+      const startParts = START_DATE.split('-');
+      const MONTH_FR = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+      ytdStartLabel.innerHTML = 'NAV ' + parseInt(startParts[2]) + ' ' + MONTH_FR[parseInt(startParts[1])-1] + ' ' + startParts[0];
     } else {
       ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
     }
@@ -2344,7 +2355,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // Add reference line for starting value
   datasets.push({
-    label: (mode === '1y' ? 'NAV 1er avr' : 'NAV 1er jan') + ' (' + fmt(startValue) + ')',
+    label: (mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(startValue) + ')',
     data: chartValues.map(() => startValue),
     borderColor: '#a0aec0',
     borderWidth: 1,
@@ -2390,7 +2401,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
             label: item => {
               // Reference line is always the last dataset
               if (item.datasetIndex === datasets.length - 1) {
-                return (mode === '1y' ? 'Ref. 1er avr' : 'Ref. 1er jan') + ': ' + fmt(startValue);
+                return (mode === '1y' ? 'Ref. début 1Y' : 'Ref. 1er jan') + ': ' + fmt(startValue);
               }
               const idx = item.dataIndex;
               const val = item.parsed.y;
@@ -2671,9 +2682,14 @@ export function switchChartMode(displayMode) {
     if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
     if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
     if (ytdStartLabel) {
-      ytdStartLabel.innerHTML = data.mode === '1y'
-        ? 'NAV 1<sup>er</sup> avr 2025'
-        : 'NAV 1<sup>er</sup> jan';
+      if (data.mode === '1y') {
+        const startD = data.labels[0];
+        const sp = startD.split('-');
+        const MF = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+        ytdStartLabel.innerHTML = 'NAV ' + parseInt(sp[2]) + ' ' + MF[parseInt(sp[1])-1] + ' ' + sp[0];
+      } else {
+        ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
+      }
     }
   }
 
@@ -2705,7 +2721,7 @@ export function switchChartMode(displayMode) {
       tension: 0,
     },
     {
-      label: isPLMode ? 'Zéro' : ((data.mode === '1y' ? 'NAV 1er avr' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
+      label: isPLMode ? 'Zéro' : ((data.mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
       data: mainData.map(() => refValue),
       borderColor: '#a0aec0',
       borderWidth: 1,
