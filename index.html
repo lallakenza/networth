@@ -1363,8 +1363,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <!-- TOGGLE BUTTONS — between chart and KPI cards for easy access when scrolling -->
   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
-      <button data-scope="ibkr" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">IBKR seul</button>
-      <button data-scope="all" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+      <button data-scope="ibkr" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">IBKR</button>
+      <button data-scope="espp" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">ESPP</button>
+      <button data-scope="degiro" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Degiro</button>
+      <button data-scope="maroc" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Maroc</button>
+      <button data-scope="all" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Tous</button>
     </div>
     <div id="ytdModeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
       <button data-mode="value" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Valeur</button>
@@ -1381,9 +1384,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <!-- KPI CARDS — scope-aware: updated when toggling IBKR/Tout -->
   <div class="kpi-strip" id="kpi-actions" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label" id="kpiActionsTotalLabel">Total Actions (toutes plateformes)</div></div>
-    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label" id="kpiActionsUnrealizedLabel">P/L Non R&eacute;alis&eacute; (IBKR + ESPP + SGTM)</div></div>
-    <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label" id="kpiActionsRealizedLabel">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
+    <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label" id="kpiActionsTotalLabel">Total Actions (Tous)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label" id="kpiActionsUnrealizedLabel">P/L Non R&eacute;alis&eacute; (Tous)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label" id="kpiActionsRealizedLabel">P/L R&eacute;alis&eacute; (Tous)</div></div>
     <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label" id="kpiActionsDepositsLabel">Total D&eacute;pos&eacute;</div></div>
     <div class="kpi kpi-clickable" data-detail="detailDividends"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
   </div>
@@ -1809,7 +1812,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=197"></script>
+<script type="module" src="js/app.js?v=198"></script>
 
 </body>
 </html>
