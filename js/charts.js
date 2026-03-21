@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=157';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=157';
-import { IMMO_CONSTANTS } from './data.js?v=157';
+import { fmt, fmtAxis } from './render.js?v=158';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=158';
+import { IMMO_CONSTANTS } from './data.js?v=158';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2238,5 +2238,6 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     depositsByDate: depositsByDate,  // { '2026-01-09': 3000 }
     startingNAV: STARTING_NAV,
     scope: showAll ? 'all' : 'ibkr',
+    costItems: ibkrCostsYTD,  // interest, FTT, dividends for KPI breakdowns
   };
 }

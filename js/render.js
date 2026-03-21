@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=157';
-import { getGrandTotal } from './engine.js?v=157';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=158';
+import { getGrandTotal } from './engine.js?v=158';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -2165,11 +2165,14 @@ function setupKPIDetailPanels(state) {
     if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
     losers.forEach(function(i) {
       var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
+      var isCost = i._isCost;
+      var labelStyle = isCost ? 'font-weight:500;font-style:italic;color:#718096;' : 'font-weight:500;';
+      var barColor = isCost ? '#cbd5e0' : '#fc8181';
       html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-      html += '<span style="flex:1;font-weight:500;">' + i.label + '</span>';
+      html += '<span style="flex:1;' + labelStyle + '">' + (isCost ? '⚙ ' : '') + i.label + '</span>';
       html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(i.pl)) + '</span>';
       html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
-      html += '<span style="display:block;height:100%;width:' + barW + '%;background:#fc8181;border-radius:3px;"></span></span>';
+      html += '<span style="display:block;height:100%;width:' + barW + '%;background:' + barColor + ';border-radius:3px;"></span></span>';
       html += '</div>';
     });
     html += '</div>';
@@ -2181,11 +2184,14 @@ function setupKPIDetailPanels(state) {
     if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
     gainers.forEach(function(i) {
       var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
+      var isCost = i._isCost;
+      var labelStyle = isCost ? 'font-weight:500;font-style:italic;color:#718096;' : 'font-weight:500;';
+      var barColor = isCost ? '#9ae6b4' : '#48bb78';
       html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-      html += '<span style="flex:1;font-weight:500;">' + i.label + '</span>';
+      html += '<span style="flex:1;' + labelStyle + '">' + (isCost ? '⚙ ' : '') + i.label + '</span>';
       html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(i.pl)) + '</span>';
       html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
-      html += '<span style="display:block;height:100%;width:' + barW + '%;background:#48bb78;border-radius:3px;"></span></span>';
+      html += '<span style="display:block;height:100%;width:' + barW + '%;background:' + barColor + ';border-radius:3px;"></span></span>';
       html += '</div>';
     });
     if (losers.length === 0 && gainers.length === 0 && skipped > 0) {
@@ -2220,41 +2226,64 @@ function setupKPIDetailPanels(state) {
     return html;
   }
 
+  // Helper: append cost items (interest, FTT, dividends) from chart simulation to breakdown
+  function appendCostItems(breakdown, periodKey) {
+    const chartData = window._chartKPIData;
+    if (!chartData || !chartData[periodKey]) return breakdown;
+    const costs = chartData[periodKey].costs;
+    const items = [...breakdown];
+    if (costs.interestEUR && Math.abs(costs.interestEUR) >= 1) {
+      items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: costs.interestEUR, _isCost: true });
+    }
+    if (costs.fttEUR && Math.abs(costs.fttEUR) >= 1) {
+      items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: costs.fttEUR, _isCost: true });
+    }
+    if (costs.dividendsEUR && Math.abs(costs.dividendsEUR) >= 1) {
+      items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: costs.dividendsEUR, _isCost: true });
+    }
+    items.sort((a, b) => a.pl - b.pl);
+    return items;
+  }
+
   // KPI detail generators
   const detailGenerators = {
     // ── Period P&L panels ──
     detailPLDaily: function() {
       const d = av.periodPL?.daily;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données daily non disponibles</div>';
-      let footer = 'Top perte : ' + (d.breakdown[0]?.label || '--') + ' (' + fmt(Math.round(d.breakdown[0]?.pl || 0)) + ')';
-      const best = d.breakdown[d.breakdown.length - 1];
+      const items = appendCostItems(d.breakdown, 'daily');
+      let footer = 'Top perte : ' + (items[0]?.label || '--') + ' (' + fmt(Math.round(items[0]?.pl || 0)) + ')';
+      const best = items[items.length - 1];
       if (best && best.pl > 0) footer += ' | Top gain : ' + best.label + ' (+' + fmt(Math.round(best.pl)) + ')';
       if (d.cashFxPL && Math.abs(d.cashFxPL) > 1) footer += ' | Impact FX cash : ' + (d.cashFxPL >= 0 ? '+' : '') + fmt(Math.round(d.cashFxPL));
-      return renderPLBreakdown(d.breakdown, d.total, footer);
+      return renderPLBreakdown(items, d.total, footer);
     },
     detailPLMTD: function() {
       const d = av.periodPL?.mtd;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données MTD non disponibles</div>';
-      const worst3 = d.breakdown.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
-      return renderPLBreakdown(d.breakdown, d.total, 'Top 3 pertes MTD : ' + worst3);
+      const items = appendCostItems(d.breakdown, 'mtd');
+      const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(items, d.total, 'Top 3 pertes MTD : ' + worst3);
     },
     detailPL1M: function() {
       const d = av.periodPL?.oneMonth;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1M non disponibles</div>';
-      const worst3 = d.breakdown.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
-      return renderPLBreakdown(d.breakdown, d.total, 'Top 3 pertes 1 mois : ' + worst3);
+      const items = appendCostItems(d.breakdown, 'oneMonth');
+      const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(items, d.total, 'Top 3 pertes 1 mois : ' + worst3);
     },
     detailPLYTD: function() {
       const d = av.periodPL?.ytd;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données YTD non disponibles</div>';
-      const gainers = d.breakdown.filter(i => i.pl > 0);
-      const losers = d.breakdown.filter(i => i.pl < 0);
+      const items = appendCostItems(d.breakdown, 'ytd');
+      const gainers = items.filter(i => i.pl > 0);
+      const losers = items.filter(i => i.pl < 0);
       const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
       const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
       let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
       footer += ' | Net : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
       if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
-      return renderPLBreakdown(d.breakdown, d.total, footer);
+      return renderPLBreakdown(items, d.total, footer);
     },
     // ── Top-row KPI panels ──
     detailTotal: function() {
