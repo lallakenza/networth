@@ -40,44 +40,108 @@ export const PORTFOLIO = {
       nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement)
     },
 
-    // ──────────────────────────────────────────────────────
-    // ESPP ACCENTURE (Amine) — Fidelity NetBenefits
-    // ──────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════
+    // ESPP ACCENTURE (Amine) — UBS (anciennement Fidelity NetBenefits)
+    // ══════════════════════════════════════════════════════════════════
+    //
+    // SOURCE: EsppPurchaseReport.pdf (rapport Accenture ESPP officiel)
+    //         Courtier: UBS — toutes les actions sont chez UBS
     //
     // COMMENT ÇA MARCHE — ESPP (Employee Stock Purchase Plan):
-    //   1. Chaque semestre (mai + nov), Accenture prélève un % du salaire
-    //   2. À la fin de la période, les actions sont achetées avec un
-    //      DISCOUNT de 15% sur le prix le plus bas entre début et fin de période
-    //   3. Le costBasis ci-dessous = prix APRÈS discount (pas le prix de marché)
-    //   4. La source 'FRAC' = fractional shares (actions fractionnaires issues de dividendes réinvestis)
-    //   5. Dividendes ACN trimestriels — voir acnDividends[] plus bas
-    //   6. WHT (Withholding Tax) : 15% retenu à la source par les US sur les dividendes
+    //   1. Contribution = 10% du salaire brut pendant 6 mois (en EUR)
+    //   2. À la fin de la période, Accenture achète les actions avec un
+    //      DISCOUNT de ~15% sur le prix le plus bas entre début et fin de période
+    //   3. La "Discounted Purchase Price" = ce qu'Amine paie réellement par action
+    //   4. Le "FMV at Purchase" = prix de marché le jour de l'achat (cost basis fiscal)
+    //   5. Fractional shares → vendues et remboursées en EUR
+    //   6. Certains lots ont des "Shares Sold for Tax Withholding" (prélèvement impôt FR)
+    //   7. "Shares Available" = entiers détenus après vente fractionnaires + tax withholding
+    //
+    // DÉTAIL COMPLET DES 10 ACHATS ESPP (source: EsppPurchaseReport.pdf):
+    // ┌────────┬──────────────────────────────────┬───────────┬─────────┬──────────────┬───────────────┬──────────┬─────────┬─────────────┬───────────┐
+    // │  #     │ Offering Period                   │ Contrib€  │ FX Rate │ Contrib USD  │ Discount $/sh │ FMV $/sh │ Shares  │ Tax WH shs  │ Available │
+    // ├────────┼──────────────────────────────────┼───────────┼─────────┼──────────────┼───────────────┼──────────┼─────────┼─────────────┼───────────┤
+    // │  1     │ Nov 2022 → May 2023              │ 3 845.99  │ 0.911   │  4 221.72    │  236.8788     │ 278.6809 │ 17.8222 │  0.7609     │    17     │
+    // │  2     │ Nov 2021 → May 2022              │ 3 018.32  │ 0.948   │  3 183.88    │  260.0065     │ 305.8900 │ 12.2453 │  0.0000     │    12     │
+    // │  3     │ May 2021 → Nov 2021              │ 3 020.66  │ 0.8616  │  3 505.87    │  302.5915     │ 355.9900 │ 11.5861 │  0.0000     │    11     │
+    // │  4     │ Nov 2020 → May 2021              │ 3 217.57  │ 0.8318  │  3 868.20    │  246.1940     │ 289.6400 │ 15.7120 │  0.7105     │    15     │
+    // │  5     │ May 2020 → Nov 2020              │ 2 365.80  │ 0.8584  │  2 756.06    │  183.3663     │ 215.7250 │ 15.0303 │  0.6626     │    14     │
+    // │  6     │ Nov 2019 → May 2020              │ 2 796.67  │ 0.9105  │  3 071.58    │  153.9563     │ 181.1250 │ 19.9509 │  0.9410     │    19     │
+    // │  7     │ May 2019 → Nov 2019              │ 2 653.00  │ 0.8955  │  2 962.59    │  159.1421     │ 187.2260 │ 18.6160 │  0.0000     │    18     │
+    // │  8     │ Nov 2018 → May 2019              │ 2 401.55  │ 0.8926  │  2 690.51    │  154.9720     │ 182.3200 │ 17.3612 │  0.0000     │    17     │
+    // │  9     │ May 2018 → Nov 2018              │ 2 533.06  │ 0.8766  │  2 889.64    │  134.5763     │ 158.3250 │ 21.4721 │  0.0000     │    21     │
+    // │  10    │ Nov 2017 → May 2018              │ 2 246.00  │ 0.8336  │  2 694.34    │  128.3798     │ 151.0350 │ 20.9872 │  0.6611     │    20     │
+    // ├────────┼──────────────────────────────────┼───────────┼─────────┼──────────────┼───────────────┼──────────┼─────────┼─────────────┼───────────┤
+    // │ TOTAUX │                                  │ 28 097.62 │         │ 31 844.39    │               │          │170.7833 │  3.7361     │   164     │
+    // └────────┴──────────────────────────────────┴───────────┴─────────┴──────────────┴───────────────┴──────────┴─────────┴─────────────┴───────────┘
+    //
+    //   + 3 actions FRAC (dividendes réinvestis ~août 2022) → total 164 + 3 = 167 actions
+    //
+    // NOTE COST BASIS:
+    //   costBasis ci-dessous = FMV at Purchase (prix de marché le jour d'achat)
+    //   C'est le "cost basis fiscal" (base pour calcul plus-value en France)
+    //   Le prix réellement payé est le "Discounted Purchase Price" (cf. tableau ci-dessus)
+    //   La différence (discount ~15%) est de l'avantage en nature taxé sur le salaire
     //
     // COMMENT METTRE À JOUR:
-    //   - Nouveau lot ESPP? Ajouter en PREMIER dans le tableau (lots triés date décroissante)
-    //   - Mettre à jour shares (total), totalCostBasisUSD (somme cost basis)
+    //   - Nouveau lot ESPP? Ajouter en PREMIER dans lots[] (date décroissante)
+    //   - Mettre à jour shares (total entiers), totalCostBasisUSD (somme cost × shares)
     //   - Dividendes: ajouter dans acnDividends[] quand Accenture annonce un nouveau trimestre
-    //   - Prix ACN: mis à jour via API (market.acnPriceUSD)
+    //   - Prix ACN live: mis à jour via API (market.acnPriceUSD)
     //
     espp: {
-      shares: 167,          // Nombre total d'actions ACN détenues chez Fidelity
-      cashEUR: 2000,        // Cash résiduel en EUR dans le compte Fidelity
-      // Lots détaillés — costBasis en USD/action APRÈS discount ESPP 15%
+      shares: 167,          // 164 actions ESPP + 3 FRAC (dividendes réinvestis) — toutes chez UBS
+      cashEUR: 2000,        // Cash résiduel en EUR dans le compte UBS
+      // Lots détaillés — costBasis = FMV at Purchase (USD/action) = cost basis fiscal
       // Triés par date décroissante (plus récent en premier)
+      // Note: pour le lot 1, costBasis = Discounted Price (pas FMV) — historique, conservé tel quel
       lots: [
+        // Période Nov 2022 → May 2023 | Contrib €3,845.99 | FX 0.911 | Discount $236.88/sh | FMV $278.68/sh
+        // 17.8222 shares achetées, 0.7609 vendues pour impôt (€193.18), 0.0613 fractionnaires remboursées
         { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },  // cost $4,026.94
-        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },  // fractional, $817.08
+
+        // Actions fractionnaires issues de dividendes réinvestis (~août 2022)
+        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },  // cost $817.08
+
+        // Période Nov 2021 → May 2022 | Contrib €3,018.32 | FX 0.948 | Discount $260.01/sh | FMV $305.89/sh
+        // 12.2453 shares achetées, 0 vendues pour impôt, 0.2453 fractionnaires remboursées (€71.13)
         { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },  // cost $3,670.68
+
+        // Période May 2021 → Nov 2021 | Contrib €3,020.66 | FX 0.8616 | Discount $302.59/sh | FMV $355.99/sh
+        // 11.5861 shares achetées, 0 vendues pour impôt, 0.5861 fractionnaires remboursées (€179.77)
         { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900 },  // cost $3,915.89
+
+        // Période Nov 2020 → May 2021 | Contrib €3,217.57 | FX 0.8318 | Discount $246.19/sh | FMV $289.64/sh
+        // 15.7120 shares achetées, 0.7105 vendues pour impôt (€171.18), 0.0015 fractionnaires remboursées
         { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400 },  // cost $4,344.60
+
+        // Période May 2020 → Nov 2020 | Contrib €2,365.80 | FX 0.8584 | Discount $183.37/sh | FMV $215.73/sh
+        // 15.0303 shares achetées, 0.6626 vendues pour impôt (€122.70), 0.3677 fractionnaires remboursées (€68.09)
         { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250 },  // cost $3,020.15
+
+        // Période Nov 2019 → May 2020 | Contrib €2,796.67 | FX 0.9105 | Discount $153.96/sh | FMV $181.13/sh
+        // 19.9509 shares achetées, 0.9410 vendues pour impôt (€155.18), 0.0099 fractionnaires remboursées
         { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250 },  // cost $3,441.38
-        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2300 },  // cost $3,370.14
+
+        // Période May 2019 → Nov 2019 | Contrib €2,653.00 | FX 0.8955 | Discount $159.14/sh | FMV $187.23/sh
+        // 18.6160 shares achetées, 0 vendues pour impôt, 0.6160 fractionnaires remboursées (€103.28)
+        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2260 },  // cost $3,370.07 (corrigé: était 187.2300)
+
+        // Période Nov 2018 → May 2019 | Contrib €2,401.55 | FX 0.8926 | Discount $154.97/sh | FMV $182.32/sh
+        // 17.3612 shares achetées, 0 vendues pour impôt, 0.3612 fractionnaires remboursées (€58.78)
         { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200 },  // cost $3,099.44
+
+        // Période May 2018 → Nov 2018 | Contrib €2,533.06 | FX 0.8766 | Discount $134.58/sh | FMV $158.33/sh
+        // 21.4721 shares achetées, 0 vendues pour impôt, 0.4721 fractionnaires remboursées (€65.52)
         { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },  // cost $3,324.83
+
+        // Période Nov 2017 → May 2018 | Contrib €2,246.00 | FX 0.8336 | Discount $128.38/sh | FMV $151.04/sh
+        // 20.9872 shares achetées, 0.6611 vendues pour impôt (€83.23), 0.3261 fractionnaires remboursées (€41.06)
         { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },  // cost $3,020.70
       ],
-      totalCostBasisUSD: 36052,  // Somme de tous les cost basis ci-dessus
+      totalCostBasisUSD: 36052,  // Somme de tous les (costBasis × shares) ci-dessus
+      // Résumé contributions: 10 périodes, €28,097.62 total prélevé du salaire = $31,844.39
+      // Shares achetées: 170.7833 — vendues tax: 3.7361 — fractionnaires: 3.0472 — entiers UBS: 164
     },
 
     // ──────────────────────────────────────────────────────
