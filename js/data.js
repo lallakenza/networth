@@ -41,26 +41,43 @@ export const PORTFOLIO = {
     },
 
     // ──────────────────────────────────────────────────────
-    // ESPP ACCENTURE — voir Fidelity NetBenefits
+    // ESPP ACCENTURE (Amine) — Fidelity NetBenefits
     // ──────────────────────────────────────────────────────
+    //
+    // COMMENT ÇA MARCHE — ESPP (Employee Stock Purchase Plan):
+    //   1. Chaque semestre (mai + nov), Accenture prélève un % du salaire
+    //   2. À la fin de la période, les actions sont achetées avec un
+    //      DISCOUNT de 15% sur le prix le plus bas entre début et fin de période
+    //   3. Le costBasis ci-dessous = prix APRÈS discount (pas le prix de marché)
+    //   4. La source 'FRAC' = fractional shares (actions fractionnaires issues de dividendes réinvestis)
+    //   5. Dividendes ACN trimestriels — voir acnDividends[] plus bas
+    //   6. WHT (Withholding Tax) : 15% retenu à la source par les US sur les dividendes
+    //
+    // COMMENT METTRE À JOUR:
+    //   - Nouveau lot ESPP? Ajouter en PREMIER dans le tableau (lots triés date décroissante)
+    //   - Mettre à jour shares (total), totalCostBasisUSD (somme cost basis)
+    //   - Dividendes: ajouter dans acnDividends[] quand Accenture annonce un nouveau trimestre
+    //   - Prix ACN: mis à jour via API (market.acnPriceUSD)
+    //
     espp: {
-      shares: 167,          // Nombre d'actions ACN détenues
-      cashEUR: 2000,        // Cash résiduel en EUR dans le compte ESPP
+      shares: 167,          // Nombre total d'actions ACN détenues chez Fidelity
+      cashEUR: 2000,        // Cash résiduel en EUR dans le compte Fidelity
+      // Lots détaillés — costBasis en USD/action APRÈS discount ESPP 15%
+      // Triés par date décroissante (plus récent en premier)
       lots: [
-        // { date, source, shares, costBasis (USD/action) }
-        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },
-        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },
-        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },
-        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900 },
-        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400 },
-        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250 },
-        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250 },
-        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2300 },
-        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200 },
-        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },
-        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },
+        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },  // cost $4,026.94
+        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },  // fractional, $817.08
+        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },  // cost $3,670.68
+        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900 },  // cost $3,915.89
+        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400 },  // cost $4,344.60
+        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250 },  // cost $3,020.15
+        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250 },  // cost $3,441.38
+        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2300 },  // cost $3,370.14
+        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200 },  // cost $3,099.44
+        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },  // cost $3,324.83
+        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },  // cost $3,020.70
       ],
-      totalCostBasisUSD: 36052,
+      totalCostBasisUSD: 36052,  // Somme de tous les cost basis ci-dessus
     },
 
     // ──────────────────────────────────────────────────────
@@ -534,19 +551,49 @@ export const PORTFOLIO = {
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
-    // Source : relevé UBS "Investment Account June 2025"
-    // 40 actions ACN, cost basis total $10,544.20, valeur $11,955.60 au 30/06/2025
-    // Cash UBS : $109.56 — dividendes YTD $71.04
+    // Source : relevé UBS "Investment Account June 2025" — 6 pages
+    //
+    // STRUCTURE DU COMPTE UBS:
+    //   - Company Sponsored Stock Plan (ESPP Accenture)
+    //   - 40 actions ACN au 30/06/2025, cost basis total $10,544.20
+    //   - Valeur au 30/06/2025 : $11,955.60 (ACN @ $298.89)
+    //   - Unrealized G/L: +$1,411.40
+    //   - Cash: $109.56 (dividendes accumulés)
+    //
+    // ESPP DISCOUNT:
+    //   - Accenture ESPP = 15% discount sur le cours le + bas entre
+    //     début et fin de période de souscription (6 mois)
+    //   - Le costBasis ci-dessous est le prix NET après discount
+    //   - Le prix de marché au moment de l'achat était plus élevé
+    //
+    // DIVIDENDES (ACN, trimestriels, même dates que espp Amine — voir acnDividends):
+    //   - YTD juin 2025 : $71.04 brut (UBS statement p.3)
+    //   - WHT (Foreign taxes paid) : -$17.76 YTD (15% US withholding tax)
+    //   - Dividendes nets YTD : $71.04 - $17.76 = $53.28
+    //   - Estimated annual income: $237.00 (UBS p.5)
+    //   - Les dividendes sont automatiquement crédités en cash USD sur le compte UBS
+    //
+    // GAINS & LOSSES (UBS p.3):
+    //   - Unrealized short-term: $715.75 | long-term: $695.65
+    //   - Realized: $0 (aucune vente)
+    //   - Change in market value YTD: -$1,410.72
+    //
     espp: {
       shares: 40,
-      cashUSD: 109.56,   // Cash résiduel dans le compte UBS
-      totalCostBasisUSD: 10544.20,
+      cashUSD: 109.56,   // Cash résiduel dans le compte UBS (dividendes accumulés)
+      totalCostBasisUSD: 10544.20,  // Somme des cost basis de tous les lots
+      // Lots détaillés — source: UBS statement p.5 "Your assets → Equities"
+      // costBasis = prix d'achat USD/action APRÈS discount ESPP 15%
+      // Holding period: LT = long-term (>1 an), ST = short-term (<1 an)
       lots: [
-        { date: '2023-11-01', source: 'ESPP', shares: 8, costBasis: 255.148 },
-        { date: '2024-05-01', source: 'ESPP', shares: 8, costBasis: 255.675 },
-        { date: '2024-11-01', source: 'ESPP', shares: 8, costBasis: 294.431 },
-        { date: '2025-05-01', source: 'ESPP', shares: 16, costBasis: 256.385 },
+        { date: '2023-11-01', source: 'ESPP', shares: 8, costBasis: 255.148 },  // LT, cost $2,041.19
+        { date: '2024-05-01', source: 'ESPP', shares: 8, costBasis: 255.675 },  // LT, cost $2,045.40
+        { date: '2024-11-01', source: 'ESPP', shares: 8, costBasis: 294.431 },  // LT, cost $2,355.45 — unrealized +$35.67
+        { date: '2025-05-01', source: 'ESPP', shares: 16, costBasis: 256.385 }, // ST, cost $4,102.16 — unrealized +$680.08
       ],
+      // Withholding tax tracking (source: UBS p.3 "Withholdings and tax summary")
+      whtYTD_2025_USD: 17.76,  // Foreign taxes paid YTD au 30/06/2025
+      dividendsYTD_2025_USD: 71.04, // Dividend income YTD au 30/06/2025
     },
     creances: {
       items: [
