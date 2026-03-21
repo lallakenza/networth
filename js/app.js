@@ -6,7 +6,7 @@ import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
 import { compute } from './engine.js?v=197';
 import { render } from './render.js?v=195';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=195';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=200';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -796,14 +796,21 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentScope = btn.dataset.scope;
-            // Chart supports: 'ibkr' (IBKR only) and 'all'/'espp'/'degiro'/'maroc' (show all-platform chart)
-            const chartIncludeAll = currentScope !== 'ibkr';
+            // ── Scope → chart flags mapping ──
+            // Each scope shows the relevant platform combination in the chart:
+            //   ibkr   → IBKR only (includeESPP=false, includeSGTM=false)
+            //   espp   → IBKR + ESPP (includeESPP=true, includeSGTM=false)
+            //   maroc  → IBKR + SGTM (includeESPP=false, includeSGTM=true)
+            //   degiro → IBKR only (Degiro has no active positions to chart)
+            //   all    → IBKR + ESPP + SGTM (includeESPP=true, includeSGTM=true)
+            const scopeESPP = currentScope === 'all' || currentScope === 'espp';
+            const scopeSGTM = currentScope === 'all' || currentScope === 'maroc';
             const scopeMode = currentPeriod === '1Y' ? '1y' : 'ytd';
             const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
               mode: scopeMode,
               startingNAV: 209495,
-              includeESPP: chartIncludeAll,
-              includeSGTM: chartIncludeAll,
+              includeESPP: scopeESPP,
+              includeSGTM: scopeSGTM,
             });
             // Only update Daily/MTD/YTD KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
@@ -813,16 +820,16 @@ async function loadStockPrices(forceRefresh) {
             if (scopeMode !== '1y') {
               buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
-                includeESPP: chartIncludeAll,
-                includeSGTM: chartIncludeAll,
+                includeESPP: scopeESPP,
+                includeSGTM: scopeSGTM,
               });
               update1YKPIFromChart();
               // Rebuild visible chart (1Y build overwrote the canvas)
               buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
                 mode: scopeMode,
                 startingNAV: 209495,
-                includeESPP: chartIncludeAll,
-                includeSGTM: chartIncludeAll,
+                includeESPP: scopeESPP,
+                includeSGTM: scopeSGTM,
               });
             }
             // Re-apply current period filter
@@ -845,13 +852,16 @@ async function loadStockPrices(forceRefresh) {
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentPeriod = btn.dataset.period;
 
+            // ── Scope → chart flags (same mapping as scope toggle) ──
+            const periodESPP = currentScope === 'all' || currentScope === 'espp';
+            const periodSGTM = currentScope === 'all' || currentScope === 'maroc';
             // Select correct historical data based on period
             if (currentPeriod === '1Y') {
               historicalDataToUse = historicalData1Y;
               const result1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
-                includeESPP: currentScope === 'all',
-                includeSGTM: currentScope === 'all',
+                includeESPP: periodESPP,
+                includeSGTM: periodSGTM,
               });
               // Only update the 1Y KPI card (not Daily/MTD/YTD which need YTD chart data)
               if (result1Y) update1YKPIFromChart();
@@ -861,8 +871,8 @@ async function loadStockPrices(forceRefresh) {
               const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
                 mode: 'ytd',
                 startingNAV: 209495,
-                includeESPP: currentScope === 'all',
-                includeSGTM: currentScope === 'all',
+                includeESPP: periodESPP,
+                includeSGTM: periodSGTM,
               });
               if (scopeResult) updateKPIsFromChart(scopeResult);
             } else {
