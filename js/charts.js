@@ -2194,11 +2194,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     chartValuesTotal.length = 0; chartValuesTotal.push(...weeklyTotals);
   }
 
-  // ── Compute P&L series: P&L(t) = NAV(t) - startNAV - cumDeposits(t) ──
-  // Build cumulative deposits per chart date
+  // ── Compute P&L series: P&L(t) = NAV(t) - startNAV - cumDeposits_after_start(t) ──
+  // Only count deposits STRICTLY AFTER START_DATE — deposits on or before
+  // START_DATE are already reflected in startNAV, so including them would
+  // double-count and make P&L(0) = -deposit instead of 0.
   const allDepositsEUR = {};
   (portfolio.amine.ibkr.deposits || [])
-    .filter(d => d.date >= START_DATE && d.date <= todayStr)
+    .filter(d => d.date > START_DATE && d.date <= todayStr)
     .forEach(d => {
       const amtEUR = (d.currency && d.currency !== 'EUR')
         ? d.amount / (d.fxRateAtDate || 1)
@@ -2210,18 +2212,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   let cumDep = 0;
   const cumDepositsAtPoint = [];
   for (let i = 0; i < chartLabels.length; i++) {
-    // Add deposits on or before this date (since last point)
     const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
     const curDate = chartLabels[i];
     for (const [dDate, dAmt] of Object.entries(allDepositsEUR)) {
       if (dDate > prevDate && dDate <= curDate) {
         cumDep += dAmt;
-      }
-    }
-    // Special: on first point, include deposits on START_DATE itself
-    if (i === 0) {
-      for (const [dDate, dAmt] of Object.entries(allDepositsEUR)) {
-        if (dDate === START_DATE) cumDep += dAmt;
       }
     }
     cumDepositsAtPoint.push(cumDep);
