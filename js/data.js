@@ -89,7 +89,7 @@ export const PORTFOLIO = {
         { ticker: 'P911.DE', shares: 400,  price: 36.64,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 40.27, oneMonthAgo: 41.18 },
         { ticker: 'RMS.PA',  shares: 10,   price: 1879.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1967.00, oneMonthAgo: 2120.00 },
         { ticker: 'SAN.PA',  shares: 50,   price: 76.51,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 81.45, oneMonthAgo: 82.56 },
-        { ticker: 'SAP',     shares: 70,   price: 165.46, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 },
+        { ticker: 'SAP.DE',  shares: 70,   price: 165.46, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
         { ticker: '4911.T',  shares: 500,  price: 3032,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3239.00, oneMonthAgo: 3223.00 },
         { ticker: 'IBIT',    shares: 1200, price: 41.94,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
         { ticker: 'ETHA',    shares: 1100, price: 17.61,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
@@ -176,8 +176,8 @@ export const PORTFOLIO = {
         { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 300,  price: 17.985,  currency: 'EUR', cost: 5396,   commission: -3.00, costBasis: 17.60 , source: 'ibkr' },
         // ─── BN (Danone) — position ouverte ───
         { date: '2026-01-21', ticker: 'BN.PA',   label: 'Danone',            type: 'buy',  qty: 200,  price: 68.80,   currency: 'EUR', cost: 13760,  commission: -6.88, costBasis: 67.40 , source: 'ibkr' },
-        // ─── SAP — position ouverte ───
-        { date: '2026-01-21', ticker: 'SAP',     label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
+        // ─── SAP — position ouverte (Xetra EUR, ticker Yahoo = SAP.DE) ───
+        { date: '2026-01-21', ticker: 'SAP.DE',  label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
         // ─── IBIT renforcements jan/fév 2026 ───
         { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60 , source: 'ibkr' },
         // ─── ETHA (iShares Ethereum) — 3 lots ───
@@ -1350,7 +1350,7 @@ export const DIV_YIELDS = {
   'P911.DE': 0.024,   // Porsche ~2.4%
   'RMS.PA': 0.008,    // Hermès ~0.8%
   'SAN.PA': 0.041,    // Sanofi ~4.1%
-  'SAP': 0.010,       // SAP ~1.0%
+  'SAP.DE': 0.010,    // SAP ~1.0% (Xetra)
   '4911.T': 0.020,    // Shiseido ~2.0%
   'IBIT': 0,          // Bitcoin ETF — pas de dividendes
   'ETHA': 0,          // Ethereum ETF — pas de dividendes
@@ -1376,7 +1376,7 @@ export const DIV_CALENDAR = {
   'OR.PA':   { dps: 7.20,  exDates: ['2026-04-29'], frequency: 'annual' },
   'SAN.PA':  { dps: 4.12,  exDates: ['2026-05-04'], frequency: 'annual' },
   'RMS.PA':  { dps: 16.00, exDates: ['2026-05-06'], frequency: 'semi-annual', note: 'Solde ~12€ mai + acompte ~4€ fév (déjà passé)' },
-  'SAP':     { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual' },
+  'SAP.DE':  { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual' },
   '4911.T':  { dps: 30,    exDates: ['2026-06-28'], frequency: 'semi-annual', note: 'Final ¥20 juin + interim ¥10 déc' },
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none' },
   'ETHA':    { dps: 0,     exDates: [], frequency: 'none' },
