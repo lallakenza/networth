@@ -2306,7 +2306,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   {
     const lastDate = chartLabels[chartLabels.length - 1];
     const firstDate = chartLabels[0];
-    const today = new Date();
+    // IMPORTANT: use lastDate (last chart label) as reference, NOT today
+    // This matches updateKPIsFromChart in app.js which uses lastDateObj
+    const lastDateObj = new Date(lastDate);
 
     // Build ticker → label map from data.js positions
     const tickerLabelMap = {};
@@ -2341,23 +2343,25 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const lastIdx = chartLabels.length - 1;
     const prevTradingDay = lastIdx >= 1 ? chartLabels[lastIdx - 1] : firstDate;
 
-    // MTD start: last trading day of previous month
-    const mtdStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    mtdStart.setDate(mtdStart.getDate() - 1);
-    const mtdStartStr = mtdStart.toISOString().slice(0, 10);
-    const mtdStartDate = closestDate(mtdStartStr, 'before');
+    // MTD start: use lastDate's month start (matching app.js which uses lastDate.slice(0,8)+'01')
+    const mtdStartStr2 = lastDate.slice(0, 8) + '01';
+    const mtdRefDate = mtdStartStr2 < firstDate ? firstDate : mtdStartStr2;
+    const mtdStartActual = chartLabels.find(d => d >= mtdRefDate) || firstDate;
+    const mtdStartDate = chartLabels[Math.max(0, chartLabels.indexOf(mtdStartActual) - 1)] || firstDate;
 
-    // 1M start: ~30 days ago
-    const oneMAgo = new Date(today);
+    // 1M start: use lastDate as reference (matching app.js: new Date(lastDateObj).setMonth(-1))
+    const oneMAgo = new Date(lastDateObj);
     oneMAgo.setMonth(oneMAgo.getMonth() - 1);
     const oneMStartStr = oneMAgo.toISOString().slice(0, 10);
-    const oneMStartDate = closestDate(oneMStartStr, 'before');
+    // Match app.js: find first label >= oneMonthStr, then go back 1
+    const oneMFirstGE = chartLabels.find(d => d >= oneMStartStr) || firstDate;
+    const oneMStartDate = chartLabels[Math.max(0, chartLabels.indexOf(oneMFirstGE) - 1)] || firstDate;
 
     // YTD start: first chart date (Jan 2)
     const ytdStartDate = firstDate;
 
     // 1Y start: same as first chart date for 1y mode, or compute
-    const oneYAgo = new Date(today);
+    const oneYAgo = new Date(lastDateObj);
     oneYAgo.setFullYear(oneYAgo.getFullYear() - 1);
     const oneYStartStr = oneYAgo.toISOString().slice(0, 10);
     const oneYStartDate = closestDate(oneYStartStr, 'after');
