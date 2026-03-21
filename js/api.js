@@ -564,12 +564,14 @@ function saveHistCache(data) {
 }
 
 /**
- * Fetch YTD daily close prices for a single ticker via Yahoo Finance chart API.
+ * Fetch daily close prices for a single ticker via Yahoo Finance chart API.
  * @param {string} symbol - Yahoo Finance ticker (e.g., 'AIR.PA', 'IBIT', '4911.T')
+ * @param {string} [range='ytd'] - Range: 'ytd' or '1y'
  * @returns {{ dates: string[], closes: number[] } | null}
  */
-async function fetchTickerHistory(symbol) {
-  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=ytd&interval=1d';
+async function fetchTickerHistory(symbol, range) {
+  range = range || 'ytd';
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=' + range + '&interval=1d';
   const attempts = [];
 
   for (const proxy of PROXIES) {
@@ -664,6 +666,81 @@ export async function fetchHistoricalPricesYTD(tickers, onProgress) {
 
   const loadedCount = Object.keys(result.tickers).length;
   console.log('[hist] Fetched ' + loadedCount + '/' + tickers.length + ' ticker histories + FX (USD: ' + (result.fx.usd ? '✓' : '✗') + ', JPY: ' + (result.fx.jpy ? '✓' : '✗') + ')');
+
+  return result;
+}
+
+/**
+ * Fetch 1Y historical prices for all given tickers + FX rates.
+ * Similar to fetchHistoricalPricesYTD but uses range='1y' and separate cache.
+ * Returns { tickers: { [ticker]: { dates, closes } }, fx: { usd: { dates, closes }, jpy: { dates, closes } } }
+ *
+ * @param {string[]} tickers - Yahoo Finance tickers to fetch
+ * @param {function} [onProgress] - callback(loaded, total, ticker)
+ * @returns {object} Historical data map
+ */
+export async function fetchHistoricalPrices1Y(tickers, onProgress) {
+  // Load cache (separate key for 1Y data)
+  const cacheKey = 'HIST_CACHE_1Y';
+  let cached = null;
+  try {
+    const stored = localStorage.getItem(cacheKey);
+    if (stored) cached = JSON.parse(stored);
+  } catch (e) { /* ignore */ }
+
+  if (cached && cached.tickers && cached.fx) {
+    const missing = tickers.filter(t => !cached.tickers[t]);
+    if (missing.length === 0) {
+      console.log('[hist-1y] All historical data from cache (' + tickers.length + ' tickers + FX)');
+      return cached;
+    }
+    console.log('[hist-1y] Cache hit but missing ' + missing.length + ' tickers, re-fetching all');
+  }
+
+  const total = tickers.length + 2; // +2 for EURUSD + EURJPY
+  let loaded = 0;
+  const result = { tickers: {}, fx: {} };
+  const allPromises = [];
+
+  for (const ticker of tickers) {
+    allPromises.push(
+      fetchTickerHistory(ticker, '1y').then(data => {
+        loaded++;
+        if (data) result.tickers[ticker] = data;
+        if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
+      })
+    );
+  }
+
+  // FX: EUR/USD and EUR/JPY historical rates for 1Y
+  allPromises.push(
+    fetchTickerHistory('EURUSD=X', '1y').then(data => {
+      loaded++;
+      if (data) result.fx.usd = data;
+      if (onProgress) onProgress(loaded, total, 'EUR/USD' + (data ? ' ✓' : ' ✗'));
+    })
+  );
+  allPromises.push(
+    fetchTickerHistory('EURJPY=X', '1y').then(data => {
+      loaded++;
+      if (data) result.fx.jpy = data;
+      if (onProgress) onProgress(loaded, total, 'EUR/JPY' + (data ? ' ✓' : ' ✗'));
+    })
+  );
+
+  await Promise.all(allPromises);
+
+  // Save to separate cache
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(result));
+  } catch (e) {
+    if (e.code === 22 || e.name === 'QuotaExceededError') {
+      localStorage.removeItem(cacheKey);
+    }
+  }
+
+  const loadedCount = Object.keys(result.tickers).length;
+  console.log('[hist-1y] Fetched ' + loadedCount + '/' + tickers.length + ' ticker histories + FX (USD: ' + (result.fx.usd ? '✓' : '✗') + ', JPY: ' + (result.fx.jpy ? '✓' : '✗') + ')');
 
   return result;
 }

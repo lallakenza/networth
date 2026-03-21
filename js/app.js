@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=171';
-import { compute } from './engine.js?v=171';
-import { render } from './render.js?v=171';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=171';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=171';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=171';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=173';
+import { compute } from './engine.js?v=173';
+import { render } from './render.js?v=173';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=173';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=173';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=173';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -614,11 +614,9 @@ async function loadStockPrices(forceRefresh) {
         PORTFOLIO.amine.ibkr.positions.forEach(p => ytdTickerSet.add(p.ticker));
         // Add ESPP Accenture for YTD chart
         ytdTickerSet.add('ACN');
-        // Sold positions from 2026 trades (need historical prices for period they were held)
+        // Sold positions from all trades (2025 and 2026)
         (PORTFOLIO.amine.ibkr.trades || []).forEach(t => {
           if (t.type === 'fx') return;
-          const tradeYear = parseInt(t.date.slice(0, 4), 10);
-          if (tradeYear < 2026) return; // Only 2026 trades matter for YTD
           let yahooTicker = t.ticker;
           // Map EUR tickers without '.' to Euronext Paris (.PA)
           if (t.currency === 'EUR' && !t.ticker.includes('.')) {
@@ -628,7 +626,7 @@ async function loadStockPrices(forceRefresh) {
         });
 
         const ytdTickers = [...ytdTickerSet];
-        console.log('[app] Fetching YTD historical prices for chart:', ytdTickers);
+        console.log('[app] Fetching historical prices for charts:', ytdTickers);
 
         // Show progress on YTD chart area
         const ytdProgress = document.getElementById('ytdChartProgress');
@@ -636,25 +634,33 @@ async function loadStockPrices(forceRefresh) {
         const ytdLabel = document.getElementById('ytdProgressLabel');
         if (ytdProgress) ytdProgress.style.display = 'block';
 
-        const historicalData = await fetchHistoricalPricesYTD(ytdTickers, (loaded, total, ticker) => {
+        // Fetch both YTD and 1Y data
+        const historicalDataYTD = await fetchHistoricalPricesYTD(ytdTickers, (loaded, total, ticker) => {
           const pct = Math.round(loaded / total * 100);
           if (ytdFill) ytdFill.style.width = pct + '%';
-          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
+          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — YTD: ' + ticker + (loaded === total ? ' ✓' : '...');
+        });
+
+        const historicalData1Y = await fetchHistoricalPrices1Y(ytdTickers, (loaded, total, ticker) => {
+          const pct = Math.round(loaded / total * 100);
+          if (ytdFill) ytdFill.style.width = pct + '%';
+          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — 1Y: ' + ticker + (loaded === total ? ' ✓' : '...');
         });
 
         if (ytdProgress) ytdProgress.style.display = 'none';
 
         // Build the YTD portfolio evolution chart
-        // Uses calibrated forward simulation (see charts.js for algorithm details)
-        const chartResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
-          startingNAV: 209495 // IBKR Jan 1 NAV = current NAV + abs(YTD loss)
+        const chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+          mode: 'ytd',
+          startingNAV: 209495
         });
-        if (chartResult) updateKPIsFromChart(chartResult);
+        if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully');
 
         // Track current state for toggles
         let currentScope = 'ibkr';
         let currentPeriod = 'YTD';
+        let historicalDataToUse = historicalDataYTD;
 
         // Bind scope toggle buttons
         document.querySelectorAll('#ytdScopeToggle button').forEach(btn => {
@@ -664,14 +670,15 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentScope = btn.dataset.scope;
-            const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+            const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
+              mode: currentPeriod === '1Y' ? '1y' : 'ytd',
               startingNAV: 209495,
               includeESPP: currentScope === 'all',
               includeSGTM: currentScope === 'all',
             });
             if (scopeResult) updateKPIsFromChart(scopeResult);
             // Re-apply current period filter
-            if (currentPeriod !== 'YTD') redrawChartForPeriod(currentPeriod);
+            if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
           });
         });
 
@@ -683,9 +690,21 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentPeriod = btn.dataset.period;
-            if (currentPeriod === 'YTD') {
-              // Rebuild full chart
-              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+
+            // Select correct historical data based on period
+            if (currentPeriod === '1Y') {
+              historicalDataToUse = historicalData1Y;
+              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+                mode: '1y',
+                includeESPP: currentScope === 'all',
+                includeSGTM: currentScope === 'all',
+              });
+              if (scopeResult) updateKPIsFromChart(scopeResult);
+            } else if (currentPeriod === 'YTD') {
+              historicalDataToUse = historicalDataYTD;
+              // Rebuild full YTD chart
+              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+                mode: 'ytd',
                 startingNAV: 209495,
                 includeESPP: currentScope === 'all',
                 includeSGTM: currentScope === 'all',
