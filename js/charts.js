@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=155';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=155';
-import { IMMO_CONSTANTS } from './data.js?v=155';
+import { fmt, fmtAxis } from './render.js?v=156';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=156';
+import { IMMO_CONSTANTS } from './data.js?v=156';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1862,16 +1862,27 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── Compute day 1 positions value to derive starting EUR cash ──
-  // Use allowForward=true so positions on markets closed Jan 2 (e.g. TSE → 4911.T)
-  // use their first available 2026 price instead of being excluded from calibration
+  // Prefer IBKR ytdOpen prices (exact Jan 2 close from IBKR) over Yahoo prices
+  // This ensures 4911.T (TSE closed Jan 2-3) and all other positions use IBKR's own valuations
+  const ibkrYtdOpenMap = {};
+  portfolio.amine.ibkr.positions.forEach(p => {
+    if (p.ytdOpen) ibkrYtdOpenMap[p.ticker] = { price: p.ytdOpen, currency: p.currency };
+  });
+
   let day1PosValue = 0;
   const day1Prices = {};
   const day1Missing = [];
   Object.entries(ytdStartHoldings).forEach(([ticker, data]) => {
-    const price = getClose(ticker, refDates[0], true); // allowForward for Day 1 calibration
+    // Prefer IBKR ytdOpen, fallback to Yahoo (with forward-fill for holidays)
+    let price = ibkrYtdOpenMap[ticker]?.price;
+    let source = 'ibkr';
+    if (price == null) {
+      price = getClose(ticker, refDates[0], true);
+      source = 'yahoo';
+    }
     if (price != null) {
       day1PosValue += data.shares * price / getFxRate(data.currency, refDates[0]);
-      day1Prices[ticker] = price;
+      day1Prices[ticker] = { price, source };
     } else {
       day1Missing.push(ticker);
     }
@@ -1879,6 +1890,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (day1Missing.length > 0) {
     console.warn('[ytd-chart] Day 1 calibration: still missing prices for', day1Missing.join(', '));
   }
+  console.log('[ytd-chart] Day 1 price sources:', Object.entries(day1Prices).map(
+    ([t, d]) => t + ':' + d.price + '(' + d.source + ')'
+  ).join(', '));
 
   const day1FxUSD = getFxRate('USD', refDates[0]);
   const day1FxJPY = getFxRate('JPY', refDates[0]);
@@ -2136,12 +2150,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       data: chartValues,
       borderColor: isPositive ? '#48bb78' : '#e53e3e',
       backgroundColor: showAll ? 'transparent' : gradient,
-      borderWidth: showAll ? 1.5 : 2.5,
-      pointRadius: 0,
+      borderWidth: showAll ? 1.5 : 2,
+      pointRadius: 2,
       pointHoverRadius: 5,
+      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       fill: !showAll,
-      tension: 0.3,
+      tension: 0, // straight lines between points (like IBKR)
     },
   ];
 
@@ -2152,12 +2167,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       data: chartValuesTotal,
       borderColor: isPositive ? '#48bb78' : '#e53e3e',
       backgroundColor: gradient,
-      borderWidth: 3,
-      pointRadius: 0,
+      borderWidth: 2.5,
+      pointRadius: 2,
       pointHoverRadius: 5,
+      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       fill: true,
-      tension: 0.3,
+      tension: 0, // straight lines between points (like IBKR)
     });
   }
 
