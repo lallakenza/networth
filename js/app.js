@@ -6,7 +6,7 @@ import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
 import { compute } from './engine.js?v=190';
 import { render } from './render.js?v=192';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=190';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=193';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -775,11 +775,15 @@ async function loadStockPrices(forceRefresh) {
             } else {
               redrawChartForPeriod(currentPeriod);
             }
-            // Reset mode toggle to "value" when changing period
-            window._ytdDisplayMode = 'value';
+            // Preserve current display mode (Valeur or P&L) when changing period
+            const currentMode = window._ytdDisplayMode || 'value';
+            if (currentMode === 'pl') {
+              switchChartMode('pl');
+            }
+            // Update toggle button styles to reflect current mode
             document.querySelectorAll('#ytdModeToggle button').forEach(b => {
-              b.style.background = b.dataset.mode === 'value' ? '#2d3748' : '#fff';
-              b.style.color = b.dataset.mode === 'value' ? '#fff' : '#4a5568';
+              b.style.background = b.dataset.mode === currentMode ? '#2d3748' : '#fff';
+              b.style.color = b.dataset.mode === currentMode ? '#fff' : '#4a5568';
             });
           });
         });

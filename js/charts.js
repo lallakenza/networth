@@ -2417,15 +2417,46 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         ...Object.keys(snapEnd.posBreakdown),
       ]);
 
+      // ── Compute net trade flows per ticker during the period ──
+      // This is the net capital invested: buys add, sells subtract.
+      // We need this to compute true P&L = (endVal - startVal) - netInvestment
+      // Without this correction, positions bought during the period show their
+      // full market value as "gain" (because startVal=0), which is wrong.
+      const tradeFlows = {}; // ticker -> net EUR invested (positive = capital in)
+      allEvents.forEach(e => {
+        if (e.date > startDateSnap && e.date <= endDateSnap) {
+          if (e.eventType === 'buy') {
+            const cost = e.cost || (e.qty * e.price);
+            const snap = _simSnapshots[e.date];
+            let costEUR;
+            if (e.currency === 'EUR') costEUR = cost;
+            else if (e.currency === 'USD') costEUR = cost / (snap?.fxUSD || 1.1);
+            else if (e.currency === 'JPY') costEUR = cost / (snap?.fxJPY || 160);
+            else costEUR = cost;
+            tradeFlows[e.ticker] = (tradeFlows[e.ticker] || 0) + costEUR;
+          } else if (e.eventType === 'sell') {
+            const proceeds = e.proceeds || (e.qty * e.price);
+            const snap = _simSnapshots[e.date];
+            let procEUR;
+            if (e.currency === 'EUR') procEUR = proceeds;
+            else if (e.currency === 'USD') procEUR = proceeds / (snap?.fxUSD || 1.1);
+            else if (e.currency === 'JPY') procEUR = proceeds / (snap?.fxJPY || 160);
+            else procEUR = proceeds;
+            tradeFlows[e.ticker] = (tradeFlows[e.ticker] || 0) - procEUR;
+          }
+        }
+      });
+
       const items = [];
       let totalPosM2M = 0;
 
       allTickers.forEach(ticker => {
         const startVal = snapStart.posBreakdown[ticker]?.valEUR || 0;
         const endVal = snapEnd.posBreakdown[ticker]?.valEUR || 0;
-        const m2m = endVal - startVal;
-        // This is the position-level M2M: change in EUR market value
-        // It includes both price changes and FX effects on that position
+        const netFlow = tradeFlows[ticker] || 0;
+        // True P&L = value change minus capital invested/withdrawn
+        // e.g. bought IBIT for €46K, now worth €41K → P&L = 41K - 0 - 46K = -5K
+        const m2m = endVal - startVal - netFlow;
         if (Math.abs(m2m) >= 0.5) {
           items.push({
             label: tickerLabelMap[ticker] || ticker,
