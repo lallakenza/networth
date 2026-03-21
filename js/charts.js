@@ -2676,7 +2676,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const periodLabel = mode === '1y' ? '1Y' : 'YTD';
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
-    const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
+    const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
       'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
       (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
@@ -2795,6 +2795,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     cumDepositsAtPoint,
     cumDepositsAtPointTotal,
     showAll,
+    includeESPP,
+    includeSGTM,
     startValue,
     mode,
   };
@@ -2866,6 +2868,8 @@ export function redrawChartForPeriod(period) {
   if (slicedLabels.length === 0) return;
 
   const showAll = data.showAll;
+  const includeESPP = data.includeESPP || false;
+  const includeSGTM = data.includeSGTM || false;
   const mainData = showAll ? slicedTotal : slicedIBKR;
   const periodStart = mainData[0];
   const periodEnd = mainData[mainData.length - 1];
@@ -2890,7 +2894,7 @@ export function redrawChartForPeriod(period) {
   const titleEl = document.getElementById('ytdChartTitle');
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
-    const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
+    const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
     const periodLabel = period === 'YTD' ? 'YTD' : period;
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
       'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
@@ -2992,6 +2996,8 @@ export function switchChartMode(displayMode) {
   window._ytdDisplayMode = displayMode;
 
   const showAll = data.showAll;
+  const includeESPP = data.includeESPP || false;
+  const includeSGTM = data.includeSGTM || false;
   const isPLMode = displayMode === 'pl';
 
   // Select the right data series
@@ -3019,7 +3025,7 @@ export function switchChartMode(displayMode) {
   // Update title
   const titleEl = document.getElementById('ytdChartTitle');
   const modeStr = data.mode === '1y' ? '1Y' : 'YTD';
-  const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
+  const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
     if (isPLMode) {
