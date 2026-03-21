@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=163';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=164';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -679,7 +679,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         return nezhaEsppCurrentVal - (nezhaEsppShares * refPrice / (fx.USD || 1));
       }
       // Per-position breakdown for a given field
-      function breakdown(field, esppRefPrice) {
+      function breakdown(field, esppRefPrice, includeSGTM) {
         const items = [];
         ibkrPositions.forEach(p => {
           if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
@@ -688,7 +688,31 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         const nezhaEsppPL = nezhaEsppPeriod(esppRefPrice);
         const acnTotalPL = esppPL + nezhaEsppPL;
         if (acnTotalPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: acnTotalPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
+        // SGTM unrealized P/L (from cost basis — no historical period prices available)
+        if (includeSGTM && sgtmUnrealizedPL !== 0) {
+          const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
+          items.push({ label: 'SGTM (x' + sgtmShares + ')', ticker: 'SGTM', pl: sgtmUnrealizedPL, valEUR: amineSgtm + nezhaSgtm });
+        }
         items.sort((a, b) => a.pl - b.pl); // worst first
+        return items;
+      }
+      // Full breakdown for oneYear: unrealized P/L per position (all platforms)
+      function oneYearBreakdown() {
+        const items = [];
+        ibkrPositions.forEach(p => {
+          items.push({ label: p.label, ticker: p.ticker, pl: p.unrealizedPL || 0, valEUR: p.valEUR });
+        });
+        // ESPP
+        const acnPL = esppUnrealizedPL + nezhaEsppUnrealizedPL;
+        if (acnPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: acnPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
+        // SGTM
+        if (sgtmUnrealizedPL !== 0) {
+          const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
+          items.push({ label: 'SGTM (x' + sgtmShares + ')', ticker: 'SGTM', pl: sgtmUnrealizedPL, valEUR: amineSgtm + nezhaSgtm });
+        }
+        // Realized P/L (all closed positions: IBKR + Degiro)
+        if (combinedRealizedPL !== 0) items.push({ label: 'P/L Réalisé (closed)', ticker: '_REALIZED', pl: combinedRealizedPL, _isCost: true });
+        items.sort((a, b) => a.pl - b.pl);
         return items;
       }
       // IBKR cash FX P&L (daily only — uses FX_STATIC as prev)
@@ -698,13 +722,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
       return {
         // closedXxxPL adds P&L from positions FULLY SOLD during the period
-        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL + closedDailyPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose), cashFxPL },
-        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen) + closedMtdPL, hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
-        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen) + closedYtdPL, hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
-        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo) + closedOneMonthPL, hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
+        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL + closedDailyPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose, false), cashFxPL },
+        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen) + closedMtdPL, hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen, true), cashFxPL: 0 },
+        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen) + closedYtdPL, hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen, true), cashFxPL: 0 },
+        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo) + closedOneMonthPL, hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo, true), cashFxPL: 0 },
         // P&L 1 an : pour un portefeuille de < 1 an, c'est le P&L total (valeur - dépôts)
         // Inclut : P/L réalisé IBKR + P/L non réalisé IBKR + ESPP P/L + SGTM P/L
-        oneYear: { total: totalStocks - totalDeposits, hasData: true, breakdown: null, cashFxPL: 0 },
+        oneYear: { total: totalStocks - totalDeposits, hasData: true, breakdown: oneYearBreakdown(), cashFxPL: 0 },
       };
     })(),
   };
