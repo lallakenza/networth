@@ -462,6 +462,51 @@ export const PORTFOLIO = {
     acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
     acnMtdOpen: 205.93,      // ACN clôture 3 mar 2026
     acnOneMonthAgo: 240.86,  // ACN clôture ~10 fév 2026
+    acnOneYearAgo: 305.32,   // ACN clôture 21 mars 2025 (Yahoo Finance)
+    // ── Prix historiques 1Y ago (21 mars 2025) — pour P&L 1 An ──
+    // Source : Yahoo Finance v8/chart API — fetched une fois, stockés en dur
+    // Ces prix servent de référence pour calculer l'évolution sur 1 an
+    // Pour les positions IBKR (toutes achetées APRÈS mars 2025), ces prix
+    // ne sont pas utilisés dans le calcul P&L (sharesAtStart=0) mais sont
+    // stockés pour référence historique et futur usage.
+    oneYearAgoPrices: {
+      // IBKR positions — clôture 21 mars 2025
+      'AIR.PA':  166.64,    // Airbus
+      'BN.PA':   71.88,     // Danone
+      'DG.PA':   118.25,    // Vinci
+      'FGR.PA':  109.45,    // Eiffage
+      'MC.PA':   602.50,    // LVMH
+      'OR.PA':   352.75,    // L'Oréal
+      'P911.DE': 51.96,     // Porsche
+      'RMS.PA':  2513.00,   // Hermès
+      'SAN.PA':  105.84,    // Sanofi
+      'SAP.DE':  251.95,    // SAP SE
+      '4911.T':  2849.50,   // Shiseido (JPY)
+      'IBIT':    47.70,     // iShares Bitcoin (USD)
+      'ETHA':    14.93,     // iShares Ethereum (USD)
+      'ACN':     305.32,    // Accenture (USD) — même que acnOneYearAgo
+      // IBKR positions fermées (vendues pendant la période 1Y)
+      'QQQM':    198.01,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
+      'GLE':     42.35,     // Société Générale (EUR) — acheté août 2025, vendu fév 2026
+      'WLN':     6.74,      // Worldline (EUR) — acheté août 2025, vendu fév 2026
+      'EDEN':    31.39,     // Edenred (EUR) — acheté sept 2025, vendu fév 2026
+      'NXI':     10.06,     // Nexity (EUR) — acheté août 2025, vendu fév 2026
+      // Degiro positions liquidées en avril 2025 — ces positions EXISTAIENT
+      // le 21 mars 2025, donc leur P&L 1Y = (proceeds - shares × prix_1Y_ago)
+      'NVDA':    117.70,    // NVIDIA (USD) — 540 actions vendues le 7 avr 2025 @ $89.73
+      'INFY':    18.32,     // Infosys (USD) — 300 actions vendues le 7 avr 2025 @ $16.95
+    },
+    // ── Taux de change historiques 1Y ago (21 mars 2025) ──
+    // Source : Yahoo Finance EURJPY=X, EURUSD=X, etc.
+    // Utilisés pour convertir les P&L des positions étrangères à leur valeur
+    // de référence 1Y ago
+    fxOneYearAgo: {
+      EUR: 1,
+      USD: 1.0857,    // EUR/USD le 21 mars 2025
+      JPY: 161.32,    // EUR/JPY le 21 mars 2025
+      MAD: 10.14,     // EUR/MAD le 21 mars 2025
+      AED: 3.98,      // EUR/AED le 21 mars 2025
+    },
   },
 };
 

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=164';
-import { getGrandTotal } from './engine.js?v=164';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=165';
+import { getGrandTotal } from './engine.js?v=165';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -2336,13 +2336,19 @@ function setupKPIDetailPanels(state) {
     detailPL1Y: function() {
       const d = av.periodPL?.oneYear;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1 An non disponibles</div>';
-      const items = d.breakdown || [];
+      // Include cost items (interest, FTT, dividends) from chart simulation
+      const items = appendCostItems(d.breakdown, 'oneYear');
       const gainers = items.filter(i => i.pl > 0);
       const losers = items.filter(i => i.pl < 0);
       const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
       const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
       let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
-      footer += ' | Net : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
+      footer += ' | Net (positions+frais) : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
+      // Show chart-based total if significantly different (includes cash/FX effects)
+      const chartOneYearPL = window._chartKPIData?.oneYear?.pl;
+      if (chartOneYearPL != null && Math.abs(chartOneYearPL - d.total) > 100) {
+        footer += '<br>📊 P&L total (incl. cash/FX/dépôts) : <b>' + (chartOneYearPL >= 0 ? '+' : '') + fmt(Math.round(chartOneYearPL)) + '</b>';
+      }
       if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
       return renderPLBreakdown(items, d.total, footer);
     },
