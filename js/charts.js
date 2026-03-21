@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=176';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=176';
-import { IMMO_CONSTANTS } from './data.js?v=176';
+import { fmt, fmtAxis } from './render.js?v=190';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=190';
+import { IMMO_CONSTANTS } from './data.js?v=190';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2015,11 +2015,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       label: c.label,
     });
   });
-  // Dynamic FTT: compute from buy trades (0.3% on FTT-eligible French stocks)
-  const FTT_ELIGIBLE_CHART = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA','WLN','NXI','QQQM']);
+  // Dynamic FTT: compute from buy trades (0.4% on FTT-eligible French large-cap stocks)
+  // Rate: 0.4% (not 0.3%) — IBKR charges 0.4% including their collection fee
+  // Source: verified vs IBKR Activity Statement "Transaction Fees" section
+  const FTT_ELIGIBLE_CHART = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA','WLN','AIR.PA']);
   tradesStock.forEach(t => {
     if (t.type === 'buy' && FTT_ELIGIBLE_CHART.has(reverseMap[t.ticker] || t.ticker)) {
-      const ftt = (t.cost || 0) * 0.003;
+      const ftt = (t.cost || 0) * 0.004;  // 0.4% — matches engine.js FTT_RATE
       allEvents.push({
         date: t.date, eventType: 'cost',
         eurAmount: -ftt, usdAmount: 0, jpyAmount: 0,

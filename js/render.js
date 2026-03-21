@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=176';
-import { getGrandTotal } from './engine.js?v=176';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=190';
+import { getGrandTotal } from './engine.js?v=190';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1513,6 +1513,10 @@ function renderActionsView(state) {
 
   // Period P&L KPIs (Daily, MTD, 1M, YTD, 1Y)
   if (av.periodPL) {
+    // KPIs that will be overridden by chart-based NAV P&L (more accurate)
+    // Show placeholder for these until chart data arrives, to avoid misleading flash
+    // (static calc = position M2M only, chart calc = full NAV including deposits/cash/FX)
+    const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD']);
     [
       { id: 'kpiPLDaily', data: av.periodPL.daily },
       { id: 'kpiPLMTD', data: av.periodPL.mtd },
@@ -1522,6 +1526,14 @@ function renderActionsView(state) {
     ].forEach(p => {
       const el = document.getElementById(p.id);
       if (!el) return;
+      // If this KPI will be overridden by chart data, show placeholder
+      // unless chart data is already available (re-render after chart load)
+      if (chartOverriddenKPIs.has(p.id) && !window._chartKPIData) {
+        el.textContent = '–';
+        el.className = 'value';
+        setSubPct(p.id, null);
+        return;
+      }
       if (!p.data.hasData) { el.textContent = '--'; return; }
       const v = Math.round(p.data.total);
       const sign = v >= 0 ? '+' : '';

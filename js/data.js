@@ -218,8 +218,17 @@ export const PORTFOLIO = {
         { date: '2026-01-06', type: 'interest', eurAmount: -70.27,  usdAmount: -12.40, jpyAmount: -1778, label: 'Interest Dec-2025' },
         { date: '2026-02-04', type: 'interest', eurAmount: -49.42,  usdAmount: -26.00, jpyAmount: -4619, label: 'Interest Jan-2026' },
         { date: '2026-03-04', type: 'interest', eurAmount: -27.73,  usdAmount: -74.31, jpyAmount: -23049,label: 'Interest Feb-2026' },
-        // Dividendes IBKR (net of WHT)
-        { date: '2026-02-18', type: 'dividend', ticker: 'RMS.PA', eurAmount: 37.54, label: 'Div RMS net (15€ brut - WHT)' },
+        // Dividendes IBKR (net après WHT prélevée à la source)
+        // Source: IBKR Activity Statement CSV, sections "Dividends" + "Withholding Tax"
+        // WHT France = 30%, WHT US = 30% (QQQM)
+        // Formule: eurAmount = brut - WHT (montant net crédité sur le compte)
+        { date: '2025-10-09', type: 'dividend', ticker: 'GLE',    eurAmount: 91.50,  label: 'Div GLE net (€122 brut − €30.50 WHT 25%)' },
+        { date: '2025-10-16', type: 'dividend', ticker: 'DG.PA',  eurAmount: 157.50, label: 'Div DG net (€210 brut − €52.50 WHT 25%)' },
+        { date: '2025-12-04', type: 'dividend', ticker: 'MC.PA',  eurAmount: 165.00, label: 'Div MC net (€220 brut − €55 WHT 25%)' },
+        { date: '2025-06-27', type: 'dividend', ticker: 'QQQM',   eurAmount: 11.08,  label: 'Div QQQM Q2 ($18.33 brut − $5.50 WHT, FX 1.1568)' },  // ($18.33-$5.50)/1.1568
+        { date: '2025-09-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 10.85,  label: 'Div QQQM Q3 ($17.54 brut − $5.26 WHT, FX 1.1328)' },  // ($17.54-$5.26)/1.1328
+        { date: '2025-12-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 12.50,  label: 'Div QQQM Q4 ($18.73 brut − $5.62 WHT, FX 1.0489)' },  // ($18.73-$5.62)/1.0489
+        { date: '2026-02-18', type: 'dividend', ticker: 'RMS.PA', eurAmount: 37.54,  label: 'Div RMS net (€50 brut − €12.46 WHT 25%)' },
       ],
       // ── Dividendes ACN (ESPP) ──
       // Source: Accenture IR quarterly dividend history (accenture.com/investor-relations)
@@ -256,13 +265,16 @@ export const PORTFOLIO = {
         { exDate: '2024-04-11', payDate: '2024-05-15', perShareUSD: 1.48 },
         { exDate: '2024-07-11', payDate: '2024-08-15', perShareUSD: 1.48 },
         { exDate: '2024-10-10', payDate: '2024-11-15', perShareUSD: 1.48 },
-        // FY2025 (oct 2024 → sept 2025)
-        { exDate: '2025-01-09', payDate: '2025-02-14', perShareUSD: 1.48 },
-        { exDate: '2025-04-10', payDate: '2025-05-15', perShareUSD: 1.63 },
-        { exDate: '2025-07-10', payDate: '2025-08-15', perShareUSD: 1.63 },
-        { exDate: '2025-10-09', payDate: '2025-11-14', perShareUSD: 1.63 },
-        // FY2026 (oct 2025 → ...)
-        { exDate: '2026-01-09', payDate: '2026-02-13', perShareUSD: 1.63 },
+        // FY2025 (oct 2024 → sept 2025) — all 4 quarters at $1.48
+        // Source: investor.accenture.com/stock-information/dividend-history
+        // fxEURUSD: historical EUR/USD rate at pay date (Yahoo Finance) — used by engine.js
+        //           to convert to EUR instead of using current rate (avoids identical EUR amounts)
+        { exDate: '2025-01-09', payDate: '2025-02-14', perShareUSD: 1.48, fxEURUSD: 1.0475 },
+        { exDate: '2025-04-10', payDate: '2025-05-15', perShareUSD: 1.48, fxEURUSD: 1.1188 },  // was 1.63, fixed
+        { exDate: '2025-07-10', payDate: '2025-08-15', perShareUSD: 1.48, fxEURUSD: 1.0975 },  // was 1.63, fixed
+        { exDate: '2025-10-09', payDate: '2025-11-14', perShareUSD: 1.48, fxEURUSD: 1.0545 },  // was 1.63, fixed
+        // FY2026 (oct 2025 → ...) — increased to $1.63/share
+        { exDate: '2026-01-09', payDate: '2026-02-13', perShareUSD: 1.63, fxEURUSD: 1.0402 },
       ],
       // ══════════════════════════════════════════════════════════════
       // DÉPÔTS & RETRAITS IBKR — Source: Activity Statement U18138426
