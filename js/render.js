@@ -2355,69 +2355,87 @@ function setupKPIDetailPanels(state) {
   // to the breakdown items during computation. This eliminates the dependency on
   // window._chartKPIData for cost display.
 
+  // Helper: inject FX/cash effect item into breakdown to match chart KPI card
+  // Returns { items, total } with FX item added if delta is significant
+  function adjustBreakdownForChart(items, posTotal, chartPL) {
+    if (chartPL == null || Math.abs(chartPL - posTotal) < 50) {
+      return { items: items, total: posTotal };
+    }
+    const fxDelta = chartPL - posTotal;
+    const fxItem = {
+      label: 'Effet FX / Cash',
+      pl: fxDelta,
+      _isCost: true,
+      _detail: [
+        { label: 'Impact FX sur cash (carry JPY, USD)', amount: fxDelta }
+      ]
+    };
+    // Insert into items array (keep sorted: losers first, gainers last)
+    const adjusted = items.slice(); // clone
+    adjusted.push(fxItem);
+    adjusted.sort((a, b) => a.pl - b.pl); // worst first
+    return { items: adjusted, total: chartPL };
+  }
+
   // KPI detail generators
   const detailGenerators = {
     // ── Period P&L panels ──
     detailPLDaily: function() {
       const d = av.periodPL?.daily;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données daily non disponibles</div>';
-      const items = d.breakdown;
+      const chartPL = window._chartKPIData?.daily?.pl;
+      const adj = adjustBreakdownForChart(d.breakdown, d.total, chartPL);
+      const items = adj.items;
       let footer = 'Top perte : ' + (items[0]?.label || '--') + ' (' + fmt(Math.round(items[0]?.pl || 0)) + ')';
       const best = items[items.length - 1];
       if (best && best.pl > 0) footer += ' | Top gain : ' + best.label + ' (+' + fmt(Math.round(best.pl)) + ')';
-      if (d.cashFxPL && Math.abs(d.cashFxPL) > 1) footer += ' | Impact FX cash : ' + (d.cashFxPL >= 0 ? '+' : '') + fmt(Math.round(d.cashFxPL));
-      return renderPLBreakdown(items, d.total, footer);
+      return renderPLBreakdown(items, adj.total, footer);
     },
     detailPLMTD: function() {
       const d = av.periodPL?.mtd;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données MTD non disponibles</div>';
-      const items = d.breakdown;
-      const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
-      return renderPLBreakdown(items, d.total, 'Top 3 pertes MTD : ' + worst3);
+      const chartPL = window._chartKPIData?.mtd?.pl;
+      const adj = adjustBreakdownForChart(d.breakdown, d.total, chartPL);
+      const items = adj.items;
+      const worst3 = items.filter(i => i.pl < 0).slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(items, adj.total, 'Top 3 pertes MTD : ' + worst3);
     },
     detailPL1M: function() {
       const d = av.periodPL?.oneMonth;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1M non disponibles</div>';
-      const items = d.breakdown;
-      const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
-      return renderPLBreakdown(items, d.total, 'Top 3 pertes 1 mois : ' + worst3);
+      const chartPL = window._chartKPIData?.oneMonth?.pl;
+      const adj = adjustBreakdownForChart(d.breakdown, d.total, chartPL);
+      const items = adj.items;
+      const worst3 = items.filter(i => i.pl < 0).slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
+      return renderPLBreakdown(items, adj.total, 'Top 3 pertes 1 mois : ' + worst3);
     },
     detailPLYTD: function() {
       const d = av.periodPL?.ytd;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données YTD non disponibles</div>';
-      const items = d.breakdown;
+      const chartPL = window._chartKPIData?.ytd?.pl;
+      const adj = adjustBreakdownForChart(d.breakdown, d.total, chartPL);
+      const items = adj.items;
       const gainers = items.filter(i => i.pl > 0);
       const losers = items.filter(i => i.pl < 0);
       const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
       const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
       let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
-      const chartYtdPL = window._chartKPIData?.ytd?.pl;
-      const netTotal = chartYtdPL != null ? chartYtdPL : d.total;
-      footer += ' | Net (positions) : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
-      if (chartYtdPL != null && Math.abs(chartYtdPL - d.total) > 100) {
-        footer += '<br>📊 P&L total (incl. cash/FX/dépôts) : <b>' + (chartYtdPL >= 0 ? '+' : '') + fmt(Math.round(chartYtdPL)) + '</b>';
-      }
       if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
-      return renderPLBreakdown(items, d.total, footer);
+      return renderPLBreakdown(items, adj.total, footer);
     },
     detailPL1Y: function() {
       const d = av.periodPL?.oneYear;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1 An non disponibles</div>';
-      // Include cost items (interest, FTT, dividends) from chart simulation
-      const items = d.breakdown;
+      const chartPL = window._chartKPIData?.oneYear?.pl;
+      const adj = adjustBreakdownForChart(d.breakdown, d.total, chartPL);
+      const items = adj.items;
       const gainers = items.filter(i => i.pl > 0);
       const losers = items.filter(i => i.pl < 0);
       const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
       const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
       let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
-      footer += ' | Net (positions+frais) : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
-      // Show chart-based total if significantly different (includes cash/FX effects)
-      const chartOneYearPL = window._chartKPIData?.oneYear?.pl;
-      if (chartOneYearPL != null && Math.abs(chartOneYearPL - d.total) > 100) {
-        footer += '<br>📊 P&L total (incl. cash/FX/dépôts) : <b>' + (chartOneYearPL >= 0 ? '+' : '') + fmt(Math.round(chartOneYearPL)) + '</b>';
-      }
       if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
-      return renderPLBreakdown(items, d.total, footer);
+      return renderPLBreakdown(items, adj.total, footer);
     },
     // ── Top-row KPI panels ──
     detailTotal: function() {
