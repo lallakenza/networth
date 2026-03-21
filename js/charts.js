@@ -2194,6 +2194,48 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     chartValuesTotal.length = 0; chartValuesTotal.push(...weeklyTotals);
   }
 
+  // ── Compute P&L series: P&L(t) = NAV(t) - startNAV - cumDeposits(t) ──
+  // Build cumulative deposits per chart date
+  const allDepositsEUR = {};
+  (portfolio.amine.ibkr.deposits || [])
+    .filter(d => d.date >= START_DATE && d.date <= todayStr)
+    .forEach(d => {
+      const amtEUR = (d.currency && d.currency !== 'EUR')
+        ? d.amount / (d.fxRateAtDate || 1)
+        : d.amount;
+      allDepositsEUR[d.date] = (allDepositsEUR[d.date] || 0) + amtEUR;
+    });
+
+  // Compute cumulative deposits at each chart point
+  let cumDep = 0;
+  const cumDepositsAtPoint = [];
+  for (let i = 0; i < chartLabels.length; i++) {
+    // Add deposits on or before this date (since last point)
+    const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
+    const curDate = chartLabels[i];
+    for (const [dDate, dAmt] of Object.entries(allDepositsEUR)) {
+      if (dDate > prevDate && dDate <= curDate) {
+        cumDep += dAmt;
+      }
+    }
+    // Special: on first point, include deposits on START_DATE itself
+    if (i === 0) {
+      for (const [dDate, dAmt] of Object.entries(allDepositsEUR)) {
+        if (dDate === START_DATE) cumDep += dAmt;
+      }
+    }
+    cumDepositsAtPoint.push(cumDep);
+  }
+
+  // P&L IBKR = NAV(t) - NAV(start) - cumDeposits(t)
+  const startNAVRef = chartValues[0];
+  const plValuesIBKR = chartValues.map((nav, i) => Math.round(nav - startNAVRef - cumDepositsAtPoint[i]));
+  // P&L Total = same logic for total values
+  const startNAVRefTotal = chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
+  const plValuesTotal = chartValuesTotal.length > 0
+    ? chartValuesTotal.map((nav, i) => Math.round(nav - startNAVRefTotal - cumDepositsAtPoint[i]))
+    : plValuesIBKR;
+
   // ── Chart rendering ──
   const showAll = includeESPP || includeSGTM;
   const startValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
@@ -2306,12 +2348,19 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
             },
             label: item => {
               // Reference line is always the last dataset
-              if (item.datasetIndex === datasets.length - 1) return 'Ref. 1er jan: ' + fmt(startValue);
+              if (item.datasetIndex === datasets.length - 1) {
+                return (mode === '1y' ? 'Ref. 1er avr' : 'Ref. 1er jan') + ': ' + fmt(startValue);
+              }
+              const idx = item.dataIndex;
               const val = item.parsed.y;
               const diff = val - startValue;
               const pct = ((val / startValue - 1) * 100).toFixed(2);
               const label = showAll ? 'NAV Total' : 'NAV IBKR';
-              return label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
+              const pl = showAll ? (plValuesTotal[idx] || 0) : (plValuesIBKR[idx] || 0);
+              return [
+                label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
+                'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
+              ];
             },
           },
         },
@@ -2321,13 +2370,17 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
 
-  // Store full data for period filtering
+  // Store full data for period filtering and mode switching
   window._ytdChartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
     totalValues: chartValuesTotal,
+    plValuesIBKR,
+    plValuesTotal,
+    cumDepositsAtPoint,
     showAll,
     startValue,
+    mode,
   };
 
   // ── Track deposits by date for TWR / KPI computation ──
@@ -2509,4 +2562,188 @@ export function redrawChartForPeriod(period) {
   });
 
   console.log('[ytd-chart] Period ' + period + ': ' + slicedLabels.length + ' points, Start=' + periodStart + ', End=' + periodEnd);
+}
+
+// ── Switch between Valeur (NAV) and P&L display modes ──
+export function switchChartMode(displayMode) {
+  // displayMode: 'value' or 'pl'
+  const data = window._ytdChartFullData;
+  if (!data || !data.labels.length) return;
+
+  const el = document.getElementById('portfolioYTDChart');
+  if (!el) return;
+
+  window._ytdDisplayMode = displayMode;
+
+  const showAll = data.showAll;
+  const isPLMode = displayMode === 'pl';
+
+  // Select the right data series
+  let mainData, refValue, mainLabel;
+  if (isPLMode) {
+    mainData = showAll ? data.plValuesTotal : data.plValuesIBKR;
+    refValue = 0; // Reference line at 0 for P&L
+    mainLabel = showAll ? 'P&L Total (EUR)' : 'P&L IBKR (EUR)';
+  } else {
+    mainData = showAll && data.totalValues.length > 0 ? data.totalValues : data.ibkrValues;
+    refValue = data.startValue;
+    mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
+  }
+
+  if (!mainData || mainData.length === 0) return;
+
+  const endValue = mainData[mainData.length - 1];
+  const startVal = mainData[0];
+  const plEUR = isPLMode ? endValue : (endValue - refValue);
+  const plPct = isPLMode
+    ? (data.startValue > 0 ? ((endValue / data.startValue) * 100).toFixed(2) : '0.00')
+    : ((endValue / refValue - 1) * 100).toFixed(2);
+  const isPositive = isPLMode ? endValue >= 0 : plEUR >= 0;
+
+  // Update title
+  const titleEl = document.getElementById('ytdChartTitle');
+  const modeStr = data.mode === '1y' ? '1Y' : 'YTD';
+  const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
+  if (titleEl) {
+    const color = isPositive ? 'var(--green)' : 'var(--red)';
+    if (isPLMode) {
+      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
+        'P&L ' + scopeLabel + ' ' + modeStr + ' — <span style="color:' + color + '">' +
+        (endValue >= 0 ? '+' : '') + fmt(endValue) + '</span>';
+    } else {
+      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
+        'Evolution ' + scopeLabel + ' ' + modeStr + ' — <span style="color:' + color + '">' +
+        (plEUR >= 0 ? '+' : '') + fmt(plEUR) + ' (' + (plEUR >= 0 ? '+' : '') + plPct + '%)</span>';
+    }
+  }
+
+  // Update start/end labels
+  const ytdStartEl = document.getElementById('ytdStartValue');
+  const ytdEndEl = document.getElementById('ytdEndValue');
+  const ytdStartLabel = document.getElementById('ytdStartLabel');
+  if (isPLMode) {
+    if (ytdStartEl) ytdStartEl.textContent = fmt(0);
+    if (ytdEndEl) ytdEndEl.textContent = (endValue >= 0 ? '+' : '') + fmt(endValue);
+    if (ytdStartLabel) ytdStartLabel.textContent = 'P&L départ';
+  } else {
+    if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
+    if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
+    if (ytdStartLabel) {
+      ytdStartLabel.innerHTML = data.mode === '1y'
+        ? 'NAV 1<sup>er</sup> avr 2025'
+        : 'NAV 1<sup>er</sup> jan';
+    }
+  }
+
+  // Destroy existing chart
+  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+
+  const displayLabels = data.labels.map(d => {
+    const p = d.split('-');
+    return p[2] + '/' + p[1];
+  });
+
+  const ctx = el.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
+  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
+  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
+
+  const datasets = [
+    {
+      label: mainLabel,
+      data: mainData,
+      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      backgroundColor: gradient,
+      borderWidth: 2,
+      pointRadius: mainData.length > 60 ? 1 : 2,
+      pointHoverRadius: 5,
+      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      fill: true,
+      tension: 0,
+    },
+    {
+      label: isPLMode ? 'Zéro' : ((data.mode === '1y' ? 'NAV 1er avr' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
+      data: mainData.map(() => refValue),
+      borderColor: '#a0aec0',
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      fill: false,
+    },
+  ];
+
+  // Tooltip references for P&L display
+  const chartLabelsRef = data.labels;
+  const plIBKR = data.plValuesIBKR;
+  const plTotal = data.plValuesTotal;
+  const navIBKR = data.ibkrValues;
+  const navTotal = data.totalValues;
+  const cumDeps = data.cumDepositsAtPoint;
+  const startValueRef = data.startValue;
+
+  charts.portfolioYTD = new Chart(el, {
+    type: 'line',
+    data: { labels: displayLabels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(45,55,72,0.95)',
+          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
+          callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const p = chartLabelsRef[items[0].dataIndex].split('-');
+              return p[2] + '/' + p[1] + '/' + p[0];
+            },
+            label: item => {
+              if (item.datasetIndex === 1) {
+                return isPLMode ? 'Zéro (breakeven)' : 'Ref: ' + fmt(refValue);
+              }
+              const idx = item.dataIndex;
+              const val = item.parsed.y;
+              if (isPLMode) {
+                // P&L mode: show P&L + NAV + cumul deposits
+                const nav = showAll ? (navTotal[idx] || navIBKR[idx]) : navIBKR[idx];
+                const dep = cumDeps[idx] || 0;
+                const lines = [];
+                lines.push('P&L: ' + (val >= 0 ? '+' : '') + fmt(val));
+                lines.push('NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(dep));
+                return lines;
+              } else {
+                // Value mode: show NAV + P&L since start
+                const pl = showAll ? (plTotal[idx] || 0) : (plIBKR[idx] || 0);
+                const label = showAll ? 'NAV Total' : 'NAV IBKR';
+                const diff = val - startValueRef;
+                const pct = ((val / startValueRef - 1) * 100).toFixed(2);
+                return [
+                  label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
+                  'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
+                ];
+              }
+            },
+          },
+        },
+      },
+    },
+  });
+
+  console.log('[ytd-chart] Switched to mode: ' + displayMode);
 }
