@@ -1962,7 +1962,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   (portfolio.amine.ibkr.deposits || [])
     .filter(d => d.date >= START_DATE && d.date <= todayStr)
     .forEach(d => {
-      allEvents.push({ date: d.date, eventType: 'deposit', amount: d.amount });
+      allEvents.push({
+        date: d.date,
+        eventType: 'deposit',
+        amount: d.amount,
+        currency: d.currency || 'EUR',
+        fxRateAtDate: d.fxRateAtDate || 1,
+      });
     });
 
   // ── IBKR costs from data.js (interest, dividends) + dynamic FTT ──
@@ -2080,13 +2086,22 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
           cashUSD += (e.targetAmount || e.qty * e.price);
           cashEUR += comm;
         } else if (e.ticker === 'EUR.AED') {
-          // EUR→AED: just reduces EUR cash (AED not tracked in IBKR chart)
-          cashEUR -= e.qty;
+          // AED→EUR conversion: user deposits AED then buys EUR
+          // IBKR statement shows positive qty = EUR bought (paying AED)
+          // So this ADDS to cashEUR (buying EUR with AED)
+          // AED cash is not tracked in the chart (goes to 0 after conversion)
+          cashEUR += e.qty;
           cashEUR += comm;
         }
 
       } else if (e.eventType === 'deposit') {
-        cashEUR += e.amount;
+        if (e.currency && e.currency !== 'EUR') {
+          // Non-EUR deposits (e.g. AED): don't add to cashEUR directly.
+          // The corresponding FX conversion trade (EUR.AED) handles the EUR credit.
+          // This avoids double-counting.
+        } else {
+          cashEUR += e.amount;
+        }
 
       } else if (e.eventType === 'cost') {
         // Interest, FTT, dividends — affect cash in respective currencies
@@ -2291,10 +2306,16 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   };
 
   // ── Track deposits by date for TWR / KPI computation ──
+  // Convert all deposits to EUR for TWR calculation
   const depositsByDate = {};
   (portfolio.amine.ibkr.deposits || [])
     .filter(d => d.date >= START_DATE && d.date <= todayStr)
-    .forEach(d => { depositsByDate[d.date] = (depositsByDate[d.date] || 0) + d.amount; });
+    .forEach(d => {
+      const amountEUR = (d.currency && d.currency !== 'EUR')
+        ? d.amount / (d.fxRateAtDate || 1)  // convert AED/USD to EUR
+        : d.amount;
+      depositsByDate[d.date] = (depositsByDate[d.date] || 0) + amountEUR;
+    });
 
   // Return NAV series so KPIs can be computed from chart data
   return {
