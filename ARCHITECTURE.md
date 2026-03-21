@@ -1,7 +1,8 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v158** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v178** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Dernière mise à jour : 21 mars 2026
 
 ## Principe fondamental
 
@@ -206,6 +207,9 @@ Contenu : { stocks: { TICKER: { price, previousClose } }, fx: { rates }, sgtm: {
 Chaque module importe les autres avec `?v=XX`. À chaque commit, incrémenter le numéro dans **tous les fichiers** :
 - `app.js`, `engine.js`, `render.js`, `charts.js`, `simulators.js`, `index.html`
 - Les fichiers `apt_*.html` ne sont plus liés mais gardent leur version
+- **Version actuelle : v178** (21 mars 2026)
+
+⚠ **Leçon v177** : Si on modifie un fichier (ex: charts.js) mais qu'on garde le même numéro de version dans l'import (ex: `?v=176` → `?v=176`), le navigateur ne re-téléchargera pas le fichier. TOUJOURS incrémenter, même pour un hotfix.
 
 ## Diagnostics (engine.js → cashView.diagnostics)
 
@@ -231,6 +235,20 @@ Système générique — ne jamais hardcoder de noms de comptes :
 | `computeExitCostsAtYear()` | Exit costs projetés à une année future (pour projections) |
 | `computeNetWorthProjection()` | Projection mensuelle sur 20 ans : capital amorti + appréciation + CF + exit costs |
 | `computeVillejuifRegimeComparison()` | Compare régimes fiscaux pour Villejuif VEFA (LMNP réel vs micro) |
+
+## FTT et Commissions (engine.js — v176+)
+
+### FTT — Taxe sur les Transactions Financières (0.4%)
+
+Le taux FTT est 0.4% (pas 0.3%). L'AMF fixe 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte. Vérifié par rapprochement avec le relevé IBKR (section "Transaction Fees").
+
+- `FTT_ELIGIBLE` : Set de 11 tickers FR large-cap (MC.PA, DG.PA, FGR.PA, GLE, SAN.PA, EDEN, RMS.PA, OR.PA, BN.PA, WLN, AIR.PA)
+- `FTT_RATE = 0.004`
+- Calcul : somme de `cost × FTT_RATE` pour chaque achat (`type: 'buy'`) d'un ticker éligible
+
+### Commissions — Multi-devises
+
+Les commissions sont stockées en **devise native** dans `trades[].commission`. Attention aux trades JPY (Shiseido) où la commission est en ¥ et non en €. La conversion se fait via `toEUR(t.commission, t.currency, fx)` dans `computeCommissions()`.
 
 ## Analyse dividendes et WHT (engine.js)
 
@@ -296,12 +314,16 @@ Suivi mensuel des dépenses par catégorie (Dubai, France, Digital). Comparaison
 
 Les dépôts sont enregistrés dans `ibkr.deposits[]` avec :
 - `date` : date du virement (ISO format)
-- `amount` : montant en devise native
-- `currency` : devise du virement (EUR, USD, MAD...)
-- `fxRateAtDate` : taux EUR/devise au jour du dépôt (1 pour EUR)
+- `amount` : montant en devise native (négatif pour les retraits)
+- `currency` : devise du virement (EUR, AED). Si absent, EUR par défaut.
+- `fxRateAtDate` : taux EUR/devise au jour du dépôt (1 pour EUR, ~4.0x pour AED)
 - `label` : description du virement
 
 **À mettre à jour** : à chaque nouveau dépôt/virement ou rapport IBKR "Deposits & Withdrawals".
+
+**⚠ Dépôts AED (v176+)** : Les dépôts en AED (virements Mashreq → IBKR) doivent avoir `currency: 'AED'` et `fxRateAtDate` renseigné. Dans le chart NAV, ces dépôts sont **ignorés** côté cash EUR — c'est le trade FX EUR.AED associé qui crédite le cash EUR. Pour le calcul TWR, la conversion `amount / fxRateAtDate` donne l'équivalent EUR.
+
+**⚠ Retraits** : Montant négatif (ex: `amount: -45000` pour un retrait de 45K€).
 
 **Autres sources de dépôts** (calculés automatiquement par engine.js) :
 - **ESPP Amine** : chaque lot dans `amine.espp.lots[]` est un dépôt (investissement salarié, enregistré en EUR car paie française)
@@ -336,21 +358,34 @@ Tout trade dont la date + ticker + qty n'existe pas encore doit être ajouté.
 ### 2. Format des trades dans data.js
 
 ```javascript
-// Achat
+// ① Achat — commission en devise native du trade
 { date: 'YYYY-MM-DD', ticker: 'AIR.PA', label: 'Airbus', type: 'buy',
   qty: 100, price: 196.50, currency: 'EUR', cost: 19650,
   commission: -9.83, costBasis: 192.58, source: 'ibkr' }
 
-// Vente
+// ② Vente — realizedPL calculé par IBKR (prendre du CSV)
 { date: 'YYYY-MM-DD', ticker: 'GLE', label: 'Société Générale', type: 'sell',
   qty: 200, price: 75.34, currency: 'EUR', proceeds: 15068,
   realizedPL: 4807.34, commission: -7.53, costBasis: 76.24, source: 'ibkr' }
 
-// FX trade
+// ③ FX trade — qty = montant EUR reçu, jpyAmount = montant JPY envoyé
 { date: 'YYYY-MM-DD', ticker: 'EUR.JPY', label: 'EUR→JPY (short)', type: 'fx',
   qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684,
   commission: -1.72, note: 'Rachat JPY short', source: 'ibkr' }
+
+// ④ FX AED→EUR — qty = montant EUR obtenu (pas AED!)
+{ date: 'YYYY-MM-DD', ticker: 'EUR.AED', label: 'AED→EUR', type: 'fx',
+  qty: 9964, price: 4.003, currency: 'EUR',
+  commission: -1.91, source: 'ibkr' }
 ```
+
+#### ⚠ Règles critiques (découvertes par audit v176)
+
+1. **Commission en devise native** : Le champ `commission` est dans la devise du trade (EUR, USD, JPY). `engine.js` convertit en EUR via `toEUR(t.commission, t.currency, fx)`. Ne PAS convertir manuellement dans data.js.
+2. **FTT séparée** : La FTT (Taxe sur Transactions Financières, 0.4%) n'est **JAMAIS** incluse dans `commission`. Elle est calculée dynamiquement par `engine.js` sur les achats de tickers éligibles (`FTT_ELIGIBLE` set).
+3. **Dépôts AED** : Un dépôt AED dans `deposits[]` ne doit PAS être compté comme EUR. Le flux est : dépôt AED → FX trade EUR.AED → EUR. Le chart ne track que EUR/USD/JPY.
+4. **Retraits** : Montant négatif dans `deposits[]` (ex: `amount: -45000`).
+5. **splitFactor** : Si une action a subi un stock split après la vente, ajouter `splitFactor: N` pour le calcul "Si gardé aujourd'hui".
 
 ### 3. Mettre à jour les positions après un trade
 
@@ -360,8 +395,8 @@ Après ajout d'un trade, mettre à jour la section `positions[]` :
 |-----------|----------------------|
 | **Achat d'une action existante** | Mettre à jour `shares` (nouveau total) et `costBasis` (nouveau PRU moyen du CSV) |
 | **Achat d'une nouvelle action** | Ajouter une nouvelle entrée dans `positions[]` avec ticker, shares, price, costBasis, currency, label, sector, geo |
-| **Vente partielle** | Réduire `shares`. Le `costBasis` reste le même (PRU moyen). Ajouter le realizedPL dans meta.realizedPL |
-| **Vente totale (clôture)** | Supprimer l'entrée de `positions[]`. Ajouter le realizedPL dans meta.realizedPL |
+| **Vente partielle** | Réduire `shares`. Le `costBasis` reste le même (PRU moyen). Le realizedPL total est calculé dynamiquement par `engine.js` depuis `trades[]`. |
+| **Vente totale (clôture)** | Supprimer l'entrée de `positions[]`. Le realizedPL est pris en compte automatiquement. |
 | **Trade FX** | Mettre à jour `cashEUR`, `cashUSD`, `cashJPY` selon les montants convertis |
 
 ### 4. Mettre à jour les agrégats IBKR
@@ -369,9 +404,13 @@ Après ajout d'un trade, mettre à jour la section `positions[]` :
 Après tout changement :
 - `staticNAV` : NAV totale du rapport CSV (ligne "Net Asset Value")
 - `meta.deposits` : si dépôt/retrait détecté
-- `meta.realizedPL` : somme de tous les realizedPL des sells
-- `meta.dividends` : si dividendes reçus
-- `meta.commissions` : cumul commissions
+
+**⚠ Les champs suivants sont calculés dynamiquement par `engine.js` depuis `trades[]` et `costs[]` (v176+) :**
+- Commissions : `computeCommissions(startDate)` somme `toEUR(t.commission, t.currency, fx)` de tous les trades
+- FTT : `computeFTT(startDate)` calcule `FTT_RATE × cost` sur les achats de tickers FTT_ELIGIBLE
+- Intérêts : `computeInterest(startDate)` somme depuis `ibkr.costs[]`
+- Dividendes : `computeIBKRDividends(startDate)` + `computeACNDividends(startDate)`
+- realizedPL : calculé depuis les `type:'sell'` trades
 
 ### 5. Mettre à jour le cash IBKR
 
@@ -1888,4 +1927,168 @@ Script `deploy_github.py` utilise l'API Git de GitHub (pas git push) pour déplo
 
 Fichiers déployés : `js/data.js`, `js/charts.js`, `js/app.js`, `js/engine.js`, `js/render.js`, `js/simulators.js`, `index.html`.
 
-**Cache-busting** : chaque import utilise `?v=N` (ex: `./data.js?v=158`). Incrémenter N à chaque déploiement. GitHub Pages CDN peut mettre 1–5 min à propager. Hard reload (Ctrl+Shift+R) + `localStorage.clear()` aide.
+**Cache-busting** : chaque import utilise `?v=N` (ex: `./data.js?v=178`). Incrémenter N à chaque déploiement. GitHub Pages CDN peut mettre 1–5 min à propager. Hard reload (Ctrl+Shift+R) + `localStorage.clear()` aide.
+
+## Session 21 mars 2026 — Audit IBKR bank-grade (v176-v178)
+
+### Contexte
+
+Audit complet de réconciliation entre le relevé IBKR Activity Statement (U18138426, 1 avril 2025 — 19 mars 2026) et les données du dashboard. L'objectif était d'atteindre une correspondance exacte (±1%) sur tous les agrégats financiers.
+
+### Source vérité — CSV IBKR
+
+| Section CSV | Métrique | Montant officiel |
+|-------------|----------|-----------------|
+| Change in NAV → Commissions | Commissions totales | -€217.31 |
+| Change in NAV → Transaction Fees | FTT (Taxe Transactions FR) | -€666.87 |
+| Change in NAV → Interest | Intérêts marge JPY + EUR + USD | -€512.34 |
+| Change in NAV → Dividends | Dividendes nets | +€648.53 |
+| Change in NAV → Withholding Tax | WHT (retenue source) | -€164.41 |
+| Deposits & Withdrawals | Total dépôts/retraits | €199,886.10 |
+| Net Asset Value | NAV fin de période | €187,864.62 |
+| Time-Weighted Return | TWR | +20.76% |
+
+### Réconciliation dashboard vs IBKR
+
+| Métrique | Dashboard (après fix) | IBKR Statement | Statut |
+|----------|----------------------|----------------|--------|
+| Commissions | ~€217 | -€217.31 | ✅ Match |
+| FTT | ~€667 (calculé 0.4% × buys éligibles) | -€666.87 | ✅ Match |
+| Intérêts | ~€512 | -€512.34 | ✅ Match |
+| Dividendes | ~€649 | +€648.53 | ✅ Match |
+| WHT | Non tracké séparément | -€164.41 | ⚠ À ajouter |
+| Dépôts & Retraits | ~€199,930 | €199,886.10 | ✅ OK (~€44 FX) |
+| NAV | ~€185,084 (live) | €187,864.62 (close 19/03) | ✅ Écart = prix live |
+
+### Bugs trouvés et corrigés
+
+#### v176 — FTT et commissions
+
+**Bug 1 — FTT rate 0.3% au lieu de 0.4%**
+- **Avant** : `FTT_RATE = 0.003` → €477 calculé
+- **Après** : `FTT_RATE = 0.004` → €667 calculé (match IBKR)
+- **Cause** : Le taux AMF officiel est 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte
+- **Fichier** : `engine.js` ligne ~341
+
+**Bug 2 — FTT_ELIGIBLE incomplet**
+- **Avant** : 9 tickers (manquait WLN et AIR.PA)
+- **Après** : 11 tickers : `MC.PA, DG.PA, FGR.PA, GLE, SAN.PA, EDEN, RMS.PA, OR.PA, BN.PA, WLN, AIR.PA`
+- **Note** : AIR.PA est éligible malgré le siège NL car cotation primaire Paris
+
+**Bug 3 — Commission JPY comptée comme EUR**
+- **Avant** : `total += t.commission` → ¥871.60 Shiseido compté comme €871.60 → total commissions €1,086
+- **Après** : `total += toEUR(t.commission, t.currency || 'EUR', fx)` → ¥871.60 = ~€4.75 → total commissions €217
+- **Fichier** : `engine.js` fonction `computeCommissions()`
+
+**Bug 4 — Dépôts incomplets**
+- **Avant** : 14 entrées EUR uniquement, total €202,886
+- **Après** : 18 entrées (14 EUR + 4 AED + 1 retrait -€45K), total ~€199,886
+- **Fichier** : `data.js` section `ibkr.deposits[]`
+- **Détail dépôts AED** : 4 virements Mashreq → IBKR (39 896 AED total) avec `fxRateAtDate` pour conversion
+- **Retrait manquant** : -€45,000 (23 avril 2025)
+
+**Bug 5 — Panel coûts statique**
+- **Avant** : Le panel coûts dans la vue Actions n'était pas interactif
+- **Après** : Expandable avec onclick toggle, tableau de détail : Commissions, FTT, Intérêts, WHT, Dividendes, Impact net
+- **Fichier** : `render.js` lignes ~2023-2044
+
+#### v176b-v177 — Chart 1Y double-counting AED
+
+**Bug 6 — AED deposits comptés comme EUR dans le chart**
+- **Avant** : Dépôts AED (195K AED ≈ 46K EUR) ajoutés directement à `cashEUR` → chart gonflé à €288K
+- **Après** : Dépôts non-EUR skippés dans le handler deposit. Le FX trade EUR.AED crédite `cashEUR`.
+- **Fichier** : `charts.js` lignes ~2088-2104
+
+**Bug 7 — EUR.AED FX direction inversée**
+- **Avant** : `cashEUR -= e.qty` (l'utilisateur "vendait" EUR)
+- **Après** : `cashEUR += e.qty` (l'utilisateur achète EUR avec AED)
+- **Fichier** : `charts.js` lignes ~2082-2086
+
+**Bug 8 — Cache buster pas incrémenté**
+- **Cause** : v176b corrigeait charts.js mais app.js importait toujours `charts.js?v=176` (même hash que la version buggée)
+- **Fix** : Bump à `?v=177` dans app.js + index.html
+- **Leçon** : TOUJOURS incrémenter le numéro de version quand on modifie un fichier, même pour un hotfix
+
+#### v178 — Chart 1Y hebdomadaire + TWR AED
+
+**Fix 9 — Échantillonnage hebdomadaire 1Y**
+- **Avant** : ~250 points (1 par jour ouvré) → chart dense et peu lisible
+- **Après** : ~52 points (1 par semaine) + premier et dernier point toujours inclus
+- **Fichier** : `charts.js` lignes ~2175-2193
+
+**Fix 10 — TWR deposits AED conversion**
+- Les dépôts AED sont convertis en EUR via `fxRateAtDate` avant d'être injectés dans le calcul TWR
+- **Fichier** : `charts.js` lignes ~2293-2301
+
+### Versions cache-busting au 21 mars 2026
+
+```javascript
+// app.js (point d'entrée)
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=176';
+import { compute } from './engine.js?v=176';
+import { render } from './render.js?v=176';
+import { fetchFXRates, ... } from './api.js?v=176';
+import { rebuildAllCharts, ... } from './charts.js?v=178';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
+
+// index.html
+<script type="module" src="js/app.js?v=178"></script>
+```
+
+### Points restants
+
+- **WHT** : Le WHT (-€164.41) n'est pas tracké séparément dans engine.js. Il est implicitement capturé dans les dividendes nets. Pour un tracking explicite, il faudrait ajouter une section WHT dans `ibkr.costs[]` ou un champ dédié par trade.
+- **FTT_ELIGIBLE** : La liste doit être vérifiée à chaque ajout d'un nouveau ticker français large-cap. Source : liste AMF des entreprises assujetties à la TTF.
+
+### FTT — Détail engine.js (v176+)
+
+```javascript
+// engine.js — Configuration FTT
+const FTT_ELIGIBLE = new Set([
+  'MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN',
+  'RMS.PA','OR.PA','BN.PA','WLN','AIR.PA'
+]);
+const FTT_RATE = 0.004; // 0.4% — taux facturé par IBKR (vérifié sur statement)
+
+// Calcul : FTT = somme des (cost × FTT_RATE) pour tous les achats de tickers éligibles
+function computeFTT(startDate) {
+  let total = 0;
+  _allIbkrTrades.forEach(t => {
+    if (t.date >= startDate && t.type === 'buy' && FTT_ELIGIBLE.has(t.ticker)) {
+      total += (t.cost || t.qty * t.price) * FTT_RATE;
+    }
+  });
+  return total;
+}
+```
+
+### Commissions — Détail engine.js (v176+)
+
+```javascript
+// engine.js — Commissions multi-devises
+function computeCommissions(startDate) {
+  let total = 0;
+  _allIbkrTrades.forEach(t => {
+    if (t.date >= startDate && t.commission) {
+      total += toEUR(t.commission, t.currency || 'EUR', fx); // ← conversion devise native → EUR
+    }
+  });
+  return total;
+}
+```
+
+### Gestion des dépôts AED dans charts.js (v176+)
+
+```
+Flux AED → EUR dans le chart NAV :
+
+1. Dépôt AED arrive sur IBKR
+   → deposits[] entry avec currency: 'AED'
+   → IGNORÉ par le chart (skip non-EUR deposits)
+
+2. Trade FX EUR.AED
+   → trades[] entry avec ticker: 'EUR.AED', qty: montant_EUR
+   → Chart: cashEUR += e.qty (AJOUT, pas soustraction)
+
+3. Résultat : le chart ne voit que le crédit EUR final
+```
