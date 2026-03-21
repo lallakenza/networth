@@ -2198,6 +2198,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // Only count deposits STRICTLY AFTER START_DATE — deposits on or before
   // START_DATE are already reflected in startNAV, so including them would
   // double-count and make P&L(0) = -deposit instead of 0.
+
+  // ── 1. IBKR deposits (for IBKR-only P&L) ──
   const allDepositsEUR = {};
   (portfolio.amine.ibkr.deposits || [])
     .filter(d => d.date > START_DATE && d.date <= todayStr)
@@ -2208,9 +2210,46 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       allDepositsEUR[d.date] = (allDepositsEUR[d.date] || 0) + amtEUR;
     });
 
-  // Compute cumulative deposits at each chart point
+  // ── 2. ESPP acquisition costs (for Total P&L) ──
+  // ESPP lots are "deposits" into the ESPP account — their cost basis must be
+  // subtracted from NAV change to get true P&L, just like IBKR bank transfers.
+  // costBasis is in USD/share → convert to EUR at the FX rate on acquisition date.
+  const allTotalDepositsEUR = { ...allDepositsEUR }; // starts with IBKR deposits
+  const esppLots = [
+    ...(portfolio.amine.espp?.lots || []),
+    ...(portfolio.nezha?.espp?.lots || []),
+  ];
+  esppLots
+    .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
+    .forEach(lot => {
+      // Cost in USD = shares × costBasis (USD/share)
+      // Convert to EUR using FX rate at acquisition date (approximate with
+      // the closest available FX rate from the historical data)
+      const costUSD = lot.shares * lot.costBasis;
+      const fxAtDate = getFxRate('USD', lot.date) || fxStatic.USD || 1.08;
+      const costEUR = costUSD / fxAtDate;
+      allTotalDepositsEUR[lot.date] = (allTotalDepositsEUR[lot.date] || 0) + costEUR;
+    });
+
+  // ── 3. SGTM acquisition costs (for Total P&L) ──
+  // SGTM IPO Dec 2025 — all shares acquired at sgtmCostBasisMAD
+  const sgtmCostMAD = portfolio.market?.sgtmCostBasisMAD || 0;
+  const sgtmTotalShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha?.sgtm?.shares || 0);
+  if (sgtmCostMAD > 0 && sgtmTotalShares > 0) {
+    // IPO date approximation — Dec 2025
+    const sgtmIPODate = '2025-12-15';
+    if (sgtmIPODate > START_DATE && sgtmIPODate <= todayStr) {
+      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / (fxStatic.MAD || 10.85);
+      allTotalDepositsEUR[sgtmIPODate] = (allTotalDepositsEUR[sgtmIPODate] || 0) + sgtmCostEUR;
+    }
+  }
+
+  // ── Compute cumulative deposits at each chart point ──
+  // Two series: IBKR-only and Total (IBKR + ESPP + SGTM)
   let cumDep = 0;
+  let cumDepTotal = 0;
   const cumDepositsAtPoint = [];
+  const cumDepositsAtPointTotal = [];
   for (let i = 0; i < chartLabels.length; i++) {
     const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
     const curDate = chartLabels[i];
@@ -2219,16 +2258,23 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         cumDep += dAmt;
       }
     }
+    for (const [dDate, dAmt] of Object.entries(allTotalDepositsEUR)) {
+      if (dDate > prevDate && dDate <= curDate) {
+        cumDepTotal += dAmt;
+      }
+    }
     cumDepositsAtPoint.push(cumDep);
+    cumDepositsAtPointTotal.push(cumDepTotal);
   }
 
-  // P&L IBKR = NAV(t) - NAV(start) - cumDeposits(t)
+  // P&L IBKR = NAV(t) - NAV(start) - cumDeposits_IBKR(t)
   const startNAVRef = chartValues[0];
   const plValuesIBKR = chartValues.map((nav, i) => Math.round(nav - startNAVRef - cumDepositsAtPoint[i]));
-  // P&L Total = same logic for total values
+  // P&L Total = NAV_total(t) - NAV_total(start) - cumDeposits_Total(t)
+  // Uses cumDepositsAtPointTotal which includes ESPP lots + SGTM IPO cost
   const startNAVRefTotal = chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
   const plValuesTotal = chartValuesTotal.length > 0
-    ? chartValuesTotal.map((nav, i) => Math.round(nav - startNAVRefTotal - cumDepositsAtPoint[i]))
+    ? chartValuesTotal.map((nav, i) => Math.round(nav - startNAVRefTotal - cumDepositsAtPointTotal[i]))
     : plValuesIBKR;
 
   // ── Chart rendering ──
@@ -2373,6 +2419,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     plValuesIBKR,
     plValuesTotal,
     cumDepositsAtPoint,
+    cumDepositsAtPointTotal,
     showAll,
     startValue,
     mode,
@@ -2674,7 +2721,9 @@ export function switchChartMode(displayMode) {
   const plTotal = data.plValuesTotal;
   const navIBKR = data.ibkrValues;
   const navTotal = data.totalValues;
-  const cumDeps = data.cumDepositsAtPoint;
+  const cumDepsIBKR = data.cumDepositsAtPoint;
+  const cumDepsTotal = data.cumDepositsAtPointTotal || data.cumDepositsAtPoint;
+  const cumDeps = showAll ? cumDepsTotal : cumDepsIBKR;
   const startValueRef = data.startValue;
 
   charts.portfolioYTD = new Chart(el, {
