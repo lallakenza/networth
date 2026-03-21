@@ -2058,8 +2058,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   let eventIdx = 0;
 
   const chartLabels = [];
-  const chartValues = [];
-  const chartValuesTotal = []; // IBKR + ESPP + SGTM
+  const chartValues = [];       // IBKR-only NAV per day
+  const chartValuesTotal = [];  // IBKR + ESPP + SGTM combined
+  const chartValuesESPP = [];   // ESPP-only valuation per day
+  const chartValuesSGTM = [];   // SGTM/Maroc-only valuation per day
 
   // Setup ESPP data
   const ESPP_SHARES = (portfolio.amine.espp?.shares || 0) + (portfolio.nezha?.espp?.shares || 0);
@@ -2201,23 +2203,25 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       if (missingTickers.length) console.log('[ytd-diag] Missing: ' + missingTickers.join(', '));
     }
 
-    // ── Compute ESPP value ──
+    // ── Compute ESPP value (always, regardless of scope — needed for Tous & ESPP views) ──
     let esppValue = 0;
-    if (includeESPP && ESPP_SHARES > 0) {
+    if (ESPP_SHARES > 0) {
       const acnPrice = getClose('ACN', date);
       if (acnPrice != null) {
         esppValue = ESPP_SHARES * acnPrice / getFxRate('USD', date) + ESPP_CASH_EUR + ESPP_CASH_USD / getFxRate('USD', date);
       }
     }
+    chartValuesESPP.push(Math.round(esppValue));
 
-    // ── Compute SGTM value ──
+    // ── Compute SGTM value (always, regardless of scope — needed for Tous & Maroc views) ──
     let sgtmValue = 0;
-    if (includeSGTM && SGTM_SHARES > 0) {
+    if (SGTM_SHARES > 0) {
       const sgtmPrice = getSgtmPrice(date);
       sgtmValue = SGTM_SHARES * sgtmPrice / EURMAD;
     }
+    chartValuesSGTM.push(Math.round(sgtmValue));
 
-    // ── Total NAV if including ESPP/SGTM ──
+    // ── Total NAV (IBKR + ESPP + SGTM combined) ──
     const navTotal = Math.round(nav + esppValue + sgtmValue);
     chartValuesTotal.push(navTotal);
   }
@@ -2230,18 +2234,27 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const weeklyLabels = [chartLabels[0]];
     const weeklyValues = [chartValues[0]];
     const weeklyTotals = [chartValuesTotal[0]];
+    const weeklyESPP = [chartValuesESPP[0]];
+    const weeklySGTM = [chartValuesSGTM[0]];
     for (let i = 7; i < chartLabels.length - 1; i += 7) {
       weeklyLabels.push(chartLabels[i]);
       weeklyValues.push(chartValues[i]);
       weeklyTotals.push(chartValuesTotal[i]);
+      weeklyESPP.push(chartValuesESPP[i]);
+      weeklySGTM.push(chartValuesSGTM[i]);
     }
     // Always include the last point
-    weeklyLabels.push(chartLabels[chartLabels.length - 1]);
-    weeklyValues.push(chartValues[chartValues.length - 1]);
-    weeklyTotals.push(chartValuesTotal[chartValuesTotal.length - 1]);
+    const last = chartLabels.length - 1;
+    weeklyLabels.push(chartLabels[last]);
+    weeklyValues.push(chartValues[last]);
+    weeklyTotals.push(chartValuesTotal[last]);
+    weeklyESPP.push(chartValuesESPP[last]);
+    weeklySGTM.push(chartValuesSGTM[last]);
     chartLabels.length = 0; chartLabels.push(...weeklyLabels);
     chartValues.length = 0; chartValues.push(...weeklyValues);
     chartValuesTotal.length = 0; chartValuesTotal.push(...weeklyTotals);
+    chartValuesESPP.length = 0; chartValuesESPP.push(...weeklyESPP);
+    chartValuesSGTM.length = 0; chartValuesSGTM.push(...weeklySGTM);
   }
 
   // ── Compute P&L series: P&L(t) = NAV(t) - startNAV - cumDeposits_after_start(t) ──
@@ -2648,19 +2661,55 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     Object.assign(window._chartBreakdown, chartBreakdown);
   }
 
-  // ── Chart rendering ──
+  // ── Chart rendering — scope-aware display ──
+  // Select the correct data series based on scope:
+  //   'ibkr'   → IBKR-only NAV
+  //   'espp'   → ESPP-only valuation (ACN shares + cash)
+  //   'maroc'  → SGTM/Maroc-only valuation
+  //   'degiro' → no active positions (empty array → show IBKR as fallback)
+  //   'all'    → IBKR + ESPP + SGTM combined total
   const showAll = includeESPP || includeSGTM;
-  const startValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
-  const endValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[chartValuesTotal.length - 1] : chartValues[chartValues.length - 1];
+  let mainData, mainLabel, scopeLabel;
+  switch (scope) {
+    case 'espp':
+      mainData = chartValuesESPP;
+      mainLabel = 'NAV ESPP (EUR)';
+      scopeLabel = 'ESPP';
+      break;
+    case 'maroc':
+      mainData = chartValuesSGTM;
+      mainLabel = 'NAV Maroc (EUR)';
+      scopeLabel = 'Maroc';
+      break;
+    case 'degiro':
+      // Degiro has no active positions — fall back to IBKR view
+      mainData = chartValues;
+      mainLabel = 'NAV Degiro (EUR)';
+      scopeLabel = 'Degiro';
+      break;
+    case 'all':
+      mainData = chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
+      mainLabel = 'NAV Total (EUR)';
+      scopeLabel = 'Tous';
+      break;
+    case 'ibkr':
+    default:
+      mainData = chartValues;
+      mainLabel = 'NAV IBKR (EUR)';
+      scopeLabel = 'IBKR';
+      break;
+  }
+
+  const startValue = mainData[0];
+  const endValue = mainData[mainData.length - 1];
   const plEUR = endValue - startValue;
-  const plPct = ((endValue / startValue - 1) * 100).toFixed(2);
+  const plPct = startValue !== 0 ? ((endValue / startValue - 1) * 100).toFixed(2) : '0.00';
   const isPositive = plEUR >= 0;
 
   const MONTH_NAMES_SHORT = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
   const displayLabels = chartLabels.map(d => {
     const p = d.split('-');
     if (mode === '1y') {
-      // Weekly: show "dd mmm" for first point of each month, empty otherwise
       return p[2] + '/' + p[1];
     }
     return p[2] + '/' + p[1];
@@ -2676,7 +2725,6 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const periodLabel = mode === '1y' ? '1Y' : 'YTD';
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
-    const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
       'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
       (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
@@ -2688,7 +2736,6 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
   if (ytdStartLabel) {
     if (mode === '1y') {
-      // Dynamic label: show actual start date
       const startParts = START_DATE.split('-');
       const MONTH_FR = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
       ytdStartLabel.innerHTML = 'NAV ' + parseInt(startParts[2]) + ' ' + MONTH_FR[parseInt(startParts[1])-1] + ' ' + startParts[0];
@@ -2697,9 +2744,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
   }
 
-  // Build datasets: show Total only (IBKR+ESPP+SGTM when scope=all, or IBKR-only when scope=ibkr)
-  const mainData = showAll && chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
-  const mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
+  // Build datasets: single line for the active scope
   const datasets = [
     {
       label: mainLabel,
@@ -2712,14 +2757,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       fill: true,
-      tension: 0, // straight lines between points (like IBKR)
+      tension: 0,
     },
   ];
 
   // Add reference line for starting value
   datasets.push({
     label: (mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(startValue) + ')',
-    data: chartValues.map(() => startValue),
+    data: chartLabels.map(() => startValue),
     borderColor: '#a0aec0',
     borderWidth: 1,
     borderDash: [6, 4],
@@ -2770,10 +2815,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
               const val = item.parsed.y;
               const diff = val - startValue;
               const pct = ((val / startValue - 1) * 100).toFixed(2);
-              const label = showAll ? 'NAV Total' : 'NAV IBKR';
+              const tooltipLabel = 'NAV ' + scopeLabel;
               const pl = showAll ? (plValuesTotal[idx] || 0) : (plValuesIBKR[idx] || 0);
               return [
-                label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
+                tooltipLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
                 'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
               ];
             },
@@ -2786,10 +2831,16 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
 
   // Store full data for period filtering and mode switching
+  // ── Determine scope from options ──
+  // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
+  const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
+
   window._ytdChartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
     totalValues: chartValuesTotal,
+    esppValues: chartValuesESPP,
+    sgtmValues: chartValuesSGTM,
     plValuesIBKR,
     plValuesTotal,
     cumDepositsAtPoint,
@@ -2797,6 +2848,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     showAll,
     includeESPP,
     includeSGTM,
+    scope,
     startValue,
     mode,
   };
@@ -2864,17 +2916,47 @@ export function redrawChartForPeriod(period) {
   const slicedLabels = data.labels.slice(startIdx);
   const slicedIBKR = data.ibkrValues.slice(startIdx);
   const slicedTotal = data.totalValues.slice(startIdx);
+  const slicedESPP = (data.esppValues || []).slice(startIdx);
+  const slicedSGTM = (data.sgtmValues || []).slice(startIdx);
 
   if (slicedLabels.length === 0) return;
 
-  const showAll = data.showAll;
-  const includeESPP = data.includeESPP || false;
-  const includeSGTM = data.includeSGTM || false;
-  const mainData = showAll ? slicedTotal : slicedIBKR;
+  // ── Scope-aware data selection (same logic as buildPortfolioYTDChart) ──
+  const scope = data.scope || 'all';
+  let mainData, mainLabel, scopeLabel;
+  switch (scope) {
+    case 'espp':
+      mainData = slicedESPP.length > 0 ? slicedESPP : slicedIBKR;
+      mainLabel = 'NAV ESPP (EUR)';
+      scopeLabel = 'ESPP';
+      break;
+    case 'maroc':
+      mainData = slicedSGTM.length > 0 ? slicedSGTM : slicedIBKR;
+      mainLabel = 'NAV Maroc (EUR)';
+      scopeLabel = 'Maroc';
+      break;
+    case 'degiro':
+      mainData = slicedIBKR;
+      mainLabel = 'NAV Degiro (EUR)';
+      scopeLabel = 'Degiro';
+      break;
+    case 'all':
+      mainData = slicedTotal.length > 0 ? slicedTotal : slicedIBKR;
+      mainLabel = 'NAV Total (EUR)';
+      scopeLabel = 'Tous';
+      break;
+    case 'ibkr':
+    default:
+      mainData = slicedIBKR;
+      mainLabel = 'NAV IBKR (EUR)';
+      scopeLabel = 'IBKR';
+      break;
+  }
+
   const periodStart = mainData[0];
   const periodEnd = mainData[mainData.length - 1];
   const plEUR = periodEnd - periodStart;
-  const plPct = ((periodEnd / periodStart - 1) * 100).toFixed(2);
+  const plPct = periodStart !== 0 ? ((periodEnd / periodStart - 1) * 100).toFixed(2) : '0.00';
   const isPositive = plEUR >= 0;
 
   // Destroy existing chart
@@ -2894,7 +2976,6 @@ export function redrawChartForPeriod(period) {
   const titleEl = document.getElementById('ytdChartTitle');
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
-    const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
     const periodLabel = period === 'YTD' ? 'YTD' : period;
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
       'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
@@ -2909,8 +2990,6 @@ export function redrawChartForPeriod(period) {
     const startDate = slicedLabels[0].split('-');
     ytdStartLabel.textContent = 'NAV ' + startDate[2] + '/' + startDate[1];
   }
-
-  const mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
   const datasets = [
     {
       label: mainLabel,
@@ -2972,8 +3051,7 @@ export function redrawChartForPeriod(period) {
               const val = item.parsed.y;
               const diff = val - periodStart;
               const pct = ((val / periodStart - 1) * 100).toFixed(2);
-              const label = showAll ? 'NAV Total' : 'NAV IBKR';
-              return label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
+              return 'NAV ' + scopeLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
             },
           },
         },
@@ -2981,7 +3059,7 @@ export function redrawChartForPeriod(period) {
     },
   });
 
-  console.log('[ytd-chart] Period ' + period + ': ' + slicedLabels.length + ' points, Start=' + periodStart + ', End=' + periodEnd);
+  console.log('[ytd-chart] Period ' + period + ' scope=' + scope + ': ' + slicedLabels.length + ' points, Start=' + periodStart + ', End=' + periodEnd);
 }
 
 // ── Switch between Valeur (NAV) and P&L display modes ──
@@ -2996,20 +3074,47 @@ export function switchChartMode(displayMode) {
   window._ytdDisplayMode = displayMode;
 
   const showAll = data.showAll;
-  const includeESPP = data.includeESPP || false;
-  const includeSGTM = data.includeSGTM || false;
+  const scope = data.scope || 'all';
   const isPLMode = displayMode === 'pl';
 
-  // Select the right data series
+  // ── Scope-aware label ──
+  let scopeLabel;
+  switch (scope) {
+    case 'espp': scopeLabel = 'ESPP'; break;
+    case 'maroc': scopeLabel = 'Maroc'; break;
+    case 'degiro': scopeLabel = 'Degiro'; break;
+    case 'all': scopeLabel = 'Tous'; break;
+    case 'ibkr': default: scopeLabel = 'IBKR'; break;
+  }
+
+  // ── Select the right data series based on scope and display mode ──
   let mainData, refValue, mainLabel;
   if (isPLMode) {
+    // For P&L mode: IBKR and Total P&L series exist; for ESPP/Maroc standalone, fall back to Total
+    // (P&L for individual platforms would need separate deposit tracking — future improvement)
     mainData = showAll ? data.plValuesTotal : data.plValuesIBKR;
-    refValue = 0; // Reference line at 0 for P&L
-    mainLabel = showAll ? 'P&L Total (EUR)' : 'P&L IBKR (EUR)';
+    refValue = 0;
+    mainLabel = 'P&L ' + scopeLabel + ' (EUR)';
   } else {
-    mainData = showAll && data.totalValues.length > 0 ? data.totalValues : data.ibkrValues;
-    refValue = data.startValue;
-    mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
+    // Value mode: pick the right NAV series
+    switch (scope) {
+      case 'espp':
+        mainData = data.esppValues && data.esppValues.length > 0 ? data.esppValues : data.ibkrValues;
+        break;
+      case 'maroc':
+        mainData = data.sgtmValues && data.sgtmValues.length > 0 ? data.sgtmValues : data.ibkrValues;
+        break;
+      case 'all':
+        mainData = data.totalValues.length > 0 ? data.totalValues : data.ibkrValues;
+        break;
+      case 'degiro':
+      case 'ibkr':
+      default:
+        mainData = data.ibkrValues;
+        break;
+    }
+    refValue = mainData[0];
+    mainLabel = 'NAV ' + scopeLabel + ' (EUR)';
   }
 
   if (!mainData || mainData.length === 0) return;
@@ -3019,13 +3124,12 @@ export function switchChartMode(displayMode) {
   const plEUR = isPLMode ? endValue : (endValue - refValue);
   const plPct = isPLMode
     ? (data.startValue > 0 ? ((endValue / data.startValue) * 100).toFixed(2) : '0.00')
-    : ((endValue / refValue - 1) * 100).toFixed(2);
+    : (refValue !== 0 ? ((endValue / refValue - 1) * 100).toFixed(2) : '0.00');
   const isPositive = isPLMode ? endValue >= 0 : plEUR >= 0;
 
   // Update title
   const titleEl = document.getElementById('ytdChartTitle');
   const modeStr = data.mode === '1y' ? '1Y' : 'YTD';
-  const scopeLabel = (includeESPP && includeSGTM) ? 'IBKR+ESPP+SGTM' : includeESPP ? 'IBKR+ESPP' : includeSGTM ? 'IBKR+SGTM' : 'IBKR';
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
     if (isPLMode) {
@@ -3159,11 +3263,10 @@ export function switchChartMode(displayMode) {
               } else {
                 // Value mode: show NAV + P&L since start
                 const pl = showAll ? (plTotal[idx] || 0) : (plIBKR[idx] || 0);
-                const label = showAll ? 'NAV Total' : 'NAV IBKR';
                 const diff = val - startValueRef;
-                const pct = ((val / startValueRef - 1) * 100).toFixed(2);
+                const pct = startValueRef !== 0 ? ((val / startValueRef - 1) * 100).toFixed(2) : '0.00';
                 return [
-                  label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
+                  'NAV ' + scopeLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
                   'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
                 ];
               }
