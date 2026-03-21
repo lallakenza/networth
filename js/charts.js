@@ -2221,7 +2221,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // Add reference line for starting value
   datasets.push({
-    label: 'NAV 1er jan (' + fmt(startValue) + ')',
+    label: (mode === '1y' ? 'NAV 1er avr' : 'NAV 1er jan') + ' (' + fmt(startValue) + ')',
     data: chartValues.map(() => startValue),
     borderColor: '#a0aec0',
     borderWidth: 1,
