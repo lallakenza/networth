@@ -12,8 +12,13 @@ let coupleSelectedCat = null;
 let _state = null;
 
 export function destroyAllCharts() {
-  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  const ytdChart = charts.portfolioYTD; // preserve — built separately by loadStockPrices
+  Object.entries(charts).forEach(([k, c]) => {
+    if (k === 'portfolioYTD') return; // don't destroy YTD chart
+    try { c.destroy(); } catch(e) {}
+  });
   charts = {};
+  if (ytdChart) charts.portfolioYTD = ytdChart; // restore
 }
 
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
