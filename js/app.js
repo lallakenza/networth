@@ -811,14 +811,19 @@ async function loadStockPrices(forceRefresh) {
             if (scopeResult && scopeMode === '1y') update1YKPIFromChart();
             // When NOT in 1Y mode, silently rebuild 1Y chart to update P&L 1Y KPI
             if (scopeMode !== '1y') {
-              const savedChartData = window._ytdChartFullData;
               buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
                 includeESPP: chartIncludeAll,
                 includeSGTM: chartIncludeAll,
               });
               update1YKPIFromChart();
-              window._ytdChartFullData = savedChartData;
+              // Rebuild visible chart (1Y build overwrote the canvas)
+              buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
+                mode: scopeMode,
+                startingNAV: 209495,
+                includeESPP: chartIncludeAll,
+                includeSGTM: chartIncludeAll,
+              });
             }
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
