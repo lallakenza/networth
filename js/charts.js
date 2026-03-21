@@ -1760,16 +1760,26 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const includeESPP = options && options.includeESPP;
   const includeSGTM = options && options.includeSGTM;
 
-  // ── IBKR starting NAV and cash ──
+  // ── IBKR starting NAV and cash (Jan 2, 2026) ──
+  // STARTING_NAV: IBKR-reported NAV at YTD start
+  // Cash values: traced from IBKR Activity Statement CSV (U18138426)
+  //   EUR: computed by replaying all EUR-affecting transactions from account opening
+  //        to Jan 2, 2026 (deposits, stock trades, FX trades, interest, fees, dividends)
+  //   JPY/USD: IBKR cash balances at Jan 2 (before big Shiseido buys in Jan/Feb)
+  // Note: EUR cash was previously derived as residual (NAV - positions - USD - JPY),
+  //       but this accumulated ~1,534€ error due to Yahoo FX rates differing from IBKR's.
+  //       Using the traced value eliminates this calibration drift.
   let STARTING_NAV = (options && options.startingNAV) || 209495;
   let IBKR_JPY_START = -1090000;
   let IBKR_USD_START = -4356;
+  let IBKR_EUR_START_OVERRIDE = -17534;  // Traced from IBKR CSV — do NOT derive as residual
 
   // For 1Y mode: start from scratch (NAV = 0, all cash = 0)
   if (mode === '1y') {
     STARTING_NAV = 0;
     IBKR_JPY_START = 0;
     IBKR_USD_START = 0;
+    IBKR_EUR_START_OVERRIDE = null; // no override for 1Y
   }
 
   // ── Ticker mapping: trade tickers → Yahoo Finance tickers ──
@@ -1889,7 +1899,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     return SGTM_PRICES[SGTM_PRICES.length - 1][1];
   }
 
-  // ── Compute day 1 positions value to derive starting EUR cash ──
+  // ── Compute day 1 positions value and calibrate starting EUR cash ──
   let day1PosValue = 0;
   let IBKR_EUR_START = 0;
 
@@ -1929,15 +1939,30 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const cashJPY_EUR_day1 = IBKR_JPY_START / day1FxJPY;
     const cashUSD_EUR_day1 = IBKR_USD_START / day1FxUSD;
 
-    // EUR cash = starting NAV - positions - USD cash(eur) - JPY cash(eur)
-    IBKR_EUR_START = STARTING_NAV - day1PosValue - cashUSD_EUR_day1 - cashJPY_EUR_day1;
-
-    console.log('[ytd-chart] Day 1 calibration:',
-      'NAV=' + STARTING_NAV,
-      'Pos=' + Math.round(day1PosValue),
-      'EUR_cash=' + Math.round(IBKR_EUR_START),
-      'USD_cash=' + Math.round(cashUSD_EUR_day1),
-      'JPY_cash=' + Math.round(cashJPY_EUR_day1));
+    // ── EUR cash calibration ──
+    // Use IBKR-traced EUR cash if available (more accurate than residual derivation).
+    // The residual method (NAV - pos - USD - JPY) accumulates ~1,500€ error because
+    // Yahoo FX rates differ from IBKR's rates for non-EUR position valuation.
+    if (IBKR_EUR_START_OVERRIDE != null) {
+      IBKR_EUR_START = IBKR_EUR_START_OVERRIDE;
+      // Recompute STARTING_NAV to match (ensures simulation NAV is consistent)
+      STARTING_NAV = day1PosValue + IBKR_EUR_START + cashUSD_EUR_day1 + cashJPY_EUR_day1;
+      console.log('[ytd-chart] Day 1 calibration (IBKR-traced EUR cash):',
+        'NAV=' + Math.round(STARTING_NAV) + ' (recomputed)',
+        'Pos=' + Math.round(day1PosValue),
+        'EUR_cash=' + Math.round(IBKR_EUR_START) + ' (from IBKR CSV)',
+        'USD_cash=' + Math.round(cashUSD_EUR_day1),
+        'JPY_cash=' + Math.round(cashJPY_EUR_day1));
+    } else {
+      // Fallback: derive EUR cash as residual from IBKR NAV
+      IBKR_EUR_START = STARTING_NAV - day1PosValue - cashUSD_EUR_day1 - cashJPY_EUR_day1;
+      console.log('[ytd-chart] Day 1 calibration (residual EUR cash):',
+        'NAV=' + STARTING_NAV,
+        'Pos=' + Math.round(day1PosValue),
+        'EUR_cash=' + Math.round(IBKR_EUR_START),
+        'USD_cash=' + Math.round(cashUSD_EUR_day1),
+        'JPY_cash=' + Math.round(cashJPY_EUR_day1));
+    }
   } else {
     // For 1Y: start from scratch, IBKR_EUR_START = 0
     console.log('[ytd-chart] 1Y mode: starting from 0, all cash = 0');
@@ -2474,16 +2499,77 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       // Add FX/Cash residual as a line item (captures JPY carry FX, USD FX, EUR interest effect)
       // Only show if non-trivial
       if (Math.abs(fxOnCash) >= 1) {
+        // ── Decompose JPY/USD into "pure FX effect" vs "cash flow effect" ──
+        // Pure FX = same cash balance, different exchange rate
+        // Cash flow = additional borrowing/repayment valued at new FX rate
+        // This avoids misleading display: e.g. -19K JPY "effect" is mostly
+        // increased JPY borrowing to buy Shiseido, not currency movement.
+        const jpyTotal = Math.round(snapEnd.cashJPY / snapEnd.fxJPY - snapStart.cashJPY / snapStart.fxJPY);
+        const usdTotal = Math.round(snapEnd.cashUSD / snapEnd.fxUSD - snapStart.cashUSD / snapStart.fxUSD);
+
+        // Decompose JPY: iterate through snapshots for accurate day-by-day attribution
+        let jpyFxEffect = 0, jpyFlowEffect = 0;
+        let usdFxEffect = 0, usdFlowEffect = 0;
+        const periodDates = chartLabels.filter(d => d >= startDateSnap && d <= endDateSnap);
+        let prevSnap = _simSnapshots[startDateSnap];
+        for (let i = 1; i < periodDates.length; i++) {
+          const curSnap = _simSnapshots[periodDates[i]];
+          if (!curSnap || !prevSnap) { prevSnap = curSnap; continue; }
+          // FX effect: same cash, new rate
+          jpyFxEffect += prevSnap.cashJPY / curSnap.fxJPY - prevSnap.cashJPY / prevSnap.fxJPY;
+          // Flow effect: new cash at new rate
+          jpyFlowEffect += (curSnap.cashJPY - prevSnap.cashJPY) / curSnap.fxJPY;
+          // Same for USD
+          usdFxEffect += prevSnap.cashUSD / curSnap.fxUSD - prevSnap.cashUSD / prevSnap.fxUSD;
+          usdFlowEffect += (curSnap.cashUSD - prevSnap.cashUSD) / curSnap.fxUSD;
+          prevSnap = curSnap;
+        }
+
+        // Build detail items with sub-decomposition for JPY if borrowing changed significantly
+        const jpyDetail = [];
+        const jpyBorrowingChanged = Math.abs(snapEnd.cashJPY - snapStart.cashJPY) > 100000;
+        if (jpyBorrowingChanged) {
+          // Show JPY sub-breakdown: FX movement vs borrowing change
+          jpyDetail.push({
+            label: 'JPY — effet change (¥ ' + Math.round(snapStart.cashJPY).toLocaleString('fr-FR') + ' à taux variable)',
+            amount: Math.round(jpyFxEffect),
+          });
+          jpyDetail.push({
+            label: 'JPY — variation emprunt (' + Math.round(snapStart.cashJPY).toLocaleString('fr-FR') + ' → ' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)',
+            amount: Math.round(jpyFlowEffect),
+          });
+        } else {
+          jpyDetail.push({
+            label: 'JPY cash (' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)',
+            amount: jpyTotal,
+          });
+        }
+
+        const usdBorrowingChanged = Math.abs(snapEnd.cashUSD - snapStart.cashUSD) > 1000;
+        let usdDetail;
+        if (usdBorrowingChanged) {
+          usdDetail = [
+            { label: 'USD — effet change', amount: Math.round(usdFxEffect) },
+            { label: 'USD — variation solde (' + Math.round(snapStart.cashUSD).toLocaleString('fr-FR') + ' → ' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: Math.round(usdFlowEffect) },
+          ];
+        } else {
+          usdDetail = [
+            { label: 'USD cash (' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: usdTotal },
+          ];
+        }
+
+        const detailItems = [
+          ...jpyDetail,
+          ...usdDetail,
+          { label: 'EUR cash (solde)', amount: Math.round(snapEnd.cashEUR - snapStart.cashEUR + deposits) },
+        ].filter(d => Math.abs(d.amount) >= 1);
+
         items.push({
           label: 'Effet FX / Cash',
           ticker: '_FX_CASH',
           pl: fxOnCash,
           _isCost: true,
-          _detail: [
-            { label: 'JPY cash (' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)', amount: Math.round(snapEnd.cashJPY / snapEnd.fxJPY - snapStart.cashJPY / snapStart.fxJPY) },
-            { label: 'USD cash (' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: Math.round(snapEnd.cashUSD / snapEnd.fxUSD - snapStart.cashUSD / snapStart.fxUSD) },
-            { label: 'EUR cash (solde)', amount: Math.round(snapEnd.cashEUR - snapStart.cashEUR + deposits) },
-          ].filter(d => Math.abs(d.amount) >= 1),
+          _detail: detailItems,
         });
       }
 
