@@ -29,7 +29,7 @@ const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
 function updateStaticKPIsForScope(scope) {
   const av = window._actionsView;
   if (!av) return;
-  const fmt = n => Math.round(n).toLocaleString('fr-FR') + ' €';
+  const fmt = n => '€ ' + Math.round(n).toLocaleString('fr-FR');
   const setT = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   const setEur = (id, val) => {
     const el = document.getElementById(id);
@@ -38,11 +38,16 @@ function updateStaticKPIsForScope(scope) {
   const setSubPct = (id, pct) => {
     const el = document.getElementById(id);
     if (!el) return;
-    let sub = el.parentElement?.querySelector('.sub:not(#kpiActionsTWR)');
-    if (!sub) { sub = document.createElement('div'); sub.className = 'sub'; el.parentElement?.insertBefore(sub, el.nextSibling); }
+    // Use same .kpi-sub-pct class as render.js
+    let sub = el.parentElement?.querySelector('.kpi-sub-pct');
+    if (!sub) {
+      sub = document.createElement('span');
+      sub.className = 'kpi-sub-pct';
+      el.insertAdjacentElement('afterend', sub);
+    }
     const sign = pct >= 0 ? '+' : '';
-    sub.textContent = sign + pct.toFixed(1) + '% vs déposé';
-    sub.className = 'sub ' + (pct >= 0 ? 'pl-pos' : 'pl-neg');
+    sub.textContent = sign + pct.toFixed(1) + '%';
+    sub.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct >= 0 ? '#276749' : '#c53030') + ';';
   };
 
   if (scope === 'all') {
