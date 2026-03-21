@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=164';
-import { compute } from './engine.js?v=164';
-import { render } from './render.js?v=164';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=164';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=164';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=164';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=165';
+import { compute } from './engine.js?v=165';
+import { render } from './render.js?v=165';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=165';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=165';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=165';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -414,12 +414,23 @@ function updateKPIsFromChart(chartData) {
     return { interestEUR, fttEUR: cats.ftt, dividendsEUR: cats.dividends };
   }
 
+  // ── 1Y P&L from chart (NAV evolution over 1 year) ──
+  // The chart starts from IBKR inception (April 2025), which is within the 1Y window.
+  // oneYear start date = 1 year ago from today
+  const _now1Y = new Date();
+  const oneYearAgoStr = (_now1Y.getFullYear() - 1) + '-' +
+    String(_now1Y.getMonth() + 1).padStart(2, '0') + '-' +
+    String(_now1Y.getDate()).padStart(2, '0');
+
   // Store cost breakdowns for each period on window for render.js detail generators
   window._chartKPIData = {
     daily: { pl: plDaily, pct: prevNAV > 0 ? (plDaily / prevNAV * 100) : 0, costs: aggregateCosts(prevDate, lastDate) },
     mtd: { pl: plMTD, pct: navBeforeMTD > 0 ? (plMTD / navBeforeMTD * 100) : 0, costs: aggregateCosts(prevMtdDate, lastDate) },
     oneMonth: { pl: pl1M, pct: navBefore1M > 0 ? (pl1M / navBefore1M * 100) : 0, costs: aggregateCosts(prevDate1M, lastDate) },
     ytd: { pl: plYTD, pct: ytdStartNAV > 0 ? (plYTD / ytdStartNAV * 100) : 0, costs: aggregateCosts('2025-12-31', lastDate) },
+    // 1Y costs: aggregate from 1Y ago to last chart date
+    // Note: chart data starts April 2025 so all chart cost items are within 1Y window
+    oneYear: { costs: aggregateCosts(oneYearAgoStr, lastDate) },
     twr: twrPct,
   };
 
