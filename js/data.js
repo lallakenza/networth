@@ -100,10 +100,13 @@ export const PORTFOLIO = {
       cashJPY: -4590694,     // Solde JPY chez IBKR au 18/03/2026 (après rachat 13111 EUR→JPY)
       // Performance metrics (April 2025 - March 2026)
       meta: {
-        twr: 26.94,            // Time-Weighted Return % (depuis ouverture)
+        twr: 26.94,            // Time-Weighted Return % (depuis ouverture) — OVERRIDDEN by chart TWR at runtime
         realizedPL: 6798,      // +5924 précédent + ~874 (DG 100×(131.20-122.46))
-        dividends: 648,        // Gross dividends received (all-time)
-        commissions: -879,     // -872 précédent - 6.56 (DG sells)
+        dividends: 648,        // Gross dividends received (all-time, pas YTD)
+        dividendsYTD: 38,      // Dividendes nets YTD 2026 (RMS net 37.54€)
+        commissions: -879,     // Commissions all-time (avril 2025 → mars 2026)
+        commissionsYTD: -65,   // Commissions YTD 2026 (estimé sur trades jan-mar 2026)
+        deposits: 202886,      // Total dépôts IBKR = somme de ibkr.deposits[].amount
       },
       // ── Historique des dépôts IBKR ──
       // Source : rapport IBKR "Deposits & Withdrawals"

@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=159';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=160';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -477,10 +477,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   });
 
   // 6. Strategic recommendation
+  // NOTE: twr here is a static fallback — overridden by window._chartKPIData?.twr in render.js
   insights.push({
     type: 'recommendation',
-    title: 'Recommandations Strat\u00e9giques',
-    twr: meta.twr || 0,
+    title: 'Recommandations Stratégiques',
+    twr: meta.twr || 0, // overridden at render time
     combinedRealizedPL: combinedRealizedPL,
     totalDeposits: totalDeposits,
     francePct: francePct,
@@ -492,7 +493,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Sources : Yahoo Finance, tradingeconomics.com, APMEX, investing.com
   const benchmarks = {
     date: '10 mars 2026',
-    ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' },
+    ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' }, // NOTE: twr overridden by window._chartKPIData?.twr in render.js
     total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
     items: [
       { label: 'Or (XAU/USD)',       ytd: 21.0, note: '$5 070 — record historique, haven demand (Iran conflict)' },
@@ -628,11 +629,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Totals
     totalStocks,
     totalCurrentValue,
-    // IBKR metrics
-    twr: meta.twr || 0,
+    // IBKR metrics — twr is static fallback, overridden by chart data at render time
+    twr: meta.twr || 0, // NOTE: overridden by window._chartKPIData?.twr in render.js
     realizedPL: ibkrRealizedPL,
     dividends: meta.dividends || 0,
+    dividendsYTD: meta.dividendsYTD || 0,
     commissions: meta.commissions || 0,
+    commissionsYTD: meta.commissionsYTD || 0,
+    ibkrDepositsTotal: ibkrDepositsTotal,
     closedPositions: ibkrOnlyClosed,
     allClosedPositions: allClosed,
     trades: allTradesUnified,
