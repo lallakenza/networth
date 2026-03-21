@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=161';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=161';
-import { IMMO_CONSTANTS } from './data.js?v=161';
+import { fmt, fmtAxis } from './render.js?v=162';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=162';
+import { IMMO_CONSTANTS } from './data.js?v=162';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2140,8 +2140,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
   const ytdStartEl = document.getElementById('ytdStartValue');
   const ytdEndEl = document.getElementById('ytdEndValue');
+  const ytdStartLabel = document.getElementById('ytdStartLabel');
   if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
+  if (ytdStartLabel) ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
 
   // Build datasets: show Total only (IBKR+ESPP+SGTM when scope=all, or IBKR-only when scope=ibkr)
   const mainData = showAll && chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
@@ -2224,6 +2226,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
 
+  // Store full data for period filtering
+  window._ytdChartFullData = {
+    labels: chartLabels,
+    ibkrValues: chartValues,
+    totalValues: chartValuesTotal,
+    showAll,
+    startValue,
+  };
+
   // ── Track deposits by date for TWR / KPI computation ──
   const depositsByDate = {};
   (portfolio.amine.ibkr.deposits || [])
@@ -2240,4 +2251,161 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     scope: showAll ? 'all' : 'ibkr',
     costItems: ibkrCostsYTD,  // interest, FTT, dividends for KPI breakdowns
   };
+}
+
+// ── Period filter: re-draw the YTD chart for a sub-period ──
+export function redrawChartForPeriod(period) {
+  const data = window._ytdChartFullData;
+  if (!data || !data.labels.length) return;
+
+  const el = document.getElementById('portfolioYTDChart');
+  if (!el) return;
+
+  // Compute cutoff date based on period
+  const today = new Date();
+  let cutoffDate;
+  if (period === 'MTD') {
+    cutoffDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  } else if (period === '1M') {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 1);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else if (period === '3M') {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 3);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else if (period === '1Y') {
+    const d = new Date(today);
+    d.setFullYear(d.getFullYear() - 1);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else {
+    // YTD — show all
+    cutoffDate = '2025-12-31';
+  }
+
+  // Find start index in the labels array
+  let startIdx = 0;
+  for (let i = 0; i < data.labels.length; i++) {
+    if (data.labels[i] >= cutoffDate) { startIdx = i; break; }
+  }
+
+  const slicedLabels = data.labels.slice(startIdx);
+  const slicedIBKR = data.ibkrValues.slice(startIdx);
+  const slicedTotal = data.totalValues.slice(startIdx);
+
+  if (slicedLabels.length === 0) return;
+
+  const showAll = data.showAll;
+  const mainData = showAll ? slicedTotal : slicedIBKR;
+  const periodStart = mainData[0];
+  const periodEnd = mainData[mainData.length - 1];
+  const plEUR = periodEnd - periodStart;
+  const plPct = ((periodEnd / periodStart - 1) * 100).toFixed(2);
+  const isPositive = plEUR >= 0;
+
+  // Destroy existing chart
+  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+
+  const displayLabels = slicedLabels.map(d => {
+    const p = d.split('-');
+    return p[2] + '/' + p[1];
+  });
+
+  const ctx = el.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
+  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
+  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
+
+  // Update title
+  const titleEl = document.getElementById('ytdChartTitle');
+  if (titleEl) {
+    const color = isPositive ? 'var(--green)' : 'var(--red)';
+    const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
+    const periodLabel = period === 'YTD' ? 'YTD' : period;
+    titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
+      'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
+      (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
+  }
+  const ytdStartEl = document.getElementById('ytdStartValue');
+  const ytdEndEl = document.getElementById('ytdEndValue');
+  const ytdStartLabel = document.getElementById('ytdStartLabel');
+  if (ytdStartEl) ytdStartEl.textContent = fmt(periodStart);
+  if (ytdEndEl) ytdEndEl.textContent = fmt(periodEnd);
+  if (ytdStartLabel) {
+    const startDate = slicedLabels[0].split('-');
+    ytdStartLabel.textContent = 'NAV ' + startDate[2] + '/' + startDate[1];
+  }
+
+  const mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
+  const datasets = [
+    {
+      label: mainLabel,
+      data: mainData,
+      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      backgroundColor: gradient,
+      borderWidth: 2,
+      pointRadius: mainData.length > 60 ? 1 : 2,
+      pointHoverRadius: 5,
+      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      fill: true,
+      tension: 0,
+    },
+    {
+      label: 'NAV début période (' + fmt(periodStart) + ')',
+      data: mainData.map(() => periodStart),
+      borderColor: '#a0aec0',
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      fill: false,
+    },
+  ];
+
+  charts.portfolioYTD = new Chart(el, {
+    type: 'line',
+    data: { labels: displayLabels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(45,55,72,0.95)',
+          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
+          callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const p = slicedLabels[items[0].dataIndex].split('-');
+              return p[2] + '/' + p[1] + '/' + p[0];
+            },
+            label: item => {
+              if (item.datasetIndex === 1) return 'Ref. début: ' + fmt(periodStart);
+              const val = item.parsed.y;
+              const diff = val - periodStart;
+              const pct = ((val / periodStart - 1) * 100).toFixed(2);
+              const label = showAll ? 'NAV Total' : 'NAV IBKR';
+              return label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
+            },
+          },
+        },
+      },
+    },
+  });
+
+  console.log('[ytd-chart] Period ' + period + ': ' + slicedLabels.length + ' points, Start=' + periodStart + ', End=' + periodEnd);
 }

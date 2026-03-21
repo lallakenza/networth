@@ -1383,13 +1383,22 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <h3 id="ytdChartTitle" style="margin:0"><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>&Eacute;volution Portefeuille IBKR — YTD 2026</h3>
       <div style="display:flex;gap:16px;font-size:12px;color:var(--gray);">
-        <span>NAV 1<sup>er</sup> jan : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
+        <span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
         <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
       </div>
     </div>
-    <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600;margin-bottom:8px">
-      <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
-      <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
+        <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+      </div>
+      <div id="ytdPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-period="MTD" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
+        <button data-period="1M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
+        <button data-period="3M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">3M</button>
+        <button data-period="YTD" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">YTD</button>
+        <button data-period="1Y" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1Y</button>
+      </div>
     </div>
     <!-- Progress bar for historical data loading -->
     <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
@@ -1793,7 +1802,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=161"></script>
+<script type="module" src="js/app.js?v=162"></script>
 
 </body>
 </html>
