@@ -116,7 +116,7 @@ export const PORTFOLIO = {
         { date: '2025-10-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
         { date: '2025-11-01', amount: 5886,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
         { date: '2025-12-01', amount: 4000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
-        { date: '2026-01-15', amount: 3000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement janvier 2026' },
+        { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement janvier 2026' },
       ],
       // Total dépôts IBKR = 202886 EUR
       // ── Historique complet des trades IBKR ──
