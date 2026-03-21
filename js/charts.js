@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=171';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=171';
-import { IMMO_CONSTANTS } from './data.js?v=171';
+import { fmt, fmtAxis } from './render.js?v=173';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=173';
+import { IMMO_CONSTANTS } from './data.js?v=173';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1738,28 +1738,37 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (!el) return;
   if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
 
-  const YTD_START = '2026-01-01';
+  // ── Determine simulation mode (YTD or 1Y) ──
+  const mode = (options && options.mode) || 'ytd';
+  const START_DATE = mode === '1y' ? '2025-04-01' : '2026-01-01';
   const todayStr = new Date().toISOString().slice(0, 10);
 
   // ── ESPP + SGTM scope options ──
   const includeESPP = options && options.includeESPP;
   const includeSGTM = options && options.includeSGTM;
 
-  // ── IBKR starting NAV ──
-  // From IBKR app: current NAV + abs(YTD loss) = starting NAV
-  // Default: 209495 (185261 + 24234 from IBKR screenshot Mar 21, 2026)
-  const STARTING_NAV = (options && options.startingNAV) || 209495;
+  // ── IBKR starting NAV and cash ──
+  let STARTING_NAV = (options && options.startingNAV) || 209495;
+  let IBKR_JPY_START = -1090000;
+  let IBKR_USD_START = -4356;
 
-  // ── Known starting cash balances (pre-2026 trades analysis) ──
-  // JPY: Shiseido buy Nov 2025 = -1,089,500 + small interest ≈ -1,090,000
-  // USD: EUR→USD Apr 2025 (+11498) - QQQM buy (-10777) - IBIT Dec buy (-5077) ≈ -4356
-  const IBKR_JPY_START = -1090000;
-  const IBKR_USD_START = -4356;
+  // For 1Y mode: start from scratch (NAV = 0, all cash = 0)
+  if (mode === '1y') {
+    STARTING_NAV = 0;
+    IBKR_JPY_START = 0;
+    IBKR_USD_START = 0;
+  }
 
   // ── Ticker mapping: trade tickers → Yahoo Finance tickers ──
+  // For 1Y: include all trades (sold positions too). For YTD: current positions only.
   const reverseMap = {}; // tradeTicker → yahooTicker
   portfolio.amine.ibkr.positions.forEach(p => { reverseMap[p.ticker] = p.ticker; });
-  (portfolio.amine.ibkr.trades || []).forEach(t => {
+
+  const tradesForMapping = mode === '1y'
+    ? (portfolio.amine.ibkr.trades || [])
+    : (portfolio.amine.ibkr.trades || []);
+
+  tradesForMapping.forEach(t => {
     if (t.type === 'fx' || reverseMap[t.ticker]) return;
     if (t.currency === 'EUR' && !t.ticker.includes('.')) {
       reverseMap[t.ticker] = t.ticker + '.PA';
@@ -1768,26 +1777,32 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
   });
 
-  // ── Build YTD-start holdings by reversing 2026 stock trades ──
-  const trades2026Stock = (portfolio.amine.ibkr.trades || [])
-    .filter(t => t.type !== 'fx' && t.date >= YTD_START && t.date <= todayStr)
+  // ── Build start-date holdings ──
+  // For YTD: reverse 2026 trades to find Jan 1 positions
+  // For 1Y: start with empty holdings (account didn't exist before Apr 1, 2025)
+  const tradesStock = (portfolio.amine.ibkr.trades || [])
+    .filter(t => t.type !== 'fx' && t.date >= START_DATE && t.date <= todayStr)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const ytdStartHoldings = {};
-  portfolio.amine.ibkr.positions.forEach(p => {
-    ytdStartHoldings[p.ticker] = { shares: p.shares, currency: p.currency };
-  });
-  [...trades2026Stock].reverse().forEach(t => {
-    const yahoo = reverseMap[t.ticker] || t.ticker;
-    if (!ytdStartHoldings[yahoo]) ytdStartHoldings[yahoo] = { shares: 0, currency: t.currency };
-    if (t.type === 'buy') ytdStartHoldings[yahoo].shares -= t.qty;
-    else if (t.type === 'sell') ytdStartHoldings[yahoo].shares += t.qty;
-  });
-  Object.keys(ytdStartHoldings).forEach(k => {
-    if (ytdStartHoldings[k].shares <= 0) delete ytdStartHoldings[k];
-  });
+  const startHoldings = {};
+  if (mode === 'ytd') {
+    // For YTD: start with current positions, reverse trades to find Jan 1 state
+    portfolio.amine.ibkr.positions.forEach(p => {
+      startHoldings[p.ticker] = { shares: p.shares, currency: p.currency };
+    });
+    [...tradesStock].reverse().forEach(t => {
+      const yahoo = reverseMap[t.ticker] || t.ticker;
+      if (!startHoldings[yahoo]) startHoldings[yahoo] = { shares: 0, currency: t.currency };
+      if (t.type === 'buy') startHoldings[yahoo].shares -= t.qty;
+      else if (t.type === 'sell') startHoldings[yahoo].shares += t.qty;
+    });
+    Object.keys(startHoldings).forEach(k => {
+      if (startHoldings[k].shares <= 0) delete startHoldings[k];
+    });
+  }
+  // For 1Y: startHoldings remains empty (no account before Apr 1, 2025)
 
-  console.log('[ytd-chart] YTD start holdings:', Object.entries(ytdStartHoldings).map(
+  console.log('[ytd-chart] Start holdings (' + mode.toUpperCase() + '):', Object.entries(startHoldings).map(
     ([t, d]) => t + ':' + d.shares
   ).join(', '));
 
@@ -1796,7 +1811,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   Object.values(historicalData.tickers).forEach(td => {
     if (td.dates.length > refDates.length) refDates = td.dates;
   });
-  refDates = refDates.filter(d => d >= YTD_START && d <= todayStr);
+  refDates = refDates.filter(d => d >= START_DATE && d <= todayStr);
   if (refDates.length === 0) { console.warn('[ytd-chart] No dates'); return; }
 
   // ── Price lookup helpers ──
@@ -1862,57 +1877,63 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── Compute day 1 positions value to derive starting EUR cash ──
-  // Prefer IBKR ytdOpen prices (exact Jan 2 close from IBKR) over Yahoo prices
-  // This ensures 4911.T (TSE closed Jan 2-3) and all other positions use IBKR's own valuations
-  const ibkrYtdOpenMap = {};
-  portfolio.amine.ibkr.positions.forEach(p => {
-    if (p.ytdOpen) ibkrYtdOpenMap[p.ticker] = { price: p.ytdOpen, currency: p.currency };
-  });
-
   let day1PosValue = 0;
-  const day1Prices = {};
-  const day1Missing = [];
-  Object.entries(ytdStartHoldings).forEach(([ticker, data]) => {
-    // Prefer IBKR ytdOpen, fallback to Yahoo (with forward-fill for holidays)
-    let price = ibkrYtdOpenMap[ticker]?.price;
-    let source = 'ibkr';
-    if (price == null) {
-      price = getClose(ticker, refDates[0], true);
-      source = 'yahoo';
+  let IBKR_EUR_START = 0;
+
+  if (mode === 'ytd') {
+    // For YTD: Prefer IBKR ytdOpen prices (exact Jan 2 close from IBKR) over Yahoo prices
+    const ibkrYtdOpenMap = {};
+    portfolio.amine.ibkr.positions.forEach(p => {
+      if (p.ytdOpen) ibkrYtdOpenMap[p.ticker] = { price: p.ytdOpen, currency: p.currency };
+    });
+
+    const day1Prices = {};
+    const day1Missing = [];
+    Object.entries(startHoldings).forEach(([ticker, data]) => {
+      // Prefer IBKR ytdOpen, fallback to Yahoo (with forward-fill for holidays)
+      let price = ibkrYtdOpenMap[ticker]?.price;
+      let source = 'ibkr';
+      if (price == null) {
+        price = getClose(ticker, refDates[0], true);
+        source = 'yahoo';
+      }
+      if (price != null) {
+        day1PosValue += data.shares * price / getFxRate(data.currency, refDates[0]);
+        day1Prices[ticker] = { price, source };
+      } else {
+        day1Missing.push(ticker);
+      }
+    });
+    if (day1Missing.length > 0) {
+      console.warn('[ytd-chart] Day 1 calibration: still missing prices for', day1Missing.join(', '));
     }
-    if (price != null) {
-      day1PosValue += data.shares * price / getFxRate(data.currency, refDates[0]);
-      day1Prices[ticker] = { price, source };
-    } else {
-      day1Missing.push(ticker);
-    }
-  });
-  if (day1Missing.length > 0) {
-    console.warn('[ytd-chart] Day 1 calibration: still missing prices for', day1Missing.join(', '));
+    console.log('[ytd-chart] Day 1 price sources:', Object.entries(day1Prices).map(
+      ([t, d]) => t + ':' + d.price + '(' + d.source + ')'
+    ).join(', '));
+
+    const day1FxUSD = getFxRate('USD', refDates[0]);
+    const day1FxJPY = getFxRate('JPY', refDates[0]);
+    const cashJPY_EUR_day1 = IBKR_JPY_START / day1FxJPY;
+    const cashUSD_EUR_day1 = IBKR_USD_START / day1FxUSD;
+
+    // EUR cash = starting NAV - positions - USD cash(eur) - JPY cash(eur)
+    IBKR_EUR_START = STARTING_NAV - day1PosValue - cashUSD_EUR_day1 - cashJPY_EUR_day1;
+
+    console.log('[ytd-chart] Day 1 calibration:',
+      'NAV=' + STARTING_NAV,
+      'Pos=' + Math.round(day1PosValue),
+      'EUR_cash=' + Math.round(IBKR_EUR_START),
+      'USD_cash=' + Math.round(cashUSD_EUR_day1),
+      'JPY_cash=' + Math.round(cashJPY_EUR_day1));
+  } else {
+    // For 1Y: start from scratch, IBKR_EUR_START = 0
+    console.log('[ytd-chart] 1Y mode: starting from 0, all cash = 0');
   }
-  console.log('[ytd-chart] Day 1 price sources:', Object.entries(day1Prices).map(
-    ([t, d]) => t + ':' + d.price + '(' + d.source + ')'
-  ).join(', '));
-
-  const day1FxUSD = getFxRate('USD', refDates[0]);
-  const day1FxJPY = getFxRate('JPY', refDates[0]);
-  const cashJPY_EUR_day1 = IBKR_JPY_START / day1FxJPY;
-  const cashUSD_EUR_day1 = IBKR_USD_START / day1FxUSD;
-
-  // EUR cash = starting NAV - positions - USD cash(eur) - JPY cash(eur)
-  const IBKR_EUR_START = STARTING_NAV - day1PosValue - cashUSD_EUR_day1 - cashJPY_EUR_day1;
-
-  console.log('[ytd-chart] Day 1 calibration:',
-    'NAV=' + STARTING_NAV,
-    'Pos=' + Math.round(day1PosValue),
-    'EUR_cash=' + Math.round(IBKR_EUR_START),
-    'USD_cash=' + Math.round(cashUSD_EUR_day1),
-    'JPY_cash=' + Math.round(cashJPY_EUR_day1));
 
   // ── Build all events (stock trades + FX trades + deposits) sorted by date ──
   const allEvents = [];
 
-  trades2026Stock.forEach(t => {
+  tradesStock.forEach(t => {
     const yahoo = reverseMap[t.ticker] || t.ticker;
     allEvents.push({
       date: t.date, eventType: t.type, ticker: yahoo, currency: t.currency,
@@ -1922,26 +1943,25 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   });
 
   (portfolio.amine.ibkr.trades || [])
-    .filter(t => t.type === 'fx' && t.date >= YTD_START && t.date <= todayStr)
+    .filter(t => t.type === 'fx' && t.date >= START_DATE && t.date <= todayStr)
     .forEach(t => {
       allEvents.push({
         date: t.date, eventType: 'fx', ticker: t.ticker,
         qty: t.qty, price: t.price, currency: t.currency,
-        jpyAmount: t.jpyAmount, // undefined for non-JPY FX, negative for short, positive for delever
-        targetAmount: t.targetAmount, // e.g. USD amount for EUR.USD trades
+        jpyAmount: t.jpyAmount,
+        targetAmount: t.targetAmount,
         commission: t.commission || 0,
       });
     });
 
   (portfolio.amine.ibkr.deposits || [])
-    .filter(d => d.date >= YTD_START && d.date <= todayStr)
+    .filter(d => d.date >= START_DATE && d.date <= todayStr)
     .forEach(d => {
       allEvents.push({ date: d.date, eventType: 'deposit', amount: d.amount });
     });
 
   // ── IBKR costs from data.js (interest, dividends) + dynamic FTT ──
-  // Source: ibkr.costs[] in data.js — no more hardcoded values here
-  const ibkrCostsFromData = (portfolio.amine.ibkr.costs || []).filter(c => c.date >= YTD_START);
+  const ibkrCostsFromData = (portfolio.amine.ibkr.costs || []).filter(c => c.date >= START_DATE);
   ibkrCostsFromData.forEach(c => {
     allEvents.push({
       date: c.date, eventType: 'cost',
@@ -1951,9 +1971,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       label: c.label,
     });
   });
-  // Dynamic FTT: compute from YTD buy trades (0.3% on FTT-eligible French stocks)
-  const FTT_ELIGIBLE_CHART = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA']);
-  trades2026Stock.forEach(t => {
+  // Dynamic FTT: compute from buy trades (0.3% on FTT-eligible French stocks)
+  const FTT_ELIGIBLE_CHART = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA','WLN','NXI','QQQM']);
+  tradesStock.forEach(t => {
     if (t.type === 'buy' && FTT_ELIGIBLE_CHART.has(reverseMap[t.ticker] || t.ticker)) {
       const ftt = (t.cost || 0) * 0.003;
       allEvents.push({
@@ -1968,7 +1988,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     ...c, eventType: 'cost',
   }))];
   // Add computed FTT items for the costItems export
-  trades2026Stock.forEach(t => {
+  tradesStock.forEach(t => {
     if (t.type === 'buy' && FTT_ELIGIBLE_CHART.has(reverseMap[t.ticker] || t.ticker)) {
       ibkrCostsYTD.push({
         date: t.date, type: 'ftt', eventType: 'cost',
@@ -1982,7 +2002,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // ── Forward simulation ──
   const holdings = {};
-  Object.entries(ytdStartHoldings).forEach(([t, d]) => {
+  Object.entries(startHoldings).forEach(([t, d]) => {
     holdings[t] = { shares: d.shares, currency: d.currency };
   });
 
@@ -2154,11 +2174,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // Update title and KPIs
   const titleEl = document.getElementById('ytdChartTitle');
+  const periodLabel = mode === '1y' ? '1Y' : 'YTD';
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
     const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-      'Evolution ' + scopeLabel + ' YTD — <span style="color:' + color + '">' +
+      'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
       (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
   }
   const ytdStartEl = document.getElementById('ytdStartValue');
@@ -2166,7 +2187,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const ytdStartLabel = document.getElementById('ytdStartLabel');
   if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
-  if (ytdStartLabel) ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
+  if (ytdStartLabel) {
+    if (mode === '1y') {
+      ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> avr 2025';
+    } else {
+      ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
+    }
+  }
 
   // Build datasets: show Total only (IBKR+ESPP+SGTM when scope=all, or IBKR-only when scope=ibkr)
   const mainData = showAll && chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
@@ -2261,7 +2288,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // ── Track deposits by date for TWR / KPI computation ──
   const depositsByDate = {};
   (portfolio.amine.ibkr.deposits || [])
-    .filter(d => d.date >= YTD_START && d.date <= todayStr)
+    .filter(d => d.date >= START_DATE && d.date <= todayStr)
     .forEach(d => { depositsByDate[d.date] = (depositsByDate[d.date] || 0) + d.amount; });
 
   // Return NAV series so KPIs can be computed from chart data
