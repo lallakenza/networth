@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=158';
-import { getGrandTotal } from './engine.js?v=158';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=159';
+import { getGrandTotal } from './engine.js?v=159';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -426,8 +426,10 @@ function renderExpandSubs(state, view) {
 
   // ── IBKR badge ──
   const ibkrBadge = document.getElementById('subIBKRBadge');
-  if (ibkrBadge && p0.amine.ibkr.meta.twr) {
-    ibkrBadge.textContent = 'TWR +' + p0.amine.ibkr.meta.twr.toFixed(2) + '%';
+  if (ibkrBadge) {
+    const chartTWR = window._chartKPIData?.twr;
+    const twrBadge = chartTWR != null ? chartTWR : (p0.amine.ibkr.meta.twr || 0);
+    ibkrBadge.textContent = 'TWR ' + (twrBadge >= 0 ? '+' : '') + twrBadge.toFixed(2) + '%';
   }
 
   // ── Dynamic immo sub-cards (CRD + CF badges) ──
@@ -613,7 +615,9 @@ function renderDynamicInsights(state, view) {
   // ── IBKR summary box ──
   const ibkrBox = document.getElementById('ibkrSummaryBox');
   if (ibkrBox) {
-    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.meta.deposits) + '. TWR ' + (p.amine.ibkr.meta.twr || 0).toFixed(2) + '% depuis ouverture.';
+    const chartTWR2 = window._chartKPIData?.twr;
+    const twrBox = chartTWR2 != null ? chartTWR2 : (p.amine.ibkr.meta.twr || 0);
+    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.meta.deposits) + '. TWR ' + (twrBox >= 0 ? '+' : '') + twrBox.toFixed(2) + '% YTD.';
   }
 
   // ── Amine actions insight ──
@@ -623,7 +627,7 @@ function renderDynamicInsights(state, view) {
     const jpyEUR = Math.round(jpyShort / fx.JPY);
     // Dynamic insights — compute portfolio projections from actual state
     const ibkrNAV = s.amine.ibkr;
-    const twr = (p.amine.ibkr.meta.twr || 0);
+    const twr = window._chartKPIData?.twr ?? (p.amine.ibkr.meta.twr || 0);
     const deposits = p.amine.ibkr.meta.deposits || 0;
     const plTotal = ibkrNAV - deposits;
     const plPct = deposits > 0 ? (plTotal / deposits * 100).toFixed(1) : '0';
@@ -1500,7 +1504,10 @@ function renderActionsView(state) {
 
   setText('kpiActionsTotalDeposits', fmt(av.totalDeposits));
   setText('kpiActionsDividends', fmt(av.dividends));
-  setText('kpiActionsTWR', 'TWR +' + av.twr.toFixed(1) + '%');
+  const _twrDisp = window._chartKPIData?.twr ?? av.twr;
+  setText('kpiActionsTWR', 'TWR ' + (_twrDisp >= 0 ? '+' : '') + _twrDisp.toFixed(1) + '%');
+  const _twrEl = document.getElementById('kpiActionsTWR');
+  if (_twrEl) _twrEl.className = 'value ' + (_twrDisp >= 0 ? 'pl-pos' : 'pl-neg');
 
   // Period P&L KPIs (Daily, MTD, 1M, YTD)
   if (av.periodPL) {
@@ -1956,7 +1963,8 @@ function renderActionsView(state) {
   setText('actionsCommissions', fmt(av.commissions));
   setText('actionsDeposits', fmt(av.deposits));
   setText('actionsNAV', fmt(av.ibkrNAV));
-  setText('actionsTWR', '+' + av.twr.toFixed(1) + '%');
+  const _twrMetrics = window._chartKPIData?.twr ?? av.twr;
+  setText('actionsTWR', (_twrMetrics >= 0 ? '+' : '') + _twrMetrics.toFixed(1) + '%');
 
   // Insights
   const insightsContainer = document.getElementById('actionsInsights');
@@ -2039,7 +2047,7 @@ function renderActionsView(state) {
         const b = ins.benchmarks;
         const ibkrYtd = b.ibkr.ytdPct;
         const totalYtd = b.total.ytdPct;
-        const twr = b.ibkr.twr;
+        const twr = window._chartKPIData?.twr ?? b.ibkr.twr;
         html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Donn\u00e9es au ' + b.date + '</div>';
         // Portfolio Total line
         html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:2px solid var(--accent);">';
@@ -2460,16 +2468,27 @@ function setupKPIDetailPanels(state) {
       return html;
     },
     detailDividends: function() {
+      // Use chart-computed TWR if available, else fallback to hardcoded meta.twr
+      const chartTWR = window._chartKPIData?.twr;
+      const twrVal = chartTWR != null ? chartTWR : av.twr;
+      const costs = window._chartKPIData?.ytd?.costs;
       let html = '<div class="detail-header"><h4>Dividendes & Performance</h4>';
-      html += '<div class="detail-summary">TWR ' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '% | Dividendes bruts ' + fmt(Math.round(av.dividends)) + '</div></div>';
+      html += '<div class="detail-summary">TWR ' + (twrVal >= 0 ? '+' : '') + twrVal.toFixed(1) + '% | Dividendes bruts ' + fmt(Math.round(av.dividends)) + '</div></div>';
       html += '<div class="detail-body">';
       html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus</span><span class="ticker-pl pl-pos">+' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
       html += '<div class="detail-row"><span class="ticker-label">Commissions payées</span><span class="ticker-pl pl-neg">-' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
+      if (costs) {
+        html += '<div class="detail-row"><span class="ticker-label" style="font-style:italic;color:#718096;">⚙ Intérêts marge YTD</span><span class="ticker-pl pl-neg">' + fmt(Math.round(costs.interestEUR)) + '</span><span class="ticker-bar"></span></div>';
+        if (costs.fttEUR) html += '<div class="detail-row"><span class="ticker-label" style="font-style:italic;color:#718096;">⚙ Taxe transactions (FTT) YTD</span><span class="ticker-pl pl-neg">' + fmt(Math.round(costs.fttEUR)) + '</span><span class="ticker-bar"></span></div>';
+      }
       const divYield = av.totalStocks > 0 ? (av.dividends / av.totalStocks * 100).toFixed(2) : '0.00';
       html += '<div class="detail-row"><span class="ticker-label">Yield dividende (brut)</span><span class="ticker-pl">' + divYield + '%</span><span class="ticker-bar"></span></div>';
-      html += '<div class="detail-row"><span class="ticker-label">TWR (performance globale)</span><span class="ticker-pl ' + (av.twr >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (av.twr >= 0 ? '+' : '') + av.twr.toFixed(1) + '%</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">TWR (performance globale)</span><span class="ticker-pl ' + (twrVal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (twrVal >= 0 ? '+' : '') + twrVal.toFixed(1) + '%</span><span class="ticker-bar"></span></div>';
       html += '</div>';
-      html += '<div class="detail-footer">💡 WHT (retenue à la source) déduite automatiquement sur dividendes FR (30%), US (15%), JP (15%). En tant que résident fiscal UAE, vendre avant l\'ex-date évite la WHT.</div>';
+      html += '<div class="detail-footer">';
+      html += '📊 <b>TWR (Time-Weighted Return)</b> mesure la performance pure du portefeuille en neutralisant l\'effet des dépôts/retraits. Calculé par chainage quotidien : ∏(NAV[j] / (NAV[j-1] + dépôt[j])) - 1. C\'est le standard GIPS utilisé par IBKR.';
+      html += '<br>💡 WHT (retenue à la source) déduite automatiquement sur dividendes FR (30%), US (15%), JP (15%). En tant que résident fiscal UAE, vendre avant l\'ex-date évite la WHT.';
+      html += '</div>';
       return html;
     },
   };
