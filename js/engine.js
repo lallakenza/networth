@@ -354,9 +354,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   //   - INFY: 300 shares sold 2025-04-07 @ $16.95 (held since 2020)
   // P&L formula: proceeds_EUR - (shares × price_1Y_ago_EUR)
   // where price_1Y_ago comes from data.js oneYearAgoPrices
-  const degiro = portfolio.amine.degiro || {};
-  const allTrades = portfolio.amine.allTrades || [];
-  const degiroSellsIn1Y = allTrades.filter(t =>
+  const _degiroData = portfolio.amine.degiro || {};
+  const _allTradesUnified = portfolio.amine.allTrades || [];
+  const degiroSellsIn1Y = _allTradesUnified.filter(t =>
     t.source === 'degiro' && t.type === 'sell' && t.date >= oneYearStr
   );
   const fxOneYearAgo = m.fxOneYearAgo || {};
