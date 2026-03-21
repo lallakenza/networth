@@ -1862,8 +1862,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     .forEach(t => {
       allEvents.push({
         date: t.date, eventType: 'fx', ticker: t.ticker,
-        qty: t.qty, currency: t.currency,
-        jpyAmount: t.jpyAmount || 0,
+        qty: t.qty, price: t.price, currency: t.currency,
+        jpyAmount: t.jpyAmount, // undefined for non-JPY FX, negative for short, positive for delever
+        targetAmount: t.targetAmount, // e.g. USD amount for EUR.USD trades
         commission: t.commission || 0,
       });
     });
@@ -1917,16 +1918,37 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         else if (e.currency === 'USD') { cashUSD += totalProceeds; cashUSD += comm; }
 
       } else if (e.eventType === 'fx') {
-        // FX trade: source currency decreases, JPY changes
+        // ── FX trade direction depends on jpyAmount sign ──
+        // jpyAmount < 0 → opening short JPY: borrow JPY, RECEIVE source currency (EUR/USD)
+        //   cashEUR/USD INCREASES by qty, cashJPY DECREASES by |jpyAmount|
+        // jpyAmount > 0 → closing short (deleverage): SPEND source currency, buy back JPY
+        //   cashEUR/USD DECREASES by qty, cashJPY INCREASES by jpyAmount
         const comm = e.commission || 0;
-        if (e.ticker.startsWith('EUR')) {
+        if (e.ticker.startsWith('EUR.JPY') || (e.ticker.startsWith('EUR') && e.jpyAmount !== undefined)) {
+          if (e.jpyAmount < 0) {
+            cashEUR += e.qty;   // receive EUR from JPY short
+          } else {
+            cashEUR -= e.qty;   // spend EUR to buy back JPY
+          }
+          cashJPY += e.jpyAmount;
+          cashEUR += comm;      // IBKR commissions in base currency (EUR)
+        } else if (e.ticker.startsWith('USD.JPY') || (e.ticker.startsWith('USD') && e.jpyAmount !== undefined)) {
+          if (e.jpyAmount < 0) {
+            cashUSD += e.qty;   // receive USD from JPY short
+          } else {
+            cashUSD -= e.qty;   // spend USD to buy back JPY
+          }
+          cashJPY += e.jpyAmount;
+          cashEUR += comm;      // IBKR commissions always in base currency (EUR)
+        } else if (e.ticker === 'EUR.USD') {
+          // EUR→USD conversion: sell EUR, get USD
           cashEUR -= e.qty;
-          cashJPY += e.jpyAmount;
+          cashUSD += (e.targetAmount || e.qty * e.price);
           cashEUR += comm;
-        } else if (e.ticker.startsWith('USD')) {
-          cashUSD -= e.qty;
-          cashJPY += e.jpyAmount;
-          cashUSD += comm; // or EUR? IBKR usually charges commission in base currency
+        } else if (e.ticker === 'EUR.AED') {
+          // EUR→AED: just reduces EUR cash (AED not tracked in IBKR chart)
+          cashEUR -= e.qty;
+          cashEUR += comm;
         }
 
       } else if (e.eventType === 'deposit') {
