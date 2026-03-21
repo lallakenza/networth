@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=161';
-import { compute } from './engine.js?v=161';
-import { render } from './render.js?v=161';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=161';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=161';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=161';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=162';
+import { compute } from './engine.js?v=162';
+import { render } from './render.js?v=162';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=162';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=162';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=162';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -641,22 +641,48 @@ async function loadStockPrices(forceRefresh) {
         if (chartResult) updateKPIsFromChart(chartResult);
         console.log('[app] YTD portfolio chart built successfully');
 
+        // Track current state for toggles
+        let currentScope = 'ibkr';
+        let currentPeriod = 'YTD';
+
         // Bind scope toggle buttons
         document.querySelectorAll('#ytdScopeToggle button').forEach(btn => {
           btn.addEventListener('click', () => {
-            // Update active button styling
             document.querySelectorAll('#ytdScopeToggle button').forEach(b => {
               b.style.background = '#fff'; b.style.color = '#4a5568';
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
-            // Rebuild chart with new scope
-            const scope = btn.dataset.scope;
+            currentScope = btn.dataset.scope;
             const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
               startingNAV: 209495,
-              includeESPP: scope === 'all',
-              includeSGTM: scope === 'all',
+              includeESPP: currentScope === 'all',
+              includeSGTM: currentScope === 'all',
             });
             if (scopeResult) updateKPIsFromChart(scopeResult);
+            // Re-apply current period filter
+            if (currentPeriod !== 'YTD') redrawChartForPeriod(currentPeriod);
+          });
+        });
+
+        // Bind period toggle buttons
+        document.querySelectorAll('#ytdPeriodToggle button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#ytdPeriodToggle button').forEach(b => {
+              b.style.background = '#fff'; b.style.color = '#4a5568';
+            });
+            btn.style.background = '#2d3748'; btn.style.color = '#fff';
+            currentPeriod = btn.dataset.period;
+            if (currentPeriod === 'YTD') {
+              // Rebuild full chart
+              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+                startingNAV: 209495,
+                includeESPP: currentScope === 'all',
+                includeSGTM: currentScope === 'all',
+              });
+              if (scopeResult) updateKPIsFromChart(scopeResult);
+            } else {
+              redrawChartForPeriod(currentPeriod);
+            }
           });
         });
       } catch (e) {
