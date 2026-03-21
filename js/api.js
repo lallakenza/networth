@@ -544,9 +544,8 @@ function loadHistCache() {
     const raw = localStorage.getItem(histCacheKey());
     if (!raw) return null;
     const cache = JSON.parse(raw);
-    // Check TTL
     if (cache._ts && (Date.now() - cache._ts) < HIST_CACHE_TTL_MS) return cache;
-    return null; // stale
+    return null;
   } catch (e) { return null; }
 }
 
@@ -554,7 +553,6 @@ function saveHistCache(data) {
   try {
     data._ts = Date.now();
     localStorage.setItem(histCacheKey(), JSON.stringify(data));
-    // Purge old hist caches
     const today = histCacheKey();
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
@@ -562,7 +560,7 @@ function saveHistCache(data) {
         localStorage.removeItem(key);
       }
     }
-  } catch (e) { /* quota exceeded — ignore */ }
+  } catch (e) { /* quota exceeded */ }
 }
 
 /**
@@ -585,13 +583,12 @@ async function fetchTickerHistory(symbol) {
           const closes = result.indicators?.quote?.[0]?.close;
           if (!timestamps || !closes || timestamps.length === 0) throw new Error('no OHLC');
 
-          // Convert timestamps (Unix seconds) to YYYY-MM-DD strings
           const dates = timestamps.map(ts => {
             const dt = new Date(ts * 1000);
             return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
           });
 
-          // Fill null closes with previous valid value (forward-fill)
+          // Forward-fill null closes
           const filledCloses = [];
           let lastValid = null;
           for (let i = 0; i < closes.length; i++) {
@@ -617,14 +614,12 @@ async function fetchTickerHistory(symbol) {
  * Returns { tickers: { [ticker]: { dates, closes } }, fx: { usd: { dates, closes }, jpy: { dates, closes } } }
  *
  * @param {string[]} tickers - Yahoo Finance tickers to fetch
- * @param {function} [onProgress] - callback(loaded, total, ticker) for progress
+ * @param {function} [onProgress] - callback(loaded, total, ticker)
  * @returns {object} Historical data map
  */
 export async function fetchHistoricalPricesYTD(tickers, onProgress) {
-  // Check cache first
   const cached = loadHistCache();
   if (cached && cached.tickers && cached.fx) {
-    // Validate cache has all requested tickers
     const missing = tickers.filter(t => !cached.tickers[t]);
     if (missing.length === 0) {
       console.log('[hist] All historical data from cache (' + tickers.length + ' tickers + FX)');
@@ -636,11 +631,8 @@ export async function fetchHistoricalPricesYTD(tickers, onProgress) {
   const total = tickers.length + 2; // +2 for EURUSD + EURJPY
   let loaded = 0;
   const result = { tickers: {}, fx: {} };
-
-  // Fetch all tickers + FX in parallel (max ~18 tickers + 2 FX = 20 parallel groups)
   const allPromises = [];
 
-  // Stock tickers
   for (const ticker of tickers) {
     allPromises.push(
       fetchTickerHistory(ticker).then(data => {
@@ -651,8 +643,7 @@ export async function fetchHistoricalPricesYTD(tickers, onProgress) {
     );
   }
 
-  // FX: EUR/USD and EUR/JPY (Yahoo uses inverted format for some pairs)
-  // EURUSD=X gives EUR→USD rate, so 1 EUR = X USD
+  // FX: EUR/USD and EUR/JPY historical rates
   allPromises.push(
     fetchTickerHistory('EURUSD=X').then(data => {
       loaded++;
@@ -669,8 +660,6 @@ export async function fetchHistoricalPricesYTD(tickers, onProgress) {
   );
 
   await Promise.all(allPromises);
-
-  // Save to cache
   saveHistCache(result);
 
   const loadedCount = Object.keys(result.tickers).length;
