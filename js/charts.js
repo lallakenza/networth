@@ -2038,7 +2038,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     if (t.type === 'buy' && FTT_ELIGIBLE_CHART.has(reverseMap[t.ticker] || t.ticker)) {
       ibkrCostsYTD.push({
         date: t.date, type: 'ftt', eventType: 'cost',
-        eurAmount: -(t.cost || 0) * 0.003, usdAmount: 0, jpyAmount: 0,
+        eurAmount: -(t.cost || 0) * 0.004, usdAmount: 0, jpyAmount: 0,
         label: 'FTT ' + (t.label || t.ticker),
       });
     }
