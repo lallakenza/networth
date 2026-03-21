@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=156';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=156';
-import { IMMO_CONSTANTS } from './data.js?v=156';
+import { fmt, fmtAxis } from './render.js?v=157';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=157';
+import { IMMO_CONSTANTS } from './data.js?v=157';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2143,39 +2143,24 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
 
-  // Build datasets: always show IBKR, optionally show Total
+  // Build datasets: show Total only (IBKR+ESPP+SGTM when scope=all, or IBKR-only when scope=ibkr)
+  const mainData = showAll && chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
+  const mainLabel = showAll ? 'NAV Total (EUR)' : 'NAV IBKR (EUR)';
   const datasets = [
     {
-      label: 'NAV IBKR (EUR)',
-      data: chartValues,
-      borderColor: isPositive ? '#48bb78' : '#e53e3e',
-      backgroundColor: showAll ? 'transparent' : gradient,
-      borderWidth: showAll ? 1.5 : 2,
-      pointRadius: 2,
-      pointHoverRadius: 5,
-      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      fill: !showAll,
-      tension: 0, // straight lines between points (like IBKR)
-    },
-  ];
-
-  // Add Total NAV line if showing all positions
-  if (showAll && chartValuesTotal.length > 0) {
-    datasets.unshift({
-      label: 'NAV Total (EUR)',
-      data: chartValuesTotal,
+      label: mainLabel,
+      data: mainData,
       borderColor: isPositive ? '#48bb78' : '#e53e3e',
       backgroundColor: gradient,
-      borderWidth: 2.5,
+      borderWidth: 2,
       pointRadius: 2,
       pointHoverRadius: 5,
       pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
       fill: true,
       tension: 0, // straight lines between points (like IBKR)
-    });
-  }
+    },
+  ];
 
   // Add reference line for starting value
   datasets.push({
@@ -2228,7 +2213,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
               const val = item.parsed.y;
               const diff = val - startValue;
               const pct = ((val / startValue - 1) * 100).toFixed(2);
-              const label = showAll && item.datasetIndex === 0 ? 'NAV Total' : 'NAV IBKR';
+              const label = showAll ? 'NAV Total' : 'NAV IBKR';
               return label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
             },
           },
@@ -2238,4 +2223,20 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   });
 
   console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
+
+  // ── Track deposits by date for TWR / KPI computation ──
+  const depositsByDate = {};
+  (portfolio.amine.ibkr.deposits || [])
+    .filter(d => d.date >= YTD_START && d.date <= todayStr)
+    .forEach(d => { depositsByDate[d.date] = (depositsByDate[d.date] || 0) + d.amount; });
+
+  // Return NAV series so KPIs can be computed from chart data
+  return {
+    labels: chartLabels,          // ['2026-01-02', '2026-01-03', ...]
+    ibkrValues: chartValues,      // IBKR-only NAV per day
+    totalValues: chartValuesTotal, // IBKR+ESPP+SGTM NAV per day
+    depositsByDate: depositsByDate,  // { '2026-01-09': 3000 }
+    startingNAV: STARTING_NAV,
+    scope: showAll ? 'all' : 'ibkr',
+  };
 }

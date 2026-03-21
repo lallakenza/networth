@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=156';
-import { compute } from './engine.js?v=156';
-import { render } from './render.js?v=156';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=156';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=156';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=156';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=157';
+import { compute } from './engine.js?v=157';
+import { render } from './render.js?v=157';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=157';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=157';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=157';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -260,6 +260,136 @@ refreshFX(false);
 // Auto-refresh FX every 5 minutes
 setInterval(() => refreshFX(true), 5 * 60 * 1000);
 
+// ---- KPI computation from chart NAV series ----
+// Uses the accurate forward-simulation data from buildPortfolioYTDChart
+// instead of the per-position P&L approach (which misses cash/FX/deposits)
+function updateKPIsFromChart(chartData) {
+  const { labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope } = chartData;
+  if (!labels || labels.length < 2) return;
+
+  // Use total values if scope=all, else IBKR-only
+  const values = scope === 'all' && totalValues.length > 0 ? totalValues : ibkrValues;
+  const n = values.length;
+  const lastNAV = values[n - 1];
+  const prevNAV = values[n - 2];
+
+  // Helper: find NAV at or just before a target date
+  function navAtDate(targetDate) {
+    for (let i = labels.length - 1; i >= 0; i--) {
+      if (labels[i] <= targetDate) return values[i];
+    }
+    return values[0]; // fallback to first
+  }
+
+  // Helper: sum deposits between two dates (exclusive start, inclusive end)
+  function depositsInRange(startDate, endDate) {
+    let total = 0;
+    for (const [date, amount] of Object.entries(depositsByDate)) {
+      if (date > startDate && date <= endDate) total += amount;
+    }
+    return total;
+  }
+
+  const lastDate = labels[n - 1];
+  const prevDate = labels[n - 2];
+  const firstDate = labels[0];
+
+  // Compute period boundaries
+  const lastDateObj = new Date(lastDate);
+  // MTD: first day of current month
+  const mtdStart = lastDate.slice(0, 8) + '01';
+  // 1 Month ago
+  const oneMonthAgo = new Date(lastDateObj);
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const oneMonthStr = oneMonthAgo.toISOString().slice(0, 10);
+
+  // P&L = NAV change minus deposits in the period
+  // P&L Daily
+  const depositsDaily = depositsInRange(prevDate, lastDate);
+  const plDaily = lastNAV - prevNAV - depositsDaily;
+
+  // P&L MTD
+  const mtdRefDate = mtdStart < firstDate ? firstDate : mtdStart;
+  const navMTDStart = navAtDate(mtdRefDate);
+  // We need deposits after mtdRefDate up to lastDate
+  const mtdStartActual = labels.find(d => d >= mtdRefDate) || firstDate;
+  const prevMtdDate = labels[Math.max(0, labels.indexOf(mtdStartActual) - 1)] || firstDate;
+  const navBeforeMTD = navAtDate(prevMtdDate);
+  const depositsMTD = depositsInRange(prevMtdDate, lastDate);
+  const plMTD = lastNAV - navBeforeMTD - depositsMTD;
+
+  // P&L 1 Month
+  const nav1MAgo = navAtDate(oneMonthStr);
+  const date1MAgo = labels.find(d => d >= oneMonthStr) || firstDate;
+  const prevDate1M = labels[Math.max(0, labels.indexOf(date1MAgo) - 1)] || firstDate;
+  const navBefore1M = navAtDate(prevDate1M);
+  const deposits1M = depositsInRange(prevDate1M, lastDate);
+  const pl1M = lastNAV - navBefore1M - deposits1M;
+
+  // P&L YTD
+  const depositsYTD = depositsInRange('2025-12-31', lastDate);
+  // For scope=ibkr: startingNAV is 209495. For scope=all, use the first total value.
+  const ytdStartNAV = scope === 'all' ? values[0] : startingNAV;
+  const plYTD = lastNAV - ytdStartNAV - depositsYTD;
+
+  // TWR (Time-Weighted Return) using Modified Dietz / daily chaining
+  // TWR = product of (1 + daily_return) - 1, where daily_return adjusts for deposits
+  let twr = 1;
+  for (let i = 1; i < n; i++) {
+    const prevVal = values[i - 1];
+    const dep = depositsByDate[labels[i]] || 0;
+    // Daily return: (endNAV - deposit) / startNAV - 1
+    // Deposit is added at start of day, so adjusted start = prevVal + deposit
+    const adjustedStart = prevVal + dep;
+    if (adjustedStart > 0) {
+      twr *= values[i] / adjustedStart;
+    }
+  }
+  const twrPct = (twr - 1) * 100;
+
+  // Format helper
+  const fmt = v => {
+    const abs = Math.abs(Math.round(v));
+    const s = abs.toLocaleString('fr-FR');
+    return (v < 0 ? '-' : '') + s;
+  };
+
+  // Update DOM
+  function updateKPI(id, value, refValue) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = Math.round(value);
+    const sign = v >= 0 ? '+' : '';
+    el.textContent = sign + fmt(v);
+    el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+    // Update sub-percentage
+    const subEl = el.parentElement?.querySelector('.kpi-sub');
+    if (subEl && refValue && refValue > 0) {
+      const pct = (value / refValue * 100).toFixed(1);
+      const pSign = value >= 0 ? '+' : '';
+      subEl.textContent = pSign + pct + '%';
+      subEl.className = 'kpi-sub ' + (value >= 0 ? 'pl-pos' : 'pl-neg');
+    }
+  }
+
+  updateKPI('kpiPLDaily', plDaily, prevNAV);
+  updateKPI('kpiPLMTD', plMTD, navBeforeMTD);
+  updateKPI('kpiPL1M', pl1M, navBefore1M);
+  updateKPI('kpiPLYTD', plYTD, ytdStartNAV);
+
+  // Update TWR
+  const twrEl = document.getElementById('kpiActionsTWR');
+  if (twrEl) {
+    const twrSign = twrPct >= 0 ? '+' : '';
+    twrEl.textContent = 'TWR ' + twrSign + twrPct.toFixed(1) + '%';
+    twrEl.className = 'value ' + (twrPct >= 0 ? 'pl-pos' : 'pl-neg');
+  }
+
+  console.log('[kpi-chart] Updated KPIs from chart: Daily=' + Math.round(plDaily) +
+    ', MTD=' + Math.round(plMTD) + ', 1M=' + Math.round(pl1M) +
+    ', YTD=' + Math.round(plYTD) + ', TWR=' + twrPct.toFixed(2) + '%');
+}
+
 // ---- Stock price loading with progress ----
 let stockRefreshInProgress = false;
 
@@ -464,9 +594,10 @@ async function loadStockPrices(forceRefresh) {
 
         // Build the YTD portfolio evolution chart
         // Uses calibrated forward simulation (see charts.js for algorithm details)
-        buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+        const chartResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
           startingNAV: 209495 // IBKR Jan 1 NAV = current NAV + abs(YTD loss)
         });
+        if (chartResult) updateKPIsFromChart(chartResult);
         console.log('[app] YTD portfolio chart built successfully');
 
         // Bind scope toggle buttons
@@ -479,11 +610,12 @@ async function loadStockPrices(forceRefresh) {
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             // Rebuild chart with new scope
             const scope = btn.dataset.scope;
-            buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+            const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
               startingNAV: 209495,
               includeESPP: scope === 'all',
               includeSGTM: scope === 'all',
             });
+            if (scopeResult) updateKPIsFromChart(scopeResult);
           });
         });
       } catch (e) {
