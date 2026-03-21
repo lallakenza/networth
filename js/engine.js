@@ -315,20 +315,26 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   //   - If position bought WITHIN period → P&L = realizedPL (proceeds - cost)
   function closedPeriodPL(periodStartDate, getRefPrice) {
     let total = 0;
+    const items = [];
     ibkrSellTrades.forEach(t => {
       if (t.date >= periodStartDate && !openTickers.has(t.ticker)) {
         const existed = _tickerExistedBefore(t.ticker, periodStartDate);
         const refPrice = existed ? getRefPrice(t.ticker) : 0;
+        let pl = 0;
         if (refPrice && refPrice > 0) {
           const refVal = toEUR(t.qty * refPrice, t.currency, fx);
           const proceedsEUR = toEUR(t.proceeds, t.currency, fx);
-          total += proceedsEUR - refVal;
+          pl = proceedsEUR - refVal;
         } else if (typeof t.realizedPL === 'number') {
-          total += toEUR(t.realizedPL, t.currency, fx);
+          pl = toEUR(t.realizedPL, t.currency, fx);
+        }
+        if (pl !== 0) {
+          total += pl;
+          items.push({ ticker: t.ticker, label: t.label || t.ticker, date: t.date, pl, qty: t.qty, proceeds: t.proceeds, currency: t.currency });
         }
       }
     });
-    return total;
+    return { total, items };
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -361,12 +367,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Bug corrigé: ¥871.60 (Shiseido) était compté comme €871.60 → faussait le total
   function computeCommissions(startDate) {
     let total = 0;
+    const items = [];
     _allIbkrTrades.forEach(t => {
       if (t.date >= startDate && t.commission) {
-        total += toEUR(t.commission, t.currency || 'EUR', fx); // convert to EUR
+        const eurComm = toEUR(t.commission, t.currency || 'EUR', fx);
+        total += eurComm;
+        items.push({ ticker: t.ticker, label: (t.type === 'buy' ? 'Achat' : 'Vente') + ' ' + (t.label || t.ticker), date: t.date, amount: eurComm });
       }
     });
-    return total;
+    return { total, items };
   }
 
   // ── Intérêts marge dynamiques ──
@@ -374,12 +383,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrCosts = ibkr.costs || [];
   function computeInterest(startDate) {
     let eurTotal = 0;
+    const items = [];
     ibkrCosts.filter(c => c.type === 'interest' && c.date >= startDate).forEach(c => {
-      eurTotal += (c.eurAmount || 0);
-      eurTotal += toEUR(c.usdAmount || 0, 'USD', fx);
-      eurTotal += toEUR(c.jpyAmount || 0, 'JPY', fx);
+      const eur = (c.eurAmount || 0);
+      const usd = toEUR(c.usdAmount || 0, 'USD', fx);
+      const jpy = toEUR(c.jpyAmount || 0, 'JPY', fx);
+      const amount = eur + usd + jpy;
+      eurTotal += amount;
+      items.push({ label: c.label, date: c.date, amount, eurAmount: c.eurAmount, usdAmount: c.usdAmount, jpyAmount: c.jpyAmount });
     });
-    return eurTotal;
+    return { total: eurTotal, items };
   }
 
   // ── Dividendes IBKR dynamiques ──
@@ -434,8 +447,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     return {
       fttEUR: ftt.total,
       fttItems: ftt.items,
-      commissionsEUR: comm,
-      interestEUR: interest,
+      commissionsEUR: comm.total,
+      commissionsItems: comm.items,
+      interestEUR: interest.total,
+      interestItems: interest.items,
       dividendsEUR: totalDividends,
       ibkrDivItems: ibkrDiv.items,
       acnDivItems: acnDiv.items,
@@ -484,11 +499,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   }
 
   // ── Pre-compute closed P&L for each period ──
-  const closedDailyPL    = closedPeriodPL(todayStr,     t => getRefPrice(t, 'daily'));
-  const closedMtdPL      = closedPeriodPL(mtdStartStr,  t => getRefPrice(t, 'mtd'));
-  const closedOneMonthPL = closedPeriodPL(oneMonthStr,  t => getRefPrice(t, 'oneMonth'));
-  const closedYtdPL      = closedPeriodPL(ytdStartStr,  t => getRefPrice(t, 'ytd'));
-  const closedOneYearPL  = closedPeriodPL(oneYearStr,   t => getRefPrice(t, 'oneYear'));
+  const closedDaily    = closedPeriodPL(todayStr,     t => getRefPrice(t, 'daily'));
+  const closedMtd      = closedPeriodPL(mtdStartStr,  t => getRefPrice(t, 'mtd'));
+  const closedOneMonth = closedPeriodPL(oneMonthStr,  t => getRefPrice(t, 'oneMonth'));
+  const closedYtd      = closedPeriodPL(ytdStartStr,  t => getRefPrice(t, 'ytd'));
+  const closedOneYear  = closedPeriodPL(oneYearStr,   t => getRefPrice(t, 'oneYear'));
 
   // ── Pre-compute costs for each period ──
   const costsDaily    = computeAllCosts(todayStr);
@@ -503,7 +518,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Pre-compute YTD P&L for benchmark comparison
   // IBKR only — now includes closed positions P&L
-  const ibkrYtdPL = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0) + closedYtdPL;
+  const ibkrYtdPL = ibkrPositions.reduce((s, p) => s + (p.ytdPL || 0), 0) + closedYtd.total;
   const ibkrStartOfYear = totalPositionsVal - ibkrYtdPL;
   const ibkrYtdPct = ibkrStartOfYear > 0 ? (ibkrYtdPL / ibkrStartOfYear * 100) : 0;
   // Total portfolio (IBKR + ESPP Amine + ESPP Nezha + SGTM)
@@ -880,8 +895,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       // ── Unified fullPeriodPL ──
       // opts.sgtmInTotal: true to add SGTM to the P&L total (only when we have a ref price)
       // opts.sgtmInBreakdown: true to show SGTM in breakdown (always for periods > daily)
-      function fullPeriodPL(field, acnRefPrice, closedPL, periodCosts, opts) {
+      function fullPeriodPL(field, acnRefPrice, closedData, periodCosts, opts) {
         opts = opts || {};
+        const closedPL = closedData.total;
+        const closedItems = closedData.items;
         // 1. IBKR open positions
         const ibkrPL = sumField(field);
         // 2. ESPP (Amine + Nezha)
@@ -910,24 +927,26 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
           });
         }
         if (closedPL !== 0) {
-          items.push({ label: 'P/L Réalisé (fermées)', ticker: '_CLOSED_IBKR', pl: closedPL, _isCost: true });
+          items.push({ label: 'P/L Réalisé (fermées)', ticker: '_CLOSED_IBKR', pl: closedPL, _isCost: true, _detail: closedItems });
         }
         if (opts.degiroItems) opts.degiroItems.forEach(i => items.push(i));
 
         // ── Cost items (FTT, commissions, interest, dividends) ──
         // Included in breakdown for display, NOT in total (costs are separate from position P&L)
+        // Each item carries _detail array for expandable per-trade/per-month detail
         if (periodCosts) {
           if (periodCosts.interestEUR && Math.abs(periodCosts.interestEUR) >= 1) {
-            items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: periodCosts.interestEUR, _isCost: true });
+            items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: periodCosts.interestEUR, _isCost: true, _detail: periodCosts.interestItems });
           }
           if (periodCosts.fttEUR && Math.abs(periodCosts.fttEUR) >= 1) {
-            items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: periodCosts.fttEUR, _isCost: true });
+            items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: periodCosts.fttEUR, _isCost: true, _detail: periodCosts.fttItems });
           }
           if (periodCosts.commissionsEUR && Math.abs(periodCosts.commissionsEUR) >= 1) {
-            items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: periodCosts.commissionsEUR, _isCost: true });
+            items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: periodCosts.commissionsEUR, _isCost: true, _detail: periodCosts.commissionsItems });
           }
           if (periodCosts.dividendsEUR && Math.abs(periodCosts.dividendsEUR) >= 1) {
-            items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: periodCosts.dividendsEUR, _isCost: true });
+            const divDetail = [...(periodCosts.ibkrDivItems || []), ...(periodCosts.acnDivItems || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: periodCosts.dividendsEUR, _isCost: true, _detail: divDetail });
           }
         }
 
@@ -941,11 +960,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       //   - MTD/1M/YTD: SGTM in breakdown ONLY (no period-start ref price available)
       //   - 1Y: SGTM in total + breakdown (IPO was Dec 2025, within 1Y window)
       return {
-        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDailyPL,    costsDaily,    { cashFxPL: cashFxPL }),
-        mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtdPL,      costsMtd,      { sgtmInBreakdown: true }),
-        ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtdPL,      costsYtd,      { sgtmInBreakdown: true }),
-        oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonthPL, costsOneMonth, { sgtmInBreakdown: true }),
-        oneYear:  fullPeriodPL('oneYearPL',  m.acnOneYearAgo,    closedOneYearPL,  costsOneYear,  {
+        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL }),
+        mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true }),
+        ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true }),
+        oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true }),
+        oneYear:  fullPeriodPL('oneYearPL',  m.acnOneYearAgo,    closedOneYear,  costsOneYear,  {
           sgtmInTotal: true,
           sgtmInBreakdown: true,
           degiroPL: degiro1Y.total,

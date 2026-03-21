@@ -2241,17 +2241,72 @@ function setupKPIDetailPanels(state) {
     html += '<div style="font-size:11px;font-weight:700;color:#c53030;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #fed7d7;margin-bottom:6px;">';
     html += '📉 Pertes (' + fmt(Math.round(totalLoss)) + ')</div>';
     if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
-    losers.forEach(function(i) {
+    // Helper: render a single breakdown row (loser or gainer)
+    var _detailCounter = 0;
+    function renderBreakdownRow(i, maxAbs, isGainer) {
       var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
       var isCost = i._isCost;
+      var hasDetail = i._detail && i._detail.length > 0;
       var labelStyle = isCost ? 'font-weight:500;font-style:italic;color:#718096;' : 'font-weight:500;';
-      var barColor = isCost ? '#cbd5e0' : '#fc8181';
-      html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-      html += '<span style="flex:1;' + labelStyle + '">' + (isCost ? '⚙ ' : '') + i.label + '</span>';
-      html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(i.pl)) + '</span>';
-      html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
-      html += '<span style="display:block;height:100%;width:' + barW + '%;background:' + barColor + ';border-radius:3px;"></span></span>';
-      html += '</div>';
+      var barColor = isGainer ? (isCost ? '#9ae6b4' : '#48bb78') : (isCost ? '#cbd5e0' : '#fc8181');
+      var valueColor = isGainer ? '#276749' : '#c53030';
+      var detailId = hasDetail ? 'bd_' + (++_detailCounter) : '';
+      var cursor = hasDetail ? 'cursor:pointer;' : '';
+      var chevron = hasDetail ? '<span style="font-size:9px;color:#a0aec0;margin-right:3px;transition:transform .2s;" class="bd-chev">▶</span>' : '';
+      var row = '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;' + cursor + '"';
+      if (hasDetail) row += ' onclick="(function(e){var d=document.getElementById(\'' + detailId + '\');var c=e.currentTarget.querySelector(\'.bd-chev\');if(d.style.display===\'none\'){d.style.display=\'block\';c.style.transform=\'rotate(90deg)\';}else{d.style.display=\'none\';c.style.transform=\'rotate(0deg)\';}})(event)"';
+      row += '>';
+      row += '<span style="flex:1;' + labelStyle + '">' + chevron + (isCost ? '⚙ ' : '') + i.label + '</span>';
+      row += '<span style="min-width:75px;text-align:right;font-weight:700;color:' + valueColor + ';">' + (isGainer ? '+' : '') + fmt(Math.round(i.pl)) + '</span>';
+      row += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
+      row += '<span style="display:block;height:100%;width:' + barW + '%;background:' + barColor + ';border-radius:3px;"></span></span>';
+      row += '</div>';
+      // Expandable detail panel
+      if (hasDetail) {
+        row += '<div id="' + detailId + '" style="display:none;background:#f7fafc;border-bottom:1px solid #e2e8f0;padding:6px 8px 6px 20px;font-size:11px;">';
+        i._detail.forEach(function(d) {
+          var dateStr = d.date ? '<span style="color:#a0aec0;margin-right:6px;">' + d.date + '</span>' : '';
+          var lbl = d.label || d.ticker || '';
+          // For closed positions: show P&L per trade
+          if (d.pl != null) {
+            var plColor = d.pl >= 0 ? '#276749' : '#c53030';
+            var plSign = d.pl >= 0 ? '+' : '';
+            row += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #edf2f7;">';
+            row += '<span>' + dateStr + lbl + '</span>';
+            row += '<span style="font-weight:600;color:' + plColor + ';">' + plSign + fmt(Math.round(d.pl)) + '</span>';
+            row += '</div>';
+          }
+          // For FTT items: show cost + ftt
+          else if (d.ftt != null) {
+            row += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #edf2f7;">';
+            row += '<span>' + dateStr + lbl + '</span>';
+            row += '<span style="font-weight:600;color:#c53030;">' + fmt(Math.round(-d.ftt)) + '</span>';
+            row += '</div>';
+          }
+          // For interest/commissions/dividends: show amount
+          else if (d.amount != null) {
+            var amtColor = d.amount >= 0 ? '#276749' : '#c53030';
+            var amtSign = d.amount >= 0 ? '+' : '';
+            row += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #edf2f7;">';
+            row += '<span>' + dateStr + lbl + '</span>';
+            row += '<span style="font-weight:600;color:' + amtColor + ';">' + amtSign + fmt(Math.round(d.amount)) + '</span>';
+            row += '</div>';
+          }
+          // For ACN dividends: show netEUR
+          else if (d.netEUR != null) {
+            row += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #edf2f7;">';
+            row += '<span>' + dateStr + lbl + '</span>';
+            row += '<span style="font-weight:600;color:#276749;">+' + fmt(Math.round(d.netEUR)) + '</span>';
+            row += '</div>';
+          }
+        });
+        row += '</div>';
+      }
+      return row;
+    }
+
+    losers.forEach(function(i) {
+      html += renderBreakdownRow(i, maxAbs, false);
     });
     html += '</div>';
 
@@ -2261,16 +2316,7 @@ function setupKPIDetailPanels(state) {
     html += '📈 Gains (+' + fmt(Math.round(totalGain)) + ')</div>';
     if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
     gainers.forEach(function(i) {
-      var barW = Math.round(Math.abs(i.pl) / maxAbs * 100);
-      var isCost = i._isCost;
-      var labelStyle = isCost ? 'font-weight:500;font-style:italic;color:#718096;' : 'font-weight:500;';
-      var barColor = isCost ? '#9ae6b4' : '#48bb78';
-      html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-      html += '<span style="flex:1;' + labelStyle + '">' + (isCost ? '⚙ ' : '') + i.label + '</span>';
-      html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(i.pl)) + '</span>';
-      html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
-      html += '<span style="display:block;height:100%;width:' + barW + '%;background:' + barColor + ';border-radius:3px;"></span></span>';
-      html += '</div>';
+      html += renderBreakdownRow(i, maxAbs, true);
     });
     if (losers.length === 0 && gainers.length === 0 && skipped > 0) {
       html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">' + skipped + ' positions à €0 (marché fermé ?)</div>';
