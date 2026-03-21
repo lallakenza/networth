@@ -813,6 +813,19 @@ async function loadStockPrices(forceRefresh) {
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
             // But always update 1Y KPI from 1Y chart when in 1Y mode
             if (scopeResult && scopeMode === '1y') update1YKPIFromChart();
+            // When NOT in 1Y mode, silently rebuild 1Y chart to update P&L 1Y KPI
+            if (scopeMode !== '1y') {
+              // Save current chart data, build 1Y, grab KPI, then restore
+              const savedChartData = window._ytdChartFullData;
+              buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+                mode: '1y',
+                includeESPP: currentScope === 'all',
+                includeSGTM: currentScope === 'all',
+              });
+              update1YKPIFromChart();
+              // Restore the visible chart's data so period filters/modes still work
+              window._ytdChartFullData = savedChartData;
+            }
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
