@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=160';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=161';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -251,11 +251,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
   const totalDeposits = ibkrDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
-  // Cross-platform combined unrealized P/L
-  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL;
+  // Cross-platform combined unrealized P/L (includes SGTM)
+  const sgtmCostEUR = toEUR((portfolio.amine.sgtm.shares + (portfolio.nezha.sgtm?.shares || 0)) * (m.sgtmCostBasisMAD || 420), 'MAD', fx);
+  const sgtmUnrealizedPL = (amineSgtm + nezhaSgtm) - sgtmCostEUR;
+  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL + sgtmUnrealizedPL;
 
-  // Cross-platform total current value (excl SGTM which is not a brokerage)
-  const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp;
+  // Cross-platform total current value (IBKR + ESPP + SGTM)
+  const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
 
   // ── Compute P&L of CLOSED positions per period ──
   // Date strings for period boundaries (same as computeIBKRPositions)
@@ -489,18 +491,19 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     winRate: winRate,
   });
 
-  // 7. Benchmark comparison (YTD 2026 — updated 10 mars 2026)
-  // Sources : Yahoo Finance, tradingeconomics.com, APMEX, investing.com
+  // 7. Benchmark comparison (YTD 2026 — updated 21 mars 2026)
+  // Sources : Yahoo Finance (clôture 20/03/2026)
+  // Rendements USD convertis en EUR (EUR/USD passé de ~1.08 à 1.1575 = +7.2% appréciation EUR)
   const benchmarks = {
-    date: '10 mars 2026',
+    date: '21 mars 2026',
     ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' }, // NOTE: twr overridden by window._chartKPIData?.twr in render.js
     total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
     items: [
-      { label: 'Or (XAU/USD)',       ytd: 21.0, note: '$5 070 — record historique, haven demand (Iran conflict)' },
-      { label: 'S&P 500',            ytd: 12.5, note: '6 796 pts — AI + tech rally, vol \u00e9lev\u00e9e' },
-      { label: 'MSCI World (EUR)',    ytd: 6.0,  note: 'Europe drag\u00e9e par \u00e9nergie, dollar fort' },
-      { label: 'Bitcoin (BTC)',       ytd: -25.0, note: '~$67K — correction depuis $93K fin 2025' },
-      { label: 'CAC 40',             ytd: 5.0,   note: 'Biais d\u00e9fensif, sous-perf vs US' },
+      { label: 'Or (XAU/USD)',       ytd: 61.0, note: '$4 575/oz — record, haven demand (Iran, tensions g\u00e9opolitiques)' },
+      { label: 'MSCI World (EUR)',    ytd: 7.5,  note: 'URTH +14.7% USD, -7.2% FX = +7.5% en EUR' },
+      { label: 'S&P 500',            ytd: -5.4, note: '6 506 pts — correction tech, vol \u00e9lev\u00e9e' },
+      { label: 'CAC 40',             ytd: -10.7, note: '7 666 pts — stress g\u00e9opolitique, industrials sous pression' },
+      { label: 'Bitcoin (BTC)',       ytd: -10.2, note: '~$70K — correction depuis $93K fin 2025' },
       { label: 'Immobilier mondial',  ytd: 2.0,   note: 'REIT stable, taux en d\u00e9tente partielle' },
       { label: 'Inflation (FR)',      ytd: 1.0,   note: 'IPC f\u00e9vrier 2026 = 1%/an' },
     ],
@@ -699,6 +702,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen) + closedMtdPL, hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen), cashFxPL: 0 },
         ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen) + closedYtdPL, hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen), cashFxPL: 0 },
         oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo) + closedOneMonthPL, hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo), cashFxPL: 0 },
+        // P&L 1 an : pour un portefeuille de < 1 an, c'est le P&L total (valeur - dépôts)
+        // Inclut : P/L réalisé IBKR + P/L non réalisé IBKR + ESPP P/L + SGTM P/L
+        oneYear: { total: totalStocks - totalDeposits, hasData: true, breakdown: null, cashFxPL: 0 },
       };
     })(),
   };
@@ -2946,3 +2952,4 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 export function getGrandTotal(state) {
   return state.coupleCategories.reduce((s, c) => s + c.total, 0);
 }
+

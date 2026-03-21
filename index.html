@@ -1333,16 +1333,17 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
   <div class="kpi-strip" id="kpi-actions" style="grid-template-columns: repeat(5, 1fr);">
     <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label">Total Actions (toutes plateformes)</div></div>
-    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute; (IBKR + ESPP)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute; (IBKR + ESPP + SGTM)</div></div>
     <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
     <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label">Total D&eacute;pos&eacute;</div></div>
     <div class="kpi kpi-clickable" data-detail="detailDividends"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
   </div>
-  <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
+  <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(5, 1fr); margin-top:8px;">
     <div class="kpi kpi-clickable" data-detail="detailPLDaily"><div class="value" id="kpiPLDaily">--</div><div class="label">P&amp;L Daily</div></div>
     <div class="kpi kpi-clickable" data-detail="detailPLMTD"><div class="value" id="kpiPLMTD">--</div><div class="label">P&amp;L MTD</div></div>
     <div class="kpi kpi-clickable" data-detail="detailPL1M"><div class="value" id="kpiPL1M">--</div><div class="label">P&amp;L 1 Mois</div></div>
     <div class="kpi kpi-clickable" data-detail="detailPLYTD"><div class="value" id="kpiPLYTD">--</div><div class="label">P&amp;L YTD</div></div>
+    <div class="kpi"><div class="value" id="kpiPL1Y">--</div><div class="label">P&amp;L 1 An</div></div>
   </div>
   <div id="kpiStaticWarning" style="display:none;text-align:right;font-size:11px;color:var(--red);margin-top:4px;padding-right:4px;font-style:italic;"></div>
   <!-- Expandable detail panels for each KPI -->
@@ -1792,7 +1793,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=160"></script>
+<script type="module" src="js/app.js?v=161"></script>
 
 </body>
 </html>
+
