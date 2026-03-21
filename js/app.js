@@ -6,7 +6,7 @@ import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=182';
 import { compute } from './engine.js?v=182';
 import { render } from './render.js?v=182';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=181';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=183';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -670,13 +670,15 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentScope = btn.dataset.scope;
+            const scopeMode = currentPeriod === '1Y' ? '1y' : 'ytd';
             const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
-              mode: currentPeriod === '1Y' ? '1y' : 'ytd',
+              mode: scopeMode,
               startingNAV: 209495,
               includeESPP: currentScope === 'all',
               includeSGTM: currentScope === 'all',
             });
-            if (scopeResult) updateKPIsFromChart(scopeResult);
+            // Only update KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
+            if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
@@ -696,12 +698,14 @@ async function loadStockPrices(forceRefresh) {
             // Select correct historical data based on period
             if (currentPeriod === '1Y') {
               historicalDataToUse = historicalData1Y;
-              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+              buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
                 includeESPP: currentScope === 'all',
                 includeSGTM: currentScope === 'all',
               });
-              if (scopeResult) updateKPIsFromChart(scopeResult);
+              // NOTE: Do NOT call updateKPIsFromChart here — 1Y mode has
+              // startingNAV=0 and weekly sampling, which would corrupt
+              // Daily/MTD/YTD KPI cards. Keep KPIs from YTD chart data.
             } else if (currentPeriod === 'YTD') {
               historicalDataToUse = historicalDataYTD;
               // Rebuild full YTD chart
