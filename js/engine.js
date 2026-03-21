@@ -349,11 +349,22 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     return pos ? pos.previousClose : 0;
   });
   // ── closedOneYearPL: IBKR positions fully sold during the 1Y window ──
-  // All IBKR closed positions (QQQM, GLE, WLN, EDEN, NXI) were bought AFTER
-  // the 1Y start date (all bought April 2025+), so sharesAtStart=0 for all.
-  // closedPeriodPL handles this: no refPrice → falls back to realizedPL.
+  // CRITICAL: only use refPrice if position EXISTED before the 1Y start.
+  // If position was bought entirely within the 1Y window (all IBKR closed
+  // positions: QQQM, GLE, WLN, EDEN, NXI bought April 2025+), the refPrice
+  // would be the market price at 1Y start (when we didn't own the stock!).
+  // In that case, fall back to realizedPL which is the correct P&L.
   const oneYearAgoPrices = m.oneYearAgoPrices || {};
-  const closedOneYearPL = closedPeriodPL(oneYearStr, ticker => oneYearAgoPrices[ticker] || 0);
+  const _allIbkrTrades = ibkr.trades || [];
+  function _tickerExistedBefore(ticker, periodStart) {
+    // Check if any buy for this ticker happened BEFORE the period start
+    return _allIbkrTrades.some(t => t.ticker === ticker && t.type === 'buy' && t.date < periodStart);
+  }
+  const closedOneYearPL = closedPeriodPL(oneYearStr, ticker => {
+    // Only use historical refPrice if position was held before the 1Y start
+    if (!_tickerExistedBefore(ticker, oneYearStr)) return 0; // → falls back to realizedPL
+    return oneYearAgoPrices[ticker] || 0;
+  });
 
   // ── Degiro 1Y P&L: positions held 1Y ago and liquidated within the 1Y window ──
   // Degiro was closed April 2025. Positions sold WITHIN the 1Y window:
