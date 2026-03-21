@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=167';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=166';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -419,9 +419,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const key = (t.source || 'ibkr') + ':' + t.ticker;
     if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [], _hasReportPL: false, _reportPLCount: 0 };
     if (typeof t.realizedPL === 'number') { byTickerSource[key]._hasReportPL = true; byTickerSource[key]._reportPLCount++; }
-    byTickerSource[key].pl += (t.realizedPL || 0);
-    byTickerSource[key].costEUR += (t.cost || 0);
-    byTickerSource[key].proceedsEUR += (t.proceeds || 0);
+    // Convert realizedPL/cost/proceeds to EUR (QQQM etc. are in USD)
+    byTickerSource[key].pl += toEUR(t.realizedPL || 0, t.currency, fx);
+    byTickerSource[key].costEUR += toEUR(t.cost || 0, t.currency, fx);
+    byTickerSource[key].proceedsEUR += toEUR(t.proceeds || 0, t.currency, fx);
     byTickerSource[key].sells++;
     byTickerSource[key].lastDate = t.date;
     byTickerSource[key]._trades.push(t);
@@ -433,17 +434,17 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // Gather all trades (buy + sell) for this ticker+source
     const allForTicker = allTradesUnified.filter(t => t.ticker === cp.ticker && (t.source || 'ibkr') === cp.source);
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
-    // Accumulate cost from buy trades (sell trades have cost:'')
-    cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + (t.cost || 0), 0);
+    // Accumulate cost from buy trades (sell trades have cost:''), converted to EUR
+    cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
     // Compute P/L:
-    // - If ALL sells have report PL → use summed report PL (accurate, EUR, includes FX+commissions)
-    // - If PARTIAL or NO report + cost data available → use proceeds-cost (native currency approx)
+    // - If ALL sells have report PL → use summed report PL (already EUR-converted above)
+    // - If PARTIAL or NO report + cost data available → use proceeds-cost (already in EUR)
     // - Otherwise → keep pl=0 (no data)
     const allSellsCoveredByReport = cp._hasReportPL && cp._reportPLCount === cp.sells;
     if (allSellsCoveredByReport) {
-      // cp.pl already correct from summing realizedPL during aggregation
+      // cp.pl already correct from summing EUR-converted realizedPL during aggregation
     } else if (cp.costEUR > 0) {
-      cp.pl = cp.proceedsEUR - cp.costEUR; // native currency approximation
+      cp.pl = cp.proceedsEUR - cp.costEUR; // both already in EUR
     }
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
     const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
