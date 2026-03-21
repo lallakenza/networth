@@ -2699,6 +2699,17 @@ function setupKPIDetailPanels(state) {
       }
     });
   });
+
+  // Expose a global refresh function so app.js can re-render the active
+  // breakdown panel after scope or period changes (chart rebuilds _chartBreakdown
+  // but the already-open panel shows stale data without this refresh).
+  window._refreshActiveBreakdown = function() {
+    if (!activeKPI || panel.style.display === 'none') return;
+    const generator = detailGenerators[activeKPI];
+    if (generator) {
+      panel.innerHTML = generator();
+    }
+  };
 }
 
 function renderCashView(state) {

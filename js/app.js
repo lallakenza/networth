@@ -4,9 +4,9 @@
 
 import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
 import { compute } from './engine.js?v=190';
-import { render } from './render.js?v=192';
+import { render } from './render.js?v=194';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=193';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=194';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -740,6 +740,8 @@ async function loadStockPrices(forceRefresh) {
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
             if (window._ytdDisplayMode === 'pl') switchChartMode('pl');
+            // Refresh open breakdown panel (scope changed → new _chartBreakdown data)
+            if (window._refreshActiveBreakdown) window._refreshActiveBreakdown();
           });
         });
 
@@ -785,6 +787,8 @@ async function loadStockPrices(forceRefresh) {
               b.style.background = b.dataset.mode === currentMode ? '#2d3748' : '#fff';
               b.style.color = b.dataset.mode === currentMode ? '#fff' : '#4a5568';
             });
+            // Refresh open breakdown panel (period changed → new _chartBreakdown data)
+            if (window._refreshActiveBreakdown) window._refreshActiveBreakdown();
           });
         });
 
