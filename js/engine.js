@@ -420,7 +420,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   function computeACNDividends(startDate) {
     let total = 0;
     const items = [];
-    const WHT_RATE = 0.15; // 15% withholding tax US→FR
+    const WHT_RATE = 0.15; // 15% withholding tax US→FR (W-8BEN treaty rate)
     acnDividends.filter(d => d.payDate >= startDate).forEach(d => {
       const amineShares = sharesAtDate(amineEsppLots, d.exDate);
       const nezhaShares = sharesAtDate(nezhaEsppLots, d.exDate);
@@ -428,7 +428,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       if (totalShares > 0) {
         const grossUSD = d.perShareUSD * totalShares;
         const netUSD = grossUSD * (1 - WHT_RATE);
-        const netEUR = toEUR(netUSD, 'USD', fx);
+        // Use historical FX rate at pay date if available, otherwise current rate
+        // This avoids showing identical EUR amounts for different quarters
+        const fxForConversion = d.fxEURUSD ? { ...fx, USD: d.fxEURUSD } : fx;
+        const netEUR = toEUR(netUSD, 'USD', fxForConversion);
         total += netEUR;
         items.push({ date: d.payDate, label: 'Div ACN (' + totalShares + ' sh)', grossUSD, netUSD, netEUR, wht: grossUSD * WHT_RATE });
       }
