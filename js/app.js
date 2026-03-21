@@ -443,25 +443,24 @@ function updateKPIsFromChart(chartData) {
 }
 
 // ---- Update 1Y KPI from 1Y chart data ----
+// Uses the pre-computed P&L values from _ytdChartFullData (set by buildPortfolioYTDChart)
 // Separate from updateKPIsFromChart to avoid corrupting Daily/MTD/YTD
-function update1YKPIFromChart(chartData) {
-  const { labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope } = chartData;
-  if (!labels || labels.length < 2) return;
+function update1YKPIFromChart() {
+  const data = window._ytdChartFullData;
+  if (!data || !data.labels || data.labels.length < 2) return;
 
-  const values = scope === 'all' && totalValues.length > 0 ? totalValues : ibkrValues;
-  const n = values.length;
-  const lastNAV = values[n - 1];
-  const firstNAV = values[0]; // NAV at start of 1Y (0 if account didn't exist)
+  // Use the chart's own P&L computation (accounts for deposits correctly)
+  const plValues = data.showAll ? data.plValuesTotal : data.plValuesIBKR;
+  if (!plValues || plValues.length === 0) return;
 
-  // Sum all deposits in the period
-  let totalDeposits = 0;
-  for (const [, amount] of Object.entries(depositsByDate)) {
-    totalDeposits += amount;
-  }
+  const pl1Y = plValues[plValues.length - 1];
 
-  const pl1Y = lastNAV - firstNAV - totalDeposits;
-  const refNAV = firstNAV + totalDeposits; // capital deployed
-  const pct1Y = refNAV > 0 ? (pl1Y / refNAV * 100) : 0;
+  // Compute % relative to capital deployed (startValue + cumDeposits)
+  const cumDep = data.showAll
+    ? (data.cumDepositsAtPointTotal?.[data.cumDepositsAtPointTotal.length - 1] || 0)
+    : (data.cumDepositsAtPoint?.[data.cumDepositsAtPoint.length - 1] || 0);
+  const capitalDeployed = (data.startValue || 0) + cumDep;
+  const pct1Y = capitalDeployed > 0 ? (pl1Y / capitalDeployed * 100) : 0;
 
   // Update the 1Y KPI card
   const fmt = v => {
@@ -492,7 +491,7 @@ function update1YKPIFromChart(chartData) {
     window._chartKPIData.oneYear.pct = pct1Y;
   }
 
-  console.log('[kpi-1y] Updated 1Y KPI from chart: P&L=' + Math.round(pl1Y) + ', pct=' + pct1Y.toFixed(1) + '%');
+  console.log('[kpi-1y] Updated 1Y KPI from chart: P&L=' + Math.round(pl1Y) + ', pct=' + pct1Y.toFixed(1) + '%, capitalDeployed=' + Math.round(capitalDeployed));
 }
 
 // ---- Stock price loading with progress ----
@@ -710,15 +709,6 @@ async function loadStockPrices(forceRefresh) {
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully');
 
-        // Pre-compute 1Y P&L KPI from 1Y chart data (then rebuild YTD chart to display)
-        const chartResult1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, { mode: '1y' });
-        if (chartResult1Y) update1YKPIFromChart(chartResult1Y);
-        // Rebuild YTD chart (since buildPortfolioYTDChart replaces the canvas)
-        const chartResultYTD2 = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
-          mode: 'ytd', startingNAV: 209495
-        });
-        console.log('[app] 1Y KPI computed, YTD chart restored');
-
         // Track current state for toggles
         let currentScope = 'ibkr';
         let currentPeriod = 'YTD';
@@ -742,7 +732,7 @@ async function loadStockPrices(forceRefresh) {
             // Only update Daily/MTD/YTD KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
             // But always update 1Y KPI from 1Y chart when in 1Y mode
-            if (scopeResult && scopeMode === '1y') update1YKPIFromChart(scopeResult);
+            if (scopeResult && scopeMode === '1y') update1YKPIFromChart();
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
@@ -768,7 +758,7 @@ async function loadStockPrices(forceRefresh) {
                 includeSGTM: currentScope === 'all',
               });
               // Only update the 1Y KPI card (not Daily/MTD/YTD which need YTD chart data)
-              if (result1Y) update1YKPIFromChart(result1Y);
+              if (result1Y) update1YKPIFromChart();
             } else if (currentPeriod === 'YTD') {
               historicalDataToUse = historicalDataYTD;
               // Rebuild full YTD chart
