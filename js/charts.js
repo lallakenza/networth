@@ -2174,6 +2174,26 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   if (chartLabels.length === 0) return;
 
+  // ── Weekly sampling for 1Y mode (reduce ~250 points → ~52) ──
+  // Keeps simulation daily for accuracy, but thins out chart data
+  if (mode === '1y' && chartLabels.length > 60) {
+    const weeklyLabels = [chartLabels[0]];
+    const weeklyValues = [chartValues[0]];
+    const weeklyTotals = [chartValuesTotal[0]];
+    for (let i = 7; i < chartLabels.length - 1; i += 7) {
+      weeklyLabels.push(chartLabels[i]);
+      weeklyValues.push(chartValues[i]);
+      weeklyTotals.push(chartValuesTotal[i]);
+    }
+    // Always include the last point
+    weeklyLabels.push(chartLabels[chartLabels.length - 1]);
+    weeklyValues.push(chartValues[chartValues.length - 1]);
+    weeklyTotals.push(chartValuesTotal[chartValuesTotal.length - 1]);
+    chartLabels.length = 0; chartLabels.push(...weeklyLabels);
+    chartValues.length = 0; chartValues.push(...weeklyValues);
+    chartValuesTotal.length = 0; chartValuesTotal.push(...weeklyTotals);
+  }
+
   // ── Chart rendering ──
   const showAll = includeESPP || includeSGTM;
   const startValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
@@ -2182,8 +2202,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const plPct = ((endValue / startValue - 1) * 100).toFixed(2);
   const isPositive = plEUR >= 0;
 
+  const MONTH_NAMES_SHORT = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
   const displayLabels = chartLabels.map(d => {
     const p = d.split('-');
+    if (mode === '1y') {
+      // Weekly: show "dd mmm" for first point of each month, empty otherwise
+      return p[2] + '/' + p[1];
+    }
     return p[2] + '/' + p[1];
   });
 
