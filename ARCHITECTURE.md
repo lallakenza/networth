@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v178** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v182** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 > Dernière mise à jour : 21 mars 2026
 
 ## Principe fondamental
@@ -207,7 +207,7 @@ Contenu : { stocks: { TICKER: { price, previousClose } }, fx: { rates }, sgtm: {
 Chaque module importe les autres avec `?v=XX`. À chaque commit, incrémenter le numéro dans **tous les fichiers** :
 - `app.js`, `engine.js`, `render.js`, `charts.js`, `simulators.js`, `index.html`
 - Les fichiers `apt_*.html` ne sont plus liés mais gardent leur version
-- **Version actuelle : v178** (21 mars 2026)
+- **Version actuelle : v182** (21 mars 2026)
 
 ⚠ **Leçon v177** : Si on modifie un fichier (ex: charts.js) mais qu'on garde le même numéro de version dans l'import (ex: `?v=176` → `?v=176`), le navigateur ne re-téléchargera pas le fichier. TOUJOURS incrémenter, même pour un hotfix.
 
@@ -2062,18 +2062,21 @@ function computeFTT(startDate) {
 }
 ```
 
-### Commissions — Détail engine.js (v176+)
+### Commissions — Détail engine.js (v176+, v182: retourne {total, items})
 
 ```javascript
-// engine.js — Commissions multi-devises
+// engine.js — Commissions multi-devises, retourne détail par trade (v182+)
 function computeCommissions(startDate) {
   let total = 0;
+  const items = [];
   _allIbkrTrades.forEach(t => {
     if (t.date >= startDate && t.commission) {
-      total += toEUR(t.commission, t.currency || 'EUR', fx); // ← conversion devise native → EUR
+      const eurComm = toEUR(t.commission, t.currency || 'EUR', fx);
+      total += eurComm;
+      items.push({ ticker: t.ticker, label: '...', date: t.date, amount: eurComm });
     }
   });
-  return total;
+  return { total, items }; // v182: retourne items pour détail expandable
 }
 ```
 
@@ -2092,3 +2095,135 @@ Flux AED → EUR dans le chart NAV :
 
 3. Résultat : le chart ne voit que le crédit EUR final
 ```
+
+## Chart P&L Evolution — Toggle Valeur/P&L (v179-v181)
+
+### Principe (v179)
+
+Le chart YTD/1Y a un toggle Valeur/P&L permettant de basculer entre :
+- **Valeur** (défaut) : affiche la NAV (Net Asset Value) au fil du temps
+- **P&L** : affiche l'évolution du P&L = NAV(t) - startNAV - cumDeposits(t)
+
+Le toggle est un `#ytdModeToggle` dans index.html, avec deux boutons `data-mode="value"` et `data-mode="pl"`.
+
+### Formule P&L (v179)
+
+```
+P&L(t) = NAV(t) - startNAV - cumDeposits_after_start(t)
+```
+
+Où :
+- `NAV(t)` = valeur totale à l'instant t (IBKR positions + cash)
+- `startNAV` = NAV au début de la période (1er point du chart)
+- `cumDeposits_after_start(t)` = cumul des dépôts/retraits entre start et t
+
+Le P&L doit démarrer à 0 et évoluer positivement (gains) ou négativement (pertes).
+
+### Fix P&L start at 0 (v180)
+
+**Bug** : le P&L démarrait à -10 000 au lieu de 0.
+**Cause** : les dépôts à la date START étaient inclus dans `cumDeposits` mais déjà reflétés dans `startNAV` (double-comptage).
+**Fix** : changer le filtre de `d.date >= START_DATE` à `d.date > START_DATE`.
+
+### ESPP/SGTM comme dépôts (v181)
+
+**Problème** : le P&L "Total" (incluant ESPP+SGTM) ne soustrayait pas les coûts d'acquisition ESPP/SGTM, créant un écart de ~9 282€ avec le P&L calculé par position.
+
+**Fix** : créer une série séparée `cumDepositsAtPointTotal` qui inclut :
+
+1. **Dépôts IBKR** (virements bancaires) — comme avant
+2. **Coûts d'acquisition ESPP** : chaque lot ESPP (Amine + Nezha) acquis après START_DATE est traité comme un dépôt, converti USD→EUR au taux historique
+3. **Coût d'acquisition SGTM** : l'achat IPO (64 × 420 MAD / fxMAD) est traité comme un dépôt à la date de l'IPO (2025-12-15)
+
+```javascript
+// Deux séries de dépôts cumulés :
+cumDepositsAtPoint       // IBKR uniquement (pour scope IBKR)
+cumDepositsAtPointTotal  // IBKR + ESPP + SGTM (pour scope Total)
+```
+
+**Résultat** : l'écart P&L chart vs P&L card est passé de 9 282€ à ~3 172€. La différence résiduelle est due à la méthodologie FX (le chart utilise les taux historiques, les cards utilisent le taux courant).
+
+### switchChartMode() — charts.js
+
+Fonction exportée qui reconstruit le chart avec les données P&L ou Valeur :
+- Appelée par les event listeners du toggle dans app.js
+- Utilise `_ytdChartFullData` qui stocke toutes les séries (values, P&L IBKR, P&L Total, deposits)
+- Le tooltip est adapté pour afficher P&L + Dépôts cumulés en mode P&L
+
+## Breakdowns P&L expandables (v182)
+
+### Principe
+
+Les items coût/frais dans les breakdowns P&L (Intérêts marge, FTT, Commissions, Dividendes, Positions fermées) sont désormais **cliquables** avec un détail per-trade/per-mois qui s'expand sous la ligne.
+
+### Modifications engine.js (v182)
+
+Les fonctions de calcul de coûts retournent désormais `{ total, items }` au lieu d'un simple nombre :
+
+| Fonction | Avant (v181) | Après (v182) |
+|----------|-------------|-------------|
+| `closedPeriodPL()` | `return total` | `return { total, items }` — items = per-trade {ticker, label, date, pl, qty, proceeds} |
+| `computeCommissions()` | `return total` | `return { total, items }` — items = per-trade {ticker, label, date, amount} |
+| `computeInterest()` | `return eurTotal` | `return { total, items }` — items = per-month {label, date, amount, eurAmount, usdAmount, jpyAmount} |
+| `computeFTT()` | `return { total, items }` | Inchangé — items déjà disponibles |
+| `computeIBKRDividends()` | `return { total, items }` | Inchangé |
+
+Dans `computeAllCosts()`, les nouveaux champs exposés :
+- `commissionsItems` : tableau per-trade
+- `interestItems` : tableau per-month
+
+Dans `fullPeriodPL()`, chaque item du breakdown avec `_isCost: true` porte un `_detail` :
+```javascript
+items.push({
+  label: 'Intérêts marge', ticker: '_INTEREST',
+  pl: periodCosts.interestEUR, _isCost: true,
+  _detail: periodCosts.interestItems  // ← NOUVEAU v182
+});
+```
+
+### Modifications render.js (v182)
+
+`renderPLBreakdown()` utilise une fonction helper `renderBreakdownRow()` qui :
+1. Détecte `i._detail && i._detail.length > 0`
+2. Ajoute un chevron ▶ et `cursor:pointer` si détail disponible
+3. Génère un panneau `<div id="bd_N">` caché (`display:none`)
+4. Au clic, toggle le panneau et fait pivoter le chevron (90deg)
+
+Le détail supporte 4 formats de données :
+- **Closed positions** (`d.pl != null`) : affiche P&L per-trade avec couleur gain/perte
+- **FTT** (`d.ftt != null`) : affiche le coût FTT per-trade
+- **Interest/Commissions** (`d.amount != null`) : affiche le montant per-mois ou per-trade
+- **ACN dividends** (`d.netEUR != null`) : affiche le dividende net en EUR
+
+### Items expandables par période
+
+| Item | Ticker | Détail affiché |
+|------|--------|---------------|
+| P/L Réalisé (fermées) | `_CLOSED_IBKR` | Per-trade : date, ticker, P&L |
+| Intérêts marge | `_INTEREST` | Per-month : label (Interest Jan-2026...), montant EUR |
+| Taxe transactions (FTT) | `_FTT` | Per-trade : date, ticker, montant FTT |
+| Commissions IBKR | `_COMM` | Per-trade : date, Achat/Vente ticker, montant EUR |
+| Dividendes nets | `_DIV` | Per-dividend : date, label (Div ACN, Div RMS...), montant EUR |
+
+## Documentation ESPP data.js (v182)
+
+### Source : EsppPurchaseReport.pdf (Accenture)
+
+data.js contient maintenant la documentation complète des 10 achats ESPP d'Amine avec :
+- Période d'offre, contribution EUR, taux de change EUR/USD
+- Prix discounté (ce qu'Amine a payé) vs FMV at Purchase (cost basis fiscal)
+- Nombre de shares achetées, vendues pour impôt, fractionnaires remboursées
+- Tableau récapitulatif complet en commentaires
+
+### Note sur costBasis
+
+Le `costBasis` dans les lots ESPP = **FMV at Purchase** (prix de marché au jour d'achat), pas le prix discounté ESPP. C'est le cost basis fiscal français : la plus-value est calculée depuis le FMV, et le discount (~15%) est taxé comme avantage en nature sur le bulletin de paie.
+
+### Résumé Amine ESPP (UBS)
+
+- 10 périodes ESPP : Nov 2017 → May 2023
+- Contribution totale : €28 097.62 = $31 844.39
+- Shares achetées : 170.7833
+- Vendues pour impôt : 3.7361
+- Fractionnaires remboursées : 3.0472
+- **Actions entières UBS : 164** + 3 FRAC (dividendes réinvestis) = **167 total**
