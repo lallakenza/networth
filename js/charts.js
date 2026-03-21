@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=151';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=151';
-import { IMMO_CONSTANTS } from './data.js?v=151';
+import { fmt, fmtAxis } from './render.js?v=153';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=153';
+import { IMMO_CONSTANTS } from './data.js?v=153';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1912,6 +1912,22 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       allEvents.push({ date: d.date, eventType: 'deposit', amount: d.amount });
     });
 
+  // ── IBKR costs not captured in trades: interest, FTT, dividends ──
+  // Source: IBKR Activity Statement CSV (U18138426) Apr 2025 → Mar 2026
+  // These affect cash balances but are NOT included in the trades array
+  const ibkrCostsYTD = [
+    // Interest charges (debit interest on margin + SYEP credits)
+    { date: '2026-01-06', eventType: 'cost', eurAmount: -70.27, usdAmount: -12.40, jpyAmount: -1778, label: 'Interest Dec-2025' },
+    { date: '2026-02-04', eventType: 'cost', eurAmount: -49.42, usdAmount: -26.00, jpyAmount: -4619, label: 'Interest Jan-2026' },
+    { date: '2026-03-04', eventType: 'cost', eurAmount: -27.73, usdAmount: -74.31, jpyAmount: -23049, label: 'Interest Feb-2026' },
+    // French Financial Transaction Tax (TTF / FTT)
+    { date: '2026-01-16', eventType: 'cost', eurAmount: -21.58, usdAmount: 0, jpyAmount: 0, label: 'FTT EDEN' },
+    { date: '2026-01-21', eventType: 'cost', eurAmount: -55.04, usdAmount: 0, jpyAmount: 0, label: 'FTT BN' },
+    // Dividends (net of withholding tax)
+    { date: '2026-02-18', eventType: 'cost', eurAmount: 37.54, usdAmount: 0, jpyAmount: 0, label: 'Div RMS net' },
+  ];
+  ibkrCostsYTD.forEach(c => allEvents.push(c));
+
   allEvents.sort((a, b) => a.date.localeCompare(b.date));
 
   // ── Forward simulation ──
@@ -1996,6 +2012,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
       } else if (e.eventType === 'deposit') {
         cashEUR += e.amount;
+
+      } else if (e.eventType === 'cost') {
+        // Interest, FTT, dividends — affect cash in respective currencies
+        cashEUR += (e.eurAmount || 0);
+        cashUSD += (e.usdAmount || 0);
+        cashJPY += (e.jpyAmount || 0);
       }
 
       eventIdx++;
@@ -2005,21 +2027,39 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     // Positions value
     let posValue = 0;
     let missingTickers = [];
+    const posBreakdown = {}; // for diagnostics
     Object.entries(holdings).forEach(([ticker, data]) => {
       if (data.shares <= 0) return;
       const price = getClose(ticker, date);
       if (price == null) { missingTickers.push(ticker); return; }
-      posValue += data.shares * price / getFxRate(data.currency, date);
+      const fxRate = getFxRate(data.currency, date);
+      const valEUR = data.shares * price / fxRate;
+      posValue += valEUR;
+      posBreakdown[ticker] = { shares: data.shares, price, currency: data.currency, fxRate, valEUR: Math.round(valEUR) };
     });
 
     // Cash value in EUR
-    const cashValue = cashEUR
-      + cashUSD / getFxRate('USD', date)
-      + cashJPY / getFxRate('JPY', date);
+    const fxUSD = getFxRate('USD', date);
+    const fxJPY = getFxRate('JPY', date);
+    const cashValue = cashEUR + cashUSD / fxUSD + cashJPY / fxJPY;
 
     const nav = Math.round(posValue + cashValue);
     chartLabels.push(date);
     chartValues.push(nav);
+
+    // ── Detailed diagnostics for specific dates ──
+    if (date === '2026-03-19' || date === '2026-03-18' || date === '2026-01-02') {
+      console.log('[ytd-diag] === ' + date + ' ===');
+      console.log('[ytd-diag] Positions (ticker: shares × price / fx = EUR):');
+      Object.entries(posBreakdown).sort((a,b) => b[1].valEUR - a[1].valEUR).forEach(([t, d]) => {
+        console.log('  ' + t + ': ' + d.shares + ' × ' + d.price.toFixed(2) + ' ' + d.currency + ' / ' + d.fxRate.toFixed(4) + ' = ' + d.valEUR + ' EUR');
+      });
+      console.log('[ytd-diag] Pos total: ' + Math.round(posValue) + ' EUR');
+      console.log('[ytd-diag] Cash: EUR=' + Math.round(cashEUR) + ', USD=' + Math.round(cashUSD) + ' (/' + fxUSD.toFixed(4) + '=' + Math.round(cashUSD/fxUSD) + '), JPY=' + Math.round(cashJPY) + ' (/' + fxJPY.toFixed(4) + '=' + Math.round(cashJPY/fxJPY) + ')');
+      console.log('[ytd-diag] Cash total: ' + Math.round(cashValue) + ' EUR');
+      console.log('[ytd-diag] NAV: ' + nav + ' EUR');
+      if (missingTickers.length) console.log('[ytd-diag] Missing: ' + missingTickers.join(', '));
+    }
 
     // ── Compute ESPP value ──
     let esppValue = 0;
