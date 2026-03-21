@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=154';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=154';
-import { IMMO_CONSTANTS } from './data.js?v=154';
+import { fmt, fmtAxis } from './render.js?v=155';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=155';
+import { IMMO_CONSTANTS } from './data.js?v=155';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2043,7 +2043,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const posBreakdown = {}; // for diagnostics
     Object.entries(holdings).forEach(([ticker, data]) => {
       if (data.shares <= 0) return;
-      const price = getClose(ticker, date);
+      const price = getClose(ticker, date, true); // allowForward for early dates (TSE closed Jan 2-3)
       if (price == null) { missingTickers.push(ticker); return; }
       const fxRate = getFxRate(data.currency, date);
       const valEUR = data.shares * price / fxRate;
