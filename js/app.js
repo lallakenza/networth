@@ -6,7 +6,7 @@ import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=173';
 import { compute } from './engine.js?v=173';
 import { render } from './render.js?v=173';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=173';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=173';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=174';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=173';
 
 // ---- App state ----
