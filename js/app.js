@@ -3,7 +3,7 @@
 // ============================================================
 
 import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
-import { compute } from './engine.js?v=190';
+import { compute } from './engine.js?v=197';
 import { render } from './render.js?v=195';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
 import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=195';
@@ -25,7 +25,7 @@ const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 
 const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
 
 // ---- Scope-aware KPI card updater ----
-// Updates the static (non-period) KPI cards when toggling IBKR/Tout scope
+// Updates the static (non-period) KPI cards when toggling scope
 function updateStaticKPIsForScope(scope) {
   const av = window._actionsView;
   if (!av) return;
@@ -38,7 +38,6 @@ function updateStaticKPIsForScope(scope) {
   const setSubPct = (id, pct) => {
     const el = document.getElementById(id);
     if (!el) return;
-    // Use same .kpi-sub-pct class as render.js
     let sub = el.parentElement?.querySelector('.kpi-sub-pct');
     if (!sub) {
       sub = document.createElement('span');
@@ -49,53 +48,48 @@ function updateStaticKPIsForScope(scope) {
     sub.textContent = sign + pct.toFixed(1) + '%';
     sub.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct >= 0 ? '#276749' : '#c53030') + ';';
   };
-
-  if (scope === 'all') {
-    // All platforms
-    setEur('kpiActionsTotal', av.totalStocks);
-    const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
-    setT('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
+  const setKPI = (total, unrealPL, realPL, deposits, dividends, label) => {
+    setEur('kpiActionsTotal', total);
+    const plSign = unrealPL >= 0 ? '+' : '';
+    setT('kpiActionsUnrealizedPL', plSign + fmt(unrealPL));
     const plEl = document.getElementById('kpiActionsUnrealizedPL');
-    if (plEl) { plEl.className = 'value ' + (av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
-    setSubPct('kpiActionsUnrealizedPL', av.totalDeposits > 0 ? av.combinedUnrealizedPL / av.totalDeposits * 100 : 0);
+    if (plEl) plEl.className = 'value ' + (unrealPL >= 0 ? 'pl-pos' : 'pl-neg');
+    setSubPct('kpiActionsUnrealizedPL', deposits > 0 ? unrealPL / deposits * 100 : 0);
 
-    const rSign = av.combinedRealizedPL >= 0 ? '+' : '';
-    setT('kpiActionsRealizedPL', rSign + fmt(av.combinedRealizedPL));
+    const rSign = realPL >= 0 ? '+' : '';
+    setT('kpiActionsRealizedPL', rSign + fmt(realPL));
     const rEl = document.getElementById('kpiActionsRealizedPL');
-    if (rEl) { rEl.className = 'value ' + (av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
-    setSubPct('kpiActionsRealizedPL', av.totalDeposits > 0 ? av.combinedRealizedPL / av.totalDeposits * 100 : 0);
+    if (rEl) rEl.className = 'value ' + (realPL >= 0 ? 'pl-pos' : 'pl-neg');
+    setSubPct('kpiActionsRealizedPL', deposits > 0 ? realPL / deposits * 100 : 0);
 
-    setT('kpiActionsTotalDeposits', fmt(av.totalDeposits));
-    setT('kpiActionsDividends', fmt(av.dividends));
+    setT('kpiActionsTotalDeposits', fmt(deposits));
+    setT('kpiActionsDividends', fmt(dividends));
 
-    // Labels
-    setT('kpiActionsTotalLabel', 'Total Actions (toutes plateformes)');
-    setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (IBKR + ESPP + SGTM)');
-    setT('kpiActionsRealizedLabel', 'P/L Réalisé (IBKR + Degiro)');
-    setT('kpiActionsDepositsLabel', 'Total Déposé (toutes plateformes)');
-  } else {
-    // IBKR only
-    setEur('kpiActionsTotal', av.ibkrNAV);
-    const plSign = av.totalUnrealizedPL >= 0 ? '+' : '';
-    setT('kpiActionsUnrealizedPL', plSign + fmt(av.totalUnrealizedPL));
-    const plEl = document.getElementById('kpiActionsUnrealizedPL');
-    if (plEl) { plEl.className = 'value ' + (av.totalUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
-    setSubPct('kpiActionsUnrealizedPL', av.ibkrDepositsTotal > 0 ? av.totalUnrealizedPL / av.ibkrDepositsTotal * 100 : 0);
+    setT('kpiActionsTotalLabel', 'Total Actions (' + label + ')');
+    setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (' + label + ')');
+    setT('kpiActionsRealizedLabel', 'P/L Réalisé (' + label + ')');
+    setT('kpiActionsDepositsLabel', 'Total Déposé (' + label + ')');
+  };
 
-    const rSign = av.realizedPL >= 0 ? '+' : '';
-    setT('kpiActionsRealizedPL', rSign + fmt(av.realizedPL));
-    const rEl = document.getElementById('kpiActionsRealizedPL');
-    if (rEl) { rEl.className = 'value ' + (av.realizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
-    setSubPct('kpiActionsRealizedPL', av.ibkrDepositsTotal > 0 ? av.realizedPL / av.ibkrDepositsTotal * 100 : 0);
+  const esppTotal = (av.esppCurrentVal || 0) + (av.nezhaEsppCurrentVal || 0);
+  const esppPL = (av.esppUnrealizedPL || 0) + (av.nezhaEsppUnrealizedPL || 0);
 
-    setT('kpiActionsTotalDeposits', fmt(av.ibkrDepositsTotal));
-    setT('kpiActionsDividends', fmt(av.dividends));
-
-    // Labels
-    setT('kpiActionsTotalLabel', 'Total Actions (IBKR seul)');
-    setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (IBKR)');
-    setT('kpiActionsRealizedLabel', 'P/L Réalisé (IBKR)');
-    setT('kpiActionsDepositsLabel', 'Total Déposé (IBKR)');
+  switch (scope) {
+    case 'all':
+      setKPI(av.totalStocks, av.combinedUnrealizedPL, av.combinedRealizedPL, av.totalDeposits, av.dividends, 'Tous');
+      break;
+    case 'ibkr':
+      setKPI(av.ibkrNAV, av.totalUnrealizedPL, av.realizedPL, av.ibkrDepositsTotal, av.dividends, 'IBKR');
+      break;
+    case 'espp':
+      setKPI(esppTotal, esppPL, 0, av.esppDeposits || 0, 0, 'ESPP');
+      break;
+    case 'degiro':
+      setKPI(0, 0, av.degiroRealizedPL || 0, 0, 0, 'Degiro');
+      break;
+    case 'maroc':
+      setKPI(av.sgtmTotal || 0, av.sgtmUnrealizedPL || 0, 0, av.sgtmDepositsEUR || 0, 0, 'Maroc');
+      break;
   }
 }
 
@@ -802,12 +796,14 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentScope = btn.dataset.scope;
+            // Chart supports: 'ibkr' (IBKR only) and 'all'/'espp'/'degiro'/'maroc' (show all-platform chart)
+            const chartIncludeAll = currentScope !== 'ibkr';
             const scopeMode = currentPeriod === '1Y' ? '1y' : 'ytd';
             const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
               mode: scopeMode,
               startingNAV: 209495,
-              includeESPP: currentScope === 'all',
-              includeSGTM: currentScope === 'all',
+              includeESPP: chartIncludeAll,
+              includeSGTM: chartIncludeAll,
             });
             // Only update Daily/MTD/YTD KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
@@ -815,15 +811,13 @@ async function loadStockPrices(forceRefresh) {
             if (scopeResult && scopeMode === '1y') update1YKPIFromChart();
             // When NOT in 1Y mode, silently rebuild 1Y chart to update P&L 1Y KPI
             if (scopeMode !== '1y') {
-              // Save current chart data, build 1Y, grab KPI, then restore
               const savedChartData = window._ytdChartFullData;
               buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
-                includeESPP: currentScope === 'all',
-                includeSGTM: currentScope === 'all',
+                includeESPP: chartIncludeAll,
+                includeSGTM: chartIncludeAll,
               });
               update1YKPIFromChart();
-              // Restore the visible chart's data so period filters/modes still work
               window._ytdChartFullData = savedChartData;
             }
             // Re-apply current period filter
