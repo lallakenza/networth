@@ -104,10 +104,26 @@ export const PORTFOLIO = {
       meta: {
         twr: -13.7,            // TWR % YTD 2026 — fallback statique, OVERRIDDEN by chart TWR at runtime
       },
-      // ── Coûts IBKR non capturés dans les trades ──
-      // Source : IBKR Activity Statement CSV (U18138426)
-      // Ces montants affectent le cash mais ne sont PAS dans trades[]
-      // type: 'interest' | 'dividend' | 'wht'
+      // ══════════════════════════════════════════════════════════════
+      // COÛTS IBKR (hors commissions de trades)
+      // ══════════════════════════════════════════════════════════════
+      // Source: Activity Statement CSV U18138426, sections "Interest" et "Dividends"
+      // ⚠ RÈGLES DE MISE À JOUR:
+      //   1. Intérêts: copier depuis section "Interest" du CSV IBKR
+      //      → regrouper par mois, sommer EUR + USD + JPY séparément
+      //      → les montants JPY sont gros (ex: ¥23049) mais petit en EUR (~€140)
+      //      → engine.js convertit en EUR via toEUR()
+      //   2. Dividendes: copier depuis section "Dividends" du CSV IBKR
+      //      → montant NET (après WHT retenu à la source par IBKR)
+      //      → WHT est calculé séparément par engine.js, ne PAS le soustraire ici
+      //      → en fait, stocker le montant BRUT et laisser engine calculer le WHT
+      //   3. RÉCONCILIATION (Change in NAV au 19/03/2026):
+      //      Commissions IBKR: -€217.31 (= somme des t.commission dans trades[], converti en EUR)
+      //      Transaction Fees (FTT): -€666.87 (= calculé par engine.js via FTT_RATE × cost)
+      //      Interest: -€512.34 (= somme des costs[type:'interest'] ci-dessous)
+      //      Dividends: +€648.53 (= EUR 601.99 + USD 54.60 converti)
+      //      WHT: -€164.41
+      // ══════════════════════════════════════════════════════════════
       costs: [
         // Intérêts marge (debit interest on margin + SYEP credits)
         { date: '2025-05-05', type: 'interest', eurAmount: -9.13,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Apr-2025' },
@@ -167,29 +183,77 @@ export const PORTFOLIO = {
         // FY2026 (oct 2025 → ...)
         { exDate: '2026-01-09', payDate: '2026-02-13', perShareUSD: 1.63 },
       ],
-      // ── Historique des dépôts IBKR ──
-      // Source : rapport IBKR "Deposits & Withdrawals"
-      // Mettre à jour à chaque nouveau virement ou rapport IBKR
-      // currency: devise du virement | amount: montant en devise native | fxRateAtDate: taux EUR/devise au jour du dépôt
+      // ══════════════════════════════════════════════════════════════
+      // DÉPÔTS & RETRAITS IBKR — Source: Activity Statement U18138426
+      // ══════════════════════════════════════════════════════════════
+      // ⚠ RÈGLES DE MISE À JOUR (pour Claude ou humain):
+      //   1. Copier EXACTEMENT depuis la section "Deposits & Withdrawals" du CSV IBKR
+      //   2. Un retrait = amount NÉGATIF (ex: -45000)
+      //   3. Les dépôts AED utilisent currency:'AED' et fxRateAtDate du jour
+      //      (vérifier sur IBKR le taux EUR/AED appliqué)
+      //   4. TOUJOURS vérifier que la somme correspond au "Total Deposits & Withdrawals in EUR"
+      //      affiché dans le statement IBKR (section "Change in NAV")
+      //   5. Ne PAS regrouper les virements — garder les dates et montants exacts du statement
+      //
+      // RÉCONCILIATION au 19/03/2026:
+      //   EUR brut: +199,000 - 45,000 = +154,000
+      //   AED brut: +195,000 (= €45,886.10 au taux IBKR)
+      //   TOTAL IBKR "Deposits & Withdrawals": €199,886.10 ✓
+      // ══════════════════════════════════════════════════════════════
       deposits: [
-        { date: '2025-04-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement initial IBKR' },
-        { date: '2025-08-01', amount: 150000, currency: 'EUR', fxRateAtDate: 1,     label: 'Virement principal IBKR' },
-        { date: '2025-09-01', amount: 20000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
-        { date: '2025-10-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
-        { date: '2025-11-01', amount: 5886,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
-        { date: '2025-12-01', amount: 4000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement complémentaire' },
-        { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1,     label: 'Virement janvier 2026' },
+        // ── EUR deposits (statement IBKR lignes 318-331) ──
+        { date: '2025-04-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement initial IBKR' },
+        { date: '2025-04-04', amount: 45000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement complémentaire avril' },
+        { date: '2025-04-23', amount: -45000, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (disbursement)' },
+        { date: '2025-08-11', amount: 20000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #1' },
+        { date: '2025-08-19', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #2' },
+        { date: '2025-08-26', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #3' },
+        { date: '2025-08-27', amount: 34000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #4' },
+        { date: '2025-08-28', amount: 4000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #5' },
+        { date: '2025-09-16', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement septembre #1' },
+        { date: '2025-09-24', amount: 1500,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement septembre #2' },
+        { date: '2025-10-29', amount: 8500,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement octobre' },
+        { date: '2025-11-04', amount: 5000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement novembre' },
+        { date: '2025-12-19', amount: 15000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement décembre' },
+        { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement janvier 2026' },
+        // ── AED deposits (statement IBKR lignes 312-315) ──
+        { date: '2025-10-22', amount: 10000,  currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #1 (Mashreq→IBKR)' },
+        { date: '2025-10-22', amount: 100000, currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #2 (Mashreq→IBKR)' },
+        { date: '2025-11-03', amount: 70000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #3 (Mashreq→IBKR)' },
+        { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
       ],
-      // Total dépôts IBKR = 202886 EUR
-      // ── Historique complet des trades IBKR ──
-      // Source: CSV IBKR U18138426 — April 2025 → March 2026
-      // Format unifié: { date, ticker, label, type, qty, price, currency, cost|proceeds, realizedPL, commission, costBasis, note }
-      // type: 'buy' | 'sell' | 'fx'
-      // qty: toujours positif. type indique le sens.
-      // cost/proceeds: montant total (qty × price). cost pour buy, proceeds pour sell.
-      // realizedPL: P/L réalisé sur les sells (du CSV IBKR). Vide pour les buys.
-      // commission: frais de transaction (négatif).
-      // costBasis: PRU moyen au moment du trade (du CSV IBKR). Utile pour recalculer le P/L.
+      // Total dépôts IBKR = €199,886.10 (vérifié vs statement "Change in NAV")
+      // ══════════════════════════════════════════════════════════════
+      // HISTORIQUE COMPLET DES TRADES IBKR
+      // ══════════════════════════════════════════════════════════════
+      // Source: Activity Statement CSV U18138426 — section "Trades"
+      // Période: April 2025 → March 2026
+      //
+      // ⚠ RÈGLES DE MISE À JOUR (IMPORTANT pour éviter les bugs):
+      //
+      //   FORMAT: { date, ticker, label, type, qty, price, currency,
+      //             cost|proceeds, realizedPL, commission, costBasis, source }
+      //
+      //   ① type: 'buy' | 'sell' | 'fx'
+      //   ② qty: TOUJOURS POSITIF. C'est type qui indique le sens.
+      //   ③ cost (buy) / proceeds (sell): montant total = qty × price
+      //   ④ realizedPL: P/L réalisé — UNIQUEMENT sur les sells, copié du CSV IBKR
+      //   ⑤ commission: frais de courtage EN DEVISE NATIVE DU TRADE
+      //      → pour un trade JPY (ex: Shiseido 4911.T), la commission est en ¥
+      //      → engine.js convertit automatiquement en EUR via toEUR()
+      //      → NE PAS convertir manuellement ici
+      //      ⚠ La commission NE contient PAS la FTT (taxe transactions financières)
+      //      → la FTT est calculée séparément par engine.js (FTT_RATE × cost)
+      //      → dans le CSV IBKR: "Commission" et "Transaction Fees" sont 2 colonnes séparées
+      //   ⑥ costBasis: PRU moyen au moment du trade (du CSV IBKR)
+      //   ⑦ currency: devise du trade — CRITIQUE pour la conversion des commissions
+      //
+      // RÉCONCILIATION commissions au 19/03/2026:
+      //   IBKR "Commissions" (Change in NAV): -€217.31
+      //   Somme des t.commission ci-dessous (après conversion EUR): ≈-€217
+      //   IBKR "Transaction Fees" (FTT): -€666.87
+      //   Calculé par engine.js (FTT_RATE=0.4% × achats éligibles): ≈-€667
+      // ══════════════════════════════════════════════════════════════
       trades: [
         // ═══════════════════════════════════════════════════
         //  STOCK TRADES — triés par date
