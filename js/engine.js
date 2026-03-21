@@ -293,26 +293,37 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // 1Y = same day last year
   const _oneYearAgo = new Date(_now.getFullYear() - 1, _now.getMonth(), _now.getDate());
   const oneYearStr = _oneYearAgo.getFullYear() + '-' + _pad2(_oneYearAgo.getMonth() + 1) + '-' + _pad2(_oneYearAgo.getDate());
-  // Positions fully sold during the year still contribute to period P&L.
-  // For each sell trade in the period: P&L = proceeds - (shares × refPrice at period start)
-  // If bought during the period (no refPrice): P&L = realizedPL (proceeds - cost)
+  // ═══════════════════════════════════════════════════════════════════
+  // UNIFIED PERIOD P&L ENGINE
+  // Même algorithme pour les 5 KPIs (Daily, MTD, 1M, YTD, 1Y)
+  // ═══════════════════════════════════════════════════════════════════
   const ibkrSellTrades = (ibkr.trades || []).filter(t => t.type === 'sell' && t.source === 'ibkr');
+  const _allIbkrTrades = ibkr.trades || [];
+  const openTickers = new Set(ibkr.positions.map(p => p.ticker));
+  const oneYearAgoPrices = m.oneYearAgoPrices || {};
+  const fxOneYearAgo = m.fxOneYearAgo || {};
 
+  // Check if a position existed (had buys) BEFORE a given date
+  function _tickerExistedBefore(ticker, periodStart) {
+    return _allIbkrTrades.some(t => t.ticker === ticker && t.type === 'buy' && t.date < periodStart);
+  }
+
+  // ── Unified closedPeriodPL ──
+  // For positions FULLY SOLD during the period:
+  //   - If position existed BEFORE period start → P&L = proceeds - refVal
+  //   - If position bought WITHIN period → P&L = realizedPL (proceeds - cost)
   function closedPeriodPL(periodStartDate, getRefPrice) {
     let total = 0;
-    // Only count sells of tickers that are NOT in current positions (fully closed)
-    const openTickers = new Set(ibkr.positions.map(p => p.ticker));
     ibkrSellTrades.forEach(t => {
       if (t.date >= periodStartDate && !openTickers.has(t.ticker)) {
-        // This sell was during the period AND the position is now fully closed
-        const refPrice = getRefPrice(t.ticker);
+        // Only use refPrice if position EXISTED before the period
+        const existed = _tickerExistedBefore(t.ticker, periodStartDate);
+        const refPrice = existed ? getRefPrice(t.ticker) : 0;
         if (refPrice && refPrice > 0) {
-          // P&L = proceeds - (shares × refPrice at period start), in EUR
           const refVal = toEUR(t.qty * refPrice, t.currency, fx);
           const proceedsEUR = toEUR(t.proceeds, t.currency, fx);
           total += proceedsEUR - refVal;
         } else if (typeof t.realizedPL === 'number') {
-          // Bought and sold within the period — use realized P/L
           total += toEUR(t.realizedPL, t.currency, fx);
         }
       }
@@ -320,89 +331,68 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     return total;
   }
 
-  // Build ytdOpen price lookup from positions data
+  // ── Unified commissions per period ──
+  function commissionsPeriod(periodStartDate) {
+    let total = 0;
+    _allIbkrTrades.forEach(t => {
+      if (t.date >= periodStartDate && t.commission) {
+        total += t.commission;
+      }
+    });
+    return total;
+  }
+
+  // ── Degiro P&L per period (only relevant for 1Y — Degiro closed April 2025) ──
+  const _allTradesUnified = portfolio.amine.allTrades || [];
+  function degiroPeriodPL(periodStartDate) {
+    const sells = _allTradesUnified.filter(t =>
+      t.source === 'degiro' && t.type === 'sell' && t.date >= periodStartDate
+    );
+    let total = 0;
+    const items = [];
+    sells.forEach(t => {
+      const refPrice = oneYearAgoPrices[t.ticker];
+      if (refPrice && refPrice > 0) {
+        const fxOld = fxOneYearAgo[t.currency] || fx[t.currency] || 1;
+        const startValEUR = t.qty * refPrice / fxOld;
+        const proceedsEUR = toEUR(t.proceeds, t.currency, fx);
+        const pl = proceedsEUR - startValEUR;
+        total += pl;
+        items.push({ label: t.label + ' (Degiro)', ticker: t.ticker, pl, valEUR: proceedsEUR, _isDegiro: true });
+      }
+    });
+    return { total, items };
+  }
+
+  // ── Ref price lookup builders ──
+  // Build ytdOpen price lookup (open positions + fallback for closed)
   const ytdOpenPrices = {};
   ibkr.positions.forEach(p => { ytdOpenPrices[p.ticker] = p.ytdOpen; });
-  // Also add ytdOpen for closed positions from static data (if available)
-  // GLE, WLN, EDEN, NXI had ytdOpen prices stored before they were sold
-  // These should ideally be in data.js, but we can estimate from trade history
-
-  // For now: if a ticker was sold and has no ytdOpen, use costBasis as fallback
-  // (meaning full realized P/L counts for the period)
   ibkrSellTrades.forEach(t => {
-    if (!ytdOpenPrices[t.ticker]) {
-      ytdOpenPrices[t.ticker] = t.costBasis || 0; // fallback: use cost
-    }
+    if (!ytdOpenPrices[t.ticker]) ytdOpenPrices[t.ticker] = t.costBasis || 0;
   });
 
-  const closedYtdPL = closedPeriodPL(ytdStartStr, ticker => ytdOpenPrices[ticker]);
-  const closedMtdPL = closedPeriodPL(mtdStartStr, ticker => {
+  function getRefPrice(ticker, periodKey) {
     const pos = ibkr.positions.find(p => p.ticker === ticker);
-    return pos ? pos.mtdOpen : (ytdOpenPrices[ticker] || 0); // fallback
-  });
-  const closedOneMonthPL = closedPeriodPL(oneMonthStr, ticker => {
-    const pos = ibkr.positions.find(p => p.ticker === ticker);
-    return pos ? pos.oneMonthAgo : (ytdOpenPrices[ticker] || 0);
-  });
-  const closedDailyPL = closedPeriodPL(todayStr, ticker => {
-    const pos = ibkr.positions.find(p => p.ticker === ticker);
-    return pos ? pos.previousClose : 0;
-  });
-  // ── closedOneYearPL: IBKR positions fully sold during the 1Y window ──
-  // CRITICAL: only use refPrice if position EXISTED before the 1Y start.
-  // If position was bought entirely within the 1Y window (all IBKR closed
-  // positions: QQQM, GLE, WLN, EDEN, NXI bought April 2025+), the refPrice
-  // would be the market price at 1Y start (when we didn't own the stock!).
-  // In that case, fall back to realizedPL which is the correct P&L.
-  const oneYearAgoPrices = m.oneYearAgoPrices || {};
-  const _allIbkrTrades = ibkr.trades || [];
-  function _tickerExistedBefore(ticker, periodStart) {
-    // Check if any buy for this ticker happened BEFORE the period start
-    return _allIbkrTrades.some(t => t.ticker === ticker && t.type === 'buy' && t.date < periodStart);
+    switch (periodKey) {
+      case 'daily':    return pos ? pos.previousClose : 0;
+      case 'mtd':      return pos ? pos.mtdOpen : (ytdOpenPrices[ticker] || 0);
+      case 'oneMonth': return pos ? pos.oneMonthAgo : (ytdOpenPrices[ticker] || 0);
+      case 'ytd':      return ytdOpenPrices[ticker] || 0;
+      case 'oneYear':  return oneYearAgoPrices[ticker] || 0;
+      default:         return 0;
+    }
   }
-  const closedOneYearPL = closedPeriodPL(oneYearStr, ticker => {
-    // Only use historical refPrice if position was held before the 1Y start
-    if (!_tickerExistedBefore(ticker, oneYearStr)) return 0; // → falls back to realizedPL
-    return oneYearAgoPrices[ticker] || 0;
-  });
 
-  // ── Degiro 1Y P&L: positions held 1Y ago and liquidated within the 1Y window ──
-  // Degiro was closed April 2025. Positions sold WITHIN the 1Y window:
-  //   - NVDA: 540 shares sold 2025-04-07 @ $89.73 (held since 2020-2021)
-  //   - INFY: 300 shares sold 2025-04-07 @ $16.95 (held since 2020)
-  // P&L formula: proceeds_EUR - (shares × price_1Y_ago_EUR)
-  // where price_1Y_ago comes from data.js oneYearAgoPrices
-  const _degiroData = portfolio.amine.degiro || {};
-  const _allTradesUnified = portfolio.amine.allTrades || [];
-  const degiroSellsIn1Y = _allTradesUnified.filter(t =>
-    t.source === 'degiro' && t.type === 'sell' && t.date >= oneYearStr
-  );
-  const fxOneYearAgo = m.fxOneYearAgo || {};
-  let degiroOneYearPL = 0;
-  const degiroOneYearItems = [];
-  degiroSellsIn1Y.forEach(t => {
-    const refPrice = oneYearAgoPrices[t.ticker];
-    if (refPrice && refPrice > 0) {
-      // Position existed 1Y ago — P&L = proceeds now - value 1Y ago
-      const fxOld = fxOneYearAgo[t.currency] || fx[t.currency] || 1;
-      const startValEUR = t.qty * refPrice / fxOld;
-      const proceedsEUR = toEUR(t.proceeds, t.currency, fx);
-      const pl = proceedsEUR - startValEUR;
-      degiroOneYearPL += pl;
-      degiroOneYearItems.push({ label: t.label + ' (Degiro)', ticker: t.ticker, pl, valEUR: proceedsEUR, _isDegiro: true });
-    }
-    // If no refPrice → position didn't exist 1Y ago or data missing → skip
-  });
+  // ── Pre-compute closed P&L for each period ──
+  const closedDailyPL    = closedPeriodPL(todayStr,     t => getRefPrice(t, 'daily'));
+  const closedMtdPL      = closedPeriodPL(mtdStartStr,  t => getRefPrice(t, 'mtd'));
+  const closedOneMonthPL = closedPeriodPL(oneMonthStr,  t => getRefPrice(t, 'oneMonth'));
+  const closedYtdPL      = closedPeriodPL(ytdStartStr,  t => getRefPrice(t, 'ytd'));
+  const closedOneYearPL  = closedPeriodPL(oneYearStr,   t => getRefPrice(t, 'oneYear'));
 
-  // ── IBKR commissions and taxes within 1Y window ──
-  // Sum commissions from ALL IBKR trades (buy + sell) within the 1Y window
-  const ibkrAllTrades = (ibkr.trades || []).filter(t => t.source === 'ibkr');
-  let commissionsOneYear = 0;
-  ibkrAllTrades.forEach(t => {
-    if (t.date >= oneYearStr && t.commission) {
-      commissionsOneYear += t.commission; // commissions are negative
-    }
-  });
+  // ── Degiro 1Y (only period with Degiro activity) ──
+  const degiro1Y = degiroPeriodPL(oneYearStr);
 
   // Pre-compute YTD P&L for benchmark comparison
   // IBKR only — now includes closed positions P&L
@@ -746,95 +736,85 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     geoAllocation,
     sectorAllocation,
     insights,
-    // Multi-period P&L (price + FX combined) with per-position breakdowns
+    // ═══════════════════════════════════════════════════════════════════
+    // UNIFIED PERIOD P&L — même fonction pour les 5 KPIs
+    // fullPeriodPL(field, acnRef, closedPL, opts) produit {total, breakdown}
+    // ═══════════════════════════════════════════════════════════════════
     periodPL: (() => {
       function sumField(field) { return ibkrPositions.reduce((s, p) => s + (p[field] || 0), 0); }
       function hasField(field) { return ibkrPositions.some(p => p[field] !== null && p[field] !== undefined); }
-      // ESPP period P&L (Amine + Nezha)
-      function esppPeriod(refPrice) {
+
+      // ESPP period P&L (ACN price change × shares)
+      function esppPeriodPL(refPrice) {
         if (!refPrice || refPrice <= 0) return 0;
         return esppCurrentVal - (espp.shares * refPrice / (fx.USD || 1));
       }
-      function nezhaEsppPeriod(refPrice) {
+      function nezhaEsppPeriodPL(refPrice) {
         if (!refPrice || refPrice <= 0 || nezhaEsppShares <= 0) return 0;
         return nezhaEsppCurrentVal - (nezhaEsppShares * refPrice / (fx.USD || 1));
       }
-      // Per-position breakdown for a given field
-      function breakdown(field, esppRefPrice, includeSGTM) {
-        const items = [];
-        ibkrPositions.forEach(p => {
-          if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
-        });
-        const esppPL = esppPeriod(esppRefPrice);
-        const nezhaEsppPL = nezhaEsppPeriod(esppRefPrice);
-        const acnTotalPL = esppPL + nezhaEsppPL;
-        if (acnTotalPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: acnTotalPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
-        // SGTM unrealized P/L (from cost basis — no historical period prices available)
-        if (includeSGTM && sgtmUnrealizedPL !== 0) {
-          const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
-          items.push({ label: 'SGTM (x' + sgtmShares + ')', ticker: 'SGTM', pl: sgtmUnrealizedPL, valEUR: amineSgtm + nezhaSgtm });
-        }
-        items.sort((a, b) => a.pl - b.pl); // worst first
-        return items;
-      }
-      // ── P&L 1 An breakdown — MÊME MÉTHODOLOGIE QUE YTD ──
-      // Composantes identiques au YTD mais sur fenêtre 1 an :
-      //   1. IBKR positions ouvertes → oneYearPL (via periodPL)
-      //   2. IBKR positions fermées → closedOneYearPL (via closedPeriodPL)
-      //   3. ESPP Amine + Nezha → evolution depuis prix ACN 1Y ago
-      //   4. SGTM → IPO déc 2025, entièrement dans la fenêtre 1Y → unrealizedPL
-      //   5. Degiro → positions détenues il y a 1 an et liquidées avr 2025
-      //   6. Commissions IBKR dans la fenêtre 1Y
-      // Les coûts (intérêts, FTT, dividendes) sont ajoutés par appendCostItems
-      // dans render.js, depuis window._chartKPIData.oneYear.costs
-      function oneYearBreakdown() {
-        // 1. IBKR open positions (uses oneYearPL from periodPL)
-        const items = breakdown('oneYearPL', m.acnOneYearAgo, true);
-        // 2. IBKR closed positions P&L
-        if (closedOneYearPL !== 0) {
-          items.push({ label: 'P/L Réalisé IBKR (fermées)', ticker: '_CLOSED_IBKR', pl: closedOneYearPL, _isCost: true });
-        }
-        // 3. Degiro liquidation P&L (positions détenues 1Y ago, vendues avr 2025)
-        degiroOneYearItems.forEach(item => items.push(item));
-        // 4. Commissions IBKR (toutes trades dans la fenêtre 1Y)
-        if (commissionsOneYear !== 0) {
-          items.push({ label: 'Commissions IBKR', ticker: '_COMMISSIONS', pl: commissionsOneYear, _isCost: true });
-        }
-        items.sort((a, b) => a.pl - b.pl);
-        return items;
-      }
+
+      const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
+
       // IBKR cash FX P&L (daily only — uses FX_STATIC as prev)
       const jpyPrevFx = FX_STATIC.JPY || fx.JPY;
       const usdPrevFx = FX_STATIC.USD || fx.USD;
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
+
+      // ── Unified fullPeriodPL ──
+      // opts: { includeSGTM, cashFxPL, degiroPL, degiroItems, commissions }
+      function fullPeriodPL(field, acnRefPrice, closedPL, opts) {
+        opts = opts || {};
+        // 1. IBKR open positions
+        const ibkrPL = sumField(field);
+        // 2. ESPP (Amine + Nezha)
+        const esppPL = esppPeriodPL(acnRefPrice) + nezhaEsppPeriodPL(acnRefPrice);
+        // 3. SGTM (if bought within the period window)
+        const sgtmPL = opts.includeSGTM ? sgtmUnrealizedPL : 0;
+        // 4. Degiro (only for periods where Degiro had activity)
+        const degPL = opts.degiroPL || 0;
+        // 5. Cash FX effect (daily only)
+        const cfxPL = opts.cashFxPL || 0;
+
+        const total = ibkrPL + esppPL + sgtmPL + closedPL + degPL + cfxPL;
+
+        // ── Build breakdown items ──
+        const items = [];
+        // IBKR open positions
+        ibkrPositions.forEach(p => {
+          if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
+        });
+        // ESPP
+        if (esppPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
+        // SGTM
+        if (opts.includeSGTM && sgtmUnrealizedPL !== 0) {
+          items.push({ label: 'SGTM (x' + sgtmShares + ')', ticker: 'SGTM', pl: sgtmUnrealizedPL, valEUR: amineSgtm + nezhaSgtm });
+        }
+        // Closed IBKR positions (single line)
+        if (closedPL !== 0) {
+          items.push({ label: 'P/L Réalisé (fermées)', ticker: '_CLOSED_IBKR', pl: closedPL, _isCost: true });
+        }
+        // Degiro items
+        if (opts.degiroItems) opts.degiroItems.forEach(i => items.push(i));
+
+        items.sort((a, b) => a.pl - b.pl);
+        return { total, hasData: hasField(field), breakdown: items, cashFxPL: cfxPL };
+      }
+
+      // ── Apply unified function to all 5 periods ──
+      // Les coûts (intérêts marge, FTT, dividendes, commissions) sont ajoutés
+      // dans render.js via appendCostItems depuis window._chartKPIData[periodKey].costs
       return {
-        // closedXxxPL adds P&L from positions FULLY SOLD during the period
-        daily:    { total: sumField('dailyPL') + esppPeriod(m.acnPreviousClose) + nezhaEsppPeriod(m.acnPreviousClose) + cashFxPL + closedDailyPL, hasData: hasField('dailyPL'), breakdown: breakdown('dailyPL', m.acnPreviousClose, false), cashFxPL },
-        mtd:      { total: sumField('mtdPL') + esppPeriod(m.acnMtdOpen) + nezhaEsppPeriod(m.acnMtdOpen) + closedMtdPL, hasData: hasField('mtdPL'), breakdown: breakdown('mtdPL', m.acnMtdOpen, true), cashFxPL: 0 },
-        ytd:      { total: sumField('ytdPL') + esppPeriod(m.acnYtdOpen) + nezhaEsppPeriod(m.acnYtdOpen) + closedYtdPL, hasData: hasField('ytdPL'), breakdown: breakdown('ytdPL', m.acnYtdOpen, true), cashFxPL: 0 },
-        oneMonth: { total: sumField('oneMonthPL') + esppPeriod(m.acnOneMonthAgo) + nezhaEsppPeriod(m.acnOneMonthAgo) + closedOneMonthPL, hasData: hasField('oneMonthPL'), breakdown: breakdown('oneMonthPL', m.acnOneMonthAgo, true), cashFxPL: 0 },
-        // ── P&L 1 An — même méthodologie que YTD ──
-        // Total = somme de :
-        //   - IBKR positions ouvertes (oneYearPL via periodPL)
-        //   - ESPP P&L 1Y (depuis prix ACN 1Y ago)
-        //   - SGTM P&L (IPO déc 2025, < 1 an → unrealizedPL)
-        //   - IBKR positions fermées (closedOneYearPL)
-        //   - Degiro liquidation P&L (positions vendues avr 2025)
-        //   - Commissions IBKR dans la fenêtre 1Y
-        // Les coûts (intérêts marge, FTT, dividendes) sont ajoutés dans render.js
-        // via appendCostItems depuis window._chartKPIData.oneYear
-        oneYear: {
-          total: sumField('oneYearPL')
-            + esppPeriod(m.acnOneYearAgo) + nezhaEsppPeriod(m.acnOneYearAgo)
-            + sgtmUnrealizedPL
-            + closedOneYearPL
-            + degiroOneYearPL
-            + commissionsOneYear,
-          hasData: hasField('oneYearPL'),
-          breakdown: oneYearBreakdown(),
-          cashFxPL: 0,
-        },
+        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDailyPL,    { cashFxPL: cashFxPL }),
+        mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtdPL,      { includeSGTM: true }),
+        ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtdPL,      { includeSGTM: true }),
+        oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonthPL, { includeSGTM: true }),
+        oneYear:  fullPeriodPL('oneYearPL',  m.acnOneYearAgo,    closedOneYearPL,  {
+          includeSGTM: true,
+          degiroPL: degiro1Y.total,
+          degiroItems: degiro1Y.items,
+        }),
       };
     })(),
   };
