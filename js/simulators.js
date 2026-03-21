@@ -2,8 +2,8 @@
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
 
-import { fmt, fmtAxis } from './render.js?v=147';
-import { IMMO_CONSTANTS } from './data.js?v=147';
+import { fmt, fmtAxis } from './render.js?v=151';
+import { IMMO_CONSTANTS } from './data.js?v=151';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -76,27 +76,43 @@ function runSimulatorGeneric(config) {
     const isContributing = m < stopMonth;
     const gainsNow = liquidNow - startLiquidBase - cumContributions;
 
-    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+    if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
-      dataNW.push(Math.round(totalNW));
-      dataImmo.push(Math.round(immoNow));
-      dataBase.push(Math.round(immoNow + startLiquidBase + cumContributions));
-      dataGains.push(Math.round(immoNow + startLiquidBase + cumContributions + gainsNow));
-      dataNWNoStop.push(Math.round(totalNWns));
-      if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
-      // Per-property snapshot
+
+      // Compute immo from property sum (ensures consistency with per-property breakdown)
+      let immoFromProps = 0;
       props.forEach((p, pi) => {
-        immoBreakdownData[pi].push(Math.round(p.startEquity + propCumGrowth[pi]));
+        let propVal;
+        if (p._computedEquity) {
+          propVal = Math.round(p.growthFn(m));
+        } else {
+          propVal = Math.round(p.startEquity + propCumGrowth[pi]);
+        }
+        immoBreakdownData[pi].push(propVal);
+        immoFromProps += propVal;
       });
+      // If no breakdown props, fall back to delta-based immo
+      const immoVal = props.length > 0 ? immoFromProps : Math.round(immoNow);
+
+      dataNW.push(Math.round(immoVal + liquidNow));
+      dataImmo.push(immoVal);
+      dataBase.push(Math.round(immoVal + startLiquidBase + cumContributions));
+      dataGains.push(Math.round(immoVal + startLiquidBase + cumContributions + gainsNow));
+      dataNWNoStop.push(Math.round(immoVal + liquidNS));
+      if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
     }
 
     if (totalNW >= 1000000 && month1M === -1) month1M = m;
 
     const immoGrowth = immoGrowthFn(m);
     cumImmoReturns += immoGrowth;
-    // Track per-property growth
-    props.forEach((p, pi) => { propCumGrowth[pi] += p.growthFn(m); });
+    // Track per-property growth (for non-computed equity properties)
+    props.forEach((p, pi) => {
+      if (!p._computedEquity) {
+        propCumGrowth[pi] += p.growthFn(m);
+      }
+    });
 
     poolActions *= (1 + monthlyReturnActions);
     poolCash *= (1 + monthlyReturnCash);
@@ -142,6 +158,22 @@ function runSimulatorGeneric(config) {
   const finalImmoTotal = startImmoEquity + cumImmoReturns;
   const pctImmoFinalNW = (finalImmoTotal / finalNW * 100).toFixed(1);
 
+  // Compute exact 1M date
+  let m1MDateLabel = '';
+  let m1MMotivation = '';
+  if (month1M >= 0) {
+    const d1mExact = new Date(2026, 2 + month1M, 1);
+    m1MDateLabel = d1mExact.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const yearsTo1M = (month1M / 12).toFixed(1);
+    m1MMotivation = '<br><div style="margin-top:8px;padding:10px 14px;background:#f0fff4;border-left:3px solid #16a34a;border-radius:6px;font-size:13px;">'
+      + '\ud83c\udfaf <strong>1 000 000\u20ac atteint en ' + m1MDateLabel + '</strong> (' + yearsTo1M + ' ans).<br>'
+      + '<span style="color:#276749;">'
+      + (month1M <= 24 ? 'Vous \u00eates \u00e0 moins de 2 ans du million. Chaque mois investi acc\u00e9l\u00e8re l\'\u00e9cart. Ne l\u00e2chez rien !'
+        : month1M <= 60 ? 'Le million est \u00e0 port\u00e9e de main. Les int\u00e9r\u00eats compos\u00e9s font le gros du travail \u2014 la discipline paie.'
+        : 'La patience est votre meilleur alli\u00e9. Chaque euro investi aujourd\u2019hui vaut ' + Math.round(Math.pow(1 + (returnActions || 0.10), month1M/12)) + '\u20ac dans ' + yearsTo1M + ' ans.')
+      + '</span></div>';
+  }
+
   let insightHtml;
   if (stopYears > 0) {
     const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
@@ -152,14 +184,14 @@ function runSimulatorGeneric(config) {
       'NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> (+' + fmt(Math.round(totalGrowth)) + '). ' +
       'Croissance : contributions ' + pctContrib + '% | gains marche ' + pctMarket + '% | immo ' + pctImmo + '%.<br>' +
       'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').<br>' +
-      '<span style="color:var(--red)">Cout de l\'arret : ' + fmt(Math.round(costOfStopping)) + '</span>. ' +
-      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '<span style="color:var(--red)">1M non atteint.</span>');
+      '<span style="color:var(--red)">Cout de l\'arret : ' + fmt(Math.round(costOfStopping)) + '</span>.' +
+      m1MMotivation;
   } else {
     insightHtml =
       '<strong>Resume :</strong> NW : <strong>' + fmt(startNW) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> en ' + horizonYears + ' ans (+' + fmt(Math.round(totalGrowth)) + ').<br>' +
       'Croissance : contributions ' + pctContrib + '% (' + fmt(Math.round(cumContributions)) + ') | gains marche ' + pctMarket + '% (' + fmt(Math.round(finalGains)) + ') | immo ' + pctImmo + '% (' + fmt(Math.round(finalImmoGrowth)) + ').<br>' +
-      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + '). ' +
-      (month1M >= 0 ? '<strong>1M atteint en ' + (month1M/12).toFixed(1) + ' ans.</strong>' : '1M non atteint dans cet horizon.');
+      'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').' +
+      m1MMotivation;
   }
   document.getElementById(prefix + 'Insight').innerHTML = insightHtml;
 
@@ -320,7 +352,10 @@ function buildSimChart(canvasId, chartKey, result) {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
+      scales: {
+        x: { ticks: { maxTicksLimit: 24, maxRotation: 45, minRotation: 45 } },
+        y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 }
+      }
     },
     plugins: [
       // Stop line plugin
@@ -372,6 +407,85 @@ function buildSimChart(canvasId, chartKey, result) {
   });
 }
 
+// ============ GENERIC PROPERTY EQUITY COMPUTER ============
+// Computes absolute NET equity (after exit costs) for any property
+// based on amort schedule + phased appreciation - projected exit costs
+function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
+  // Pre-extract exit costs by year for this property
+  const exitCostsByYearProp = (iv && iv.exitCostsByYearProp) || {};
+
+  return (m) => {
+    if (!iv || !iv.amortSchedules || !iv.amortSchedules[loanKey]) return 0;
+
+    const amort = iv.amortSchedules[loanKey];
+    const prop = iv.properties.find(p => p.loanKey === loanKey);
+    if (!prop) return 0;
+
+    const sched = amort.schedule;
+    if (!sched || sched.length === 0) return 0;
+
+    // Convert simulator month to actual date string (YYYY-MM)
+    // Simulator m=0 = March 2026, m=1 = April 2026, etc.
+    const simBaseDate = new Date(2026, 2, 1); // March 1, 2026
+    const targetDate = new Date(simBaseDate);
+    targetDate.setMonth(targetDate.getMonth() + m);
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth() + 1; // 1-indexed
+    const dateStr = targetYear + '-' + String(targetMonth).padStart(2, '0');
+
+    // Find the closest schedule entry for this date
+    let crd = 0;
+    for (let i = 0; i < sched.length; i++) {
+      if (sched[i].date === dateStr) {
+        crd = sched[i].remainingCRD;
+        break;
+      }
+      // Use the last schedule entry <= this date
+      if (sched[i].date < dateStr) {
+        crd = sched[i].remainingCRD;
+      } else {
+        break;
+      }
+    }
+    // If past last schedule entry, loan is paid off
+    if (sched.length > 0 && dateStr > sched[sched.length - 1].date) crd = 0;
+
+    // Property appreciation using phases
+    const propMeta = IC.properties[loanKey] || {};
+    const phases = propMeta.appreciationPhases || [];
+
+    function getRate(year) {
+      for (let i = 0; i < phases.length; i++) {
+        if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
+      }
+      return propMeta.appreciation || 0.02;
+    }
+
+    // Compound appreciation from current year (propertyInitialValue is already current market value)
+    let projValue = propertyInitialValue;
+    const startYear = new Date().getFullYear(); // 2026
+    for (let y = startYear; y < targetYear; y++) {
+      projValue *= (1 + getRate(y));
+    }
+
+    // Also apply partial-year appreciation for months within current year
+    const partialMonths = targetMonth - 1; // months elapsed in target year
+    if (partialMonths > 0) {
+      projValue *= Math.pow(1 + getRate(targetYear), partialMonths / 12);
+    }
+
+    const grossEquity = projValue - crd;
+
+    // Interpolate exit costs between years to avoid staircase effect
+    const ecThisYear = (exitCostsByYearProp[targetYear] || {})[loanKey] || 0;
+    const ecNextYear = (exitCostsByYearProp[targetYear + 1] || {})[loanKey] || ecThisYear;
+    const monthFrac = (targetMonth - 1) / 12; // 0 = Jan, 0.917 = Dec
+    const propEC = ecThisYear + (ecNextYear - ecThisYear) * monthFrac;
+
+    return Math.max(0, grossEquity - propEC);
+  };
+}
+
 // ============ COUPLE SIMULATOR ============
 function runCoupleSimulator(state) {
   const s = state;
@@ -387,28 +501,56 @@ function runCoupleSimulator(state) {
   const coupleStatic = s.amine.vehicles + s.amine.tva;
   const coupleNW = coupleImmo + couplePoolActions + couplePoolCash + coupleStatic;
 
+  // Create property equity computers for each property
+  const iv = s.immoView;
+  const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
+  const computeRueilEquity = makeComputePropertyEquity(iv, 'rueil', iv?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
+  const computeVillejuifEquity = makeComputePropertyEquity(iv, 'villejuif', iv?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
+
+  // Compute initial equity at m=0 to align startEquity with computePropertyEquity(0)
+  const vitryEq0 = computeVitryEquity(0);
+  const rueilEq0 = computeRueilEquity(0);
+  const computedImmo0 = vitryEq0 + rueilEq0; // Villejuif not operational at m=0
+
+  // Track previous total immo equity for delta calculation
+  let prevImmoTotal = computedImmo0;
+
   const result = runSimulatorGeneric({
     prefix: 'cplSim', monthlySavings, pctActions, returnActions,
     returnCash: 0.06, horizonYears, stopYears,
-    startNW: coupleNW, startImmoEquity: coupleImmo,
+    startNW: coupleNW - coupleImmo + computedImmo0, startImmoEquity: computedImmo0,
     startPoolActions: couplePoolActions, startPoolCash: couplePoolCash,
     staticAssets: coupleStatic, existingGains: 45000,
     immoGrowthFn: (m) => {
-      const iv = s.immoView;
-      const wv = (key) => iv ? (iv.properties.find(p => p.loanKey === key) || {}).wealthCreation || 0 : 0;
-      let growth = wv('vitry') + wv('rueil');
-      if (m >= IC.villejuifStartMonth) growth += wv('villejuif');
-      return growth;
+      // Compute total absolute equity at month m
+      let totalEquity = computeVitryEquity(m) + computeRueilEquity(m);
+      if (m >= IC.villejuifStartMonth) totalEquity += computeVillejuifEquity(m);
+
+      // Return delta from previous month (cumImmoReturns accumulates these)
+      const delta = totalEquity - prevImmoTotal;
+      prevImmoTotal = totalEquity;
+      return delta;
     },
-    immoBreakdown: (() => {
-      const iv = s.immoView;
-      const wv = (key) => iv ? (iv.properties.find(p => p.loanKey === key) || {}).wealthCreation || 0 : 0;
-      return [
-        { label: 'Vitry', startEquity: s.amine.vitryEquity, growthFn: () => wv('vitry') },
-        { label: 'Rueil', startEquity: s.nezha.rueilEquity, growthFn: () => wv('rueil') },
-        { label: 'Villejuif', startEquity: s.nezha.villejuifEquity, growthFn: (m) => m >= IC.villejuifStartMonth ? wv('villejuif') : 0 },
-      ];
-    })()
+    immoBreakdown: [
+      {
+        label: 'Vitry',
+        startEquity: vitryEq0,
+        growthFn: computeVitryEquity,
+        _computedEquity: true
+      },
+      {
+        label: 'Rueil',
+        startEquity: rueilEq0,
+        growthFn: computeRueilEquity,
+        _computedEquity: true
+      },
+      {
+        label: 'Villejuif',
+        startEquity: 0,
+        growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0,
+        _computedEquity: true
+      },
+    ]
   });
   buildSimChart('cplSimChart', 'cplSim', result);
 }
@@ -425,15 +567,27 @@ function runAmineSimulator(state) {
   const aminePoolCash = s.pools.cash + s.amine.recvPro + s.amine.recvPersonal;
   const amineStatic = s.amine.vehicles + s.amine.tva;
 
+  // Create property equity computer for Vitry
+  const iv = s.immoView;
+  const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
+
+  // Align starting equity with what computeVitryEquity(0) returns
+  const vitryEq0 = computeVitryEquity(0);
+  let prevImmoTotal = vitryEq0;
+
   const result = runSimulatorGeneric({
     prefix: 'amSim', monthlySavings, pctActions, returnActions,
     returnCash: 0.06, horizonYears, stopYears,
-    startNW: s.amine.nw, startImmoEquity: s.amine.vitryEquity,
+    startNW: s.amine.nw - s.amine.vitryEquity + vitryEq0, startImmoEquity: vitryEq0,
     startPoolActions: s.pools.actions, startPoolCash: aminePoolCash,
     staticAssets: amineStatic, existingGains: 45000,
-    immoGrowthFn: () => {
-      const iv = s.immoView;
-      return iv ? (iv.properties.find(p => p.loanKey === 'vitry') || {}).wealthCreation || 0 : 0;
+    immoGrowthFn: (m) => {
+      // Compute total absolute equity at month m
+      const totalEquity = computeVitryEquity(m);
+      // Return delta from previous month
+      const delta = totalEquity - prevImmoTotal;
+      prevImmoTotal = totalEquity;
+      return delta;
     }
   });
   buildSimChart('amSimChart', 'amSim', result);
@@ -451,33 +605,30 @@ function runNezhaSimulator(state) {
   document.getElementById('nzSimCashReturnVal').textContent = (cashReturn * 100).toFixed(1) + '%';
   document.getElementById('nzSimHorizonVal').textContent = horizonYears + ' ans';
 
-  let rueilEq = s.nezha.rueilEquity;
-  let villejuifEq = s.nezha.villejuifEquity;
   let cashNz = s.nezha.cash;
   let sgtmNz = s.nezha.sgtm;
 
-  const monthlyApprecRueil = s.nezha.rueilValue * appreciation / 12;
-  const monthlyApprecVillejuif = s.nezha.villejuifValue * appreciation / 12;
   const monthlyCashReturn = cashReturn / 12;
 
-  // Wealth creation from computed state (no hardcoded values)
+  // Create property equity computers for Rueil and Villejuif
   const ivNz = s.immoView;
-  const wcRueil = ivNz ? (ivNz.properties.find(p => p.loanKey === 'rueil') || {}).wealthCreation || 0 : 0;
-  const wcVillejuif = ivNz ? (ivNz.properties.find(p => p.loanKey === 'villejuif') || {}).wealthCreation || 0 : 0;
+  const computeRueilEquity = makeComputePropertyEquity(ivNz, 'rueil', ivNz?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
+  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
   for (let m = 0; m <= months; m++) {
-    if (m % (months <= 60 ? 1 : 3) === 0 || m === months) {
+    if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
+      const rueilEq = computeRueilEquity(m);
+      const villejuifEq = m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0;
       dataRueil.push(Math.round(rueilEq));
       dataVillejuif.push(Math.round(villejuifEq));
       dataCash.push(Math.round(cashNz + sgtmNz));
       dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
     }
-    rueilEq += wcRueil + monthlyApprecRueil;
-    if (m >= IC.villejuifStartMonth) villejuifEq += wcVillejuif + monthlyApprecVillejuif;
+    // Update cash and sgtm for next month
     cashNz *= (1 + monthlyCashReturn);
     sgtmNz *= (1 + 0.07 / 12);
   }
@@ -578,7 +729,10 @@ function runNezhaSimulator(state) {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 } }
+      scales: {
+        x: { ticks: { maxTicksLimit: 24, maxRotation: 45, minRotation: 45 } },
+        y: { ticks: { callback: v => fmtAxis(v) }, suggestedMin: 0 }
+      }
     },
     plugins: [{
       id: 'villejuifLine',
