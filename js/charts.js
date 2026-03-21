@@ -2039,6 +2039,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const ESPP_CASH_EUR = portfolio.amine.espp?.cashEUR || 0;
   const ESPP_CASH_USD = portfolio.nezha?.espp?.cashUSD || 0;
 
+  // ── Snapshot storage for per-period breakdown computation ──
+  const _simSnapshots = {};
+
   for (const date of refDates) {
     // Apply events up to and including this date
     while (eventIdx < allEvents.length && allEvents[eventIdx].date <= date) {
@@ -2125,7 +2128,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     // Positions value
     let posValue = 0;
     let missingTickers = [];
-    const posBreakdown = {}; // for diagnostics
+    const posBreakdown = {}; // for diagnostics + breakdown snapshots
     Object.entries(holdings).forEach(([ticker, data]) => {
       if (data.shares <= 0) return;
       const price = getClose(ticker, date, true); // allowForward for early dates (TSE closed Jan 2-3)
@@ -2144,6 +2147,18 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const nav = Math.round(posValue + cashValue);
     chartLabels.push(date);
     chartValues.push(nav);
+
+    // ── Store snapshot for breakdown computation ──
+    // We store per-date snapshots: position values + cash state
+    // These are used after the loop to compute per-period M2M breakdowns
+    _simSnapshots[date] = {
+      posBreakdown: { ...posBreakdown }, // shallow copy per-ticker objects
+      cashEUR, cashUSD, cashJPY,
+      fxUSD, fxJPY,
+      cashValueEUR: Math.round(cashValue),
+      posValueEUR: Math.round(posValue),
+      nav,
+    };
 
     // ── Detailed diagnostics for specific dates ──
     if (date === '2026-03-19' || date === '2026-03-18' || date === '2026-01-02') {
@@ -2284,6 +2299,223 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const plValuesTotal = chartValuesTotal.length > 0
     ? chartValuesTotal.map((nav, i) => Math.round(nav - startNAVRefTotal - cumDepositsAtPointTotal[i]))
     : plValuesIBKR;
+
+  // ── Compute per-period breakdown from simulation snapshots ──
+  // This provides position-level M2M that exactly reconciles with chart P&L
+  // (same Yahoo prices, same FX rates as the NAV simulation)
+  {
+    const lastDate = chartLabels[chartLabels.length - 1];
+    const firstDate = chartLabels[0];
+    const today = new Date();
+
+    // Build ticker → label map from data.js positions
+    const tickerLabelMap = {};
+    portfolio.amine.ibkr.positions.forEach(p => {
+      tickerLabelMap[p.ticker] = p.label || p.ticker;
+    });
+    // Also map traded tickers that might not be in current positions
+    (portfolio.amine.ibkr.trades || []).forEach(t => {
+      if (t.type === 'fx') return;
+      const yahoo = reverseMap[t.ticker] || t.ticker;
+      if (!tickerLabelMap[yahoo]) tickerLabelMap[yahoo] = t.label || t.ticker;
+    });
+
+    // Period boundary dates (use closest available chart date)
+    function closestDate(target, direction) {
+      // direction: 'before' = last date <= target, 'after' = first date >= target
+      if (direction === 'before') {
+        let best = firstDate;
+        for (const d of chartLabels) {
+          if (d <= target) best = d; else break;
+        }
+        return best;
+      } else {
+        for (const d of chartLabels) {
+          if (d >= target) return d;
+        }
+        return lastDate;
+      }
+    }
+
+    // Previous trading day
+    const lastIdx = chartLabels.length - 1;
+    const prevTradingDay = lastIdx >= 1 ? chartLabels[lastIdx - 1] : firstDate;
+
+    // MTD start: last trading day of previous month
+    const mtdStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    mtdStart.setDate(mtdStart.getDate() - 1);
+    const mtdStartStr = mtdStart.toISOString().slice(0, 10);
+    const mtdStartDate = closestDate(mtdStartStr, 'before');
+
+    // 1M start: ~30 days ago
+    const oneMAgo = new Date(today);
+    oneMAgo.setMonth(oneMAgo.getMonth() - 1);
+    const oneMStartStr = oneMAgo.toISOString().slice(0, 10);
+    const oneMStartDate = closestDate(oneMStartStr, 'before');
+
+    // YTD start: first chart date (Jan 2)
+    const ytdStartDate = firstDate;
+
+    // 1Y start: same as first chart date for 1y mode, or compute
+    const oneYAgo = new Date(today);
+    oneYAgo.setFullYear(oneYAgo.getFullYear() - 1);
+    const oneYStartStr = oneYAgo.toISOString().slice(0, 10);
+    const oneYStartDate = closestDate(oneYStartStr, 'after');
+
+    // Deposits in date range (exclusive start, inclusive end)
+    function depositsInRange(startD, endD) {
+      let total = 0;
+      for (const [dDate, dAmt] of Object.entries(allDepositsEUR)) {
+        if (dDate > startD && dDate <= endD) total += dAmt;
+      }
+      return total;
+    }
+
+    // Compute breakdown for a period [startDateSnap, endDateSnap]
+    function computePeriodBreakdown(startDateSnap, endDateSnap, periodKey) {
+      const snapStart = _simSnapshots[startDateSnap];
+      const snapEnd = _simSnapshots[endDateSnap];
+      if (!snapStart || !snapEnd) {
+        console.warn('[breakdown] Missing snapshot for', periodKey, ':', startDateSnap, '->', endDateSnap);
+        return null;
+      }
+
+      // Collect all tickers that appear at start or end
+      const allTickers = new Set([
+        ...Object.keys(snapStart.posBreakdown),
+        ...Object.keys(snapEnd.posBreakdown),
+      ]);
+
+      const items = [];
+      let totalPosM2M = 0;
+
+      allTickers.forEach(ticker => {
+        const startVal = snapStart.posBreakdown[ticker]?.valEUR || 0;
+        const endVal = snapEnd.posBreakdown[ticker]?.valEUR || 0;
+        const m2m = endVal - startVal;
+        // This is the position-level M2M: change in EUR market value
+        // It includes both price changes and FX effects on that position
+        if (Math.abs(m2m) >= 0.5) {
+          items.push({
+            label: tickerLabelMap[ticker] || ticker,
+            ticker: ticker,
+            pl: Math.round(m2m),
+            valEUR: endVal,
+          });
+          totalPosM2M += m2m;
+        }
+      });
+
+      // Cash M2M = change in total cash value in EUR
+      const cashM2MStart = snapStart.cashValueEUR;
+      const cashM2MEnd = snapEnd.cashValueEUR;
+      const deposits = depositsInRange(startDateSnap, endDateSnap);
+      // Cash change due to market (FX) = cashEnd - cashStart - deposits + cost-of-trades
+      // But trades move value between cash and positions, so they cancel out in total NAV
+      // The FX effect on cash = (cashEnd - cashStart) - deposits - (net trade flows)
+      // However, trade flows are already captured in position M2M, so:
+      // FX on cash = chartPL - posM2M (residual approach, always exact)
+
+      const chartPL = snapEnd.nav - snapStart.nav - deposits;
+      const fxOnCash = chartPL - Math.round(totalPosM2M);
+
+      // Costs are already embedded in position M2M and cash flows
+      // (commissions reduce cash, which reduces NAV → captured in the residual)
+      // We extract cost items separately for display
+
+      // Aggregate costs in the period
+      const periodCosts = { interest: 0, ftt: 0, dividends: 0, commissions: 0,
+        interestItems: [], fttItems: [], divItems: [], commItems: [] };
+      ibkrCostsYTD.forEach(c => {
+        if (c.date > startDateSnap && c.date <= endDateSnap) {
+          if (c.label && c.label.startsWith('Interest')) {
+            const amt = (c.eurAmount || 0) + (c.usdAmount || 0) / (snapEnd.fxUSD || 1.1) + (c.jpyAmount || 0) / (snapEnd.fxJPY || 160);
+            periodCosts.interest += amt;
+            periodCosts.interestItems.push({ date: c.date, label: c.label, amount: Math.round(amt) });
+          } else if (c.label && c.label.startsWith('FTT')) {
+            periodCosts.ftt += c.eurAmount || 0;
+            periodCosts.fttItems.push({ date: c.date, label: c.label, amount: Math.round(c.eurAmount || 0) });
+          } else if (c.label && c.label.startsWith('Div')) {
+            periodCosts.dividends += c.eurAmount || 0;
+            periodCosts.divItems.push({ date: c.date, label: c.label, amount: Math.round(c.eurAmount || 0) });
+          }
+        }
+      });
+      // Commissions from trades
+      (portfolio.amine.ibkr.trades || []).forEach(t => {
+        if (t.date > startDateSnap && t.date <= endDateSnap && t.commission) {
+          periodCosts.commissions += t.commission; // negative number
+          periodCosts.commItems.push({
+            date: t.date,
+            label: (t.label || t.ticker) + ' (' + t.type + ')',
+            amount: Math.round(t.commission),
+          });
+        }
+      });
+
+      // Add cost items to breakdown (as _isCost items, like engine.js does)
+      if (Math.abs(periodCosts.interest) >= 1) {
+        items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: Math.round(periodCosts.interest), _isCost: true, _detail: periodCosts.interestItems });
+      }
+      if (Math.abs(periodCosts.ftt) >= 1) {
+        items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: Math.round(periodCosts.ftt), _isCost: true, _detail: periodCosts.fttItems });
+      }
+      if (Math.abs(periodCosts.commissions) >= 1) {
+        items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: Math.round(periodCosts.commissions), _isCost: true, _detail: periodCosts.commItems });
+      }
+      if (Math.abs(periodCosts.dividends) >= 1) {
+        items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: Math.round(periodCosts.dividends), _isCost: true, _detail: periodCosts.divItems });
+      }
+
+      // Add FX/Cash residual as a line item (captures JPY carry FX, USD FX, EUR interest effect)
+      // Only show if non-trivial
+      if (Math.abs(fxOnCash) >= 1) {
+        items.push({
+          label: 'Effet FX / Cash',
+          ticker: '_FX_CASH',
+          pl: fxOnCash,
+          _isCost: true,
+          _detail: [
+            { label: 'JPY cash (' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)', amount: Math.round(snapEnd.cashJPY / snapEnd.fxJPY - snapStart.cashJPY / snapStart.fxJPY) },
+            { label: 'USD cash (' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: Math.round(snapEnd.cashUSD / snapEnd.fxUSD - snapStart.cashUSD / snapStart.fxUSD) },
+            { label: 'EUR cash (solde)', amount: Math.round(snapEnd.cashEUR - snapStart.cashEUR + deposits) },
+          ].filter(d => Math.abs(d.amount) >= 1),
+        });
+      }
+
+      // Sort: worst first (like engine.js)
+      items.sort((a, b) => a.pl - b.pl);
+
+      const total = chartPL; // exact match with KPI card value
+      return { total: Math.round(total), breakdown: items, hasData: true };
+    }
+
+    // Compute breakdowns for all periods
+    const chartBreakdown = {};
+    if (mode === 'ytd') {
+      chartBreakdown.daily = computePeriodBreakdown(prevTradingDay, lastDate, 'daily');
+      chartBreakdown.mtd = computePeriodBreakdown(mtdStartDate, lastDate, 'mtd');
+      chartBreakdown.oneMonth = computePeriodBreakdown(oneMStartDate, lastDate, 'oneMonth');
+      chartBreakdown.ytd = computePeriodBreakdown(ytdStartDate, lastDate, 'ytd');
+      console.log('[breakdown] YTD chart breakdown computed:', {
+        daily: chartBreakdown.daily?.total,
+        mtd: chartBreakdown.mtd?.total,
+        oneMonth: chartBreakdown.oneMonth?.total,
+        ytd: chartBreakdown.ytd?.total,
+        ytdItems: chartBreakdown.ytd?.breakdown?.length,
+      });
+    } else if (mode === '1y') {
+      chartBreakdown.oneYear = computePeriodBreakdown(oneYStartDate, lastDate, 'oneYear');
+      console.log('[breakdown] 1Y chart breakdown computed:', {
+        oneYear: chartBreakdown.oneYear?.total,
+        items: chartBreakdown.oneYear?.breakdown?.length,
+      });
+    }
+
+    // Store on window for render.js detail generators
+    if (!window._chartBreakdown) window._chartBreakdown = {};
+    Object.assign(window._chartBreakdown, chartBreakdown);
+  }
 
   // ── Chart rendering ──
   const showAll = includeESPP || includeSGTM;
