@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=173';
-import { getGrandTotal } from './engine.js?v=173';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=176';
+import { getGrandTotal } from './engine.js?v=176';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -2021,26 +2021,63 @@ function renderActionsView(state) {
       }
 
       else if (ins.type === 'costs') {
-        // All costs now computed dynamically by engine.js — no chart dependency
+        // Cost summary — clickable to expand/collapse detail
         const commYTD = Math.abs(av.commissionsYTD || 0);
         const interestYTD = Math.abs(av.interestYTD || 0);
         const fttYTD = Math.abs(av.fttYTD || 0);
         const divYTD = av.dividendsYTD || 0;
-        const totalCostsYTD = commYTD + interestYTD + fttYTD;
+        const whtYTD = Math.abs(av.whtYTD || 0);
+        const totalCostsYTD = commYTD + interestYTD + fttYTD + whtYTD;
+        const netCostsYTD = totalCostsYTD - Math.max(0, divYTD);
         const navRef = av.ibkrNAV || av.totalPositionsVal;
-        const commPctNAV = navRef > 0 ? (commYTD / navRef * 100) : 0;
-        html += '<div style="font-size:13px;">Commissions YTD : <strong class="pl-neg">-' + fmt(commYTD) + '</strong> (' + commPctNAV.toFixed(2) + '% de la NAV)</div>';
-        html += '<div style="font-size:13px;">Intérêts marge YTD : <strong class="pl-neg">-' + fmt(interestYTD) + '</strong></div>';
-        if (fttYTD > 0) html += '<div style="font-size:13px;">FTT (taxe transactions) YTD : <strong class="pl-neg">-' + fmt(fttYTD) + '</strong></div>';
-        html += '<div style="font-size:13px;">Dividendes nets YTD : <strong class="pl-pos">' + (divYTD >= 0 ? '+' : '') + fmt(Math.round(divYTD)) + '</strong></div>';
-        html += '<div style="font-size:13px;margin-top:4px;font-weight:600;">Coûts totaux YTD : <strong class="pl-neg">-' + fmt(totalCostsYTD) + '</strong></div>';
+        const costPctNAV = navRef > 0 ? (totalCostsYTD / navRef * 100) : 0;
+
+        // Summary line (always visible) — shows total cost + net impact
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:8px 0;" onclick="this.parentElement.querySelector(\'[data-costs-detail]\').classList.toggle(\'costs-hidden\')">';
+        html += '<div style="font-size:15px;font-weight:600;">Coûts totaux : <span class="pl-neg">-' + fmt(totalCostsYTD) + '</span>';
+        html += ' <span style="font-size:12px;color:#718096;">(' + costPctNAV.toFixed(2) + '% NAV)</span></div>';
+        html += '<span style="font-size:11px;color:var(--accent);font-weight:500;">▼ Détails</span>';
+        html += '</div>';
+
+        // Expandable detail section
+        html += '<div data-costs-detail class="">';
+
+        // Cost breakdown table
+        html += '<table style="width:100%;font-size:13px;border-collapse:collapse;margin:4px 0 8px;">';
+        const costRows = [
+          ['Commissions courtier', commYTD, 'Frais IBKR par trade'],
+          ['FTT (taxe transactions)', fttYTD, 'Taxe 0.4% sur achats FR large-cap'],
+          ['Intérêts marge', interestYTD, 'Coût emprunt EUR/USD/JPY'],
+          ['WHT (retenue source)', whtYTD, 'Précompte dividendes (25-30%)'],
+        ];
+        costRows.forEach(function(r) {
+          if (r[1] > 0) {
+            html += '<tr style="border-bottom:1px solid #edf2f7;">';
+            html += '<td style="padding:4px 0;">' + r[0] + ' <span style="font-size:10px;color:#a0aec0;" title="' + r[2] + '">ⓘ</span></td>';
+            html += '<td style="padding:4px 0;text-align:right;"><strong class="pl-neg">-' + fmt(r[1]) + '</strong></td>';
+            html += '</tr>';
+          }
+        });
+        // Dividends row (income, positive)
+        html += '<tr style="border-bottom:1px solid #edf2f7;">';
+        html += '<td style="padding:4px 0;">Dividendes nets</td>';
+        html += '<td style="padding:4px 0;text-align:right;"><strong class="pl-pos">+' + fmt(Math.round(Math.max(0, divYTD))) + '</strong></td>';
+        html += '</tr>';
+        // Net impact
+        html += '<tr style="font-weight:600;">';
+        html += '<td style="padding:6px 0;">Impact net (coûts - dividendes)</td>';
+        html += '<td style="padding:6px 0;text-align:right;"><strong class="pl-neg">-' + fmt(Math.round(netCostsYTD)) + '</strong></td>';
+        html += '</tr>';
+        html += '</table>';
+
         // All-time totals
-        html += '<div style="font-size:12px;color:#718096;margin-top:6px;border-top:1px solid #e2e8f0;padding-top:6px;">';
+        html += '<div style="font-size:12px;color:#718096;border-top:1px solid #e2e8f0;padding-top:6px;">';
         html += 'All-time : Comm. -' + fmt(Math.abs(av.commissions || 0)) + ' | FTT -' + fmt(Math.abs(av.fttAllTime || 0)) + ' | Div +' + fmt(Math.round(av.dividends || 0));
         html += '</div>';
-        if (commPctNAV > 0.3) {
-          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">Les commissions sont élevées. Le passage aux ETFs réduirait drastiquement les frais de transaction.</div>';
+        if (costPctNAV > 1.0) {
+          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">⚠ Coûts > 1% de la NAV. Envisager ETFs pour réduire les frais.</div>';
         }
+        html += '</div>'; // close detail section
       }
 
       else if (ins.type === 'recommendation') {

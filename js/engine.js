@@ -3,7 +3,7 @@
 // ============================================================
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=173';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=176';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -336,10 +336,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // ═══════════════════════════════════════════════════════════════════
 
   // ── FTT (Taxe sur les Transactions Financières) ──
-  // 0.3% sur les achats de stocks français large-cap (AMF TTF list)
-  // Exclure : AIR.PA (HQ Pays-Bas), NXI (small cap), WLN (cap borderline)
-  const FTT_ELIGIBLE = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA']);
-  const FTT_RATE = 0.003; // 0.3% — taux officiel AMF
+  // 0.4% sur les achats de stocks français large-cap (AMF TTF list)
+  // Source: relevé IBKR "Transaction Fees" — vérifié vs statement U18138426
+  // Inclut: MC, DG, FGR, GLE, SAN, EDEN, RMS, OR, BN, WLN, AIR (Airbus HQ NL mais coté Euronext Paris)
+  const FTT_ELIGIBLE = new Set(['MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN','RMS.PA','OR.PA','BN.PA','WLN','AIR.PA']);
+  const FTT_RATE = 0.004; // 0.4% — taux facturé par IBKR (vérifié sur statement)
   function computeFTT(startDate) {
     let total = 0;
     const items = [];
@@ -355,11 +356,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // ── Commissions dynamiques ──
   // Calculées depuis t.commission sur chaque trade (frais courtier uniquement, PAS FTT)
+  // IMPORTANT: t.commission est en devise native du trade (EUR, USD, JPY)
+  // → conversion en EUR nécessaire pour éviter de sommer des devises différentes
+  // Bug corrigé: ¥871.60 (Shiseido) était compté comme €871.60 → faussait le total
   function computeCommissions(startDate) {
     let total = 0;
     _allIbkrTrades.forEach(t => {
       if (t.date >= startDate && t.commission) {
-        total += t.commission; // already negative
+        total += toEUR(t.commission, t.currency || 'EUR', fx); // convert to EUR
       }
     });
     return total;
