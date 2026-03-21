@@ -959,6 +959,8 @@ function setSubPct(id, pct) {
   // Remove existing sub-pct if any
   const existing = el.parentElement?.querySelector('.kpi-sub-pct');
   if (existing) existing.remove();
+  // If pct is null/undefined, just clear the sub-pct
+  if (pct == null) return;
   // Create sub-pct element
   const span = document.createElement('span');
   span.className = 'kpi-sub-pct';
