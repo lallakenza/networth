@@ -2669,6 +2669,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   //   'degiro' → no active positions (empty array → show IBKR as fallback)
   //   'all'    → IBKR + ESPP + SGTM combined total
   const showAll = includeESPP || includeSGTM;
+  // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
+  const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
   let mainData, mainLabel, scopeLabel;
   switch (scope) {
     case 'espp':
@@ -2831,10 +2833,6 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
 
   // Store full data for period filtering and mode switching
-  // ── Determine scope from options ──
-  // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
-  const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
-
   window._ytdChartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
