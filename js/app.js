@@ -4,9 +4,9 @@
 
 import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
 import { compute } from './engine.js?v=190';
-import { render } from './render.js?v=194';
+import { render } from './render.js?v=195';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=194';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=195';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -23,6 +23,76 @@ const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 const IMMO_VIEWS = ['immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
 const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget'];
 const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
+
+// ---- Scope-aware KPI card updater ----
+// Updates the static (non-period) KPI cards when toggling IBKR/Tout scope
+function updateStaticKPIsForScope(scope) {
+  const av = window._actionsView;
+  if (!av) return;
+  const fmt = n => Math.round(n).toLocaleString('fr-FR') + ' €';
+  const setT = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const setEur = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = fmt(val); el.dataset.eur = Math.round(val); }
+  };
+  const setSubPct = (id, pct) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let sub = el.parentElement?.querySelector('.sub:not(#kpiActionsTWR)');
+    if (!sub) { sub = document.createElement('div'); sub.className = 'sub'; el.parentElement?.insertBefore(sub, el.nextSibling); }
+    const sign = pct >= 0 ? '+' : '';
+    sub.textContent = sign + pct.toFixed(1) + '% vs déposé';
+    sub.className = 'sub ' + (pct >= 0 ? 'pl-pos' : 'pl-neg');
+  };
+
+  if (scope === 'all') {
+    // All platforms
+    setEur('kpiActionsTotal', av.totalStocks);
+    const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
+    setT('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
+    const plEl = document.getElementById('kpiActionsUnrealizedPL');
+    if (plEl) { plEl.className = 'value ' + (av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsUnrealizedPL', av.totalDeposits > 0 ? av.combinedUnrealizedPL / av.totalDeposits * 100 : 0);
+
+    const rSign = av.combinedRealizedPL >= 0 ? '+' : '';
+    setT('kpiActionsRealizedPL', rSign + fmt(av.combinedRealizedPL));
+    const rEl = document.getElementById('kpiActionsRealizedPL');
+    if (rEl) { rEl.className = 'value ' + (av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsRealizedPL', av.totalDeposits > 0 ? av.combinedRealizedPL / av.totalDeposits * 100 : 0);
+
+    setT('kpiActionsTotalDeposits', fmt(av.totalDeposits));
+    setT('kpiActionsDividends', fmt(av.dividends));
+
+    // Labels
+    setT('kpiActionsTotalLabel', 'Total Actions (toutes plateformes)');
+    setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (IBKR + ESPP + SGTM)');
+    setT('kpiActionsRealizedLabel', 'P/L Réalisé (IBKR + Degiro)');
+    setT('kpiActionsDepositsLabel', 'Total Déposé (toutes plateformes)');
+  } else {
+    // IBKR only
+    setEur('kpiActionsTotal', av.ibkrNAV);
+    const plSign = av.totalUnrealizedPL >= 0 ? '+' : '';
+    setT('kpiActionsUnrealizedPL', plSign + fmt(av.totalUnrealizedPL));
+    const plEl = document.getElementById('kpiActionsUnrealizedPL');
+    if (plEl) { plEl.className = 'value ' + (av.totalUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsUnrealizedPL', av.ibkrDepositsTotal > 0 ? av.totalUnrealizedPL / av.ibkrDepositsTotal * 100 : 0);
+
+    const rSign = av.realizedPL >= 0 ? '+' : '';
+    setT('kpiActionsRealizedPL', rSign + fmt(av.realizedPL));
+    const rEl = document.getElementById('kpiActionsRealizedPL');
+    if (rEl) { rEl.className = 'value ' + (av.realizedPL >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsRealizedPL', av.ibkrDepositsTotal > 0 ? av.realizedPL / av.ibkrDepositsTotal * 100 : 0);
+
+    setT('kpiActionsTotalDeposits', fmt(av.ibkrDepositsTotal));
+    setT('kpiActionsDividends', fmt(av.dividends));
+
+    // Labels
+    setT('kpiActionsTotalLabel', 'Total Actions (IBKR seul)');
+    setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (IBKR)');
+    setT('kpiActionsRealizedLabel', 'P/L Réalisé (IBKR)');
+    setT('kpiActionsDepositsLabel', 'Total Déposé (IBKR)');
+  }
+}
 
 // ---- URL hash routing ----
 function updateHash() {
@@ -704,16 +774,18 @@ async function loadStockPrices(forceRefresh) {
 
         if (ytdProgress) ytdProgress.style.display = 'none';
 
-        // Build the YTD portfolio evolution chart
+        // Build the YTD portfolio evolution chart — default scope is 'all'
         const chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
           mode: 'ytd',
-          startingNAV: 209495
+          startingNAV: 209495,
+          includeESPP: true,
+          includeSGTM: true,
         });
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
-        console.log('[app] YTD portfolio chart built successfully');
+        console.log('[app] YTD portfolio chart built successfully (scope: all)');
 
         // Track current state for toggles
-        let currentScope = 'ibkr';
+        let currentScope = 'all';
         let currentPeriod = 'YTD';
         let historicalDataToUse = historicalDataYTD;
 
@@ -740,6 +812,8 @@ async function loadStockPrices(forceRefresh) {
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
             if (window._ytdDisplayMode === 'pl') switchChartMode('pl');
+            // ── Update static KPI cards based on scope ──
+            updateStaticKPIsForScope(currentScope);
             // Refresh open breakdown panel (scope changed → new _chartBreakdown data)
             if (window._refreshActiveBreakdown) window._refreshActiveBreakdown();
           });

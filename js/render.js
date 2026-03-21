@@ -1488,6 +1488,8 @@ function setupAllPositionsSort(allPositions) {
 
 function renderActionsView(state) {
   const av = state.actionsView;
+  // Store actionsView globally so app.js scope toggle can update KPIs
+  window._actionsView = av;
   // KPIs — cross-platform
   setEur('kpiActionsTotal', av.totalStocks);
   const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';

@@ -1333,11 +1333,56 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <!-- ============ VUE ACTIONS ============ -->
 <div class="card hidden" data-view="actions">
   <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
+
+  <!-- ════════════════════════════════════════════════════════════
+       PORTFOLIO EVOLUTION CHART — displayed first for immediate visual context
+       Scope/Period/Mode toggles control both chart AND KPI cards below
+       ════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 id="ytdChartTitle" style="margin:0"><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>&Eacute;volution Portefeuille — YTD 2026</h3>
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--gray);">
+        <span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
+        <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-scope="ibkr" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">IBKR seul</button>
+        <button data-scope="all" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+      </div>
+      <div id="ytdModeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-mode="value" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Valeur</button>
+        <button data-mode="pl" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">P&amp;L</button>
+      </div>
+      <div id="ytdPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-period="MTD" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
+        <button data-period="1M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
+        <button data-period="3M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">3M</button>
+        <button data-period="YTD" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">YTD</button>
+        <button data-period="1Y" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1Y</button>
+      </div>
+    </div>
+    <!-- Progress bar for historical data loading -->
+    <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
+      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
+        <div id="ytdProgressFill" style="background:var(--accent);height:100%;width:0%;transition:width .3s;border-radius:4px;"></div>
+      </div>
+      <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);margin-top:2px;"></div>
+    </div>
+    <div class="chart-container" style="height:340px"><canvas id="portfolioYTDChart"></canvas></div>
+    <p id="ytdChartFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;">
+      Simulation calibr&eacute;e : NAV initiale IBKR + prix historiques Yahoo Finance + trades 2026 + cash multi-devises.
+      Inclut EUR, USD, JPY. Positions valu&eacute;es uniquement pendant la p&eacute;riode de d&eacute;tention.
+    </p>
+  </div>
+
+  <!-- KPI CARDS — scope-aware: updated when toggling IBKR/Tout -->
   <div class="kpi-strip" id="kpi-actions" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label">Total Actions (toutes plateformes)</div></div>
-    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute; (IBKR + ESPP + SGTM)</div></div>
-    <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
-    <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label">Total D&eacute;pos&eacute;</div></div>
+    <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label" id="kpiActionsTotalLabel">Total Actions (toutes plateformes)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label" id="kpiActionsUnrealizedLabel">P/L Non R&eacute;alis&eacute; (IBKR + ESPP + SGTM)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label" id="kpiActionsRealizedLabel">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
+    <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label" id="kpiActionsDepositsLabel">Total D&eacute;pos&eacute;</div></div>
     <div class="kpi kpi-clickable" data-detail="detailDividends"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
   </div>
   <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(5, 1fr); margin-top:8px;">
@@ -1373,52 +1418,6 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <tbody id="allPositionsTbody"></tbody>
   </table>
   <p id="actionsStaticFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;"></p>
-
-  <!-- ════════════════════════════════════════════════════════════
-       YTD PORTFOLIO EVOLUTION CHART
-       Shows daily IBKR account NAV since Jan 1, 2026
-       Uses calibrated forward simulation with historical Yahoo prices
-       Cash positions (EUR, USD, JPY) included in NAV calculation
-       Positions valued only from purchase date; excluded after sell date
-       ════════════════════════════════════════════════════════════ -->
-  <div style="margin-top:20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <h3 id="ytdChartTitle" style="margin:0"><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>&Eacute;volution Portefeuille IBKR — YTD 2026</h3>
-      <div style="display:flex;gap:16px;font-size:12px;color:var(--gray);">
-        <span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
-        <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
-      </div>
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
-        <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
-        <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
-      </div>
-      <div id="ytdModeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
-        <button data-mode="value" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Valeur</button>
-        <button data-mode="pl" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">P&amp;L</button>
-      </div>
-      <div id="ytdPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
-        <button data-period="MTD" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
-        <button data-period="1M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
-        <button data-period="3M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">3M</button>
-        <button data-period="YTD" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">YTD</button>
-        <button data-period="1Y" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1Y</button>
-      </div>
-    </div>
-    <!-- Progress bar for historical data loading -->
-    <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
-      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
-        <div id="ytdProgressFill" style="background:var(--accent);height:100%;width:0%;transition:width .3s;border-radius:4px;"></div>
-      </div>
-      <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);margin-top:2px;"></div>
-    </div>
-    <div class="chart-container" style="height:340px"><canvas id="portfolioYTDChart"></canvas></div>
-    <p id="ytdChartFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;">
-      Simulation calibr&eacute;e : NAV initiale IBKR + prix historiques Yahoo Finance + trades 2026 + cash multi-devises.
-      Inclut EUR, USD, JPY. Positions valu&eacute;es uniquement pendant la p&eacute;riode de d&eacute;tention.
-    </p>
-  </div>
 
   <div style="margin-top:20px;">
     <h3><span class="section-icon" style="background: var(--accent);">&#x1F9E9;</span>Treemap Actions & Crypto</h3>
@@ -1808,7 +1807,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=194"></script>
+<script type="module" src="js/app.js?v=195"></script>
 
 </body>
 </html>
