@@ -1,2229 +1,463 @@
-# Architecture — Patrimonial Dashboard
+# Architecture — Dashboard Patrimonial
 
-> Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v182** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
-> Dernière mise à jour : 21 mars 2026
+> Dernière mise à jour : 21 mars 2026 (v193)
+> Repo : `lallakenza/networth` — GitHub Pages
+> URL : https://lallakenza.github.io/networth/
 
-## Principe fondamental
+---
 
-**Zéro hardcode.** Toute valeur affichée doit provenir de `data.js` (données brutes) ou être calculée dynamiquement par `engine.js`. Ne jamais écrire de montants, noms de comptes, ou textes de conseil en dur dans render.js ou index.html.
+## 1. Vue d'ensemble
 
-## Pipeline de données
-
-```
-data.js  →  engine.js  →  render.js  →  DOM (index.html)
-  (raw)      (compute)     (display)      (structure)
-                ↓
-            charts.js (Chart.js visualisations)
-            simulators.js (projections interactives)
-```
-
-## Fichiers
-
-| Fichier | Rôle | Quand modifier |
-|---------|------|----------------|
-| `js/app.js` | Point d'entrée. Orchestre DATA → ENGINE → RENDER. Gère le routing des vues, le switch devise, le chargement FX/stocks. | Changement de vue, devise, refresh |
-| `js/data.js` | Données brutes en devise native (AED, MAD, EUR, USD, JPY). Constantes immo, taux, créances. | Mise à jour bimensuelle des soldes, ajout de compte/bien |
-| `js/engine.js` | Calculs purs : `compute(PORTFOLIO, fx)` → state object. Pas de DOM. | Ajout de logique de calcul (nouveau type d'actif, diagnostic) |
-| `js/render.js` | Lecture du state → mise à jour du DOM. Exports : `render(state)`, `fmt()` | Ajout d'affichage, modification de layout |
-| `js/charts.js` | Chart.js : création/destruction de graphiques. Lit state, pas le DOM. | Ajout de graphique |
-| `js/simulators.js` | 3 simulateurs de projection (couple, Amine, Nezha) | Modification des projections |
-| `js/api.js` | Fetch FX (frankfurter.dev) + stock prices (Yahoo Finance chart API) | Ajout de source de prix |
-| `index.html` | Structure HTML + CSS. Pas de logique. | Ajout de sections UI |
-
-## Comment ajouter un nouveau bien immobilier
-
-1. **data.js** : ajouter dans `PORTFOLIO.{owner}.immo` un objet avec `value`, `valueDate`, `appreciation`, `purchaseDate`, `purchasePrice`, `surface`
-2. **data.js** : ajouter les prêts dans `IMMO_CONSTANTS.loans.{key}Loans[]`
-3. **data.js** : ajouter les charges dans `IMMO_CONSTANTS.charges.{key}`
-4. **data.js** : ajouter le loyer dans `IMMO_CONSTANTS.properties.{key}`
-5. **engine.js** : `buildProperty()` le détecte automatiquement via `IMMO_CONSTANTS`
-6. **render.js** : les property cards se génèrent dynamiquement
-
-## Estimation dynamique de la valeur des biens (engine.js → buildProperty)
-
-La valeur d'un bien évolue dans le temps grâce au taux d'appréciation, à partir d'une **date de référence** (`valueDate`).
-
-### Principe
-
-Chaque bien dans `PORTFOLIO.{owner}.immo.{key}` a :
-- `value` : valeur estimée à la date de référence (en EUR)
-- `valueDate` : date de cette estimation au format `'YYYY-MM'` (ex: `'2025-09'`)
-
-Au chargement, `engine.js` calcule la valeur actuelle par capitalisation mensuelle :
-```
-valeur_actuelle = value × (1 + taux_appreciation / 12) ^ mois_depuis_valueDate
-```
-
-Le taux d'appréciation utilise les `appreciationPhases` de `IMMO_CONSTANTS.properties.{key}` si disponibles (taux différent par période), sinon le taux global `appreciation`.
-
-### Ajuster la valeur à tout moment
-
-Pour recalibrer l'estimation d'un bien (ex: après une expertise, un comparatif marché) :
-1. Mettre à jour `value` avec la nouvelle estimation dans `data.js`
-2. Mettre à jour `valueDate` avec la date de cette nouvelle estimation
-3. Toute la projection future repart de ce nouveau point de référence
-
-Exemple : si en mars 2026 une expertise évalue Vitry à 310K :
-```javascript
-vitry: { value: 310000, valueDate: '2026-03', ... }
-```
-
-### Données exposées par engine.js
-
-Chaque propriété retournée par `buildProperty()` inclut :
-- `value` : valeur dynamique actuelle (calculée)
-- `referenceValue` : valeur de référence (celle de data.js)
-- `valueDate` : date de la référence
-
-### Impact sur les projections
-
-Les projections (`computeNetWorthProjection`) utilisent `prop.value` (= valeur dynamique actuelle) comme point de départ et capitalisent vers le futur. Pas de double comptage : l'appréciation de `valueDate` → aujourd'hui est dans `prop.value`, la projection calcule de aujourd'hui → futur.
-
-## Comment ajouter un nouveau compte cash
-
-1. **data.js** : ajouter le montant dans `PORTFOLIO.{owner}.{zone}`
-2. **data.js** : ajouter le taux dans `CASH_YIELDS.{key}`
-3. **engine.js** : ajouter dans `computeCashView()` → section "Build accounts list"
-4. Le diagnostic dormant se détecte automatiquement (rendement < 3%)
-
-## Comment ajouter une nouvelle position IBKR
-
-1. **data.js** : ajouter dans `PORTFOLIO.amine.ibkr.positions[]` : `{ ticker, shares, price, costBasis, currency, label, sector, geo }`
-2. **api.js** : `fetchStockPrices()` le récupère automatiquement via Yahoo Finance
-3. **engine.js** : `computeIBKRPositions()` le traite automatiquement
-
-### Trouver le bon ticker Yahoo Finance
-
-Le ticker dans `positions[].ticker` doit correspondre au format Yahoo Finance :
-
-| Bourse | Format ticker | Exemples |
-|--------|--------------|----------|
-| Euronext Paris | `SYMBOL.PA` | `AIR.PA` (Airbus), `MC.PA` (LVMH), `BN.PA` (Danone) |
-| Xetra (Allemagne) | `SYMBOL.DE` | `P911.DE` (Porsche), `SAP` (exception : pas de suffixe) |
-| Tokyo Stock Exchange | `CODE.T` | `4911.T` (Shiseido) |
-| NYSE / NASDAQ (US) | `SYMBOL` (pas de suffixe) | `IBIT`, `ETHA`, `ACN` |
-| Casablanca (Maroc) | Pas de ticker Yahoo | SGTM → scraping Google Finance (`GTM:CAS`) |
-
-Pour vérifier un ticker : `https://finance.yahoo.com/quote/TICKER` — si la page affiche un prix, le ticker est bon.
-
-### Architecture API (api.js)
-
-Les prix sont récupérés côté client (navigateur) depuis GitHub Pages. CORS bloque les appels directs vers Yahoo Finance, donc on utilise des proxies CORS.
-
-**PRINCIPE : maximiser le taux de succès.** Pour chaque ticker, on lance TOUS les proxies × TOUS les endpoints Yahoo en parallèle (Promise.any). Le premier qui répond gagne. Ensuite, si des tickers ont échoué, on relance automatiquement en boucle (retry loop) jusqu'à tout avoir.
-
-#### Proxies CORS (6 sources, toutes lancées en parallèle)
-```
-1. Direct Yahoo (sans proxy — marche dans certains navigateurs)
-2. api.allorigins.win/raw?url=
-3. api.codetabs.com/v1/proxy?quest=
-4. corsproxy.io/?
-5. api.cors.lol/?url=
-6. thingproxy.freeboard.io/fetch/
-```
-
-#### Endpoints Yahoo (2 par ticker, lancés en parallèle via chaque proxy)
-```
-- v8 chart:  /v8/finance/chart/TICKER?range=1d&interval=1d  → extractFromChart()
-- v6 quote:  /v6/finance/quote?symbols=TICKER               → extractFromQuote()
-```
-
-Résultat : pour chaque ticker, **12 requêtes en parallèle** (6 proxies × 2 endpoints). Promise.any retourne le premier succès.
-
-#### Flux complet
-```
-1. Charger depuis localStorage cache (tickers déjà récupérés aujourd'hui)
-2. Lancer TOUS les tickers manquants en parallèle (pas de batching)
-3. Pour chaque ticker: 12 requêtes en parallèle → premier succès = sauvegardé
-4. Si des tickers ont échoué → RETRY LOOP automatique:
-   - Attendre 5 secondes
-   - Relancer les tickers manquants (12 requêtes/ticker)
-   - Rafraîchir le dashboard à chaque succès
-   - Max 5 rounds de retry
-   - S'arrête dès que 14/14 loadés
-5. Chaque prix récupéré est immédiatement sauvegardé dans le cache du jour
-```
-
-#### fetchStockPrice(ticker) — retourne { price, previousClose }
-```
-Race 12 promises en parallèle (6 proxies × 2 endpoints Yahoo)
-Timeout: 10s par requête
-Si TOUS échouent: return null → pos._live = false, fallback data.js
-```
-
-#### fetchSGTMPrice() — retourne prix en MAD
-```
-Race 10 promises en parallèle (5 proxies × 2 sources: Google Finance + leboursier.ma)
-Si TOUS échouent: prix statique de data.js
-```
-
-#### retryFailedTickers() — boucle de retry
-```
-- Max 5 rounds, 5s entre chaque round
-- Chaque round relance les tickers manquants en parallèle
-- Met à jour portfolio + cache + badge à chaque succès
-- Log console: [retry] Round X/5: N tickers (TICKER1, TICKER2...)
-```
-
-#### Séparation données live vs stockées
-```
-LIVE (API): price + previousClose uniquement
-STOCKÉ (data.js): ytdOpen, mtdOpen, oneMonthAgo
-→ mtdOpen: mettre à jour au 1er de chaque mois
-→ oneMonthAgo: mettre à jour toutes les 2 semaines
-→ ytdOpen: ne change qu'au 1er janvier
-```
-
-Si un proxy tombe durablement, le remplacer dans le tableau PROXIES de api.js. Sources alternatives :
-- `https://cors-anywhere.herokuapp.com/URL` (nécessite activation manuelle)
-- Déployer son propre proxy Cloudflare Worker (gratuit, plus fiable)
-- `https://corsfix.com/` (60 req/min gratuit)
-
-## Cache localStorage (api.js)
-
-Pour éviter de surcharger les APIs à chaque refresh, les résultats sont cachés dans `localStorage` pour la journée :
+Application statique (zero backend) qui calcule et affiche le patrimoine net du couple Amine & Nezha. Toutes les données sont dans `data.js`, toutes les computations dans `engine.js`, tout le rendu dans `render.js`. Les prix live viennent de Yahoo Finance via CORS proxy.
 
 ```
-Clé : nw_cache_YYYY-MM-DD
-Contenu : { stocks: { TICKER: { price, previousClose } }, fx: { rates }, sgtm: { price } }
+index.html          ← Structure HTML + CSS
+  └─ js/app.js      ← Orchestrateur (imports, init, event handlers)
+       ├─ js/data.js     ← Données brutes (positions, trades, dépôts, config)
+       ├─ js/engine.js   ← Calculs purs (NAV, P/L, coûts, simulations immo)
+       ├─ js/render.js   ← DOM write-only (formatage, tables, insights)
+       ├─ js/charts.js   ← Chart.js (évolution NAV, allocations, CF projection)
+       └─ js/api.js      ← Yahoo Finance API (FX live, prix actions, historique)
 ```
 
-**Comportement (stale-while-revalidate, v131+) :**
-- Au chargement : les tickers en cache sont appliqués immédiatement pour un rendu rapide (0 latence)
-- Chaque entrée cache a un timestamp `_ts` (Date.now() au moment du fetch)
-- Si un ticker est en cache mais son `_ts` a plus de 10 min (`CACHE_TTL_MS = 10 * 60 * 1000`), il est re-fetché en arrière-plan
-- Les prix frais remplacent les stale et le dashboard se rafraîchit automatiquement
-- Les entrées des jours précédents sont purgées automatiquement au chargement du module
+### Principes architecturaux
 
-**Boutons :**
-- **Refresh** (gris) : smart refresh — ne requête que les tickers absents du cache du jour
-- **⚡ Hard Refresh** (orange) : ignore le cache, re-télécharge tout (FX + stocks + SGTM)
+- **Séparation stricte** : `data` → `engine` → `render`. Aucun module ne remonte la chaîne.
+- **Zéro valeur hardcodée** : Tous les coûts (commissions, FTT, intérêts, dividendes) sont calculés dynamiquement depuis les données brutes dans `data.js`.
+- **Multi-devises natif** : Chaque montant est stocké dans sa devise native (EUR, USD, JPY, AED, MAD). La conversion en EUR se fait dans `engine.js` via `toEUR()`.
+- **Cache-busting** : Chaque import utilise `?v=N` pour forcer le navigateur à charger la dernière version après un déploiement.
+- **Fallback statique** : Si l'API Yahoo est indisponible, les prix statiques dans `data.js` sont utilisés.
 
-**Auto-refresh** : toutes les 10 minutes, smart refresh automatique.
+---
 
-## Cache busting
+## 2. Fichiers — Responsabilités détaillées
 
-Chaque module importe les autres avec `?v=XX`. À chaque commit, incrémenter le numéro dans **tous les fichiers** :
-- `app.js`, `engine.js`, `render.js`, `charts.js`, `simulators.js`, `index.html`
-- Les fichiers `apt_*.html` ne sont plus liés mais gardent leur version
-- **Version actuelle : v182** (21 mars 2026)
+### `data.js` (~1 700 lignes)
 
-⚠ **Leçon v177** : Si on modifie un fichier (ex: charts.js) mais qu'on garde le même numéro de version dans l'import (ex: `?v=176` → `?v=176`), le navigateur ne re-téléchargera pas le fichier. TOUJOURS incrémenter, même pour un hotfix.
+Couche de données brutes. **Aucune computation.** Contient :
 
-## Diagnostics (engine.js → cashView.diagnostics)
+| Section | Description |
+|---------|-------------|
+| `PORTFOLIO.amine.uae` | Soldes bancaires UAE (Mashreq, Wio, Revolut) en AED |
+| `PORTFOLIO.amine.maroc` | Soldes bancaires Maroc (Attijari, Nabd) en MAD |
+| `PORTFOLIO.amine.espp` | Actions Accenture (lots ESPP avec cost basis USD) |
+| `PORTFOLIO.amine.ibkr` | **Positions IBKR** (13 lignes), cash multi-devises, costs[], acnDividends[], deposits[], trades[] |
+| `PORTFOLIO.amine.immo` | Immobilier (Vitry — valeur, CRD, loyers) |
+| `PORTFOLIO.amine.vehicles` | Véhicules (Cayenne, Mercedes) |
+| `PORTFOLIO.amine.creances` | Créances (SAP, Malt, loyers impayés, prêts perso) |
+| `PORTFOLIO.amine.degiro` | Compte Degiro fermé (P/L réalisé historique) |
+| `PORTFOLIO.amine.allTrades` | Historique unifié Degiro 2020-2025 |
+| `PORTFOLIO.nezha.*` | Patrimoine Nezha (banques, ESPP, SGTM) |
+| `CASH_YIELDS` | Rendements par compte bancaire |
+| `IBKR_CONFIG` | Taux IBKR par tranche (JPY margin tiers) |
+| `FX_STATIC` | Taux de change fallback |
+| `WHT_RATES` | Retenues à la source par pays |
+| `DIV_YIELDS` / `DIV_CALENDAR` | Rendements dividendes et calendrier ex-dates |
+| `BUDGET_EXPENSES` | Dépenses mensuelles fixes |
+| `IMMO_CONSTANTS` | Prêts immo (Vitry, Rueil, Villejuif) + régimes fiscaux |
 
-Système générique — ne jamais hardcoder de noms de comptes :
-- `summary` : bilan global (% dormant, manque à gagner)
-- `dormant_{owner}` : comptes < 3% par propriétaire (détection auto)
-- `sub_optimal` : comptes > 0% mais < 1.5% avec > 5K€
-- `jpy_leverage` : info sur l'emprunt JPY si > 5K€
-- `action_plan` : étapes générées dynamiquement à partir des diagnostics ci-dessus
+#### Conventions data.js
 
-## Fonctions principales engine.js
+- **Devises natives** : Jamais de conversion dans data.js. Un montant AED reste en AED.
+- **Commissions** : Le champ `t.commission` est en devise native du trade (EUR, USD, JPY). `engine.js` convertit via `toEUR()`.
+- **FTT** : **PAS** incluse dans `t.commission`. Calculée séparément par `engine.js` (`FTT_RATE × cost`).
+- **Dépôts** : Chaque virement a sa date, montant, devise et `fxRateAtDate`. Les retraits ont un montant négatif.
+
+### `engine.js` (~3 200 lignes)
+
+Calculs purs. Exporte `compute(portfolio, fx, stockSource) → STATE`.
 
 | Fonction | Rôle |
 |----------|------|
-| `compute(portfolio, fx)` | Point d'entrée. Retourne le state complet (couple, amine, nezha, cashView, actionsView, immoView, budgetView) |
-| `computeIBKRPositions()` | Calcule valeur EUR, P&L, period P&L (daily/MTD/YTD/1M) pour chaque position IBKR |
-| `computeCashView()` | Construit la liste de comptes cash avec yields, diagnostics dormants |
-| `buildProperty()` | Construit un objet propriété complet : valeur dynamique, CRD, equity, CF, fiscalité, exit costs |
-| `computeAmortizationSchedule()` | Tableau d'amortissement d'un prêt (mensualité, capital, intérêts, CRD) |
-| `computeMultiLoanSchedule()` | Combine plusieurs prêts (ex: Vitry 2 prêts) avec assurance |
-| `computeFiscalite()` | Calcul fiscal : loyer déclaré, charges déductibles, régime réel/micro → impôt mensuel |
-| `computeExitCosts()` | Frais de sortie : IRA, plus-value immo, frais agence, notaire |
-| `computeExitCostsAtYear()` | Exit costs projetés à une année future (pour projections) |
-| `computeNetWorthProjection()` | Projection mensuelle sur 20 ans : capital amorti + appréciation + CF + exit costs |
-| `computeVillejuifRegimeComparison()` | Compare régimes fiscaux pour Villejuif VEFA (LMNP réel vs micro) |
+| `toEUR(amount, currency, fx)` | Conversion devise → EUR |
+| `computeIBKR()` | NAV IBKR (positions + cash multi-devises) |
+| `computeIBKRPositions()` | Détail par position avec P/L période (MTD/YTD/1M/3M) |
+| `computeFTT(startDate)` | FTT dynamique : 0.4% × coût achats éligibles |
+| `computeCommissions(startDate)` | Somme des `t.commission` (converti en EUR) |
+| `computeInterest(startDate)` | Intérêts marge depuis `ibkr.costs[]` |
+| `computeIBKRDividends(startDate)` | Dividendes IBKR nets |
+| `computeACNDividends(startDate)` | Dividendes Accenture (ESPP) avec WHT 15% |
+| `computeAllCosts()` | Agrège tous les coûts (YTD + all-time) |
+| `computeImmoView()` | Simulations immobilières (amortissement, CF, plus-value) |
+| `getGrandTotal()` | Grand total patrimoine (IBKR + ESPP + cash + immo + créances) |
 
-## FTT et Commissions (engine.js — v176+)
-
-### FTT — Taxe sur les Transactions Financières (0.4%)
-
-Le taux FTT est 0.4% (pas 0.3%). L'AMF fixe 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte. Vérifié par rapprochement avec le relevé IBKR (section "Transaction Fees").
-
-- `FTT_ELIGIBLE` : Set de 11 tickers FR large-cap (MC.PA, DG.PA, FGR.PA, GLE, SAN.PA, EDEN, RMS.PA, OR.PA, BN.PA, WLN, AIR.PA)
-- `FTT_RATE = 0.004`
-- Calcul : somme de `cost × FTT_RATE` pour chaque achat (`type: 'buy'`) d'un ticker éligible
-
-### Commissions — Multi-devises
-
-Les commissions sont stockées en **devise native** dans `trades[].commission`. Attention aux trades JPY (Shiseido) où la commission est en ¥ et non en €. La conversion se fait via `toEUR(t.commission, t.currency, fx)` dans `computeCommissions()`.
-
-## Analyse dividendes et WHT (engine.js)
-
-Le système analyse les dividendes projetés et la retenue à la source (WHT) pour chaque position :
-- **DIV_YIELDS** (data.js) : yield annuel par ticker
-- **DIV_CALENDAR** (data.js) : prochaines dates ex-dividende
-- **WHT_RATES** (data.js) : taux WHT par géographie (FR 30%, US 15%, JP 15%, etc.)
-- Calcul automatique : dividende projeté, WHT retenu, net après WHT
-- Recommandation keep/switch vers ETF capitalisant si WHT élevé
-- Alertes ex-date dans les 90 jours (diagnostic `dividend-wht`)
-
-## Vues (tabs)
-
-| Tab | ID | State key |
-|-----|----|-----------|
-| Couple | `couple` | `state.couple.*` |
-| Amine | `amine` | `state.amine.*` |
-| Nezha | `nezha` | `state.nezha.*` |
-| Cash | `cash` | `state.cashView` |
-| Actions | `actions` | `state.actionsView` |
-| Immobilier | `immobilier` | `state.immoView` |
-| Créances | `creances` | `state.creancesView` |
-| Budget | `budget` | `state.budgetView` |
-
-### Vue Créances
-Suivi des créances (prêts à des tiers) avec statut : en_cours, relancé, en_retard, recouvré, litige. Chaque item a un montant, une date de dernier contact, et un calcul du coût d'opportunité (manque à gagner vs placement).
-
-### Vue Budget
-Suivi mensuel des dépenses par catégorie (Dubai, France, Digital). Comparaison budget réel vs projeté.
-
-## Mise à jour des données — Checklist
-
-À chaque session de mise à jour, l'IA doit vérifier l'ancienneté des données et mettre à jour ce qui est périmé.
-
-### Données temps-réel (récupérées automatiquement par api.js au chargement du site)
-- **Taux FX** : récupérés live via frankfurter.dev → pas besoin de toucher `FX_STATIC` sauf si l'API plante
-- **Cours actions IBKR** : récupérés live via Yahoo Finance chart API → les `price` dans `positions[]` servent de fallback statique
-
-### Mise à jour obligatoire à chaque session
-
-**À chaque session, l'IA DOIT mettre à jour les prix des actions dans data.js** — même si l'API les récupère en live au chargement, les `price` dans `positions[]` servent de fallback et doivent rester à jour :
-
-1. **Cours SGTM** (`market.sgtmPriceMAD`) — Pas d'API disponible. L'IA doit chercher le cours sur le web :
-   - Source primaire : `casablanca-bourse.com` ou `leboursier.ma` (chercher "SGTM cours")
-   - Mettre à jour le prix ET le commentaire de date
-2. **Cours ACN** (`market.acnPriceUSD`) — Chercher via web search "ACN stock price" ou Yahoo Finance
-3. **Prix fallback IBKR** (`positions[].price`) — Récupérer les cours actuels via web search pour chaque position et mettre à jour les prix dans data.js. L'API Yahoo les récupère en live, mais les fallback doivent rester récents.
-4. **`FX_STATIC`** — Mettre à jour les taux de change depuis xe.com
-
-### Données à mettre à jour manuellement dans data.js
-
-| Donnée | Fréquence | Source | Comment vérifier l'ancienneté |
-|--------|-----------|--------|-------------------------------|
-| Soldes bancaires (cash UAE, Maroc, Revolut, IBKR cash) | Chaque session | Apps bancaires, IBKR | Commentaires `mis à jour` dans data.js |
-| Positions IBKR (shares, costBasis) | Si nouveau trade | CSV IBKR ou fichier utilisateur | Comparer `trades[]` dernière date vs aujourd'hui |
-| CRD immobilier | Mensuel | Tableau d'amortissement | Comparer au schedule calculé par engine |
-| Créances | Quand payées/ajoutées | Factures | Vérifier items[] dans creances |
-| Véhicules | Trimestriel | Argus / La Centrale | Commentaire date |
-| `CASH_YIELDS` | Si taux changent | Sites banques | Commentaire date |
-| `staticNAV` (IBKR) | Chaque mise à jour IBKR | Rapport CSV IBKR | Doit correspondre à NAV du CSV |
-
-### Dépôts (ibkr.deposits[])
-
-Les dépôts sont enregistrés dans `ibkr.deposits[]` avec :
-- `date` : date du virement (ISO format)
-- `amount` : montant en devise native (négatif pour les retraits)
-- `currency` : devise du virement (EUR, AED). Si absent, EUR par défaut.
-- `fxRateAtDate` : taux EUR/devise au jour du dépôt (1 pour EUR, ~4.0x pour AED)
-- `label` : description du virement
-
-**À mettre à jour** : à chaque nouveau dépôt/virement ou rapport IBKR "Deposits & Withdrawals".
-
-**⚠ Dépôts AED (v176+)** : Les dépôts en AED (virements Mashreq → IBKR) doivent avoir `currency: 'AED'` et `fxRateAtDate` renseigné. Dans le chart NAV, ces dépôts sont **ignorés** côté cash EUR — c'est le trade FX EUR.AED associé qui crédite le cash EUR. Pour le calcul TWR, la conversion `amount / fxRateAtDate` donne l'équivalent EUR.
-
-**⚠ Retraits** : Montant négatif (ex: `amount: -45000` pour un retrait de 45K€).
-
-**Autres sources de dépôts** (calculés automatiquement par engine.js) :
-- **ESPP Amine** : chaque lot dans `amine.espp.lots[]` est un dépôt (investissement salarié, enregistré en EUR car paie française)
-- **ESPP Nezha** : chaque lot dans `nezha.espp.lots[]` est un dépôt (même logique, via UBS compte W3 F0329 11)
-- **SGTM** : l'achat IPO est calculé à partir de `market.sgtmCostBasisMAD × shares`
-- `owner` est attribué automatiquement : Amine (IBKR, ESPP Amine), Nezha (ESPP Nezha), Amine+Nezha (SGTM)
-
-### Transactions (trades[])
-
-**Les transactions ne sont JAMAIS supprimées.** Elles sont toujours ajoutées (append-only).
-Quand l'utilisateur fournit un CSV ou relevé IBKR, comparer avec les trades existants et ajouter uniquement les nouvelles opérations.
-
-### Règle d'ancienneté automatique
-
-Au début de chaque session, l'IA doit :
-1. Lire les dates dans les commentaires de `data.js`
-2. Mettre à jour **tous les prix** (SGTM via web, ACN via web, positions[].price via web)
-3. Mettre à jour `FX_STATIC` depuis xe.com
-4. Si les soldes bancaires ont **> 14 jours** → demander à l'utilisateur les soldes actuels
-5. Mettre à jour les commentaires de date après chaque modification
-6. Toujours bumper le numéro de version `?v=XX` dans tous les imports après modification
-
-## Comment traiter un fichier CSV / relevé IBKR
-
-L'utilisateur fournit régulièrement un export IBKR (CSV ou PDF). Voici comment l'interpréter :
-
-### 1. Identifier les nouvelles opérations
-
-Comparer les trades du fichier avec `PORTFOLIO.amine.ibkr.trades[]` dans data.js.
-Tout trade dont la date + ticker + qty n'existe pas encore doit être ajouté.
-
-### 2. Format des trades dans data.js
+#### FTT — Taxe sur les Transactions Financières
 
 ```javascript
-// ① Achat — commission en devise native du trade
-{ date: 'YYYY-MM-DD', ticker: 'AIR.PA', label: 'Airbus', type: 'buy',
-  qty: 100, price: 196.50, currency: 'EUR', cost: 19650,
-  commission: -9.83, costBasis: 192.58, source: 'ibkr' }
-
-// ② Vente — realizedPL calculé par IBKR (prendre du CSV)
-{ date: 'YYYY-MM-DD', ticker: 'GLE', label: 'Société Générale', type: 'sell',
-  qty: 200, price: 75.34, currency: 'EUR', proceeds: 15068,
-  realizedPL: 4807.34, commission: -7.53, costBasis: 76.24, source: 'ibkr' }
-
-// ③ FX trade — qty = montant EUR reçu, jpyAmount = montant JPY envoyé
-{ date: 'YYYY-MM-DD', ticker: 'EUR.JPY', label: 'EUR→JPY (short)', type: 'fx',
-  qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684,
-  commission: -1.72, note: 'Rachat JPY short', source: 'ibkr' }
-
-// ④ FX AED→EUR — qty = montant EUR obtenu (pas AED!)
-{ date: 'YYYY-MM-DD', ticker: 'EUR.AED', label: 'AED→EUR', type: 'fx',
-  qty: 9964, price: 4.003, currency: 'EUR',
-  commission: -1.91, source: 'ibkr' }
-```
-
-#### ⚠ Règles critiques (découvertes par audit v176)
-
-1. **Commission en devise native** : Le champ `commission` est dans la devise du trade (EUR, USD, JPY). `engine.js` convertit en EUR via `toEUR(t.commission, t.currency, fx)`. Ne PAS convertir manuellement dans data.js.
-2. **FTT séparée** : La FTT (Taxe sur Transactions Financières, 0.4%) n'est **JAMAIS** incluse dans `commission`. Elle est calculée dynamiquement par `engine.js` sur les achats de tickers éligibles (`FTT_ELIGIBLE` set).
-3. **Dépôts AED** : Un dépôt AED dans `deposits[]` ne doit PAS être compté comme EUR. Le flux est : dépôt AED → FX trade EUR.AED → EUR. Le chart ne track que EUR/USD/JPY.
-4. **Retraits** : Montant négatif dans `deposits[]` (ex: `amount: -45000`).
-5. **splitFactor** : Si une action a subi un stock split après la vente, ajouter `splitFactor: N` pour le calcul "Si gardé aujourd'hui".
-
-### 3. Mettre à jour les positions après un trade
-
-Après ajout d'un trade, mettre à jour la section `positions[]` :
-
-| Opération | Action sur positions[] |
-|-----------|----------------------|
-| **Achat d'une action existante** | Mettre à jour `shares` (nouveau total) et `costBasis` (nouveau PRU moyen du CSV) |
-| **Achat d'une nouvelle action** | Ajouter une nouvelle entrée dans `positions[]` avec ticker, shares, price, costBasis, currency, label, sector, geo |
-| **Vente partielle** | Réduire `shares`. Le `costBasis` reste le même (PRU moyen). Le realizedPL total est calculé dynamiquement par `engine.js` depuis `trades[]`. |
-| **Vente totale (clôture)** | Supprimer l'entrée de `positions[]`. Le realizedPL est pris en compte automatiquement. |
-| **Trade FX** | Mettre à jour `cashEUR`, `cashUSD`, `cashJPY` selon les montants convertis |
-
-### 4. Mettre à jour les agrégats IBKR
-
-Après tout changement :
-- `staticNAV` : NAV totale du rapport CSV (ligne "Net Asset Value")
-- `meta.deposits` : si dépôt/retrait détecté
-
-**⚠ Les champs suivants sont calculés dynamiquement par `engine.js` depuis `trades[]` et `costs[]` (v176+) :**
-- Commissions : `computeCommissions(startDate)` somme `toEUR(t.commission, t.currency, fx)` de tous les trades
-- FTT : `computeFTT(startDate)` calcule `FTT_RATE × cost` sur les achats de tickers FTT_ELIGIBLE
-- Intérêts : `computeInterest(startDate)` somme depuis `ibkr.costs[]`
-- Dividendes : `computeIBKRDividends(startDate)` + `computeACNDividends(startDate)`
-- realizedPL : calculé depuis les `type:'sell'` trades
-
-### 5. Mettre à jour le cash IBKR
-
-Le CSV IBKR donne les soldes cash par devise :
-- `cashEUR` : solde EUR (attention au seuil IBKR 10K à 0%)
-- `cashUSD` : solde USD
-- `cashJPY` : solde JPY (négatif = emprunt short JPY)
-
-## Mise à jour des insights (render.js)
-
-Les insights dans `renderDynamicInsights()` sont 100% dynamiques — ils lisent `state.*` et `state.cashView.*`. **Ils ne doivent jamais contenir de montants, noms de comptes, ou conseils spécifiques en dur.**
-
-### Règles pour les insights
-- Utiliser `state.cashView.accounts` pour lister les comptes dynamiquement
-- Utiliser `state.immoView.properties` pour les données immo
-- Utiliser `state.actionsView` pour les données actions
-- Les textes de conseil doivent être génériques : "Optimiser le placement" au lieu de "Transférer vers Wio"
-- Les montants doivent toujours être calculés : `K(cashTotal)` au lieu de `"85K€"`
-- Les projections doivent utiliser les données réelles (CF immo, rendement actuel) et jamais des constantes
-
-### Si on ajoute un nouvel insight
-1. Calculer les valeurs depuis `state.*` dans `renderDynamicInsights()`
-2. Utiliser `fmt()` / `K()` / `N()` pour le formatage
-3. Ne jamais mentionner un compte par son nom en dur — utiliser `accounts.find()` ou `accounts.filter()`
-
-## KPI Detail Panels (render.js → setupKPIDetailPanels)
-
-Les KPI de la vue Actions sont cliquables. Chaque clic ouvre un panneau détaillé avec la répartition par ticker.
-
-### KPIs disponibles et leur contenu
-
-| KPI | ID panel | Données source | Contenu |
-|-----|----------|---------------|---------|
-| P&L Daily | detailPLDaily | periodPL.daily.breakdown | Two-column pertes/gains, positions à €0 filtrées (marché fermé) |
-| P&L MTD | detailPLMTD | periodPL.mtd.breakdown | P&L par position, top 3 pertes |
-| P&L 1 Mois | detailPL1M | periodPL.oneMonth.breakdown | P&L par position, top 3 pertes |
-| P&L YTD | detailPLYTD | periodPL.ytd.breakdown | P&L par position, total gains/pertes |
-| Total Actions | detailTotal | allPos (IBKR+ESPP+SGTM) | Répartition par valeur, concentration top 3 |
-| P/L Non Réalisé | detailUnrealized | allPos.unrealizedPL | Two-column: pertes (gauche) / gains (droite), avec % et barres |
-| P/L Réalisé | detailRealized | closedPositions + degiro | Trades clôturés, meilleur trade |
-| Total Déposé | detailDeposits | av.depositHistory | Historique groupé par owner → platform (trié par montant décroissant), ROI |
-| Dividendes/TWR | detailDividends | av.dividends, av.twr | Yield, commissions, WHT |
-
-### Comment ajouter un nouveau KPI detail panel
-
-1. Ajouter `data-detail="detailXxx"` et classe `kpi-clickable` sur le `.kpi` dans index.html
-2. Ajouter un générateur dans `detailGenerators` dans `setupKPIDetailPanels()` (render.js)
-3. Le générateur retourne du HTML utilisant les classes `.detail-header`, `.detail-body`, `.detail-row`, `.detail-footer`
-4. Les données doivent venir de `state.actionsView` — jamais de constantes hardcodées
-
-### Affichage P&L breakdown (render.js → renderPLBreakdown)
-
-- **Two-column layout** : pertes à gauche (rouge), gains à droite (vert)
-- **Filtrage €0** : les positions avec |P&L| < 0.5€ sont masquées (ex: actions européennes quand le marché US est ouvert mais pas EU). Un compteur "(N à €0 masqués)" est affiché dans le header.
-- **P/L Non Réalisé** (detailUnrealized) : même layout two-column avec % par position
-- **Dépôts** (detailDeposits) : groupés par owner → platform, plateformes triées par montant total décroissant (IBKR avant ESPP pour Amine)
-
-### Sources des period P&L (engine.js)
-
-- `previousClose` → vient de `meta.previousClose` (Yahoo Finance) = clôture veille → pour Daily P&L
-- `chartPreviousClose` → clôture avant début range YTD (31 dec) → NE PAS utiliser pour Daily
-- `mtdOpen` → premier close du mois courant (depuis timestamps)
-- `ytdOpen` → premier close de l'année (depuis timestamps)
-- `oneMonthAgo` → close il y a 30 jours (depuis timestamps)
-
-⚠ Bug historique (fixé v94) : `chartPreviousClose` était utilisé pour Daily P&L, ce qui affichait le changement YTD au lieu du daily.
-
-### Formule Period P&L — gestion des achats intra-période (fixé v97)
-
-**Problème** : si on achète 1000 actions IBIT en février 2026, le YTD P&L ne doit PAS calculer `1000 × (prix_actuel - prix_1er_jan)` car ces actions n'existaient pas au 1er janvier.
-
-**Formule correcte** :
-```
-periodPL = endValue - startValue - netCashInvested
-```
-Où :
-- `endValue` = currentShares × currentPrice (en EUR)
-- `startValue` = sharesAtStart × refPrice (en EUR)
-- `netCashInvested` = coût des achats pendant la période − produit des ventes pendant la période (en EUR)
-- `sharesAtStart` = currentShares − buysDuringPeriod + sellsDuringPeriod
-
-**Exemple concret (IBIT YTD)** :
-- 1200 shares actuelles, 100 achetées en dec 2025, 1100 achetées en jan-fév 2026
-- sharesAtStart (1er jan) = 1200 - 1100 = 100
-- startValue = 100 × ytdOpenPrice / fx.USD
-- netCashInvested = toEUR(48885 USD buys) (les 1100 shares achetées en 2026)
-- YTD P&L = valeur actuelle - startValue - netCashInvested
-- Résultat : seule la variation de prix sur les 100 shares + le gain/perte réel des 1100 shares (vs leur prix d'achat) sont comptés
-
-**Implémentation** : `computeIBKRPositions()` dans engine.js utilise `ibkr.trades[]` pour calculer `sharesAtStart` et `netCashInvested` pour chaque période et chaque ticker.
-
-**Note ESPP** : tous les lots ESPP (ACN) sont antérieurs à 2023. La formule simple `shares × (currentPrice - refPrice)` reste correcte pour ESPP car aucun trade n'a eu lieu pendant les périodes calculées.
-
-## Variables CSS (index.html)
-
-Palette de couleurs définie en variables CSS :
-- `--primary` : texte principal, `--accent` : bleu actions, `--red` : pertes, `--green` : gains
-- `--gray` : texte secondaire, `--bg` : fond, `--card` : fond carte, `--gold` : immobilier
-
-Classes utilitaires : `.pl-pos` (vert gains), `.pl-neg` (rouge pertes), `.num` (alignement droite)
-
-## Conventions
-
-- Montants en devise native dans data.js, conversion en EUR dans engine.js via `toEUR()`
-- `fmt(val)` pour afficher un montant EUR formaté
-- `fmtAxis(val)` pour axes de graphiques (notation K)
-- Les insights dans render.js doivent utiliser `state.*` et `state.cashView.*`, jamais de constantes
-- Les textes de conseil/recommandation sont OK s'ils sont génériques ("optimiser le placement") mais jamais avec des montants hardcodés
-
-## Règle de merge des tickers partagés (Amine + Nezha)
-
-**PRINCIPE FONDAMENTAL** : tout est affiché PAR TICKER (fusionné) partout, **sauf** dans les vues individuelles "Amine" et "Nezha" où la séparation par personne est pertinente.
-
-Quand un même ticker est détenu par les deux personnes (ex: ACN via ESPP, SGTM via Bourse Casablanca) :
-
-| Vue / Composant | Comportement | Exemple |
-|-----|-------------|---------|
-| **Treemaps** (couple, actions, geo) | Merger → une seule entrée | "ESPP Accenture €36K", "SGTM €4K" |
-| **Positions table** (vue Actions) | Merger → une seule ligne | "Accenture (207 ACN)", "SGTM (64 actions)" |
-| **KPI sub-cards** (vue Couple, expand stocks) | Merger | "ESPP: €36K (Amine 167 + Nezha 40)" |
-| **P&L breakdowns** (daily, MTD, YTD, 1M) | Merger → "Accenture (ACN)" | Un seul P&L combiné pour le ticker |
-| **P/L non réalisé** (allPos breakdown) | Merger → "Accenture (ACN)" | Valeur + coût combinés |
-| **Donut géo** (vue Couple) | Merger | "Irlande/US (ACN)" inclut Amine+Nezha |
-| **Vue Amine** (detail table) | Séparer (Amine only) | "ESPP Accenture (167 ACN @ $202)" |
-| **Vue Nezha** (detail table) | Séparer (Nezha only) | "ESPP Accenture (40 ACN @ $202)" |
-| **Deposit history / lots** | Séparer par owner | Lots ESPP Amine vs Nezha |
-
-**En résumé** : la division par personne n'existe que dans les vues "Amine" et "Nezha". Partout ailleurs (Actions, Couple, treemaps, P&L, positions latentes…), tout est affiché par ticker.
-
-## Tableau des positions (vue Actions)
-
-Le tableau unifié "Toutes les Positions" dispose de deux toggles interactifs :
-
-### Toggle 1 : Total / Unitaire
-- **Total** (défaut) : colonnes Valeur (€ total) + Coût (€ total)
-- **Unitaire** : colonnes Prix (cours unitaire avec devise) + PRU (prix de revient unitaire en €)
-
-### Toggle 2 : Période (Daily / MTD / 1M / YTD)
-La colonne d'évolution change selon la période sélectionnée :
-- **En mode Total** : affiche le P&L en € de la période (combien mes holdings ont évolué, tenant compte des achats/ventes intra-période)
-- **En mode Unitaire** : affiche le % de variation du prix de l'action sur la période (indépendant de quand on a acheté)
-
-### Badges
-- **LIVE** (bleu `#bee3f8`) : cours en temps réel via API Yahoo Finance
-- **STATIC** (gris `#e2e8f0` pour SGTM, rouge `#fed7d7` si API indisponible) : cours statique
-
-### Couleurs gains/pertes
-- Vert (`pl-pos`) pour les gains, Rouge (`pl-neg`) pour les pertes
-- Appliqué aux colonnes P/L, %, et la colonne d'évolution de période
-
-### Système de colonnes interactives (v119+)
-
-Le tableau utilise `_colConfig` (visibilité) et `_colOrder` (ordre) pour un contrôle dynamique :
-
-**Colonnes disponibles** : broker, shares, prix, valeur, pru, cout, pl, pctPL, evo, weight, sector, geo — chacune activable/désactivable indépendamment.
-
-**Chips de colonnes** (barre sous le tableau) :
-- Cliquer un chip → toggle la visibilité de la colonne
-- Glisser-déposer un chip (HTML5 Drag & Drop) → réordonner les colonnes
-- Les chips actifs sont en fond sombre, les inactifs en fond clair
-
-**Preset Total / Unitaire** :
-- Total : active valeur + cout + pl + pctPL, désactive prix + pru
-- Unitaire : active prix + pru, désactive valeur + cout + pl + pctPL
-- Les colonnes peuvent être modifiées manuellement après un preset
-
-### Historique des trades (expandable rows)
-
-Cliquer sur une ligne de position déplie un sous-tableau avec l'historique d'achat/vente :
-- Un seul ticker déplié à la fois (le précédent se replie)
-- Colonnes : Date, Qui (si multi-owner), Qté, Type, PRU, Prix actuel, Valeur, P/L, P/L %
-- **Prix actuel** : cours live du ticker (même valeur pour chaque lot, en bleu)
-- **P/L par lot** : calculé comme `qty × prix_actuel_EUR - coût_lot_EUR`
-- En-têtes triables (clic pour trier asc/desc)
-- Owner : Amine ou Nezha pour les tickers partagés (ESPP, SGTM)
-
-### KPI detail panels (vue Actions)
-
-Les KPIs de la vue Actions sont cliquables (`data-detail="detailXxx"`) et ouvrent un panneau détaillé :
-- **Two-column layout** pour les P&L : pertes (rouge, gauche) / gains (vert, droite)
-- Les positions à |P&L| < 0.5€ sont masquées avec compteur "(N à €0 masqués)"
-- Panels disponibles : P&L Daily, MTD, 1M, YTD, Total Actions, P/L Non Réalisé, P/L Réalisé, Dépôts, Dividendes/TWR
-
-### Tooltips immobilier (v123+)
-
-Les 8 KPIs de la vue Immobilier affichent un tooltip au survol avec la décomposition par bien :
-
-- Equity brute/nette : montant par propriété
-- Frais de sortie : IRA + PV immo + agence par propriété
-- CF net : détail par propriété avec signe +/-
-- Valeur totale : valeur estimée dynamique avec référence (date + montant initial)
-- CRD : montant par propriété avec année de fin de prêt
-- Création richesse : décomposition capital amorti / appréciation / cash flow (uses `iv.totalWealthBreakdown`, NOT `iv.wealthBreakdown`)
-- LTV : ratio par propriété (CRD / valeur)
-
-**Positionnement** : les tooltips de la 1ère rangée (Equity Brute, Equity Nette, Frais Sortie, CF Net) s'affichent **en dessous** (classe par défaut `.kpi-tooltip`). Les tooltips de la 2ème rangée (Valeur Totale, CRD, Création Richesse, LTV) s'affichent **au-dessus** (classe `.kpi-tooltip.above`) pour éviter d'être coupés par le bord de page.
-
-**Helper** : `_setTip(elId, html, above)` dans `renderImmoView()` — le 3e paramètre `above` (boolean) ajoute la classe `.above` au tooltip.
-
-### Positions fermées expandables (v125+)
-
-Les tableaux de positions fermées (IBKR et Degiro) sont cliquables. Au clic sur une ligne :
-
-1. Les sous-tableaux existants se ferment (single-expansion : `_expandedClosed` / `_expandedDegiroClosed`)
-2. Un sous-tableau s'ouvre avec les colonnes : Date, Type (Achat/Vente), Qté, Prix, Montant, Si gardé auj.
-3. Les ventes sont en rouge, les achats en noir
-4. **"Si gardé auj."** : pour chaque vente, affiche la valeur hypothétique si les actions n'avaient pas été vendues + le diff (vert si gain manqué, rouge si bonne vente)
-5. Ligne résumé "Total si gardé" comparant le produit réel vs la valeur hypothétique totale
-
-**Données engine.js** : chaque position fermée agrégée inclut :
-
-- `_allTrades` : tableau chronologique de tous les trades (buy + sell) pour ce ticker
-- `_ifHeldPriceEUR` : prix unitaire actuel en EUR (depuis la position live IBKR)
-- `_ifHeldValueEUR` : `totalQtySold × _ifHeldPriceEUR`
-- `_ifHeldPL` : `_ifHeldValueEUR - costEUR`
-
-⚠ `_ifHeldPriceEUR` n'est disponible que si le ticker a encore une position ouverte dans IBKR (sinon pas de cours live).
-
-### Devises et formatage
-
-- `fmt(val)` : formatte en EUR avec `€ X XXX` (respecte la devise active via `_currency`)
-- `fmtAxis(val)` : pour axes charts, notation K/M
-- **CF NET** : utiliser `fmt()` pour inclure le symbole `€`, pas `iv.totalCF + '/mois'` directement
-- **Prix actions** : format `€ XX.XX` (Unicode `\u20ac` + espace), jamais `XX.XX EUR`
-- `_fmtK(val)` : helper local pour tooltips immo, format compact `XK €` ou `X €`
-
-### Chargement progressif des prix actions (v127+)
-
-Le chargement des prix se fait en 2 phases avec rafraichissement progressif de l'UI :
-
-1. **Held stocks** : `fetchStockPrices()` dans `api.js` accepte un callback `onTickerLoaded`. Pour chaque ticker chargé (cache ou API), le prix est appliqué immédiatement au portfolio via `applyTickerToPortfolio()`, puis le callback déclenche un `throttledRefresh()` (800ms debounce dans `app.js`) qui fait `compute()` + `render()`.
-
-2. **Sold stocks** : Seulement si TOUS les held stocks sont chargés sans erreur, `fetchSoldStockPrices()` est appelé en background. Les prix sont stockés dans `portfolio._soldPrices[ticker]` et utilisés par `engine.js` pour calculer `_ifHeldPriceEUR` / `_ifHeldValueEUR` dans les positions fermées.
-
-**Mapping Yahoo Finance** : Les tickers EUR Euronext sans suffixe (ex: `EDEN`) sont mappés vers `EDEN.PA` pour l'API Yahoo. Le mapping inverse est conservé pour retrouver le ticker original dans le portfolio.
-
-### Badge LIVE/STATIC (v127+, fix v128)
-
-- Affiché dans la colonne label (nom de l'action), pas dans la colonne prix
-- Visible sur **toutes les vues** (Total et Unitaire)
-- 3 badges : LIVE (bleu), STATIC (rouge = API pas encore chargée), STATIC (gris = SGTM, pas d'API)
-
-### Sort dynamique par période (v127+, fix v132)
-
-Le tri de la colonne "Evo" s'adapte à la période sélectionnée (Daily/MTD/1M/YTD) :
-- `_hdefs.evo.sort` est dynamique : `{ daily: 'dailyPL', mtd: 'mtdPL', ... }[_posPeriod]`
-- Trie par **P&L absolu en EUR** (pas par %), cohérent avec ce qui est affiché en vue Total
-- Quand l'utilisateur change de période via `posPeriodToggle`, `_allSortKey` est mis à jour si l'ancien key était un key de période (Pct ou PL)
-- **Null-to-bottom** (v132+) : les positions sans données de période (SGTM, tickers STATIC) sont triées en dernier, quel que soit le sens du tri (asc ou desc). Logique : `if (va == null) return 1; if (vb == null) return -1;`
-
-### Tables de détail triables (v133+)
-
-Les tables "Patrimoine Couple / Amine / Nezha — Detail consolidé" sont triables par clic sur les en-têtes :
-- **Poste** : tri alphabétique (asc par défaut)
-- **Montant** : tri numérique (desc par défaut, du plus grand au plus petit)
-- La ligne **Total** (Net Worth) reste toujours épinglée en bas, indépendamment du tri
-- Utilise le même `makeTableSortable()` que les autres tables
-
-### FX auto-refresh & cache TTL (v134+)
-
-- **FX_TTL_MS** = 5 minutes : les taux FX sont re-fetchés automatiquement toutes les 5 min via `setInterval(() => refreshFX(true), 5 * 60 * 1000)`
-- **Stale-while-revalidate** : si le cache FX est périmé (>5 min), on retourne les données stale immédiatement puis on re-fetch en background
-- Le badge FX affiche l'**heure** (HH:MM) et non la date
-- `_ts` timestamp sur chaque entrée cache (stocks et FX) pour vérifier la fraîcheur
-
-### Hard refresh — cache clear (v135+)
-
-- Le bouton "Hard Refresh" appelle `clearCache()` qui supprime entièrement le localStorage du jour avant de re-fetcher
-- Avant v135, le hard refresh re-fetchait tout mais ne vidait pas le cache → si un fetch échouait, l'ancienne donnée stale persistait
-- `stockRefreshInProgress` ne bloque plus le hard refresh : `if (stockRefreshInProgress && !forceRefresh) return;`
-
-### Footer FX timestamp dynamique (v135+)
-
-- Le footer affiche la date et l'heure de la dernière mise à jour FX : `(màj 13/03/2026 à 14:30)`
-- Mis à jour automatiquement à chaque fetch FX (initial, auto-refresh 5 min, hard refresh)
-- Span `#fxTimestamp` dans le footer, alimenté par `updateFxTimestamp()` dans app.js
-
-### Positions fermées — colonnes "Si gardé auj." (v136+)
-
-Les tables de positions fermées (IBKR 12 mois + Degiro historique) affichent 3 colonnes "Si gardé auj." dans les rows principales :
-- **Valeur** : valeur hypothétique si les parts vendues étaient encore détenues aujourd'hui (`_ifHeldValueEUR`)
-- **+/- value** : écart entre la valeur hypothétique et le produit de vente réel (`_ifHeldValueEUR - proceedsEUR`)
-- **%** : pourcentage de l'écart par rapport au produit de vente (`diffVsSale / proceedsEUR * 100`)
-- Les mêmes 3 colonnes apparaissent dans les sous-tables de détail (per-trade) quand on clique sur une position
-- Données calculées dans `engine.js` : `_ifHeldPriceEUR`, `_ifHeldValueEUR`, `_ifHeldPL`
-
-### Projection — NW sans arret masqué par défaut (v136+)
-
-La ligne pointillée "NW sans arret" dans les charts de projection (simulators.js) est masquée par défaut (`hidden: true`). L'utilisateur peut l'activer via la légende du graphique.
-
-### Sold ticker mapping fixes (v137-v139)
-
-Plusieurs bugs empêchaient le calcul "Si gardé auj." pour les positions fermées Degiro :
-
-1. **Devises incorrectes** (v137) : les actions US (NVDA, SPOT, DIS, INFY) avaient `currency: 'EUR'` au lieu de `'USD'`, causant un suffixe `.PA` erroné pour l'API Yahoo. Corrigé dans `data.js`.
-2. **`yahooTicker` explicite** (v137) : ajout du champ `yahooTicker` sur les trades dont le ticker Degiro diffère du ticker Yahoo (ex: `MC` → `yahooTicker: 'MC.PA'` pour LVMH, `EUCAR` → `yahooTicker: 'EUCAR.PA'` pour Europcar).
-3. **Progress counter double-count** (v137) : les tickers stale (en cache mais périmés) étaient comptés deux fois dans le compteur de progression. Corrigé avec un `staleTickers` Set dans `api.js`.
-4. **`allHeldLoaded` gate** (v138) : le fetch des prix sold était bloqué si un seul held ticker échouait via CORS. Gate supprimée — les prix sold se chargent toujours en background.
-5. **LVMH ticker lookup** (v138) : `engine.js` ne trouvait pas la position live IBKR `MC.PA` quand le trade Degiro utilisait `MC`. Ajout d'un fallback `.PA` dans le lookup : `ibkrPositions.find(p => p.ticker === cp.ticker + '.PA')`.
-6. **Degiro trades non collectés** (v139) : `app.js` ne collectait que `ibkr.trades` pour les sold tickers, ignorant `allTrades` (Degiro). Corrigé avec `const allTrades = (ibkr.trades || []).concat(allTrades || [])`.
-
-### Stock split support — `splitFactor` (v140+)
-
-Pour les actions vendues avant un stock split (ex: NVDA 10:1 en juin 2024), le calcul "Si gardé auj." doit ajuster la quantité.
-
-**Champ `splitFactor`** (data.js) : multiplicateur optionnel sur un trade. Ex: `splitFactor: 10` signifie que chaque action vendue correspond à 10 actions post-split.
-
-**Calcul ajusté** :
-- `engine.js` : `totalQtySoldAdj = sells.reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0)` — la quantité totale vendue est multipliée par le split factor
-- `render.js` : dans les sous-tables de détail per-trade, `hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR`
-
-**Exemple** : 4 actions NVDA vendues pre-split → `splitFactor: 10` → 40 actions post-split → valeur "Si gardé" = 40 × prix actuel NVDA.
-
-### Fix partial report coverage — NVIDIA, DIS (v146)
-
-**Problème** : Quand seulement CERTAINES ventes d'un ticker avaient un `realizedPL` officiel (rapport annuel), le moteur sommait les P/L partiels et les utilisait comme P/L total. Résultat : NVIDIA +1 192€ (1 seule vente sur 3 avec rapport) au lieu de +43 487€ (proceeds-cost).
-
-**Correction** : Ajout de `_reportPLCount` dans l'agrégation des ventes. La logique :
-- Si TOUTES les ventes ont un `realizedPL` officiel → utiliser la somme (EUR, précis)
-- Si seulement CERTAINES → fallback sur `proceedsEUR - costEUR` (devise native, approximatif)
-- Track Record : filtre `_hasReportPL || (costEUR > 0 && proceedsEUR > 0)`
-
-### Enrichissement Degiro P/L depuis rapports annuels (v145)
-
-Ajout de `realizedPL` (EUR) depuis les rapports annuels Degiro 2021 et 2023 sur 19 ventes :
-- 2021 : FIT, GME, CAP, ACA, V, ATO, SAP, JUVE, FDX (×2), EN, IBM, EUCAR (×2), MC, DIS
-- 2023 : SNPR, SAP, NVDA
-- Track Record corrigé : 11% → 86% win rate (19W/3L, profit factor 8.9×)
-- Ajout dividendes Degiro : 2021 (194.19€ net), 2023 (183.25€ net)
-
-### Fix tableau Degiro + prix statiques + Top 10 (v144)
-
-**Bug fix :** Colonne "Coût" affichait €0 — le code accumulait `cost` depuis les trades sell (où cost='') au lieu des trades buy. Corrigé dans engine.js.
-
-**Bug fix :** Colonne "P/L" affichait +€0 — fallback `proceeds - cost` ajouté quand `realizedPL` est vide (trades Degiro).
-
-**Prix statiques :** Ajout de `DEGIRO_STATIC_PRICES` dans data.js avec prix approximatifs (mars 2026) pour tous les tickers Degiro vendus. Utilisés comme fallback avant que l'API Yahoo ne retourne les prix live. Flag `_staticPrice` propagé pour identification.
-
-**Top 10 :** Le tableau Degiro affiche maintenant les 10 premières positions par défaut, avec un bouton "Voir les N positions ▼" pour déplier. Les totaux sont toujours calculés sur l'ensemble.
-
-### Sanity check corporate actions sur tous les tickers (v142)
-
-Vérification systématique de tous les tickers pour splits, reverse splits, fusions, acquisitions et faillites. 7 corrections appliquées :
-
-**Reverse splits (splitFactor: 0.1) :**
-- JUVE (buy + sell) : reverse split 10:1 (Jan 2024)
-- AF : reverse split 10:1 (Aug 2023)
-- CGC : reverse split 10:1 (Dec 2023)
-
-**Faillite (splitFactor: 0) :**
-- HTZ : Ch.11 bankruptcy Jun 2021 — anciennes actions annulées
-
-**Ticker merger :**
-- SHLL → HYLN : 3 entrées buy corrigées (merger Oct 2020)
-
-**Acquisitions (sell entries ajoutés) :**
-- FIT : vente 100 @ $7.35 — acquisition Google (Jan 2021)
-- SNPR : vente 200 @ $0.86 — acquisition Shell/VLTA (Mar 2023)
-
-**Ticker rebrand :**
-- KORI : yahooTicker mis à jour KORI.PA → CLARI.PA (Korian → Clariane)
-
-`allTrades` : 59 → 61 entrées.
-
-### Extraction complète trades Degiro via Gmail (v141)
-
-Extraction exhaustive de l'historique complet des transactions Degiro depuis les emails `notifications@degiro.fr` (compte am.koraibi@gmail.com). 50 emails "Avis d'opéré" analysés (août 2020 — avril 2025).
-
-**Modifications data.js :**
-- `allTrades` : 45 → 59 entrées (14 trades manquants ajoutés depuis 5 emails multi-ordres)
-- Trades ajoutés : LVMH (achat 12), GME (buy+sell 20), Capgemini (vente 36), Crédit Agricole (vente 280 + achat 140), Visa (vente 5), Europcar (achat 4500), SAP (vente 15), Juventus (vente 1000), FedEx (vente 7+10), Bouygues (vente 50), IBM (vente 10)
-- ADP : corrigé qty 2→8 (4 fills : 2+2+1+3 @ 106.90)
-- NVDA splitFactor : achat 2020-09-03 → `splitFactor: 40` (4:1 Jul 2021 + 10:1 Jun 2024)
-- NVDA splitFactor : achat 2021-08-17 → `splitFactor: 10` (10:1 Jun 2024 seulement)
-
-**Cohérence vérifiée :**
-- 5 tickers parfaitement équilibrés : EUCAR, GME, IBM, JUVE, MC
-- 16 tickers sell-only (positions pré-tracking, achetées avant août 2020)
-- 7 tickers partiellement matchés (achats pré-tracking)
-- 3 tickers buy-only : FIT (acquisition Google), SHLL/SNPR (SPACs)
-
-### Tooltips Cash Productif vs Dormant (v127+)
-
-Les 3 barres (Couple, Amine, Nezha) ont un tooltip au hover qui affiche :
-- Montant total et rendement moyen
-- Liste des comptes productifs (≥3%) triés par montant décroissant
-- Liste des comptes dormants (<3%) triés par montant décroissant
-- Net vs inflation annuel
-
-Les données par compte sont enrichies dans `engine.js` via `byOwner[name].accounts[]`.
-
-### setEur() — mise à jour dynamique des KPIs (fix v129)
-
-`setEur(id, val)` met à jour un élément de KPI par son ID :
-- Met à jour `data-eur` (attribut) ET le `textContent` visible
-- Nécessaire pour que les toggles dynamiques (ex: Villejuif) mettent à jour l'affichage en temps réel
-- Respecte `data-sign` (préfixe +/-) et `data-type` (skip textContent si type="pct")
-
-### Toggle Villejuif — Immobilier (v127+)
-
-Un bouton checkbox "Inclure Villejuif (achat futur)" en haut de la vue Immobilier permet d'exclure Villejuif des KPIs agrégés :
-- Variable : `_immoIncludeVillejuif` (booléen, défaut `true`)
-- Quand désactivé : les 8 KPIs (Equity, Valeur, CRD, CF, Wealth, LTV, Exit Costs, Net Equity) sont recalculés à partir des propriétés filtrées (sans Villejuif)
-- Les tooltips affichent "Hors Villejuif (achat futur)" quand le toggle est off
-- La carte Villejuif dans la grille est visuellement atténuée (opacity 0.45)
-- Le tableau wealth breakdown et les charts respectent aussi le filtre
-- Les tables de détail (prêts, fiscalité, CF) restent complètes (affichent les 3 biens)
-
-### Fix Villejuif Equity Projection — Simulateurs (v148)
-
-**Problème** : Les simulateurs (couple + Nezha) utilisaient un `wealthCreation` mensuel fixe pour Villejuif. Ce taux fixe ne capturait pas la transition franchise (36 mois, intérêts capitalisés) → amortissement. Résultat : equity Villejuif à 121K en 2045 au lieu de ~380K.
-
-**Correction** :
-- Ajout de `computeVillejuifEquity(m)` dans les simulateurs couple et Nezha
-- La fonction calcule l'equity absolue à chaque mois en :
-  1. Convertissant le mois simulateur en date calendaire (YYYY-MM)
-  2. Cherchant le CRD dans le tableau d'amortissement (`amortSchedules.villejuif.schedule`)
-  3. Appliquant l'appréciation par phases (3%/an 2025-2028, 1.5%/an 2029+)
-  4. Retournant `valeur_projetée - CRD`
-- Flag `_computedEquity: true` dans `immoBreakdown` pour que `runSimulatorGeneric` traite les valeurs comme absolues (pas incrémentales)
-
-**Correction complémentaire (engine.js)** : La projection de richesse (`wealthProjection`) utilisait un taux d'appréciation fixe (`propMeta.appreciation`) au lieu des phases (`appreciationPhases`). Corrigé pour itérer année par année avec le taux de phase applicable.
-
-### Simulateurs — Computed Equity pour toutes les propriétés (v148)
-
-Les 3 simulateurs (couple, Amine, Nezha) utilisent maintenant `makeComputePropertyEquity()` — une fonction générique qui calcule l'equity nette absolue de chaque propriété à chaque mois :
-
-1. Convertit le mois simulateur en date calendaire (YYYY-MM)
-2. Cherche le CRD dans le tableau d'amortissement
-3. Applique l'appréciation par phases (ex: Villejuif 3%→1.5%, Rueil 0.5%→1.5%)
-4. Applique l'appréciation intra-année (partielle)
-5. Soustrait les exit costs projetés (interpolés linéairement entre années)
-6. Retourne `Math.max(0, valeur_projetée - CRD - exit_costs)`
-
-Le flag `_computedEquity: true` dans `immoBreakdown` permet à `runSimulatorGeneric` de traiter ces valeurs comme absolues. Le `dataImmo` total est calculé comme la somme des propriétés (pas via cumul de deltas) pour garantir la cohérence tooltip.
-
-Granularité : mensuelle (chaque mois = 1 data point). `maxTicksLimit: 24` sur l'axe X.
-
-### Données IBKR — v147-148
-
-- Mise à jour des prix statiques au close 16/03/2026 (CSV IBKR Q1 2026)
-- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40 TGATE + 60 SBF)
-- Position DG réduite de 200 → 100 actions
-- Deleverage JPY : 13 111 EUR → 2 406 458 JPY @ 183.545 le 18/03
-- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
-
-### Timelines propriétés (v148)
-
-Ajout de timelines pour Rueil et Villejuif dans `EXIT_COSTS` (data.js) :
-
-**Rueil** (données de l'acte de vente + bail Docusign) :
-- Achat : 240 000€ le 5 novembre 2019 (vendeuse Mme Candalot)
-- Prêt : Crédit Mutuel Franconville (251 200€ à 1.20%, 25 ans)
-- RP Nezha : nov 2019 → sept 2025
-- Passage LMNP : bail meublé signé 25/09/2025, début location 04/10/2025
-- Locataires : Marouane El Mejjati & Myriem Kadri Hassani (1 300€ HC + 150€ charges)
-- Milestones PV : exonération IR à 22 ans (2041), IR+PS à 30 ans (2049)
-
-**Villejuif** (VEFA en cours) :
-- Réservation : avril 2025 (3 600€ versés)
-- Prêts LCL : 287K + 32K, franchise 36 mois (intérêts capitalisés)
-- Livraison : été 2029
-- Milestones : choix régime fiscal, ouverture L15 Sud (2026), fin franchise (2028)
-
-Fonction helper `renderTimelineHTML()` dans render.js pour générer les timelines de façon générique.
-
-### Chart PV Abattements (v148)
-
-Nouveau graphe en barres empilées dans le détail de chaque propriété :
-- Montre pour chaque année de détention (1 à 30) le % de la PV qui va à :
-  - Net (vert) : ce que tu gardes
-  - IR (rouge) : impôt 19% × (1 - abattement IR)
-  - PS (orange) : prélèvements sociaux 17.2% × (1 - abattement PS)
-- Ligne verticale à la durée de détention actuelle
-- Données calculées par `computePVAbattementSchedule()` dans engine.js
-- Canvas `pvAbattementChart` dans index.html, rendu par `buildPVAbattementChart()` dans charts.js
-
-### Détails appartements — Property Info Cards (v148)
-
-Ajout des détails de chaque appartement depuis les plans (Nexity, Fair' Promotion, acte de vente) :
-- `details` object dans `IC.properties[loanKey]` avec rooms[], surfaces, étage, lot, exposition, DPE, floorPlan
-- `renderPropertyInfoCard(details)` dans render.js : barre cliquable des pièces + métriques en pills
-- Intégré dans `renderAptView()` pour les vues #apt_vitry, #apt_rueil, #apt_villejuif
-- Intégré dans `renderPropertyDetail()` pour le panel de détail dans la vue Immo
-
-### Plans d'appartement SVG interactifs (v148)
-
-Plans SVG calculés mathématiquement à partir des cotes architecturales. Chaque pièce est un polygone dont la surface SVG correspond exactement à la surface réelle (tolérance <0.3m²).
-
-**Vitry 3302** (9 pièces, viewBox `-380 -30 912 978`) :
-- Plan en L : loggia à gauche, cuisine et entrée en haut, séjour central en L
-- Chambres en bas séparées par le dégagement
-- Cotes : Cuisine 280×304, Entrée 179×327, Séjour L-shape (21.28m²), Ch1 390×317, Ch2 327×304
-- Sources : plan Nexity série notaire indice 3, 22/11/2022
-
-**Villejuif A27** (7 pièces, viewBox `-166 -30 1212 1028`) :
-- Plan en V : murs diagonaux à 8° de la verticale, chambres dans les ailes
-- Séjour/Cuisine trapézoïdal 35.09m², loggia en bande entre les ailes
-- Cotes : SdB 258×211, Entrée 171×211, WC 177×131, Ch2 332×336, Ch1 302×369
-- Sources : plan Fair' Promotion indice A, mai 2025
-
-**Rueil** (8 pièces, schématique, viewBox `-20 -20 940 660`) :
-- Plan basé sur le croquis du propriétaire (pas de plan archi)
-- Layout : Cuisine/Entrée/Salon en haut, Ch2/SdB-WC/Ch1 en bas
-- Surfaces nulles (pas de cotes exactes disponibles)
-
-**Interaction** :
-- Barre des pièces : affiche les noms uniquement, superficie au clic (toggle)
-- Plan SVG : hover CSS pur (fill-opacity 8% → 35%), tooltip native SVG `<title>`
-- Couleurs : bleu (#3b82f6) espaces de vie, vert (#22c55e) chambres, gris (#94a3b8) utilités, or (#d69e2e) loggia
-
-### Section LMP — Seuil et comparaison LMNP vs LMP (v148)
-
-Section dans la vue Immobilier qui analyse le risque de passage LMP pour Nezha :
-- Comparaison seuil : aujourd'hui (Rueil seul ~15 600€/an) vs après Villejuif (~37 200€/an > 23K€ seuil)
-- Tableau fiscal sur loyer : LMNP (IR 20% + PS 17.2%) vs LMP (IR 20% + SSI ~40%)
-- Tableau exit costs LMNP vs LMP sur 25 ans (dépliable)
-- Note non-résident : condition "recettes > revenus d'activité" auto-remplie
-
-### Manque à gagner Cash (v148)
-
-Remplacement du donut "Répartition par Devise" par un panneau "Manque à gagner" :
-- Pour chaque personne, calcule le rendement perdu sur le cash rapportant <6%
-- Affiche le manque à gagner en €/jour, €/mois, €/an (en rouge)
-- Utilise `cashView.byOwner` et `cashView.accounts` pour les calculs dynamiques
-
-### Fix données Vitry — parking 70€ (v148)
-
-- Parking: 0 → 70€/mois dans data.js (loué séparément en cash)
-- `loyerTotalCC`: 1200 → 1270€/mois (HC 1050 + charges 150 + parking 70)
-- `loyerObjectif`: 1200 → 1270€/mois
-- Impact CF Vitry : -223€/mois → -153€/mois
-
-### Fix données Rueil (v148)
-
-- `purchasePrice`: 255K → 240K (prix acte notarié, hors frais)
-- Banque : LCL → Crédit Mutuel Franconville (confirmé par acte)
-- `lmnpStartDate`: ajouté (oct 2025 — date du bail Docusign)
-- Amortissement LMNP calculé depuis la date de passage en LMNP (pas depuis l'achat 2019)
-- L15 Sud : ouverture corrigée à avril 2027
-
-### Jeanbrun collapsible (v148)
-
-Section Jeanbrun dans la vue Villejuif rendue collapsible :
-- Bannière rouge : "Dispositif Jeanbrun non retenu — loyer plafonné trop bas (1 215€ vs 1 700€ marché)"
-- Détails masqués par défaut, affichés au clic sur "Voir les détails ▼"
-- Contenu : calcul loyer plafonné, réduction d'impôt, conditions d'éligibilité, avantages/inconvénients
-
-### Chart PV Abattements par propriété (v148)
-
-Graphe en barres empilées montrant pour chaque année de détention (1-30 ans) :
-- Net (vert) : ce que le vendeur garde
-- IR (rouge) : 19% × (1 - abattement IR cumulé)
-- PS (orange) : 17.2% × (1 - abattement PS cumulé)
-- Ligne verticale à la durée de détention actuelle
-- Fonction `computePVAbattementSchedule()` dans engine.js
-- Canvas `pvAbattementChart`, rendu par `buildPVAbattementChart()` dans charts.js
-
-### Redesign CSS — "Patrimoine Précis" (v148)
-
-Refonte visuelle appliquée depuis le skill `frontend-design` d'Anthropic :
-- **Typographie** : DM Sans (body, données) + Instrument Serif (titres) via Google Fonts
-- **Couleurs** : fond off-white chaud (#fafaf9), navy profond nav (#1e3a5f), bordures warm gray (#e7e5e4)
-- **Navigation** : tabs uppercase avec letter-spacing 0.3px, underline animé pour l'onglet actif
-- **KPI cards** : ombres subtiles, animations fadeUp en cascade (0.05s entre chaque)
-- **Tables** : headers uppercase letter-spaced, hover states, densité professionnelle
-- **Micro-animations** : @keyframes fadeUp, transitions 0.2s ease partout
-- **Tabular numerics** : font-variant-numeric: tabular-nums pour les colonnes de chiffres
-
-### Données IBKR — v147-148
-
-- Mise à jour des prix statiques au close 16/03/2026 (CSV IBKR Q1 2026)
-- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40 TGATE + 60 SBF)
-- Position DG réduite de 200 → 100 actions
-- Deleverage JPY : 13 111 EUR → 2 406 458 JPY @ 183.545 le 18/03
-- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
-
-### Prompt dashboard patrimonial pour amis (v148)
-
-Prompt en 3 phases créé dans `/mnt/outputs/prompt-dashboard-patrimonial.md` :
-1. Phase 1 : inventaire du patrimoine via questions (Claude guide l'utilisateur)
-2. Phase 2 : construction du site (architecture data/engine/render/charts/simulators/api/app)
-3. Phase 3 : enrichissement par documents (relevés, contrats, tableaux d'amortissement)
-Personnalisé pour Anas & Rania, contexte Europe/Maroc.
-
-### Drafts Gmail (v148)
-
-- Draft Degiro sur am.koraibi@gmail.com → clients@degiro.fr (rapports 2020-2025)
-- Draft BoursoBank sur amine.koraibi@gmail.com → contact@boursobank.com
-  - Numéros PEA complets retrouvés dans les emails de clôture
-  - Timeline complète reconstruite : CTO (avr 2020), PEA (juil 2021), PEA-PME (sept 2024)
-
-### Audit KPIs v148
-
-Tous les KPIs et projections ont été audités :
-- ✅ Equity par bien (Vitry, Rueil, Villejuif) : correct
-- ✅ Exit costs avec réintégration amortissements LMNP (loi finances 2025) : correct
-- ✅ Couple NW avec `villejuifSigned: false` : correct (exclusion + reservation fees)
-- ✅ CF projection : charges, rent growth, loan end dates, parking corrects
-- ✅ Track Record : win rate, realized P/L corrects
-- ✅ Appréciation par phases : corrigée dans wealth projection (engine.js)
-- ✅ Simulateurs : equity nette composée (amort schedule + appreciation + exit costs)
-- ✅ Banque Rueil : Crédit Mutuel Franconville (confirmé par acte notarié)
-- ✅ Parking Vitry : 70€/mois intégré dans les revenus
-- ✅ Plans SVG : surfaces calculées matchent les surfaces réelles (<0.3m² tolérance)
-- ✅ BP Vitry : intérêts seuls août-déc 2025, capital à partir de jan 2026
-
-## State Object Schema
-
-The `compute()` function (from engine.js) returns a complete state object with the following structure:
-
-```javascript
-state = {
-  // Person-specific net worth rollups
-  couple: { nw, immoEquity, immoEquityBrute, immoValue, immoCRD, nbBiens, ... },
-  amine: { nw, ibkr, espp, sgtm, uae, moroccoCash, vitryEquity, vehicles, recvPro, recvPersonal, tva, ... },
-  nezha: { nw, espp, revolutEUR, creditMutuel, livretA, lclDepots, cashMaroc, cashUAE, villejuifEquity, rueilEquity, recvOmar, cautionRueil, sgtm, ... },
-
-  // Consolidated asset views
-  pools: { actions, cash },  // global action + cash tallies
-  cashView: { accounts[], totalCash, byCurrency, byOwner, diagnostics, ... },
-  immoView: { properties[], amortSchedules, wealthProjection, totalWealthCreation, ... },
-  actionsView: { positions[], closedPositions[], insights, twr, ... },
-  creancesView: { items[], total, ... },
-  budgetView: { expenses[], total, ... },
-
-  // Hierarchical drilldown data (by view)
-  categories: [...],  // couple view breakdown
-  amineCategories, nezhaCategories,  // person-specific breakdowns
-  viewConfig: { couple: {...}, amine: {...}, nezha: {...} },  // metadata + NW refs
-
-  // Time series
-  nwHistory: [...],  // historical net worth by date
-
-  // Formatting & state
-  fx: { EUR: 1, AED, MAD, USD, JPY },  // exchange rates
-  portfolio: PORTFOLIO,  // raw data reference
-  ibkrPositions: [...],  // computed positions with price/P&L
-}
-```
-
-## View Routing
-
-Views represent different analytical scopes:
-
-| View | Type | Purpose |
-|------|------|---------|
-| `couple` | Person | Combined household (Amine + Nezha) |
-| `amine` | Person | Amine's personal net worth |
-| `nezha` | Person | Nezha's personal net worth |
-| `actions` | Asset | All stocks, ETFs, crypto (IBKR + ESPP + SGTM) |
-| `cash` | Asset | All cash accounts (UAE, Maroc, France) |
-| `immobilier` | Asset | Real estate portfolio overview |
-| `apt_vitry` | Property | Vitry-sur-Seine (19 Rue Nathalie Lemel) detail |
-| `apt_rueil` | Property | Rueil-Malmaison (21 Allée des Glycines) detail |
-| `apt_villejuif` | Property | Villejuif (167 Bd Maxime Gorki) detail |
-| `creances` | Asset | Receivables & recovery analysis |
-| `budget` | Asset | Monthly expense tracking |
-
-**URL Hash Routing:** Hash fragments (#couple, #amine, #actions, etc.) stored in window.location.hash. Sub-views (apt_*) rendered as secondary options under immobilier main tab.
-
-## API Strategy
-
-### FX Rates
-
-- **Source:** open.er-api.com/v6 (was frankfurter.dev — OUTDATED in docs)
-- **Fallback:** FX_STATIC in data.js (hardcoded rates for offline mode)
-- **Cache:** localStorage, 5-minute TTL
-- **Refresh:** Automatic every 5 minutes via setInterval in app.js
-
-### Stock Prices
-
-- **Source:** Yahoo Finance v8 chart endpoint (range=1d, interval=1d)
-- **Tickers:** IBKR positions + ESPP + SGTM + closed position history
-- **CORS Strategy:** 6 proxies raced in parallel via Promise.any():
-  - `query1.finance.yahoo.com/v10/finance/quoteSummary/`
-  - `query2.finance.yahoo.com/v10/finance/quoteSummary/`
-  - ... (6 total)
-- **Cache:** localStorage per ticker, 10-minute TTL
-- **Fallback:** Static prices in data.js (market.acnPriceUSD, market.sgtmPriceMAD, ibkr.positions[].price)
-- **SGTM Special:** No API (MAD-listed stock, illiquid) — always uses static price
-
-### Error Handling & Retries
-
-- Failed tickers retried once via `retryFailedTickers()`
-- If all proxies fail, display "⚠️ Some prices stale" badge and use last-known values
-- Sold positions prices fetched separately to show historical P&L
-
-## Chart Registry
-
-All Chart.js instances managed centrally in charts.js:
-
-| Chart | Builder Function | Canvas ID | View |
-|-------|-----------------|-----------|------|
-| Couple Donut | `buildCoupleDonut()` | `#coupleDrillDown` | couple |
-| Amine Donut | `buildAmineDonut()` | `#amineDonut` | amine |
-| Nezha Donut | `buildNezhaDonut()` | `#nezhaDonut` | nezha |
-| Geo Breakdown | `buildGeoChart()` | `#geoChart` | couple/amine/nezha |
-| Immo Equity Bar | `buildImmoEquityBar()` | `#immoViewEquityChart` | immobilier |
-| Immo Projection | `buildImmoProjection()` | `#immoProjectionChart` | immobilier |
-| CF Projection | `buildCFProjection()` | `#cfProjectionChart` | couple/amine/nezha |
-| Wealth Projection | `buildWealthProjection()` | `#wealthProjectionChart` | immobilier |
-| Actions Geo | `buildActionsGeo()` | `#actionsGeoDonut` | actions |
-| Actions Sector | `buildActionsSector()` | `#actionsSectorDonut` | actions |
-| Actions Treemap | `buildActionsTreemap()` | `#actionsTreemapChart` | actions |
-| Cash Currency Yield | (HTML overlay, no canvas) | `#cashCurrencyChart` | cash |
-| Budget Zone | `buildBudgetZone()` | `#budgetZoneChart` | budget |
-| Budget Type | `buildBudgetType()` | `#budgetTypeChart` | budget |
-| PV Abattement | `buildPVAbattement()` | `#pvAbattementChart` | immobilier |
-| NW History | `buildNWHistory()` | `#nwHistoryChart` | couple |
-
-All charts destroyed and rebuilt on view switch via `rebuildAllCharts(state, view)`.
-
-## Data Exports from data.js
-
-| Export | Type | Purpose |
-|--------|------|---------|
-| `PORTFOLIO` | Object | Complete raw portfolio data (AED, MAD, EUR, USD, JPY native currencies) |
-| `CURRENCY_CONFIG` | Object | Symbol mapping, symbol-after flag, display names |
-| `CASH_YIELDS` | Object | Interest rates by account (Mashreq 3%, Wio 6%, etc.) |
-| `IMMO_CONSTANTS` | Object | Tax rates, notary fees, agency fees, insurance rates |
-| `EXIT_COSTS` | Object | Selling costs by property type (agency 4%, notary 7-8%, staging 2%) |
-| `VITRY_CONSTRAINTS` | Object | Rent cap, occupancy rules, loan parameters |
-| `VILLEJUIF_REGIMES` | Object | Tax regimes (Jeanbrun, micro-BIC, LMNP rules) |
-| `FX_STATIC` | Object | Fallback FX rates when API fails |
-| `DATA_LAST_UPDATE` | String | Human-readable date of last data refresh |
-
-## Key Formulas
-
-### Real Estate Equity Calculation
-
-```
-Equity brute = value - CRD
-Equity nette = max(0, salePrice - exitCosts - CRD)
-  where exitCosts = agency(4%) + notary(7-8%) + staging(2%) + broker fees
-```
-
-### Capital Gains Tax (PV — Plus-Value)
-
-```
-PV brute = salePrice - (purchasePrice + 7.5% acquisition frais) + amort_reintegration
-
-Abattement IR (Income Tax):
-  1-5 years: 0%
-  6-21 years: 6% per year
-  22 years: 4%
-  → 100% exemption after 22 years
-
-Abattement PS (Social Tax):
-  1-5 years: 0%
-  6-21 years: 1.65% per year
-  22 years: 1.6%
-  9-30 years: 9% per year
-  → 100% exemption after 30 years
-
-Taxe IR = PV brute × (1 - cumAbattementIR) × 19%
-Taxe PS = PV brute × (1 - cumAbattementPS) × 17.2%
-```
-
-### LMNP Depreciation Reintegration
-
-```
-Annual amortization = purchasePrice × 80% × 2% × yearsInLMNPStatus
-  (only counted from lmnpStartDate, not purchase date)
-
-Example (Rueil, purchased 2019, LMNP from Oct 2025):
-  = 240,000 × 0.80 × 0.02 × 0.5 years
-  = 1,920€/year (pro-rata to Oct 2026)
-```
-
-### JPY Carry Trade Cost (IBKR Negative Balance)
-
-IBKR applies tiered borrow rates on negative JPY positions:
-
-```
-Tier 1: First 500K JPY @ 5.5% p.a.
-Tier 2: Next 1M JPY @ 6.5% p.a.
-Tier 3: 1.5M+ JPY @ 7.5% p.a.
-
-Example: -4,590,694 JPY balance (18/03/2026)
-  Tier 1: 500,000 × 5.5% / 365 = 75.34 JPY/day
-  Tier 2: 1,000,000 × 6.5% / 365 = 178.08 JPY/day
-  Tier 3: 3,090,694 × 7.5% / 365 = 635.80 JPY/day
-  Total: ~889 JPY/day cost (~0.48€/day @ 183.5 JPY/EUR)
-```
-
-Used in `ibkrJPYBorrowCost()` function (engine.js).
-
-### UX Audit & 20 Fixes (v148 — Session 18/03/2026)
-
-Audit complet réalisé avec le skill `frontend-design` d'Anthropic + inspection Chrome live.
-
-**Batch 1 — Fixes 1-5 :**
-1. ✅ Villejuif warning caché sur les vues non pertinentes (actions/cash/budget/creances)
-2. ✅ KPI labels : uppercase → title case (plus lisible)
-3. ✅ Loading skeleton pendant le fetch API initial
-4. ✅ Immo KPIs : class `.primary` sur Equity Brute/Nette (hiérarchie visuelle)
-5. ✅ FX status bar : prominence réduite (opacity + font-size)
-
-**Batch 2 — Fixes 6-20 :**
-6. ✅ Treemap : hide labels sur segments < 1200px² (évite overlap)
-7. ✅ Column toggle pills : réduites (10px, opacity 0.8)
-8. ✅ Manque à gagner : rouge → amber (opportunité, pas erreur)
-9. ✅ Viewport meta : déjà présent (vérifié)
-10. ✅ Footer timestamp : format complet "Dernière MAJ : 18 mars 2026 à 21:48"
-11. ⏭ Delta indicator : nécessite historique (skipped)
-12. ✅ Double €€ sur axe Y : symbole dupliqué supprimé dans budget chart
-13. ✅ Donut legends : padding et box sizes augmentés
-14. ✅ Hard Refresh : ⚡ texte → 🔄 icône subtile
-15. ⏭ Slider labels : fonctionnent correctement (skipped)
-16. ✅ LIVE badge : caché quand toutes les positions sont live
-17. ✅ Cash table : alternating row colors (#fafaf9)
-18. ✅ Budget charts : min-height augmenté à 280px
-19. ⏭ Close button : géré par navigation standard (skipped)
-20. ✅ Favicon : 💰 SVG ajouté
-
-**Bug fix supplémentaire :**
-- ✅ `villejuifNote` (HTML statique) caché dynamiquement dans render() selon la vue
-
-### Documentation Completeness Audit (v148)
-
-Audit de la complétude de ARCHITECTURE.md vs le code réel :
-
-**Documenté (ajouté dans cette session) :**
-- State Object Schema (structure complète de compute())
-- View Routing (10 vues + hash routing)
-- API Strategy (FX, stocks, CORS proxies, cache TTL, fallback)
-- Chart Registry (16 instances Chart.js avec canvas IDs)
-- Data Exports (18 exports de data.js avec types)
-- Key Formulas (equity, PV abattement, LMNP amort, carry cost)
-
-### v149 Features
-
-**Feature 1: Net Worth History Evolution Chart**
-- Source: `NW_HISTORY` in `data.js` (array of {date, coupleNW, amineNW, nezhaNW, note}) — EMPTY as of v150
-- Chart function: `buildNWHistoryChart()` in `charts.js` (enabled, was disabled in v86)
-- Canvas element: `nwHistoryChart` in `index.html` (added after coupleTreemap)
-- Status: Chart gracefully handles empty NW_HISTORY (returns early if no data)
-- Displays: Line chart with Couple NW (green fill), Amine NW (dashed blue), Nezha NW (dashed orange)
-- Tooltip: Shows % change between consecutive data points + annotations (notes field)
-- Note: v150 removed invented historical data. NW_HISTORY should be populated with real data when available.
-
-**Feature 2: Delta Indicators on KPIs**
-- Location: Below couple NW KPI (kpiCoupleNW)
-- Data: `couple.nwDelta` and `couple.nwDeltaPct` computed in `engine.js` — NULL when NW_HISTORY is empty (v150)
-- Calculation: previousNW = NW_HISTORY[length-2].coupleNW; delta = currentNW - previousNW (only if history available)
-- Display function: `setDelta()` in `render.js` with null guards (similar to setSubPct)
-- Colors: Green if positive, Red if negative
-- Format: "+€2,340 (+0.3%) ce mois"
-- Status v150: Indicators hidden when NW_HISTORY is empty (setDelta guards prevent rendering)
-
-**Feature 3: Version v149 Bump**
-- Updated: index.html, app.js, charts.js, engine.js, render.js
-- All module imports now use ?v=149
-- ARCHITECTURE.md version bumped
-
-**Encore à documenter (v150+) :**
-- Liste complète des fonctions privées de engine.js (~20 fonctions)
-- Liste complète des fonctions render.js (~25+ fonctions)
-- Liste complète des chart builders (~30 fonctions)
-- HTML section/view mapping détaillé
-- Simulator architecture (generic engine + property equity computer)
-- Error handling & fallback strategies
-- Stock source strategy ('live' vs 'statique')
-
-### Méthode de construction des plans SVG (v149)
-
-**Objectif** : Construire des plans d'appartement SVG interactifs dont les surfaces proportionnelles correspondent aux surfaces réelles (erreur <5%).
-
-#### Étape 1 — Sources de données
-Pour chaque appartement, rassembler :
-- **Plan architectural** (PDF du promoteur/notaire, ex: Nexity, Fair' Promotion)
-- **Certificat Loi Carrez** (surfaces exactes par pièce)
-- **Croquis** (si pas de plan archi)
-
-#### Étape 2 — Extraction des dimensions
-1. Convertir le plan PDF en image haute résolution (400 dpi) : `pdftoppm -png -r 400 plan.pdf output`
-2. Cropper la zone du plan uniquement (sans légendes/tableaux)
-3. Scanner les murs avec un script Python + Pillow :
-   - Scanner des lignes horizontales et verticales
-   - Détecter les murs noirs (pixels < 80 en grayscale)
-   - Trouver les centres des murs et leurs largeurs
-   - Tracer les murs diagonaux (pour les plans non-orthogonaux comme Villejuif)
-
-#### Étape 3 — Construction du modèle géométrique
-1. Définir chaque pièce comme un polygone (liste de points SVG)
-2. Utiliser la **formule du lacet (Shoelace)** pour calculer l'aire de chaque polygone
-3. Définir un **facteur d'échelle** : `px_per_m2 = total_SVG_area / total_target_m2`
-4. Ajuster les dimensions de chaque pièce pour que `SVG_area / px_per_m2 ≈ target_m2`
-
-#### Étape 4 — Validation (OBLIGATOIRE)
-Pour chaque pièce, vérifier :
-- **Erreur de surface** : `|computed_m2 - target_m2| / target_m2 < 5%`
-- **Pas de chevauchement** : les bounding boxes des pièces adjacentes ne se croisent pas (sauf edges partagés)
-- **Adjacence correcte** : les pièces qui se touchent partagent des coordonnées exactes
-
-Script de validation Python :
-```python
-def polygon_area(pts):
-    n = len(pts)
-    return abs(sum(pts[i][0]*pts[(i+1)%n][1] - pts[(i+1)%n][0]*pts[i][1] for i in range(n))) / 2
-
-total_target = sum(room.target for room in rooms)
-total_svg = sum(polygon_area(room.pts) for room in rooms)
-scale = total_svg / total_target
-
-for room in rooms:
-    computed = polygon_area(room.pts) / scale
-    error = abs(computed - room.target) / room.target * 100
-    assert error < 5, f"{room.name}: {error:.1f}% error"
-```
-
-#### Étape 5 — Itération
-Si la validation échoue :
-1. Identifier les pièces avec erreur >5%
-2. Ajuster `width × height` pour que `width × height / scale ≈ target_m2`
-3. Re-valider
-4. Répéter jusqu'à ce que TOUTES les pièces passent
-
-#### Étape 6 — Intégration dans data.js
-Ajouter `floorPlan` dans `IMMO_CONSTANTS.properties[loanKey].details` :
-```javascript
-floorPlan: {
-  viewBox: 'minX minY width height',
-  schematic: true/false,  // true si pas de plan archi
-  rooms: [
-    { name: 'Nom', surface: X.XX, color: '#hex', points: 'x1,y1 x2,y2 ...' },
-  ],
-},
-```
-
-#### Types de polygones
-- **Rectangle** : 4 points (pièces orthogonales)
-- **L-shape** : 6 points (séjour en L)
-- **Trapèze** : 4 points avec bords non parallèles (loggia)
-- **Parallélogramme** : 4 points avec bords inclinés (chambres dans ailes V)
-
-#### Couleurs standard
-- Bleu `#3b82f6` : espaces de vie (séjour, cuisine, salon)
-- Vert `#22c55e` : chambres
-- Gris `#94a3b8` : utilités (SdB, WC, entrée, dégagement)
-- Or `#d69e2e` : loggia/extérieur
-
-#### Résultats de validation v149
-| Appartement | Max erreur | Status |
-|---|---|---|
-| Vitry 3302 | 2.1% | ✅ PASS |
-| Rueil (Loi Carrez) | 4.6% | ✅ PASS |
-| Villejuif A27 | 40.8% | ❌ FAIL (itération en cours) |
-
-Le plan Villejuif nécessite encore du travail — les chambres en parallélogramme (murs diagonaux V) ont des aires SVG disproportionnées par rapport aux petites pièces (SdB, Entrée, WC). La forme V est visuellement correcte mais les proportions d'aire ne sont pas calibrées.
-
-### Constraint-Based Geometric Solver — Plans SVG (v149)
-
-Les plans d'appartement SVG sont générés par un solver géométrique à contraintes, pas par approximation manuelle.
-
-**Variables du solver :**
-- ``V_ANGLE` : angle des murs diagonaux (27.5° pour Villejuif, mesuré par régression)
-- `APEX_X` : position du sommet du V
-- `TOP_W` : largeur au sommet (7.5m)
-- `UTIL_H` : hauteur du bloc utilitaire (2.1m)
-- `SEJOUR_DEPTH` : profondeur du séjour (résolu itérativement)
-- `LOGGIA_H` : hauteur de la loggia (résolue par équation quadratique)
-- `CH_W`, `CH_DEPTH` : dimensions des chambres
-
-**Contraintes :**
-1. Aire de chaque pièce = surface réelle ±5%
-2. Pas de chevauchement (murs partagés)
-3. Forme en V préservée (angle symétrique)
-4. Adjacence : séjour touche utility + loggia, loggia touche les 2 chambres
-
-**Algorithme :**
-1. Résout le bloc utilitaire (rectangulaire) depuis les surfaces et la hauteur
-2. Calcule la profondeur du séjour (L-shape = triangle + rectangle)
-3. Résout la hauteur de la loggia (équation quadratique du trapèze)
-4. Calcule les dimensions des chambres (parallélogrammes)
-5. **Itère** : ajuste SEJOUR_DEPTH jusqu'à convergence (<1% erreur sur le séjour)
-
-**Résultats validation Villejuif A27 :**
-```
-Salle de bain    5.45m² → 5.450m²  err=0.000% ✓
-Entrée           3.60m² → 3.600m²  err=0.000% ✓
-WC               2.32m² → 2.320m²  err=0.000% ✓
-Séjour/Cuisine  35.09m² → 35.090m²  err=0.000% ✓
-Loggia           9.51m² → 9.510m²  err=0.000% ✓
-Chambre 2       11.24m² → 11.240m²  err=0.000% ✓
-Chambre 1       11.24m² → 11.240m²  err=0.000% ✓
-Max error: 0.000% → PASS (all rooms exact) ✓
-```
-
-**Résultats validation Vitry 3302 :** Max error 2.1% → PASS ✓
-**Résultats validation Rueil :** Max error 4.6% → PASS ✓ (surfaces Loi Carrez exactes)
-
----
-
-## Fonctionnalités non documentées — Engine (engine.js)
-
-### Fonctions de calcul des vues
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `toEUR(amount, currency, fx)` | amount, currency, fx rates | Convertit un montant dans la devise fournie vers EUR en utilisant les taux FX |
-| `computeIBKR(portfolio, fx, stockSource)` | portfolio, fx, stockSource ('live' ou 'statique') | Calcule NAV IBKR totale depuis positions + cash multi-devises (EUR/USD/JPY) |
-| `computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp)` | portfolio, fx, computed components | Agrège toutes les positions actions (IBKR, ESPP Amine, ESPP Nezha, SGTM) + allocation geo/sector + dépôts + dividendes + P/L réalisé |
-| `computeCreancesView(portfolio, fx)` | portfolio, fx | Traite créances (prêts à tiers) par statut, calcule inflation cost, jours de retard, % recouvrement |
-| `computeBudgetView(portfolio, fx)` | portfolio, fx | Agrège dépenses personnelles (BUDGET_EXPENSES) et dépenses d'investissement (charges immo) par zone/type |
-| `computeDividendAnalysis(ibkrPositions, fx)` | ibkrPositions, fx | Analyse dividendes projetés, WHT par position et géographie, recommande switch vers ETF si WHT élevé |
-
-### Fonctions d'amortissement (immo)
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `computeSubLoanSchedule(loan)` | loan (properties: principal, rate, startDate, periods[], ...) | Tableau d'amortissement mensuel pour prêt multi-période (PTZ, BP, etc.) avec phases déférées/taux variables |
-| `computeMultiLoanSchedule(subLoans, insuranceMonthly)` | subLoans[], insuranceMonthly | Combine plusieurs prêts d'un même bien, agrège intérêts, CRD, assurance |
-| `computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscConfig, loanInterestAnnuel)` | loyer déclaré, loyer total, charges, regime, taux, intérêts | Calcule impôt par régime (micro-foncier, micro-BIC, LMNP réel, LMNP amort) avec abattements |
-| `computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate, loanCRDs)` | tous paramètres, optional targetDate pour projection | Calcul exit costs: plus-value, abattements IR/PS, surtaxe immo, frais agence, frais notaire, TVA clawback |
-
-### Fonctions spécialisées
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `computePVAbattementSchedule()` | (aucun) | Retourne table abattement PV en fonction années de détention (tableau abattement[years]=pct) |
-| `computeVillejuifRegimeComparison()` | (aucun) | Compare 2 régimes VEFA Villejuif: LMNP réel vs micro-BIC (calcule impôts et recommande) |
-| `computeImmoView(portfolio, fx)` | portfolio, fx | Construit vue immobilière complète: propriétés, CRD, équité, CF, fiscalité, exit costs, projections NW 20 ans |
-| `getGrandTotal(state)` | state | Extrait patrimoine total (sum couple.nw + creances expected value, ou par propriétaire pour vue personnelle) |
-
----
-
-## Fonctionnalités non documentées — Render (render.js)
-
-### Fonctions de rendu principales
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `fmt(eurVal, compact)` | montant EUR, optional compact flag | Formate montant EUR avec séparateurs (123.456€ ou 123K€ si compact) |
-| `renderHeader(state, view)` | state, view | Affiche header avec titre vue + date update données |
-| `renderKPIs(state, view)` | state, view | Affiche KPIs principaux (NW total, P/L YTD, actions/cash/immo, etc.) |
-| `renderCategoryCards(state, view)` | state, view | Affiche cartes catégories actifs (IBKR, ESPP, SGTM, immo, etc.) avec valeurs |
-| `renderCategoryPcts(state, view)` | state, view | Affiche % allocation par catégorie (pie chart proportions) |
-| `renderExpandSubs(state, view)` | state, view | Render des sous-cartes détail (ex: ESPP par personne) quand catégorie est agrandie |
-
-### Fonctions de rendu par vue
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `renderCoupleTable(state)` | state | Table couple avec NW par personne et total |
-| `renderAmineTable(state)` | state | Détail actifs Amine (cash, stocks, immo, créances, TVA) |
-| `renderNezhaTable(state, view)` | state, view | Détail actifs Nezha (cash, stocks, immo, créances) |
-| `renderIBKRPositionsSimple(state)` | state | Liste positions IBKR mini (ticker, shares, valeur EUR) |
-| `renderImmoKPIs(state)` | state | KPIs immobilier (total equity, valeur propriétés, cash flow, exit costs) |
-| `renderBadges(state)` | state | Badges status (live stock prices, stale cache, etc.) |
-| `renderImmoPcts(state)` | state | % equity par propriété |
-| `renderAllPositions(allPositions, sortKey, sortDir)` | positions merged (IBKR+ESPP+SGTM), sort params | Table détaillée toutes positions: ticker, shares, valeur, P&L, %allocation, sector, geo |
-| `setupAllPositionsSort(allPositions)` | allPositions | Attache event handlers aux headers de colonne pour tri dynamique |
-
-### Fonctions spécialisées render
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `renderDynamicInsights(state, view)` | state, view | Génère insights dynamiques (diagnostics dormants, opportunités placement, etc.) basés sur state |
-| `setupKPIDetailPanels(state)` | state | Crée panneaux modales pour chaque KPI cliquable (breakdowns P/L daily/MTD/YTD/1M, dépôts, dividendes) |
-| `renderActionsView(state)` | state | Vue Actions complète: tables positions, KPI details, treemaps geo/sector, gestion des colonnes visibles |
-| `renderCashView(state)` | state | Vue Cash: liste comptes par zone/yield, diagnostics dormants, recommandations placement |
-| `renderImmoView(state)` | state | Vue Immobilière: cartes propriétés détail, KPIs, FX timeline, simulation exit, régime fiscal |
-| `renderCreancesView(state)` | state | Vue Créances: table créances avec status, % recouvrement, daysOverdue, recommandations follow-up |
-| `renderBudgetView(state)` | state | Vue Budget: dépenses personnelles vs investissement, par zone/type, réels vs projetés |
-| `renderWHTAnalysis(state)` | state | Analyse WHT: positions avec dividendes, taux WHT, recommandations switch vs ETF |
-| `attachKPIInsights(state, view)` | state, view | Attache insights générés au header de la vue (icône avec tooltip) |
-
-### Fonctions utilitaires rendu
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `updateAllDataEur()` | (aucun) | Met à jour tous les montants EUR DOM (sync devise à jour) |
-| `setEur(id, val)` | id element, valeur EUR | Définit textContent de #id à fmt(val) |
-| `setText(id, text)` | id element, texte | Définit textContent #id |
-| `setSubPct(id, pct)` | id element, pourcentage | Affiche pourcentage formaté |
-| `setDelta(id, deltaVal, deltaPct, timeframe)` | id, delta montant, delta %, période | Affiche delta flèche (↑ rouge/vert) avec % et période |
-| `setHTML(id, html)` | id element, HTML | Définit innerHTML #id (safe si état connu) |
-
----
-
-## Fonctionnalités non documentées — Charts (charts.js)
-
-### Gestion du cycle des graphiques
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `destroyAllCharts()` | (aucun) | Détruit tous les graphiques Chart.js stockés dans `charts{}` pour éviter fuites mémoire |
-| `rebuildAllCharts(state, view)` | state, view | Crée TOUS les graphiques requis pour une vue (couple → 6 graphiques, actions → 3, etc.) |
-| `coupleChartZoomOut()` | (aucun) | Réinitialise zoom couple drilldown à vue agrégée (appelé par clic "Retour" sur segment) |
-
-### Builders Donut/Sector
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildAmineDonut(state)` | state | Donut répartition actifs Amine (IBKR, cash, immo, ESPP, etc.) |
-| `buildNezhaDonut(state)` | state | Donut répartition actifs Nezha |
-| `buildActionsGeoDonut(state)` | state | Donut allocation géographique (US, France, Japon, Maroc, Irlande) |
-| `buildActionsSectorDonut(state)` | state | Donut allocation secteur (tech, banking, energy, etc.) |
-
-### Builders Bar/Projection
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildImmoEquityBar(state)` | state | Bar equity par propriété (Vitry, Rueil, Villejuif) |
-| `buildImmoProjection(state)` | state | Line chart équité immo + intérêts sur 10 ans |
-| `buildImmoViewEquityBar(state)` | state | Bar détail (immo view): equity + CRD + valeur brute par propriété |
-| `buildImmoViewProjection(state)` | state | Projection détail: NW 20 ans avec CF immo + appreciation |
-| `buildAmortChart(state)` | state | Amortization chart pour une propriété (capital vs intérêts au fil du temps) |
-| `buildCashYieldPotential(state)` | state | Bar rendement potential cash par compte (improvement vs rendement actuel) |
-
-### Builders Treemap
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)` | canvas id, chart key, categories, total, label | Crée treemap générique (CATS = {label, value}) avec couleurs et labels |
-| `buildCoupleTreemap(state)` | state | Treemap répartition couple par catégorie |
-| `buildAmineTreemap(state)` | state | Treemap répartition Amine |
-| `buildNezhaTreemap(state)` | state | Treemap répartition Nezha |
-| `buildActionsTreemap(state)` | state | Treemap répartition actions par ticker |
-
-### Builders géométriques (immobilier)
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildCoupleDrillDown(state, clickedIdx)` | state, optional segment index | Drilldown couple: clic sur segment donut → table détail (comptes sous-jacents) |
-| `buildGeoChart(state)` | state | SVG map géographie (US, France, Japon, Maroc) avec proportions par localisation |
-| `buildPropertyDetailCharts(state, prop)` | state, property object | Crée 3 graphiques détail propriété: amort schedule, exit cost projection, NW projection |
-| `buildExitProjectionChart(state, prop, canvasId)` | state, property, canvas id | Projection exit costs au fil des années (montant nets après impôts, frais) |
-| `buildCFProjection(state)` | state | Projection cash flow immo 20 ans (loyer - charges - intérêts + appréciation) |
-| `buildWealthProjectionChart(state, mode, group)` | state, mode ('couple'/'amine'/'nezha'), group | Projection NW 20 ans par personne ou couple (avec/sans stop contributions) |
-
-### Builders spécialisés
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildPVAbattementChart(propData, canvasId)` | property details, canvas id | Chart abattement plus-value en fonction années détention |
-| `buildBudgetZoneDonut(state)` | state | Donut budget par zone (Dubai, France, Digital) |
-| `buildBudgetTypeDonut(state)` | state | Donut budget par type dépense (personnel vs investissement) |
-
-### Builders internes
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `buildNWHistoryChart(state)` | state | (v86+: historique NW supprimé) — reste pour référence |
-| `buildSimChart(canvasId, chartKey, result)` | canvas id, chart key, simulator result | Crée graphique depuis résultats simulateur (monthly NW, immo, base, gains) |
-
----
-
-## Fonctionnalités non documentées — Simulators (simulators.js)
-
-### Engine simulateur générique
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `runSimulatorGeneric(config)` | config object (monthlySavings, pctActions, returnActions, returnCash, horizonYears, stopYears, startNW, startImmoEquity, startPoolActions, startPoolCash, staticAssets, immoGrowthFn, existingGains, immoBreakdown) | Monte projection NW sur 20 ans avec contributions optionnelles, allocation % actions/cash, retours, et croissance immo custom |
-| `makeComputePropertyEquity(iv, loanKey, propertyInitialValue)` | immoView, loan key, initial value | Factory function retournant fonction(months) qui calcule equity propriété à mois M (avec amort + appreciation) |
-
-### Simulateurs spécialisés
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `runCoupleSimulator(state)` | state | Lance simulateur couple avec paramètres sliders du DOM (épargne, allocation, retours, horizon) |
-| `runAmineSimulator(state)` | state | Lance simulateur Amine (actifs personnels + immo Vitry) |
-| `runNezhaSimulator(state)` | state | Lance simulateur Nezha (actifs personnels + immo Rueil) |
-| `runOpportunityCostSim()` | (aucun) | Calcule cost d'opportunité JPY short vs EUR (si l'emprunt JPY existe et > 5K) |
-
-### Gestion sliders
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `initSimulators(state)` | state | Initialise sliders (range inputs) avec valeurs par défaut du state |
-| `bindSimulatorEvents(state, refreshFn)` | state, function de refresh | Attache event listeners sur sliders pour re-run simulateurs et refresh charts |
-
----
-
-## Fonctionnalités non documentées — API (api.js)
-
-### Gestion cache localStorage
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `todayKey()` | (aucun) | Retourne clé cache du jour (format: nw_cache_YYYY-MM-DD) |
-| `loadCache()` | (aucun) | Charge cache localStorage pour aujourd'hui (ou vide si absent) |
-| `saveCache(cache)` | cache object | Sauvegarde cache dans localStorage avec clé du jour |
-| `purgeOldCache()` | (aucun) | Supprime toutes les clés cache des jours précédents (exécuté au chargement module) |
-
-### Fetch FX et stocks
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `fetchWithTimeout(url, timeoutMs)` | URL, timeout ms | Fetch avec timeout AbortSignal (10s par défaut) |
-| `fetchFXRates(forceRefresh)` | optional forceRefresh flag | Récupère taux FX EUR→AED/MAD/USD/JPY depuis er-api.com (TTL 5 min), fallback cache |
-| `fetchStockPrices(portfolio, onProgress, forceRefresh, onTickerLoaded)` | portfolio, callbacks progress/loaded, flags | Lance tous les tickers en parallèle (12 requêtes/ticker: 6 proxies × 2 endpoints Yahoo), retry loop si échecks |
-| `fetchSoldStockPrices(soldTickers, portfolio, onTickerLoaded)` | sold tickers list, portfolio, callback | Même logique que fetchStockPrices mais seulement pour positions clôturées (Degiro) |
-| `retryFailedTickers(failedTickers, portfolio, onRetryUpdate, maxRetries, delayMs)` | failed list, portfolio, callback, max retries, delay | Relance tickers manquants en boucle (5s entre rounds, max 5 rounds) jusqu'à succès ou timeout |
-
-### Extracteurs de données
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `extractFromChart(d)` | response data from Yahoo /v8/finance/chart | Parse réponse chart (prix, previousClose, timestamps OHLC) |
-| `extractFromQuote(d)` | response data from Yahoo /v6/finance/quote | Parse réponse quote (prix, previousClose, changePercent) |
-| `applyTickerToPortfolio(ticker, priceData, portfolio)` | ticker, {price, previousClose}, portfolio | Met à jour position ticker dans portfolio avec prix live |
-
----
-
-## Fonctionnalités non documentées — App (app.js)
-
-### Routing et hash
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `updateHash()` | (aucun) | Met à jour URL hash depuis currentView/currentSubView (ex: #immobilier, #apt_vitry) |
-| `restoreFromHash()` | (aucun) | Lit URL hash au chargement et restaure vue (couple par défaut) |
-| `syncNavUI()` | (aucun) | Synchronise boutons nav actif et sous-nav immo visible selon currentView |
-
-### Refresh central
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `refresh()` | (aucun) | Orchestre pipeline complet: compute(PORTFOLIO) → render → charts → simulators (si person view) |
-
-### Gestion événements
-
-| Fonction | Paramètres | Rôle |
-|----------|-----------|------|
-| `toggleCat(cat)` | category name | Toggle expand/collapse d'une catégorie d'actifs (IBKR, cash, immo, etc.) |
-| `updateFxTimestamp()` | (aucun) | Met à jour badge avec timestamp du dernier refresh FX (live ou cache) |
-
----
-
-## Fonctionnalités non documentées — HTML/CSS (index.html)
-
-### Structure sections principales
-
-| ID/Class | Rôle |
-|----------|------|
-| `.view-switcher` | Boutons tabs principaux (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget) |
-| `#immoSubNav` | Sub-tabs immobilier (Vitry, Rueil, Villejuif) — visible seulement si immo view |
-| `.kpi-section` | Section KPIs en haut de chaque vue (NW, P/L, allocations) |
-| `.detail-panel` | Panneau modal détail KPI (ouvert au clic sur KPI) |
-| `.positions-table` | Table dynamique positions (Actions view) avec colonnes filtrables et tri |
-| `.property-card` | Carte propriété (Immobilier view) avec données immo, CRD, fiscalité |
-| `.simulator-section` | Sliders simulateur (Couple/Amine/Nezha views) avec inputs et graphique projection |
-
-### Variables CSS principales
-
-| Variable | Rôle |
-|----------|------|
-| `--primary` | Couleur texte principal |
-| `--accent` | Bleu actions |
-| `--red` | Pertes / négatif |
-| `--green` | Gains / positif |
-| `--gray` | Texte secondaire |
-| `--bg` | Fond page |
-| `--card` | Fond cartes/panels |
-| `--gold` | Immobilier |
-
-### Classes utilitaires
-
-| Classe | Rôle |
-|--------|------|
-| `.pl-pos` | Texte vert (P&L positif) |
-| `.pl-neg` | Texte rouge (P&L négatif) |
-| `.num` | Alignement droite, font monospace |
-| `.kpi-clickable` | Indique KPI cliquable (cursor pointer, hover effect) |
-| `.active` | État actif (nav button, sort direction) |
-
-## Session 19-20 mars 2026 — Changelog complet
-
-### v147 — Mise à jour IBKR (18 mars)
-- Prix statiques mis à jour au close 16/03/2026 (CSV IBKR Q1 2026)
-- Vente partielle DG (Vinci) : 100 actions à 131.20€ le 17/03 (2 lots: 40+60)
-- DG position réduite de 200 → 100 actions
-- Deleverage JPY : 13 111 EUR → JPY @ 183.545 le 18/03
-- Cash IBKR mis à jour : EUR ~0, JPY -4 590 694, USD ~0
-- NAV : 192 878 → 197 076, realizedPL : 5 924 → 6 798
-
-### v148 — Corrections majeures + UX
-**Simulateurs (couple, Amine, Nezha) :**
-- `makeComputePropertyEquity()` : equity nette calculée depuis amort schedule + appréciation par phases + exit costs interpolés
-- Flag `_computedEquity: true` pour valeurs absolues dans `immoBreakdown`
-- Granularité mensuelle (chaque mois = 1 point) avec `maxTicksLimit: 24`
-- Fix saut initial : snapshot direct depuis `growthFn(m)` pour propriétés computed
-
-**Engine (wealth projection) :**
-- Appréciation par phases dans la projection de richesse (était taux fixe)
-
-**Données immobilier :**
-- Rueil purchasePrice : 255K → 240K (acte notarié, Crédit Mutuel Franconville)
-- LMNP amortissement depuis `lmnpStartDate` (oct 2025 pour Rueil, sept 2029 pour Villejuif)
-- Vitry parking : 0 → 70€/mois, loyerTotalCC : 1200 → 1270
-- L15 Sud ouverture : déc 2026 → avril 2027
-- BP timeline : intérêts seuls août-déc 2025, capital jan 2026
-
-**Détails appartements :**
-- Ajout `details` object (rooms, surfaces, étage, lot, exposition, DPE) pour 3 propriétés
-- `renderPropertyInfoCard()` : barre colorée des pièces + métriques en pills
-- Surface au clic uniquement (pas en permanence)
-- Surfaces Loi Carrez exactes pour Rueil (certificat)
-
-**Section LMP :**
-- Bannière compacte collapsible (1 ligne, détails au clic)
-- Tableau fiscal LMNP vs LMP sur loyer Rueil
-- Tableau exit costs LMNP vs LMP 25 ans (collapsible)
-
-**Jeanbrun :**
-- Section collapsible : "non retenu — loyer plafonné trop bas (1 215€ vs 1 700€)"
-
-**Cash :**
-- Manque à gagner : 3 mini-cartes horizontales (compact), amber
-- Rendement perdu par jour/mois/an sur cash <6%
-
-**Timelines propriétés :**
-- Rueil : acte 2019, RP Nezha, bail LMNP oct 2025, abattements PV
-- Villejuif : VEFA, prêts LCL, L15 Sud, livraison 2029
-- Vitry : BP intérêts seuls → capital, PTZ différé, TVA 5.5%
-
-**Chart PV Abattements :**
-- Barres empilées IR/PS/Net par année de détention (1-30 ans)
-- Ligne verticale à la durée actuelle
-
-**Redesign CSS "Patrimoine Précis" :**
-- DM Sans (body) + Instrument Serif (titres) via Google Fonts
-- Fond off-white #fafaf9, navy nav #1e3a5f, bordures warm gray
-- KPI cards : fadeUp animations, hover shadows
-- Tables : headers uppercase letter-spaced, hover states
-- Micro-animations 0.2s ease partout
-
-**20 UX fixes :**
-1. Villejuif warning caché sur vues non pertinentes
-2. KPI labels title case
-3. Loading skeleton
-4. Immo KPIs hiérarchie visuelle
-5. FX status bar réduit
-6. Treemap labels overlap fix
-7. Column toggle pills réduits
-8. Manque à gagner amber
-9. Footer timestamp formaté
-10. Double €€ fixé
-11. Donut legends espacées
-12. Hard Refresh → 🔄
-13. LIVE badge conditionnel
-14. Cash table alternating rows
-15. Budget charts min-height
-16. Favicon 💰
-
-### v149 — Features + data quality
-**NW History chart :** (désactivé — NW_HISTORY vidé car données inventées)
-
-**Delta indicators :**
-- Couple NW = amine delta + nezha delta (somme des individuels, pas historique)
-- Timeframe dynamique ("sur X mois" calculé depuis date NW_HISTORY)
-- Deltas sur couple/amine/nezha views uniquement (pas cash/actions/immo)
-
-**NW_HISTORY cleanup :**
-- Données historiques supprimées (étaient inventées, pas réelles)
-- Deltas et chart se réactiveront quand vraies données mensuelles ajoutées
-
-**DG realizedPL fix :**
-- Ventes DG 17/03 : realizedPL '' → 349.60 + 524.40 (calculé)
-
-**Villejuif toggle fix :**
-- Toggle "Inclure Villejuif" rafraîchit maintenant TOUTE la page
-- `window._appRefresh()` exposé par app.js
-- Charts equity bar + projection filtrent par `_immoIncludeVillejuif`
-
-**Documentation complète :**
-- +276 lignes documentant 119 fonctionnalités non documentées
-- Engine (14), Render (30), Charts (29), Simulators (8), API (12), App (6), HTML/CSS (20)
-
-### Plans SVG (tentative et abandon)
-- Tentative de plans SVG interactifs pour les 3 appartements
-- Solver géométrique à contraintes (27.5° V-angle, 0% error)
-- Résultat visuellement insatisfaisant malgré précision mathématique
-- **Décision : supprimé** — remplacé par tableau de dimensions des pièces
-- Room bar avec surface au clic conservée
-
-### Données vérifiées par audit financier
-- ✅ NW formula : coupleNW = amineNW + nezhaNW (véhicules dans amineNW)
-- ✅ Shiseido JPY : conversion correcte via toEUR(shares×price, 'JPY', fx)
-- ✅ Deposits IBKR : 202 886€ (somme vérifiée)
-- ✅ Exit costs : purchasePrice 240K, frais 7.5%, LMNP depuis lmnpStartDate
-- ✅ Cash accounts : 13 comptes (7 Amine + 6 Nezha) tous inclus
-- ✅ FX rates : EUR=1, AED=4.25, MAD=10.85, USD=1.16, JPY=183
-- ✅ Track record : win rate 77.8%, profit factor 2.78
-
-### Prompt dashboard patrimonial
-- Créé pour Anas & Rania dans `/mnt/outputs/prompt-dashboard-patrimonial.md`
-- 3 phases : inventaire → construction → enrichissement par documents
-- Contexte Europe/Maroc, multi-devises
-
-### Drafts Gmail
-- Degiro sur am.koraibi@gmail.com → clients@degiro.fr
-- BoursoBank sur amine.koraibi@gmail.com → contact@boursobank.com
-- Numéros PEA complets retrouvés dans emails de clôture
-
-### Password Protection (v149)
-
-Le site est protégé par un mot de passe simple avec persistance cookie.
-
-**Mécanisme :**
-- Gate HTML en `position:fixed` couvrant toute la page
-- Hash Java-style du mot de passe (pas cryptographique, suffisant pour la confidentialité)
-- Cookie `nw_auth` valide 365 jours, `SameSite=Strict`
-- Si cookie présent et valide → gate masquée automatiquement
-- Si mot de passe incorrect → message d'erreur, rechargement du champ
-
-**Pour changer le mot de passe :**
-1. Calculer le nouveau hash : `node -e "function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}return h.toString();} console.log(hashStr('NOUVEAU_MDP'));"`
-2. Remplacer `AUTH_HASH` dans index.html
-
-### Bouton "All" — Vue par défaut du tableau positions (v149)
-
-**Avant :** vue par défaut = Daily, colonnes fixes (Valeur, Coût, P/L, %)
-**Après :** vue par défaut = All, colonnes dynamiques selon la période
-
-| Mode | Colonnes |
-|------|----------|
-| All | Position, Qté, Valeur, Coût, P/L, %, Poids, Secteur, Géo |
-| Daily/MTD/1M/YTD | Position, Qté, Début période, Valeur actuelle, P/L période, % période, Poids, Secteur, Géo |
-
-"Début période" = shares × refPrice (ytdOpen pour YTD, mtdOpen pour MTD, etc.)
-
-### Redirections apt_*.html (v149)
-
-Les anciennes pages standalone (apt_vitry.html, apt_rueil.html, apt_villejuif.html)
-redirigent maintenant vers `index.html#apt_*` via meta refresh + JS redirect.
-
-### Closed Positions P&L in Period KPIs (v149)
-
-Les P&L par période (Daily, MTD, 1M, YTD) incluent maintenant le P&L des positions
-complètement vendues pendant la période. `closedPeriodPL()` dans engine.js calcule
-la différence entre les proceeds et la valeur de début de période pour chaque vente.
-
-### YTD Portfolio Evolution Chart (v155–v158)
-
-**Emplacement :** `buildPortfolioYTDChart()` dans `charts.js`, appelé par `app.js`.
-
-**Principe — Simulation calibrée :**
-
-Le chart simule la NAV IBKR jour par jour depuis le 1er janvier 2026 via une approche forward :
-
-1. **Calibration Day 1** : NAV connue au 1er jan (€209,495 depuis IBKR). On calcule la valeur des positions au 2 jan en utilisant les prix `ytdOpen` d'IBKR (stockés dans `data.js positions[].ytdOpen`) avec fallback Yahoo Finance. Le cash EUR de départ est déduit : `cashEUR = startingNAV - positionsValue - cashUSD/fxUSD - cashJPY/fxJPY`.
-
-2. **Forward simulation** : pour chaque jour de bourse, on applique dans l'ordre :
-   - Les événements (achats, ventes, FX trades, dépôts, coûts) triés par date
-   - La valorisation des positions via `getClose(ticker, date, allowForward=true)` (Yahoo Finance historical)
-   - La conversion multi-devises (EUR, USD, JPY) avec taux FX historiques (EURUSD=X, EURJPY=X)
-   - NAV = positionsValue + cashEUR + cashUSD/fxUSD + cashJPY/fxJPY
-
-3. **Coûts IBKR** : les intérêts sur marge, FTT (taxe transactions) et dividendes sont modélisés comme événements `cost` dans `ibkrCostsYTD[]` avec montants en EUR/USD/JPY. Source : relevé IBKR Activity Statement CSV.
-
-4. **Scope toggle** : "IBKR seul" vs "Tout (IBKR+ESPP+SGTM)". Le scope total ajoute ESPP (ACN via Yahoo) et SGTM (prix interpolés linéairement entre points clés). Un seul line est affiché (pas de double courbe).
-
-**Retour de données** : `buildPortfolioYTDChart()` retourne un objet `{ labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope, costItems }` utilisé par `updateKPIsFromChart()` dans app.js.
-
-### KPIs cockpit calculés depuis le chart (v157–v158)
-
-**Problème résolu** : les KPIs (P&L Daily, MTD, 1M, YTD, TWR) étaient calculés par `periodPL()` dans engine.js via une approche per-position qui ignorait le cash FX, le carry trade JPY, les dépôts et les coûts (intérêts, FTT, dividendes). Résultat : YTD affiché -€44K vs IBKR réel -€24K.
-
-**Solution** : `updateKPIsFromChart()` dans app.js override les KPIs en utilisant la série NAV du chart :
-
-| KPI | Formule |
-|-----|---------|
-| P&L Daily | `lastNAV - prevDayNAV - deposits(prevDay→lastDay)` |
-| P&L MTD | `lastNAV - navEndPrevMonth - deposits(prevMonth→lastDay)` |
-| P&L 1M | `lastNAV - nav1MonthAgo - deposits(1MonthAgo→lastDay)` |
-| P&L YTD | `lastNAV - startingNAV - deposits(Jan1→lastDay)` |
-| TWR | `∏(dayNAV[i] / (dayNAV[i-1] + deposit[i])) - 1` (daily-chained) |
-
-Les **pourcentages** sont calculés relativement à la NAV de début de période (pas au total positions), et injectés dynamiquement dans le DOM via `kpi-sub-pct` spans.
-
-**Breakdown détails** : les panneaux P&L (clic sur un KPI) incluent maintenant les coûts IBKR :
-- ⚙ Intérêts marge (EUR + USD + JPY convertis en EUR)
-- ⚙ Taxe transactions (FTT)
-- ⚙ Dividendes nets
-
-Les coûts sont agrégés par période via `aggregateCosts(startDate, endDate)` dans app.js et injectés dans les breakdowns via `appendCostItems()` dans render.js. Ils apparaissent en italique avec icône ⚙ dans la répartition pertes/gains.
-
-**Données source des coûts (ibkrCostsYTD dans charts.js)** :
-
-| Date | Type | EUR | USD | JPY | Label |
-|------|------|-----|-----|-----|-------|
-| 2026-01-06 | Interest | -70.27 | -12.40 | -1,778 | Interest Dec-2025 |
-| 2026-02-04 | Interest | -49.42 | -26.00 | -4,619 | Interest Jan-2026 |
-| 2026-03-04 | Interest | -27.73 | -74.31 | -23,049 | Interest Feb-2026 |
-| 2026-01-16 | FTT | -21.58 | — | — | FTT EDEN |
-| 2026-01-21 | FTT | -55.04 | — | — | FTT BN |
-| 2026-02-18 | Dividend | +37.54 | — | — | Div RMS net |
-
-**Précision vs IBKR** (au 21 mars 2026) :
-
-| Indicateur | Notre calcul | IBKR | Écart |
-|------------|-------------|------|-------|
-| YTD P&L | -€26,435 | -€24,235 | ~€2,200 (Yahoo vs IBKR prices) |
-| TWR | -12.4% | -12.78% | 0.4pp |
-| MTD | -€15,516 | -€18,191 | ~€2,675 |
-
-L'écart résiduel (~1%) provient des différences de prix Yahoo vs IBKR, du timing des taux FX, et de l'arrondi.
-
-### Déploiement via GitHub API (v150+)
-
-Script `deploy_github.py` utilise l'API Git de GitHub (pas git push) pour déployer :
-
-1. GET `/git/ref/heads/main` → SHA du HEAD
-2. GET `/git/commits/{sha}` → SHA du tree
-3. POST `/git/blobs` × N → SHA de chaque fichier (base64)
-4. POST `/git/trees` → nouveau tree avec fichiers modifiés
-5. POST `/git/commits` → nouveau commit
-6. PATCH `/git/refs/heads/main` → avance la ref
-
-Fichiers déployés : `js/data.js`, `js/charts.js`, `js/app.js`, `js/engine.js`, `js/render.js`, `js/simulators.js`, `index.html`.
-
-**Cache-busting** : chaque import utilise `?v=N` (ex: `./data.js?v=178`). Incrémenter N à chaque déploiement. GitHub Pages CDN peut mettre 1–5 min à propager. Hard reload (Ctrl+Shift+R) + `localStorage.clear()` aide.
-
-## Session 21 mars 2026 — Audit IBKR bank-grade (v176-v178)
-
-### Contexte
-
-Audit complet de réconciliation entre le relevé IBKR Activity Statement (U18138426, 1 avril 2025 — 19 mars 2026) et les données du dashboard. L'objectif était d'atteindre une correspondance exacte (±1%) sur tous les agrégats financiers.
-
-### Source vérité — CSV IBKR
-
-| Section CSV | Métrique | Montant officiel |
-|-------------|----------|-----------------|
-| Change in NAV → Commissions | Commissions totales | -€217.31 |
-| Change in NAV → Transaction Fees | FTT (Taxe Transactions FR) | -€666.87 |
-| Change in NAV → Interest | Intérêts marge JPY + EUR + USD | -€512.34 |
-| Change in NAV → Dividends | Dividendes nets | +€648.53 |
-| Change in NAV → Withholding Tax | WHT (retenue source) | -€164.41 |
-| Deposits & Withdrawals | Total dépôts/retraits | €199,886.10 |
-| Net Asset Value | NAV fin de période | €187,864.62 |
-| Time-Weighted Return | TWR | +20.76% |
-
-### Réconciliation dashboard vs IBKR
-
-| Métrique | Dashboard (après fix) | IBKR Statement | Statut |
-|----------|----------------------|----------------|--------|
-| Commissions | ~€217 | -€217.31 | ✅ Match |
-| FTT | ~€667 (calculé 0.4% × buys éligibles) | -€666.87 | ✅ Match |
-| Intérêts | ~€512 | -€512.34 | ✅ Match |
-| Dividendes | ~€649 | +€648.53 | ✅ Match |
-| WHT | Non tracké séparément | -€164.41 | ⚠ À ajouter |
-| Dépôts & Retraits | ~€199,930 | €199,886.10 | ✅ OK (~€44 FX) |
-| NAV | ~€185,084 (live) | €187,864.62 (close 19/03) | ✅ Écart = prix live |
-
-### Bugs trouvés et corrigés
-
-#### v176 — FTT et commissions
-
-**Bug 1 — FTT rate 0.3% au lieu de 0.4%**
-- **Avant** : `FTT_RATE = 0.003` → €477 calculé
-- **Après** : `FTT_RATE = 0.004` → €667 calculé (match IBKR)
-- **Cause** : Le taux AMF officiel est 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte
-- **Fichier** : `engine.js` ligne ~341
-
-**Bug 2 — FTT_ELIGIBLE incomplet**
-- **Avant** : 9 tickers (manquait WLN et AIR.PA)
-- **Après** : 11 tickers : `MC.PA, DG.PA, FGR.PA, GLE, SAN.PA, EDEN, RMS.PA, OR.PA, BN.PA, WLN, AIR.PA`
-- **Note** : AIR.PA est éligible malgré le siège NL car cotation primaire Paris
-
-**Bug 3 — Commission JPY comptée comme EUR**
-- **Avant** : `total += t.commission` → ¥871.60 Shiseido compté comme €871.60 → total commissions €1,086
-- **Après** : `total += toEUR(t.commission, t.currency || 'EUR', fx)` → ¥871.60 = ~€4.75 → total commissions €217
-- **Fichier** : `engine.js` fonction `computeCommissions()`
-
-**Bug 4 — Dépôts incomplets**
-- **Avant** : 14 entrées EUR uniquement, total €202,886
-- **Après** : 18 entrées (14 EUR + 4 AED + 1 retrait -€45K), total ~€199,886
-- **Fichier** : `data.js` section `ibkr.deposits[]`
-- **Détail dépôts AED** : 4 virements Mashreq → IBKR (39 896 AED total) avec `fxRateAtDate` pour conversion
-- **Retrait manquant** : -€45,000 (23 avril 2025)
-
-**Bug 5 — Panel coûts statique**
-- **Avant** : Le panel coûts dans la vue Actions n'était pas interactif
-- **Après** : Expandable avec onclick toggle, tableau de détail : Commissions, FTT, Intérêts, WHT, Dividendes, Impact net
-- **Fichier** : `render.js` lignes ~2023-2044
-
-#### v176b-v177 — Chart 1Y double-counting AED
-
-**Bug 6 — AED deposits comptés comme EUR dans le chart**
-- **Avant** : Dépôts AED (195K AED ≈ 46K EUR) ajoutés directement à `cashEUR` → chart gonflé à €288K
-- **Après** : Dépôts non-EUR skippés dans le handler deposit. Le FX trade EUR.AED crédite `cashEUR`.
-- **Fichier** : `charts.js` lignes ~2088-2104
-
-**Bug 7 — EUR.AED FX direction inversée**
-- **Avant** : `cashEUR -= e.qty` (l'utilisateur "vendait" EUR)
-- **Après** : `cashEUR += e.qty` (l'utilisateur achète EUR avec AED)
-- **Fichier** : `charts.js` lignes ~2082-2086
-
-**Bug 8 — Cache buster pas incrémenté**
-- **Cause** : v176b corrigeait charts.js mais app.js importait toujours `charts.js?v=176` (même hash que la version buggée)
-- **Fix** : Bump à `?v=177` dans app.js + index.html
-- **Leçon** : TOUJOURS incrémenter le numéro de version quand on modifie un fichier, même pour un hotfix
-
-#### v178 — Chart 1Y hebdomadaire + TWR AED
-
-**Fix 9 — Échantillonnage hebdomadaire 1Y**
-- **Avant** : ~250 points (1 par jour ouvré) → chart dense et peu lisible
-- **Après** : ~52 points (1 par semaine) + premier et dernier point toujours inclus
-- **Fichier** : `charts.js` lignes ~2175-2193
-
-**Fix 10 — TWR deposits AED conversion**
-- Les dépôts AED sont convertis en EUR via `fxRateAtDate` avant d'être injectés dans le calcul TWR
-- **Fichier** : `charts.js` lignes ~2293-2301
-
-### Versions cache-busting au 21 mars 2026
-
-```javascript
-// app.js (point d'entrée)
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=176';
-import { compute } from './engine.js?v=176';
-import { render } from './render.js?v=176';
-import { fetchFXRates, ... } from './api.js?v=176';
-import { rebuildAllCharts, ... } from './charts.js?v=178';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
-
-// index.html
-<script type="module" src="js/app.js?v=178"></script>
-```
-
-### Points restants
-
-- **WHT** : Le WHT (-€164.41) n'est pas tracké séparément dans engine.js. Il est implicitement capturé dans les dividendes nets. Pour un tracking explicite, il faudrait ajouter une section WHT dans `ibkr.costs[]` ou un champ dédié par trade.
-- **FTT_ELIGIBLE** : La liste doit être vérifiée à chaque ajout d'un nouveau ticker français large-cap. Source : liste AMF des entreprises assujetties à la TTF.
-
-### FTT — Détail engine.js (v176+)
-
-```javascript
-// engine.js — Configuration FTT
 const FTT_ELIGIBLE = new Set([
   'MC.PA','DG.PA','FGR.PA','GLE','SAN.PA','EDEN',
   'RMS.PA','OR.PA','BN.PA','WLN','AIR.PA'
 ]);
-const FTT_RATE = 0.004; // 0.4% — taux facturé par IBKR (vérifié sur statement)
-
-// Calcul : FTT = somme des (cost × FTT_RATE) pour tous les achats de tickers éligibles
-function computeFTT(startDate) {
-  let total = 0;
-  _allIbkrTrades.forEach(t => {
-    if (t.date >= startDate && t.type === 'buy' && FTT_ELIGIBLE.has(t.ticker)) {
-      total += (t.cost || t.qty * t.price) * FTT_RATE;
-    }
-  });
-  return total;
-}
+const FTT_RATE = 0.004; // 0.4% — vérifié vs statement IBKR
 ```
 
-### Commissions — Détail engine.js (v176+, v182: retourne {total, items})
+- **Source vérité** : Section "Transaction Fees" du CSV IBKR.
+- **Taux** : 0.4% (pas 0.3% — le taux AMF officiel est 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte).
+- **Éligibilité** : Stocks français large-cap cotés Euronext Paris. Airbus (AIR.PA) est éligible malgré le siège aux Pays-Bas car coté Paris. Nexity (NXI) est exclue (small cap).
+
+### `render.js` (~5 300 lignes)
+
+DOM write-only. Reçoit STATE de engine.js, met à jour le DOM.
+
+| Section | Lignes | Rôle |
+|---------|--------|------|
+| Formatage (fmt, fmtAxis) | 1-50 | Formateurs numériques (€ 1 234, €12.3K) |
+| Table positions | 100-500 | Table IBKR avec tri, colonnes toggleables |
+| Insights panel | 1970-2100 | Cards : track record, concentration, coûts, recommandations |
+| Degiro historique | 1800-1960 | Table positions fermées Degiro |
+| Immo views | 2500+ | Simulations immobilières (Vitry, Rueil, Villejuif) |
+
+#### Panel Coûts (type === 'costs')
+
+Le panel coûts est **expandable** (cliquer sur "▼ Détails") et affiche :
+- Commissions courtier (YTD)
+- FTT (YTD)
+- Intérêts marge (YTD)
+- Dividendes nets (YTD)
+- Impact net (coûts - dividendes)
+- Ligne all-time en bas
+
+### `charts.js` (~3 170 lignes)
+
+Gère tous les graphiques Chart.js.
+
+| Fonction | Rôle |
+|----------|------|
+| `destroyAllCharts()` | Détruit tous les charts **sauf** `portfolioYTD` (voir bug fix v175) |
+| `rebuildAllCharts()` | Reconstruit charts pour la vue active (couple/amine/nezha) |
+| `buildPortfolioYTDChart()` | **Chart principal** — Simulation forward NAV (YTD ou 1Y) |
+| `redrawChartForPeriod()` | Toggle MTD/1M/3M/YTD/1Y |
+| `buildCFProjection()` | Projection cash flow immobilier |
+
+#### Simulation Forward NAV (buildPortfolioYTDChart)
+
+C'est le cœur du chart d'évolution. Algorithme :
+
+1. **Calibration jour 1** : NAV de départ = valeur connue (209 495 € pour YTD, 0 € pour 1Y)
+2. **Données historiques** : Prix Yahoo Finance (`range=1y` ou `range=ytd`)
+3. **Simulation jour par jour** :
+   - Appliquer les trades (buy → augmente positions + diminue cash)
+   - Appliquer les FX trades (shift entre EUR/USD/JPY/AED)
+   - Appliquer les dépôts (augmente cash EUR, sauf AED → voir ci-dessous)
+   - Appliquer les coûts (intérêts, dividendes, FTT)
+   - NAV(j) = positions_value(j) + cash_EUR + cash_USD/EURUSD + cash_JPY/EURJPY
+4. **Échantillonnage hebdomadaire** (mode 1Y) : ~52 points au lieu de ~250
+
+#### Gestion des dépôts AED dans le chart
+
+Les dépôts AED (ex: Mashreq → IBKR) ne sont **PAS** ajoutés directement au cash EUR. Le flux est :
+1. Dépôt AED arrive sur IBKR → va dans un solde AED non tracké par le chart
+2. Trade FX EUR.AED convertit l'AED en EUR → **ajoute** au cash EUR (`cashEUR += e.qty`)
+3. Le chart ne track que EUR, USD, JPY — l'AED est un transit
 
 ```javascript
-// engine.js — Commissions multi-devises, retourne détail par trade (v182+)
-function computeCommissions(startDate) {
-  let total = 0;
-  const items = [];
-  _allIbkrTrades.forEach(t => {
-    if (t.date >= startDate && t.commission) {
-      const eurComm = toEUR(t.commission, t.currency || 'EUR', fx);
-      total += eurComm;
-      items.push({ ticker: t.ticker, label: '...', date: t.date, amount: eurComm });
-    }
-  });
-  return { total, items }; // v182: retourne items pour détail expandable
-}
+// Dépôt AED → ignoré (le FX trade gère le crédit EUR)
+if (e.currency && e.currency !== 'EUR') { /* skip */ }
+
+// FX EUR.AED → ajoute EUR (l'utilisateur achète EUR avec AED)
+cashEUR += e.qty;
 ```
 
-### Gestion des dépôts AED dans charts.js (v176+)
+### `api.js` (~750 lignes)
+
+Fetch live via Yahoo Finance CORS proxies.
+
+| Fonction | Rôle |
+|----------|------|
+| `fetchFXRates()` | Taux EUR/USD, EUR/JPY, EUR/AED, EUR/MAD |
+| `fetchStockPrices()` | Prix live 14 positions |
+| `retryFailedTickers()` | Retry loop (max 3 rounds) |
+| `fetchHistoricalPricesYTD()` | Yahoo `range=ytd` pour chart |
+| `fetchHistoricalPrices1Y()` | Yahoo `range=1y` pour chart 1Y |
+| `fetchSoldStockPrices()` | Prix pour "Si gardé aujourd'hui" (positions fermées) |
+
+Cache localStorage 10 min pour éviter les appels redondants.
+
+### `app.js` (~750 lignes)
+
+Orchestrateur. Gère :
+- Initialisation et imports
+- Event handlers (tabs, toggles, refresh)
+- Flux async : `loadStockPrices()` (chart YTD) en parallèle de `refreshFX()` (taux live)
+- Race condition fix : `destroyAllCharts()` préserve `charts.portfolioYTD` (v175)
+
+---
+
+## 3. Déploiement
+
+### GitHub Pages
+
+Le site est servi depuis la branche `main` de `lallakenza/networth`. Déploiement via GitHub Git API (Python) :
 
 ```
-Flux AED → EUR dans le chart NAV :
-
-1. Dépôt AED arrive sur IBKR
-   → deposits[] entry avec currency: 'AED'
-   → IGNORÉ par le chart (skip non-EUR deposits)
-
-2. Trade FX EUR.AED
-   → trades[] entry avec ticker: 'EUR.AED', qty: montant_EUR
-   → Chart: cashEUR += e.qty (AJOUT, pas soustraction)
-
-3. Résultat : le chart ne voit que le crédit EUR final
+get ref → create blobs → create tree → create commit → update ref
 ```
 
-## Chart P&L Evolution — Toggle Valeur/P&L (v179-v181)
+Token : `ghp_***` (voir script de déploiement local)
 
-### Principe (v179)
+### Cache-busting
 
-Le chart YTD/1Y a un toggle Valeur/P&L permettant de basculer entre :
-- **Valeur** (défaut) : affiche la NAV (Net Asset Value) au fil du temps
-- **P&L** : affiche l'évolution du P&L = NAV(t) - startNAV - cumDeposits(t)
-
-Le toggle est un `#ytdModeToggle` dans index.html, avec deux boutons `data-mode="value"` et `data-mode="pl"`.
-
-### Formule P&L (v179)
-
-```
-P&L(t) = NAV(t) - startNAV - cumDeposits_after_start(t)
+Chaque fichier JS est importé avec `?v=N` :
+```javascript
+import { compute } from './engine.js?v=178';
 ```
 
-Où :
-- `NAV(t)` = valeur totale à l'instant t (IBKR positions + cash)
-- `startNAV` = NAV au début de la période (1er point du chart)
-- `cumDeposits_after_start(t)` = cumul des dépôts/retraits entre start et t
+Après chaque déploiement, **bumper le numéro** dans :
+1. `app.js` (imports de data, engine, render, api, charts, simulators)
+2. `index.html` (import de app.js)
+3. `render.js` (imports de data, engine)
+4. `charts.js` (imports de render, engine, data)
 
-Le P&L doit démarrer à 0 et évoluer positivement (gains) ou négativement (pertes).
+> **Version actuelle : v193** (mars 2026)
 
-### Fix P&L start at 0 (v180)
+---
 
-**Bug** : le P&L démarrait à -10 000 au lieu de 0.
-**Cause** : les dépôts à la date START étaient inclus dans `cumDeposits` mais déjà reflétés dans `startNAV` (double-comptage).
-**Fix** : changer le filtre de `d.date >= START_DATE` à `d.date > START_DATE`.
+## 4. Réconciliation IBKR
 
-### ESPP/SGTM comme dépôts (v181)
+### Source vérité
 
-**Problème** : le P&L "Total" (incluant ESPP+SGTM) ne soustrayait pas les coûts d'acquisition ESPP/SGTM, créant un écart de ~9 282€ avec le P&L calculé par position.
+Le fichier CSV IBKR (Activity Statement U18138426) est la source vérité pour :
+- Commissions (section "Commissions" dans "Change in NAV")
+- FTT (section "Transaction Fees")
+- Intérêts (section "Interest")
+- Dividendes (section "Dividends")
+- WHT (section "Withholding Tax")
+- Dépôts/Retraits (section "Deposits & Withdrawals")
 
-**Fix** : créer une série séparée `cumDepositsAtPointTotal` qui inclut :
+### Chiffres clés au 19/03/2026
 
-1. **Dépôts IBKR** (virements bancaires) — comme avant
-2. **Coûts d'acquisition ESPP** : chaque lot ESPP (Amine + Nezha) acquis après START_DATE est traité comme un dépôt, converti USD→EUR au taux historique
-3. **Coût d'acquisition SGTM** : l'achat IPO (64 × 420 MAD / fxMAD) est traité comme un dépôt à la date de l'IPO (2025-12-15)
+| Métrique | IBKR Statement | Dashboard | Statut |
+|----------|---------------|-----------|--------|
+| Commissions | -€217.31 | -€217 | ✅ OK |
+| FTT (Transaction Fees) | -€666.87 | ~-€667 (calculé) | ✅ OK |
+| Intérêts | -€512.34 | -€512 | ✅ OK |
+| Dividendes | +€648.53 | +€649 | ✅ OK |
+| WHT | -€164.41 | Non tracké séparément | ⚠️ À ajouter |
+| Dépôts & Retraits | €199,886.10 | ~€199,930 | ✅ OK (~€44 d'écart FX) |
+| NAV | €187,864.62 | ~€185,084 (prix live) | ✅ OK (écart = prix live vs clôture 19/03) |
+| TWR | +20.76% | -13.7% (YTD 2026 only) | ✅ Scopes différents |
+
+### Bugs corrigés (v176-v178)
+
+| Bug | Avant | Après | Cause racine |
+|-----|-------|-------|--------------|
+| FTT rate | 0.3% (€477) | 0.4% (€667) | Taux AMF vs taux facturé IBKR |
+| FTT eligible | 9 tickers | 11 tickers | WLN et AIR.PA manquaient |
+| Commissions | €1,086 | €217 | ¥871 Shiseido compté comme €871 (pas de conversion devise) |
+| Dépôts | €202,886 (EUR seul) | €199,886 (EUR + AED) | Dépôts AED manquants, retrait -45K manquant |
+| Chart 1Y NAV | €288K (gonflé) | €185K (correct) | AED deposits ajoutés comme EUR + FX EUR.AED dans le mauvais sens |
+| Panel coûts | Statique (non cliquable) | Expandable avec breakdown | Manquait l'interactivité |
+| Chart 1Y | ~250 points (dense) | ~52 points (hebdomadaire) | Pas d'échantillonnage |
+| Chart YTD blank | Canvas vide après refresh | Préservé | Race condition destroyAllCharts vs loadStockPrices |
+
+---
+
+## 5. Guide de mise à jour
+
+### Ajouter un nouveau trade IBKR
+
+1. Ouvrir `data.js` → `PORTFOLIO.amine.ibkr.trades[]`
+2. Ajouter l'entrée **en devise native** :
+   ```javascript
+   { date: 'YYYY-MM-DD', ticker: 'XX.PA', label: 'Nom', type: 'buy',
+     qty: 100, price: 50.00, currency: 'EUR', cost: 5000,
+     commission: -2.50, costBasis: 50.00, source: 'ibkr' }
+   ```
+3. **⚠ La commission est en devise native** du trade (EUR, USD, JPY).
+4. **⚠ La FTT n'est PAS dans la commission** — elle est calculée automatiquement par `engine.js`.
+
+### Mettre à jour les positions
+
+1. `PORTFOLIO.amine.ibkr.positions[]` : mettre à jour `shares`, `price` (fallback statique)
+2. `cashEUR`, `cashUSD`, `cashJPY` : soldes cash IBKR
+3. Les prix live écrasent les prix statiques quand l'API Yahoo répond.
+
+### Ajouter un dépôt/retrait
+
+1. `PORTFOLIO.amine.ibkr.deposits[]` :
+   ```javascript
+   { date: 'YYYY-MM-DD', amount: 10000, currency: 'EUR', fxRateAtDate: 1, label: 'Virement' }
+   ```
+2. **Retrait** = montant négatif : `amount: -5000`
+3. **Dépôt AED** : utiliser `currency: 'AED'` et le taux EUR/AED du jour dans `fxRateAtDate`
+
+### Ajouter des intérêts mensuels
+
+1. `PORTFOLIO.amine.ibkr.costs[]` :
+   ```javascript
+   { date: 'YYYY-MM-DD', type: 'interest', eurAmount: -50, usdAmount: -10, jpyAmount: -5000, label: 'Interest MMM-YYYY' }
+   ```
+2. Les montants sont dans leurs devises natives. `engine.js` convertit en EUR.
+
+### Déployer
+
+```bash
+python3 deploy_vXXX.py  # script de déploiement
+```
+
+Après chaque déploiement, **toujours bumper les `?v=N`** dans tous les fichiers qui importent les modules modifiés.
+
+---
+
+## 6. Flux de données
+
+```
+                    ┌──────────────┐
+                    │  Yahoo API   │
+                    │  (FX + Prix) │
+                    └──────┬───────┘
+                           │ fetchFXRates() / fetchStockPrices()
+                           ▼
+┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│ data.js  │────▶│  engine.js   │────▶│  render.js   │────▶│     DOM      │
+│ (brut)   │     │  (compute)   │     │  (format)    │     │  (visible)   │
+└──────────┘     └──────┬───────┘     └──────────────┘     └──────────────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │  charts.js   │────▶ Canvas (Chart.js)
+                 │  (graphiques)│
+                 └──────────────┘
+```
+
+### Flux async (app.js)
+
+```
+Page load
+  ├─ compute(PORTFOLIO, FX_STATIC, 'static')     // rendu initial immédiat
+  ├─ refreshFX()                                   // async — MAJ taux live
+  │    └─ refresh() → rebuildAllCharts()           // re-render avec taux live
+  └─ loadStockPrices()                             // async — prix Yahoo
+       ├─ compute(PORTFOLIO, liveFX, 'live')       // re-render avec prix live
+       ├─ fetchHistoricalPricesYTD()               // données chart
+       └─ buildPortfolioYTDChart()                 // construit le chart
+```
+
+**Race condition** (corrigée v175) : `refreshFX()` appelle `destroyAllCharts()` qui détruisait le chart YTD construit par `loadStockPrices()`. Fix : `destroyAllCharts()` préserve `charts.portfolioYTD`.
+
+---
+
+## 7. Vues disponibles
+
+| Onglet | Contenu |
+|--------|---------|
+| COUPLE | NW total Amine + Nezha, répartition, historique |
+| AMINE | Détail patrimoine Amine (cash, actions, immo, créances) |
+| NEZHA | Détail patrimoine Nezha |
+| ACTIONS | Cockpit IBKR + ESPP + SGTM : positions, chart NAV, insights |
+| CASH | Répartition cash multi-devises, rendements, optimisation |
+| IMMOBILIER | Simulations Vitry/Rueil/Villejuif (amortissement, CF, régimes fiscaux) |
+| CRÉANCES | Suivi créances (pro + perso) avec probabilités et statuts |
+| BUDGET | Dépenses mensuelles par zone et type |
+
+---
+
+## 8. Historique des versions critiques
+
+| Version | Date | Changements |
+|---------|------|-------------|
+| v173 | Mars 2026 | Ajout de `simulators.js`, refactor engine.js (zéro hardcodé) |
+| v174 | Mars 2026 | Ajout bouton 1Y, fix chart labels |
+| v175 | Mars 2026 | Fix race condition `destroyAllCharts` (chart YTD blank) |
+| v176 | Mars 2026 | **Audit IBKR** : FTT 0.4%, commissions EUR conversion, dépôts corrigés |
+| v177 | Mars 2026 | Fix cache busters pour v176 |
+| v178 | Mars 2026 | Chart 1Y échantillonnage hebdomadaire, fix AED deposits dans chart |
+| v179-v187 | Mars 2026 | P&L breakdown complet dans le chart (positions, FX, cash, coûts) — itérations multiples pour affiner la ventilation |
+| v188 | Mars 2026 | Chart breakdown : ventilation détaillée par position avec M2M par ticker, sous-totaux par catégorie (stocks, crypto, FX/cash, coûts) |
+| v189 | 21 Mars 2026 | **EUR cash calibration IBKR** + **JPY FX/flow decomposition** — voir §9 ci-dessous |
+| v190 | 21 Mars 2026 | **Data fixes** : 6 dividendes IBKR manquants (GLE, DG, MC, QQQM×3), ACN $1.63→$1.48 FY2025, FX historique ACN, FTT 0.3%→0.4% dans charts.js, QQQM retiré FTT, AIR.PA ajouté FTT |
+| v191 | 21 Mars 2026 | **KPI flash fix** : placeholder "–" pour KPIs chart-overridden avant chargement chart (élimine flash -44K→-29K) |
+| v192 | 21 Mars 2026 | **KPI persistence** : sauvegarde valeurs chart dans `window._chartKPIOverrides`, restauration au re-render (fix "c quoi ce bordel" tab switch) |
+| v193 | 21 Mars 2026 | **Breakdown P&L fix** : soustraction flux de capital (achats/ventes) du M2M position → vrai P&L. Fix Effet FX/Cash (-224K→-1.8K). Fix vue P&L qui switch à Valeur au changement de période |
+
+---
+
+## 9. Chart Breakdown System (v188-v193)
+
+### Architecture du breakdown
+
+Le système de breakdown décompose le P&L par position pour chaque période (Daily, MTD, 1M, YTD, 1Y). Il repose sur les **snapshots de simulation** stockés dans `window._simSnapshots`.
+
+Chaque snapshot (1 par jour) contient : `posBreakdown` (valeur EUR par ticker), `cashEUR/USD/JPY`, `fxUSD/JPY`, `nav`.
+
+La fonction `computePeriodBreakdown(startDate, endDate)` dans `charts.js` calcule le P&L par position :
+
+```
+positionPL = endVal - startVal - netTradeFlow
+```
+
+Où `netTradeFlow` = somme des achats (EUR) − somme des ventes (EUR) pour ce ticker pendant la période. Sans cette correction (avant v193), les positions achetées pendant la période montraient leur valeur de marché complète comme "gain" au lieu du vrai P&L.
+
+Le résidu `Effet FX / Cash` = chartPL − sum(positionPL) capture les effets FX sur le cash multi-devises.
+
+### Décomposition JPY (v189+)
+
+Pour les périodes où l'emprunt JPY change significativement (>100K ¥), le résidu FX/Cash est décomposé :
+
+- **JPY — effet change** : même solde JPY, taux variable → impact FX pur
+- **JPY — variation emprunt** : changement de solde JPY (ex: achat Shiseido) → impact capital
+- **USD cash** : effet FX sur solde USD
+- **EUR cash (solde)** : variation EUR hors trades
+
+### Items de coûts dans le breakdown
+
+Les coûts (commissions, FTT, intérêts, dividendes) sont extraits séparément depuis `ibkrCostsYTD` et les trades, puis ajoutés comme items `_isCost: true` dans le breakdown. Ils apparaissent en italique avec l'icône ⚙.
+
+---
+
+## 10. KPI System (v191-v192)
+
+### Deux méthodes de calcul P&L
+
+Le dashboard utilise deux approches P&L distinctes :
+
+- **Statique (engine.js)** : P&L position-level M2M = prix actuel − PRU. Rapide, immédiat au chargement. Ne prend en compte que les positions ouvertes.
+- **Chart (charts.js)** : P&L NAV-based = NAV_fin − NAV_début − dépôts. Plus complet : inclut cash, FX, dividendes, intérêts, positions vendues. Nécessite les prix historiques Yahoo (async).
+
+Gap structurel ~15-20K€ entre les deux méthodes (engine donne -44K YTD vs chart -29K YTD) car le statique ne capture pas les dépôts, le cash, les effets FX.
+
+### Placeholder + Persistence (v191-v192)
+
+Pour éviter le "flash" (-44K → -29K) au chargement :
+
+1. **render.js** : les KPIs chart-overridden (Daily, MTD, 1M, YTD) affichent "–" initialement
+2. **app.js** : quand le chart charge, `updateKPI()` écrit la valeur ET la sauvegarde dans `window._chartKPIOverrides`
+3. **render.js** : lors d'un re-render (tab switch), vérifie `_chartKPIOverrides` avant d'afficher le placeholder ou la valeur statique
 
 ```javascript
-// Deux séries de dépôts cumulés :
-cumDepositsAtPoint       // IBKR uniquement (pour scope IBKR)
-cumDepositsAtPointTotal  // IBKR + ESPP + SGTM (pour scope Total)
+const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD']);
+// Si valeur chart sauvegardée → l'utiliser
+// Sinon → afficher "–" (placeholder)
+// Le KPI 1Y n'est PAS overridden (pas de gap structurel significatif pour 1Y)
 ```
 
-**Résultat** : l'écart P&L chart vs P&L card est passé de 9 282€ à ~3 172€. La différence résiduelle est due à la méthodologie FX (le chart utilise les taux historiques, les cards utilisent le taux courant).
+---
 
-### switchChartMode() — charts.js
+## 11. Données Dividendes (v190)
 
-Fonction exportée qui reconstruit le chart avec les données P&L ou Valeur :
-- Appelée par les event listeners du toggle dans app.js
-- Utilise `_ytdChartFullData` qui stocke toutes les séries (values, P&L IBKR, P&L Total, deposits)
-- Le tooltip est adapté pour afficher P&L + Dépôts cumulés en mode P&L
+### IBKR Dividendes (costs[])
 
-## Breakdowns P&L expandables (v182)
+Chaque dividende reçu via IBKR est un item dans `PORTFOLIO.amine.ibkr.costs[]` avec `type: 'dividend'`. Le montant `eurAmount` est **net après WHT** (retenue à la source prélevée par IBKR).
 
-### Principe
+Source vérité : IBKR Activity Statement, sections "Dividends" + "Withholding Tax".
 
-Les items coût/frais dans les breakdowns P&L (Intérêts marge, FTT, Commissions, Dividendes, Positions fermées) sont désormais **cliquables** avec un détail per-trade/per-mois qui s'expand sous la ligne.
+WHT France = 25% (prélevé par IBKR), WHT US = 30% (QQQM, pas de treaty rate pour ETFs).
 
-### Modifications engine.js (v182)
+### ACN Dividendes (acnDividends[])
 
-Les fonctions de calcul de coûts retournent désormais `{ total, items }` au lieu d'un simple nombre :
+Dividendes Accenture ESPP dans `PORTFOLIO.amine.espp.acnDividends[]`. Chaque entrée a :
 
-| Fonction | Avant (v181) | Après (v182) |
-|----------|-------------|-------------|
-| `closedPeriodPL()` | `return total` | `return { total, items }` — items = per-trade {ticker, label, date, pl, qty, proceeds} |
-| `computeCommissions()` | `return total` | `return { total, items }` — items = per-trade {ticker, label, date, amount} |
-| `computeInterest()` | `return eurTotal` | `return { total, items }` — items = per-month {label, date, amount, eurAmount, usdAmount, jpyAmount} |
-| `computeFTT()` | `return { total, items }` | Inchangé — items déjà disponibles |
-| `computeIBKRDividends()` | `return { total, items }` | Inchangé |
+- `perShareUSD` : montant par action (source: investor.accenture.com)
+- `fxEURUSD` : taux EUR/USD historique au pay date (source: Yahoo Finance)
 
-Dans `computeAllCosts()`, les nouveaux champs exposés :
-- `commissionsItems` : tableau per-trade
-- `interestItems` : tableau per-month
+`engine.js` compute le dividende total : `grossUSD = perShareUSD × totalShares`, puis `netUSD = grossUSD × (1 - 15% WHT)`, puis `netEUR = netUSD / fxEURUSD`.
 
-Dans `fullPeriodPL()`, chaque item du breakdown avec `_isCost: true` porte un `_detail` :
-```javascript
-items.push({
-  label: 'Intérêts marge', ticker: '_INTEREST',
-  pl: periodCosts.interestEUR, _isCost: true,
-  _detail: periodCosts.interestItems  // ← NOUVEAU v182
-});
-```
+Le taux historique évite le bug "même montant EUR 3 mois de suite" (avant v190, le taux courant était utilisé pour tous les dividendes historiques).
 
-### Modifications render.js (v182)
+### Réconciliation dividendes IBKR
 
-`renderPLBreakdown()` utilise une fonction helper `renderBreakdownRow()` qui :
-1. Détecte `i._detail && i._detail.length > 0`
-2. Ajoute un chevron ▶ et `cursor:pointer` si détail disponible
-3. Génère un panneau `<div id="bd_N">` caché (`display:none`)
-4. Au clic, toggle le panneau et fait pivoter le chevron (90deg)
-
-Le détail supporte 4 formats de données :
-- **Closed positions** (`d.pl != null`) : affiche P&L per-trade avec couleur gain/perte
-- **FTT** (`d.ftt != null`) : affiche le coût FTT per-trade
-- **Interest/Commissions** (`d.amount != null`) : affiche le montant per-mois ou per-trade
-- **ACN dividends** (`d.netEUR != null`) : affiche le dividende net en EUR
-
-### Items expandables par période
-
-| Item | Ticker | Détail affiché |
-|------|--------|---------------|
-| P/L Réalisé (fermées) | `_CLOSED_IBKR` | Per-trade : date, ticker, P&L |
-| Intérêts marge | `_INTEREST` | Per-month : label (Interest Jan-2026...), montant EUR |
-| Taxe transactions (FTT) | `_FTT` | Per-trade : date, ticker, montant FTT |
-| Commissions IBKR | `_COMM` | Per-trade : date, Achat/Vente ticker, montant EUR |
-| Dividendes nets | `_DIV` | Per-dividend : date, label (Div ACN, Div RMS...), montant EUR |
-
-## Documentation ESPP data.js (v182)
-
-### Source : EsppPurchaseReport.pdf (Accenture)
-
-data.js contient maintenant la documentation complète des 10 achats ESPP d'Amine avec :
-- Période d'offre, contribution EUR, taux de change EUR/USD
-- Prix discounté (ce qu'Amine a payé) vs FMV at Purchase (cost basis fiscal)
-- Nombre de shares achetées, vendues pour impôt, fractionnaires remboursées
-- Tableau récapitulatif complet en commentaires
-
-### Note sur costBasis
-
-Le `costBasis` dans les lots ESPP = **FMV at Purchase** (prix de marché au jour d'achat), pas le prix discounté ESPP. C'est le cost basis fiscal français : la plus-value est calculée depuis le FMV, et le discount (~15%) est taxé comme avantage en nature sur le bulletin de paie.
-
-### Résumé Amine ESPP (UBS)
-
-- 10 périodes ESPP : Nov 2017 → May 2023
-- Contribution totale : €28 097.62 = $31 844.39
-- Shares achetées : 170.7833
-- Vendues pour impôt : 3.7361
-- Fractionnaires remboursées : 3.0472
-- **Actions entières UBS : 164** + 3 FRAC (dividendes réinvestis) = **167 total**
+| Source | Total net (€) | Note |
+|--------|--------------|------|
+| IBKR CSV | €484.12 | Dividends − WHT |
+| data.js costs[] | €485.97 | Somme eurAmount |
+| Écart | €1.85 | Arrondi FX (acceptable) |
