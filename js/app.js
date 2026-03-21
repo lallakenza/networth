@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=147';
-import { compute } from './engine.js?v=147';
-import { render } from './render.js?v=147';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, fetchHistoricalPricesYTD, clearCache } from './api.js?v=147';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=147';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=147';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=150';
+import { compute } from './engine.js?v=150';
+import { render } from './render.js?v=150';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD } from './api.js?v=150';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart } from './charts.js?v=150';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=150';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -95,6 +95,9 @@ function refresh() {
     viewSwitcher.style.marginBottom = IMMO_VIEWS.includes(effectiveView) ? '0' : '32px';
   }
 }
+
+// Expose refresh globally for use by render.js (Villejuif toggle etc.)
+window._appRefresh = refresh;
 
 // ---- Event handlers ----
 
@@ -211,12 +214,19 @@ restoreFromHash();
 syncNavUI();
 refresh();
 
+// Hide loading overlay after initial data load
+document.getElementById('loadingOverlay')?.classList.add('hidden');
+
 // ---- Fetch live data (FX) ----
 function updateFxTimestamp() {
   const el = document.getElementById('fxTimestamp');
   if (el) {
     const now = new Date();
-    el.textContent = '(màj ' + now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ')';
+    const day = now.toLocaleDateString('fr-FR', { day: '2-digit' });
+    const month = now.toLocaleDateString('fr-FR', { month: 'long' });
+    const year = now.getFullYear();
+    const time = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    el.textContent = ' — Dernière MAJ : ' + day + ' ' + month + ' ' + year + ' à ' + time;
   }
 }
 
@@ -407,47 +417,60 @@ async function loadStockPrices(forceRefresh) {
       }
     }
 
-    // ── HISTORICAL PRICES: Fetch YTD daily data for portfolio evolution chart ──
-    // IMPORTANT: This runs AFTER current prices are loaded (user requirement).
-    // Fetches range=ytd interval=1d from Yahoo Finance for all IBKR tickers
-    // (current + sold during 2026) plus FX rates (EUR/USD, EUR/JPY).
-    {
-      const ytdProgressBar = document.getElementById('ytdChartProgress');
-      const ytdFill = document.getElementById('ytdProgressFill');
-      const ytdLabel = document.getElementById('ytdProgressLabel');
-
-      // Collect all tickers needed for YTD chart:
-      // 1. Current IBKR positions
-      const ytdTickers = new Set(PORTFOLIO.amine.ibkr.positions.map(p => p.ticker));
-      // 2. Tickers that were held at some point during 2026 (sold positions)
-      const ytdStart = '2026-01-01';
-      (PORTFOLIO.amine.ibkr.trades || []).forEach(t => {
-        if (t.type !== 'fx' && t.date >= ytdStart) {
-          ytdTickers.add(t.ticker);
-        }
-      });
-
-      const ytdTickerList = [...ytdTickers];
-      console.log('[app] Fetching YTD historical data for ' + ytdTickerList.length + ' tickers...');
-
-      if (ytdProgressBar) ytdProgressBar.style.display = 'block';
-
+    // ════════════════════════════════════════════════════════════
+    //  HISTORICAL PRICES — YTD portfolio evolution chart
+    //  Fetched AFTER live prices are loaded (dependency: need current
+    //  stock prices first, then historical for the YTD chart)
+    //  Uses Yahoo Finance chart API with range=ytd, interval=1d
+    //  Includes FX rates (EURUSD, EURJPY) for multi-currency NAV
+    // ════════════════════════════════════════════════════════════
+    if (currentView === 'actions' || true) { // Always pre-fetch for fast tab switch
       try {
-        const histData = await fetchHistoricalPricesYTD(
-          ytdTickerList,
-          function onHistProgress(loaded, total, ticker) {
-            if (ytdFill) ytdFill.style.width = Math.round(loaded / total * 100) + '%';
-            if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker;
+        // Collect all tickers needed: current positions + sold 2026 tickers
+        const ytdTickerSet = new Set();
+        // Current held positions
+        PORTFOLIO.amine.ibkr.positions.forEach(p => ytdTickerSet.add(p.ticker));
+        // Sold positions from 2026 trades (need historical prices for period they were held)
+        (PORTFOLIO.amine.ibkr.trades || []).forEach(t => {
+          if (t.type === 'fx') return;
+          const tradeYear = parseInt(t.date.slice(0, 4), 10);
+          if (tradeYear < 2026) return; // Only 2026 trades matter for YTD
+          let yahooTicker = t.ticker;
+          // Map EUR tickers without '.' to Euronext Paris (.PA)
+          if (t.currency === 'EUR' && !t.ticker.includes('.')) {
+            yahooTicker = t.ticker + '.PA';
           }
-        );
+          ytdTickerSet.add(yahooTicker);
+        });
 
-        // Build the YTD chart
-        buildPortfolioYTDChart(PORTFOLIO, histData, FX_STATIC);
+        const ytdTickers = [...ytdTickerSet];
+        console.log('[app] Fetching YTD historical prices for chart:', ytdTickers);
+
+        // Show progress on YTD chart area
+        const ytdProgress = document.getElementById('ytdChartProgress');
+        const ytdFill = document.getElementById('ytdProgressFill');
+        const ytdLabel = document.getElementById('ytdProgressLabel');
+        if (ytdProgress) ytdProgress.style.display = 'block';
+
+        const historicalData = await fetchHistoricalPricesYTD(ytdTickers, (loaded, total, ticker) => {
+          const pct = Math.round(loaded / total * 100);
+          if (ytdFill) ytdFill.style.width = pct + '%';
+          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
+        });
+
+        if (ytdProgress) ytdProgress.style.display = 'none';
+
+        // Build the YTD portfolio evolution chart
+        // Uses calibrated forward simulation (see charts.js for algorithm details)
+        buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+          startingNAV: 209495 // IBKR Jan 1 NAV = current NAV + abs(YTD loss)
+        });
+        console.log('[app] YTD portfolio chart built successfully');
       } catch (e) {
-        console.warn('[app] Historical data fetch error:', e);
+        console.warn('[app] YTD chart error:', e);
+        const ytdProgress = document.getElementById('ytdChartProgress');
+        if (ytdProgress) ytdProgress.style.display = 'none';
       }
-
-      setTimeout(() => { if (ytdProgressBar) ytdProgressBar.style.display = 'none'; }, 2000);
     }
   } catch (e) {
     console.warn('Stock fetch error:', e);
