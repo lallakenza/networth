@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Patrimonial — Amine & Nezha</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.0/dist/chartjs-chart-treemap.min.js"></script>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --text-secondary: #78716c;
+    --primary: #1e3a5f;
+    --accent: #1e3a5f;
+    --red: #dc2626;
+    --green: #16a34a;
+    --gold: #b45309;
+    --blue: #1d4ed8;
+    --gray: #78716c;
+    --card: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+  header {
+    background: var(--primary);
+    color: white;
+    padding: 32px 0 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 32px;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+  }
+  header .subtitle {
+    opacity: 0.8;
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+  }
+  header .badge { display: inline-block; background: rgba(255,255,255,0.15); padding: 4px 14px; border-radius: 20px; font-size: 12px; margin-top: 10px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+  .card h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    letter-spacing: -0.3px;
+  }
+  .card h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text);
+    margin: 18px 0 10px;
+    letter-spacing: -0.2px;
+  }
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    font-size: 13px;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+    font-family: 'DM Sans', sans-serif;
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f5f5f4;
+    font-family: 'DM Sans', sans-serif;
+  }
+  tr:hover td { background: #fafaf9; }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+  }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .highlight {
+    background: #fffbeb;
+    border-left: 2px solid #d97706;
+    padding: 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .success {
+    background: #f0fdf4;
+    border-left: 2px solid var(--green);
+    padding: 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .info {
+    background: #eff6ff;
+    border-left: 2px solid #3b82f6;
+    padding: 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .currency-bar { display: flex; gap: 0; justify-content: flex-end; margin-top: 12px; }
+  .cur-btn { padding: 6px 16px; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: rgba(255,255,255,0.6); transition: all 0.2s; }
+  .cur-btn:first-child { border-radius: 6px 0 0 6px; }
+  .cur-btn:last-child { border-radius: 0 6px 6px 0; }
+  .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .cur-btn:hover { color: white; }
+
+  .view-switcher {
+    display: flex;
+    gap: 0;
+    margin: 0;
+    background: var(--primary);
+    padding: 0;
+    justify-content: center;
+    align-items: stretch;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .view-btn {
+    padding: 14px 18px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: transparent;
+    color: rgba(255,255,255,0.7);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .view-btn:hover { color: white; }
+  .view-btn.active {
+    color: white;
+    border-bottom-color: white;
+    font-weight: 700;
+  }
+  .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
+  .view-btn.asset-view-btn.active { border-bottom-color: var(--gold); }
+  .immo-sub-nav {
+    display: flex;
+    gap: 0;
+    background: rgba(30, 58, 95, 0.95);
+    padding: 0;
+    justify-content: center;
+    margin: 0 0 32px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .immo-sub-btn {
+    padding: 12px 20px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    background: transparent;
+    color: rgba(255,255,255,0.6);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .immo-sub-btn:hover { color: rgba(255,255,255,0.9); }
+  .immo-sub-btn.active {
+    color: white;
+    border-bottom-color: var(--gold);
+    font-weight: 600;
+  }
+
+  .sortable { cursor: pointer; user-select: none; position: relative; }
+  .sortable:hover { background: #dce5f0; }
+  .sort-arrow { font-size: 10px; opacity: 0.4; margin-left: 2px; }
+  .sort-arrow.asc::after { content: ' \25B2'; opacity: 1; }
+  .sort-arrow.desc::after { content: ' \25BC'; opacity: 1; }
+
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+    overflow: visible;
+    animation: fadeUp 0.4s ease-out both;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: all 0.2s;
+    cursor: default;
+    position: relative;
+  }
+  .kpi-tooltip {
+    display:none;
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    top:calc(100% + 8px);
+    background:var(--text);
+    color:#fff;
+    padding:10px 14px;
+    border-radius:6px;
+    font-size:12px;
+    line-height:1.5;
+    white-space:nowrap;
+    z-index:50;
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+    pointer-events:none;
+    text-align:left;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .kpi-tooltip::before {
+    content:'';
+    position:absolute;
+    top:-6px;
+    left:50%;
+    transform:translateX(-50%);
+    border-left:6px solid transparent;
+    border-right:6px solid transparent;
+    border-bottom:6px solid var(--text);
+  }
+  .kpi-tooltip.above { top:auto; bottom:calc(100% + 8px); }
+  .kpi-tooltip.above::before { top:auto; bottom:-6px; border-bottom:none; border-top:6px solid var(--text); }
+  .kpi:hover .kpi-tooltip { display:block; }
+  .kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .kpi.gold { border-top-color: var(--gold); border-top-width: 2px; }
+  .kpi.green { border-top-color: var(--green); border-top-width: 2px; }
+  .kpi .value {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+  }
+  .kpi .label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: none;
+    letter-spacing: 0.3px;
+    font-weight: 500;
+    margin-top: 6px;
+  }
+  .kpi .sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  .kpi-insight-bar {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    background: var(--bg);
+    border-left: 2px solid var(--accent);
+    border-radius: 6px;
+    margin: -12px 0 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .kpi-insight-bar.visible { max-height: 100px; opacity: 1; padding: 12px 16px; }
+
+  .kpi-clickable { cursor: pointer !important; position: relative; }
+  .kpi-clickable::after {
+    content: '▼';
+    position: absolute;
+    bottom: 6px;
+    right: 10px;
+    font-size: 8px;
+    color: var(--border);
+    transition: transform 0.2s;
+  }
+  .kpi-clickable.active-kpi {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(30,58,95,0.12);
+    transform: translateY(-2px);
+  }
+  .kpi-clickable.active-kpi::after { transform: rotate(180deg); color: var(--accent); }
+  .kpi-detail-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    margin: -8px 0 20px;
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    animation: slideDown 0.25s ease;
+  }
+  .kpi-detail-panel .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .kpi-detail-panel .detail-header h4 {
+    margin: 0;
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text);
+  }
+  .kpi-detail-panel .detail-header .detail-summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .kpi-detail-panel .detail-body {
+    padding: 12px 20px 16px;
+    max-height: 350px;
+    overflow-y: auto;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .kpi-detail-panel .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f4;
+  }
+  .kpi-detail-panel .detail-row:last-child { border-bottom: none; }
+  .kpi-detail-panel .detail-row .ticker-label { font-weight: 500; flex: 1; }
+  .kpi-detail-panel .detail-row .ticker-pl { font-weight: 700; min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+  .kpi-detail-panel .detail-row .ticker-bar { flex: 0 0 120px; margin-left: 12px; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; position: relative; }
+  .kpi-detail-panel .detail-row .ticker-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .kpi-detail-panel .detail-footer { padding: 10px 20px; background: var(--bg); font-size: 11px; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid var(--border); }
+  @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .cat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 16px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+  .cat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .cat-card.active-cat {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(30,58,95,0.12);
+  }
+  .cat-card .cat-icon { font-size: 28px; margin-bottom: 8px; }
+  .cat-card .cat-title {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .cat-card .cat-amount {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green);
+    margin: 8px 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cat-card .cat-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .cat-card .cat-pct {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .cat-expand {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.4s ease, padding 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    margin-top: 0;
+  }
+  .cat-expand.open { max-height: 800px; opacity: 1; margin-top: 16px; }
+  .cat-expand-inner {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    padding: 20px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .sub-card {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+    display: block;
+  }
+  .sub-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  .sub-card .sub-icon { font-size: 24px; margin-bottom: 8px; }
+  .sub-card .sub-title {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .sub-card .sub-detail {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .sub-card .sub-equity {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub-card .sub-equity.pos { color: var(--green); }
+  .sub-card .sub-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 6px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .link-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+  .link-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: all 0.2s;
+    text-decoration: none;
+    color: inherit;
+  }
+  .link-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .link-card .icon { font-size: 32px; margin-bottom: 12px; }
+  .link-card .link-title {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .link-card .link-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 320px;
+    margin: 16px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .section-icon {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    margin-right: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    color: white;
+    background: var(--accent);
+  }
+  .badge-tag {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 4px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  footer {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 20px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .hidden { display: none !important; }
+
+  .sim-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+    align-items: end;
+  }
+  .sim-field label {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .sim-field input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--accent); }
+  .sim-field .range-val {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-result-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .sim-result {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .sim-result .sr-val {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-result .sr-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .sim-result.green-r { background: rgba(22, 163, 74, 0.06); }
+  .sim-result.green-r .sr-val { color: var(--green); }
+
+  .breakdown-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .breakdown-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .breakdown-list li:last-child { border-bottom: none; }
+  .breakdown-list .bl-label { color: var(--text-secondary); }
+  .breakdown-list .bl-val {
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+  .prop-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .prop-card.conditional {
+    border-color: #fcd34d;
+    background: #fffbeb;
+  }
+  .prop-card h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+  .prop-card .prop-owner {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .prop-card .prop-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .prop-card .prop-kpi {
+    text-align: center;
+    padding: 8px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .prop-card .prop-kpi .pk-val {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .prop-card .prop-kpi .pk-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .prop-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(30,58,95,0.12);
+  }
+  .prop-card.active-prop {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(30,58,95,0.12);
+  }
+  .prop-detail-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    animation: slideDown 0.3s ease-out;
+  }
+  .prop-detail-section { margin-bottom: 16px; }
+  .prop-detail-section h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    letter-spacing: -0.2px;
+  }
+  .prop-detail-section table { font-size: 12.5px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .detail-metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+  }
+  .detail-metric .dm-val {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .detail-metric .dm-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .pl-pos { color: var(--green); }
+  .pl-neg { color: var(--red); }
+  .meter-bar {
+    display: flex;
+    height: 24px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    background: var(--border);
+  }
+  .meter-bar .mb-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    min-width: 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi:nth-child(2) { animation-delay: 0.05s; }
+  .kpi:nth-child(3) { animation-delay: 0.1s; }
+  .kpi:nth-child(4) { animation-delay: 0.15s; }
+
+  @media (max-width: 900px) {
+    .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+    .grid2 { grid-template-columns: 1fr; }
+    .link-grid { grid-template-columns: 1fr 1fr; }
+    .sim-controls { grid-template-columns: 1fr 1fr !important; }
+    .sim-result-strip { grid-template-columns: 1fr 1fr; }
+    .cat-grid { grid-template-columns: 1fr 1fr; }
+    .cat-expand-inner { grid-template-columns: 1fr !important; }
+    .prop-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .kpi-strip { grid-template-columns: 1fr; }
+    .link-grid { grid-template-columns: 1fr; }
+    .view-btn { padding: 10px 16px; font-size: 13px; }
+    .sim-controls { grid-template-columns: 1fr; }
+    .sim-result-strip { grid-template-columns: 1fr; }
+  }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(250,250,249,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.3s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  /* Primary KPI hierarchy (for immo view) */
+  .kpi.primary .value { font-size: 32px; font-weight: 700; }
+  .kpi.primary .label { font-weight: 600; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div id="authGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#1e3a5f;display:flex;align-items:center;justify-content:center;z-index:10000;">
+  <div style="text-align:center;max-width:360px;padding:40px;">
+    <div style="font-family:'Instrument Serif',serif;font-size:28px;color:white;margin-bottom:8px;">Dashboard Patrimonial</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:24px;">Amine & Nezha Koraibi</div>
+    <input id="authInput" type="password" placeholder="Mot de passe"
+      style="width:100%;padding:12px 16px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.1);color:white;font-size:15px;outline:none;box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter')document.getElementById('authBtn').click()">
+    <button id="authBtn" onclick="checkAuth()"
+      style="width:100%;margin-top:12px;padding:12px;background:white;color:#1e3a5f;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+      Accéder
+    </button>
+    <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
+  </div>
+</div>
+
+<script>
+// Simple hash-based password check (not cryptographically secure, but sufficient for privacy)
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h.toString();
+}
+
+const AUTH_HASH = '1659296'; // hash of '6314'
+const AUTH_COOKIE = 'nw_auth';
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;SameSite=Strict';
+}
+
+function checkAuth() {
+  const input = document.getElementById('authInput').value;
+  if (hashStr(input) === AUTH_HASH) {
+    setCookie(AUTH_COOKIE, AUTH_HASH, 365); // valid for 1 year
+    document.getElementById('authGate').style.display = 'none';
+  } else {
+    document.getElementById('authError').style.display = 'block';
+    document.getElementById('authInput').value = '';
+    document.getElementById('authInput').focus();
+  }
+}
+
+// Auto-check cookie on load
+if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
+  document.getElementById('authGate').style.display = 'none';
+}
+</script>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div style="text-align:center;">
+    <div style="font-family:'Instrument Serif',serif;font-size:24px;color:#1e3a5f;">Dashboard Patrimonial</div>
+    <div style="font-size:13px;color:#78716c;margin-top:8px;">Chargement des données...</div>
+  </div>
+</div>
+
+<header>
+  <div class="container">
+    <h1 id="headerTitle">Dashboard Patrimonial</h1>
+    <div class="subtitle" id="headerSub">Amine (33 ans) & Nezha (34 ans) Koraibi — Vue consolidee</div>
+    <div class="badge" id="dateBadge">Donnees au --</div>
+    <div class="currency-bar">
+      <button class="cur-btn active" data-cur="EUR">EUR &euro;</button>
+      <button class="cur-btn" data-cur="AED">AED &#1583;.&#1573;</button>
+      <button class="cur-btn" data-cur="MAD">MAD DH</button>
+      <button class="cur-btn" data-cur="USD">USD $</button>
+    </div>
+    <div style="font-size:10px;color:var(--gray);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span id="fxBadge">Taux FX : chargement...</span> <span style="opacity:0.5">|</span> <span id="stockBadge">Actions : chargement...</span>
+      <button id="refreshStocksBtn" title="Rafraîchir (utilise le cache du jour)" style="background:none;border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.7);border-radius:12px;padding:2px 8px;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">&#x21bb; Refresh</button>
+      <button id="hardRefreshBtn" title="Tout re-télécharger (ignore le cache)" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);border-radius:12px;padding:4px 8px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .2s;width:28px;height:28px;justify-content:center;padding:0;">🔄</button>
+    </div>
+    <div id="stockProgressBar" style="display:none;margin-top:4px;width:100%;max-width:320px;">
+      <div style="background:rgba(255,255,255,0.15);border-radius:4px;height:4px;overflow:hidden;">
+        <div id="stockProgressFill" style="height:100%;width:0%;background:var(--green);border-radius:4px;transition:width 0.3s ease;"></div>
+      </div>
+      <div id="stockProgressLabel" style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:2px;">0/0</div>
+    </div>
+  </div>
+</header>
+
+<div class="view-switcher">
+  <button class="view-btn active" data-view="couple">Couple</button>
+  <button class="view-btn" data-view="amine">Amine</button>
+  <button class="view-btn" data-view="nezha">Nezha</button>
+  <div class="view-sep"></div>
+  <button class="view-btn asset-view-btn" data-view="actions">&#x1F4C8; Actions</button>
+  <button class="view-btn asset-view-btn" data-view="cash">&#x1F4B0; Cash</button>
+  <button class="view-btn asset-view-btn immo-parent-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
+  <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
+  <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
+</div>
+<!-- Sub-navigation immobilier (visible quand immobilier ou apt_* est actif) -->
+<div class="immo-sub-nav" id="immoSubNav" style="display:none;">
+  <button class="immo-sub-btn active" data-subview="immobilier">Vue d'ensemble</button>
+  <button class="immo-sub-btn" data-subview="apt_vitry">Vitry-sur-Seine</button>
+  <button class="immo-sub-btn" data-subview="apt_rueil">Rueil-Malmaison</button>
+  <button class="immo-sub-btn" data-subview="apt_villejuif">Villejuif</button>
+</div>
+
+<div class="container">
+
+<!-- KPIs COUPLE -->
+<div id="kpi-couple" class="kpi-strip">
+  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
+  <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
+  <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
+  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label" id="kpiCoupleImmoLabel">Equity Immo *</div></div>
+</div>
+<div class="kpi-insight-bar" id="insight-couple"></div>
+
+<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;" id="villejuifNote">* Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-weight:600;color:#92400e;">non signe</span> — seuls 3 600 EUR de reservation comptes (remboursables)</p>
+
+<!-- KPIs AMINE -->
+<div id="kpi-amine" class="kpi-strip hidden">
+  <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
+  <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR+ESPP)</div></div>
+  <div class="kpi"><div class="value" id="kpiAmTWR">--</div><div class="label">TWR IBKR</div></div>
+  <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">Equity Vitry</div></div>
+</div>
+<div class="kpi-insight-bar hidden" id="insight-amine"></div>
+
+<!-- KPIs NEZHA -->
+<div id="kpi-nezha" class="kpi-strip hidden">
+  <div class="kpi" style="border-top-color: #d69e2e;"><div class="value" id="kpiNzNW" data-eur="0">--</div><div class="label">Net Worth (actuel)</div></div>
+  <div class="kpi"><div class="value" id="kpiNzRueil" data-eur="0">--</div><div class="label">Equity Rueil</div></div>
+  <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiNzVillejuif" data-eur="0">--</div><div class="label">Equity Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div></div>
+  <div class="kpi"><div class="value" id="kpiNzCash" data-eur="0">--</div><div class="label">Cash + Creances</div></div>
+</div>
+<div class="kpi-insight-bar hidden" id="insight-nezha"></div>
+
+<!-- INSIGHTS GLOBAUX -->
+<!-- TREEMAP -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F5FA;</span>Treemap Patrimonial</h2>
+  <div class="chart-container" style="height:380px"><canvas id="coupleTreemap"></canvas></div>
+</div>
+
+<!-- NW HISTORY CHART -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--accent);">📈</span>Evolution du Net Worth</h2>
+  <div class="chart-container" style="height:280px"><canvas id="nwHistoryChart"></canvas></div>
+</div>
+
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F9E9;</span>Treemap Patrimonial — Amine</h2>
+  <div class="chart-container" style="height:380px"><canvas id="amineTreemap"></canvas></div>
+</div>
+
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">&#x1F9E9;</span>Treemap Patrimonial — Nezha</h2>
+  <div class="chart-container" style="height:380px"><canvas id="nezhaTreemap"></canvas></div>
+</div>
+
+<!-- NAVIGATION PAR CATEGORIE -->
+<div class="card" id="catNav">
+  <h2>Patrimoine par Categorie</h2>
+  <div class="cat-grid" id="catGrid">
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctStocks">--</div>
+      <div class="cat-icon">&#x1F4C8;</div>
+      <div class="cat-title">Actions & Crypto</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">IBKR + ESPP + SGTM</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctCash">--</div>
+      <div class="cat-icon">&#x1F4B0;</div>
+      <div class="cat-title">Cash & Epargne</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">UAE + Maroc + Revolut</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctImmo">--</div>
+      <div class="cat-icon">&#x1F3E0;</div>
+      <div class="cat-title">Immobilier</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">3 biens — Equity nette</div>
+    </div>
+    <div class="cat-card">
+      <div class="cat-pct" id="catPctOther">--</div>
+      <div class="cat-icon">&#x1F4CB;</div>
+      <div class="cat-title">Autres Actifs</div>
+      <div class="cat-amount" data-eur="0">--</div>
+      <div class="cat-sub">Vehicules + Creances - TVA</div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Stocks -->
+  <div class="cat-expand" id="expand-stocks">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="portfolio_analysis_v4.html" class="sub-card">
+        <div class="sub-icon">&#x1F4CA;</div>
+        <div class="sub-title">IBKR Portfolio</div>
+        <div class="sub-detail">12 actions EU + 1 JP<br>2 crypto ETFs + multi-devise</div>
+        <div class="sub-equity pos" id="subIBKR" data-eur="0">--</div>
+        <div class="sub-badge" id="subIBKRBadge" style="background:#c6f6d5;color:#276749">--</div>
+      </a>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F4BC;</div>
+        <div class="sub-title">ESPP Accenture</div>
+        <div class="sub-detail" id="subESPPDetail">--</div>
+        <div class="sub-equity pos" id="subESPP" data-eur="0">--</div>
+        <div class="sub-badge" style="background:#ebf8ff;color:#2b6cb0">ESPP -15%</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
+        <div class="sub-title">SGTM (Casablanca)</div>
+        <div class="sub-detail" id="subSGTMDetail">--</div>
+        <div class="sub-equity pos" id="subSGTM" data-eur="0">--</div>
+        <div class="sub-badge" id="subSGTMBadge" style="background:#c6f6d5;color:#276749">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Cash -->
+  <div class="cat-expand" id="expand-cash">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1E6;&#x1F1EA;</div>
+        <div class="sub-title">Cash UAE</div>
+        <div class="sub-equity pos" id="subUAE" data-eur="0">--</div>
+        <ul class="breakdown-list" id="subUAEBreakdown"></ul>
+        <div class="sub-badge" id="subUAEBadge" style="background:#f0fff4;color:#276749">--</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
+        <div class="sub-title">Cash Maroc</div>
+        <div class="sub-equity pos" id="subMarocCash" data-eur="0">--</div>
+        <ul class="breakdown-list" id="subMarocBreakdown"></ul>
+        <div class="sub-detail" style="margin-top:6px;font-style:italic" id="subMarocFXNote">--</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;" id="cashInsightsExpand"></div>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Immo -->
+  <div class="cat-expand" id="expand-immo">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="index.html#apt_vitry" class="sub-card">
+        <div class="sub-icon">&#x1F3E0;</div>
+        <div class="sub-title">Vitry-sur-Seine</div>
+        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span id="subVitryCrdDetail" data-eur="293000">--</span></div>
+        <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
+        <div class="sub-badge" id="subVitryCFBadge">--</div>
+      </a>
+      <a href="index.html#apt_rueil" class="sub-card">
+        <div class="sub-icon">&#x1F3E1;</div>
+        <div class="sub-title">Rueil-Malmaison</div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span id="subRueilCrdDetail" data-eur="272000">--</span></div>
+        <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
+        <div class="sub-badge" id="subRueilCFBadge">--</div>
+      </a>
+      <a href="index.html#apt_villejuif" class="sub-card">
+        <div class="sub-icon">&#x1F3D7;&#xFE0F;</div>
+        <div class="sub-title">VEFA Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div>
+        <div class="sub-detail">Nezha — 69 m2 — Q4 2028<br>Valeur <span id="subVillejuifCrdDetail" data-eur="360000">--</span><br><span style="font-size:11px;color:#92400e">Acte notarie non signe — reservation 3.6K payee</span></div>
+        <div class="sub-equity pos" id="subVillejuifEq" data-eur="0">--</div>
+        <div class="sub-badge" id="subVillejuifCFBadge" style="background:#fef3c7;color:#92400e">Conditionnel</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- EXPANDABLE: Other -->
+  <div class="cat-expand" id="expand-other">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F697;</div>
+        <div class="sub-title">Vehicules</div>
+        <div class="sub-detail" id="subVehiclesDetail">--</div>
+        <div class="sub-equity" style="color:var(--primary);" id="subVehicles" data-eur="0">--</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F4C4;</div>
+        <div class="sub-title">Creances</div>
+        <div class="sub-equity" style="color:var(--primary);" id="subCreances" data-eur="0">--</div>
+        <div id="subCreancesBreakdown"></div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F3DB;&#xFE0F;</div>
+        <div class="sub-title">TVA a payer</div>
+        <div class="sub-detail" id="subTVADetail">--</div>
+        <div class="sub-equity neg" id="subTVA" data-eur="0" data-sign="-">--</div>
+      </div>
+    </div>
+    <div style="padding: 12px 20px 4px;">
+      <div class="highlight" style="margin:0;" id="otherInsightsExpand"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COUPLE: PATRIMOINE CONSOLIDE -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F46B;</span>Patrimoine Couple — Detail consolide</h2>
+  <div class="grid2">
+    <div>
+      <table id="coupleDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div style="text-align:center;margin-bottom:4px;">
+        <span id="coupleChartTitle" style="font-weight:600;font-size:14px;color:var(--primary)">Repartition par categorie</span>
+        <button id="coupleChartBack" onclick="coupleChartZoomOut()" style="display:none;margin-left:8px;font-size:11px;padding:2px 10px;border:1px solid #cbd5e0;border-radius:4px;background:#f7fafc;cursor:pointer;color:var(--accent)">&larr; Retour</button>
+      </div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="coupleAllocChart"></canvas>
+      </div>
+      <p id="coupleChartHint" style="font-size:11px;color:var(--gray);text-align:center;margin-top:4px">Cliquez sur une tranche pour voir le detail</p>
+    </div>
+  </div>
+</div>
+
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Resume Immobilier</h2>
+  <div class="kpi-strip">
+    <div class="kpi gold"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label" id="kpiImmoEqLabel">Equity Totale</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimee des biens</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoCRD" data-eur="0">--</div><div class="label">Capital Restant Du</div></div>
+    <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">--</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4"></div></div>
+  </div>
+
+  <table id="immoTable">
+    <thead>
+      <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Equity</th><th class="num">CF /mois</th><th>Statut</th></tr>
+    </thead>
+    <tbody id="immoSummaryTbody"></tbody>
+  </table>
+  <p style="font-size:12px;color:var(--gray);margin-top:6px" id="immoLoanFootnote"></p>
+
+  <div class="info" style="margin-top:14px;font-size:13px;text-align:center;">
+    <strong>Voir les analyses detaillees</strong> (cash flow, projections, strategie) dans la vue <a href="#" onclick="document.querySelector('[data-view=immobilier]').click(); return false;" style="color:var(--accent);font-weight:700;">&#x1F3E0; Immobilier</a>.
+  </div>
+</div>
+
+<!-- INSIGHTS GLOBAUX -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F4A1;</span>Vue d'ensemble & Insights</h2>
+  <div class="grid2">
+    <div><div class="success" id="coupleInsightsPositive"></div></div>
+    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
+  </div>
+</div>
+
+<!-- NW HISTORY — supprimé v86 (pas de données historiques réelles) -->
+
+<!-- AMINE: PATRIMOINE DETAIL -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">A</span>Patrimoine Amine — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table id="amineDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="amineAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="highlight" style="margin-top: 14px;" id="amineImmoInsight"></div>
+</div>
+
+<!-- AMINE: RESUME ACTIONS -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Actions & Crypto — Amine</h2>
+  <div class="kpi-strip">
+    <div class="kpi green"><div class="value" id="kpiAmIBKR" data-eur="0">--</div><div class="label">IBKR NAV</div></div>
+    <div class="kpi green"><div class="value" data-eur-pct="26.94" data-type="pct">--</div><div class="label">TWR (Time-Weighted)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmESPP" data-eur="0">--</div><div class="label" id="kpiAmESPPLabel">ESPP (167 ACN)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmSGTM" data-eur="0">--</div><div class="label">SGTM (32 actions)</div></div>
+  </div>
+  <div class="grid2">
+    <div>
+      <h3>Allocation Geographique (actions, hors cash)</h3>
+      <div class="chart-container" style="height: 250px;">
+        <canvas id="geoChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h3>Top Positions IBKR</h3>
+      <table id="ibkrSimpleTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="shares">Qte</th><th class="num" data-sort="valEUR">Valeur</th></tr></thead>
+        <tbody id="ibkrPositionsTbody"></tbody>
+      </table>
+      <div class="success" style="margin-top: 14px;" id="ibkrSummaryBox"></div>
+      <div class="highlight" style="margin-top: 10px;" id="amineActionsInsight"></div>
+    </div>
+  </div>
+</div>
+
+<!-- NEZHA: PATRIMOINE DETAIL -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">N</span>Patrimoine Nezha — Detail</h2>
+  <div class="grid2">
+    <div>
+      <table id="nezhaDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="info" style="margin-top: 14px;" id="nezhaInsightsBox"></div>
+    </div>
+    <div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="nezhaAllocChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IMMOBILIER -->
+<!-- SIMULATEUR COUPLE -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F3AF;</span>Simulateur — Net Worth Couple</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha).<br>
+  <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field"><label>Epargne mensuelle (Amine)</label><input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="cplSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="cplSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="cplSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="cplSimHorizonVal">20 ans</div></div>
+  </div>
+  <div id="cplSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="cplSimStopBannerText"></span></div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="cplSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="cplSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="cplSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="cplSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="cplSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (3 biens)</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="cplSimChart"></canvas></div>
+  <div class="highlight" id="cplSimInsight">--</div>
+</div>
+
+<!-- SIMULATEUR AMINE -->
+<div class="card" data-view="amine">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3AF;</span>Simulateur — Net Worth Amine</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine d'Amine seul.<br>
+  <strong style="color:var(--gold)">Aujourd'hui : Vitry represente <span id="amImmoPct">--</span>% du NW Amine (<span id="amImmoVal">--</span> d'equity).</strong></p>
+  <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-field"><label>Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="amSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="amSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="amSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="amSimHorizonVal">20 ans</div></div>
+  </div>
+  <div id="amSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="amSimStopBannerText"></span></div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="amSimNW">--</div><div class="sr-label">Net Worth Final</div></div>
+    <div class="sim-result"><div class="sr-val" id="amSim1M">--</div><div class="sr-label">Date 1M</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="amSimContrib" style="color:var(--accent);">--</div><div class="sr-label">Contributions</div></div>
+    <div class="sim-result" style="background:#f0fff4;"><div class="sr-val" id="amSimMarket" style="color:var(--green);">--</div><div class="sr-label">Revenus Marche</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="amSimImmo" style="color:var(--gold);">--</div><div class="sr-label">Revenus Immo (Vitry)</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="amSimChart"></canvas></div>
+  <div class="highlight" id="amSimInsight">--</div>
+</div>
+
+<!-- SIMULATEUR NEZHA -->
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">&#x1F3AF;</span>Simulateur — Patrimoine Nezha</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine immobilier de Nezha. Pas d'actions — uniquement Rueil (loue) et Villejuif (apres livraison Q4 2028).</p>
+  <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-field"><label>Appreciation immobiliere annuelle</label><input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1"><div class="range-val" id="nzSimAppreciationVal">1.0%</div></div>
+    <div class="sim-field"><label>Rendement Cash Nezha</label><input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2"><div class="range-val" id="nzSimCashReturnVal">2.0%</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="nzSimHorizonVal">20 ans</div></div>
+  </div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="sim-result green-r"><div class="sr-val" id="nzSimNW">--</div><div class="sr-label">NW Final Nezha</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="nzSimRueil" style="color:var(--accent);">--</div><div class="sr-label">Equity Rueil</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="nzSimVillejuif" style="color:var(--gold);">--</div><div class="sr-label">Equity Villejuif</div></div>
+    <div class="sim-result"><div class="sr-val" id="nzSimCash">--</div><div class="sr-label">Cash</div></div>
+  </div>
+  <div class="chart-container" style="height: 380px;"><canvas id="nzSimChart"></canvas></div>
+  <div class="highlight" id="nzSimInsight">--</div>
+
+  <h3 style="margin-top:20px;">Projection detaillee</h3>
+  <div id="nezhaProjectionTable"></div>
+</div>
+
+<div class="card" data-view="nezha">
+  <h2><span class="section-icon" style="background: #d69e2e;">&#x1F4B8;</span>Cout reel d'un achat — Manque a gagner</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Combien coute reellement un achat aujourd'hui si cet argent etait investi ? Un achat de 10 000 EUR aujourd'hui, c'est potentiellement beaucoup plus dans 20 ans.</p>
+  <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-field"><label>Montant de l'achat (EUR)</label><input type="number" id="oppCostAmount" value="10000" min="100" max="1000000" step="100" style="width:100%;padding:8px;border:1px solid #cbd5e0;border-radius:6px;font-size:15px;text-align:center;"></div>
+    <div class="sim-field"><label>Retour annuel des marches</label><input type="range" id="oppCostReturn" min="1" max="15" step="0.5" value="10"><div class="range-val" id="oppCostReturnVal">10.0%</div></div>
+    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="oppCostHorizon" min="1" max="40" step="1" value="20"><div class="range-val" id="oppCostHorizonVal">20 ans</div></div>
+  </div>
+  <div class="sim-result-strip" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="sim-result" style="background:#fff5f5;"><div class="sr-val" id="oppCostFuture" style="color:#c53030;font-size:28px;">--</div><div class="sr-label">Cout reel dans le futur</div></div>
+    <div class="sim-result" style="background:#fffbeb;"><div class="sr-val" id="oppCostLost" style="color:#b7791f;">--</div><div class="sr-label">Manque a gagner</div></div>
+    <div class="sim-result" style="background:#ebf8ff;"><div class="sr-val" id="oppCostMultiplier" style="color:var(--accent);">--</div><div class="sr-label">Multiplicateur</div></div>
+  </div>
+  <div id="oppCostTable" style="margin-top:16px;"></div>
+  <div class="highlight" id="oppCostInsight" style="margin-top:12px;">--</div>
+</div>
+
+<!-- ============ VUE ACTIONS ============ -->
+<div class="card hidden" data-view="actions">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
+  <div class="kpi-strip" id="kpi-actions" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi green kpi-clickable" data-detail="detailTotal"><div class="value" id="kpiActionsTotal" data-eur="0">--</div><div class="label">Total Actions (toutes plateformes)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailUnrealized"><div class="value" id="kpiActionsUnrealizedPL">--</div><div class="label">P/L Non R&eacute;alis&eacute; (IBKR + ESPP + SGTM)</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailRealized"><div class="value" id="kpiActionsRealizedPL">--</div><div class="label">P/L R&eacute;alis&eacute; (IBKR + Degiro)</div></div>
+    <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label">Total D&eacute;pos&eacute;</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailDividends"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
+  </div>
+  <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(5, 1fr); margin-top:8px;">
+    <div class="kpi kpi-clickable" data-detail="detailPLDaily"><div class="value" id="kpiPLDaily">--</div><div class="label">P&amp;L Daily</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailPLMTD"><div class="value" id="kpiPLMTD">--</div><div class="label">P&amp;L MTD</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailPL1M"><div class="value" id="kpiPL1M">--</div><div class="label">P&amp;L 1 Mois</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailPLYTD"><div class="value" id="kpiPLYTD">--</div><div class="label">P&amp;L YTD</div></div>
+    <div class="kpi kpi-clickable" data-detail="detailPL1Y"><div class="value" id="kpiPL1Y">--</div><div class="label">P&amp;L 1 An</div></div>
+  </div>
+  <div id="kpiStaticWarning" style="display:none;text-align:right;font-size:11px;color:var(--red);margin-top:4px;padding-right:4px;font-style:italic;"></div>
+  <!-- Expandable detail panels for each KPI -->
+  <div id="kpiDetailPanel" class="kpi-detail-panel" style="display:none;"></div>
+  <div class="kpi-insight-bar" id="insight-actions"></div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <h3 style="margin:0">Toutes les Positions — IBKR + ESPP (UBS) + SGTM (Attijari)</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div id="posViewToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-mode="total" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Total</button>
+        <button data-mode="unitaire" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Unitaire</button>
+      </div>
+      <div id="posPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-period="all" class="active" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">All</button>
+        <button data-period="daily" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Daily</button>
+        <button data-period="mtd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
+        <button data-period="oneMonth" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
+        <button data-period="ytd" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">YTD</button>
+      </div>
+    </div>
+  </div>
+  <table id="allPositionsTable" style="width:100%;">
+    <thead><tr></tr></thead>
+    <tbody id="allPositionsTbody"></tbody>
+  </table>
+  <p id="actionsStaticFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;"></p>
+
+  <!-- ════════════════════════════════════════════════════════════
+       YTD PORTFOLIO EVOLUTION CHART
+       Shows daily IBKR account NAV since Jan 1, 2026
+       Uses calibrated forward simulation with historical Yahoo prices
+       Cash positions (EUR, USD, JPY) included in NAV calculation
+       Positions valued only from purchase date; excluded after sell date
+       ════════════════════════════════════════════════════════════ -->
+  <div style="margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 id="ytdChartTitle" style="margin:0"><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>&Eacute;volution Portefeuille IBKR — YTD 2026</h3>
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--gray);">
+        <span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
+        <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
+        <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+      </div>
+      <div id="ytdPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-period="MTD" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
+        <button data-period="1M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
+        <button data-period="3M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">3M</button>
+        <button data-period="YTD" style="padding:4px 10px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">YTD</button>
+      </div>
+    </div>
+    <!-- Progress bar for historical data loading -->
+    <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
+      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
+        <div id="ytdProgressFill" style="background:var(--accent);height:100%;width:0%;transition:width .3s;border-radius:4px;"></div>
+      </div>
+      <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);margin-top:2px;"></div>
+    </div>
+    <div class="chart-container" style="height:340px"><canvas id="portfolioYTDChart"></canvas></div>
+    <p id="ytdChartFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;">
+      Simulation calibr&eacute;e : NAV initiale IBKR + prix historiques Yahoo Finance + trades 2026 + cash multi-devises.
+      Inclut EUR, USD, JPY. Positions valu&eacute;es uniquement pendant la p&eacute;riode de d&eacute;tention.
+    </p>
+  </div>
+
+  <div style="margin-top:20px;">
+    <h3><span class="section-icon" style="background: var(--accent);">&#x1F9E9;</span>Treemap Actions & Crypto</h3>
+    <div class="chart-container" style="height:380px"><canvas id="actionsTreemap"></canvas></div>
+  </div>
+
+  <div class="grid2" style="margin-top:24px;">
+    <div>
+      <h3>Allocation G&eacute;ographique</h3>
+      <div class="chart-container" style="height: 280px;">
+        <canvas id="actionsGeoChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h3>Allocation Sectorielle</h3>
+      <div class="chart-container" style="height: 280px;">
+        <canvas id="actionsSectorChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px;">
+    <div>
+      <h3 style="margin-top:20px;">Positions Ferm&eacute;es IBKR (12 mois)</h3>
+      <table id="actionsClosedTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
+        <tbody id="actionsClosedTbody"></tbody>
+      </table>
+    </div>
+    <div>
+      <h3 style="margin-top:20px;">Historique Degiro (compte cl&ocirc;tur&eacute; Avr. 2025)</h3>
+      <table id="degiroClosedTable">
+        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
+        <tbody id="degiroClosedTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="success" style="margin-top:14px;">
+    <strong>P/L R&eacute;alis&eacute; Combin&eacute; (IBKR + Degiro) :</strong> <strong id="actionsCombinedPL" class="pos">--</strong>
+  </div>
+
+  <h3 style="margin-top:20px;">Cash IBKR Multi-devises</h3>
+  <table>
+    <thead><tr><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
+    <tbody id="actionsCashTbody"></tbody>
+  </table>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>M&eacute;triques IBKR :</strong>
+    Commissions YTD : <strong id="actionsCommissions">--</strong> |
+    D&eacute;p&ocirc;ts IBKR : <strong id="actionsDeposits">--</strong> |
+    NAV report&eacute;e : <strong id="actionsNAV">--</strong> |
+    TWR : <strong id="actionsTWR">--</strong>
+  </div>
+
+  <div style="margin-top:24px;">
+    <h3>&#x1F4A1; Analyse &amp; Recommandations Investissement</h3>
+    <div id="actionsInsights" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
+  </div>
+
+  <!-- WHT / DIVIDENDS ANALYSIS -->
+  <div style="margin-top:24px;">
+    <h3>&#x1F4B8; Strat&eacute;gie Dividendes & WHT (Withholding Tax)</h3>
+    <div class="info" style="font-size:12px;margin-bottom:12px;">
+      <strong>R&eacute;sident UAE</strong> &mdash; 0% income tax, mais WHT pr&eacute;lev&eacute;e &agrave; la source sur les dividendes par le pays &eacute;metteur.
+      Plus-values : 0% WHT partout &rarr; <strong>objectif : &eacute;liminer les dividendes et privil&eacute;gier les ETFs capitalisants.</strong>
+    </div>
+    <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+      <div class="kpi"><div class="value" id="kpiWhtTotalDiv">--</div><div class="label">Dividendes Bruts Estim&eacute;s /an</div></div>
+      <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiWhtTotal">--</div><div class="label">WHT Pay&eacute;e /an</div></div>
+      <div class="kpi green"><div class="value" id="kpiWhtSavings">--</div><div class="label">&Eacute;conomie si 100% Capitalisant</div></div>
+      <div class="kpi"><div class="value" id="kpiWhtPositions">--</div><div class="label">Positions &agrave; Switcher</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Position</th><th class="num">Valeur</th><th class="num">DPS</th><th class="num">Div Projet&eacute;</th><th class="num">WHT Rate</th><th class="num">WHT Projet&eacute;</th><th class="num">&#x23F0; Vendre avant</th><th>Reco</th><th>Alternative ETF</th></tr></thead>
+      <tbody id="whtTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ============ VUE CASH ============ -->
+<div class="card hidden" data-view="cash">
+  <h2><span class="section-icon" style="background: #48bb78;">&#x1F4B0;</span>Tr&eacute;sorerie & Cash</h2>
+  <div class="kpi-strip" id="kpi-cash">
+    <div class="kpi green"><div class="value" id="kpiCashTotal" data-eur="0">--</div><div class="label">Cash Total</div></div>
+    <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement Moyen</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash Productif</div></div>
+  </div>
+  <div class="kpi-insight-bar" id="insight-cash"></div>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div>
+      <h3>Cash Productif vs Dormant</h3>
+      <div id="cashYieldBars" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-top:6px;">
+        <span>&#x1F7E2; Productif (&ge;3% yield)</span>
+        <span>&#x1F534; Dormant (&lt;3% yield)</span>
+      </div>
+    </div>
+    <div>
+      <h3 id="cashYieldTitle" style="display:none;"></h3>
+      <div class="chart-container" style="height: 280px;">
+        <canvas id="cashCurrencyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;">D&eacute;tail par Compte</h3>
+  <table id="cashTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">Compte</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="native">Montant natif</th><th class="num" data-sort="valEUR">Valeur EUR</th><th class="num" data-sort="yield">Rendement</th><th class="num" data-sort="yieldAnn">Yield ann.</th><th class="num" data-sort="missed" style="color:#e53e3e;">Manque &agrave; gagner</th></tr></thead>
+    <tbody id="cashAccountsTbody"></tbody>
+  </table>
+
+  <div class="highlight" style="margin-top:14px;" id="cashJPYNote"></div>
+
+  <div style="margin-top:24px;">
+    <h3>&#x1F6A8; Diagnostic &amp; Actions Urgentes</h3>
+    <div id="cashDiagnostics" style="display:flex;flex-direction:column;gap:12px;"></div>
+  </div>
+</div>
+
+<!-- ============ VUE IMMOBILIER ============ -->
+<div class="card hidden" data-view="immobilier">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2 style="margin:0;"><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Portefeuille Immobilier</h2>
+    <div id="immoVillejuifToggle" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray);cursor:pointer;user-select:none;padding:4px 10px;border:1px solid #cbd5e0;border-radius:6px;background:#fff;">
+      <span id="immoVillejuifCheck" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;border:1.5px solid #cbd5e0;font-size:11px;font-weight:700;color:#fff;background:#fff;transition:all .15s;">&#10003;</span>
+      <span>Inclure Villejuif <span style="color:#a0aec0">(achat futur)</span></span>
+    </div>
+  </div>
+  <div class="kpi-strip" id="kpi-immo" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi primary gold"><div class="value" id="kpiImmoViewEq" data-eur="0">--</div><div class="label">Equity Brute</div></div>
+    <div class="kpi primary green"><div class="value" id="kpiImmoViewNetEq" data-eur="0">--</div><div class="label">Equity Nette (apr&egrave;s sortie)</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiImmoViewExitCosts" data-eur="0">--</div><div class="label">Frais de Sortie Total</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF Net /mois</div></div>
+  </div>
+  <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
+    <div class="kpi"><div class="value" id="kpiImmoViewVal" data-eur="0">--</div><div class="label">Valeur Totale</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewCRD" data-eur="0">--</div><div class="label">CRD Total</div></div>
+    <div class="kpi green"><div class="value" id="kpiImmoViewWealth">--</div><div class="label">Cr&eacute;ation Richesse /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoViewLTV">--</div><div class="label">LTV Moyen</div></div>
+  </div>
+  <div class="kpi-insight-bar" id="insight-immo"></div>
+
+  <!-- WEALTH CREATION BREAKDOWN -->
+  <div id="wealthBreakdownSection" class="card" style="margin:16px 0;padding:20px;display:none;">
+    <h3 style="margin:0 0 16px 0;font-size:16px;color:var(--primary);">Breakdown Cr&eacute;ation de Richesse</h3>
+    <div id="wealthBreakdownContent"></div>
+  </div>
+
+  <!-- WEALTH PROJECTION CHART -->
+  <div id="wealthProjectionSection" class="card" style="margin:0 0 16px;padding:20px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:16px;color:var(--primary);">Projection Cr&eacute;ation de Richesse (20 ans)</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="wealthProjGroupToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
+          <button class="wealth-group-btn active" data-group="type" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par type</button>
+          <button class="wealth-group-btn" data-group="appart" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par appart</button>
+        </div>
+        <div id="wealthProjToggle" style="display:flex;gap:0;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;">
+          <button class="wealth-proj-btn active" data-mode="an" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">Par an</button>
+          <button class="wealth-proj-btn" data-mode="mois" style="padding:4px 14px;font-size:12px;border:none;cursor:pointer;background:#fff;color:#4a5568;">Par mois</button>
+        </div>
+      </div>
+    </div>
+    <div class="chart-container" style="height:380px;"><canvas id="wealthProjectionChart"></canvas></div>
+  </div>
+
+  <div class="prop-grid" id="propGrid"></div>
+
+  <!-- LMP ALERT SECTION (Nezha) -->
+  <div id="lmpAlertSection"></div>
+
+  <!-- PROPERTY DETAIL PANEL (expanded on card click) -->
+  <div id="propDetailPanel" class="prop-detail-panel" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="propDetailTitle" style="margin:0;font-size:18px;color:var(--primary);"></h3>
+      <button id="propDetailClose" style="background:none;border:1px solid #cbd5e0;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:12px;color:var(--gray);">&#x2715; Fermer</button>
+    </div>
+    <!-- Property Info Card (Details) -->
+    <div id="propDetailInfo"></div>
+    <!-- Fiche -->
+    <div id="propDetailFiche" class="prop-detail-section"></div>
+    <!-- Pr&ecirc;ts -->
+    <div id="propDetailLoans" class="prop-detail-section"></div>
+    <!-- Cash Flow -->
+    <div id="propDetailCF" class="prop-detail-section"></div>
+    <!-- Charts -->
+    <div class="grid2" style="margin-top:12px;">
+      <div class="chart-container" style="height:260px;"><canvas id="propDetailEquityChart"></canvas></div>
+      <div class="chart-container" style="height:260px;"><canvas id="propDetailAmortChart"></canvas></div>
+    </div>
+    <!-- Exit projection chart -->
+    <div class="chart-container" style="height:340px;margin-top:12px;"><canvas id="exitProjectionChart"></canvas></div>
+    <!-- PV Abattement chart (tax breakdown) -->
+    <div class="chart-container" style="height:320px;margin-top:12px;"><canvas id="pvAbattementChart"></canvas></div>
+    <!-- Fiscal (Vitry only) -->
+    <div id="propDetailFiscal" class="prop-detail-section" style="display:none;"></div>
+    <!-- VEFA Timeline (Villejuif only) -->
+    <div id="propDetailVefa" class="prop-detail-section" style="display:none;"></div>
+  </div>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoViewEquityChart"></canvas>
+    </div>
+    <div class="chart-container" style="height: 280px;">
+      <canvas id="immoViewProjectionChart"></canvas>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;">Synth&egrave;se Pr&ecirc;ts</h3>
+  <table>
+    <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Yield brut</th><th class="num">Yield net</th></tr></thead>
+    <tbody id="immoLoansTbody"></tbody>
+  </table>
+
+  <!-- TABLEAU D'AMORTISSEMENT -->
+  <h3 style="margin-top:24px;">&#x1F4CA; Tableau d'Amortissement</h3>
+  <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+    <div class="kpi"><div class="value" id="kpiAmortInterestPaid" data-eur="0">--</div><div class="label">Int&eacute;r&ecirc;ts D&eacute;j&agrave; Pay&eacute;s</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiAmortInterestRemaining" data-eur="0">--</div><div class="label">Int&eacute;r&ecirc;ts Restants</div></div>
+    <div class="kpi green"><div class="value" id="kpiAmortMilestone1">--</div><div class="label">Crossover Int&eacute;r&ecirc;t/Capital</div></div>
+    <div class="kpi"><div class="value" id="kpiAmortMilestone2">--</div><div class="label">50% CRD Rembours&eacute;</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Bien</th><th class="num">Capital emprunt&eacute;</th><th class="num">Taux</th><th class="num">Dur&eacute;e</th><th class="num">Mensualit&eacute;</th><th class="num">CRD actuel</th><th class="num">Int. pay&eacute;s</th><th class="num">Int. restants</th></tr></thead>
+    <tbody id="amortSummaryTbody"></tbody>
+  </table>
+  <div class="grid2" style="margin-top:16px;">
+    <div class="chart-container" style="height: 300px;"><canvas id="amortChart"></canvas></div>
+    <div></div>
+  </div>
+
+  <!-- FISCALITE -->
+  <h3 style="margin-top:24px;">&#x1F4B0; Fiscalit&eacute; Immobili&egrave;re</h3>
+  <div class="info" style="font-size:12px;margin-bottom:12px;">
+    <strong>R&eacute;sidents fiscaux UAE</strong> — Revenus fonciers de source fran&ccedil;aise : taux minimum 20% (non-r&eacute;sident) + PS 17.2%.<br>
+    Vitry : location nue (micro-foncier, abattement 30%). Rueil + Villejuif : LMNP (micro-BIC, abattement 50%).
+  </div>
+  <table>
+    <thead><tr><th>Bien</th><th>R&eacute;gime</th><th class="num">Loyer d&eacute;clar&eacute;</th><th class="num">Abattement</th><th class="num">Rev. imposable</th><th class="num">IR (20%)</th><th class="num">PS (17.2%)</th><th class="num">Total imp&ocirc;t/an</th><th class="num">Yield net fiscal</th></tr></thead>
+    <tbody id="fiscalTbody"></tbody>
+  </table>
+  <div id="fiscalSummary" class="highlight" style="margin-top:12px;"></div>
+</div>
+
+<!-- IMMOBILIER: ANALYSES DETAILLEES (deplacees de la vue Couple) -->
+<div class="card hidden" data-view="immobilier">
+  <h2><span class="section-icon" style="background: var(--green);">&#x1F4B0;</span>Cash Flow & Strat&eacute;gie Immobili&egrave;re</h2>
+  <div class="info" style="margin-top:10px; font-size:13px;" id="villejuifSimulation"></div>
+  <div class="highlight" style="margin-top: 14px;" id="immoStrategyInsight"></div>
+
+  <h3 style="margin-top: 24px;">Analyse d'autofinancement — Cash Flow reel</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Revenus = loyer HC + charges locataire + parking. Charges = tout ce que le proprietaire paye (pret, copro, assurance, PNO, TF). Cash flow = revenus - charges.</p>
+  <div id="immoCFTable"></div>
+  <div class="success" style="margin-top: 14px;" id="immoCFAnalysis"></div>
+
+  <!-- HYPOTHESES & SOURCES -->
+  <div id="immoMethodologyPanel" style="margin-top:24px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+    <h3 style="margin:0 0 12px 0;font-size:14px;color:var(--accent);">&#x1F4CA; Hypoth&egrave;ses de Valorisation &amp; Sources</h3>
+    <div id="immoMethodologyContent" style="font-size:12px;line-height:1.7;color:#4a5568;"></div>
+  </div>
+
+  <!-- CF PROJECTION 10 ANS -->
+  <h3 style="margin-top: 28px;">Projection Cash Flow — 10 ans</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Cash flow mensuel net par appartement et total combine.</p>
+  <div class="chart-container" style="height: 380px;">
+    <canvas id="cfProjectionChart"></canvas>
+  </div>
+  <table id="cfProjectionTable" style="margin-top:14px;font-size:12px;">
+    <thead>
+      <tr><th>Annee</th><th class="num">Vitry</th><th class="num">Rueil</th><th class="num">Villejuif</th><th class="num" style="background:#f0fff4;color:var(--green)">Total</th></tr>
+    </thead>
+    <tbody id="cfProjectionBody"></tbody>
+  </table>
+</div>
+
+<!-- ============ VUES APPARTEMENTS ============ -->
+<!-- Vitry -->
+<div class="card hidden" data-view="apt_vitry">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3E0;</span>Vitry-sur-Seine — 19 Rue Nathalie Lemel</h2>
+  <div id="aptVitryContent"></div>
+</div>
+
+<!-- Rueil -->
+<div class="card hidden" data-view="apt_rueil">
+  <h2><span class="section-icon" style="background: var(--accent);">&#x1F3E0;</span>Rueil-Malmaison — 21 All&eacute;e des Glycines</h2>
+  <div id="aptRueilContent"></div>
+</div>
+
+<!-- Villejuif -->
+<div class="card hidden" data-view="apt_villejuif">
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Villejuif — 167 Bd Maxime Gorki <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">VEFA</span></h2>
+  <div id="aptVillejuifContent"></div>
+</div>
+
+<!-- ============ VUE CREANCES ============ -->
+<div class="card hidden" data-view="creances">
+  <h2><span class="section-icon" style="background: #cbd5e0;">&#x1F4CB;</span>Cr&eacute;ances & Recouvrements</h2>
+  <div class="kpi-strip" id="kpi-creances" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi"><div class="value" id="kpiCreancesNominal" data-eur="0">--</div><div class="label">Total Nominal</div></div>
+    <div class="kpi green"><div class="value" id="kpiCreancesExpected" data-eur="0">--</div><div class="label">Valeur Attendue</div></div>
+    <div class="kpi" style="border-top-color:var(--green)"><div class="value" id="kpiCreancesGuaranteed" data-eur="0">--</div><div class="label">Garanti</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCreancesUncertain" data-eur="0">--</div><div class="label">Incertain</div></div>
+    <div class="kpi"><div class="value" id="kpiCreancesInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
+  </div>
+  <div class="kpi-insight-bar" id="insight-creances"></div>
+
+  <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
+
+  <h3>D&eacute;tail des Cr&eacute;ances</h3>
+  <table id="creancesTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">Cr&eacute;ance</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="amount">Montant natif</th><th class="num" data-sort="amountEUR">Valeur EUR</th><th class="num" data-sort="probability">Probabilit&eacute;</th><th class="num" data-sort="expectedValue">Valeur attendue</th><th class="num" data-sort="monthlyInflationCost">Inflation /mois</th></tr></thead>
+    <tbody id="creancesDetailTbody"></tbody>
+  </table>
+
+  <h3 style="margin-top:20px;">Garanti vs Incertain</h3>
+  <div id="creancesBar" class="meter-bar" style="height:32px;"></div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-top:4px;">
+    <span>&#x1F7E2; Garanti (recouvrement certain)</span>
+    <span>&#x1F534; Incertain (probabilit&eacute; &lt; 100%)</span>
+  </div>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>Analyse :</strong> Les cr&eacute;ances non-garanties perdent de la valeur chaque mois &agrave; cause de l'inflation. Plus le recouvrement tarde, plus le co&ucirc;t d'opportunit&eacute; augmente. Prioriser par montant x probabilit&eacute;.
+  </div>
+</div>
+
+<!-- ============ VUE BUDGET ============ -->
+<div class="card hidden" data-view="budget">
+  <h2><span class="section-icon" style="background: #e53e3e;">&#x1F4B8;</span>D&eacute;penses Personnelles</h2>
+  <div class="kpi-strip" id="kpi-budget">
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetTotal" data-eur="0">--</div><div class="label">Total Perso /mois</div></div>
+    <div class="kpi"><div class="value" id="kpiBudgetYearly" data-eur="0">--</div><div class="label">Total Perso /an</div></div>
+    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiBudgetDubai" data-eur="0">--</div><div class="label">Dubai</div></div>
+    <div class="kpi" style="border-top-color:#805ad5;"><div class="value" id="kpiBudgetDigital" data-eur="0">--</div><div class="label">Digital + France</div></div>
+  </div>
+
+  <div class="grid2" style="margin-bottom:20px;">
+    <div>
+      <h3>R&eacute;partition par Zone</h3>
+      <div class="chart-container" style="min-height:280px;"><canvas id="budgetZoneChart"></canvas></div>
+    </div>
+    <div>
+      <h3>R&eacute;partition par Type</h3>
+      <div class="chart-container" style="min-height:280px;"><canvas id="budgetTypeChart"></canvas></div>
+    </div>
+  </div>
+
+  <h3>D&eacute;tail des D&eacute;penses Personnelles</h3>
+  <table id="budgetTable">
+    <thead><tr><th data-sort="label" data-sort-type="string">D&eacute;pense</th><th data-sort="zone" data-sort-type="string">Zone</th><th data-sort="type" data-sort-type="string">Type</th><th class="num">Montant natif</th><th data-sort="freq" data-sort-type="string">Fr&eacute;quence</th><th class="num" data-sort="monthlyEUR">EUR /mois</th><th class="num" data-sort="pct">% du total</th></tr></thead>
+    <tbody id="budgetDetailTbody"></tbody>
+  </table>
+
+  <div class="highlight" style="margin-top:14px;">
+    <strong>Analyse :</strong> Ce budget repr&eacute;sente vos d&eacute;penses personnelles fixes. En cas de perte de revenu, c'est le montant minimum &agrave; couvrir chaque mois (hors investissements immo).
+  </div>
+</div>
+
+<!-- ============ VUE BUDGET — INVESTISSEMENT IMMO ============ -->
+<div class="card hidden" data-view="budget">
+  <h2><span class="section-icon" style="background: #2b6cb0;">&#x1F3E0;</span>Charges Investissement Immobilier</h2>
+  <div class="kpi-strip" id="kpi-budget-invest" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetInvestTotal" data-eur="0">--</div><div class="label">Charges /mois</div></div>
+    <div class="kpi green"><div class="value" id="kpiBudgetInvestLoyer" data-eur="0">--</div><div class="label">Loyers /mois</div></div>
+    <div class="kpi" style="border-top-color:var(--green);"><div class="value" id="kpiBudgetInvestCF">--</div><div class="label">Cash-Flow Net</div></div>
+    <div class="kpi"><div class="value" id="kpiBudgetGrandTotal" data-eur="0">--</div><div class="label">Budget Total (perso + immo net)</div></div>
+  </div>
+
+  <div id="budgetInvestDetail"></div>
+
+  <div class="info" style="margin-top:14px;">
+    <strong>Note :</strong> Les charges immo sont couvertes par les loyers. Le cash-flow net repr&eacute;sente ce qui reste apr&egrave;s d&eacute;duction des loyers. Si un bien se retrouve vacant, les charges compl&egrave;tes s'ajoutent &agrave; vos d&eacute;penses.
+  </div>
+</div>
+
+<footer>
+  <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
+  <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
+  <p style="font-size:11px;margin-top:4px;">Taux de change : 1 EUR = <span id="fxDisplay">--</span> <span id="fxTimestamp" style="color:#888;font-style:italic;"></span></p>
+</footer>
+
+</div>
+
+<script type="module" src="js/app.js?v=171"></script>
+
+</body>
+</html>
+
