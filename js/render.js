@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=160';
-import { getGrandTotal } from './engine.js?v=160';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=161';
+import { getGrandTotal } from './engine.js?v=161';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1511,13 +1511,14 @@ function renderActionsView(state) {
   const _twrEl = document.getElementById('kpiActionsTWR');
   if (_twrEl) _twrEl.className = 'value ' + (_twrDisp >= 0 ? 'pl-pos' : 'pl-neg');
 
-  // Period P&L KPIs (Daily, MTD, 1M, YTD)
+  // Period P&L KPIs (Daily, MTD, 1M, YTD, 1Y)
   if (av.periodPL) {
     [
       { id: 'kpiPLDaily', data: av.periodPL.daily },
       { id: 'kpiPLMTD', data: av.periodPL.mtd },
       { id: 'kpiPL1M', data: av.periodPL.oneMonth },
       { id: 'kpiPLYTD', data: av.periodPL.ytd },
+      { id: 'kpiPL1Y', data: av.periodPL.oneYear },
     ].forEach(p => {
       const el = document.getElementById(p.id);
       if (!el) return;
@@ -2053,7 +2054,7 @@ function renderActionsView(state) {
         html += '<div style="margin-bottom:6px;"><strong>\u2705 Points positifs :</strong></div>';
         html += '<div style="margin-left:8px;margin-bottom:8px;">';
         html += '- P/L réalisé cumulé ' + (ins.combinedRealizedPL >= 0 ? '+' : '') + fmt(ins.combinedRealizedPL) + ' montre un historique rentable<br>';
-        if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '% (comparer au MSCI World +6%)<br>';
+        if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '% (comparer au MSCI World +7.5%)<br>';
         if (ins.winRate > 60) html += '- Win rate de ' + ins.winRate.toFixed(0) + '% montre un bon flair de sélection<br>';
         html += '</div>';
         if (recTWR < 0) {
@@ -2061,7 +2062,7 @@ function renderActionsView(state) {
           html += '<div style="margin-left:8px;margin-bottom:8px;">';
           html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — le portefeuille sous-performe le cash<br>';
           html += '- Principalement dû aux drawdowns crypto (BTC/ETH) et luxe (LVMH, Hermès)<br>';
-          html += '- Le stock picking a coûté vs un ETF World (+6% YTD)<br>';
+          html += '- Le stock picking a coûté vs un ETF World (+7.5% YTD en EUR)<br>';
           html += '</div>';
         }
         html += '<div style="margin-bottom:6px;"><strong>\u26A0 Axes d\'am\u00e9lioration :</strong></div>';
@@ -2070,7 +2071,7 @@ function renderActionsView(state) {
         html += '- <strong>Moins de stock picking</strong> : les 14 lignes g\u00e9n\u00e8rent du stress et des commissions. Un c\u0153ur ETF (80%) + satellites stock picking (20%) serait plus efficace<br>';
         html += '- <strong>Strat\u00e9gie DCA</strong> : automatiser des versements mensuels sur 2-3 ETFs plut\u00f4t que du timing de march\u00e9<br>';
         if (ins.currentLosersCount > 2) html += '- <strong>Couper les positions mortes</strong> : ' + ins.currentLosersCount + ' positions \u00e0 -10%+. \u00c9valuer si la th\u00e8se d\'investissement tient toujours<br>';
-        html += '- <strong>Ajouter de l\'or</strong> : 0% d\'exposition, or +21% YTD. Un hedge g\u00e9opolitique (5-10% via GLD/SGOL) am\u00e9liorerait le profil risque<br>';
+        html += '- <strong>Ajouter de l\'or</strong> : 0% d\'exposition, or +61% YTD. Un hedge g\u00e9opolitique (5-10% via GLD/SGOL) am\u00e9liorerait le profil risque<br>';
         html += '- <strong>Pas de tech US directe</strong> : manque d\'exposition aux GAFAM/Magnificent 7 (seulement via ESPP Accenture)<br>';
         html += '</div></div>';
       }
@@ -5257,3 +5258,4 @@ function attachKPIInsights(state, view) {
     });
   });
 }
+
