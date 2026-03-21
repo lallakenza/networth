@@ -1515,9 +1515,10 @@ function renderActionsView(state) {
 
   // Period P&L KPIs (Daily, MTD, 1M, YTD, 1Y)
   if (av.periodPL) {
-    // KPIs that will be overridden by chart-based NAV P&L (more accurate)
-    // Show placeholder for these until chart data arrives, to avoid misleading flash
-    // (static calc = position M2M only, chart calc = full NAV including deposits/cash/FX)
+    // KPIs overridden by chart-based NAV P&L (more accurate than static position M2M).
+    // Show placeholder '–' until chart data arrives. Once chart has set values via
+    // updateKPIsFromChart (app.js), those values are saved in _chartKPIOverrides
+    // and reused here on re-render (e.g. when switching tabs).
     const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD']);
     [
       { id: 'kpiPLDaily', data: av.periodPL.daily },
@@ -1528,9 +1529,19 @@ function renderActionsView(state) {
     ].forEach(p => {
       const el = document.getElementById(p.id);
       if (!el) return;
-      // If this KPI will be overridden by chart data, show placeholder
-      // unless chart data is already available (re-render after chart load)
-      if (chartOverriddenKPIs.has(p.id) && !window._chartKPIData) {
+      if (chartOverriddenKPIs.has(p.id)) {
+        // Check if chart has already computed this value
+        const saved = window._chartKPIOverrides && window._chartKPIOverrides[p.id];
+        if (saved) {
+          // Reuse the chart-computed value (more accurate than static)
+          const v = saved.value;
+          const sign = v >= 0 ? '+' : '';
+          el.textContent = sign + fmt(v);
+          el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+          setSubPct(p.id, saved.pct);
+          return;
+        }
+        // Chart hasn't loaded yet — show placeholder
         el.textContent = '–';
         el.className = 'value';
         setSubPct(p.id, null);

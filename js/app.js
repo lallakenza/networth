@@ -4,7 +4,7 @@
 
 import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=190';
 import { compute } from './engine.js?v=190';
-import { render } from './render.js?v=191';
+import { render } from './render.js?v=192';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
 import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=190';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
@@ -362,9 +362,12 @@ function updateKPIsFromChart(chartData) {
     const sign = v >= 0 ? '+' : '';
     el.textContent = sign + fmt(v);
     el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+    // Save chart-computed value for render.js to reuse on re-render (tab switches)
+    const pct = (refValue && refValue > 0) ? (value / refValue * 100) : null;
+    if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
+    window._chartKPIOverrides[id] = { value: v, pct };
     // Update sub-percentage (class: kpi-sub-pct, set by setSubPct in render.js)
-    if (refValue && refValue > 0) {
-      const pct = value / refValue * 100;
+    if (pct != null) {
       const existing = el.parentElement?.querySelector('.kpi-sub-pct');
       if (existing) existing.remove();
       const span = document.createElement('span');
