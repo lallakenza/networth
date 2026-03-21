@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=153';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=153';
-import { IMMO_CONSTANTS } from './data.js?v=153';
+import { fmt, fmtAxis } from './render.js?v=154';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=154';
+import { IMMO_CONSTANTS } from './data.js?v=154';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1800,13 +1800,18 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (refDates.length === 0) { console.warn('[ytd-chart] No dates'); return; }
 
   // ── Price lookup helpers ──
-  function getClose(ticker, date) {
+  function getClose(ticker, date, allowForward) {
     const td = historicalData.tickers[ticker];
     if (!td) return null;
     const idx = td.dates.indexOf(date);
     if (idx >= 0) return td.closes[idx];
+    // Search backwards for most recent date ≤ target
     for (let i = td.dates.length - 1; i >= 0; i--) {
       if (td.dates[i] <= date) return td.closes[i];
+    }
+    // If allowForward: use first available price (for markets closed on Jan 2, e.g. TSE)
+    if (allowForward && td.closes.length > 0) {
+      return td.closes[0];
     }
     return null;
   }
@@ -1857,15 +1862,23 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── Compute day 1 positions value to derive starting EUR cash ──
+  // Use allowForward=true so positions on markets closed Jan 2 (e.g. TSE → 4911.T)
+  // use their first available 2026 price instead of being excluded from calibration
   let day1PosValue = 0;
   const day1Prices = {};
+  const day1Missing = [];
   Object.entries(ytdStartHoldings).forEach(([ticker, data]) => {
-    const price = getClose(ticker, refDates[0]);
+    const price = getClose(ticker, refDates[0], true); // allowForward for Day 1 calibration
     if (price != null) {
       day1PosValue += data.shares * price / getFxRate(data.currency, refDates[0]);
       day1Prices[ticker] = price;
+    } else {
+      day1Missing.push(ticker);
     }
   });
+  if (day1Missing.length > 0) {
+    console.warn('[ytd-chart] Day 1 calibration: still missing prices for', day1Missing.join(', '));
+  }
 
   const day1FxUSD = getFxRate('USD', refDates[0]);
   const day1FxJPY = getFxRate('JPY', refDates[0]);
