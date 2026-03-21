@@ -1394,6 +1394,10 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
         <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
         <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
       </div>
+      <div id="ytdModeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+        <button data-mode="value" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Valeur</button>
+        <button data-mode="pl" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">P&amp;L</button>
+      </div>
       <div id="ytdPeriodToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
         <button data-period="MTD" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MTD</button>
         <button data-period="1M" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">1M</button>
@@ -1804,7 +1808,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=178"></script>
+<script type="module" src="js/app.js?v=179"></script>
 
 </body>
 </html>

@@ -6,7 +6,7 @@ import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=176';
 import { compute } from './engine.js?v=176';
 import { render } from './render.js?v=176';
 import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=176';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod } from './charts.js?v=178';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=179';
 import { initSimulators, bindSimulatorEvents } from './simulators.js?v=176';
 
 // ---- App state ----
@@ -679,6 +679,8 @@ async function loadStockPrices(forceRefresh) {
             if (scopeResult) updateKPIsFromChart(scopeResult);
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
+            // Re-apply P&L mode if active
+            if (window._ytdDisplayMode === 'pl') switchChartMode('pl');
           });
         });
 
@@ -713,6 +715,23 @@ async function loadStockPrices(forceRefresh) {
             } else {
               redrawChartForPeriod(currentPeriod);
             }
+            // Reset mode toggle to "value" when changing period
+            window._ytdDisplayMode = 'value';
+            document.querySelectorAll('#ytdModeToggle button').forEach(b => {
+              b.style.background = b.dataset.mode === 'value' ? '#2d3748' : '#fff';
+              b.style.color = b.dataset.mode === 'value' ? '#fff' : '#4a5568';
+            });
+          });
+        });
+
+        // Bind Valeur/P&L mode toggle
+        document.querySelectorAll('#ytdModeToggle button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#ytdModeToggle button').forEach(b => {
+              b.style.background = '#fff'; b.style.color = '#4a5568';
+            });
+            btn.style.background = '#2d3748'; btn.style.color = '#fff';
+            switchChartMode(btn.dataset.mode);
           });
         });
       } catch (e) {
