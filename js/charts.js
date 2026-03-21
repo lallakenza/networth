@@ -2503,7 +2503,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         oneMonth: chartBreakdown.oneMonth?.total,
         ytd: chartBreakdown.ytd?.total,
         ytdItems: chartBreakdown.ytd?.breakdown?.length,
+        dates: { prevTradingDay, mtdStartDate, oneMStartDate, ytdStartDate, lastDate },
+        snapNavs: {
+          oneMStart: _simSnapshots[oneMStartDate]?.nav,
+          last: _simSnapshots[lastDate]?.nav,
+          first: _simSnapshots[firstDate]?.nav,
+        },
       });
+      // Expose snapshots for debugging
+      window._simSnapshots = _simSnapshots;
     } else if (mode === '1y') {
       chartBreakdown.oneYear = computePeriodBreakdown(oneYStartDate, lastDate, 'oneYear');
       console.log('[breakdown] 1Y chart breakdown computed:', {
