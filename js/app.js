@@ -442,6 +442,59 @@ function updateKPIsFromChart(chartData) {
     ', div=' + Math.round(window._chartKPIData.ytd.costs.dividendsEUR));
 }
 
+// ---- Update 1Y KPI from 1Y chart data ----
+// Separate from updateKPIsFromChart to avoid corrupting Daily/MTD/YTD
+function update1YKPIFromChart(chartData) {
+  const { labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope } = chartData;
+  if (!labels || labels.length < 2) return;
+
+  const values = scope === 'all' && totalValues.length > 0 ? totalValues : ibkrValues;
+  const n = values.length;
+  const lastNAV = values[n - 1];
+  const firstNAV = values[0]; // NAV at start of 1Y (0 if account didn't exist)
+
+  // Sum all deposits in the period
+  let totalDeposits = 0;
+  for (const [, amount] of Object.entries(depositsByDate)) {
+    totalDeposits += amount;
+  }
+
+  const pl1Y = lastNAV - firstNAV - totalDeposits;
+  const refNAV = firstNAV + totalDeposits; // capital deployed
+  const pct1Y = refNAV > 0 ? (pl1Y / refNAV * 100) : 0;
+
+  // Update the 1Y KPI card
+  const fmt = v => {
+    const abs = Math.abs(Math.round(v));
+    const s = abs.toLocaleString('fr-FR');
+    return (v < 0 ? '-' : '') + s;
+  };
+  const el = document.getElementById('kpiPL1Y');
+  if (el) {
+    const v = Math.round(pl1Y);
+    const sign = v >= 0 ? '+' : '';
+    el.textContent = sign + fmt(v);
+    el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
+    // Update sub-percentage
+    const existing = el.parentElement?.querySelector('.kpi-sub-pct');
+    if (existing) existing.remove();
+    const span = document.createElement('span');
+    span.className = 'kpi-sub-pct';
+    const pSign = pct1Y >= 0 ? '+' : '';
+    span.textContent = pSign + pct1Y.toFixed(1) + '%';
+    span.style.cssText = 'display:block;font-size:12px;font-weight:600;margin-top:2px;color:' + (pct1Y >= 0 ? '#276749' : '#c53030') + ';';
+    el.insertAdjacentElement('afterend', span);
+  }
+
+  // Store on _chartKPIData for render.js detail view
+  if (window._chartKPIData) {
+    window._chartKPIData.oneYear.pl = pl1Y;
+    window._chartKPIData.oneYear.pct = pct1Y;
+  }
+
+  console.log('[kpi-1y] Updated 1Y KPI from chart: P&L=' + Math.round(pl1Y) + ', pct=' + pct1Y.toFixed(1) + '%');
+}
+
 // ---- Stock price loading with progress ----
 let stockRefreshInProgress = false;
 
@@ -657,6 +710,15 @@ async function loadStockPrices(forceRefresh) {
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully');
 
+        // Pre-compute 1Y P&L KPI from 1Y chart data (then rebuild YTD chart to display)
+        const chartResult1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, { mode: '1y' });
+        if (chartResult1Y) update1YKPIFromChart(chartResult1Y);
+        // Rebuild YTD chart (since buildPortfolioYTDChart replaces the canvas)
+        const chartResultYTD2 = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+          mode: 'ytd', startingNAV: 209495
+        });
+        console.log('[app] 1Y KPI computed, YTD chart restored');
+
         // Track current state for toggles
         let currentScope = 'ibkr';
         let currentPeriod = 'YTD';
@@ -677,8 +739,10 @@ async function loadStockPrices(forceRefresh) {
               includeESPP: currentScope === 'all',
               includeSGTM: currentScope === 'all',
             });
-            // Only update KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
+            // Only update Daily/MTD/YTD KPIs from YTD data (1Y has startingNAV=0 + weekly sampling)
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
+            // But always update 1Y KPI from 1Y chart when in 1Y mode
+            if (scopeResult && scopeMode === '1y') update1YKPIFromChart(scopeResult);
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
             // Re-apply P&L mode if active
@@ -698,14 +762,13 @@ async function loadStockPrices(forceRefresh) {
             // Select correct historical data based on period
             if (currentPeriod === '1Y') {
               historicalDataToUse = historicalData1Y;
-              buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+              const result1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
                 includeESPP: currentScope === 'all',
                 includeSGTM: currentScope === 'all',
               });
-              // NOTE: Do NOT call updateKPIsFromChart here — 1Y mode has
-              // startingNAV=0 and weekly sampling, which would corrupt
-              // Daily/MTD/YTD KPI cards. Keep KPIs from YTD chart data.
+              // Only update the 1Y KPI card (not Daily/MTD/YTD which need YTD chart data)
+              if (result1Y) update1YKPIFromChart(result1Y);
             } else if (currentPeriod === 'YTD') {
               historicalDataToUse = historicalDataYTD;
               // Rebuild full YTD chart
