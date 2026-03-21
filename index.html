@@ -1386,6 +1386,10 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
         <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
       </div>
     </div>
+    <div id="ytdScopeToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600;margin-bottom:8px">
+      <button data-scope="ibkr" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">IBKR seul</button>
+      <button data-scope="all" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Tout (IBKR+ESPP+SGTM)</button>
+    </div>
     <!-- Progress bar for historical data loading -->
     <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
       <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">

@@ -1741,6 +1741,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const YTD_START = '2026-01-01';
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  // ── ESPP + SGTM scope options ──
+  const includeESPP = options && options.includeESPP;
+  const includeSGTM = options && options.includeSGTM;
+
   // ── IBKR starting NAV ──
   // From IBKR app: current NAV + abs(YTD loss) = starting NAV
   // Default: 209495 (185261 + 24234 from IBKR screenshot Mar 21, 2026)
@@ -1819,6 +1823,39 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     return currency === 'USD' ? (fxStatic.USD || 1.04) : (fxStatic.JPY || 161);
   }
 
+  // ── SGTM key prices (MAD) - IPO Dec 2025, Casablanca Bourse ──
+  // Sources: TradingView CSEMA:GTM, bmcecapitalbourse.com
+  const SGTM_PRICES = [
+    ['2025-12-16', 462], ['2025-12-20', 750], ['2025-12-26', 989],
+    ['2025-12-31', 550], ['2026-01-02', 462], ['2026-01-15', 500],
+    ['2026-02-01', 550], ['2026-02-15', 650], ['2026-03-01', 700],
+    ['2026-03-13', 690], ['2026-03-16', 696], ['2026-03-18', 730],
+    ['2026-03-19', 720],
+  ];
+  const SGTM_SHARES = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha?.sgtm?.shares || 0);
+  const EURMAD = fxStatic.MAD || 10.85;
+
+  function getSgtmPrice(date) {
+    // Find the key price entry for this date
+    for (let i = 0; i < SGTM_PRICES.length; i++) {
+      if (SGTM_PRICES[i][0] === date) return SGTM_PRICES[i][1];
+    }
+    // Linear interpolation between key prices
+    for (let i = 0; i < SGTM_PRICES.length - 1; i++) {
+      const [date1, price1] = SGTM_PRICES[i];
+      const [date2, price2] = SGTM_PRICES[i + 1];
+      if (date >= date1 && date <= date2) {
+        const d1 = new Date(date1).getTime();
+        const d2 = new Date(date2).getTime();
+        const dCurrent = new Date(date).getTime();
+        const ratio = (dCurrent - d1) / (d2 - d1);
+        return price1 + (price2 - price1) * ratio;
+      }
+    }
+    // Fallback to last known price if date is beyond range
+    return SGTM_PRICES[SGTM_PRICES.length - 1][1];
+  }
+
   // ── Compute day 1 positions value to derive starting EUR cash ──
   let day1PosValue = 0;
   const day1Prices = {};
@@ -1890,6 +1927,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   const chartLabels = [];
   const chartValues = [];
+  const chartValuesTotal = []; // IBKR + ESPP + SGTM
+
+  // Setup ESPP data
+  const ESPP_SHARES = (portfolio.amine.espp?.shares || 0) + (portfolio.nezha?.espp?.shares || 0);
+  const ESPP_CASH_EUR = portfolio.amine.espp?.cashEUR || 0;
+  const ESPP_CASH_USD = portfolio.nezha?.espp?.cashUSD || 0;
 
   for (const date of refDates) {
     // Apply events up to and including this date
@@ -1977,13 +2020,34 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const nav = Math.round(posValue + cashValue);
     chartLabels.push(date);
     chartValues.push(nav);
+
+    // ── Compute ESPP value ──
+    let esppValue = 0;
+    if (includeESPP && ESPP_SHARES > 0) {
+      const acnPrice = getClose('ACN', date);
+      if (acnPrice != null) {
+        esppValue = ESPP_SHARES * acnPrice / getFxRate('USD', date) + ESPP_CASH_EUR + ESPP_CASH_USD / getFxRate('USD', date);
+      }
+    }
+
+    // ── Compute SGTM value ──
+    let sgtmValue = 0;
+    if (includeSGTM && SGTM_SHARES > 0) {
+      const sgtmPrice = getSgtmPrice(date);
+      sgtmValue = SGTM_SHARES * sgtmPrice / EURMAD;
+    }
+
+    // ── Total NAV if including ESPP/SGTM ──
+    const navTotal = Math.round(nav + esppValue + sgtmValue);
+    chartValuesTotal.push(navTotal);
   }
 
   if (chartLabels.length === 0) return;
 
   // ── Chart rendering ──
-  const startValue = chartValues[0];
-  const endValue = chartValues[chartValues.length - 1];
+  const showAll = includeESPP || includeSGTM;
+  const startValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
+  const endValue = showAll && chartValuesTotal.length > 0 ? chartValuesTotal[chartValuesTotal.length - 1] : chartValues[chartValues.length - 1];
   const plEUR = endValue - startValue;
   const plPct = ((endValue / startValue - 1) * 100).toFixed(2);
   const isPositive = plEUR >= 0;
@@ -2002,8 +2066,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const titleEl = document.getElementById('ytdChartTitle');
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
+    const scopeLabel = showAll ? 'IBKR+ESPP+SGTM' : 'IBKR';
     titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-      'Evolution IBKR YTD — <span style="color:' + color + '">' +
+      'Evolution ' + scopeLabel + ' YTD — <span style="color:' + color + '">' +
       (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
   }
   const ytdStartEl = document.getElementById('ytdStartValue');
@@ -2011,33 +2076,54 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
   if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
 
+  // Build datasets: always show IBKR, optionally show Total
+  const datasets = [
+    {
+      label: 'NAV IBKR (EUR)',
+      data: chartValues,
+      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      backgroundColor: showAll ? 'transparent' : gradient,
+      borderWidth: showAll ? 1.5 : 2.5,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      fill: !showAll,
+      tension: 0.3,
+    },
+  ];
+
+  // Add Total NAV line if showing all positions
+  if (showAll && chartValuesTotal.length > 0) {
+    datasets.unshift({
+      label: 'NAV Total (EUR)',
+      data: chartValuesTotal,
+      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      backgroundColor: gradient,
+      borderWidth: 3,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      fill: true,
+      tension: 0.3,
+    });
+  }
+
+  // Add reference line for starting value
+  datasets.push({
+    label: 'NAV 1er jan (' + fmt(startValue) + ')',
+    data: chartValues.map(() => startValue),
+    borderColor: '#a0aec0',
+    borderWidth: 1,
+    borderDash: [6, 4],
+    pointRadius: 0,
+    fill: false,
+  });
+
   charts.portfolioYTD = new Chart(el, {
     type: 'line',
     data: {
       labels: displayLabels,
-      datasets: [
-        {
-          label: 'NAV IBKR (EUR)',
-          data: chartValues,
-          borderColor: isPositive ? '#48bb78' : '#e53e3e',
-          backgroundColor: gradient,
-          borderWidth: 2.5,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-          fill: true,
-          tension: 0.3,
-        },
-        {
-          label: 'NAV 1er jan (' + fmt(startValue) + ')',
-          data: chartValues.map(() => startValue),
-          borderColor: '#a0aec0',
-          borderWidth: 1,
-          borderDash: [6, 4],
-          pointRadius: 0,
-          fill: false,
-        },
-      ],
+      datasets: datasets,
     },
     options: {
       responsive: true,
@@ -2068,11 +2154,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
               return p[2] + '/' + p[1] + '/' + p[0];
             },
             label: item => {
-              if (item.datasetIndex === 1) return 'Ref. 1er jan: ' + fmt(startValue);
+              // Reference line is always the last dataset
+              if (item.datasetIndex === datasets.length - 1) return 'Ref. 1er jan: ' + fmt(startValue);
               const val = item.parsed.y;
               const diff = val - startValue;
               const pct = ((val / startValue - 1) * 100).toFixed(2);
-              return 'NAV: ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
+              const label = showAll && item.datasetIndex === 0 ? 'NAV Total' : 'NAV IBKR';
+              return label + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
             },
           },
         },
