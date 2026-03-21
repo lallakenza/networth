@@ -1,7 +1,7 @@
 # Architecture — Patrimonial Dashboard
 
 > Guide pour IA / développeur qui doit modifier le site.
-> Version courante : **v149** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
+> Version courante : **v158** | Déployé sur GitHub Pages : `lallakenza.github.io/networth/`
 
 ## Principe fondamental
 
@@ -1808,3 +1808,84 @@ redirigent maintenant vers `index.html#apt_*` via meta refresh + JS redirect.
 Les P&L par période (Daily, MTD, 1M, YTD) incluent maintenant le P&L des positions
 complètement vendues pendant la période. `closedPeriodPL()` dans engine.js calcule
 la différence entre les proceeds et la valeur de début de période pour chaque vente.
+
+### YTD Portfolio Evolution Chart (v155–v158)
+
+**Emplacement :** `buildPortfolioYTDChart()` dans `charts.js`, appelé par `app.js`.
+
+**Principe — Simulation calibrée :**
+
+Le chart simule la NAV IBKR jour par jour depuis le 1er janvier 2026 via une approche forward :
+
+1. **Calibration Day 1** : NAV connue au 1er jan (€209,495 depuis IBKR). On calcule la valeur des positions au 2 jan en utilisant les prix `ytdOpen` d'IBKR (stockés dans `data.js positions[].ytdOpen`) avec fallback Yahoo Finance. Le cash EUR de départ est déduit : `cashEUR = startingNAV - positionsValue - cashUSD/fxUSD - cashJPY/fxJPY`.
+
+2. **Forward simulation** : pour chaque jour de bourse, on applique dans l'ordre :
+   - Les événements (achats, ventes, FX trades, dépôts, coûts) triés par date
+   - La valorisation des positions via `getClose(ticker, date, allowForward=true)` (Yahoo Finance historical)
+   - La conversion multi-devises (EUR, USD, JPY) avec taux FX historiques (EURUSD=X, EURJPY=X)
+   - NAV = positionsValue + cashEUR + cashUSD/fxUSD + cashJPY/fxJPY
+
+3. **Coûts IBKR** : les intérêts sur marge, FTT (taxe transactions) et dividendes sont modélisés comme événements `cost` dans `ibkrCostsYTD[]` avec montants en EUR/USD/JPY. Source : relevé IBKR Activity Statement CSV.
+
+4. **Scope toggle** : "IBKR seul" vs "Tout (IBKR+ESPP+SGTM)". Le scope total ajoute ESPP (ACN via Yahoo) et SGTM (prix interpolés linéairement entre points clés). Un seul line est affiché (pas de double courbe).
+
+**Retour de données** : `buildPortfolioYTDChart()` retourne un objet `{ labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope, costItems }` utilisé par `updateKPIsFromChart()` dans app.js.
+
+### KPIs cockpit calculés depuis le chart (v157–v158)
+
+**Problème résolu** : les KPIs (P&L Daily, MTD, 1M, YTD, TWR) étaient calculés par `periodPL()` dans engine.js via une approche per-position qui ignorait le cash FX, le carry trade JPY, les dépôts et les coûts (intérêts, FTT, dividendes). Résultat : YTD affiché -€44K vs IBKR réel -€24K.
+
+**Solution** : `updateKPIsFromChart()` dans app.js override les KPIs en utilisant la série NAV du chart :
+
+| KPI | Formule |
+|-----|---------|
+| P&L Daily | `lastNAV - prevDayNAV - deposits(prevDay→lastDay)` |
+| P&L MTD | `lastNAV - navEndPrevMonth - deposits(prevMonth→lastDay)` |
+| P&L 1M | `lastNAV - nav1MonthAgo - deposits(1MonthAgo→lastDay)` |
+| P&L YTD | `lastNAV - startingNAV - deposits(Jan1→lastDay)` |
+| TWR | `∏(dayNAV[i] / (dayNAV[i-1] + deposit[i])) - 1` (daily-chained) |
+
+Les **pourcentages** sont calculés relativement à la NAV de début de période (pas au total positions), et injectés dynamiquement dans le DOM via `kpi-sub-pct` spans.
+
+**Breakdown détails** : les panneaux P&L (clic sur un KPI) incluent maintenant les coûts IBKR :
+- ⚙ Intérêts marge (EUR + USD + JPY convertis en EUR)
+- ⚙ Taxe transactions (FTT)
+- ⚙ Dividendes nets
+
+Les coûts sont agrégés par période via `aggregateCosts(startDate, endDate)` dans app.js et injectés dans les breakdowns via `appendCostItems()` dans render.js. Ils apparaissent en italique avec icône ⚙ dans la répartition pertes/gains.
+
+**Données source des coûts (ibkrCostsYTD dans charts.js)** :
+
+| Date | Type | EUR | USD | JPY | Label |
+|------|------|-----|-----|-----|-------|
+| 2026-01-06 | Interest | -70.27 | -12.40 | -1,778 | Interest Dec-2025 |
+| 2026-02-04 | Interest | -49.42 | -26.00 | -4,619 | Interest Jan-2026 |
+| 2026-03-04 | Interest | -27.73 | -74.31 | -23,049 | Interest Feb-2026 |
+| 2026-01-16 | FTT | -21.58 | — | — | FTT EDEN |
+| 2026-01-21 | FTT | -55.04 | — | — | FTT BN |
+| 2026-02-18 | Dividend | +37.54 | — | — | Div RMS net |
+
+**Précision vs IBKR** (au 21 mars 2026) :
+
+| Indicateur | Notre calcul | IBKR | Écart |
+|------------|-------------|------|-------|
+| YTD P&L | -€26,435 | -€24,235 | ~€2,200 (Yahoo vs IBKR prices) |
+| TWR | -12.4% | -12.78% | 0.4pp |
+| MTD | -€15,516 | -€18,191 | ~€2,675 |
+
+L'écart résiduel (~1%) provient des différences de prix Yahoo vs IBKR, du timing des taux FX, et de l'arrondi.
+
+### Déploiement via GitHub API (v150+)
+
+Script `deploy_github.py` utilise l'API Git de GitHub (pas git push) pour déployer :
+
+1. GET `/git/ref/heads/main` → SHA du HEAD
+2. GET `/git/commits/{sha}` → SHA du tree
+3. POST `/git/blobs` × N → SHA de chaque fichier (base64)
+4. POST `/git/trees` → nouveau tree avec fichiers modifiés
+5. POST `/git/commits` → nouveau commit
+6. PATCH `/git/refs/heads/main` → avance la ref
+
+Fichiers déployés : `js/data.js`, `js/charts.js`, `js/app.js`, `js/engine.js`, `js/render.js`, `js/simulators.js`, `index.html`.
+
+**Cache-busting** : chaque import utilise `?v=N` (ex: `./data.js?v=158`). Incrémenter N à chaque déploiement. GitHub Pages CDN peut mettre 1–5 min à propager. Hard reload (Ctrl+Shift+R) + `localStorage.clear()` aide.

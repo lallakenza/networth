@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=159';
-import { getGrandTotal } from './engine.js?v=159';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=160';
+import { getGrandTotal } from './engine.js?v=160';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -210,9 +210,10 @@ function renderKPIs(state, view) {
   }
   setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
   setEur('kpiAmVitry', s.amine.vitryEquity);
-  // TWR dynamic from state (was hardcoded)
+  // TWR dynamic from chart data (fallback to engine computation)
   if (s.actionsView) {
-    setText('kpiAmTWR', '+' + s.actionsView.twr.toFixed(1) + '%');
+    const _amTWR = window._chartKPIData?.twr ?? s.actionsView.twr;
+    setText('kpiAmTWR', (_amTWR >= 0 ? '+' : '') + _amTWR.toFixed(1) + '%');
   }
 
   setEur('kpiNzNW', s.nezha.nw);
@@ -617,7 +618,8 @@ function renderDynamicInsights(state, view) {
   if (ibkrBox) {
     const chartTWR2 = window._chartKPIData?.twr;
     const twrBox = chartTWR2 != null ? chartTWR2 : (p.amine.ibkr.meta.twr || 0);
-    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', depots ' + N(p.amine.ibkr.meta.deposits) + '. TWR ' + (twrBox >= 0 ? '+' : '') + twrBox.toFixed(2) + '% YTD.';
+    const ibkrDeps = p.amine.ibkr.meta.deposits || p.amine.ibkr.deposits.reduce((s2, d) => s2 + d.amount, 0);
+    ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', dépôts ' + N(ibkrDeps) + '. TWR ' + (twrBox >= 0 ? '+' : '') + twrBox.toFixed(2) + '% YTD.';
   }
 
   // ── Amine actions insight ──
@@ -628,7 +630,7 @@ function renderDynamicInsights(state, view) {
     // Dynamic insights — compute portfolio projections from actual state
     const ibkrNAV = s.amine.ibkr;
     const twr = window._chartKPIData?.twr ?? (p.amine.ibkr.meta.twr || 0);
-    const deposits = p.amine.ibkr.meta.deposits || 0;
+    const deposits = p.amine.ibkr.meta.deposits || p.amine.ibkr.deposits.reduce((s2, d) => s2 + d.amount, 0);
     const plTotal = ibkrNAV - deposits;
     const plPct = deposits > 0 ? (plTotal / deposits * 100).toFixed(1) : '0';
     // Simple projection: current NAV growing at estimated annual return
@@ -1524,8 +1526,9 @@ function renderActionsView(state) {
       const sign = v >= 0 ? '+' : '';
       el.textContent = sign + fmt(v);
       el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
-      // Add % vs total portfolio
-      const pct = av.totalStocks > 0 ? (p.data.total / av.totalStocks * 100) : 0;
+      // Add % vs period-start NAV (not current total — that inflates/deflates %)
+      const periodStartNAV = av.totalStocks - p.data.total;
+      const pct = periodStartNAV > 0 ? (p.data.total / periodStartNAV * 100) : 0;
       setSubPct(p.id, pct);
     });
   }
@@ -1960,8 +1963,8 @@ function renderActionsView(state) {
   if (combinedEl) combinedEl.classList.add(av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg');
 
   // Metrics
-  setText('actionsCommissions', fmt(av.commissions));
-  setText('actionsDeposits', fmt(av.deposits));
+  setText('actionsCommissions', fmt(Math.abs(av.commissions)));
+  setText('actionsDeposits', fmt(av.totalDeposits));
   setText('actionsNAV', fmt(av.ibkrNAV));
   const _twrMetrics = window._chartKPIData?.twr ?? av.twr;
   setText('actionsTWR', (_twrMetrics >= 0 ? '+' : '') + _twrMetrics.toFixed(1) + '%');
@@ -2017,21 +2020,50 @@ function renderActionsView(state) {
       }
 
       else if (ins.type === 'costs') {
-        html += '<div style="font-size:13px;">Commissions YTD : <strong>' + fmt(ins.commissions) + '</strong> (' + ins.commPct.toFixed(2) + '% du portefeuille)</div>';
-        html += '<div style="font-size:13px;">Dividendes YTD : <strong class="pl-pos">' + fmt(ins.dividends) + '</strong> (rendement ' + ins.divYield.toFixed(2) + '%)</div>';
-        if (ins.commPct > 0.3) {
-          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">Les commissions sont \u00e9lev\u00e9es. Le passage aux ETFs r\u00e9duirait drastiquement les frais de transaction.</div>';
+        // Use chart-computed YTD costs if available, else fallback to engine (all-time) values
+        const chartCosts = window._chartKPIData?.ytd?.costs;
+        const commYTD = chartCosts ? Math.abs(chartCosts.commissionsEUR || ins.commissions) : ins.commissions;
+        const divYTD = chartCosts ? (chartCosts.dividendsEUR || 0) : 0;
+        const interestYTD = chartCosts ? Math.abs(chartCosts.interestEUR || 0) : 0;
+        const fttYTD = chartCosts ? Math.abs(chartCosts.fttEUR || 0) : 0;
+        const totalCostsYTD = commYTD + interestYTD + fttYTD;
+        // Use ibkrNAV (includes cash) as denominator, not just positions
+        const navRef = av.ibkrNAV || av.totalPositionsVal;
+        const commPctNAV = navRef > 0 ? (commYTD / navRef * 100) : 0;
+        html += '<div style="font-size:13px;">Commissions totales : <strong>-' + fmt(ins.commissions) + '</strong> (' + commPctNAV.toFixed(2) + '% de la NAV)</div>';
+        if (chartCosts) {
+          html += '<div style="font-size:13px;">Intérêts marge YTD : <strong class="pl-neg">-' + fmt(interestYTD) + '</strong></div>';
+          if (fttYTD > 0) html += '<div style="font-size:13px;">FTT (taxe transactions) YTD : <strong class="pl-neg">-' + fmt(fttYTD) + '</strong></div>';
+          html += '<div style="font-size:13px;">Dividendes nets YTD : <strong class="pl-pos">' + (divYTD >= 0 ? '+' : '') + fmt(divYTD) + '</strong></div>';
+          html += '<div style="font-size:13px;margin-top:4px;font-weight:600;">Coûts totaux YTD : <strong class="pl-neg">-' + fmt(totalCostsYTD) + '</strong></div>';
+        } else {
+          html += '<div style="font-size:13px;">Dividendes bruts (all-time) : <strong class="pl-pos">+' + fmt(ins.dividends) + '</strong></div>';
+        }
+        if (commPctNAV > 0.3) {
+          html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">Les commissions sont élevées. Le passage aux ETFs réduirait drastiquement les frais de transaction.</div>';
         }
       }
 
       else if (ins.type === 'recommendation') {
+        const recTWR = window._chartKPIData?.twr ?? ins.twr;
         html += '<div style="font-size:13px;line-height:1.6;">';
+        // Show TWR prominently at top
+        html += '<div style="margin-bottom:10px;padding:8px 12px;background:' + (recTWR >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;font-size:14px;">';
+        html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong></div>';
         html += '<div style="margin-bottom:6px;"><strong>\u2705 Points positifs :</strong></div>';
         html += '<div style="margin-left:8px;margin-bottom:8px;">';
-        html += '- P/L r\u00e9alis\u00e9 cumul\u00e9 +' + fmt(ins.combinedRealizedPL) + ' montre un historique rentable<br>';
-        if (ins.twr > 10) html += '- TWR de +' + ins.twr.toFixed(1) + '% (correct mais comparer au MSCI World)<br>';
-        if (ins.winRate > 60) html += '- Win rate de ' + ins.winRate.toFixed(0) + '% montre un bon flair de s\u00e9lection<br>';
+        html += '- P/L réalisé cumulé ' + (ins.combinedRealizedPL >= 0 ? '+' : '') + fmt(ins.combinedRealizedPL) + ' montre un historique rentable<br>';
+        if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '% (comparer au MSCI World +6%)<br>';
+        if (ins.winRate > 60) html += '- Win rate de ' + ins.winRate.toFixed(0) + '% montre un bon flair de sélection<br>';
         html += '</div>';
+        if (recTWR < 0) {
+          html += '<div style="margin-bottom:6px;"><strong style="color:#c53030;">⚠ Performance négative :</strong></div>';
+          html += '<div style="margin-left:8px;margin-bottom:8px;">';
+          html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — le portefeuille sous-performe le cash<br>';
+          html += '- Principalement dû aux drawdowns crypto (BTC/ETH) et luxe (LVMH, Hermès)<br>';
+          html += '- Le stock picking a coûté vs un ETF World (+6% YTD)<br>';
+          html += '</div>';
+        }
         html += '<div style="margin-bottom:6px;"><strong>\u26A0 Axes d\'am\u00e9lioration :</strong></div>';
         html += '<div style="margin-left:8px;">';
         if (ins.francePct > 50) html += '- <strong>R\u00e9duire le biais France</strong> : allouer 50-70% en ETF World (IWDA) pour capturer la croissance US/Asie<br>';
@@ -2045,8 +2077,10 @@ function renderActionsView(state) {
 
       else if (ins.type === 'benchmark') {
         const b = ins.benchmarks;
-        const ibkrYtd = b.ibkr.ytdPct;
-        const totalYtd = b.total.ytdPct;
+        // Use chart-computed YTD % if available (accounts for deposits/FX/cash)
+        const chartYTD = window._chartKPIData?.ytd;
+        const ibkrYtd = chartYTD ? chartYTD.pct : b.ibkr.ytdPct;
+        const totalYtd = chartYTD ? chartYTD.pct : b.total.ytdPct;
         const twr = window._chartKPIData?.twr ?? b.ibkr.twr;
         html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Donn\u00e9es au ' + b.date + '</div>';
         // Portfolio Total line
@@ -2289,7 +2323,12 @@ function setupKPIDetailPanels(state) {
       const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
       const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
       let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
-      footer += ' | Net : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
+      const chartYtdPL = window._chartKPIData?.ytd?.pl;
+      const netTotal = chartYtdPL != null ? chartYtdPL : d.total;
+      footer += ' | Net (positions) : ' + (d.total >= 0 ? '+' : '') + fmt(Math.round(d.total));
+      if (chartYtdPL != null && Math.abs(chartYtdPL - d.total) > 100) {
+        footer += '<br>📊 P&L total (incl. cash/FX/dépôts) : <b>' + (chartYtdPL >= 0 ? '+' : '') + fmt(Math.round(chartYtdPL)) + '</b>';
+      }
       if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
       return renderPLBreakdown(items, d.total, footer);
     },
@@ -2475,14 +2514,14 @@ function setupKPIDetailPanels(state) {
       let html = '<div class="detail-header"><h4>Dividendes & Performance</h4>';
       html += '<div class="detail-summary">TWR ' + (twrVal >= 0 ? '+' : '') + twrVal.toFixed(1) + '% | Dividendes bruts ' + fmt(Math.round(av.dividends)) + '</div></div>';
       html += '<div class="detail-body">';
-      html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus</span><span class="ticker-pl pl-pos">+' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
-      html += '<div class="detail-row"><span class="ticker-label">Commissions payées</span><span class="ticker-pl pl-neg">-' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">Dividendes bruts reçus (all-time)</span><span class="ticker-pl pl-pos">+' + fmt(Math.round(av.dividends)) + '</span><span class="ticker-bar"></span></div>';
+      html += '<div class="detail-row"><span class="ticker-label">Commissions payées (all-time)</span><span class="ticker-pl pl-neg">-' + fmt(Math.round(Math.abs(av.commissions || 0))) + '</span><span class="ticker-bar"></span></div>';
       if (costs) {
         html += '<div class="detail-row"><span class="ticker-label" style="font-style:italic;color:#718096;">⚙ Intérêts marge YTD</span><span class="ticker-pl pl-neg">' + fmt(Math.round(costs.interestEUR)) + '</span><span class="ticker-bar"></span></div>';
         if (costs.fttEUR) html += '<div class="detail-row"><span class="ticker-label" style="font-style:italic;color:#718096;">⚙ Taxe transactions (FTT) YTD</span><span class="ticker-pl pl-neg">' + fmt(Math.round(costs.fttEUR)) + '</span><span class="ticker-bar"></span></div>';
       }
-      const divYield = av.totalStocks > 0 ? (av.dividends / av.totalStocks * 100).toFixed(2) : '0.00';
-      html += '<div class="detail-row"><span class="ticker-label">Yield dividende (brut)</span><span class="ticker-pl">' + divYield + '%</span><span class="ticker-bar"></span></div>';
+      const divYieldAllTime = av.totalStocks > 0 ? (av.dividends / av.totalStocks * 100).toFixed(2) : '0.00';
+      html += '<div class="detail-row"><span class="ticker-label">Yield dividende brut (all-time / NAV actuelle)</span><span class="ticker-pl">' + divYieldAllTime + '%</span><span class="ticker-bar"></span></div>';
       html += '<div class="detail-row"><span class="ticker-label">TWR (performance globale)</span><span class="ticker-pl ' + (twrVal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (twrVal >= 0 ? '+' : '') + twrVal.toFixed(1) + '%</span><span class="ticker-bar"></span></div>';
       html += '</div>';
       html += '<div class="detail-footer">';
