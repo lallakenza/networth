@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 21 mars 2026 (v193)
+> Dernière mise à jour : 22 mars 2026 (v203)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -45,7 +45,7 @@ Couche de données brutes. **Aucune computation.** Contient :
 | `PORTFOLIO.amine.immo` | Immobilier (Vitry — valeur, CRD, loyers) |
 | `PORTFOLIO.amine.vehicles` | Véhicules (Cayenne, Mercedes) |
 | `PORTFOLIO.amine.creances` | Créances (SAP, Malt, loyers impayés, prêts perso) |
-| `PORTFOLIO.amine.degiro` | Compte Degiro fermé (P/L réalisé historique) |
+| `PORTFOLIO.amine.degiro` | Compte Degiro fermé (P/L réalisé, deposits[], dividendes) |
 | `PORTFOLIO.amine.allTrades` | Historique unifié Degiro 2020-2025 |
 | `PORTFOLIO.nezha.*` | Patrimoine Nezha (banques, ESPP, SGTM) |
 | `CASH_YIELDS` | Rendements par compte bancaire |
@@ -208,7 +208,7 @@ Après chaque déploiement, **bumper le numéro** dans :
 3. `render.js` (imports de data, engine)
 4. `charts.js` (imports de render, engine, data)
 
-> **Version actuelle : v193** (mars 2026)
+> **Version actuelle : v203** (mars 2026)
 
 ---
 
@@ -369,6 +369,11 @@ Page load
 | v191 | 21 Mars 2026 | **KPI flash fix** : placeholder "–" pour KPIs chart-overridden avant chargement chart (élimine flash -44K→-29K) |
 | v192 | 21 Mars 2026 | **KPI persistence** : sauvegarde valeurs chart dans `window._chartKPIOverrides`, restauration au re-render (fix "c quoi ce bordel" tab switch) |
 | v193 | 21 Mars 2026 | **Breakdown P&L fix** : soustraction flux de capital (achats/ventes) du M2M position → vrai P&L. Fix Effet FX/Cash (-224K→-1.8K). Fix vue P&L qui switch à Valeur au changement de période |
+| v194-v199 | 21-22 Mars 2026 | Ajout ESPP + SGTM dans le chart d'évolution (4 séries : IBKR, ESPP, SGTM, Total) |
+| v200 | 22 Mars 2026 | **Scope per-platform** : 5 boutons (IBKR, ESPP, Degiro, Maroc, Tous) pour filtrer le chart et les KPIs |
+| v201 | 22 Mars 2026 | Refactor scope : toujours calculer les 4 séries, sélectionner l'affichage via `scope` (pas via `includeESPP`/`includeSGTM`) |
+| v202 | 22 Mars 2026 | Fix `ReferenceError: Cannot access 'scope' before initialization` (temporal dead zone `const`) |
+| v203 | 22 Mars 2026 | **Dépôts Degiro estimés** : 50K dépôts + 101K retrait (capital + P&L). ⚠ Montants fictifs à confirmer |
 
 ---
 
@@ -461,3 +466,215 @@ Le taux historique évite le bug "même montant EUR 3 mois de suite" (avant v190
 | IBKR CSV | €484.12 | Dividends − WHT |
 | data.js costs[] | €485.97 | Somme eurAmount |
 | Écart | €1.85 | Arrondi FX (acceptable) |
+
+---
+
+## 12. Scope System — Chart Multi-Plateforme (v200-v202)
+
+### Concept
+
+Le chart d'évolution NAV affiche 5 périmètres sélectionnables via des boutons toggle :
+
+| Scope | Données affichées | Série utilisée | Plage typique |
+|-------|-------------------|----------------|---------------|
+| `ibkr` | NAV IBKR uniquement | `chartValues` | €185K-€210K |
+| `espp` | Valorisation ESPP (ACN × prix × FX) | `chartValuesESPP` | €38K-€48K |
+| `maroc` | Valorisation SGTM (actions × prix / EURMAD) | `chartValuesSGTM` | €2.7K-€4.3K |
+| `degiro` | Fallback IBKR (pas de positions actives) | `chartValues` | — |
+| `all` | IBKR + ESPP + SGTM combinés | `chartValuesTotal` | €227K-€261K |
+
+### Architecture
+
+Le chart **calcule toujours les 4 séries** (IBKR, ESPP, SGTM, Total) indépendamment du scope. Le scope ne contrôle que **quelle série est affichée**.
+
+```javascript
+// charts.js — Toujours calculées (pas de guards includeESPP/includeSGTM)
+chartValues.push(ibkrNAV);        // IBKR-only
+chartValuesESPP.push(esppValue);  // ESPP-only
+chartValuesSGTM.push(sgtmValue);  // SGTM-only
+chartValuesTotal.push(total);     // Combined
+```
+
+Le scope est passé en option à `buildPortfolioYTDChart()` :
+```javascript
+buildPortfolioYTDChart(PORTFOLIO, historicalData, FX_STATIC, {
+  mode: 'ytd', includeESPP: true, includeSGTM: true, scope: 'maroc'
+});
+```
+
+### Scope et KPIs
+
+Quand on change de scope, les 5 KPI statiques sont aussi mis à jour via `updateStaticKPIsForScope(scope)` dans `app.js` :
+- **Total Actions** : NAV du scope sélectionné
+- **P/L Non-Réalisé** : P/L du scope sélectionné
+- **P/L Réalisé** : P/L réalisé du scope
+- **Dépôts** : Dépôts du scope
+- **Dividendes** : Dividendes du scope
+
+### Reconstruction silencieuse 1Y
+
+Pour calculer le KPI "P&L 1Y", app.js fait un "silent rebuild" :
+1. Build chart 1Y → grab KPI → destroy
+2. Re-build chart actif (MTD/YTD) avec le scope correct
+
+```javascript
+// app.js — Silent 1Y rebuild pour P&L 1Y KPI
+buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+  mode: '1y', includeESPP: true, includeSGTM: true, scope: currentScope
+});
+update1YKPIFromChart();
+// Puis re-build le chart visible
+buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
+  mode: scopeMode, startingNAV: 209495, includeESPP: true, includeSGTM: true, scope: currentScope
+});
+```
+
+### Stockage global
+
+Le chart stocke toutes les séries dans `window._ytdChartFullData` pour le toggle période/mode :
+
+```javascript
+window._ytdChartFullData = {
+  labels, ibkrValues, totalValues, esppValues, sgtmValues,
+  plValuesIBKR, plValuesTotal,
+  cumDepositsAtPoint, cumDepositsAtPointTotal,
+  showAll, includeESPP, includeSGTM, scope,
+  startValue, mode
+};
+```
+
+---
+
+## 13. Dépôts Multi-Plateforme (v203)
+
+### Architecture des dépôts
+
+Les dépôts sont agrégés depuis 4 sources :
+
+| Plateforme | Source dans data.js | Devise | Status |
+|------------|---------------------|--------|--------|
+| **IBKR** | `PORTFOLIO.amine.ibkr.deposits[]` | EUR + AED | ✅ Vérifié (IBKR CSV) |
+| **Degiro** | `PORTFOLIO.amine.degiro.deposits[]` | EUR | ⚠ **Estimé** (50K dépôts, 101K retrait) |
+| **ESPP** | `PORTFOLIO.amine.espp.lots[]` (cost basis) | EUR | ✅ Calculé depuis lots |
+| **SGTM** | IPO cost (inline dans engine.js) | MAD | ✅ Coût IPO |
+
+### Calcul dans engine.js
+
+```javascript
+const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
+```
+
+### ⚠ Données Degiro estimées
+
+Les dépôts/retraits Degiro dans `data.js` sont des **estimations provisoires** :
+- **50K € dépôts** : 2 × 25K (mars et août 2020) — montants fictifs
+- **101K € retrait** : 50K capital + 51K P&L réalisé (avril 2025)
+- **P&L Degiro** : 51 079 € (calculé depuis les emails de confirmation Gmail)
+
+Les emails Degiro ne contiennent PAS les montants des virements. À remplacer dès que les relevés bancaires Boursorama seront retrouvés.
+
+### Impact sur les calculs
+
+- **Engine** : `depositHistory[]` inclut les entrées Degiro (platform: 'Degiro')
+- **Charts** : `allTotalDepositsEUR` inclut les dépôts Degiro pour le P&L total
+- **TWR** : `depositsByDate` inclut les dépôts Degiro pour le Time-Weighted Return
+
+---
+
+## 14. Structure complète du STATE (compute() output)
+
+L'objet STATE retourné par `compute()` contient ~300+ propriétés. Les principales :
+
+```
+STATE = {
+  couple: { nw, assets, liabilities, cashEUR, immoEquity },
+  amine: { nw, portfolio, immoEquity, cashEUR, ... },
+  nezha: { nw, ... },
+  actionsView: {
+    ibkrNAV, ibkrPositions[], totalStocks,
+    esppCurrentVal, nezhaEsppCurrentVal,
+    geoAllocation, sectorAllocation,
+    combinedUnrealizedPL, combinedRealizedPL,
+    totalDeposits, dividends,
+    fttEUR, commissionsEUR, interestEUR, dividendsEUR,
+    degiroRealizedPL, degiroDividendsNet,
+    depositHistory[], degiroDepositsTotal
+  },
+  cashView: { accountsEUR[], totalCash, totalYieldAnnual },
+  immoView: [{ key, equity, loanBalance, monthlyPayment, CF, ... }],
+  creancesView: { items[], totalNominal, totalExpected },
+  budgetView: { expenses[], totalMonthlyEUR, byZone, byType },
+  coupleCategories: [{ label, total, color, sub[] }]
+}
+```
+
+---
+
+## 15. APIs externes et CORS
+
+### Sources de données
+
+| API | Usage | Endpoint | Cache |
+|-----|-------|----------|-------|
+| Yahoo Finance v8 | Prix live + historique | `query1.finance.yahoo.com/v8/finance/chart/{ticker}` | localStorage 10min |
+| Yahoo Finance v6 | Quote (current price) | `query1.finance.yahoo.com/v6/finance/quote` | localStorage 10min |
+| Open Exchange Rates | FX live | `open.er-api.com/v6/latest/EUR` | localStorage 10min |
+| Google Finance | SGTM (Maroc) | `google.com/finance/quote/GTM:CAS` | Fallback leboursier.ma |
+
+### Stratégie CORS
+
+Yahoo Finance bloque les requêtes CORS directes depuis le navigateur. `api.js` utilise 6 proxies en parallèle (`Promise.any`) :
+
+1. Direct (natif)
+2. api.allorigins.win
+3. api.codetabs.com
+4. corsproxy.io
+5. api.cors.lol
+6. thingproxy.freeboard.io
+
+Le premier proxy qui répond gagne. Retry automatique (3 rounds) pour les tickers échoués.
+
+---
+
+## 16. Conventions de code
+
+### Imports avec cache-busting
+
+Chaque import a un paramètre `?v=N`. Après modification d'un fichier, bumper le `?v=N` dans :
+- `index.html` : `<script src="js/app.js?v=N">`
+- `app.js` : tous les imports
+- Les fichiers qui importent le module modifié
+
+### Variables globales (window._*)
+
+| Variable | Module | Usage |
+|----------|--------|-------|
+| `window._appRefresh` | app.js | Callback refresh global |
+| `window._state` | app.js | STATE courant |
+| `window._actionsView` | app.js | Vue actions pour scope toggle |
+| `window._ytdChartFullData` | charts.js | Données complètes du chart (4 séries + scope) |
+| `window._ytdDisplayMode` | charts.js | 'value' ou 'pl' |
+| `window._chartKPIData` | charts.js | KPIs calculés depuis le chart |
+| `window._chartKPIOverrides` | app.js | Persistance KPIs chart (évite flash au tab switch) |
+| `window._simSnapshots` | charts.js | Snapshots jour-par-jour pour breakdown |
+| `window._refreshActiveBreakdown` | render.js | Re-render panel breakdown ouvert |
+
+### Montants
+
+- **Devise native** dans data.js (jamais de conversion)
+- **EUR** partout dans engine.js, render.js, charts.js (via `toEUR()`)
+- **Arrondis** : `Math.round()` pour les montants affichés
+- **Négatif** = retrait ou coût (ex: `amount: -45000` = retrait)
+
+### Trades
+
+```javascript
+// Format standard
+{ date, ticker, label, type: 'buy'|'sell', qty, price, currency,
+  cost|proceeds, realizedPL, commission, costBasis, source: 'ibkr'|'degiro'|'espp',
+  yahooTicker?, splitFactor?, note? }
+```
+
+- `source` indique la plateforme d'origine
+- `commission` est en devise native du trade (pas en EUR)
+- FTT n'est PAS dans commission — calculée par engine.js
