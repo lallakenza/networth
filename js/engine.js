@@ -236,6 +236,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     addDeposit(d.date, d.label || 'Dépôt IBKR', 'Amine', 'IBKR', d.amount, d.currency, d.fxRateAtDate || 1);
   });
 
+  // 1b. Degiro deposits (Amine) — compte clôturé avril 2025
+  // ⚠ Montants estimés — à remplacer avec les vrais relevés Boursorama
+  const degiro = portfolio.amine.degiro || {};
+  (degiro.deposits || []).forEach(d => {
+    addDeposit(d.date, d.label || 'Dépôt Degiro', 'Amine', 'Degiro', d.amount, d.currency, d.fxRateAtDate || 1);
+  });
+
   // 2. ESPP lots (Amine) — contribution from French salary in EUR
   // The ESPP buys ACN in USD, but the employee contributes from EUR salary
   // So the deposit is recorded in EUR (what was actually deducted from pay)
@@ -269,9 +276,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   depositHistory.sort((a, b) => a.date.localeCompare(b.date));
 
   const ibkrDepositsTotal = depositHistory.filter(d => d.platform === 'IBKR').reduce((s, d) => s + d.amountEUR, 0);
+  const degiroDepositsTotal = depositHistory.filter(d => d.platform === 'Degiro').reduce((s, d) => s + d.amountEUR, 0);
   const esppDeposits = esppCostBasisEUR + nezhaEsppCostBasisEUR;
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
-  const totalDeposits = ibkrDepositsTotal + esppDeposits + sgtmDepositsEUR;
+  const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
   // Cross-platform combined unrealized P/L (includes SGTM)
   const sgtmCostEUR = toEUR((portfolio.amine.sgtm.shares + (portfolio.nezha.sgtm?.shares || 0)) * (m.sgtmCostBasisMAD || 420), 'MAD', fx);
