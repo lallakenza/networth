@@ -238,7 +238,6 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // 1b. Degiro deposits (Amine) — compte clôturé avril 2025
   // ⚠ Montants estimés — à remplacer avec les vrais relevés Boursorama
-  const degiro = portfolio.amine.degiro || {};
   (degiro.deposits || []).forEach(d => {
     addDeposit(d.date, d.label || 'Dépôt Degiro', 'Amine', 'Degiro', d.amount, d.currency, d.fxRateAtDate || 1);
   });
