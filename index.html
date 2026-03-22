@@ -888,23 +888,18 @@
       }
     }
 
-    // ── Fill order: bottom-up, row by row, with slight wave effect ──
-    // Like water rising: bottom row fills first, then next row up, etc.
-    // Within each row, squares fill from center outward (like liquid spreading)
+    // ── Fill order: snake pattern (bottom-up, alternating direction per row) ──
+    // Row 24 (bottom): right → left, Row 23: left → right, Row 22: right → left, etc.
     function buildFillOrder() {
       const order = [];
+      let leftToRight = false; // bottom row starts right-to-left
       for (let r = ROWS - 1; r >= 0; r--) {
-        // Build column order: center-out with slight randomness
-        const mid = COLS / 2;
-        const colOrder = [];
-        for (let c = 0; c < COLS; c++) {
-          const distFromCenter = Math.abs(c - mid + 0.5);
-          colOrder.push({ c, dist: distFromCenter + Math.random() * 2 });
+        if (leftToRight) {
+          for (let c = 0; c < COLS; c++) order.push({ r, c });
+        } else {
+          for (let c = COLS - 1; c >= 0; c--) order.push({ r, c });
         }
-        colOrder.sort((a, b) => a.dist - b.dist);
-        for (const co of colOrder) {
-          order.push({ r, c: co.c });
-        }
+        leftToRight = !leftToRight;
       }
       return order;
     }
@@ -923,8 +918,8 @@
     }, 300);
 
     let filled = 0;
-    const BATCH_SIZE = 5;
-    const INTERVAL = 30;
+    const BATCH_SIZE = 2;
+    const INTERVAL = 12;
     let highestFilledRow = ROWS; // track the waterline
 
     function formatEur(n) {
@@ -2083,7 +2078,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=208"></script>
+<script type="module" src="js/app.js?v=209"></script>
 
 </body>
 </html>
