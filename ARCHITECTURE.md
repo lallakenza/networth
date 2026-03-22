@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 22 mars 2026 (v203)
+> Dernière mise à jour : 22 mars 2026 (v210)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -208,7 +208,7 @@ Après chaque déploiement, **bumper le numéro** dans :
 3. `render.js` (imports de data, engine)
 4. `charts.js` (imports de render, engine, data)
 
-> **Version actuelle : v203** (mars 2026)
+> **Version actuelle : v210** (mars 2026)
 
 ---
 
@@ -374,6 +374,12 @@ Page load
 | v201 | 22 Mars 2026 | Refactor scope : toujours calculer les 4 séries, sélectionner l'affichage via `scope` (pas via `includeESPP`/`includeSGTM`) |
 | v202 | 22 Mars 2026 | Fix `ReferenceError: Cannot access 'scope' before initialization` (temporal dead zone `const`) |
 | v203 | 22 Mars 2026 | **Dépôts Degiro estimés** : 50K dépôts + 101K retrait (capital + P&L). ⚠ Montants fictifs à confirmer |
+| v204-v205 | 22 Mars 2026 | Fix imports cross-modules : aligner toutes les versions `?v=` dans charts.js, render.js, app.js pour éviter le chargement double (SyntaxError `Identifier already declared`) |
+| v206 | 22 Mars 2026 | **Animation auth page** : grille 1000 carrés (40×25) représentant 1M€, remplissage spiral avec compteur animé |
+| v207 | 22 Mars 2026 | Refactor animation : remplissage bottom-up (eau qui monte) au lieu de spiral, dégradé vert profondeur→surface |
+| v208 | 22 Mars 2026 | Animation plus lente (BATCH_SIZE 12→5, INTERVAL 10→30ms) + color-shift organique après remplissage (palette vert/teal, sin wave) |
+| v209 | 22 Mars 2026 | Pattern Snake : remplissage en serpentin (droite→gauche puis gauche→droite alternant par rangée), BATCH_SIZE=2, INTERVAL=12ms |
+| v210 | 22 Mars 2026 | **Degiro chart grey-out** : scope 'degiro' affiche un placeholder grisé avec hachures au lieu de données IBKR incorrectes. Message "Compte clôturé". Appliqué aux 3 fonctions chart |
 
 ---
 
@@ -678,3 +684,69 @@ Chaque import a un paramètre `?v=N`. Après modification d'un fichier, bumper l
 - `source` indique la plateforme d'origine
 - `commission` est en devise native du trade (pas en EUR)
 - FTT n'est PAS dans commission — calculée par engine.js
+
+---
+
+## 17. Animation Auth Page — Grille 1M€ (v206-v209)
+
+La page d'authentification (mot de passe) affiche une animation de 1000 petits carrés représentant 1 000 000 € de net worth cible.
+
+### Structure
+
+- **Grille CSS** : 40 colonnes × 25 rangées = 1 000 carrés, gap 1px
+- **Canvas overlay** : compteur EUR animé, label "sur € 1 000 000", pourcentage
+- **Valeur portfolio** : `PORTFOLIO_EUR = 665970` → remplit 666 carrés sur 1000 (66.6%)
+
+### Pattern de remplissage (v209 — Snake)
+
+Remplissage en serpentin bottom-up :
+- Rangée 24 (bas) : droite → gauche
+- Rangée 23 : gauche → droite
+- Rangée 22 : droite → gauche, etc.
+
+Paramètres : `BATCH_SIZE = 2`, `INTERVAL = 12ms`
+
+### Dégradé de couleur
+
+Chaque rangée reçoit une couleur basée sur sa "profondeur" (distance depuis la surface de l'eau) :
+- Fond (profond) : `#1a5c3a` vert très foncé
+- Surface (haut) : `#6ee7a0` vert clair / mousse
+
+### Effets post-remplissage
+
+1. **Surface wave** : oscillation `scaleY` sur les 2 rangées du haut via Web Animations API (infinite, 2400ms)
+2. **Color shift** : tous les carrés remplis changent continuellement de couleur via `requestAnimationFrame` — interpolation sin() à travers une palette de 11 teintes vert/teal, avec offset aléatoire par carré pour un effet organique
+
+### Mise à jour de la valeur
+
+La constante `PORTFOLIO_EUR` dans index.html doit être mise à jour manuellement quand le net worth change significativement.
+
+---
+
+## 18. Degiro Chart Grey-Out (v210)
+
+Le compte Degiro est clôturé (avril 2025) et n'a pas de données NAV historiques. Au lieu d'afficher les données IBKR par erreur (ce qui donnait un graphique faux), le scope 'degiro' affiche un placeholder grisé.
+
+### Implémentation
+
+Le grey-out est appliqué dans **3 fonctions** de `charts.js` :
+
+1. `buildPortfolioYTDChart()` — construction initiale du chart (mode YTD ou 1Y)
+2. `redrawChartForPeriod()` — changement de période (MTD, 1M, 3M, YTD, 1Y)
+3. `switchChartMode()` — switch Valeur ↔ P&L
+
+### Rendu
+
+- **Titre** : "Evolution Degiro — Compte clôturé" (icône grise)
+- **NAV** : "—" pour début et fin de période
+- **Canvas** : fond `#f5f5f4`, hachures diagonales `#e7e5e4` (espacement 20px)
+- **Texte central** : "Compte Degiro clôturé — Pas de données historiques" + "P/L réalisé : +€ 51 079"
+- **Chart.js** : le chart existant est détruit (`charts.portfolioYTD.destroy()`) et le canvas est dessiné manuellement via l'API Canvas 2D
+
+### KPIs associés
+
+Les KPIs sous le chart affichent correctement pour le scope Degiro :
+- Total Actions : € 0 (compte vide)
+- P/L Non Réalisé : +€ 0
+- P/L Réalisé : +€ 51 079 (bénéfice Degiro)
+- Total Déposé : € 0 (les dépôts estimés nets sont à 0 car 50K déposés - 101K retirés = net négatif)
