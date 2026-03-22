@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=205';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=205';
-import { IMMO_CONSTANTS } from './data.js?v=205';
+import { fmt, fmtAxis } from './render.js?v=210';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=210';
+import { IMMO_CONSTANTS } from './data.js?v=210';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2694,12 +2694,50 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       mainLabel = 'NAV Maroc (EUR)';
       scopeLabel = 'Maroc';
       break;
-    case 'degiro':
-      // Degiro has no active positions — fall back to IBKR view
-      mainData = chartValues;
-      mainLabel = 'NAV Degiro (EUR)';
+    case 'degiro': {
+      // Degiro account is closed — no historical NAV data available
+      // Grey out the chart area instead of showing misleading data
       scopeLabel = 'Degiro';
-      break;
+      const titleEl = document.getElementById('ytdChartTitle');
+      if (titleEl) {
+        titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
+          'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
+      }
+      const ytdStartEl = document.getElementById('ytdStartValue');
+      const ytdEndEl = document.getElementById('ytdEndValue');
+      if (ytdStartEl) ytdStartEl.textContent = '—';
+      if (ytdEndEl) ytdEndEl.textContent = '—';
+      // Destroy existing chart and show grey placeholder
+      if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+      const ctx = el.getContext('2d');
+      ctx.clearRect(0, 0, el.width, el.height);
+      // Draw greyed-out background
+      const w = el.clientWidth || el.width;
+      const h = el.clientHeight || el.height;
+      el.width = w * (window.devicePixelRatio || 1);
+      el.height = h * (window.devicePixelRatio || 1);
+      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      ctx.fillStyle = '#f5f5f4';
+      ctx.fillRect(0, 0, w, h);
+      // Draw diagonal lines pattern
+      ctx.strokeStyle = '#e7e5e4';
+      ctx.lineWidth = 1;
+      for (let i = -h; i < w + h; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + h, h);
+        ctx.stroke();
+      }
+      // Center message
+      ctx.fillStyle = '#78716c';
+      ctx.font = '600 16px "DM Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Compte Degiro clôturé — Pas de données historiques', w / 2, h / 2 - 12);
+      ctx.font = '400 13px "DM Sans", sans-serif';
+      ctx.fillText('P/L réalisé : +€ 51 079', w / 2, h / 2 + 14);
+      return;
+    }
     case 'all':
       mainData = chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
       mainLabel = 'NAV Total (EUR)';
@@ -2954,11 +2992,45 @@ export function redrawChartForPeriod(period) {
       mainLabel = 'NAV Maroc (EUR)';
       scopeLabel = 'Maroc';
       break;
-    case 'degiro':
-      mainData = slicedIBKR;
-      mainLabel = 'NAV Degiro (EUR)';
+    case 'degiro': {
+      // Degiro account is closed — grey out chart
       scopeLabel = 'Degiro';
-      break;
+      const titleEl2 = document.getElementById('ytdChartTitle');
+      if (titleEl2) {
+        titleEl2.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
+          'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
+      }
+      const ytdStartEl2 = document.getElementById('ytdStartValue');
+      const ytdEndEl2 = document.getElementById('ytdEndValue');
+      if (ytdStartEl2) ytdStartEl2.textContent = '—';
+      if (ytdEndEl2) ytdEndEl2.textContent = '—';
+      if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+      const ctx2 = el.getContext('2d');
+      ctx2.clearRect(0, 0, el.width, el.height);
+      const w2 = el.clientWidth || el.width;
+      const h2 = el.clientHeight || el.height;
+      el.width = w2 * (window.devicePixelRatio || 1);
+      el.height = h2 * (window.devicePixelRatio || 1);
+      ctx2.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      ctx2.fillStyle = '#f5f5f4';
+      ctx2.fillRect(0, 0, w2, h2);
+      ctx2.strokeStyle = '#e7e5e4';
+      ctx2.lineWidth = 1;
+      for (let i = -h2; i < w2 + h2; i += 20) {
+        ctx2.beginPath();
+        ctx2.moveTo(i, 0);
+        ctx2.lineTo(i + h2, h2);
+        ctx2.stroke();
+      }
+      ctx2.fillStyle = '#78716c';
+      ctx2.font = '600 16px "DM Sans", sans-serif';
+      ctx2.textAlign = 'center';
+      ctx2.textBaseline = 'middle';
+      ctx2.fillText('Compte Degiro clôturé — Pas de données historiques', w2 / 2, h2 / 2 - 12);
+      ctx2.font = '400 13px "DM Sans", sans-serif';
+      ctx2.fillText('P/L réalisé : +€ 51 079', w2 / 2, h2 / 2 + 14);
+      return;
+    }
     case 'all':
       mainData = slicedTotal.length > 0 ? slicedTotal : slicedIBKR;
       mainLabel = 'NAV Total (EUR)';
@@ -3106,6 +3178,45 @@ export function switchChartMode(displayMode) {
     case 'ibkr': default: scopeLabel = 'IBKR'; break;
   }
 
+  // ── Degiro: grey out chart (closed account, no historical data) ──
+  if (scope === 'degiro') {
+    const titleEl = document.getElementById('ytdChartTitle');
+    if (titleEl) {
+      titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
+        'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
+    }
+    const ytdStartEl = document.getElementById('ytdStartValue');
+    const ytdEndEl = document.getElementById('ytdEndValue');
+    if (ytdStartEl) ytdStartEl.textContent = '—';
+    if (ytdEndEl) ytdEndEl.textContent = '—';
+    if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+    const ctxD = el.getContext('2d');
+    ctxD.clearRect(0, 0, el.width, el.height);
+    const wD = el.clientWidth || el.width;
+    const hD = el.clientHeight || el.height;
+    el.width = wD * (window.devicePixelRatio || 1);
+    el.height = hD * (window.devicePixelRatio || 1);
+    ctxD.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    ctxD.fillStyle = '#f5f5f4';
+    ctxD.fillRect(0, 0, wD, hD);
+    ctxD.strokeStyle = '#e7e5e4';
+    ctxD.lineWidth = 1;
+    for (let i = -hD; i < wD + hD; i += 20) {
+      ctxD.beginPath();
+      ctxD.moveTo(i, 0);
+      ctxD.lineTo(i + hD, hD);
+      ctxD.stroke();
+    }
+    ctxD.fillStyle = '#78716c';
+    ctxD.font = '600 16px "DM Sans", sans-serif';
+    ctxD.textAlign = 'center';
+    ctxD.textBaseline = 'middle';
+    ctxD.fillText('Compte Degiro clôturé — Pas de données historiques', wD / 2, hD / 2 - 12);
+    ctxD.font = '400 13px "DM Sans", sans-serif';
+    ctxD.fillText('P/L réalisé : +€ 51 079', wD / 2, hD / 2 + 14);
+    return;
+  }
+
   // ── Select the right data series based on scope and display mode ──
   let mainData, refValue, mainLabel;
   if (isPLMode) {
@@ -3126,7 +3237,6 @@ export function switchChartMode(displayMode) {
       case 'all':
         mainData = data.totalValues.length > 0 ? data.totalValues : data.ibkrValues;
         break;
-      case 'degiro':
       case 'ibkr':
       default:
         mainData = data.ibkrValues;
