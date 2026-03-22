@@ -505,6 +505,18 @@ export const PORTFOLIO = {
       closed: true,
       closedDate: '2025-04-14',
       totalRealizedPL: 51079,  // EUR total P/L Degiro
+      // ⚠ ESTIMATIONS PROVISOIRES — Dépôts & Retraits Degiro
+      // Les montants ci-dessous sont des estimations fictives en attendant
+      // de retrouver les relevés bancaires Degiro exacts (Boursorama).
+      // Les emails Degiro ne contiennent PAS les montants des virements.
+      // À remplacer dès que les infos exactes seront disponibles.
+      deposits: [
+        // Dépôts estimés (capital investi sur Degiro 2020-2021)
+        { date: '2020-03-15', amount: 25000, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Dépôt Degiro estimé #1 (à confirmer)' },
+        { date: '2020-08-01', amount: 25000, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Dépôt Degiro estimé #2 (à confirmer)' },
+        // Retraits estimés (capital + P&L récupérés après clôture)
+        { date: '2025-04-14', amount: -101079, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Retrait Degiro estimé (50K capital + 51K P&L) (à confirmer)' },
+      ],
       // Dividends from Degiro annual reports (EUR)
       dividends: {
         2021: { gross: 242.52, withholding: 48.33, net: 194.19 },

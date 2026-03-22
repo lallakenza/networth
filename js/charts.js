@@ -2294,6 +2294,17 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       allTotalDepositsEUR[lot.date] = (allTotalDepositsEUR[lot.date] || 0) + costEUR;
     });
 
+  // ── 2b. Degiro deposits/withdrawals (for Total P&L) ──
+  // ⚠ Montants estimés — à remplacer avec les vrais relevés Boursorama
+  (portfolio.amine.degiro?.deposits || [])
+    .filter(d => d.date > START_DATE && d.date <= todayStr)
+    .forEach(d => {
+      const amtEUR = (d.currency && d.currency !== 'EUR')
+        ? d.amount / (d.fxRateAtDate || 1)
+        : d.amount;
+      allTotalDepositsEUR[d.date] = (allTotalDepositsEUR[d.date] || 0) + amtEUR;
+    });
+
   // ── 3. SGTM acquisition costs (for Total P&L) ──
   // SGTM IPO Dec 2025 — all shares acquired at sgtmCostBasisMAD
   const sgtmCostMAD = portfolio.market?.sgtmCostBasisMAD || 0;
@@ -2854,11 +2865,21 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // ── Track deposits by date for TWR / KPI computation ──
   // Convert all deposits to EUR for TWR calculation
   const depositsByDate = {};
+  // IBKR deposits
   (portfolio.amine.ibkr.deposits || [])
     .filter(d => d.date >= START_DATE && d.date <= todayStr)
     .forEach(d => {
       const amountEUR = (d.currency && d.currency !== 'EUR')
         ? d.amount / (d.fxRateAtDate || 1)  // convert AED/USD to EUR
+        : d.amount;
+      depositsByDate[d.date] = (depositsByDate[d.date] || 0) + amountEUR;
+    });
+  // Degiro deposits/withdrawals (⚠ estimés — à confirmer)
+  (portfolio.amine.degiro?.deposits || [])
+    .filter(d => d.date >= START_DATE && d.date <= todayStr)
+    .forEach(d => {
+      const amountEUR = (d.currency && d.currency !== 'EUR')
+        ? d.amount / (d.fxRateAtDate || 1)
         : d.amount;
       depositsByDate[d.date] = (depositsByDate[d.date] || 0) + amountEUR;
     });
