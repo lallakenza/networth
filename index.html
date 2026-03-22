@@ -850,103 +850,136 @@
   <script>
   (function() {
     // ── Config ──
-    const TOTAL_SQUARES = 1000;       // 40 cols × 25 rows
-    const TARGET_EUR = 1000000;       // €1M goal
-    const PORTFOLIO_EUR = 665970;     // Current portfolio value (couple NW)
+    const COLS = 40, ROWS = 25;
+    const TOTAL_SQUARES = COLS * ROWS;  // 1000
+    const TARGET_EUR = 1000000;
+    const PORTFOLIO_EUR = 665970;
     const FILL_COUNT = Math.round((PORTFOLIO_EUR / TARGET_EUR) * TOTAL_SQUARES);
 
-    // ── Color palette (Anthropic-inspired) ──
-    const EMPTY_COLOR = 'rgba(255,255,255,0.04)';
-    const COLORS = [
-      '#1a5c3a', '#1e6b42', '#22804e', '#27965a',  // greens (low)
-      '#2dac66', '#34c276', '#4ade80', '#6ee7a0',  // greens (mid)
-      '#a3f0c0', '#d1fae5',                        // greens (high)
-      '#d97757', '#e8956e',                         // accent orange (top values)
-    ];
+    // ── Color palette: water-level gradient (deep → surface → foam) ──
+    const EMPTY_COLOR = 'rgba(255,255,255,0.035)';
 
-    function getColor(idx, total) {
-      const pct = idx / total;
-      if (pct < 0.6) return COLORS[Math.floor(pct / 0.6 * 4)];
-      if (pct < 0.85) return COLORS[4 + Math.floor((pct - 0.6) / 0.25 * 4)];
-      if (pct < 0.95) return COLORS[8 + Math.floor((pct - 0.85) / 0.1 * 2)];
-      return COLORS[10 + Math.floor((pct - 0.95) / 0.05 * 2)];
+    // Row gets a color based on its "depth" (0 = bottom = darkest, 1 = surface = brightest)
+    function getRowColor(row, waterlineRow) {
+      // row = grid row (0=top, 24=bottom). waterlineRow = highest filled row.
+      // depth: 0 = at waterline (surface), 1 = at bottom (deep)
+      const depth = (row - waterlineRow) / (ROWS - waterlineRow);
+      // Surface shimmer for topmost 2 rows
+      if (depth < 0.08) return '#6ee7a0';  // bright green foam
+      if (depth < 0.15) return '#4ade80';
+      if (depth < 0.25) return '#34c276';
+      if (depth < 0.40) return '#2dac66';
+      if (depth < 0.55) return '#27965a';
+      if (depth < 0.70) return '#22804e';
+      if (depth < 0.85) return '#1e6b42';
+      return '#1a5c3a';                     // deep green at bottom
     }
 
     // ── Build grid ──
     const grid = document.getElementById('milGrid');
-    const squares = [];
-    for (let i = 0; i < TOTAL_SQUARES; i++) {
-      const sq = document.createElement('div');
-      sq.style.cssText = 'background:' + EMPTY_COLOR + ';transition:background 0.3s,transform 0.3s;border-radius:1px;';
-      grid.appendChild(sq);
-      squares.push(sq);
-    }
-
-    // ── Fill order: spiral from center outward ──
-    const COLS = 40, ROWS = 25;
-    function spiralOrder() {
-      const visited = new Array(TOTAL_SQUARES).fill(false);
-      const order = [];
-      const cx = COLS / 2, cy = ROWS / 2;
-
-      // Sort all indices by distance from center (closest first)
-      const indices = [];
-      for (let i = 0; i < TOTAL_SQUARES; i++) {
-        const x = i % COLS, y = Math.floor(i / COLS);
-        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-        // Add slight randomness for organic feel
-        indices.push({ i, dist: dist + (Math.random() * 1.5) });
+    const squares = [];  // 2D: squares[row][col]
+    for (let r = 0; r < ROWS; r++) {
+      squares[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        const sq = document.createElement('div');
+        sq.style.cssText = 'background:' + EMPTY_COLOR + ';border-radius:1px;transition:background 0.4s ease-out, transform 0.25s ease-out;';
+        grid.appendChild(sq);
+        squares[r][c] = sq;
       }
-      indices.sort((a, b) => a.dist - b.dist);
-      return indices.map(o => o.i);
     }
 
-    const fillOrder = spiralOrder();
+    // ── Fill order: bottom-up, row by row, with slight wave effect ──
+    // Like water rising: bottom row fills first, then next row up, etc.
+    // Within each row, squares fill from center outward (like liquid spreading)
+    function buildFillOrder() {
+      const order = [];
+      for (let r = ROWS - 1; r >= 0; r--) {
+        // Build column order: center-out with slight randomness
+        const mid = COLS / 2;
+        const colOrder = [];
+        for (let c = 0; c < COLS; c++) {
+          const distFromCenter = Math.abs(c - mid + 0.5);
+          colOrder.push({ c, dist: distFromCenter + Math.random() * 2 });
+        }
+        colOrder.sort((a, b) => a.dist - b.dist);
+        for (const co of colOrder) {
+          order.push({ r, c: co.c });
+        }
+      }
+      return order;
+    }
 
-    // ── Animate fill ──
+    const fillOrder = buildFillOrder();
+
+    // ── Animate ──
     const counter = document.getElementById('gridCounter');
     const label = document.getElementById('gridLabel');
     const pctEl = document.getElementById('gridPct');
 
-    // Show overlay text
     setTimeout(() => {
       counter.style.opacity = '1';
       label.style.opacity = '1';
       pctEl.style.opacity = '1';
     }, 300);
 
-    // Animate squares with staggered timing
     let filled = 0;
-    const BATCH_SIZE = 8;  // Fill 8 squares per frame for speed
-    const INTERVAL = 12;    // ms between batches
+    const BATCH_SIZE = 12;
+    const INTERVAL = 10;
+    let highestFilledRow = ROWS; // track the waterline
 
     function formatEur(n) {
       return '€ ' + Math.round(n).toLocaleString('fr-FR');
     }
 
+    // Recolor all filled squares when waterline rises (gradient shifts)
+    function recolorAll() {
+      for (let r = ROWS - 1; r >= highestFilledRow; r--) {
+        const color = getRowColor(r, highestFilledRow);
+        for (let c = 0; c < COLS; c++) {
+          if (squares[r][c]._filled) {
+            squares[r][c].style.background = color;
+          }
+        }
+      }
+    }
+
     function animateStep() {
       if (filled >= FILL_COUNT) {
-        // Final state
         counter.textContent = formatEur(PORTFOLIO_EUR);
         pctEl.textContent = (PORTFOLIO_EUR / TARGET_EUR * 100).toFixed(1) + '%';
-        // Subtle pulse on completion
-        counter.style.transform = 'scale(1.05)';
-        setTimeout(() => { counter.style.transform = 'scale(1)'; }, 300);
+        // Pulse on complete
+        counter.style.transition = 'transform 0.3s';
+        counter.style.transform = 'scale(1.06)';
+        setTimeout(() => { counter.style.transform = 'scale(1)'; }, 350);
+        // Add subtle surface wave animation to top row
+        addSurfaceWave();
         return;
       }
 
       const end = Math.min(filled + BATCH_SIZE, FILL_COUNT);
+      let waterlineMoved = false;
+
       for (let j = filled; j < end; j++) {
-        const idx = fillOrder[j];
-        const sq = squares[idx];
-        const color = getColor(j, FILL_COUNT);
+        const { r, c } = fillOrder[j];
+        const sq = squares[r][c];
+        sq._filled = true;
+
+        if (r < highestFilledRow) {
+          highestFilledRow = r;
+          waterlineMoved = true;
+        }
+
+        const color = getRowColor(r, highestFilledRow);
         sq.style.background = color;
-        sq.style.transform = 'scale(1.3)';
-        // Scale back after pop
-        ((s) => setTimeout(() => { s.style.transform = 'scale(1)'; }, 150))(sq);
+        // Pop-in effect: quick scale up then back
+        sq.style.transform = 'scaleY(1.4)';
+        ((s) => setTimeout(() => { s.style.transform = 'scaleY(1)'; }, 120))(sq);
       }
 
       filled = end;
+
+      // When waterline moves up, recolor everything for smooth gradient
+      if (waterlineMoved) recolorAll();
 
       // Update counter
       const currentVal = (filled / FILL_COUNT) * PORTFOLIO_EUR;
@@ -956,7 +989,49 @@
       setTimeout(animateStep, INTERVAL);
     }
 
-    // Start animation after short delay
+    // Subtle breathing wave on the surface row after fill completes
+    function addSurfaceWave() {
+      if (highestFilledRow >= ROWS) return;
+      const surfaceRow = highestFilledRow;
+      // Gentle oscillation on surface squares
+      for (let c = 0; c < COLS; c++) {
+        const sq = squares[surfaceRow][c];
+        if (!sq._filled) continue;
+        const delay = (c * 60) % 2400; // stagger across row
+        sq.style.transition = 'transform 1.2s ease-in-out, background 0.4s';
+        sq.style.animationName = 'none'; // reset
+        // Use CSS animation via JS
+        sq.animate([
+          { transform: 'scaleY(1)', opacity: 1 },
+          { transform: 'scaleY(1.15)', opacity: 0.9 },
+          { transform: 'scaleY(1)', opacity: 1 },
+        ], {
+          duration: 2400,
+          delay: delay,
+          iterations: Infinity,
+          easing: 'ease-in-out',
+        });
+      }
+      // Also animate 2nd row from surface (subtler)
+      if (surfaceRow + 1 < ROWS) {
+        for (let c = 0; c < COLS; c++) {
+          const sq = squares[surfaceRow + 1][c];
+          if (!sq._filled) continue;
+          sq.animate([
+            { transform: 'scaleY(1)' },
+            { transform: 'scaleY(1.06)' },
+            { transform: 'scaleY(1)' },
+          ], {
+            duration: 2400,
+            delay: (c * 60 + 600) % 2400,
+            iterations: Infinity,
+            easing: 'ease-in-out',
+          });
+        }
+      }
+    }
+
+    // Start
     setTimeout(animateStep, 600);
   })();
   </script>
@@ -1941,7 +2016,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=206"></script>
+<script type="module" src="js/app.js?v=207"></script>
 
 </body>
 </html>
