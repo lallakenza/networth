@@ -1521,7 +1521,7 @@ function renderActionsView(state) {
     // Show placeholder '–' until chart data arrives. Once chart has set values via
     // updateKPIsFromChart (app.js), those values are saved in _chartKPIOverrides
     // and reused here on re-render (e.g. when switching tabs).
-    const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD']);
+    const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD', 'kpiPL1Y']);
     [
       { id: 'kpiPLDaily', data: av.periodPL.daily },
       { id: 'kpiPLMTD', data: av.periodPL.mtd },
