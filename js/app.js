@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=218';
-import { compute } from './engine.js?v=218';
-import { render } from './render.js?v=218';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=218';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=218';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=218';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=219';
+import { compute } from './engine.js?v=219';
+import { render } from './render.js?v=219';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=219';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=219';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=219';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -928,6 +928,14 @@ async function loadStockPrices(forceRefresh) {
         });
         if (chartResultYTD2) updateKPIsFromChart(chartResultYTD2);
         console.log('[app] 1Y KPI initialized from chart data on page load');
+
+        // Re-render positions table now that _chartBreakdown is available.
+        // The override in render.js replaces engine.js period P&L with
+        // chart-derived values, ensuring breakdown == table for all positions.
+        refresh();
+        // Re-apply chart KPI overrides (refresh() resets them to engine.js values)
+        if (chartResultYTD2) updateKPIsFromChart(chartResultYTD2);
+        update1YKPIFromChart();
 
         // Track current state for toggles (exposed on window for KPI functions)
         let currentScope = 'all';
