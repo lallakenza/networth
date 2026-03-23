@@ -2266,6 +2266,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         return price1 + (price2 - price1) * ratio;
       }
     }
+    // If date is before the first SGTM price entry (pre-IPO), return 0
+    if (date < SGTM_PRICES[0][0]) return 0;
     // Fallback to last known price if date is beyond range
     return SGTM_PRICES[SGTM_PRICES.length - 1][1];
   }
@@ -2434,10 +2436,20 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const chartValuesESPP = [];   // ESPP-only valuation per day
   const chartValuesSGTM = [];   // SGTM/Maroc-only valuation per day
 
-  // Setup ESPP data
-  const ESPP_SHARES = (portfolio.amine.espp?.shares || 0) + (portfolio.nezha?.espp?.shares || 0);
+  // Setup ESPP data — shares evolve dynamically with lot acquisition dates
+  const allESPPLots = [
+    ...(portfolio.amine.espp?.lots || []),
+    ...(portfolio.nezha?.espp?.lots || []),
+  ].sort((a, b) => a.date.localeCompare(b.date)); // chronological
   const ESPP_CASH_EUR = portfolio.amine.espp?.cashEUR || 0;
   const ESPP_CASH_USD = portfolio.nezha?.espp?.cashUSD || 0;
+
+  // Function: compute ESPP shares held at a given date
+  function esppSharesAtDate(date) {
+    return allESPPLots
+      .filter(lot => lot.date <= date)
+      .reduce((sum, lot) => sum + lot.shares, 0);
+  }
 
   // ── Snapshot storage for per-period breakdown computation ──
   const _simSnapshots = {};
@@ -2575,18 +2587,22 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
 
     // ── Compute ESPP value (always, regardless of scope — needed for Tous & ESPP views) ──
+    // Shares evolve dynamically: only count lots acquired by this date
     let esppValue = 0;
-    if (ESPP_SHARES > 0) {
+    const esppSharesNow = esppSharesAtDate(date);
+    if (esppSharesNow > 0) {
       const acnPrice = getClose('ACN', date);
       if (acnPrice != null) {
-        esppValue = ESPP_SHARES * acnPrice / getFxRate('USD', date) + ESPP_CASH_EUR + ESPP_CASH_USD / getFxRate('USD', date);
+        esppValue = esppSharesNow * acnPrice / getFxRate('USD', date) + ESPP_CASH_EUR + ESPP_CASH_USD / getFxRate('USD', date);
       }
     }
     chartValuesESPP.push(Math.round(esppValue));
 
     // ── Compute SGTM value (always, regardless of scope — needed for Tous & Maroc views) ──
+    // SGTM shares only exist after IPO date (2025-12-15)
     let sgtmValue = 0;
-    if (SGTM_SHARES > 0) {
+    const SGTM_IPO_DATE = '2025-12-15';
+    if (SGTM_SHARES > 0 && date >= SGTM_IPO_DATE) {
       const sgtmPrice = getSgtmPrice(date);
       sgtmValue = SGTM_SHARES * sgtmPrice / EURMAD;
     }
@@ -2649,11 +2665,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // subtracted from NAV change to get true P&L, just like IBKR bank transfers.
   // costBasis is in USD/share → convert to EUR at the FX rate on acquisition date.
   const allTotalDepositsEUR = { ...allDepositsEUR }; // starts with IBKR deposits
-  const esppLots = [
-    ...(portfolio.amine.espp?.lots || []),
-    ...(portfolio.nezha?.espp?.lots || []),
-  ];
-  esppLots
+  // Reuse allESPPLots defined earlier for dynamic share tracking
+  allESPPLots
     .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
     .forEach(lot => {
       // Cost in USD = shares × costBasis (USD/share)
@@ -2714,7 +2727,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // ── Track ESPP deposits separately ──
   const allDepositsESPP = {};
-  esppLots
+  allESPPLots
     .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
     .forEach(lot => {
       const costUSD = lot.shares * lot.costBasis;
