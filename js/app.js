@@ -477,9 +477,10 @@ function updateKPIsFromChart(chartData) {
     if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
     window._chartKPIOverrides[id] = { value: v, pct };
     // Update sub-percentage (class: kpi-sub-pct, set by setSubPct in render.js)
+    // Always remove existing pct span first (prevents stale values when switching to scopes with 0 NAV)
+    const existing = el.parentElement?.querySelector('.kpi-sub-pct');
+    if (existing) existing.remove();
     if (pct != null) {
-      const existing = el.parentElement?.querySelector('.kpi-sub-pct');
-      if (existing) existing.remove();
       const span = document.createElement('span');
       span.className = 'kpi-sub-pct';
       const pSign = pct >= 0 ? '+' : '';

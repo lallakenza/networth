@@ -1846,11 +1846,12 @@ function renderPortfolioChart(overrides = {}) {
 
   const startVal = refValue;
   const endVal = mainData[mainData.length - 1];
-  const plEUR = displayMode === 'pl' ? endVal : (endVal - refValue);
-  const plPct = displayMode === 'pl'
-    ? (data.startValue > 0 ? ((endVal / data.startValue) * 100).toFixed(2) : '0.00')
-    : (refValue !== 0 ? ((endVal / refValue - 1) * 100).toFixed(2) : '0.00');
-  const isPositive = displayMode === 'pl' ? endVal >= 0 : plEUR >= 0;
+  const plStartVal = mainData[0]; // P&L at start of displayed period
+  const plChange = endVal - plStartVal; // P&L change during displayed period
+  const plEUR = displayMode === 'pl' ? plChange : (endVal - refValue);
+  // plPct is only used in value mode title (P&L mode title shows no percentage)
+  const plPct = (refValue !== 0) ? ((endVal / refValue - 1) * 100).toFixed(2) : '0.00';
+  const isPositive = displayMode === 'pl' ? plChange >= 0 : plEUR >= 0;
 
   // ── Update UI elements ──
   const titleEl = document.getElementById('ytdChartTitle');
@@ -1874,7 +1875,7 @@ function renderPortfolioChart(overrides = {}) {
     } else if (displayMode === 'pl') {
       titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
         'P&L ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
-        (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>';
+        (plChange >= 0 ? '+' : '') + fmt(plChange) + '</span>';
     } else {
       titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
         'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
@@ -1886,8 +1887,8 @@ function renderPortfolioChart(overrides = {}) {
   const ytdEndEl = document.getElementById('ytdEndValue');
   const ytdStartLabel = document.getElementById('ytdStartLabel');
   if (displayMode === 'pl') {
-    if (ytdStartEl) ytdStartEl.textContent = fmt(0);
-    if (ytdEndEl) ytdEndEl.textContent = (endVal >= 0 ? '+' : '') + fmt(endVal);
+    if (ytdStartEl) ytdStartEl.textContent = fmt(plStartVal);
+    if (ytdEndEl) ytdEndEl.textContent = (plChange >= 0 ? '+' : '') + fmt(plChange);
     if (ytdStartLabel) ytdStartLabel.textContent = 'P&L départ';
   } else {
     if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
