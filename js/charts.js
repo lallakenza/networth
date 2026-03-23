@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=213';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=213';
-import { IMMO_CONSTANTS } from './data.js?v=213';
+import { fmt, fmtAxis } from './render.js?v=218';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=218';
+import { IMMO_CONSTANTS } from './data.js?v=218';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2918,10 +2918,16 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         // e.g. bought IBIT for €46K, now worth €41K → P&L = 41K - 0 - 46K = -5K
         const m2m = endVal - startVal - netFlow;
         if (Math.abs(m2m) >= 0.5) {
+          // Capital deployed = startVal + net capital injected during period
+          const capitalDeployed = startVal + netFlow;
+          const pct = capitalDeployed > 0 ? (m2m / capitalDeployed * 100) : null;
           items.push({
             label: tickerLabelMap[ticker] || ticker,
             ticker: ticker,
             pl: Math.round(m2m),
+            pct: pct !== null ? Math.round(pct * 10) / 10 : null,
+            startVal: Math.round(startVal),
+            endVal: Math.round(endVal),
             valEUR: endVal,
           });
           totalPosM2M += m2m;

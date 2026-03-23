@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=213';
-import { compute } from './engine.js?v=213';
-import { render } from './render.js?v=213';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=217';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=213';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=213';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=218';
+import { compute } from './engine.js?v=218';
+import { render } from './render.js?v=218';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=218';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=218';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=218';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -849,6 +849,53 @@ async function loadStockPrices(forceRefresh) {
         });
 
         if (ytdProgress) ytdProgress.style.display = 'none';
+
+        // ════════════════════════════════════════════════════════════
+        //  PRICE UNIFICATION — Single source of truth
+        //  The quote API (fetchStockPrices) returns live prices used by
+        //  engine.js for the positions table. The chart API (fetchHistorical*)
+        //  returns daily prices used by charts.js for the simulation.
+        //  These two APIs can return DIFFERENT prices for "today", causing
+        //  inconsistencies (e.g. Airbus daily P&L differs between breakdown
+        //  and table). FIX: inject live quote prices into the historical
+        //  data's last entry (today), so the chart simulation uses the
+        //  EXACT same prices as the positions table.
+        // ════════════════════════════════════════════════════════════
+        const todayStr = new Date().toISOString().slice(0, 10);
+        function unifyPrices(histData) {
+          if (!histData?.tickers) return;
+          // Inject live stock prices
+          Object.entries(histData.tickers).forEach(([ticker, td]) => {
+            const lastIdx = td.dates.length - 1;
+            if (lastIdx < 0) return;
+            if (td.dates[lastIdx] !== todayStr) return; // only override today
+            // Find live price: IBKR positions have .price set by applyTickerToPortfolio
+            const pos = PORTFOLIO.amine.ibkr.positions.find(p => p.ticker === ticker);
+            if (pos && pos._live && pos.price > 0) {
+              td.closes[lastIdx] = pos.price;
+            }
+            // ACN (ESPP)
+            if (ticker === 'ACN' && PORTFOLIO.market._acnLive && PORTFOLIO.market.acnPriceUSD > 0) {
+              td.closes[lastIdx] = PORTFOLIO.market.acnPriceUSD;
+            }
+          });
+          // Inject live FX rates
+          if (histData.fx?.usd && currentFX.USD > 0) {
+            const lastIdx = histData.fx.usd.dates.length - 1;
+            if (lastIdx >= 0 && histData.fx.usd.dates[lastIdx] === todayStr) {
+              histData.fx.usd.closes[lastIdx] = currentFX.USD;
+            }
+          }
+          if (histData.fx?.jpy && currentFX.JPY > 0) {
+            const lastIdx = histData.fx.jpy.dates.length - 1;
+            if (lastIdx >= 0 && histData.fx.jpy.dates[lastIdx] === todayStr) {
+              histData.fx.jpy.closes[lastIdx] = currentFX.JPY;
+            }
+          }
+        }
+        unifyPrices(historicalDataYTD);
+        unifyPrices(historicalData1Y);
+        console.log('[app] Price unification: injected live quote prices + FX into historical data for ' + todayStr);
 
         // Build the YTD portfolio evolution chart — default scope is 'all' (Tous)
         const chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {

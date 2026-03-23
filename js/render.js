@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=213';
-import { getGrandTotal } from './engine.js?v=213';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=218';
+import { getGrandTotal } from './engine.js?v=218';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -1136,9 +1136,20 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const evoTxt = ePL != null ? (ePL >= 0 ? '+' : '') + fmt(Math.round(ePL)) : '\u2014';
 
     // Cell renderers per column key
-    const refPriceMap = { daily: pos.price, mtd: pos.mtdOpen, oneMonth: pos.oneMonthOpen, ytd: pos.ytdOpen };
-    const refPrice = _posPeriod === 'all' ? null : (refPriceMap[_posPeriod] || pos.price);
-    const valeurDebut = refPrice && pos.shares ? Math.round(refPrice * pos.shares) : null;
+    // Use chart-derived start value when available (single source of truth)
+    const cbPeriodKey = { daily: 'daily', mtd: 'mtd', oneMonth: 'oneMonth', ytd: 'ytd' }[_posPeriod];
+    const cbItem = cbPeriodKey && window._chartBreakdown?.[cbPeriodKey]?.breakdown?.find(
+      b => !b._isCost && b.ticker === pos.ticker
+    );
+    let valeurDebut = null;
+    if (cbItem && cbItem.startVal != null) {
+      valeurDebut = cbItem.startVal;
+    } else if (_posPeriod !== 'all') {
+      // Fallback to quote-based ref price if chart data not available
+      const refPriceMap = { daily: pos.price, mtd: pos.mtdOpen, oneMonth: pos.oneMonthOpen, ytd: pos.ytdOpen };
+      const refPrice = refPriceMap[_posPeriod] || pos.price;
+      valeurDebut = refPrice && pos.shares ? Math.round(refPrice * pos.shares) : null;
+    }
     const plPeriode = pos[periodMap[_posPeriod]] || null;
     const pctPeriode = pos[periodPctMap[_posPeriod]] || null;
     const plPeriodeC = plPeriode != null ? (plPeriode >= 0 ? 'pl-pos' : 'pl-neg') : '';
@@ -1660,6 +1671,49 @@ function renderActionsView(state) {
 
   // Add pruEUR for sorting
   allPositions.forEach(p => { p.pruEUR = p.costEUR && p.shares > 0 ? p.costEUR / p.shares : 0; });
+
+  // ════════════════════════════════════════════════════════════
+  //  CHART-DERIVED PERIOD P&L OVERRIDE
+  //  The chart simulation (charts.js) and the positions table (engine.js)
+  //  must show the same per-position P&L. After the price unification in
+  //  app.js (live prices injected into historical data), the chart breakdown
+  //  is the single source of truth for period P&L. Override the table values
+  //  here to guarantee breakdown == table for every position and period.
+  // ════════════════════════════════════════════════════════════
+  const cb = window._chartBreakdown;
+  if (cb) {
+    // Build per-ticker maps for each period: ticker → { pl, pct, startVal, endVal }
+    const periodKeys = [
+      { cbKey: 'daily',    plField: 'dailyPL',    pctField: 'dailyPct' },
+      { cbKey: 'mtd',      plField: 'mtdPL',      pctField: 'mtdPct' },
+      { cbKey: 'oneMonth', plField: 'oneMonthPL',  pctField: 'oneMonthPct' },
+      { cbKey: 'ytd',      plField: 'ytdPL',      pctField: 'ytdPct' },
+    ];
+    const tickerMaps = {};
+    periodKeys.forEach(({ cbKey }) => {
+      tickerMaps[cbKey] = {};
+      if (cb[cbKey]?.breakdown) {
+        cb[cbKey].breakdown.forEach(item => {
+          if (!item._isCost && item.ticker) {
+            tickerMaps[cbKey][item.ticker] = item;
+          }
+        });
+      }
+    });
+
+    allPositions.forEach(pos => {
+      periodKeys.forEach(({ cbKey, plField, pctField }) => {
+        const match = tickerMaps[cbKey]?.[pos.ticker];
+        if (match) {
+          pos[plField] = match.pl;
+          if (match.pct !== null && match.pct !== undefined) {
+            pos[pctField] = match.pct;
+          }
+        }
+      });
+    });
+    console.log('[render] Chart-derived period P&L applied to', allPositions.length, 'positions');
+  }
 
   // Render unified table
   renderAllPositions(allPositions, null, null);
