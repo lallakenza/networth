@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=212';
-import { compute } from './engine.js?v=212';
-import { render } from './render.js?v=212';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=212';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=212';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=212';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=213';
+import { compute } from './engine.js?v=213';
+import { render } from './render.js?v=213';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=213';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=213';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=213';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -333,11 +333,40 @@ setInterval(() => refreshFX(true), 5 * 60 * 1000);
 // Uses the accurate forward-simulation data from buildPortfolioYTDChart
 // instead of the per-position P&L approach (which misses cash/FX/deposits)
 function updateKPIsFromChart(chartData) {
-  const { labels, ibkrValues, totalValues, depositsByDate, startingNAV, scope } = chartData;
+  const { labels, ibkrValues, totalValues, depositsByDate, startingNAV } = chartData;
   if (!labels || labels.length < 2) return;
 
-  // Use total values if scope=all, else IBKR-only
-  const values = scope === 'all' && totalValues.length > 0 ? totalValues : ibkrValues;
+  // ── Scope-aware value selection ──
+  // Read the current scope from the global state
+  const activeScope = window._currentScope || window._ytdChartFullData?.scope || 'ibkr';
+  const fullData = window._ytdChartFullData;
+
+  // Select the correct NAV series and cumDeposits based on scope
+  let values, cumDeposits;
+  switch (activeScope) {
+    case 'espp':
+      values = fullData?.esppValues || ibkrValues;
+      cumDeposits = fullData?.cumDepositsESPP;
+      break;
+    case 'maroc':
+      values = fullData?.sgtmValues || ibkrValues;
+      cumDeposits = fullData?.cumDepositsSGTM;
+      break;
+    case 'degiro':
+      values = fullData?.degiroValues || ibkrValues;
+      cumDeposits = fullData?.cumDepositsDegiro;
+      break;
+    case 'all':
+      values = totalValues && totalValues.length > 0 ? totalValues : ibkrValues;
+      cumDeposits = fullData?.cumDepositsAtPointTotal;
+      break;
+    case 'ibkr':
+    default:
+      values = ibkrValues;
+      cumDeposits = fullData?.cumDepositsAtPoint;
+      break;
+  }
+
   const n = values.length;
   const lastNAV = values[n - 1];
   const prevNAV = values[n - 2];
@@ -350,8 +379,21 @@ function updateKPIsFromChart(chartData) {
     return values[0]; // fallback to first
   }
 
-  // Helper: sum deposits between two dates (exclusive start, inclusive end)
+  // Helper: find cumDeposits at or just before a target date
+  function cumDepositsAtDate(targetDate) {
+    if (!cumDeposits) return 0;
+    for (let i = labels.length - 1; i >= 0; i--) {
+      if (labels[i] <= targetDate) return cumDeposits[i] || 0;
+    }
+    return cumDeposits[0] || 0;
+  }
+
+  // Helper: deposits between two dates = difference in cumulative deposits
   function depositsInRange(startDate, endDate) {
+    if (cumDeposits) {
+      return cumDepositsAtDate(endDate) - cumDepositsAtDate(startDate);
+    }
+    // Fallback to old method for IBKR (depositsByDate)
     let total = 0;
     for (const [date, amount] of Object.entries(depositsByDate)) {
       if (date > startDate && date <= endDate) total += amount;
@@ -379,8 +421,6 @@ function updateKPIsFromChart(chartData) {
 
   // P&L MTD
   const mtdRefDate = mtdStart < firstDate ? firstDate : mtdStart;
-  const navMTDStart = navAtDate(mtdRefDate);
-  // We need deposits after mtdRefDate up to lastDate
   const mtdStartActual = labels.find(d => d >= mtdRefDate) || firstDate;
   const prevMtdDate = labels[Math.max(0, labels.indexOf(mtdStartActual) - 1)] || firstDate;
   const navBeforeMTD = navAtDate(prevMtdDate);
@@ -388,17 +428,15 @@ function updateKPIsFromChart(chartData) {
   const plMTD = lastNAV - navBeforeMTD - depositsMTD;
 
   // P&L 1 Month
-  const nav1MAgo = navAtDate(oneMonthStr);
   const date1MAgo = labels.find(d => d >= oneMonthStr) || firstDate;
   const prevDate1M = labels[Math.max(0, labels.indexOf(date1MAgo) - 1)] || firstDate;
   const navBefore1M = navAtDate(prevDate1M);
   const deposits1M = depositsInRange(prevDate1M, lastDate);
   const pl1M = lastNAV - navBefore1M - deposits1M;
 
-  // P&L YTD
+  // P&L YTD — use first chart value as start NAV (already accounts for scope)
+  const ytdStartNAV = values[0];
   const depositsYTD = depositsInRange('2025-12-31', lastDate);
-  // For scope=ibkr: startingNAV is 209495. For scope=all, use the first total value.
-  const ytdStartNAV = scope === 'all' ? values[0] : startingNAV;
   const plYTD = lastNAV - ytdStartNAV - depositsYTD;
 
   // TWR (Time-Weighted Return) using Modified Dietz / daily chaining
@@ -406,7 +444,10 @@ function updateKPIsFromChart(chartData) {
   let twr = 1;
   for (let i = 1; i < n; i++) {
     const prevVal = values[i - 1];
-    const dep = depositsByDate[labels[i]] || 0;
+    // Use cumDeposits diff for this day's deposit
+    const dep = cumDeposits
+      ? ((cumDeposits[i] || 0) - (cumDeposits[i-1] || 0))
+      : (depositsByDate[labels[i]] || 0);
     // Daily return: (endNAV - deposit) / startNAV - 1
     // Deposit is added at start of day, so adjusted start = prevVal + deposit
     const adjustedStart = prevVal + dep;
@@ -521,17 +562,49 @@ function update1YKPIFromChart() {
   const data = window._ytdChartFullData;
   if (!data || !data.labels || data.labels.length < 2) return;
 
-  // Use the chart's own P&L computation (accounts for deposits correctly)
-  const plValues = data.showAll ? data.plValuesTotal : data.plValuesIBKR;
+  // ── Scope-aware: select the correct P&L and deposit series ──
+  const activeScope = window._currentScope || data.scope || 'ibkr';
+
+  let plValues, cumDepSeries, navValues;
+  switch (activeScope) {
+    case 'espp':
+      plValues = data.plValuesESPP;
+      cumDepSeries = data.cumDepositsESPP;
+      navValues = data.esppValues;
+      break;
+    case 'maroc':
+      plValues = data.plValuesSGTM;
+      cumDepSeries = data.cumDepositsSGTM;
+      navValues = data.sgtmValues;
+      break;
+    case 'degiro':
+      plValues = data.plValuesDegiro;
+      cumDepSeries = data.cumDepositsDegiro;
+      navValues = data.degiroValues;
+      break;
+    case 'all':
+      plValues = data.plValuesTotal;
+      cumDepSeries = data.cumDepositsAtPointTotal;
+      navValues = data.totalValues;
+      break;
+    case 'ibkr':
+    default:
+      plValues = data.plValuesIBKR;
+      cumDepSeries = data.cumDepositsAtPoint;
+      navValues = data.ibkrValues;
+      break;
+  }
+
   if (!plValues || plValues.length === 0) return;
 
   const pl1Y = plValues[plValues.length - 1];
 
   // Compute % relative to capital deployed (startValue + cumDeposits)
-  const cumDep = data.showAll
-    ? (data.cumDepositsAtPointTotal?.[data.cumDepositsAtPointTotal.length - 1] || 0)
-    : (data.cumDepositsAtPoint?.[data.cumDepositsAtPoint.length - 1] || 0);
-  const capitalDeployed = (data.startValue || 0) + cumDep;
+  const startVal = navValues ? navValues[0] : (data.startValue || 0);
+  const cumDep = cumDepSeries
+    ? (cumDepSeries[cumDepSeries.length - 1] || 0)
+    : 0;
+  const capitalDeployed = startVal + cumDep;
   const pct1Y = capitalDeployed > 0 ? (pl1Y / capitalDeployed * 100) : 0;
 
   // Update the 1Y KPI card
@@ -784,8 +857,9 @@ async function loadStockPrices(forceRefresh) {
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully (scope: all)');
 
-        // Track current state for toggles
+        // Track current state for toggles (exposed on window for KPI functions)
         let currentScope = 'all';
+        window._currentScope = currentScope;
         let currentPeriod = 'YTD';
         let historicalDataToUse = historicalDataYTD;
 
@@ -797,6 +871,7 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             currentScope = btn.dataset.scope;
+            window._currentScope = currentScope;
             // ── Scope → chart display ──
             // Each scope shows ONLY that platform's evolution:
             //   ibkr   → IBKR-only NAV evolution
