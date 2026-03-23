@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 22 mars 2026 (v210)
+> Dernière mise à jour : 23 mars 2026 (v219)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -167,6 +167,7 @@ Fetch live via Yahoo Finance CORS proxies.
 | `fetchFXRates()` | Taux EUR/USD, EUR/JPY, EUR/AED, EUR/MAD |
 | `fetchStockPrices()` | Prix live 14 positions |
 | `retryFailedTickers()` | Retry loop (max 3 rounds) |
+| `fetchTickerHistory()` | Historique par ticker avec déduplication dates (v217) |
 | `fetchHistoricalPricesYTD()` | Yahoo `range=ytd` pour chart |
 | `fetchHistoricalPrices1Y()` | Yahoo `range=1y` pour chart 1Y |
 | `fetchSoldStockPrices()` | Prix pour "Si gardé aujourd'hui" (positions fermées) |
@@ -180,6 +181,8 @@ Orchestrateur. Gère :
 - Event handlers (tabs, toggles, refresh)
 - Flux async : `loadStockPrices()` (chart YTD) en parallèle de `refreshFX()` (taux live)
 - Race condition fix : `destroyAllCharts()` préserve `charts.portfolioYTD` (v175)
+- `unifyPrices()` : injection des prix Quote API dans les données Chart API (v218)
+- Post-chart `refresh()` : re-render positions table avec `_chartBreakdown` (v219)
 
 ---
 
@@ -208,7 +211,7 @@ Après chaque déploiement, **bumper le numéro** dans :
 3. `render.js` (imports de data, engine)
 4. `charts.js` (imports de render, engine, data)
 
-> **Version actuelle : v210** (mars 2026)
+> **Version actuelle : v219** (mars 2026)
 
 ---
 
@@ -327,10 +330,12 @@ Page load
   ├─ compute(PORTFOLIO, FX_STATIC, 'static')     // rendu initial immédiat
   ├─ refreshFX()                                   // async — MAJ taux live
   │    └─ refresh() → rebuildAllCharts()           // re-render avec taux live
-  └─ loadStockPrices()                             // async — prix Yahoo
+  └─ loadStockPrices()                             // async — prix Yahoo (Quote API)
        ├─ compute(PORTFOLIO, liveFX, 'live')       // re-render avec prix live
-       ├─ fetchHistoricalPricesYTD()               // données chart
-       └─ buildPortfolioYTDChart()                 // construit le chart
+       ├─ fetchHistoricalPricesYTD()               // données chart (Chart API)
+       ├─ unifyPrices(historicalData)              // injecte prix Quote dans Chart (v218)
+       ├─ buildPortfolioYTDChart()                 // construit chart → _chartBreakdown
+       └─ refresh()                                // re-render table avec _chartBreakdown (v219)
 ```
 
 **Race condition** (corrigée v175) : `refreshFX()` appelle `destroyAllCharts()` qui détruisait le chart YTD construit par `loadStockPrices()`. Fix : `destroyAllCharts()` préserve `charts.portfolioYTD`.
@@ -380,6 +385,14 @@ Page load
 | v208 | 22 Mars 2026 | Animation plus lente (BATCH_SIZE 12→5, INTERVAL 10→30ms) + color-shift organique après remplissage (palette vert/teal, sin wave) |
 | v209 | 22 Mars 2026 | Pattern Snake : remplissage en serpentin (droite→gauche puis gauche→droite alternant par rangée), BATCH_SIZE=2, INTERVAL=12ms |
 | v210 | 22 Mars 2026 | **Degiro chart grey-out** : scope 'degiro' affiche un placeholder grisé avec hachures au lieu de données IBKR incorrectes. Message "Compte clôturé". Appliqué aux 3 fonctions chart |
+| v211 | 22 Mars 2026 | **Refactor unifié** : rendu portfolio chart pour toutes les combinaisons scope/mode/period. Dynamic ESPP shares + SGTM pre-IPO pricing |
+| v212 | 22 Mars 2026 | Degiro comme vrai scope chart (pas fallback IBKR) + grey styling. KPI cards scope-aware |
+| v213-v214 | 22 Mars 2026 | Fix Degiro pct leak, titre P&L qui affiche la période au changement de scope |
+| v215 | 23 Mars 2026 | **Fix P&L 1Y KPI** : incohérence entre chargement initial et scope toggle (séquence silent rebuild) |
+| v216 | 23 Mars 2026 | **Fix additivité P&L 1Y** : mismatch dépôts/NAV Degiro dans le scope 'Tous' |
+| v217 | 23 Mars 2026 | **Fix Daily P&L = 0** : Yahoo Chart API retourne 2 entrées pour le même jour (previous close + live intraday). Ajout déduplication dans `fetchTickerHistory()` — garder la DERNIÈRE valeur (= prix live) |
+| v218 | 23 Mars 2026 | **Unification des sources de prix** : (1) injection des prix live Quote API dans les données historiques Chart API via `unifyPrices()`, (2) enrichissement du breakdown avec `startVal`/`pct`, (3) override P&L du tableau positions avec les valeurs chart-derived via `_chartBreakdown` |
+| v219 | 23 Mars 2026 | **Fix timing render** : ajout `refresh()` après le build chart pour que `_chartBreakdown` soit disponible lors du override des positions table. Re-apply `updateKPIsFromChart()` après le refresh |
 
 ---
 
@@ -426,6 +439,8 @@ Le dashboard utilise deux approches P&L distinctes :
 - **Chart (charts.js)** : P&L NAV-based = NAV_fin − NAV_début − dépôts. Plus complet : inclut cash, FX, dividendes, intérêts, positions vendues. Nécessite les prix historiques Yahoo (async).
 
 Gap structurel ~15-20K€ entre les deux méthodes (engine donne -44K YTD vs chart -29K YTD) car le statique ne capture pas les dépôts, le cash, les effets FX.
+
+> **Depuis v218** : les P&L par position dans le tableau sont overridden par les valeurs chart via `_chartBreakdown`. Seuls les KPIs agrégés (total) conservent le gap structurel. Les P&L individuels (Daily, MTD, 1M, YTD) sont désormais **identiques** entre le breakdown et le tableau.
 
 ### Placeholder + Persistence (v191-v192)
 
@@ -663,6 +678,7 @@ Chaque import a un paramètre `?v=N`. Après modification d'un fichier, bumper l
 | `window._chartKPIData` | charts.js | KPIs calculés depuis le chart |
 | `window._chartKPIOverrides` | app.js | Persistance KPIs chart (évite flash au tab switch) |
 | `window._simSnapshots` | charts.js | Snapshots jour-par-jour pour breakdown |
+| `window._chartBreakdown` | charts.js | P&L par position par période (daily/mtd/oneMonth/ytd/oneYear) — source vérité pour le tableau |
 | `window._refreshActiveBreakdown` | render.js | Re-render panel breakdown ouvert |
 
 ### Montants
@@ -723,7 +739,98 @@ La constante `PORTFOLIO_EUR` dans index.html doit être mise à jour manuellemen
 
 ---
 
-## 18. Degiro Chart Grey-Out (v210)
+## 18. Unification des Sources de Données — Actions (v217-v219)
+
+### Problème
+
+Yahoo Finance expose **deux APIs distinctes** qui retournent des prix légèrement différents pour le même ticker au même moment :
+
+| API | Endpoint | Usage original | Prix AIR.PA (exemple) |
+|-----|----------|----------------|----------------------|
+| **Quote API** (v7/v8) | `/v7/finance/quote` ou `/v8/finance/chart?range=1d` | `fetchStockPrice()` → prix live pour le tableau positions | 168.58 |
+| **Chart API** (v8) | `/v8/finance/chart?range=ytd` | `fetchTickerHistory()` → historique pour la simulation NAV | 169.92 |
+
+Cela créait des incohérences visibles : le breakdown P&L (chart) montrait +€1800 pour Airbus tandis que le tableau (quote) montrait +€1532. Le même problème existait pour les actifs en USD (IBIT) à cause de la double conversion FX.
+
+### Solution en 3 couches
+
+**Couche 1 — Déduplication dates (v217, api.js)**
+
+Yahoo Chart API retourne parfois 2 entrées pour le même jour (previous close + intraday live). La déduplication garde la dernière valeur (= prix le plus récent) :
+
+```javascript
+// api.js — fetchTickerHistory()
+for (let i = 0; i < dates.length; i++) {
+  if (i < dates.length - 1 && dates[i] === dates[i + 1]) continue;
+  dedupDates.push(dates[i]);
+  dedupCloses.push(filledCloses[i]);
+}
+```
+
+**Couche 2 — Injection prix live (v218, app.js)**
+
+Après `fetchStockPrices()` (Quote API) et `fetchHistoricalPricesYTD()` (Chart API), la fonction `unifyPrices()` écrase la dernière entrée de l'historique avec le prix Quote API pour la date du jour :
+
+```javascript
+// app.js — unifyPrices(histData)
+// Pour chaque ticker : si la dernière date = aujourd'hui, remplacer le close
+td.closes[lastIdx] = pos.price;  // prix Quote API
+
+// Pour les FX : injecter les taux live
+histData.fx.usd.closes[lastIdx] = currentFX.USD;
+```
+
+Après cette étape, le moteur de simulation chart utilise **exactement les mêmes prix** que le tableau positions.
+
+**Couche 3 — Override table → chart (v218-v219, render.js + app.js)**
+
+Le tableau positions ne calcule plus son propre P&L période. Il lit les valeurs depuis `window._chartBreakdown` :
+
+```javascript
+// render.js — après construction de allPositions
+const cb = window._chartBreakdown;
+allPositions.forEach(pos => {
+  periodKeys.forEach(({ cbKey, plField, pctField }) => {
+    const match = tickerMaps[cbKey]?.[pos.ticker];
+    if (match) {
+      pos[plField] = match.pl;
+      pos[pctField] = match.pct;
+    }
+  });
+});
+```
+
+Pour que `_chartBreakdown` soit disponible au moment du override, `app.js` appelle `refresh()` **après** le build chart (v219).
+
+### Flux final unifié
+
+```
+fetchStockPrices() ─────────────────┐ (Quote API → pos.price, pos.previousClose)
+                                    │
+fetchHistoricalPricesYTD() ─────┐   │
+                                │   │
+                    unifyPrices() ◄─┘ (injecte prix Quote dans historique)
+                                │
+                    buildPortfolioYTDChart() → _chartBreakdown
+                                │
+                    refresh() → render() → override table avec _chartBreakdown
+```
+
+### Variables globales ajoutées
+
+| Variable | Module | Usage |
+|----------|--------|-------|
+| `window._chartBreakdown` | charts.js | P&L par position par période (daily, mtd, oneMonth, ytd, oneYear) |
+
+Chaque item du breakdown contient : `{ label, ticker, pl, pct, startVal, endVal, valEUR }`.
+
+### Vérification
+
+Toutes les positions IBKR (13 tickers) montrent des valeurs **identiques** entre le widget breakdown et le tableau positions pour les 4 périodes (Daily, MTD, 1M, YTD). Vérifié le 23 mars 2026.
+
+---
+
+## 19. Degiro Chart Grey-Out (v210)
 
 Le compte Degiro est clôturé (avril 2025) et n'a pas de données NAV historiques. Au lieu d'afficher les données IBKR par erreur (ce qui donnait un graphique faux), le scope 'degiro' affiche un placeholder grisé.
 
