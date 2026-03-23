@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=221';
-import { getGrandTotal } from './engine.js?v=221';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=222';
+import { getGrandTotal } from './engine.js?v=222';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -3297,6 +3297,59 @@ function renderImmoView(state) {
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
   setText('kpiImmoViewLTV', fAvgLTV.toFixed(1) + '%');
 
+  // ── UX: Mini wealth breakdown bar under KPI ──
+  const wealthKpiEl = document.getElementById('kpiImmoViewWealth');
+  if (wealthKpiEl) {
+    const wb = fTotalWealthBreakdown;
+    const wbTotal = Math.abs(wb.capitalAmorti || 0) + Math.abs(wb.appreciation || 0) + Math.abs(wb.cashflow || 0);
+    if (wbTotal > 0) {
+      const pctCap = Math.round((wb.capitalAmorti || 0) / wbTotal * 100);
+      const pctApp = Math.round((wb.appreciation || 0) / wbTotal * 100);
+      const pctCF = 100 - pctCap - pctApp;
+      const bar = document.createElement('div');
+      bar.style.cssText = 'display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:6px;gap:1px;';
+      bar.innerHTML = '<div style="width:' + pctCap + '%;background:#3182ce;" title="Capital amorti ' + fmt(wb.capitalAmorti) + '"></div>'
+        + '<div style="width:' + pctApp + '%;background:#38a169;" title="Appréciation ' + fmt(wb.appreciation) + '"></div>'
+        + '<div style="width:' + Math.abs(pctCF) + '%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';" title="CF ' + fmt(wb.cashflow) + '"></div>';
+      wealthKpiEl.parentElement.appendChild(bar);
+      // Mini legend
+      const leg = document.createElement('div');
+      leg.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:3px;font-size:9px;color:#718096;';
+      leg.innerHTML = '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#3182ce;margin-right:2px;"></span>Capital</span>'
+        + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38a169;margin-right:2px;"></span>Appréc.</span>'
+        + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';margin-right:2px;"></span>CF</span>';
+      wealthKpiEl.parentElement.appendChild(leg);
+    }
+  }
+
+  // ── UX: CF Summary Ribbon ──
+  const cfRibbon = document.getElementById('cfSummaryRibbon');
+  if (cfRibbon) {
+    const totalRevenue = fp.reduce((s, p) => s + (p.totalRevenue || 0), 0);
+    const totalCharges = fp.reduce((s, p) => s + (p.chargesDetail ? (p.chargesDetail.pret + p.chargesDetail.assurance + p.chargesDetail.pno + p.chargesDetail.tf + p.chargesDetail.copro) : 0), 0);
+    const netCF = totalRevenue - totalCharges;
+    const maxBar = Math.max(totalRevenue, totalCharges);
+    const revPct = maxBar > 0 ? Math.round(totalRevenue / maxBar * 100) : 0;
+    const chgPct = maxBar > 0 ? Math.round(totalCharges / maxBar * 100) : 0;
+    const cfColor = netCF >= 0 ? '#38a169' : '#e53e3e';
+    const cfSign = netCF >= 0 ? '+' : '';
+    cfRibbon.style.display = '';
+    cfRibbon.innerHTML = '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">'
+      + '<div style="flex:1;min-width:200px;">'
+      + '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;color:#718096;"><span>Revenus</span><span style="color:#276749;font-weight:600;">' + fmt(totalRevenue) + ' /mois</span></div>'
+      + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;"><div style="height:100%;width:' + revPct + '%;background:linear-gradient(90deg,#68d391,#38a169);border-radius:4px;"></div></div>'
+      + '</div>'
+      + '<div style="flex:1;min-width:200px;">'
+      + '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;color:#718096;"><span>Charges</span><span style="color:#c53030;font-weight:600;">' + fmt(totalCharges) + ' /mois</span></div>'
+      + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;"><div style="height:100%;width:' + chgPct + '%;background:linear-gradient(90deg,#fc8181,#e53e3e);border-radius:4px;"></div></div>'
+      + '</div>'
+      + '<div style="text-align:center;padding:4px 16px;background:' + (netCF >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;border:1px solid ' + (netCF >= 0 ? '#c6f6d5' : '#fed7d7') + ';">'
+      + '<div style="font-size:18px;font-weight:700;color:' + cfColor + ';">' + cfSign + fmt(netCF) + '</div>'
+      + '<div style="font-size:10px;color:#718096;">CF net /mois</div>'
+      + '</div>'
+      + '</div>';
+  }
+
   // ── Wealth creation breakdown section ──
   renderWealthBreakdown(iv, fp, { wealthBreakdown: fTotalWealthBreakdown, wealthCreation: fTotalWealthCreation });
 
@@ -3448,14 +3501,27 @@ function renderImmoView(state) {
       const valLabel = prop.referenceValue && prop.referenceValue !== prop.value
         ? '<div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur est. <span style="font-size:9px;color:var(--gray);">(réf ' + fmt(prop.referenceValue) + ' ' + (prop.valueDate || '') + ')</span></div>'
         : '<div class="pk-val">' + fmt(prop.value) + '</div><div class="pk-label">Valeur</div>';
-      card.innerHTML = '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
-        + '<div class="prop-owner">' + prop.owner + ' <span style="font-size:10px;color:var(--accent);margin-left:4px;">▸ voir détails</span></div>'
+      // ── UX: Owner color coding ──
+      const ownerColor = prop.owner === 'Amine' ? '#3182ce' : '#319795'; // blue for Amine, teal for Nezha
+      const ownerBg = prop.owner === 'Amine' ? '#ebf8ff' : '#e6fffa';
+
+      // ── UX: LTV gauge bar ──
+      const ltvPct = Math.min(prop.ltv, 100);
+      const ltvColor = ltvPct >= 85 ? '#e53e3e' : ltvPct >= 70 ? '#d69e2e' : '#38a169';
+      const ltvGauge = '<div style="margin-top:4px;width:100%;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">'
+        + '<div style="width:' + ltvPct.toFixed(0) + '%;height:100%;background:' + ltvColor + ';border-radius:3px;transition:width 0.5s;"></div>'
+        + '</div>';
+
+      card.innerHTML = '<div style="border-left:3px solid ' + ownerColor + ';padding-left:10px;">'
+        + '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
+        + '<div class="prop-owner"><span style="background:' + ownerBg + ';color:' + ownerColor + ';padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;">' + prop.owner + '</span> <span style="font-size:10px;color:var(--accent);margin-left:4px;">▸ voir détails</span></div>'
+        + '</div>'
         + '<div class="prop-kpis">'
         + '<div class="prop-kpi">' + valLabel + '</div>'
         + '<div class="prop-kpi"><div class="pk-val">' + fmt(prop.crd) + '</div><div class="pk-label">CRD</div></div>'
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity brute</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%' + ltvGauge + '</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyerHC + (prop.parking > 0 ? ' <span style="font-size:11px;color:var(--gray)">+' + prop.parking + ' pkg</span>' : '') + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
@@ -4250,28 +4316,38 @@ function renderPropertyDetail(state, prop) {
     const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
     const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
     const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
+    // ── UX: Visual bar comparison for Revenus vs Charges ──
+    const maxCFBar = Math.max(prop.totalRevenue, prop.charges);
+    function cfBarRow(label, amount, color, maxRef) {
+      const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+        + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
+        + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
+        + '</div>'
+        + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' €</span>'
+        + '</div>';
+    }
     let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Cash Flow mensuel</h4>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
       // Revenus
       + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
-      + '<div style="font-weight:700;color:#276749;margin-bottom:6px;">Revenus</div>'
-      + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
-      + '<span>Loyer HC</span><span class="num">' + prop.loyerHC + ' €</span>'
-      + (prop.parking > 0 ? '<span>Parking</span><span class="num">' + prop.parking + ' €</span>' : '')
-      + (prop.chargesLoc > 0 ? '<span>Charges locataire</span><span class="num">' + prop.chargesLoc + ' €</span>' : '')
-      + '<span style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">Total revenus</span><span class="num" style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">' + prop.totalRevenue + ' €</span>'
-      + '</div></div>'
+      + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
+      + cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
+      + (prop.parking > 0 ? cfBarRow('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBar) : '')
+      + (prop.chargesLoc > 0 ? cfBarRow('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBar) : '')
+      + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + prop.totalRevenue + ' €</span></div>'
+      + '</div>'
       // Charges
       + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
-      + '<div style="font-weight:700;color:#c53030;margin-bottom:6px;">Charges</div>'
-      + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
-      + '<span>Prêt</span><span class="num">' + Math.round(cd.pret || 0) + ' €</span>'
-      + '<span>Assurance empr.</span><span class="num">' + Math.round(cd.assurance || 0) + ' €</span>'
-      + '<span>PNO</span><span class="num">' + Math.round(cd.pno || 0) + ' €</span>'
-      + '<span>Taxe foncière</span><span class="num">' + Math.round(cd.tf || 0) + ' €</span>'
-      + '<span>Copro</span><span class="num">' + Math.round(cd.copro || 0) + ' €</span>'
-      + '<span style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">Total charges</span><span class="num" style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">' + Math.round(prop.charges) + ' €</span>'
-      + '</div></div></div>';
+      + '<div style="font-weight:700;color:#c53030;margin-bottom:8px;">Charges</div>'
+      + cfBarRow('Prêt', Math.round(cd.pret || 0), 'linear-gradient(90deg,#feb2b2,#e53e3e)', maxCFBar)
+      + cfBarRow('Assurance', Math.round(cd.assurance || 0), 'linear-gradient(90deg,#feb2b2,#fc8181)', maxCFBar)
+      + cfBarRow('PNO', Math.round(cd.pno || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
+      + cfBarRow('TF', Math.round(cd.tf || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
+      + cfBarRow('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
+      + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
+      + '</div></div>';
     // CF KPIs
     html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
