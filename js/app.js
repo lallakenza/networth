@@ -636,6 +636,9 @@ function update1YKPIFromChart() {
     window._chartKPIData.oneYear.pl = pl1Y;
     window._chartKPIData.oneYear.pct = pct1Y;
   }
+  // Also save to _chartKPIOverrides so render.js re-renders preserve the chart value
+  if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
+  window._chartKPIOverrides['kpiPL1Y'] = { value: Math.round(pl1Y), pct: pct1Y };
 
   console.log('[kpi-1y] Updated 1Y KPI from chart: P&L=' + Math.round(pl1Y) + ', pct=' + pct1Y.toFixed(1) + '%, capitalDeployed=' + Math.round(capitalDeployed));
 }
@@ -857,6 +860,27 @@ async function loadStockPrices(forceRefresh) {
         });
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully (scope: all)');
+
+        // ── Silently build 1Y chart to populate P&L 1Y KPI on initial load ──
+        // Without this, the 1Y KPI shows the static render.js value (position M2M)
+        // instead of the chart-based NAV simulation value (which is the authoritative one).
+        buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+          mode: '1y',
+          includeESPP: true,
+          includeSGTM: true,
+          scope: 'all',
+        });
+        update1YKPIFromChart();
+        // Rebuild visible YTD chart (1Y build overwrote the canvas and _ytdChartFullData)
+        const chartResultYTD2 = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+          mode: 'ytd',
+          startingNAV: 209495,
+          includeESPP: true,
+          includeSGTM: true,
+          scope: 'all',
+        });
+        if (chartResultYTD2) updateKPIsFromChart(chartResultYTD2);
+        console.log('[app] 1Y KPI initialized from chart data on page load');
 
         // Track current state for toggles (exposed on window for KPI functions)
         let currentScope = 'all';
