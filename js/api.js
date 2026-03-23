@@ -598,7 +598,18 @@ async function fetchTickerHistory(symbol, range) {
             filledCloses.push(lastValid);
           }
 
-          return { dates, closes: filledCloses };
+          // Deduplicate dates: Yahoo API can return two entries for the
+          // current trading day (previous close + live intraday).
+          // Keep the LAST value for each date (= most recent / live price).
+          const dedupDates = [];
+          const dedupCloses = [];
+          for (let i = 0; i < dates.length; i++) {
+            if (i < dates.length - 1 && dates[i] === dates[i + 1]) continue; // skip first dupe
+            dedupDates.push(dates[i]);
+            dedupCloses.push(filledCloses[i]);
+          }
+
+          return { dates: dedupDates, closes: dedupCloses };
         })
     );
   }
