@@ -2674,16 +2674,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       allTotalDepositsEUR[lot.date] = (allTotalDepositsEUR[lot.date] || 0) + costEUR;
     });
 
-  // ── 2b. Degiro deposits/withdrawals (for Total P&L) ──
-  // ⚠ Montants estimés — à remplacer avec les vrais relevés Boursorama
-  (portfolio.amine.degiro?.deposits || [])
-    .filter(d => d.date > START_DATE && d.date <= todayStr)
-    .forEach(d => {
-      const amtEUR = (d.currency && d.currency !== 'EUR')
-        ? d.amount / (d.fxRateAtDate || 1)
-        : d.amount;
-      allTotalDepositsEUR[d.date] = (allTotalDepositsEUR[d.date] || 0) + amtEUR;
-    });
+  // ── 2b. Degiro deposits/withdrawals ──
+  // NOT included in allTotalDepositsEUR because:
+  //   - chartValuesTotal tracks IBKR+ESPP+SGTM NAV only (no Degiro NAV)
+  //   - Degiro P&L is handled separately as a constant (+51,079 realized)
+  //   - Including Degiro deposits here would break the P&L formula:
+  //     plValuesTotal = NAV_change - cumDeposits (NAV has no Degiro, but deposits would)
+  //   - The Degiro withdrawal (-101,079 on 2025-04-14) was incorrectly inflating
+  //     Tous 1Y P&L by +101K (subtracted as negative deposit → added to P&L)
 
   // ── 3. SGTM acquisition costs (for Total P&L) ──
   // SGTM IPO Dec 2025 — all shares acquired at sgtmCostBasisMAD
@@ -3128,8 +3126,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
 
   // ── Include Degiro in Total P&L ──
-  // Total P&L should include Degiro's realized P&L for correct additivity
-  const plValuesTotalWithDegiro = plValuesTotal.map((v, i) => v + degiroRealizedPL);
+  // Compute as sum of individual P&L arrays to GUARANTEE additivity:
+  //   Tous P&L = IBKR P&L + ESPP P&L + SGTM P&L + Degiro P&L
+  // This avoids any mismatch between NAV and deposit scopes.
+  const plValuesTotalWithDegiro = plValuesIBKR.map((v, i) =>
+    v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
+  );
 
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
