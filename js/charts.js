@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=219';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=219';
-import { IMMO_CONSTANTS } from './data.js?v=219';
+import { fmt, fmtAxis } from './render.js?v=220';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=220';
+import { IMMO_CONSTANTS } from './data.js?v=220';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3079,6 +3079,76 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       return { total: Math.round(total), breakdown: items, hasData: true };
     }
 
+    // ── Helper: get ESPP/SGTM value at a given date from chartLabels/chartValues arrays ──
+    // Returns the value at or just before the target date (like navAtDate but for arrays)
+    function arrayValAtDate(arr, targetDate) {
+      for (let i = chartLabels.length - 1; i >= 0; i--) {
+        if (chartLabels[i] <= targetDate) return arr[i] || 0;
+      }
+      return arr[0] || 0;
+    }
+
+    // ── Inject ESPP/SGTM items into a breakdown when scope includes them ──
+    // This ensures the breakdown total matches the KPI card total (which uses totalValues)
+    function injectExternalItems(bd, startDate, endDate) {
+      if (!bd || !bd.hasData) return;
+      if (!includeESPP && !includeSGTM) return; // IBKR-only scope, nothing to add
+
+      // ESPP P&L for this period
+      if (includeESPP) {
+        const esppStart = arrayValAtDate(chartValuesESPP, startDate);
+        const esppEnd = arrayValAtDate(chartValuesESPP, endDate);
+        // ESPP deposits in this period (from cumDepositsESPP)
+        const cumESPPStart = arrayValAtDate(cumDepositsESPP, startDate);
+        const cumESPPEnd = arrayValAtDate(cumDepositsESPP, endDate);
+        const esppDeposits = cumESPPEnd - cumESPPStart;
+        const esppPL = Math.round(esppEnd - esppStart - esppDeposits);
+        if (Math.abs(esppPL) >= 1) {
+          const esppCapital = esppStart + esppDeposits;
+          const esppPct = esppCapital > 0 ? Math.round((esppPL / esppCapital) * 1000) / 10 : null;
+          bd.breakdown.push({
+            label: 'Accenture ESPP (ACN)',
+            ticker: 'ACN',
+            pl: esppPL,
+            pct: esppPct,
+            startVal: Math.round(esppStart),
+            endVal: Math.round(esppEnd),
+            valEUR: esppEnd,
+            _isExternal: true,
+          });
+          bd.total += esppPL;
+        }
+      }
+
+      // SGTM P&L for this period
+      if (includeSGTM) {
+        const sgtmStart = arrayValAtDate(chartValuesSGTM, startDate);
+        const sgtmEnd = arrayValAtDate(chartValuesSGTM, endDate);
+        const cumSGTMStart = arrayValAtDate(cumDepositsSGTM, startDate);
+        const cumSGTMEnd = arrayValAtDate(cumDepositsSGTM, endDate);
+        const sgtmDeposits = cumSGTMEnd - cumSGTMStart;
+        const sgtmPL = Math.round(sgtmEnd - sgtmStart - sgtmDeposits);
+        if (Math.abs(sgtmPL) >= 1) {
+          const sgtmCapital = sgtmStart + sgtmDeposits;
+          const sgtmPct = sgtmCapital > 0 ? Math.round((sgtmPL / sgtmCapital) * 1000) / 10 : null;
+          bd.breakdown.push({
+            label: 'SGTM (Maroc)',
+            ticker: 'SGTM',
+            pl: sgtmPL,
+            pct: sgtmPct,
+            startVal: Math.round(sgtmStart),
+            endVal: Math.round(sgtmEnd),
+            valEUR: sgtmEnd,
+            _isExternal: true,
+          });
+          bd.total += sgtmPL;
+        }
+      }
+
+      // Re-sort after injection: worst first
+      bd.breakdown.sort((a, b) => a.pl - b.pl);
+    }
+
     // Compute breakdowns for all periods
     const chartBreakdown = {};
     if (mode === 'ytd') {
@@ -3086,6 +3156,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       chartBreakdown.mtd = computePeriodBreakdown(mtdStartDate, lastDate, 'mtd');
       chartBreakdown.oneMonth = computePeriodBreakdown(oneMStartDate, lastDate, 'oneMonth');
       chartBreakdown.ytd = computePeriodBreakdown(ytdStartDate, lastDate, 'ytd');
+
+      // Inject ESPP/SGTM into each period's breakdown (scope=all)
+      injectExternalItems(chartBreakdown.daily, prevTradingDay, lastDate);
+      injectExternalItems(chartBreakdown.mtd, mtdStartDate, lastDate);
+      injectExternalItems(chartBreakdown.oneMonth, oneMStartDate, lastDate);
+      injectExternalItems(chartBreakdown.ytd, ytdStartDate, lastDate);
+
       console.log('[breakdown] YTD chart breakdown computed:', {
         daily: chartBreakdown.daily?.total,
         mtd: chartBreakdown.mtd?.total,
@@ -3103,6 +3180,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       window._simSnapshots = _simSnapshots;
     } else if (mode === '1y') {
       chartBreakdown.oneYear = computePeriodBreakdown(oneYStartDate, lastDate, 'oneYear');
+      injectExternalItems(chartBreakdown.oneYear, oneYStartDate, lastDate);
       console.log('[breakdown] 1Y chart breakdown computed:', {
         oneYear: chartBreakdown.oneYear?.total,
         items: chartBreakdown.oneYear?.breakdown?.length,
