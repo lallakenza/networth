@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=221';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=221';
-import { IMMO_CONSTANTS } from './data.js?v=221';
+import { fmt, fmtAxis } from './render.js?v=222';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=222';
+import { IMMO_CONSTANTS } from './data.js?v=222';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -286,7 +286,7 @@ function buildImmoEquityBar(state) {
     type: 'bar',
     data: {
       labels: ['Vitry (Amine)','Rueil (Nezha)','Villejuif (Nezha)'],
-      datasets: [{ label: 'Equity', data: [state.amine.vitryEquity, state.nezha.rueilEquity, state.nezha.villejuifEquity], backgroundColor: ['#4a5568','#2b6cb0','#2c7a7b'] }]
+      datasets: [{ label: 'Equity', data: [state.amine.vitryEquity, state.nezha.rueilEquity, state.nezha.villejuifEquity], backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
     },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
       plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
@@ -313,7 +313,7 @@ function buildImmoProjection(state) {
 
   const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
   const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
-  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
   const datasets = loanKeys.map(key => {
@@ -431,11 +431,11 @@ export function buildCFProjection(state) {
     data: {
       labels,
       datasets: [
-        { label: 'Equilibre (0)', data: zeroLine, borderColor: '#e53e3e', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
-        { label: 'Vitry', data: vitryData, borderColor: '#4a5568', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-        { label: 'Rueil', data: rueilData, borderColor: '#2b6cb0', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-        ...(includeVillejuif ? [{ label: 'Villejuif', data: villejuifData, borderColor: '#2c7a7b', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 }] : []),
-        { label: includeVillejuif ? 'Total 3 biens' : 'Total 2 biens', data: totalData, borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.12)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3 },
+        { label: 'Equilibre (0)', data: zeroLine, borderColor: '#dee2e6', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
+        { label: 'Vitry', data: vitryData, borderColor: '#4c6ef5', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#4c6ef5' },
+        { label: 'Rueil', data: rueilData, borderColor: '#12b886', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#12b886' },
+        ...(includeVillejuif ? [{ label: 'Villejuif', data: villejuifData, borderColor: '#f59f00', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#f59f00' }] : []),
+        { label: includeVillejuif ? 'Total 3 biens' : 'Total 2 biens', data: totalData, borderColor: '#1a1a2e', backgroundColor: 'rgba(76, 110, 245, 0.08)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3, pointBackgroundColor: '#1a1a2e' },
       ]
     },
     options: {
@@ -599,7 +599,7 @@ function buildImmoViewEquityBar(state) {
     type: 'bar',
     data: {
       labels: props.map(p => p.name + ' (' + p.owner + ')'),
-      datasets: [{ label: 'Equity', data: props.map(p => p.equity), backgroundColor: ['#4a5568','#2b6cb0','#2c7a7b'] }]
+      datasets: [{ label: 'Equity', data: props.map(p => p.equity), backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
     },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
       plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
@@ -835,7 +835,7 @@ function buildAmortChart(state) {
 
   // Build line chart: show CRD evolution over time for each loan, aligned by calendar date
   const schedules = iv.amortSchedules;
-  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
   // Filter loan keys based on Villejuif toggle
@@ -945,7 +945,7 @@ function buildImmoViewProjection(state) {
   const projYears = [2027, 2028, 2029, 2030, 2031, 2032];
   const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
   const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
-  const loanColors = { vitry: '#4a5568', rueil: '#2b6cb0', villejuif: '#2c7a7b' };
+  const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
   const datasets = loanKeys.map(key => {
@@ -1291,7 +1291,7 @@ export function buildWealthProjectionChart(state, mode, group) {
 
   // Property names and colors for "par appart" mode
   const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
-  const propColors = { vitry: '#3182ce', rueil: '#2f855a', villejuif: '#ed8936' };
+  const propColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
   const propKeys = Object.keys(proj[0]?.perProp || {}).filter(k => includeVillejuif || k !== 'villejuif');
 
@@ -1385,28 +1385,38 @@ export function buildWealthProjectionChart(state, mode, group) {
       {
         label: 'Capital amorti',
         data: capitalData,
-        backgroundColor: '#3182ce',
+        backgroundColor: '#4c6ef5',
+        borderColor: '#3b5bdb',
+        borderWidth: 0.5,
+        borderRadius: 2,
         stack: 'wealth',
         order: 4,
       },
       {
         label: 'Appréciation',
         data: apprecData,
-        backgroundColor: '#2f855a',
+        backgroundColor: '#12b886',
+        borderColor: '#0ca678',
+        borderWidth: 0.5,
+        borderRadius: 2,
         stack: 'wealth',
         order: 3,
       },
       {
         label: 'Variation frais sortie',
         data: exitSavData,
-        backgroundColor: exitSavData.map(v => v >= 0 ? '#38b2ac' : '#fc8181'),
+        backgroundColor: exitSavData.map(v => v >= 0 ? '#20c997' : '#ff6b6b'),
+        borderWidth: 0.5,
+        borderRadius: 2,
         stack: 'wealth',
         order: 2,
       },
       {
         label: 'Cash flow',
         data: cfData,
-        backgroundColor: cfData.map(v => v >= 0 ? '#68d391' : '#fc8181'),
+        backgroundColor: cfData.map(v => v >= 0 ? '#a9e34b' : '#ff6b6b'),
+        borderWidth: 0.5,
+        borderRadius: 2,
         stack: 'wealth',
         order: 1,
       },
@@ -1414,9 +1424,9 @@ export function buildWealthProjectionChart(state, mode, group) {
         label: 'Total',
         data: totalData,
         type: 'line',
-        borderColor: '#2d3748',
+        borderColor: '#1a1a2e',
         backgroundColor: 'transparent',
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 0,
         tension: 0.3,
         order: 0,
