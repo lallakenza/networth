@@ -1730,64 +1730,6 @@ function buildBudgetTypeDonut(state) {
 // EUR at YTD start = derived so that total NAV = IBKR starting NAV
 // ============================================================
 
-// ── Render Degiro placeholder (closed account, no data) ──
-function renderDegiroPlaceholder(el) {
-  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-  const w = el.clientWidth || el.width;
-  const h = el.clientHeight || el.height;
-  el.width = w * (window.devicePixelRatio || 1);
-  el.height = h * (window.devicePixelRatio || 1);
-  const ctx = el.getContext('2d');
-  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-
-  // Clean gradient background
-  const bg = ctx.createLinearGradient(0, 0, 0, h);
-  bg.addColorStop(0, '#f7fafc');
-  bg.addColorStop(1, '#edf2f7');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-
-  // Subtle border
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
-
-  // Icon
-  ctx.fillStyle = '#a0aec0';
-  ctx.font = '32px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('📊', w / 2, h / 2 - 30);
-
-  // Title
-  ctx.fillStyle = '#718096';
-  ctx.font = '600 15px "DM Sans", sans-serif';
-  ctx.fillText('Compte Degiro clôturé', w / 2, h / 2 + 8);
-
-  // Subtitle
-  ctx.font = '400 13px "DM Sans", sans-serif';
-  ctx.fillStyle = '#a0aec0';
-  ctx.fillText('Pas de données historiques disponibles', w / 2, h / 2 + 30);
-
-  // P/L line
-  ctx.fillStyle = '#48bb78';
-  ctx.font = '500 13px "DM Sans", sans-serif';
-  ctx.fillText('P/L réalisé : +€ 51 079', w / 2, h / 2 + 54);
-
-  // Update title and labels
-  const titleEl = document.getElementById('ytdChartTitle');
-  if (titleEl) {
-    titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">📈</span>' +
-      'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
-  }
-  const ytdStartEl = document.getElementById('ytdStartValue');
-  const ytdEndEl = document.getElementById('ytdEndValue');
-  const ytdStartLabel = document.getElementById('ytdStartLabel');
-  if (ytdStartEl) ytdStartEl.textContent = '—';
-  if (ytdEndEl) ytdEndEl.textContent = '—';
-  if (ytdStartLabel) ytdStartLabel.textContent = 'NAV 23 mar 2025';
-}
-
 // ── Unified chart rendering function ──
 function renderPortfolioChart(overrides = {}) {
   const el = document.getElementById('portfolioYTDChart');
@@ -1800,12 +1742,6 @@ function renderPortfolioChart(overrides = {}) {
   const scope = overrides.scope || data.scope || 'ibkr';
   const displayMode = overrides.displayMode || window._ytdDisplayMode || 'value';
   const period = overrides.period || data.currentPeriod || 'YTD';
-
-  // Handle Degiro early
-  if (scope === 'degiro') {
-    renderDegiroPlaceholder(el);
-    return;
-  }
 
   // ── Slice data by period ──
   let startIdx = 0;
@@ -1839,28 +1775,34 @@ function renderPortfolioChart(overrides = {}) {
   const slicedTotal = data.totalValues.slice(startIdx);
   const slicedESPP = (data.esppValues || []).slice(startIdx);
   const slicedSGTM = (data.sgtmValues || []).slice(startIdx);
+  const slicedDegiro = (data.degiroValues || []).slice(startIdx);
   const slicedPLIBKR = (data.plValuesIBKR || []).slice(startIdx);
   const slicedPLTotal = (data.plValuesTotal || []).slice(startIdx);
   const slicedPLESPP = (data.plValuesESPP || []).slice(startIdx);
   const slicedPLSGTM = (data.plValuesSGTM || []).slice(startIdx);
+  const slicedPLDegiro = (data.plValuesDegiro || []).slice(startIdx);
 
   if (slicedLabels.length === 0) return;
 
   // ── Select data based on scope and mode ──
   let mainData, refValue, mainLabel, scopeLabel;
   if (displayMode === 'pl') {
-    // P&L mode: select scope-specific P&L series
+    // P&L mode: select scope-specific P&L series (NO fallback to IBKR)
     switch (scope) {
       case 'espp':
-        mainData = slicedPLESPP.length > 0 ? slicedPLESPP : slicedPLIBKR;
+        mainData = slicedPLESPP;
         scopeLabel = 'ESPP';
         break;
       case 'maroc':
-        mainData = slicedPLSGTM.length > 0 ? slicedPLSGTM : slicedPLIBKR;
+        mainData = slicedPLSGTM;
         scopeLabel = 'Maroc';
         break;
+      case 'degiro':
+        mainData = slicedPLDegiro;
+        scopeLabel = 'Degiro';
+        break;
       case 'all':
-        mainData = slicedPLTotal.length > 0 ? slicedPLTotal : slicedPLIBKR;
+        mainData = slicedPLTotal;
         scopeLabel = 'Tous';
         break;
       case 'ibkr':
@@ -1872,18 +1814,22 @@ function renderPortfolioChart(overrides = {}) {
     refValue = 0;
     mainLabel = 'P&L ' + scopeLabel + ' (EUR)';
   } else {
-    // Value mode: select scope-specific NAV series
+    // Value mode: select scope-specific NAV series (NO fallback to IBKR)
     switch (scope) {
       case 'espp':
-        mainData = slicedESPP.length > 0 ? slicedESPP : slicedIBKR;
+        mainData = slicedESPP;
         scopeLabel = 'ESPP';
         break;
       case 'maroc':
-        mainData = slicedSGTM.length > 0 ? slicedSGTM : slicedIBKR;
+        mainData = slicedSGTM;
         scopeLabel = 'Maroc';
         break;
+      case 'degiro':
+        mainData = slicedDegiro;
+        scopeLabel = 'Degiro';
+        break;
       case 'all':
-        mainData = slicedTotal.length > 0 ? slicedTotal : slicedIBKR;
+        mainData = slicedTotal;
         scopeLabel = 'Tous';
         break;
       case 'ibkr':
@@ -1912,7 +1858,20 @@ function renderPortfolioChart(overrides = {}) {
   const periodLabel = (period === 'YTD' || !period) ? (data.mode === '1y' ? '1Y' : 'YTD') : period;
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
-    if (displayMode === 'pl') {
+    if (scope === 'degiro') {
+      const degiroColor = '#a0aec0';
+      if (displayMode === 'pl') {
+        titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
+          'P&L Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
+          (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>' +
+          ' <small style="color:#a0aec0;font-weight:normal">(compte clôturé — P/L réalisé)</small>';
+      } else {
+        titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
+          'Evolution Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
+          fmt(endVal) + '</span>' +
+          ' <small style="color:#a0aec0;font-weight:normal">(compte clôturé)</small>';
+      }
+    } else if (displayMode === 'pl') {
       titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
         'P&L ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
         (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>';
@@ -1955,20 +1914,30 @@ function renderPortfolioChart(overrides = {}) {
 
   const ctx = el.getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
-  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
-  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
+  const isDegiro = scope === 'degiro';
+
+  if (isDegiro) {
+    gradient.addColorStop(0, 'rgba(160,174,192,0.12)');
+    gradient.addColorStop(1, 'rgba(160,174,192,0.02)');
+  } else {
+    gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
+    gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
+  }
+
+  const lineColor = isDegiro ? '#a0aec0' : (isPositive ? '#48bb78' : '#e53e3e');
 
   const datasets = [
     {
       label: mainLabel,
       data: mainData,
-      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      borderColor: lineColor,
       backgroundColor: gradient,
-      borderWidth: 2,
-      pointRadius: mainData.length > 60 ? 1 : 2,
-      pointHoverRadius: 5,
-      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      borderWidth: isDegiro ? 1.5 : 2,
+      borderDash: isDegiro ? [4, 4] : [],
+      pointRadius: isDegiro ? 0 : (mainData.length > 60 ? 1 : 2),
+      pointHoverRadius: isDegiro ? 3 : 5,
+      pointBackgroundColor: lineColor,
+      pointHoverBackgroundColor: lineColor,
       fill: true,
       tension: 0,
     },
@@ -1997,6 +1966,9 @@ function renderPortfolioChart(overrides = {}) {
   const cumDepsTotal = data.cumDepositsAtPointTotal || data.cumDepositsAtPoint;
   const cumDepsESPP = data.cumDepositsESPP;
   const cumDepsSGTM = data.cumDepositsSGTM;
+  const plDegiro = data.plValuesDegiro;
+  const navDegiro = data.degiroValues;
+  const cumDepsDegiro = data.cumDepositsDegiro;
   const startValueRef = data.startValue;
 
   charts.portfolioYTD = new Chart(el, {
@@ -2041,17 +2013,22 @@ function renderPortfolioChart(overrides = {}) {
                 let nav, pl, dep;
                 switch (scope) {
                   case 'espp':
-                    nav = navESPP[idx] || navIBKR[idx];
+                    nav = navESPP[idx];
                     pl = plESPP[idx] || 0;
                     dep = cumDepsESPP[idx] || 0;
                     break;
                   case 'maroc':
-                    nav = navSGTM[idx] || navIBKR[idx];
+                    nav = navSGTM[idx];
                     pl = plSGTM[idx] || 0;
                     dep = cumDepsSGTM[idx] || 0;
                     break;
+                  case 'degiro':
+                    nav = navDegiro[idx] || 0;
+                    pl = plDegiro[idx] || 0;
+                    dep = cumDepsDegiro[idx] || 0;
+                    break;
                   case 'all':
-                    nav = navTotal[idx] || navIBKR[idx];
+                    nav = navTotal[idx];
                     pl = plTotal[idx] || 0;
                     dep = cumDepsTotal[idx] || 0;
                     break;
@@ -2076,6 +2053,10 @@ function renderPortfolioChart(overrides = {}) {
                     nav = navSGTM[idx];
                     pl = plSGTM[idx] || 0;
                     break;
+                  case 'degiro':
+                    nav = navDegiro[idx] || 0;
+                    pl = plDegiro[idx] || 0;
+                    break;
                   case 'all':
                     nav = navTotal[idx];
                     pl = plTotal[idx] || 0;
@@ -2096,6 +2077,20 @@ function renderPortfolioChart(overrides = {}) {
         },
       },
     },
+    plugins: isDegiro ? [{
+      id: 'degiroOverlay',
+      afterDraw(chart) {
+        const { ctx: c, chartArea: { left, right, top, bottom } } = chart;
+        const cx = (left + right) / 2;
+        const cy = (top + bottom) / 2;
+        c.save();
+        c.font = '600 14px Inter, system-ui, sans-serif';
+        c.fillStyle = '#a0aec0';
+        c.textAlign = 'center';
+        c.fillText('Compte clôturé — P/L réalisé : +' + fmt(data.degiroRealizedPL || 51079), cx, cy);
+        c.restore();
+      },
+    }] : [],
   });
 
   console.log('[ytd-chart] Rendered: scope=' + scope + ', mode=' + displayMode + ', period=' + period + ', points=' + slicedLabels.length);
@@ -3114,16 +3109,26 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     Object.assign(window._chartBreakdown, chartBreakdown);
   }
 
+  // ── Degiro data series (closed account, constant realized P&L) ──
+  const degiroRealizedPL = portfolio.amine.degiro?.totalRealizedPL || 0;
+  const chartValuesDegiro = chartLabels.map(() => 0); // NAV = 0 (closed)
+  const plValuesDegiro = chartLabels.map(() => degiroRealizedPL); // flat realized P&L
+  const cumDepositsDegiro = chartLabels.map(() => 0); // no deposits
+
   // ── Chart setup — scope-aware display ──
   // Select the correct data series based on scope:
   //   'ibkr'   → IBKR-only NAV
   //   'espp'   → ESPP-only valuation (ACN shares + cash)
   //   'maroc'  → SGTM/Maroc-only valuation
-  //   'degiro' → no active positions (show placeholder)
-  //   'all'    → IBKR + ESPP + SGTM combined total
+  //   'degiro' → NAV=0, P&L=realized P&L (flat)
+  //   'all'    → IBKR + ESPP + SGTM + Degiro combined total
   const showAll = includeESPP || includeSGTM;
   // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
   const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
+
+  // ── Include Degiro in Total P&L ──
+  // Total P&L should include Degiro's realized P&L for correct additivity
+  const plValuesTotalWithDegiro = plValuesTotal.map((v, i) => v + degiroRealizedPL);
 
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
@@ -3133,19 +3138,23 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     totalValues: chartValuesTotal,
     esppValues: chartValuesESPP,
     sgtmValues: chartValuesSGTM,
+    degiroValues: chartValuesDegiro,
     plValuesIBKR,
     plValuesESPP,
     plValuesSGTM,
-    plValuesTotal,
+    plValuesDegiro,
+    plValuesTotal: plValuesTotalWithDegiro,
     cumDepositsAtPoint,
     cumDepositsESPP,
     cumDepositsSGTM,
+    cumDepositsDegiro,
     cumDepositsAtPointTotal,
     showAll,
     includeESPP,
     includeSGTM,
     scope,
     startValue,
+    degiroRealizedPL,
     mode,
     currentPeriod: 'YTD',
   };
