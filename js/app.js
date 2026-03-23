@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=219';
-import { compute } from './engine.js?v=219';
-import { render } from './render.js?v=219';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=219';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=219';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=219';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=220';
+import { compute } from './engine.js?v=220';
+import { render } from './render.js?v=220';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=220';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=220';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=220';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1035,6 +1035,20 @@ async function loadStockPrices(forceRefresh) {
               });
               if (scopeResult) updateKPIsFromChart(scopeResult);
             } else {
+              // If coming from 1Y mode, _ytdChartFullData contains weekly-sampled 1Y data.
+              // We must rebuild the YTD chart (daily resolution) before applying sub-period filter.
+              const currentChartMode = window._ytdChartFullData?.mode;
+              if (currentChartMode === '1y') {
+                historicalDataToUse = historicalDataYTD;
+                const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+                  mode: 'ytd',
+                  startingNAV: 209495,
+                  includeESPP: true,
+                  includeSGTM: true,
+                  scope: currentScope,
+                });
+                if (scopeResult) updateKPIsFromChart(scopeResult);
+              }
               redrawChartForPeriod(currentPeriod);
             }
             // Preserve current display mode (Valeur or P&L) when changing period
