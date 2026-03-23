@@ -298,14 +298,14 @@
       <a href="index.html#apt_vitry" class="sub-card">
         <div class="sub-icon">🏠</div>
         <div class="sub-title">Vitry-sur-Seine</div>
-        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span data-eur="293000" class="cur-inline">--</span> (2%/an)<br>CRD <span data-eur="268903" class="cur-inline">--</span></div>
+        <div class="sub-detail">Amine — 67 m2 — Loue<br>Valeur <span data-eur="300000" class="cur-inline">--</span> (1.5%/an)<br>CRD <span data-eur="268903" class="cur-inline">--</span></div>
         <div class="sub-equity pos" id="subVitryEq" data-eur="0">--</div>
-        <div class="sub-badge" style="background:#fed7d7;color:#c53030">CF -317/mois</div>
+        <div class="sub-badge" style="background:#fed7d7;color:#c53030">CF -153/mois</div>
       </a>
       <a href="index.html#apt_rueil" class="sub-card">
         <div class="sub-icon">🏡</div>
         <div class="sub-title">Rueil-Malmaison</div>
-        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span data-eur="272000" class="cur-inline">--</span><br>CRD <span data-eur="196516" class="cur-inline">--</span></div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span data-eur="280000" class="cur-inline">--</span> (1%/an)<br>CRD <span data-eur="195275" class="cur-inline">--</span></div>
         <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
         <div class="sub-badge" style="background:#c6f6d5;color:#276749">CF +209/mois</div>
       </a>
@@ -494,23 +494,23 @@
     </thead>
     <tbody>
       <tr data-owner="amine">
-        <td><strong>Vitry-sur-Seine</strong><br><span style="font-size:12px;color:var(--gray)">67 m2 — loyer 1,200 + parking 70 cash</span></td>
+        <td><strong>Vitry-sur-Seine</strong><br><span style="font-size:12px;color:var(--gray)">67 m2 — loyer 1,050 HC + 150 charges + 70 parking</span></td>
         <td>Amine</td>
-        <td class="num" data-eur="293000">--</td><td class="num" data-eur="268903">--</td><td class="num pos" data-eur="24097">--</td>
-        <td class="num neg">-317</td>
+        <td class="num" data-eur="300000">--</td><td class="num" data-eur="268903">--</td><td class="num pos" data-eur="31097">--</td>
+        <td class="num neg">-153</td>
         <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
       </tr>
       <tr data-owner="nezha" style="background:#f0f5ff">
         <td><strong>Rueil-Malmaison</strong><br><span style="font-size:12px;color:var(--gray)">56 m2 — loyer 1,300 HC + 150 charges (bail oct 2025)</span></td>
         <td>Nezha</td>
-        <td class="num" data-eur="272000">--</td><td class="num" data-eur="196516">--</td><td class="num pos" data-eur="75484">--</td>
-        <td class="num pos">+209</td>
+        <td class="num" data-eur="280000">--</td><td class="num" data-eur="195275">--</td><td class="num pos" data-eur="84725">--</td>
+        <td class="num pos">+133</td>
         <td><span style="background:#c6f6d5;padding:2px 8px;border-radius:10px;font-size:12px">Loue</span></td>
       </tr>
       <tr data-owner="nezha">
         <td><strong>Villejuif (VEFA)</strong><br><span style="font-size:12px;color:#92400e">Conditionnel — acte non signe</span></td>
         <td>Nezha</td>
-        <td class="num" data-eur="360000">--</td><td class="num" data-eur="318470">--</td><td class="num pos" data-eur="41530">--</td>
+        <td class="num" data-eur="370000">--</td><td class="num" data-eur="318470">--</td><td class="num pos" data-eur="51530">--</td>
         <td class="num" style="color:var(--gray)">--</td>
         <td><span style="background:#fef3c7;padding:2px 8px;border-radius:10px;font-size:12px;color:#92400e">Conditionnel</span></td>
       </tr>
@@ -835,7 +835,7 @@ const NATIVE = {
   ibkrCash_EUR: 2500,           // cash residuel dans IBKR
   // amineIBKR_EUR is now COMPUTED from ibkrPositions + ibkrCash
   amineIBKR_EUR: 204156,        // fallback static value, overwritten by computeIBKR()
-  amineVitryValue_EUR: 293000,
+  amineVitryValue_EUR: 300000,
   amineVitryCRD_EUR: 268903,
   amineVehicles_EUR: 55000,
   amineRecvPro_EUR: 18200,      // SAP & Tax: 20j x 910
@@ -846,8 +846,8 @@ const NATIVE = {
   nezhaRecvOmar_MAD: 40000,
   // Nezha — EUR
   nezhaCashFrance_EUR: 85000,
-  nezhaRueilValue_EUR: 272000,
-  nezhaRueilCRD_EUR: 196516,
+  nezhaRueilValue_EUR: 280000,
+  nezhaRueilCRD_EUR: 195275,
   nezhaVillejuifValue_EUR: 360000,
   nezhaVillejuifCRD_EUR: 318470,
   // Stock prices (for SGTM & ESPP live updates)

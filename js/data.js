@@ -699,7 +699,7 @@ export const PORTFOLIO = {
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
       villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
-      // value: 370K = estimation sept 2025, 68.92m² × ~5 369€/m² (VEFA neuf, en construction)
+      // value: 370K = estimation sept 2025, 68.94m² × ~5 367€/m² (VEFA neuf, en construction)
       // Opération totale : 349 456€ avec remise résident Villejuif
       // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
@@ -1160,7 +1160,7 @@ export const IMMO_CONSTANTS = {
     },
     villejuif: {
       address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
-      surface: 68.92,           // m²
+      surface: 68.94,           // m² (somme des pièces : 3.60+35.09+11.24+11.24+5.45+2.32)
       purchasePrice: 349456,    // prix d'achat total opération VEFA
       totalOperation: 349456,   // montant total opération VEFA
       purchaseDate: '2025-04',  // signature VEFA
@@ -1495,7 +1495,7 @@ export const VILLEJUIF_REGIMES = {
     assurancePret: 51,
     valeurBien: 370000,
     totalOperation: 349456,
-    surface: 68.92,
+    surface: 68.94,
   },
 
   // ── Option 1 : JEANBRUN (ex-Pinel Denormandie rénové) ──
@@ -1523,7 +1523,7 @@ export const VILLEJUIF_REGIMES = {
     ],
     plafondLoyer: {
       zoneA: 17.62,   // €/m²/mois (2025, à actualiser)
-      loyerMaxMensuel: 1215,  // 68.92m² × 17.62 = 1 214€ (arrondi)
+      loyerMaxMensuel: 1215,  // 68.94m² × 17.62 = 1 214€ (arrondi)
     },
     avantages: [
       'Réduction d\'impôt directe (non-résident : imputable sur IR français)',

@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=220';
-import { getGrandTotal } from './engine.js?v=220';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=221';
+import { getGrandTotal } from './engine.js?v=221';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -475,19 +475,30 @@ function renderExpandSubs(state, view) {
     if (immoTbody) {
       let html = '';
       const propMeta = {
-        vitry: { desc: '67 m2 \u2014 loyer 1,050 HC + 150 charges + 70 parking', owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
-        rueil: { desc: '56 m2 \u2014 loyer 1,300 HC + 150 charges (bail oct 2025)', owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
+        vitry: { owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
+        rueil: { owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
         villejuif: { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
       };
       iv.properties.forEach(prop => {
         const meta = propMeta[prop.loanKey] || {};
         const rowStyle = meta.rowBg ? ' style="' + meta.rowBg + '"' : '';
         const descStyle = meta.descColor ? 'color:' + meta.descColor : 'color:var(--gray)';
+        // Build desc dynamically from property data (single source of truth)
+        let dynDesc = meta.desc || '';
+        if (!dynDesc && !prop.conditional) {
+          const surf = prop.propertyMeta?.surface || '';
+          const parts = [];
+          if (surf) parts.push(Math.round(surf) + ' m2');
+          if (prop.loyerHC > 0) parts.push('loyer ' + prop.loyerHC + ' HC');
+          if (prop.chargesLoc > 0) parts.push(prop.chargesLoc + ' charges');
+          if (prop.parking > 0) parts.push(prop.parking + ' parking');
+          dynDesc = parts.join(' \u2014 ');
+        }
         const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
         const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
         const cfStyle = prop.conditional ? 'color:var(--gray)' : '';
         html += '<tr' + rowStyle + '>'
-          + '<td><strong>' + prop.name + '</strong><br><span style="font-size:12px;' + descStyle + '">' + (meta.desc || '') + '</span></td>'
+          + '<td><strong>' + prop.name + '</strong><br><span style="font-size:12px;' + descStyle + '">' + dynDesc + '</span></td>'
           + '<td>' + (meta.owner || prop.owner) + '</td>'
           + '<td class="num" data-eur="' + Math.round(prop.value) + '">--</td>'
           + '<td class="num" data-eur="' + Math.round(prop.crd) + '">--</td>'
@@ -3446,7 +3457,7 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyer + '</div><div class="pk-label">Loyer HC</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyerHC + (prop.parking > 0 ? ' <span style="font-size:11px;color:var(--gray)">+' + prop.parking + ' pkg</span>' : '') + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
       card.addEventListener('click', () => {
@@ -3830,11 +3841,11 @@ function renderImmoView(state) {
       const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
       const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
       const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
-      const loyerText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.loyer || 0).toLocaleString('fr-FR');
+      const loyerText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.loyerHC || 0).toLocaleString('fr-FR');
       const revText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.totalRevenue || 0).toLocaleString('fr-FR');
       const cfStyle = prop.conditional ? ' style="color:var(--gray)"' : ' style="font-weight:700"';
       const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 livraison ete 2029</span>'
-        : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyer || 0) + '</span>';
+        : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyerHC || 0) + (prop.parking > 0 ? ' + pkg ' + prop.parking : '') + '</span>';
       html += '<tr' + rowBg + '>'
         + '<td><strong>' + prop.name + '</strong><br>' + desc + '</td>'
         + '<td class="num">' + Math.round(cd.pret || prop.monthlyPret || 0).toLocaleString('fr-FR') + '</td>'
