@@ -3,9 +3,9 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=210';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=210';
-import { IMMO_CONSTANTS } from './data.js?v=210';
+import { fmt, fmtAxis } from './render.js?v=211';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=211';
+import { IMMO_CONSTANTS } from './data.js?v=211';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1730,6 +1730,377 @@ function buildBudgetTypeDonut(state) {
 // EUR at YTD start = derived so that total NAV = IBKR starting NAV
 // ============================================================
 
+// ── Render Degiro placeholder (closed account, no data) ──
+function renderDegiroPlaceholder(el) {
+  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+  const w = el.clientWidth || el.width;
+  const h = el.clientHeight || el.height;
+  el.width = w * (window.devicePixelRatio || 1);
+  el.height = h * (window.devicePixelRatio || 1);
+  const ctx = el.getContext('2d');
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+  // Clean gradient background
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#f7fafc');
+  bg.addColorStop(1, '#edf2f7');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle border
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+  // Icon
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = '32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('📊', w / 2, h / 2 - 30);
+
+  // Title
+  ctx.fillStyle = '#718096';
+  ctx.font = '600 15px "DM Sans", sans-serif';
+  ctx.fillText('Compte Degiro clôturé', w / 2, h / 2 + 8);
+
+  // Subtitle
+  ctx.font = '400 13px "DM Sans", sans-serif';
+  ctx.fillStyle = '#a0aec0';
+  ctx.fillText('Pas de données historiques disponibles', w / 2, h / 2 + 30);
+
+  // P/L line
+  ctx.fillStyle = '#48bb78';
+  ctx.font = '500 13px "DM Sans", sans-serif';
+  ctx.fillText('P/L réalisé : +€ 51 079', w / 2, h / 2 + 54);
+
+  // Update title and labels
+  const titleEl = document.getElementById('ytdChartTitle');
+  if (titleEl) {
+    titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">📈</span>' +
+      'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
+  }
+  const ytdStartEl = document.getElementById('ytdStartValue');
+  const ytdEndEl = document.getElementById('ytdEndValue');
+  const ytdStartLabel = document.getElementById('ytdStartLabel');
+  if (ytdStartEl) ytdStartEl.textContent = '—';
+  if (ytdEndEl) ytdEndEl.textContent = '—';
+  if (ytdStartLabel) ytdStartLabel.textContent = 'NAV 23 mar 2025';
+}
+
+// ── Unified chart rendering function ──
+function renderPortfolioChart(overrides = {}) {
+  const el = document.getElementById('portfolioYTDChart');
+  if (!el) return;
+
+  const data = window._ytdChartFullData;
+  if (!data || !data.labels.length) return;
+
+  // Merge overrides with stored state
+  const scope = overrides.scope || data.scope || 'ibkr';
+  const displayMode = overrides.displayMode || window._ytdDisplayMode || 'value';
+  const period = overrides.period || data.currentPeriod || 'YTD';
+
+  // Handle Degiro early
+  if (scope === 'degiro') {
+    renderDegiroPlaceholder(el);
+    return;
+  }
+
+  // ── Slice data by period ──
+  let startIdx = 0;
+  if (period && period !== 'YTD' && period !== '1Y') {
+    const today = new Date();
+    let cutoff;
+    if (period === 'MTD') {
+      cutoff = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    } else if (period === '1M') {
+      const d = new Date(today);
+      d.setMonth(d.getMonth() - 1);
+      cutoff = d.toISOString().slice(0, 10);
+    } else if (period === '3M') {
+      const d = new Date(today);
+      d.setMonth(d.getMonth() - 3);
+      cutoff = d.toISOString().slice(0, 10);
+    } else if (period === '1Y') {
+      const d = new Date(today);
+      d.setFullYear(d.getFullYear() - 1);
+      cutoff = d.toISOString().slice(0, 10);
+    } else {
+      cutoff = '2025-12-31';
+    }
+    for (let i = 0; i < data.labels.length; i++) {
+      if (data.labels[i] >= cutoff) { startIdx = i; break; }
+    }
+  }
+
+  const slicedLabels = data.labels.slice(startIdx);
+  const slicedIBKR = data.ibkrValues.slice(startIdx);
+  const slicedTotal = data.totalValues.slice(startIdx);
+  const slicedESPP = (data.esppValues || []).slice(startIdx);
+  const slicedSGTM = (data.sgtmValues || []).slice(startIdx);
+  const slicedPLIBKR = (data.plValuesIBKR || []).slice(startIdx);
+  const slicedPLTotal = (data.plValuesTotal || []).slice(startIdx);
+  const slicedPLESPP = (data.plValuesESPP || []).slice(startIdx);
+  const slicedPLSGTM = (data.plValuesSGTM || []).slice(startIdx);
+
+  if (slicedLabels.length === 0) return;
+
+  // ── Select data based on scope and mode ──
+  let mainData, refValue, mainLabel, scopeLabel;
+  if (displayMode === 'pl') {
+    // P&L mode: select scope-specific P&L series
+    switch (scope) {
+      case 'espp':
+        mainData = slicedPLESPP.length > 0 ? slicedPLESPP : slicedPLIBKR;
+        scopeLabel = 'ESPP';
+        break;
+      case 'maroc':
+        mainData = slicedPLSGTM.length > 0 ? slicedPLSGTM : slicedPLIBKR;
+        scopeLabel = 'Maroc';
+        break;
+      case 'all':
+        mainData = slicedPLTotal.length > 0 ? slicedPLTotal : slicedPLIBKR;
+        scopeLabel = 'Tous';
+        break;
+      case 'ibkr':
+      default:
+        mainData = slicedPLIBKR;
+        scopeLabel = 'IBKR';
+        break;
+    }
+    refValue = 0;
+    mainLabel = 'P&L ' + scopeLabel + ' (EUR)';
+  } else {
+    // Value mode: select scope-specific NAV series
+    switch (scope) {
+      case 'espp':
+        mainData = slicedESPP.length > 0 ? slicedESPP : slicedIBKR;
+        scopeLabel = 'ESPP';
+        break;
+      case 'maroc':
+        mainData = slicedSGTM.length > 0 ? slicedSGTM : slicedIBKR;
+        scopeLabel = 'Maroc';
+        break;
+      case 'all':
+        mainData = slicedTotal.length > 0 ? slicedTotal : slicedIBKR;
+        scopeLabel = 'Tous';
+        break;
+      case 'ibkr':
+      default:
+        mainData = slicedIBKR;
+        scopeLabel = 'IBKR';
+        break;
+    }
+    refValue = mainData[0];
+    mainLabel = 'NAV ' + scopeLabel + ' (EUR)';
+  }
+
+  if (!mainData || mainData.length === 0) return;
+
+  const startVal = refValue;
+  const endVal = mainData[mainData.length - 1];
+  const plEUR = displayMode === 'pl' ? endVal : (endVal - refValue);
+  const plPct = displayMode === 'pl'
+    ? (data.startValue > 0 ? ((endVal / data.startValue) * 100).toFixed(2) : '0.00')
+    : (refValue !== 0 ? ((endVal / refValue - 1) * 100).toFixed(2) : '0.00');
+  const isPositive = displayMode === 'pl' ? endVal >= 0 : plEUR >= 0;
+
+  // ── Update UI elements ──
+  const titleEl = document.getElementById('ytdChartTitle');
+  // Period label: use actual period if sub-filtered, otherwise mode (YTD/1Y)
+  const periodLabel = (period === 'YTD' || !period) ? (data.mode === '1y' ? '1Y' : 'YTD') : period;
+  if (titleEl) {
+    const color = isPositive ? 'var(--green)' : 'var(--red)';
+    if (displayMode === 'pl') {
+      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
+        'P&L ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
+        (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>';
+    } else {
+      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
+        'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
+        (plEUR >= 0 ? '+' : '') + fmt(plEUR) + ' (' + (plEUR >= 0 ? '+' : '') + plPct + '%)</span>';
+    }
+  }
+
+  const ytdStartEl = document.getElementById('ytdStartValue');
+  const ytdEndEl = document.getElementById('ytdEndValue');
+  const ytdStartLabel = document.getElementById('ytdStartLabel');
+  if (displayMode === 'pl') {
+    if (ytdStartEl) ytdStartEl.textContent = fmt(0);
+    if (ytdEndEl) ytdEndEl.textContent = (endVal >= 0 ? '+' : '') + fmt(endVal);
+    if (ytdStartLabel) ytdStartLabel.textContent = 'P&L départ';
+  } else {
+    if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
+    if (ytdEndEl) ytdEndEl.textContent = fmt(endVal);
+    if (ytdStartLabel) {
+      if (data.mode === '1y') {
+        const startD = data.labels[0];
+        const sp = startD.split('-');
+        const MF = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+        ytdStartLabel.innerHTML = 'NAV ' + parseInt(sp[2]) + ' ' + MF[parseInt(sp[1])-1] + ' ' + sp[0];
+      } else {
+        ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
+      }
+    }
+  }
+
+  // ── Build chart ──
+  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+
+  const displayLabels = slicedLabels.map(d => {
+    const p = d.split('-');
+    return p[2] + '/' + p[1];
+  });
+
+  const ctx = el.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
+  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
+  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
+
+  const datasets = [
+    {
+      label: mainLabel,
+      data: mainData,
+      borderColor: isPositive ? '#48bb78' : '#e53e3e',
+      backgroundColor: gradient,
+      borderWidth: 2,
+      pointRadius: mainData.length > 60 ? 1 : 2,
+      pointHoverRadius: 5,
+      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
+      fill: true,
+      tension: 0,
+    },
+    {
+      label: displayMode === 'pl' ? 'Zéro' : ((data.mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
+      data: mainData.map(() => refValue),
+      borderColor: '#a0aec0',
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      fill: false,
+    },
+  ];
+
+  // Tooltip references
+  const chartLabelsRef = data.labels;
+  const plIBKR = data.plValuesIBKR;
+  const plTotal = data.plValuesTotal;
+  const plESPP = data.plValuesESPP;
+  const plSGTM = data.plValuesSGTM;
+  const navIBKR = data.ibkrValues;
+  const navTotal = data.totalValues;
+  const navESPP = data.esppValues;
+  const navSGTM = data.sgtmValues;
+  const cumDepsIBKR = data.cumDepositsAtPoint;
+  const cumDepsTotal = data.cumDepositsAtPointTotal || data.cumDepositsAtPoint;
+  const cumDepsESPP = data.cumDepositsESPP;
+  const cumDepsSGTM = data.cumDepositsSGTM;
+  const startValueRef = data.startValue;
+
+  charts.portfolioYTD = new Chart(el, {
+    type: 'line',
+    data: { labels: displayLabels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(45,55,72,0.95)',
+          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
+          callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const p = chartLabelsRef[startIdx + items[0].dataIndex].split('-');
+              return p[2] + '/' + p[1] + '/' + p[0];
+            },
+            label: item => {
+              if (item.datasetIndex === 1) {
+                return displayMode === 'pl' ? 'Zéro (breakeven)' : 'Ref: ' + fmt(refValue);
+              }
+              const idx = startIdx + item.dataIndex;
+              const val = item.parsed.y;
+              if (displayMode === 'pl') {
+                // P&L mode: show scope-specific P&L + NAV
+                let nav, pl, dep;
+                switch (scope) {
+                  case 'espp':
+                    nav = navESPP[idx] || navIBKR[idx];
+                    pl = plESPP[idx] || 0;
+                    dep = cumDepsESPP[idx] || 0;
+                    break;
+                  case 'maroc':
+                    nav = navSGTM[idx] || navIBKR[idx];
+                    pl = plSGTM[idx] || 0;
+                    dep = cumDepsSGTM[idx] || 0;
+                    break;
+                  case 'all':
+                    nav = navTotal[idx] || navIBKR[idx];
+                    pl = plTotal[idx] || 0;
+                    dep = cumDepsTotal[idx] || 0;
+                    break;
+                  default:
+                    nav = navIBKR[idx];
+                    pl = plIBKR[idx] || 0;
+                    dep = cumDepsIBKR[idx] || 0;
+                }
+                const lines = [];
+                lines.push('P&L: ' + (pl >= 0 ? '+' : '') + fmt(pl));
+                lines.push('NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(dep));
+                return lines;
+              } else {
+                // Value mode: show NAV + P&L since start
+                let nav, pl;
+                switch (scope) {
+                  case 'espp':
+                    nav = navESPP[idx];
+                    pl = plESPP[idx] || 0;
+                    break;
+                  case 'maroc':
+                    nav = navSGTM[idx];
+                    pl = plSGTM[idx] || 0;
+                    break;
+                  case 'all':
+                    nav = navTotal[idx];
+                    pl = plTotal[idx] || 0;
+                    break;
+                  default:
+                    nav = navIBKR[idx];
+                    pl = plIBKR[idx] || 0;
+                }
+                const diff = nav - startValueRef;
+                const pct = startValueRef !== 0 ? ((nav / startValueRef - 1) * 100).toFixed(2) : '0.00';
+                return [
+                  'NAV ' + scopeLabel + ': ' + fmt(nav) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
+                  'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
+                ];
+              }
+            },
+          },
+        },
+      },
+    },
+  });
+
+  console.log('[ytd-chart] Rendered: scope=' + scope + ', mode=' + displayMode + ', period=' + period + ', points=' + slicedLabels.length);
+}
+
 /**
  * Build the YTD portfolio evolution line chart.
  *
@@ -2341,9 +2712,67 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     cumDepositsAtPointTotal.push(cumDepTotal);
   }
 
+  // ── Track ESPP deposits separately ──
+  const allDepositsESPP = {};
+  esppLots
+    .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
+    .forEach(lot => {
+      const costUSD = lot.shares * lot.costBasis;
+      const fxAtDate = getFxRate('USD', lot.date) || fxStatic.USD || 1.08;
+      const costEUR = costUSD / fxAtDate;
+      allDepositsESPP[lot.date] = (allDepositsESPP[lot.date] || 0) + costEUR;
+    });
+
+  // ── Track SGTM deposits separately ──
+  const allDepositsSGTM = {};
+  if (sgtmCostMAD > 0 && sgtmTotalShares > 0) {
+    const sgtmIPODate = '2025-12-15';
+    if (sgtmIPODate > START_DATE && sgtmIPODate <= todayStr) {
+      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / (fxStatic.MAD || 10.85);
+      allDepositsSGTM[sgtmIPODate] = (allDepositsSGTM[sgtmIPODate] || 0) + sgtmCostEUR;
+    }
+  }
+
+  // ── Compute cumulative ESPP deposits at each chart point ──
+  let cumDepESPP = 0;
+  const cumDepositsESPP = [];
+  for (let i = 0; i < chartLabels.length; i++) {
+    const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
+    const curDate = chartLabels[i];
+    for (const [dDate, dAmt] of Object.entries(allDepositsESPP)) {
+      if (dDate > prevDate && dDate <= curDate) {
+        cumDepESPP += dAmt;
+      }
+    }
+    cumDepositsESPP.push(cumDepESPP);
+  }
+
+  // ── Compute cumulative SGTM deposits at each chart point ──
+  let cumDepSGTM = 0;
+  const cumDepositsSGTM = [];
+  for (let i = 0; i < chartLabels.length; i++) {
+    const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
+    const curDate = chartLabels[i];
+    for (const [dDate, dAmt] of Object.entries(allDepositsSGTM)) {
+      if (dDate > prevDate && dDate <= curDate) {
+        cumDepSGTM += dAmt;
+      }
+    }
+    cumDepositsSGTM.push(cumDepSGTM);
+  }
+
   // P&L IBKR = NAV(t) - NAV(start) - cumDeposits_IBKR(t)
   const startNAVRef = chartValues[0];
   const plValuesIBKR = chartValues.map((nav, i) => Math.round(nav - startNAVRef - cumDepositsAtPoint[i]));
+
+  // P&L ESPP = NAV(t) - NAV(start) - cumDeposits_ESPP(t)
+  const startNAVRefESPP = chartValuesESPP[0];
+  const plValuesESPP = chartValuesESPP.map((nav, i) => Math.round(nav - startNAVRefESPP - cumDepositsESPP[i]));
+
+  // P&L SGTM = NAV(t) - NAV(start) - cumDeposits_SGTM(t)
+  const startNAVRefSGTM = chartValuesSGTM[0];
+  const plValuesSGTM = chartValuesSGTM.map((nav, i) => Math.round(nav - startNAVRefSGTM - cumDepositsSGTM[i]));
+
   // P&L Total = NAV_total(t) - NAV_total(start) - cumDeposits_Total(t)
   // Uses cumDepositsAtPointTotal which includes ESPP lots + SGTM IPO cost
   const startNAVRefTotal = chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
@@ -2672,216 +3101,19 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     Object.assign(window._chartBreakdown, chartBreakdown);
   }
 
-  // ── Chart rendering — scope-aware display ──
+  // ── Chart setup — scope-aware display ──
   // Select the correct data series based on scope:
   //   'ibkr'   → IBKR-only NAV
   //   'espp'   → ESPP-only valuation (ACN shares + cash)
   //   'maroc'  → SGTM/Maroc-only valuation
-  //   'degiro' → no active positions (empty array → show IBKR as fallback)
+  //   'degiro' → no active positions (show placeholder)
   //   'all'    → IBKR + ESPP + SGTM combined total
   const showAll = includeESPP || includeSGTM;
   // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
   const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
-  let mainData, mainLabel, scopeLabel;
-  switch (scope) {
-    case 'espp':
-      mainData = chartValuesESPP;
-      mainLabel = 'NAV ESPP (EUR)';
-      scopeLabel = 'ESPP';
-      break;
-    case 'maroc':
-      mainData = chartValuesSGTM;
-      mainLabel = 'NAV Maroc (EUR)';
-      scopeLabel = 'Maroc';
-      break;
-    case 'degiro': {
-      // Degiro account is closed — no historical NAV data available
-      // Grey out the chart area instead of showing misleading data
-      scopeLabel = 'Degiro';
-      const titleEl = document.getElementById('ytdChartTitle');
-      if (titleEl) {
-        titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
-          'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
-      }
-      const ytdStartEl = document.getElementById('ytdStartValue');
-      const ytdEndEl = document.getElementById('ytdEndValue');
-      if (ytdStartEl) ytdStartEl.textContent = '—';
-      if (ytdEndEl) ytdEndEl.textContent = '—';
-      // Destroy existing chart and show grey placeholder
-      if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-      const ctx = el.getContext('2d');
-      ctx.clearRect(0, 0, el.width, el.height);
-      // Draw greyed-out background
-      const w = el.clientWidth || el.width;
-      const h = el.clientHeight || el.height;
-      el.width = w * (window.devicePixelRatio || 1);
-      el.height = h * (window.devicePixelRatio || 1);
-      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-      ctx.fillStyle = '#f5f5f4';
-      ctx.fillRect(0, 0, w, h);
-      // Draw diagonal lines pattern
-      ctx.strokeStyle = '#e7e5e4';
-      ctx.lineWidth = 1;
-      for (let i = -h; i < w + h; i += 20) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i + h, h);
-        ctx.stroke();
-      }
-      // Center message
-      ctx.fillStyle = '#78716c';
-      ctx.font = '600 16px "DM Sans", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Compte Degiro clôturé — Pas de données historiques', w / 2, h / 2 - 12);
-      ctx.font = '400 13px "DM Sans", sans-serif';
-      ctx.fillText('P/L réalisé : +€ 51 079', w / 2, h / 2 + 14);
-      return;
-    }
-    case 'all':
-      mainData = chartValuesTotal.length > 0 ? chartValuesTotal : chartValues;
-      mainLabel = 'NAV Total (EUR)';
-      scopeLabel = 'Tous';
-      break;
-    case 'ibkr':
-    default:
-      mainData = chartValues;
-      mainLabel = 'NAV IBKR (EUR)';
-      scopeLabel = 'IBKR';
-      break;
-  }
-
-  const startValue = mainData[0];
-  const endValue = mainData[mainData.length - 1];
-  const plEUR = endValue - startValue;
-  const plPct = startValue !== 0 ? ((endValue / startValue - 1) * 100).toFixed(2) : '0.00';
-  const isPositive = plEUR >= 0;
-
-  const MONTH_NAMES_SHORT = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-  const displayLabels = chartLabels.map(d => {
-    const p = d.split('-');
-    if (mode === '1y') {
-      return p[2] + '/' + p[1];
-    }
-    return p[2] + '/' + p[1];
-  });
-
-  const ctx = el.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
-  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
-  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
-
-  // Update title and KPIs
-  const titleEl = document.getElementById('ytdChartTitle');
-  const periodLabel = mode === '1y' ? '1Y' : 'YTD';
-  if (titleEl) {
-    const color = isPositive ? 'var(--green)' : 'var(--red)';
-    titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-      'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
-      (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
-  }
-  const ytdStartEl = document.getElementById('ytdStartValue');
-  const ytdEndEl = document.getElementById('ytdEndValue');
-  const ytdStartLabel = document.getElementById('ytdStartLabel');
-  if (ytdStartEl) ytdStartEl.textContent = fmt(startValue);
-  if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
-  if (ytdStartLabel) {
-    if (mode === '1y') {
-      const startParts = START_DATE.split('-');
-      const MONTH_FR = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-      ytdStartLabel.innerHTML = 'NAV ' + parseInt(startParts[2]) + ' ' + MONTH_FR[parseInt(startParts[1])-1] + ' ' + startParts[0];
-    } else {
-      ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
-    }
-  }
-
-  // Build datasets: single line for the active scope
-  const datasets = [
-    {
-      label: mainLabel,
-      data: mainData,
-      borderColor: isPositive ? '#48bb78' : '#e53e3e',
-      backgroundColor: gradient,
-      borderWidth: 2,
-      pointRadius: 2,
-      pointHoverRadius: 5,
-      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      fill: true,
-      tension: 0,
-    },
-  ];
-
-  // Add reference line for starting value
-  datasets.push({
-    label: (mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(startValue) + ')',
-    data: chartLabels.map(() => startValue),
-    borderColor: '#a0aec0',
-    borderWidth: 1,
-    borderDash: [6, 4],
-    pointRadius: 0,
-    fill: false,
-  });
-
-  charts.portfolioYTD = new Chart(el, {
-    type: 'line',
-    data: {
-      labels: displayLabels,
-      datasets: datasets,
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
-        },
-        y: {
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
-        },
-      },
-      plugins: {
-        legend: {
-          display: true, position: 'top',
-          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
-        },
-        tooltip: {
-          backgroundColor: 'rgba(45,55,72,0.95)',
-          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
-          callbacks: {
-            title: items => {
-              if (!items.length) return '';
-              const p = chartLabels[items[0].dataIndex].split('-');
-              return p[2] + '/' + p[1] + '/' + p[0];
-            },
-            label: item => {
-              // Reference line is always the last dataset
-              if (item.datasetIndex === datasets.length - 1) {
-                return (mode === '1y' ? 'Ref. début 1Y' : 'Ref. 1er jan') + ': ' + fmt(startValue);
-              }
-              const idx = item.dataIndex;
-              const val = item.parsed.y;
-              const diff = val - startValue;
-              const pct = ((val / startValue - 1) * 100).toFixed(2);
-              const tooltipLabel = 'NAV ' + scopeLabel;
-              const pl = showAll ? (plValuesTotal[idx] || 0) : (plValuesIBKR[idx] || 0);
-              return [
-                tooltipLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
-                'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
-              ];
-            },
-          },
-        },
-      },
-    },
-  });
-
-  console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, Start=' + startValue + ', End=' + endValue + ', P/L=' + plEUR);
 
   // Store full data for period filtering and mode switching
+  const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
   window._ytdChartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
@@ -2889,8 +3121,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     esppValues: chartValuesESPP,
     sgtmValues: chartValuesSGTM,
     plValuesIBKR,
+    plValuesESPP,
+    plValuesSGTM,
     plValuesTotal,
     cumDepositsAtPoint,
+    cumDepositsESPP,
+    cumDepositsSGTM,
     cumDepositsAtPointTotal,
     showAll,
     includeESPP,
@@ -2898,7 +3134,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     scope,
     startValue,
     mode,
+    currentPeriod: 'YTD',
   };
+
+  // Render the chart
+  renderPortfolioChart();
+
+  console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, scope=' + scope + ', mode=' + mode);
 
   // ── Track deposits by date for TWR / KPI computation ──
   // Convert all deposits to EUR for TWR calculation
@@ -2937,474 +3179,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 // ── Period filter: re-draw the YTD chart for a sub-period ──
 export function redrawChartForPeriod(period) {
   const data = window._ytdChartFullData;
-  if (!data || !data.labels.length) return;
-
-  const el = document.getElementById('portfolioYTDChart');
-  if (!el) return;
-
-  // Compute cutoff date based on period
-  const today = new Date();
-  let cutoffDate;
-  if (period === 'MTD') {
-    cutoffDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  } else if (period === '1M') {
-    const d = new Date(today);
-    d.setMonth(d.getMonth() - 1);
-    cutoffDate = d.toISOString().slice(0, 10);
-  } else if (period === '3M') {
-    const d = new Date(today);
-    d.setMonth(d.getMonth() - 3);
-    cutoffDate = d.toISOString().slice(0, 10);
-  } else if (period === '1Y') {
-    const d = new Date(today);
-    d.setFullYear(d.getFullYear() - 1);
-    cutoffDate = d.toISOString().slice(0, 10);
-  } else {
-    // YTD — show all
-    cutoffDate = '2025-12-31';
-  }
-
-  // Find start index in the labels array
-  let startIdx = 0;
-  for (let i = 0; i < data.labels.length; i++) {
-    if (data.labels[i] >= cutoffDate) { startIdx = i; break; }
-  }
-
-  const slicedLabels = data.labels.slice(startIdx);
-  const slicedIBKR = data.ibkrValues.slice(startIdx);
-  const slicedTotal = data.totalValues.slice(startIdx);
-  const slicedESPP = (data.esppValues || []).slice(startIdx);
-  const slicedSGTM = (data.sgtmValues || []).slice(startIdx);
-
-  if (slicedLabels.length === 0) return;
-
-  // ── Scope-aware data selection (same logic as buildPortfolioYTDChart) ──
-  const scope = data.scope || 'all';
-  let mainData, mainLabel, scopeLabel;
-  switch (scope) {
-    case 'espp':
-      mainData = slicedESPP.length > 0 ? slicedESPP : slicedIBKR;
-      mainLabel = 'NAV ESPP (EUR)';
-      scopeLabel = 'ESPP';
-      break;
-    case 'maroc':
-      mainData = slicedSGTM.length > 0 ? slicedSGTM : slicedIBKR;
-      mainLabel = 'NAV Maroc (EUR)';
-      scopeLabel = 'Maroc';
-      break;
-    case 'degiro': {
-      // Degiro account is closed — grey out chart
-      scopeLabel = 'Degiro';
-      const titleEl2 = document.getElementById('ytdChartTitle');
-      if (titleEl2) {
-        titleEl2.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
-          'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
-      }
-      const ytdStartEl2 = document.getElementById('ytdStartValue');
-      const ytdEndEl2 = document.getElementById('ytdEndValue');
-      if (ytdStartEl2) ytdStartEl2.textContent = '—';
-      if (ytdEndEl2) ytdEndEl2.textContent = '—';
-      if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-      const ctx2 = el.getContext('2d');
-      ctx2.clearRect(0, 0, el.width, el.height);
-      const w2 = el.clientWidth || el.width;
-      const h2 = el.clientHeight || el.height;
-      el.width = w2 * (window.devicePixelRatio || 1);
-      el.height = h2 * (window.devicePixelRatio || 1);
-      ctx2.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-      ctx2.fillStyle = '#f5f5f4';
-      ctx2.fillRect(0, 0, w2, h2);
-      ctx2.strokeStyle = '#e7e5e4';
-      ctx2.lineWidth = 1;
-      for (let i = -h2; i < w2 + h2; i += 20) {
-        ctx2.beginPath();
-        ctx2.moveTo(i, 0);
-        ctx2.lineTo(i + h2, h2);
-        ctx2.stroke();
-      }
-      ctx2.fillStyle = '#78716c';
-      ctx2.font = '600 16px "DM Sans", sans-serif';
-      ctx2.textAlign = 'center';
-      ctx2.textBaseline = 'middle';
-      ctx2.fillText('Compte Degiro clôturé — Pas de données historiques', w2 / 2, h2 / 2 - 12);
-      ctx2.font = '400 13px "DM Sans", sans-serif';
-      ctx2.fillText('P/L réalisé : +€ 51 079', w2 / 2, h2 / 2 + 14);
-      return;
-    }
-    case 'all':
-      mainData = slicedTotal.length > 0 ? slicedTotal : slicedIBKR;
-      mainLabel = 'NAV Total (EUR)';
-      scopeLabel = 'Tous';
-      break;
-    case 'ibkr':
-    default:
-      mainData = slicedIBKR;
-      mainLabel = 'NAV IBKR (EUR)';
-      scopeLabel = 'IBKR';
-      break;
-  }
-
-  const periodStart = mainData[0];
-  const periodEnd = mainData[mainData.length - 1];
-  const plEUR = periodEnd - periodStart;
-  const plPct = periodStart !== 0 ? ((periodEnd / periodStart - 1) * 100).toFixed(2) : '0.00';
-  const isPositive = plEUR >= 0;
-
-  // Destroy existing chart
-  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-
-  const displayLabels = slicedLabels.map(d => {
-    const p = d.split('-');
-    return p[2] + '/' + p[1];
-  });
-
-  const ctx = el.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
-  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
-  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
-
-  // Update title
-  const titleEl = document.getElementById('ytdChartTitle');
-  if (titleEl) {
-    const color = isPositive ? 'var(--green)' : 'var(--red)';
-    const periodLabel = period === 'YTD' ? 'YTD' : period;
-    titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-      'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
-      (isPositive ? '+' : '') + fmt(plEUR) + ' (' + (isPositive ? '+' : '') + plPct + '%)</span>';
-  }
-  const ytdStartEl = document.getElementById('ytdStartValue');
-  const ytdEndEl = document.getElementById('ytdEndValue');
-  const ytdStartLabel = document.getElementById('ytdStartLabel');
-  if (ytdStartEl) ytdStartEl.textContent = fmt(periodStart);
-  if (ytdEndEl) ytdEndEl.textContent = fmt(periodEnd);
-  if (ytdStartLabel) {
-    const startDate = slicedLabels[0].split('-');
-    ytdStartLabel.textContent = 'NAV ' + startDate[2] + '/' + startDate[1];
-  }
-  const datasets = [
-    {
-      label: mainLabel,
-      data: mainData,
-      borderColor: isPositive ? '#48bb78' : '#e53e3e',
-      backgroundColor: gradient,
-      borderWidth: 2,
-      pointRadius: mainData.length > 60 ? 1 : 2,
-      pointHoverRadius: 5,
-      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      fill: true,
-      tension: 0,
-    },
-    {
-      label: 'NAV début période (' + fmt(periodStart) + ')',
-      data: mainData.map(() => periodStart),
-      borderColor: '#a0aec0',
-      borderWidth: 1,
-      borderDash: [6, 4],
-      pointRadius: 0,
-      fill: false,
-    },
-  ];
-
-  charts.portfolioYTD = new Chart(el, {
-    type: 'line',
-    data: { labels: displayLabels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
-        },
-        y: {
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
-        },
-      },
-      plugins: {
-        legend: {
-          display: true, position: 'top',
-          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
-        },
-        tooltip: {
-          backgroundColor: 'rgba(45,55,72,0.95)',
-          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
-          callbacks: {
-            title: items => {
-              if (!items.length) return '';
-              const p = slicedLabels[items[0].dataIndex].split('-');
-              return p[2] + '/' + p[1] + '/' + p[0];
-            },
-            label: item => {
-              if (item.datasetIndex === 1) return 'Ref. début: ' + fmt(periodStart);
-              const val = item.parsed.y;
-              const diff = val - periodStart;
-              const pct = ((val / periodStart - 1) * 100).toFixed(2);
-              return 'NAV ' + scopeLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)';
-            },
-          },
-        },
-      },
-    },
-  });
-
-  console.log('[ytd-chart] Period ' + period + ' scope=' + scope + ': ' + slicedLabels.length + ' points, Start=' + periodStart + ', End=' + periodEnd);
+  if (!data) return;
+  data.currentPeriod = period;
+  renderPortfolioChart({ period });
 }
 
 // ── Switch between Valeur (NAV) and P&L display modes ──
 export function switchChartMode(displayMode) {
-  // displayMode: 'value' or 'pl'
-  const data = window._ytdChartFullData;
-  if (!data || !data.labels.length) return;
-
-  const el = document.getElementById('portfolioYTDChart');
-  if (!el) return;
-
   window._ytdDisplayMode = displayMode;
-
-  const showAll = data.showAll;
-  const scope = data.scope || 'all';
-  const isPLMode = displayMode === 'pl';
-
-  // ── Scope-aware label ──
-  let scopeLabel;
-  switch (scope) {
-    case 'espp': scopeLabel = 'ESPP'; break;
-    case 'maroc': scopeLabel = 'Maroc'; break;
-    case 'degiro': scopeLabel = 'Degiro'; break;
-    case 'all': scopeLabel = 'Tous'; break;
-    case 'ibkr': default: scopeLabel = 'IBKR'; break;
-  }
-
-  // ── Degiro: grey out chart (closed account, no historical data) ──
-  if (scope === 'degiro') {
-    const titleEl = document.getElementById('ytdChartTitle');
-    if (titleEl) {
-      titleEl.innerHTML = '<span class="section-icon" style="background:#a0aec0">&#x1F4C8;</span>' +
-        'Evolution Degiro — <span style="color:var(--text-secondary)">Compte clôturé</span>';
-    }
-    const ytdStartEl = document.getElementById('ytdStartValue');
-    const ytdEndEl = document.getElementById('ytdEndValue');
-    if (ytdStartEl) ytdStartEl.textContent = '—';
-    if (ytdEndEl) ytdEndEl.textContent = '—';
-    if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-    const ctxD = el.getContext('2d');
-    ctxD.clearRect(0, 0, el.width, el.height);
-    const wD = el.clientWidth || el.width;
-    const hD = el.clientHeight || el.height;
-    el.width = wD * (window.devicePixelRatio || 1);
-    el.height = hD * (window.devicePixelRatio || 1);
-    ctxD.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-    ctxD.fillStyle = '#f5f5f4';
-    ctxD.fillRect(0, 0, wD, hD);
-    ctxD.strokeStyle = '#e7e5e4';
-    ctxD.lineWidth = 1;
-    for (let i = -hD; i < wD + hD; i += 20) {
-      ctxD.beginPath();
-      ctxD.moveTo(i, 0);
-      ctxD.lineTo(i + hD, hD);
-      ctxD.stroke();
-    }
-    ctxD.fillStyle = '#78716c';
-    ctxD.font = '600 16px "DM Sans", sans-serif';
-    ctxD.textAlign = 'center';
-    ctxD.textBaseline = 'middle';
-    ctxD.fillText('Compte Degiro clôturé — Pas de données historiques', wD / 2, hD / 2 - 12);
-    ctxD.font = '400 13px "DM Sans", sans-serif';
-    ctxD.fillText('P/L réalisé : +€ 51 079', wD / 2, hD / 2 + 14);
-    return;
-  }
-
-  // ── Select the right data series based on scope and display mode ──
-  let mainData, refValue, mainLabel;
-  if (isPLMode) {
-    // For P&L mode: IBKR and Total P&L series exist; for ESPP/Maroc standalone, fall back to Total
-    // (P&L for individual platforms would need separate deposit tracking — future improvement)
-    mainData = showAll ? data.plValuesTotal : data.plValuesIBKR;
-    refValue = 0;
-    mainLabel = 'P&L ' + scopeLabel + ' (EUR)';
-  } else {
-    // Value mode: pick the right NAV series
-    switch (scope) {
-      case 'espp':
-        mainData = data.esppValues && data.esppValues.length > 0 ? data.esppValues : data.ibkrValues;
-        break;
-      case 'maroc':
-        mainData = data.sgtmValues && data.sgtmValues.length > 0 ? data.sgtmValues : data.ibkrValues;
-        break;
-      case 'all':
-        mainData = data.totalValues.length > 0 ? data.totalValues : data.ibkrValues;
-        break;
-      case 'ibkr':
-      default:
-        mainData = data.ibkrValues;
-        break;
-    }
-    refValue = mainData[0];
-    mainLabel = 'NAV ' + scopeLabel + ' (EUR)';
-  }
-
-  if (!mainData || mainData.length === 0) return;
-
-  const endValue = mainData[mainData.length - 1];
-  const startVal = mainData[0];
-  const plEUR = isPLMode ? endValue : (endValue - refValue);
-  const plPct = isPLMode
-    ? (data.startValue > 0 ? ((endValue / data.startValue) * 100).toFixed(2) : '0.00')
-    : (refValue !== 0 ? ((endValue / refValue - 1) * 100).toFixed(2) : '0.00');
-  const isPositive = isPLMode ? endValue >= 0 : plEUR >= 0;
-
-  // Update title
-  const titleEl = document.getElementById('ytdChartTitle');
-  const modeStr = data.mode === '1y' ? '1Y' : 'YTD';
-  if (titleEl) {
-    const color = isPositive ? 'var(--green)' : 'var(--red)';
-    if (isPLMode) {
-      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-        'P&L ' + scopeLabel + ' ' + modeStr + ' — <span style="color:' + color + '">' +
-        (endValue >= 0 ? '+' : '') + fmt(endValue) + '</span>';
-    } else {
-      titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">&#x1F4C8;</span>' +
-        'Evolution ' + scopeLabel + ' ' + modeStr + ' — <span style="color:' + color + '">' +
-        (plEUR >= 0 ? '+' : '') + fmt(plEUR) + ' (' + (plEUR >= 0 ? '+' : '') + plPct + '%)</span>';
-    }
-  }
-
-  // Update start/end labels
-  const ytdStartEl = document.getElementById('ytdStartValue');
-  const ytdEndEl = document.getElementById('ytdEndValue');
-  const ytdStartLabel = document.getElementById('ytdStartLabel');
-  if (isPLMode) {
-    if (ytdStartEl) ytdStartEl.textContent = fmt(0);
-    if (ytdEndEl) ytdEndEl.textContent = (endValue >= 0 ? '+' : '') + fmt(endValue);
-    if (ytdStartLabel) ytdStartLabel.textContent = 'P&L départ';
-  } else {
-    if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
-    if (ytdEndEl) ytdEndEl.textContent = fmt(endValue);
-    if (ytdStartLabel) {
-      if (data.mode === '1y') {
-        const startD = data.labels[0];
-        const sp = startD.split('-');
-        const MF = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-        ytdStartLabel.innerHTML = 'NAV ' + parseInt(sp[2]) + ' ' + MF[parseInt(sp[1])-1] + ' ' + sp[0];
-      } else {
-        ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
-      }
-    }
-  }
-
-  // Destroy existing chart
-  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-
-  const displayLabels = data.labels.map(d => {
-    const p = d.split('-');
-    return p[2] + '/' + p[1];
-  });
-
-  const ctx = el.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, el.height || 400);
-  gradient.addColorStop(0, isPositive ? 'rgba(72,187,120,0.3)' : 'rgba(229,62,62,0.3)');
-  gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
-
-  const datasets = [
-    {
-      label: mainLabel,
-      data: mainData,
-      borderColor: isPositive ? '#48bb78' : '#e53e3e',
-      backgroundColor: gradient,
-      borderWidth: 2,
-      pointRadius: mainData.length > 60 ? 1 : 2,
-      pointHoverRadius: 5,
-      pointBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      pointHoverBackgroundColor: isPositive ? '#48bb78' : '#e53e3e',
-      fill: true,
-      tension: 0,
-    },
-    {
-      label: isPLMode ? 'Zéro' : ((data.mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
-      data: mainData.map(() => refValue),
-      borderColor: '#a0aec0',
-      borderWidth: 1,
-      borderDash: [6, 4],
-      pointRadius: 0,
-      fill: false,
-    },
-  ];
-
-  // Tooltip references for P&L display
-  const chartLabelsRef = data.labels;
-  const plIBKR = data.plValuesIBKR;
-  const plTotal = data.plValuesTotal;
-  const navIBKR = data.ibkrValues;
-  const navTotal = data.totalValues;
-  const cumDepsIBKR = data.cumDepositsAtPoint;
-  const cumDepsTotal = data.cumDepositsAtPointTotal || data.cumDepositsAtPoint;
-  const cumDeps = showAll ? cumDepsTotal : cumDepsIBKR;
-  const startValueRef = data.startValue;
-
-  charts.portfolioYTD = new Chart(el, {
-    type: 'line',
-    data: { labels: displayLabels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
-        },
-        y: {
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          ticks: { font: { size: 10 }, callback: v => fmtAxis(v) },
-        },
-      },
-      plugins: {
-        legend: {
-          display: true, position: 'top',
-          labels: { font: { size: 11 }, usePointStyle: true, pointStyle: 'line', padding: 12 },
-        },
-        tooltip: {
-          backgroundColor: 'rgba(45,55,72,0.95)',
-          titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10,
-          callbacks: {
-            title: items => {
-              if (!items.length) return '';
-              const p = chartLabelsRef[items[0].dataIndex].split('-');
-              return p[2] + '/' + p[1] + '/' + p[0];
-            },
-            label: item => {
-              if (item.datasetIndex === 1) {
-                return isPLMode ? 'Zéro (breakeven)' : 'Ref: ' + fmt(refValue);
-              }
-              const idx = item.dataIndex;
-              const val = item.parsed.y;
-              if (isPLMode) {
-                // P&L mode: show P&L + NAV + cumul deposits
-                const nav = showAll ? (navTotal[idx] || navIBKR[idx]) : navIBKR[idx];
-                const dep = cumDeps[idx] || 0;
-                const lines = [];
-                lines.push('P&L: ' + (val >= 0 ? '+' : '') + fmt(val));
-                lines.push('NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(dep));
-                return lines;
-              } else {
-                // Value mode: show NAV + P&L since start
-                const pl = showAll ? (plTotal[idx] || 0) : (plIBKR[idx] || 0);
-                const diff = val - startValueRef;
-                const pct = startValueRef !== 0 ? ((val / startValueRef - 1) * 100).toFixed(2) : '0.00';
-                return [
-                  'NAV ' + scopeLabel + ': ' + fmt(val) + ' (' + (diff >= 0 ? '+' : '') + fmt(diff) + ', ' + (diff >= 0 ? '+' : '') + pct + '%)',
-                  'P&L (hors dépôts): ' + (pl >= 0 ? '+' : '') + fmt(pl),
-                ];
-              }
-            },
-          },
-        },
-      },
-    },
-  });
-
-  console.log('[ytd-chart] Switched to mode: ' + displayMode);
+  const data = window._ytdChartFullData;
+  renderPortfolioChart({ displayMode, period: data?.currentPeriod });
 }
