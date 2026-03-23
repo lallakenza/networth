@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 23 mars 2026 (v219)
+> Dernière mise à jour : 24 mars 2026 (v221)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -16,8 +16,9 @@ index.html          ← Structure HTML + CSS
        ├─ js/data.js     ← Données brutes (positions, trades, dépôts, config)
        ├─ js/engine.js   ← Calculs purs (NAV, P/L, coûts, simulations immo)
        ├─ js/render.js   ← DOM write-only (formatage, tables, insights)
-       ├─ js/charts.js   ← Chart.js (évolution NAV, allocations, CF projection)
-       └─ js/api.js      ← Yahoo Finance API (FX live, prix actions, historique)
+       ├─ js/charts.js      ← Chart.js (évolution NAV, allocations, CF projection)
+       ├─ js/simulators.js  ← Simulateurs de projection patrimoine (20 ans)
+       └─ js/api.js         ← Yahoo Finance API (FX live, prix actions, historique)
 ```
 
 ### Principes architecturaux
@@ -32,7 +33,7 @@ index.html          ← Structure HTML + CSS
 
 ## 2. Fichiers — Responsabilités détaillées
 
-### `data.js` (~1 700 lignes)
+### `data.js` (~1 716 lignes)
 
 Couche de données brutes. **Aucune computation.** Contient :
 
@@ -54,7 +55,7 @@ Couche de données brutes. **Aucune computation.** Contient :
 | `WHT_RATES` | Retenues à la source par pays |
 | `DIV_YIELDS` / `DIV_CALENDAR` | Rendements dividendes et calendrier ex-dates |
 | `BUDGET_EXPENSES` | Dépenses mensuelles fixes |
-| `IMMO_CONSTANTS` | Prêts immo (Vitry, Rueil, Villejuif) + régimes fiscaux |
+| `IMMO_CONSTANTS` | Prêts immo (single + multi-loan), charges mensuelles, métadonnées propriétés, régimes fiscaux, config VEFA — voir §20 |
 
 #### Conventions data.js
 
@@ -63,7 +64,7 @@ Couche de données brutes. **Aucune computation.** Contient :
 - **FTT** : **PAS** incluse dans `t.commission`. Calculée séparément par `engine.js` (`FTT_RATE × cost`).
 - **Dépôts** : Chaque virement a sa date, montant, devise et `fxRateAtDate`. Les retraits ont un montant négatif.
 
-### `engine.js` (~3 200 lignes)
+### `engine.js` (~3 233 lignes)
 
 Calculs purs. Exporte `compute(portfolio, fx, stockSource) → STATE`.
 
@@ -78,7 +79,7 @@ Calculs purs. Exporte `compute(portfolio, fx, stockSource) → STATE`.
 | `computeIBKRDividends(startDate)` | Dividendes IBKR nets |
 | `computeACNDividends(startDate)` | Dividendes Accenture (ESPP) avec WHT 15% |
 | `computeAllCosts()` | Agrège tous les coûts (YTD + all-time) |
-| `computeImmoView()` | Simulations immobilières (amortissement, CF, plus-value) |
+| `computeImmoView()` | Simulations immobilières (amort, CF, plus-value, fiscalité, exit costs) — voir §20 |
 | `getGrandTotal()` | Grand total patrimoine (IBKR + ESPP + cash + immo + créances) |
 
 #### FTT — Taxe sur les Transactions Financières
@@ -95,7 +96,7 @@ const FTT_RATE = 0.004; // 0.4% — vérifié vs statement IBKR
 - **Taux** : 0.4% (pas 0.3% — le taux AMF officiel est 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte).
 - **Éligibilité** : Stocks français large-cap cotés Euronext Paris. Airbus (AIR.PA) est éligible malgré le siège aux Pays-Bas car coté Paris. Nexity (NXI) est exclue (small cap).
 
-### `render.js` (~5 300 lignes)
+### `render.js` (~5 481 lignes)
 
 DOM write-only. Reçoit STATE de engine.js, met à jour le DOM.
 
@@ -117,7 +118,7 @@ Le panel coûts est **expandable** (cliquer sur "▼ Détails") et affiche :
 - Impact net (coûts - dividendes)
 - Ligne all-time en bas
 
-### `charts.js` (~3 170 lignes)
+### `charts.js` (~3 301 lignes)
 
 Gère tous les graphiques Chart.js.
 
@@ -174,7 +175,7 @@ Fetch live via Yahoo Finance CORS proxies.
 
 Cache localStorage 10 min pour éviter les appels redondants.
 
-### `app.js` (~750 lignes)
+### `app.js` (~1 106 lignes)
 
 Orchestrateur. Gère :
 - Initialisation et imports
@@ -183,6 +184,59 @@ Orchestrateur. Gère :
 - Race condition fix : `destroyAllCharts()` préserve `charts.portfolioYTD` (v175)
 - `unifyPrices()` : injection des prix Quote API dans les données Chart API (v218)
 - Post-chart `refresh()` : re-render positions table avec `_chartBreakdown` (v219)
+
+### `simulators.js` (~836 lignes)
+
+Moteur de simulation de projection patrimoniale sur 20 ans. Exporté via `initSimulators(state)` et `bindSimulatorEvents(state, refreshFn)`.
+
+| Fonction | Rôle |
+|----------|------|
+| `runSimulatorGeneric(config)` | Moteur générique : projection mensuelle avec épargne, rendements, immobilier, stop year |
+| `buildSimChart(canvasId, chartKey, result)` | Construit un Chart.js stacked area (Immo, Capital, Gains, NW Total) avec légende interactive |
+| `makeComputePropertyEquity(iv, loanKey, initialValue)` | Fabrique une fonction `(m) → equity nette` pour une propriété (amort + appreciation - exit costs) |
+| `runCoupleSimulator(state)` | Simulateur couple : 3 propriétés (Vitry, Rueil, Villejuif), pool actions+cash, contributions mensuelles |
+| `runAmineSimulator(state)` | Simulateur Amine : Vitry seul, pool actions+cash personnel |
+| `runNezhaSimulator(state)` | Simulateur Nezha : Rueil + Villejuif (livraison décalée), cash + SGTM, pas de contributions mensuelles |
+| `runOpportunityCostSim()` | Calculateur coût d'opportunité : valeur future d'une dépense avec intérêts composés |
+
+#### Architecture du moteur générique
+
+`runSimulatorGeneric(config)` reçoit un objet de configuration :
+
+```javascript
+{
+  prefix,           // ID DOM pour affichage (cplSim, amSim, nzSim)
+  monthlySavings,   // Épargne mensuelle
+  pctActions,       // % alloué aux actions (reste → cash)
+  returnActions,    // Rendement annuel actions (ex: 0.10 = 10%)
+  returnCash,       // Rendement annuel cash (ex: 0.06 = 6%)
+  horizonYears,     // Horizon de projection (ex: 20)
+  stopYears,        // Arrêt des contributions après N années (0 = jamais)
+  startNW, startImmoEquity, startPoolActions, startPoolCash,
+  staticAssets,     // Véhicules, TVA, etc. (constant)
+  existingGains,    // Gains déjà réalisés (déduits de la base)
+  immoGrowthFn,     // (m) → delta equity immo pour le mois m
+  immoBreakdown,    // [{label, startEquity, growthFn, _computedEquity}] par propriété
+}
+```
+
+Le moteur itère mois par mois : il compose les rendements sur les pools actions/cash, ajoute les contributions (si < stopMonth), et appelle `immoGrowthFn(m)` pour le delta immobilier. Le résultat contient 6 séries temporelles : `dataNW`, `dataImmo`, `dataBase`, `dataGains`, `dataNWNoStop`, + breakdown par propriété.
+
+#### Equity nette par propriété (makeComputePropertyEquity)
+
+Pour chaque propriété, la fonction calcule :
+1. **CRD** : lookup dans le tableau d'amortissement à la date `YYYY-MM` cible
+2. **Valeur** : appreciation composée depuis la valeur actuelle, avec phases (taux différent par tranche d'années)
+3. **Exit costs** : interpolation linéaire entre années (IRA, frais agence, plus-value) pour éviter les sauts en escalier
+4. **Equity nette** = `max(0, valeur - CRD - exitCosts)`
+
+Le Villejuif n'apparaît qu'à partir de `IC.villejuifStartMonth` (livraison VEFA ~été 2029).
+
+#### Chart stacked area interactif
+
+Chaque simulateur produit un Chart.js avec 4 bandes empilées + ligne NW Total. La légende est interactive : cliquer sur une bande l'isole (re-stack uniquement les sélectionnées). Si seul "Immobilier" est sélectionné et qu'un `immoBreakdown` existe, des sous-bandes par propriété apparaissent dynamiquement.
+
+Le chart couple/amine supporte un "stop year" (arrêt des contributions) visualisé par une ligne pointillée rouge verticale + série fantôme "NW sans arrêt" en pointillés.
 
 ---
 
@@ -210,8 +264,9 @@ Après chaque déploiement, **bumper le numéro** dans :
 2. `index.html` (import de app.js)
 3. `render.js` (imports de data, engine)
 4. `charts.js` (imports de render, engine, data)
+5. `simulators.js` (imports de render, data)
 
-> **Version actuelle : v219** (mars 2026)
+> **Version actuelle : v221** (mars 2026)
 
 ---
 
@@ -393,6 +448,8 @@ Page load
 | v217 | 23 Mars 2026 | **Fix Daily P&L = 0** : Yahoo Chart API retourne 2 entrées pour le même jour (previous close + live intraday). Ajout déduplication dans `fetchTickerHistory()` — garder la DERNIÈRE valeur (= prix live) |
 | v218 | 23 Mars 2026 | **Unification des sources de prix** : (1) injection des prix live Quote API dans les données historiques Chart API via `unifyPrices()`, (2) enrichissement du breakdown avec `startVal`/`pct`, (3) override P&L du tableau positions avec les valeurs chart-derived via `_chartBreakdown` |
 | v219 | 23 Mars 2026 | **Fix timing render** : ajout `refresh()` après le build chart pour que `_chartBreakdown` soit disponible lors du override des positions table. Re-apply `updateKPIsFromChart()` après le refresh |
+| v220 | 24 Mars 2026 | **Fix breakdown ESPP/SGTM + MTD state** : (1) `injectExternalItems()` ajoute ESPP/SGTM dans le breakdown quand scope=Tous (résout KPI Daily ≠ breakdown), (2) fix MTD corrompu après 1Y→MTD (rebuild YTD si `_ytdChartFullData.mode === '1y'`) |
+| v221 | 24 Mars 2026 | **Fix 5 inconsistencies immobilier** : (1) Loyer HC affichait loyer+parking (1120→1050 +70 pkg), (2) surface Villejuif 68.92→68.94 (match somme pièces), (3) data-eur périmés index.html (293K→300K, 272K→280K, 360K→370K), (4) dashboard.html valeurs périmées (loyer 1200→1050, CF, equity), (5) descriptions propriétés dynamiques depuis data.js |
 
 ---
 
@@ -673,7 +730,7 @@ Chaque import a un paramètre `?v=N`. Après modification d'un fichier, bumper l
 | `window._appRefresh` | app.js | Callback refresh global |
 | `window._state` | app.js | STATE courant |
 | `window._actionsView` | app.js | Vue actions pour scope toggle |
-| `window._ytdChartFullData` | charts.js | Données complètes du chart (4 séries + scope) |
+| `window._ytdChartFullData` | charts.js | Données complètes du chart (5 séries NAV + 5 P&L + dépôts cumulés + scope + mode) — voir §23 |
 | `window._ytdDisplayMode` | charts.js | 'value' ou 'pl' |
 | `window._chartKPIData` | charts.js | KPIs calculés depuis le chart |
 | `window._chartKPIOverrides` | app.js | Persistance KPIs chart (évite flash au tab switch) |
@@ -857,3 +914,258 @@ Les KPIs sous le chart affichent correctement pour le scope Degiro :
 - P/L Non Réalisé : +€ 0
 - P/L Réalisé : +€ 51 079 (bénéfice Degiro)
 - Total Déposé : € 0 (les dépôts estimés nets sont à 0 car 50K déposés - 101K retirés = net négatif)
+
+---
+
+## 20. Immobilier — Modèle de données & Computation (engine.js)
+
+### Données sources (data.js)
+
+Le patrimoine immobilier est défini dans 3 structures complémentaires de `data.js` :
+
+**PORTFOLIO.{owner}.immo.{key}** — Valeur et revenus par propriété :
+
+| Propriété | Owner | value | valueDate | loyerHC | parking | chargesLocataire | loyerDeclare |
+|-----------|-------|-------|-----------|---------|---------|------------------|--------------|
+| `vitry` | Amine | 300 000 | 2025-09 | 1 050 | 70 | 150 | 600 |
+| `rueil` | Nezha | 280 000 | 2025-09 | 1 300 | 0 | 150 | — |
+| `villejuif` | Nezha | 370 000 | 2025-09 | 1 700 | 0 | 0 | — |
+
+**IMMO_CONSTANTS.charges.{key}** — Charges mensuelles :
+
+| Propriété | pret | assurance | pno | tf | copro |
+|-----------|------|-----------|-----|-----|-------|
+| vitry | 1 166 | 17 | 15 | 75 | 150 |
+| rueil | 970 | 18 | 12 | 67 | 250 |
+| villejuif | 1 669 | 51 | 15 | 83 | 110 |
+
+**IMMO_CONSTANTS.loans.{key}** — Prêts (single ou multi-loan) :
+- `vitryLoans[]` : 2 prêts (Action Logement + principal) — utilise `computeMultiLoanSchedule()`
+- `rueil` : prêt unique — utilise `computeAmortizationSchedule()`
+- `villejuifLoans[]` : 2 prêts + franchise VEFA (`villejuifFranchise`)
+
+**IMMO_CONSTANTS.properties.{key}** — Métadonnées :
+- `surface`, `rooms`, `purchasePrice`, `totalOperation`, `purchaseDate`
+- `appreciation` : taux annuel de base (ex: 0.015 = 1.5%)
+- `appreciationPhases[]` : taux par tranche d'années (ex: `{start: 2024, end: 2026, rate: 0.015}`)
+- `deliveryDate` (Villejuif VEFA uniquement)
+
+**IMMO_CONSTANTS.fiscalite.{key}** — Régime fiscal :
+- `type` : 'nu' ou 'lmnp'
+- `tmi`, `ps` : taux marginal d'imposition et prélèvements sociaux
+- `lmnpStartDate` : date début activité LMNP (pour calcul amortissements)
+- Vitry : régime micro-foncier avec `loyerDeclare` < `loyerHC` (loyer déclaré partiel)
+
+### computeImmoView() — Architecture
+
+La fonction centrale `computeImmoView(portfolio, fx)` dans `engine.js` (ligne ~1902) construit l'objet immoView complet. Pipeline :
+
+1. **Tableaux d'amortissement** : pour chaque prêt, calcule le schedule complet (mois par mois) avec CRD, intérêts, capital. Multi-loan (`computeMultiLoanSchedule`) combine les sous-prêts en un schedule unifié.
+
+2. **buildProperty()** — pour chaque propriété :
+   - **Valeur dynamique** : appreciation composée mensuelle depuis `valueDate`, avec phases spécifiques par année
+   - **CRD dynamique** : lookup dans le schedule à la date courante (pas le snapshot statique de data.js)
+   - **Revenus** : `loyer = loyerHC + parking`, `totalRevenue = loyer + chargesLocataire`
+   - **Cash flow** : `cf = totalRevenue - charges` (charges = pret + assurance + pno + tf + copro)
+   - **Fiscalité** : `computeFiscalite()` calcule l'impôt selon le régime (micro-foncier / réel / LMNP)
+   - **Exit costs** : `computeExitCosts()` calcule IRA, frais d'agence, plus-value nette, prélèvements sociaux
+   - **Wealth creation** : `capitalAmorti + appreciation + cashflow` par mois
+
+3. **Propriété conditionnelle** (Villejuif) : si `signed: false` ou `conditional: true`, les wealth CF et capital sont à 0 (pas de revenus locatifs avant livraison).
+
+4. **Agrégations** : totalEquity, totalCF, totalWealthCreation, avgLTV, totaux fiscaux, intérêts payés/restants, exit costs totaux.
+
+5. **Annexes** : comparison régimes Villejuif (Jeanbrun vs LMNP), config simulation fiscale Vitry, timeline VEFA Villejuif.
+
+### Objet propriété retourné
+
+Chaque propriété dans `immoView.properties[]` contient ~40 champs :
+
+```
+{
+  name, owner, conditional,
+  value, referenceValue, valueDate,    // valeur dynamique + référence
+  crd, equity, ltv,                     // CRD dynamique depuis amort schedule
+  loyerHC, parking, chargesLoc,        // revenus décomposés
+  loyer, totalRevenue, cf,             // agrégés
+  yieldGross, yieldNet, yieldNetFiscal,// rendements
+  wealthCreation, wealthBreakdown,     // {capitalAmorti, appreciation, cashflow, effortEpargne}
+  chargesDetail, loanDetails[],        // détails prêts et charges
+  fiscalite, cfNetFiscal,              // régime fiscal
+  exitCosts,                           // {ira, agencyFees, pvBrute, pvAbattement, pvNette, totalExitCosts, netEquityAfterExit}
+  pvAbattementSchedule,                // tableau d'abattement PV par année de détention
+  propertyMeta,                        // surface, rooms, purchaseDate, etc.
+}
+```
+
+### Exit costs (computeExitCosts)
+
+Calcul des frais de sortie hypothétiques si vente aujourd'hui :
+
+1. **IRA** (Indemnités de Remboursement Anticipé) : `min(3% × CRD, 6 mois d'intérêts)` par prêt, via `loanCRDs[]`
+2. **Frais d'agence** : 5% du prix de vente
+3. **Plus-value immobilière** : `PV brute = prix vente - prix achat - amortissements LMNP`
+4. **Abattement** : selon la durée de détention (régime IR : abattement progressif 6%-100% entre 6 et 22 ans)
+5. **Impôt PV** : `(PV nette après abattement) × (TMI + PS)`
+6. **Equity nette** = `valeur - CRD - IRA - agence - impôt PV`
+
+---
+
+## 21. Breakdown ESPP/SGTM — Injection externe (v220)
+
+### Problème
+
+Avant v220, le breakdown P&L par position ne contenait que les positions IBKR (13 tickers). En scope "Tous", le KPI Daily total incluait ESPP/SGTM (via `chartValuesTotal`) mais le breakdown ne les listait pas → incohérence : la somme du breakdown ≠ le KPI affiché.
+
+### Solution : injectExternalItems()
+
+La fonction `injectExternalItems(bd, startDate, endDate)` dans `charts.js` (ligne ~3093) est appelée après le calcul du breakdown IBKR pour chaque période. Elle ajoute des items ESPP et SGTM au breakdown :
+
+```
+Pour chaque plateforme (ESPP, SGTM) :
+  1. Lire la valeur au startDate et endDate dans chartValues{ESPP|SGTM}
+  2. Lire les dépôts cumulés au startDate et endDate dans cumDeposits{ESPP|SGTM}
+  3. P&L = (endVal - startVal) - (cumDepositsEnd - cumDepositsStart)
+  4. Si |P&L| >= 1€ → ajouter un item {label, ticker, pl, pct, _isExternal: true}
+  5. bd.total += P&L
+```
+
+### arrayValAtDate()
+
+Helper qui lookup une valeur dans un tableau indexé par les dates du chart (`window._ytdChartFullData.labels`). Gère le cas où la date exacte n'existe pas (prend la valeur la plus proche avant).
+
+### Nouvelles données dans _ytdChartFullData
+
+v220 ajoute 2 séries de dépôts cumulés au stockage global :
+
+| Champ | Description |
+|-------|-------------|
+| `cumDepositsESPP` | Dépôts cumulés ESPP (cost basis des lots achetés) par jour |
+| `cumDepositsSGTM` | Dépôts cumulés SGTM (coût IPO en EUR) par jour |
+
+### Fix MTD corrompu après 1Y→MTD
+
+Quand l'utilisateur passait de la période 1Y à MTD/1M/3M, le `_ytdChartFullData` contenait encore les données 1Y (sampled hebdo, ~52 points) au lieu du YTD (daily, ~60 points). Les filtres sub-période donnaient des résultats incorrects.
+
+Fix dans `app.js` : avant d'appliquer un filtre sub-période, vérifier `_ytdChartFullData.mode`. Si c'est `'1y'`, reconstruire d'abord le chart YTD complet (daily resolution) avant d'appliquer le filtre.
+
+```javascript
+// app.js — period toggle handler
+if (currentChartMode === '1y') {
+  // Must rebuild YTD chart (daily) before applying MTD/1M/3M filter
+  buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+    mode: 'ytd', startingNAV: 209495, ...
+  });
+}
+redrawChartForPeriod(period);
+```
+
+---
+
+## 22. Fix 5 inconsistencies Immobilier (v221)
+
+### Bug 1 — Loyer HC affichait loyer + parking
+
+**Problème** : `engine.js` calcule `loyer = loyerHC + parking` (1050 + 70 = 1120). La property card et le CF table affichaient `prop.loyer` (1120) avec le label "Loyer HC" → faux.
+
+**Fix** : `render.js` utilise désormais `prop.loyerHC` (1050) avec annotation parking séparée : `1 050 +70 pkg`.
+
+### Bug 2 — Surface Villejuif 68.92 → 68.94
+
+**Problème** : `data.js` déclarait `surface: 68.92` mais la somme des pièces (3.60+35.09+11.24+11.24+5.45+2.32) = 68.94.
+
+**Fix** : Corrigé dans `data.js` et toutes les occurrences (3 endroits).
+
+### Bug 3 — data-eur périmés dans index.html
+
+**Problème** : Les attributs `data-eur` de fallback dans `index.html` n'avaient pas été mis à jour lors de la revalorisation :
+- Vitry : `data-eur="293000"` → `300000`
+- Rueil : `data-eur="272000"` → `280000`
+- Villejuif : `data-eur="360000"` → `370000`
+
+### Bug 4 — dashboard.html valeurs périmées
+
+**Problème** : `dashboard.html` (page statique) contenait des valeurs obsolètes (loyer 1200 au lieu de 1050, equity et CF anciens).
+
+**Fix** : Mise à jour de toutes les valeurs statiques (loyer, CRD, equity, CF, appréciation) dans dashboard.html.
+
+### Bug 5 — Descriptions propriétés hardcodées
+
+**Problème** : `render.js` utilisait des descriptions hardcodées dans un objet `propDescriptions` au lieu de les générer depuis les données.
+
+**Fix** : Génération dynamique depuis `prop.propertyMeta` : `surface m² — loyer HC — charges — parking`.
+
+---
+
+## 23. Period Toggle System — MTD/1M/3M/YTD/1Y
+
+### Architecture
+
+Le chart d'évolution NAV supporte 5 périodes via les boutons radio dans l'UI. Le système utilise 2 datasets Yahoo Finance distincts :
+
+| Mode | Source | Résolution | Points |
+|------|--------|------------|--------|
+| `ytd` | `fetchHistoricalPricesYTD()` (range=ytd) | Journalière | ~60 |
+| `1y` | `fetchHistoricalPrices1Y()` (range=1y) | Hebdomadaire (sampled) | ~52 |
+
+### Flux de changement de période
+
+```
+Bouton période cliqué
+  ├─ MTD/1M/3M → filtre sub-période sur les données YTD
+  │    └─ Si _ytdChartFullData.mode === '1y' → rebuild YTD d'abord (v220 fix)
+  │    └─ redrawChartForPeriod(period)
+  ├─ YTD → rebuild complet avec historicalDataYTD
+  │    └─ buildPortfolioYTDChart(mode: 'ytd')
+  └─ 1Y → rebuild complet avec historicalData1Y
+       └─ buildPortfolioYTDChart(mode: '1y')
+       └─ update1YKPIFromChart()
+       └─ Rebuild YTD visible (le 1Y a écrasé le canvas)
+```
+
+### renderPortfolioChart()
+
+Fonction interne de `charts.js` qui lit `_ytdChartFullData` et construit/met à jour le Chart.js. Gère :
+- Filtrage par période (découpe les tableaux de données selon startDate/endDate)
+- Mode Valeur vs P&L (`_ytdDisplayMode`)
+- Scope (quelle série afficher : ibkr, espp, sgtm, degiro, all)
+- Grey-out Degiro (scope 'degiro' → placeholder hachures)
+- Breakdown P&L par position avec injection ESPP/SGTM (v220)
+
+### _ytdChartFullData — Structure complète
+
+```javascript
+window._ytdChartFullData = {
+  labels,                    // ['2026-01-02', '2026-01-03', ...]
+  ibkrValues,                // NAV IBKR par jour
+  totalValues,               // NAV IBKR+ESPP+SGTM par jour
+  esppValues,                // Valorisation ESPP par jour
+  sgtmValues,                // Valorisation SGTM par jour
+  degiroValues,              // Valorisation Degiro par jour
+  plValuesIBKR,              // P&L IBKR (NAV - deposits - startNAV)
+  plValuesESPP,              // P&L ESPP
+  plValuesSGTM,              // P&L SGTM
+  plValuesDegiro,            // P&L Degiro
+  plValuesTotal,             // P&L combiné
+  cumDepositsAtPoint,        // Dépôts cumulés IBKR par jour
+  cumDepositsESPP,           // Dépôts cumulés ESPP (v220)
+  cumDepositsSGTM,           // Dépôts cumulés SGTM (v220)
+  cumDepositsDegiro,         // Dépôts cumulés Degiro
+  cumDepositsAtPointTotal,   // Dépôts cumulés total
+  showAll, includeESPP, includeSGTM, scope,
+  startValue,                // NAV de départ
+  degiroRealizedPL,          // P&L réalisé Degiro (constant)
+  mode,                      // 'ytd' ou '1y'
+  currentPeriod,             // 'YTD', 'MTD', '1M', '3M', '1Y'
+};
+```
+
+### Silent 1Y rebuild
+
+Pour afficher le KPI "P&L 1Y" sans que l'utilisateur soit sur la période 1Y, `app.js` fait un rebuild silencieux :
+
+1. `buildPortfolioYTDChart(mode: '1y')` → construit le chart 1Y
+2. `update1YKPIFromChart()` → extrait la valeur P&L 1Y
+3. Re-build le chart YTD visible (le 1Y a écrasé `_ytdChartFullData` et le canvas)
+
+Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo différent (range=1y) avec un historique plus long mais une résolution inférieure.
