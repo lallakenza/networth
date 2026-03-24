@@ -900,7 +900,9 @@ export const IMMO_CONSTANTS = {
   villejuifStartMonth: 24, // Q1 2028 ~ 24 mois à partir de mars 2026 (contrat: livraison max 31/03/2028)
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
-    vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // pret: AL 145.20 + BP 1020.55 + PTZ 0 ≈ 1166, ass: APRIL 17.48 ≈ 17
+    // Vitry : prêt lissé → charges ~constantes quelle que soit la période
+    // P2 (2026-2028): AL 145 + BP 1021 + PTZ 0 = 1166 | P3 (2029-2043): AL 145 + BP 688 + PTZ 333 = 1166
+    vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // ass: APRIL 17.48€/mois ≈ 17
     rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 250 },  // pret: 969.62, ass: 17.99 (2026), copro: 250 dont 150 refacturé locataire
     villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
   },
@@ -920,49 +922,90 @@ export const IMMO_CONSTANTS = {
   // ──────────────────────────────────────────────────────
   loans: {
     // ── VITRY : 3 prêts — CRD calculé dynamiquement depuis vitryLoans ──
-    // Le champ 'vitry' est généré par computeMultiLoanSchedule(vitryLoans)
-    // insurance APRIL : 209.76€/an = 17.48€/mois (externe, non incluse dans sub-loans)
-    vitryInsurance: 17.48,
+    // ════════════════════════════════════════════════════════════
+    // VITRY — 3 prêts (275 000€ total)
+    // Sources : tableaux d'amortissement Banque Populaire Rives de Paris + Action Logement
+    // Emprunteur : Mohammed / Mohamed Amine KORAIBI
+    // Bien financé : ZAC Gare des Ardoines, Vitry-sur-Seine
+    //
+    // Le CRD global 'vitry' est calculé dynamiquement par computeMultiLoanSchedule(vitryLoans)
+    // L'assurance APRIL (17.48€/mois) est externalisée car elle couvre PTZ + BP ensemble
+    // ════════════════════════════════════════════════════════════
+    vitryInsurance: 17.48,     // assurance APRIL globale : 209.76€/an = 17.48€/mois
     vitryLoans: [
+      // ── PRÊT 1 : Action Logement ──
+      // Dossier : ALSXACC-22047897
+      // Source : tableau d'amortissement Action Logement Services, Paris, 4 janvier 2023
+      // Versement SEINEO n° 3074557 (promoteur)
+      // Échéance constante 145.20€ (1ère: 156.53€ intérêts longs), assurance 3.33€/mois intégrée
+      // Taux annuel effectif assurance : 0.19%
+      // Dernière échéance : 05/02/2048
       {
         name: 'Action Logement',
-        principal: 40000,
-        rate: 0.005,           // 0.50%
+        principal: 40000,      // montant viré à SEINEO
+        rate: 0.005,           // 0.50% taux nominal fixe
         startDate: '2023-03',  // 1ère échéance 05/03/2023
-        durationMonths: 300,   // 25 ans — fin fév 2048
-        monthlyPayment: 145.20,
-        insuranceMonthly: 3.33,  // assurance AL intégrée dans l'échéance
+        durationMonths: 300,   // 25 ans (mars 2023 → fév 2048)
+        monthlyPayment: 145.20,// échéance constante (hors 1ère: 156.53€)
+        insuranceMonthly: 3.33,// assurance AL intégrée dans l'échéance
       },
+      // ── PRÊT 2 : PTZ (Prêt à Taux Zéro) ──
+      // Dossier : 08867339 — Banque Populaire Rives de Paris, agence Diderot
+      // Compte : 23193675521
+      // Source : tableau d'amortissement édité le 10/11/2023 par GODEAU
+      // Catégorie : PRET A TAUX ZERO (768 ZZ)
+      // Date réalisation : 06/04/2023, déblocage initial 5 000€
+      // Structure : 60 mois de différé total, puis 180 mois d'amortissement constant
+      // Dernière échéance : ~nov 2043
       {
         name: 'PTZ (via Banque Populaire)',
         principal: 60000,
         rate: 0,               // 0% — Prêt à Taux Zéro
-        startDate: '2023-12',  // 1ère échéance 06/12/2023
-        durationMonths: 240,   // 20 ans — fin nov 2043
+        startDate: '2023-12',  // 1ère échéance 06/12/2023 (table d'amort)
+        durationMonths: 240,   // 20 ans total (60 différé + 180 amort)
         periods: [
           { months: 60, payment: 0 },        // P1 : différé total 5 ans (déc 2023 – nov 2028)
-          { months: 180, payment: 333.33 },   // P2 : amortissement constant (déc 2028 – nov 2043)
-        ],
-        insuranceMonthly: 0,
+          { months: 180, payment: 333.33 },   // P2 : amortissement constant 333.33€ (déc 2028 – nov 2043)
+        ],                     // 60000 / 333.33 = 180 mois ✓
+        insuranceMonthly: 0,   // assurance APRIL séparée (voir vitryInsuranceAPRIL)
       },
+      // ── PRÊT 3 : Banque Populaire Riv'immo ──
+      // Dossier : 08867340 — Banque Populaire Rives de Paris, agence Diderot
+      // Compte : 23193675521 (même compte que PTZ)
+      // Conseillère : Nafissa BATTERY
+      // Source : tableau d'amortissement édité le 24/07/2025
+      // Catégorie : PRET IMMOBILIER (840 ZZ)
+      // Date réalisation : 10/11/2023, déblocage initial 1 250€
+      // Amortissement palier 4 périodes (lissage PTZ) :
+      //   P1 (5 mois)  : intérêts seuls ~306€  — pas d'amortissement capital
+      //   P2 (36 mois) : 1 020.55€ — amortissement + intérêts (aligné sur fin PTZ différé)
+      //   P3 (180 mois): 687.55€ — palier bas pendant remboursement PTZ (333.33€)
+      //   P4 (60 mois) : 1 020.58€ — retour palier haut après fin PTZ (nov 2043)
+      // Total intérêts : 48 263.39€ | Total remboursé : 223 263.39€
+      // Dernière échéance : 06/12/2048
       {
         name: 'Banque Populaire (Riv\'immo)',
         principal: 175000,
-        rate: 0.021,           // 2.10%
-        startDate: '2025-08',  // 1ère échéance 06/08/2025 (réalisation 10/11/2023)
-        durationMonths: 281,   // 281 échéances — fin déc 2048
+        rate: 0.021,           // 2.10% taux nominal fixe
+        startDate: '2025-08',  // 1ère échéance 06/08/2025
+        durationMonths: 281,   // 281 échéances (août 2025 → déc 2048)
         periods: [
-          { months: 5, payment: 306.25 },     // P1 : intérêts seuls (août–déc 2025)
-          { months: 36, payment: 1020.55 },   // P2 : jan 2026 – déc 2028
-          { months: 180, payment: 687.55 },   // P3 : jan 2029 – déc 2043
-          { months: 60, payment: 1020.58 },   // P4 : jan 2044 – déc 2048
+          { months: 5, payment: 306.25 },     // P1 : intérêts seuls (août–déc 2025), 1ère: 305.07
+          { months: 36, payment: 1020.55 },   // P2 : jan 2026 – déc 2028 (palier haut, PTZ en différé)
+          { months: 180, payment: 687.55 },   // P3 : jan 2029 – déc 2043 (palier bas, PTZ rembourse)
+          { months: 60, payment: 1020.58 },   // P4 : jan 2044 – déc 2048 (retour palier, PTZ soldé)
         ],
-        insuranceMonthly: 0,   // assurance APRIL séparée
+        insuranceMonthly: 0,   // assurance APRIL séparée (voir vitryInsuranceAPRIL)
+        // ⚠️ Le prêt est un lissage : les paliers P2/P3/P4 sont calibrés pour que
+        //    BP + PTZ ≈ constante sur la durée (1020 + 0 ≈ 688 + 333 ≈ 1021 + 0)
+        totalInterestRef: 48263,  // coût total intérêts (tableau d'amort, pour référence)
       },
     ],
-    // Assurance emprunteur APRIL (couvre PTZ + BP Riv'immo)
+    // ── Assurance emprunteur APRIL (couvre PTZ + BP Riv'immo) ──
+    // Externe aux prêts BP, facturée séparément par APRIL
+    // Pas d'assurance sur le prêt Action Logement (incluse dans l'échéance AL à 3.33€/mois)
     vitryInsuranceAPRIL: {
-      annualTTC: 209.76,       // 17.48€/mois
+      annualTTC: 209.76,       // 17.48€/mois TTC
       breakdown: {
         ptz: 53.16,            // Emprunt N°1 : 60K PTZ
         bp: 147.00,            // Emprunt N°2 : 175K Riv'immo

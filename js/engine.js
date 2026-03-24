@@ -1984,18 +1984,54 @@ function computeImmoView(portfolio, fx) {
       : propData.crd;
 
     // Loan details for detail panel
+    // ── Helper: compute current period payment for multi-period loans ──
+    // Uses loan.startDate + today's date to find which period we're in
+    function getCurrentPeriodPayment(loan) {
+      if (loan.monthlyPayment) return loan.monthlyPayment;
+      if (!loan.periods || !loan.startDate) return 0;
+      const [sy, sm] = loan.startDate.split('-').map(Number);
+      const now = new Date();
+      const monthsElapsed = (now.getFullYear() - sy) * 12 + (now.getMonth() + 1 - sm);
+      let cumMonths = 0;
+      for (const p of loan.periods) {
+        cumMonths += p.months;
+        if (monthsElapsed < cumMonths) return p.payment;
+      }
+      // Past all periods → return last period payment
+      return loan.periods[loan.periods.length - 1].payment;
+    }
+
+    // ── Helper: find current period index (0-based) ──
+    function getCurrentPeriodIndex(loan) {
+      if (!loan.periods || !loan.startDate) return -1;
+      const [sy, sm] = loan.startDate.split('-').map(Number);
+      const now = new Date();
+      const monthsElapsed = (now.getFullYear() - sy) * 12 + (now.getMonth() + 1 - sm);
+      let cumMonths = 0;
+      for (let i = 0; i < loan.periods.length; i++) {
+        cumMonths += loan.periods[i].months;
+        if (monthsElapsed < cumMonths) return i;
+      }
+      return loan.periods.length - 1;
+    }
+
     const subLoansKey = loanKey + 'Loans';
     let loanDetails = [];
     if (IC.loans && IC.loans[subLoansKey]) {
       loanDetails = IC.loans[subLoansKey].map(l => ({
         name: l.name, principal: l.principal, rate: l.rate,
-        durationMonths: l.durationMonths, monthlyPayment: l.monthlyPayment || (l.periods ? l.periods.find(p => p.payment > 0)?.payment : 0),
+        durationMonths: l.durationMonths,
+        monthlyPayment: getCurrentPeriodPayment(l),
+        periods: l.periods || null,           // pass full schedule for render
+        currentPeriodIndex: getCurrentPeriodIndex(l),  // which period we're in now
+        startDate: l.startDate || null,
         insuranceMonthly: l.insuranceMonthly || 0,
       }));
     } else if (IC.loans && IC.loans[loanKey]) {
       const l = IC.loans[loanKey];
       loanDetails = [{ name: 'Prêt principal', principal: l.principal, rate: l.rate,
         durationMonths: l.durationMonths, monthlyPayment: l.monthlyPayment,
+        periods: null, currentPeriodIndex: -1, startDate: l.startDate || null,
         insuranceMonthly: l.insurance || 0 }];
     }
 

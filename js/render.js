@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=226';
-import { getGrandTotal } from './engine.js?v=226';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=227';
+import { getGrandTotal } from './engine.js?v=227';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -62,6 +62,40 @@ function makeTableSortable(tableEl, data, renderRowsFn) {
 
 let _fx = { EUR: 1 };
 let _currency = 'EUR';
+
+// ── Helper: render multi-period loan schedule as inline badge row ──
+// Shows each period with duration × amount, highlights current period
+function renderLoanSchedule(loan) {
+  if (!loan.periods || loan.periods.length <= 1) return '';
+  const startParts = loan.startDate ? loan.startDate.split('-').map(Number) : null;
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 4px;align-items:center;">';
+  let cumMonths = 0;
+  loan.periods.forEach((p, i) => {
+    // Compute period date range
+    let dateLabel = '';
+    if (startParts) {
+      const startM = startParts[1] + cumMonths;
+      const endM = startParts[1] + cumMonths + p.months - 1;
+      const s = new Date(startParts[0], startM - 1, 1);
+      const e = new Date(startParts[0], endM - 1, 1);
+      const moisFr = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+      dateLabel = moisFr[s.getMonth()] + ' ' + s.getFullYear() + ' → ' + moisFr[e.getMonth()] + ' ' + e.getFullYear();
+    }
+    const isCurrent = (i === loan.currentPeriodIndex);
+    const bg = isCurrent ? '#ebf8ff;border:1px solid #3182ce;font-weight:600' : '#edf2f7;border:1px solid #e2e8f0';
+    const color = isCurrent ? '#2b6cb0' : '#4a5568';
+    const label = p.payment === 0 ? 'Différé' : Math.round(p.payment).toLocaleString('fr-FR') + ' €';
+    const durLabel = p.months >= 12 ? Math.round(p.months / 12) + ' ans' : p.months + ' mois';
+    html += '<span title="' + dateLabel + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 6px;border-radius:4px;background:' + bg + ';color:' + color + ';">';
+    if (isCurrent) html += '<span style="width:6px;height:6px;border-radius:50%;background:#3182ce;flex-shrink:0;"></span>';
+    html += durLabel + ' × ' + label;
+    html += '</span>';
+    if (i < loan.periods.length - 1) html += '<span style="font-size:10px;color:#a0aec0;">→</span>';
+    cumMonths += p.months;
+  });
+  html += '</div>';
+  return html;
+}
 
 function fmt(eurVal, compact) {
   const val = eurVal * (_fx[_currency] || 1);
@@ -4298,14 +4332,20 @@ function renderPropertyDetail(state, prop) {
         totalAss += l.insuranceMonthly || 0;
         totalPrincipal += l.principal || 0;
         const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
+        const hasSchedule = l.periods && l.periods.length > 1;
+        const mensLabel = hasSchedule ? '<span title="Mensualité période courante">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</span>' : Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €';
         html += '<tr>'
           + '<td>' + l.name + '</td>'
           + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
           + '<td class="num">' + ((l.rate || 0) * 100).toFixed(2) + '%</td>'
           + '<td class="num">' + dur + '</td>'
-          + '<td class="num">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + mensLabel + '</td>'
           + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td>'
           + '</tr>';
+        // Multi-period schedule row
+        if (hasSchedule) {
+          html += '<tr><td colspan="6" style="padding:0 0 6px 8px;border:none;">' + renderLoanSchedule(l) + '</td></tr>';
+        }
       });
       html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
         + '<td>Total</td><td class="num">' + Math.round(totalPrincipal).toLocaleString('fr-FR') + ' €</td><td></td><td></td>'
@@ -4741,12 +4781,18 @@ function renderAptView(state, loanKey) {
       totalAss += l.insuranceMonthly || 0;
       totalPrincipal += l.principal || 0;
       const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
+      const hasSchedule = l.periods && l.periods.length > 1;
+      const mensLabel = hasSchedule ? '<span title="Mensualité période courante">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</span>' : Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €';
       html += '<tr><td>' + l.name + '</td>'
         + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
         + '<td class="num">' + ((l.rate || 0) * 100).toFixed(2) + '%</td>'
         + '<td class="num">' + dur + '</td>'
-        + '<td class="num">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</td>'
+        + '<td class="num">' + mensLabel + '</td>'
         + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td></tr>';
+      // Multi-period schedule row
+      if (hasSchedule) {
+        html += '<tr><td colspan="6" style="padding:0 0 6px 8px;border:none;">' + renderLoanSchedule(l) + '</td></tr>';
+      }
     });
     html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
       + '<td>Total</td><td class="num">' + Math.round(totalPrincipal).toLocaleString('fr-FR') + ' €</td><td></td><td></td>'
