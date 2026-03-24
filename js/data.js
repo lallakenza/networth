@@ -1341,7 +1341,7 @@ export const EXIT_COSTS = {
     timeline: [
       { date: '2025-04', event: 'Signature VEFA (réservation — 3 600€ versés)', icon: 'doc', done: true },
       { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank' },
-      { date: '2026-06', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant livraison', icon: 'tax' },
+      { date: '2029-03', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
       { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
       { date: '2029-06', event: 'Livraison VEFA + remise des clés', icon: 'key' },

@@ -1201,6 +1201,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
   <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
   <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label" id="kpiCoupleImmoLabel">Equity Immo *</div></div>
+  <div class="kpi"><div class="value" id="kpiCoupleCash" data-eur="0">--</div><div class="label">Cash Total</div></div>
+  <div class="kpi green"><div class="value" id="kpiCoupleActions" data-eur="0">--</div><div class="label">Actions Total</div></div>
 </div>
 <div class="kpi-insight-bar" id="insight-couple"></div>
 
@@ -1212,6 +1214,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR+ESPP)</div></div>
   <div class="kpi"><div class="value" id="kpiAmTWR">--</div><div class="label">TWR IBKR</div></div>
   <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">Equity Vitry</div></div>
+  <div class="kpi"><div class="value" id="kpiAmCash" data-eur="0">--</div><div class="label">Cash Total</div></div>
 </div>
 <div class="kpi-insight-bar hidden" id="insight-amine"></div>
 
@@ -1221,6 +1224,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="kpi"><div class="value" id="kpiNzRueil" data-eur="0">--</div><div class="label">Equity Rueil</div></div>
   <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiNzVillejuif" data-eur="0">--</div><div class="label">Equity Villejuif <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;">CONDITIONNEL</span></div></div>
   <div class="kpi"><div class="value" id="kpiNzCash" data-eur="0">--</div><div class="label">Cash + Creances</div></div>
+  <div class="kpi green"><div class="value" id="kpiNzActions" data-eur="0">--</div><div class="label">ESPP + SGTM</div></div>
 </div>
 <div class="kpi-insight-bar hidden" id="insight-nezha"></div>
 
@@ -1284,7 +1288,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <!-- EXPANDABLE: Stocks -->
   <div class="cat-expand" id="expand-stocks">
     <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
-      <a href="portfolio_analysis_v4.html" class="sub-card">
+      <a href="#" onclick="event.preventDefault();document.querySelector('.view-btn[data-view=&quot;actions&quot;]').click();" class="sub-card">
         <div class="sub-icon">&#x1F4CA;</div>
         <div class="sub-title">IBKR Portfolio</div>
         <div class="sub-detail">12 actions EU + 1 JP<br>2 crypto ETFs + multi-devise</div>
@@ -2081,7 +2085,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=224"></script>
+<script type="module" src="js/app.js?v=225"></script>
 
 </body>
 </html>
