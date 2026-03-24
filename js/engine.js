@@ -2139,7 +2139,7 @@ function computeImmoView(portfolio, fx) {
         franchiseMonths: franchise.months || 36,
         franchiseStart: franchise.startDate || null,
         loanDisbursed: franchise.loanDisbursed !== undefined ? franchise.loanDisbursed : true,
-        deliveryDate: propMeta.deliveryDate || '2029-06',
+        deliveryDate: propMeta.deliveryDate || '2028-03',
         totalOperation: propMeta.totalOperation || 0,
         fraisDossier: franchise.fraisDossier || 0,
       };
@@ -2502,11 +2502,11 @@ function computeBudgetView(portfolio, fx) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
-  // Villejuif: charges décalées — début ~3 ans après premier déblocage (avril 2025 → avril 2028)
+  // Villejuif: charges décalées — début après livraison Q1 2028 (franchise 36 mois depuis août 2025)
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
   // Villejuif : promesse de vente, prêt pas débloqué. Seule l'assurance prêt est payée (51€/mois).
-  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~2029).
+  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~Q1 2028).
   const villejuifActiveCharges = ['assurance']; // seules charges payées actuellement
 
   const investProperties = [];

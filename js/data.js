@@ -698,13 +698,13 @@ export const PORTFOLIO = {
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
-      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3600 },
-      // value: 370K = estimation sept 2025, 68.94m² × ~5 367€/m² (VEFA neuf, en construction)
-      // Opération totale : 349 456€ avec remise résident Villejuif
+      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3363 },
+      // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
+      // Prix contrat réservation : 336 330€ TTC (TVA 20%) — signé 20/06/2025
       // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
       // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
-      // Valeur conservatrice en construction (livraison été 2029)
+      // Valeur conservatrice en construction (livraison Q1 2028)
     },
   },
 
@@ -897,7 +897,7 @@ export const CURRENCY_CONFIG = {
 export const IMMO_CONSTANTS = {
   // growth: calculé dynamiquement dans engine.js depuis amortSchedules + appreciation + CF
   // Ancien hardcodé supprimé — voir wealthBreakdown dans computeImmoView()
-  villejuifStartMonth: 40, // Été 2029 ~ 40 mois à partir de mars 2026
+  villejuifStartMonth: 24, // Q1 2028 ~ 24 mois à partir de mars 2026 (contrat: livraison max 31/03/2028)
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // pret: AL 145.20 + BP 1020.55 + PTZ 0 ≈ 1166, ass: APRIL 17.48 ≈ 17
@@ -977,7 +977,9 @@ export const IMMO_CONSTANTS = {
       monthlyPayment: 969.62, // contrat notarié 5 nov 2019
       insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
     },
-    // ── VILLEJUIF : 2 prêts — CRD calculé dynamiquement depuis villejuifLoans ──
+    // ── VILLEJUIF : 2 prêts LCL — CRD calculé dynamiquement depuis villejuifLoans ──
+    // ⚠️ Le contrat de réservation mentionne un financement Crédit Agricole (332 967€, 300 mois, 3.50%)
+    //    mais ce sont des données INDICATIVES. Les vrais prêts sont ceux de l'offre LCL ci-dessous.
     villejuifInsurance: 51.29,   // 46.10 + 5.19
     villejuifLoans: [
       {
@@ -1047,7 +1049,7 @@ export const IMMO_CONSTANTS = {
     // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
     // lmnpStartDate: date de passage en LMNP (bail signé sept 2025, prise effet oct 2025)
     // Amortissement commence à cette date, pas à la date d'achat (2019)
-    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2029-09' },
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2028-06' },
     // lmnpStartDate: livraison + début location estimé sept 2029
   },
   // ──────────────────────────────────────────────────────
@@ -1160,22 +1162,22 @@ export const IMMO_CONSTANTS = {
     },
     villejuif: {
       address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
-      surface: 68.94,           // m² (somme des pièces : 3.60+35.09+11.24+11.24+5.45+2.32)
-      purchasePrice: 349456,    // prix d'achat total opération VEFA
-      totalOperation: 349456,   // montant total opération VEFA
-      purchaseDate: '2025-04',  // signature VEFA
-      deliveryDate: '2029-06',  // livraison été 2029
+      surface: 68.92,           // m² (contrat de réservation §1.6 — lot A27, étage 2)
+      purchasePrice: 336330,    // prix TTC contrat de réservation §1.7
+      totalOperation: 336330,   // montant TTC total (TVA 20%)
+      purchaseDate: '2025-06',  // signature contrat réservation 20/06/2025
+      deliveryDate: '2028-03',  // Q1 2028 — contrat §1.4 "au plus tard le 31 mars 2028"
       // ── Appréciation réaliste par phase ──
       // 2025-2028 : 3.0%/an — L15 Sud ouverture avril 2027, déjà L14 prolongée,
       //   en face station Villejuif Louis Aragon (future L15), pôle santé Gustave Roussy
       //   MeilleursAgents: Bd Gorki ~5 138€/m², hausse +20% entre 2021-2025
       //   efficity: 5 050€/m² jan 2026, +6% vs ville
-      // 2029+ : 1.5%/an — livraison du bien, L15 roulera depuis 2 ans, effet déjà pricé
+      // 2028+ : 1.5%/an — livraison du bien (Q1 2028), L15 roulera depuis ~1 an, effet déjà pricé
       // Moyenne lissée sur 10 ans ≈ 2.0%/an
       appreciation: 0.02,        // 2.0%/an (moyenne lissée, hub L14+L15, pôle santé)
       appreciationPhases: [
-        { start: 2025, end: 2028, rate: 0.030, note: 'Anticipation L15 + L14 déjà là, pôle santé Gustave Roussy' },
-        { start: 2029, end: 2040, rate: 0.015, note: 'Livraison bien, L15 roulera depuis 2 ans, effet pricé' },
+        { start: 2025, end: 2027, rate: 0.030, note: 'Anticipation L15 + L14 déjà là, pôle santé Gustave Roussy' },
+        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison bien Q1 2028, L15 roulera depuis ~1 an, effet pricé' },
       ],
       type: 'T3 — VEFA — LMNP',
       ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-04' },
@@ -1184,7 +1186,7 @@ export const IMMO_CONSTANTS = {
         floor: '2ème étage',
         building: null,
         type: 'T3',
-        yearBuilt: 2029,
+        yearBuilt: 2028,
         developer: 'Fair\' Promotion',
         program: '167 Aragon (Villejuif)',
         norm: 'RE2020, PMR évolutif',
@@ -1198,7 +1200,7 @@ export const IMMO_CONSTANTS = {
           { name: 'Salle de bain', surface: 5.45 },
           { name: 'WC', surface: 2.32 },
         ],
-        surfaceHabitable: 68.94,
+        surfaceHabitable: 68.92,
         loggia: 9.51,
         surfaceTotale: 78.45,
         parking: false,
@@ -1337,19 +1339,19 @@ export const EXIT_COSTS = {
     // LMNP ou JEANBRUN selon le choix
     // Si LMNP réel : même règle de réintégration des amortissements
     lmnpAmortReintegration: true,
-    note: 'VEFA — choix régime à faire avant livraison (été 2029)',
+    note: 'VEFA — choix régime à faire avant livraison (Q1 2028)',
     timeline: [
-      { date: '2025-04', event: 'Signature VEFA (réservation — 3 600€ versés)', icon: 'doc', done: true },
+      { date: '2025-06', event: 'Signature contrat de réservation (dépôt 3 363€)', icon: 'doc', done: true },
       { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank' },
-      { date: '2029-03', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
+      { date: '2028-03', event: 'Livraison VEFA + remise des clés (contractuel Q1 2028)', icon: 'key' },
+      { date: '2028-06', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
       { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
-      { date: '2029-06', event: 'Livraison VEFA + remise des clés', icon: 'key' },
-      { date: '2029-09', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
-      { date: '2031-06', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
-      { date: '2035-04', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
+      { date: '2028-01', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant 1ère mise en location', icon: 'tax' },
+      { date: '2030-03', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
+      { date: '2035-06', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
       { date: '2052-08', event: 'Fin prêts LCL (Prêt 1 + Prêt 2)', icon: 'check' },
-      { date: '2055-04', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
+      { date: '2055-06', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
     ],
   },
 };
@@ -1473,7 +1475,7 @@ export const VITRY_CONSTRAINTS = {
 // ════════════════════════════════════════════════════════════
 // VILLEJUIF — Comparaison JEANBRUN vs LMNP vs LMP
 //
-// Le bien sera livré été 2029. Il faut choisir le régime AVANT.
+// Le bien sera livré Q1 2028 (au plus tard 31 mars 2028, contrat §1.4). Il faut choisir le régime AVANT.
 // 3 options :
 //   1. Dispositif JEANBRUN (neuf, loi 2025) — location nue
 //   2. LMNP réel (meublé) — avec amortissement
