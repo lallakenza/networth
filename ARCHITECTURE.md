@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 24 mars 2026 (v221)
+> Dernière mise à jour : 24 mars 2026 (v224)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -96,7 +96,7 @@ const FTT_RATE = 0.004; // 0.4% — vérifié vs statement IBKR
 - **Taux** : 0.4% (pas 0.3% — le taux AMF officiel est 0.3% mais IBKR facture 0.4% en incluant ses frais de collecte).
 - **Éligibilité** : Stocks français large-cap cotés Euronext Paris. Airbus (AIR.PA) est éligible malgré le siège aux Pays-Bas car coté Paris. Nexity (NXI) est exclue (small cap).
 
-### `render.js` (~5 481 lignes)
+### `render.js` (~5 572 lignes)
 
 DOM write-only. Reçoit STATE de engine.js, met à jour le DOM.
 
@@ -118,7 +118,7 @@ Le panel coûts est **expandable** (cliquer sur "▼ Détails") et affiche :
 - Impact net (coûts - dividendes)
 - Ligne all-time en bas
 
-### `charts.js` (~3 301 lignes)
+### `charts.js` (~3 311 lignes)
 
 Gère tous les graphiques Chart.js.
 
@@ -1167,5 +1167,129 @@ Pour afficher le KPI "P&L 1Y" sans que l'utilisateur soit sur la période 1Y, `a
 1. `buildPortfolioYTDChart(mode: '1y')` → construit le chart 1Y
 2. `update1YKPIFromChart()` → extrait la valeur P&L 1Y
 3. Re-build le chart YTD visible (le 1Y a écrasé `_ytdChartFullData` et le canvas)
+
+---
+
+## 24. UX Immobilier — Améliorations visuelles (v222→v224)
+
+### Vue d'ensemble
+
+6 améliorations UX appliquées à la section Immobilier + correction d'un bug de duplication DOM.
+
+### 24.1 Jauges LTV colorées sur property cards
+
+**Fichier** : `render.js` — fonction `renderPropertyCard()` (~ ligne 3451)
+
+Chaque property card affiche une barre de progression horizontale sous le pourcentage LTV :
+
+```javascript
+const ltvPct = Math.min(prop.ltv, 100);
+const ltvColor = ltvPct >= 85 ? '#e53e3e'   // rouge
+               : ltvPct >= 70 ? '#d69e2e'   // orange
+               : '#38a169';                   // vert
+```
+
+Rendu : barre `height:6px` avec `background:#e2e8f0` (gris) et inner div proportionnel à `ltvPct%`.
+
+### 24.2 Bordures colorées par propriétaire
+
+**Fichier** : `render.js` — fonction `renderPropertyCard()` (~ ligne 3451)
+
+Chaque property card a une `border-left:3px solid` et un badge arrondi coloré selon le propriétaire :
+
+| Owner | Bordure | Badge bg | Badge text |
+|-------|---------|----------|------------|
+| Amine | `#3182ce` (bleu) | `#ebf8ff` | `#3182ce` |
+| Nezha | `#319795` (teal) | `#e6fffa` | `#319795` |
+
+### 24.3 Mini barre richesse sous KPI "Création Richesse"
+
+**Fichier** : `render.js` — dans `renderImmoView()` (~ ligne 3300)
+
+Après le `setText('kpiImmoViewWealth', ...)`, une barre tricolore 5px est ajoutée dynamiquement au parent du KPI :
+
+```
+[████████ Capital █████ Appréc. ██ CF]
+```
+
+- Bleu `#3182ce` = capital amorti (% du total)
+- Vert `#38a169` = appréciation (% du total)
+- Jaune `#d69e2e` ou rouge `#e53e3e` = cashflow (selon signe)
+
+Mini légende (9px) avec dots colorés en dessous.
+
+**Bug fix v224** : Les barres utilisent les classes CSS `.wealth-mini-bar` et `.wealth-mini-leg`, et un cleanup `querySelectorAll('.wealth-mini-bar, .wealth-mini-leg').forEach(el => el.remove())` est fait **avant** chaque re-render pour éviter l'accumulation DOM lors du toggle Villejuif.
+
+### 24.4 CF Summary Ribbon
+
+**Fichier** : `render.js` — dans `renderImmoView()` (~ ligne 3326)
+**HTML** : `index.html` — `<div id="cfSummaryRibbon">` (ligne ~1840)
+
+Bandeau horizontal entre les KPIs et le Breakdown Création de Richesse :
+
+```
+[Revenus ████████████████ € 4 420/mois] [Charges ████████████████████ € 4 668/mois]  [€ -248 CF net /mois]
+```
+
+- Barre verte (`linear-gradient(90deg,#9ae6b4,#38a169)`) pour les revenus
+- Barre rouge (`linear-gradient(90deg,#feb2b2,#e53e3e)`) pour les charges
+- Encadré résultat CF net (couleur selon signe)
+- Le div démarre `display:none`, rendu visible quand `cfRibbon` est trouvé et les données existent
+- Les totaux sont calculés en sommant `fp.reduce()` sur `totalRevenue` et `chargesDetail.*`
+
+### 24.5 Barres visuelles CF sur pages détail (onglets Vitry/Rueil/Villejuif)
+
+**Fichier** : `render.js` — dans la fonction de rendu des onglets apartment (~ ligne 4745)
+
+Remplace l'ancien `display:grid` texte par des barres horizontales proportionnelles :
+
+```javascript
+function cfBarRowApt(label, amount, color, maxRef) {
+  const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
+  // → label (110px) | barre 14px proportionnelle | montant (55px)
+}
+```
+
+Le `maxCFBarApt` est le max entre `totalRevenue` et `charges`, utilisé comme référence 100% pour la largeur des barres.
+
+Couleurs :
+- Revenus : dégradé vert (`#9ae6b4→#38a169`) pour loyer, `#48bb78` pour parking, turquoise pour charges locataire
+- Charges : dégradé rouge (`#feb2b2→#e53e3e`) pour prêt, rose pour assurance, orange (`#fbd38d→#d69e2e`) pour PNO/TF/Copro
+
+**Note** : Il existe deux chemins de rendu pour les propriétés :
+1. `renderPropertyDetail()` (cible `#propDetailCF`) — utilisé par le panneau détail modal
+2. Fonction inline dans le rendu des onglets apartment (cible `aptVitryContent`, `aptRueilContent`, `aptVillejuifContent`) — affichage principal des sous-onglets
+
+Les barres visuelles sont appliquées aux **deux** chemins de rendu.
+
+### 24.6 Palette couleurs charts immobilier
+
+**Fichier** : `charts.js` — 6 définitions de charts mises à jour
+
+Ancienne palette (gris/bleu/orange foncé) remplacée par une palette cohérente :
+
+| Propriété | Ancienne couleur | Nouvelle couleur |
+|-----------|------------------|------------------|
+| Vitry | `#4a5568` / `#3182ce` | `#4c6ef5` (indigo) |
+| Rueil | `#2b6cb0` / `#2f855a` | `#12b886` (émeraude) |
+| Villejuif | `#2c7a7b` / `#ed8936` | `#f59f00` (ambre) |
+
+Charts impactés :
+- `loanColors` (3 occurrences dans charts.js) — barres amortissement CRD
+- `propColors` — barres equity par bien
+- Equity bar chart : ajout `borderRadius: 4`
+- CF projection chart : nouvelles couleurs lignes, `pointBackgroundColor`, zero line `#dee2e6`, total line `#1a1a2e`
+- Wealth projection bar chart : `borderRadius: 2`, `borderWidth: 0.5`, couleurs Capital=`#4c6ef5`, Appréciation=`#12b886`, Exit savings=`#20c997`/`#ff6b6b`, CF=`#a9e34b`/`#ff6b6b`, Total line=`#1a1a2e` (2.5px)
+
+---
+
+## 25. Changelog v222→v224
+
+| Version | Commit | Description |
+|---------|--------|-------------|
+| v222 | `bc5e103` | 5 UX improvements (LTV gauge, owner borders, wealth bar, CF ribbon, CF visual bars) + chart color refresh |
+| v222b | `718f90d` | Fix: apply visual CF bars to apartment tab pages (rendering path was different from `renderPropertyDetail`) |
+| v223 | `796c399` | Cache-bust bump v222→v223 |
+| v224 | `bbb4d18` | Fix: prevent wealth mini-bar DOM duplication on Villejuif checkbox toggle (class markers + cleanup before render) |
 
 Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo différent (range=1y) avec un historique plus long mais une résolution inférieure.
