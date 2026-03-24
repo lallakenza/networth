@@ -1496,8 +1496,8 @@ export const VILLEJUIF_REGIMES = {
     mensualitePret: 1669,      // prêt LCL P1+P2
     assurancePret: 51,
     valeurBien: 370000,
-    totalOperation: 349456,
-    surface: 68.94,
+    totalOperation: 336330,
+    surface: 68.92,
   },
 
   // ── Option 1 : JEANBRUN (ex-Pinel Denormandie rénové) ──
