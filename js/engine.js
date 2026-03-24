@@ -1,6 +1,26 @@
 // ============================================================
 // ENGINE — Pure computation. No DOM access, no side effects.
 // ============================================================
+// Version: v228
+//
+// Purpose: Computation engine for the patrimonial dashboard
+//
+// Architecture:
+//   - Input: portfolio data from data.js (loans, properties, assets, FX rates)
+//   - Processing: Pure functions compute amortization, fiscal impact, wealth creation
+//   - Output: STATE object with computed views (immo, cash, actions, budget, creances)
+//
+// Key functions:
+//   - compute(portfolio, fx, stockSource)        → main entry point, returns full STATE
+//   - computeImmoView(portfolio, fx)             → property valuations, revenues, wealth
+//   - computeMultiLoanSchedule(subLoans, ins)    → combined amortization for multi-loan
+//   - computeAmortizationSchedule(loan)          → single-loan amortization table
+//   - computeFiscalite(loyer, charges, config)   → tax calculation (micro/réel)
+//   - computeExitCosts(loanKey, ...)             → capital gains tax and exit scenarios
+//   - computeCashView(portfolio, fx)             → cash holdings, yields, inflation
+//   - computeActionsView(portfolio, fx, source)  → stocks, dividends, P&L by position
+//   - computeBudgetView(portfolio, fx)           → budget tracking, monthly expenses
+//
 // compute(portfolio, fx, stockSource) → STATE object
 
 import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=176';
@@ -147,7 +167,40 @@ function computeIBKRPositions(portfolio, fx) {
 }
 
 /**
- * Compute actions view data (stocks cockpit)
+ * Compute actions view (stocks cockpit): positions, P&L, dividends, allocation
+ *
+ * Aggregates equity holdings across multiple accounts:
+ *   - IBKR (Interactive Brokers): individual stock positions + cash + FX P&L
+ *   - SGTM (Sicar): Moroccan equity investment company
+ *   - ESPP (Accenture): employee stock purchase plan
+ *   - Degiro (alternative broker): legacy positions
+ *
+ * For each position computes:
+ *   - Current value (in EUR using FX rates)
+ *   - Cost basis (acquisition cost)
+ *   - Unrealized P&L (current - cost)
+ *   - Period P&L: account for buys/sells during period (YTD, MTD, 1M, 1Y)
+ *
+ * Dividend analysis:
+ *   - By ticker: historical yields, declaration dates, ex-dates, payment dates
+ *   - Calendar projection: expected dividends next 12 months
+ *   - Cash flow impact: scheduled dividend payments
+ *
+ * Allocation:
+ *   - By region/currency: EUR, USD, JPY, other
+ *   - By sector: tech, financial, energy, etc.
+ *   - Concentration: top 5 holdings as % of total
+ *
+ * @param {Object} portfolio - Portfolio data
+ * @param {Object} fx - FX rates
+ * @param {string} stockSource - 'live' (compute from current prices) or 'statique' (use static NAV)
+ * @param {number} ibkrNAV - IBKR total nav
+ * @param {Array} ibkrPositions - Detailed IBKR positions with P&L
+ * @param {number} amineSgtm - SGTM value in EUR
+ * @param {number} nezhaSgtm - Nezha SGTM value in EUR
+ * @param {number} amineEspp - ESPP value in EUR
+ * @param {number} nezhaEspp - Nezha ESPP value in EUR
+ * @returns {Object} { ibkrNav, esppNav, sgtmNav, totalNav, positions: {...}, dividends, allocation, ... }
  */
 function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp) {
   const ibkr = portfolio.amine.ibkr;
@@ -989,7 +1042,31 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 }
 
 /**
- * Compute cash view data
+ * Compute cash view: cash holdings, yields, and inflation impact
+ *
+ * Aggregates multi-currency cash positions with their effective yields:
+ *   - IBKR (EUR, USD, JPY): multi-tier yield structure, JPY margin interest, FX gains
+ *   - UAE cash (Mashreq, WIO): AED accounts with LIBOR-linked yields
+ *   - Revolut EUR: fixed yield
+ *   - Morocco cash (Attijari, NABD): MAD accounts with fixed yields
+ *
+ * Computes:
+ *   - Total cash (consolidated in EUR)
+ *   - Monthly interest accrued (by cash account)
+ *   - Annual interest forecast
+ *   - Inflation impact: monthly purchasing power loss (inflation_rate / 12)
+ *   - Real yield: cash yield - inflation rate
+ *   - FX daily variance (for multi-currency positions)
+ *
+ * Special handling:
+ *   - IBKR: effective yield accounts for 10K EUR/USD threshold (no interest below)
+ *   - IBKR JPY: negative balance (margin loan) incurs borrowing cost (tiered rates)
+ *   - Inflation: monthly rate = annual_rate / 12, compounded
+ *
+ * @param {Object} portfolio - Portfolio data with cash holdings
+ * @param {Object} fx - Current FX rates
+ * @returns {Object} { cashTotal, accounts: [...], monthlyInterest, annualInterest,
+ *                     inflationMonthly, realYield, fxDailyDetail, ... }
  */
 function computeCashView(portfolio, fx) {
   const p = portfolio;
@@ -1260,8 +1337,35 @@ function computeCashView(portfolio, fx) {
 }
 
 /**
- * Compute amortization schedule for a single loan
- * Returns: { schedule: [{month, date, payment, interest, principal, remainingCRD}], ...aggregates }
+ * Compute amortization schedule for a single constant-payment loan
+ *
+ * Builds a month-by-month breakdown of payments:
+ *   - month: sequential month number (1, 2, 3, ...)
+ *   - date: calendar date in YYYY-MM format
+ *   - payment: monthly payment amount (constant)
+ *   - interest: interest portion of payment for this month
+ *   - principal: principal portion of payment (amortization)
+ *   - remainingCRD: Capital Restant Dû (remaining loan balance after payment)
+ *
+ * Algorithm (constant payment):
+ *   Each month: interest = CRD × (annual_rate / 12)
+ *              principal = payment - interest (cannot exceed CRD)
+ *              CRD = CRD - principal
+ *
+ * The schedule runs until CRD ≈ 0 or durationMonths elapsed, whichever comes first.
+ *
+ * Aggregates computed:
+ *   - currentIdx: current month in schedule (based on today's date)
+ *   - interestPaid: cumulative interest through current month
+ *   - interestRemaining: cumulative interest from current month onward
+ *   - totalInterest: sum of all interest payments
+ *   - totalCost: totalInterest + insurance × durationMonths
+ *   - halfCRDDate: date when CRD reaches 50% of original principal
+ *   - crossoverDate: date when principal payment exceeds interest payment
+ *
+ * @param {Object} loan - Loan object: {principal, rate (annual %), monthlyPayment, durationMonths, startDate (YYYY-MM), insurance}
+ * @returns {Object} { schedule, currentIdx, interestPaid, interestRemaining, totalInterest, totalCost,
+ *                     milestones: {halfCRDDate, crossoverDate}, isMultiLoan: false }
  */
 function computeAmortizationSchedule(loan) {
   const schedule = [];
@@ -1317,9 +1421,38 @@ function computeAmortizationSchedule(loan) {
 }
 
 /**
- * Compute amortization schedule for a single sub-loan (with optional periods)
- * Handles: constant payment, interest-only phases, deferred payment phases
- * Returns: [{month, date, payment, interest, principal, remainingCRD}]
+ * Compute amortization schedule for a single sub-loan with optional multi-period structure
+ *
+ * Handles three loan types:
+ *   1. Standard constant-payment loans (simple monthly payment)
+ *   2. Multi-period loans with varying payments (e.g., PTZ with différé, BP with increasing payments)
+ *   3. Deferred payment phases: interest-only or no-payment periods where CRD may increase
+ *
+ * Multi-period example (PTZ 25 years):
+ *   Period 1: months 0-59, payment=0 (différé — deferred, CRD frozen if rate=0, else interest capitalizes)
+ *   Period 2: months 60-299, payment=€500/month (amortization at full rate)
+ *
+ * Deferred phase mechanics:
+ *   - If payment = 0 and rate = 0 (PTZ): CRD unchanged (no interest accrual)
+ *   - If payment = 0 and rate > 0 (rare): interest capitalizes, CRD increases
+ *   - Otherwise: principal = payment - interest, CRD decreases normally
+ *
+ * @param {Object} loan - Loan object:
+ *   {
+ *     principal: number,
+ *     rate: annual percentage (e.g., 0.01 for 1%),
+ *     startDate: YYYY-MM,
+ *     durationMonths: total months,
+ *     monthlyPayment: number (for simple loans without periods),
+ *     periods: [{months: N, payment: €}] (optional, for multi-period)
+ *   }
+ * @returns {Array<Object>} Schedule rows: [{month, date, payment, interest, principal, remainingCRD}]
+ *   month: 1-indexed sequential month number
+ *   date: calendar date YYYY-MM
+ *   payment: actual payment this month (0 for deferred phases)
+ *   interest: interest accrued this month
+ *   principal: principal reduction (0 for deferred phases with 0 rate)
+ *   remainingCRD: CRD after this month's payment
  */
 function computeSubLoanSchedule(loan) {
   const schedule = [];
@@ -1328,7 +1461,8 @@ function computeSubLoanSchedule(loan) {
   const [startY, startM] = loan.startDate.split('-').map(Number);
 
   if (loan.periods && loan.periods.length > 0) {
-    // Multi-period loan (PTZ with différé, BP with varying payments)
+    // ── Multi-period loan computation (PTZ with différé, BP with varying payments) ──
+    // Iterate through each period, then through months within that period
     let monthIdx = 0;
     for (const period of loan.periods) {
       for (let j = 0; j < period.months && crd > 0.01; j++) {
@@ -1336,14 +1470,15 @@ function computeSubLoanSchedule(loan) {
         let payment = period.payment;
         let principalPart;
         if (payment === 0) {
-          // Deferred period — no payment
-          // If rate > 0, interest capitalizes (CRD increases)
-          // If rate = 0 (PTZ), CRD stays constant
+          // Deferred period — no payment, but interest may capitalize
+          // PTZ (rate=0): CRD unchanged (frozen)
+          // Other 0-payment loans (rate>0): interest capitalizes, CRD increases
           principalPart = 0;
           if (interest > 0) {
-            crd += interest; // interest capitalization
+            crd += interest; // Interest capitalization (rare case, e.g., deferred @ 1%)
           }
         } else {
+          // Normal period: subtract interest from payment to get principal reduction
           principalPart = Math.min(payment - interest, crd);
           crd = Math.max(0, crd - principalPart);
         }
@@ -1361,10 +1496,11 @@ function computeSubLoanSchedule(loan) {
       }
     }
   } else {
-    // Simple constant-payment loan (Action Logement)
+    // ── Simple constant-payment loan (no periods: Action Logement, standard mortgage) ──
     const totalMonths = loan.durationMonths;
     for (let i = 0; i < totalMonths && crd > 0.01; i++) {
       const interest = crd * monthlyRate;
+      // Principal = payment - interest (cannot exceed remaining CRD)
       const principalPart = Math.min(loan.monthlyPayment - interest, crd);
       crd = Math.max(0, crd - principalPart);
       const y = startY + Math.floor((startM - 1 + i) / 12);
@@ -1383,9 +1519,34 @@ function computeSubLoanSchedule(loan) {
 }
 
 /**
- * Compute combined amortization schedule for multiple sub-loans
- * Merges individual schedules by calendar date, sums CRDs and payments
- * Returns same format as computeAmortizationSchedule() for compatibility
+ * Compute combined amortization schedule for multiple sub-loans (multi-period loan resolution)
+ *
+ * Algorithm (CRD merging/"lissage"):
+ *   1. Compute individual sub-loan schedules using computeSubLoanSchedule()
+ *   2. Build date-indexed maps for fast lookup: map[date] → {payment, interest, principal, remainingCRD}
+ *   3. Collect all unique dates across all sub-loans and sort
+ *   4. For each date, aggregate: sum all payments, interest, principal, CRDs
+ *   5. For loans not yet started or already ended: use full principal or 0
+ *
+ * Handles partial overlaps: when loans have different start/end dates, the combined CRD
+ * reflects only the sub-loans active in that period.
+ *
+ * @param {Array<Object>} subLoans - Array of loan objects with {principal, rate, startDate, durationMonths}
+ * @param {number} insuranceMonthly - Monthly insurance cost (added to total cost, not payment)
+ * @returns {Object} Combined amortization schedule with format compatible with computeAmortizationSchedule():
+ *   {
+ *     schedule: [{month, date, payment, interest, principal, remainingCRD}, ...],
+ *     currentIdx: number,
+ *     interestPaid: cumulative interest to date,
+ *     interestRemaining: cumulative interest remaining,
+ *     totalInterest: total interest for all loans,
+ *     totalCost: totalInterest + (insuranceMonthly * loan duration),
+ *     milestones: {halfCRDDate, crossoverDate},
+ *     isMultiLoan: true,
+ *     combinedPrincipal: sum of all principals,
+ *     weightedRate: weighted average interest rate,
+ *     nbLoans: number of sub-loans
+ *   }
  */
 function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
   // Compute each sub-loan's schedule
@@ -1394,7 +1555,7 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
     schedule: computeSubLoanSchedule(loan),
   }));
 
-  // Build date-indexed maps for each sub-loan
+  // Build date-indexed maps for each sub-loan (fast CRD lookup by date)
   const dateMaps = subSchedules.map(s => {
     const map = {};
     for (const row of s.schedule) {
@@ -1403,17 +1564,18 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
     return { loan: s.loan, map, principal: s.loan.principal };
   });
 
-  // Collect all unique dates
+  // Collect all unique dates across all sub-loans
   const allDates = new Set();
   for (const s of subSchedules) {
     for (const row of s.schedule) allDates.add(row.date);
   }
   const sortedDates = [...allDates].sort();
 
-  // Build combined schedule
+  // ── Build combined schedule with CRD "lissage" ──
+  // For overlapping periods, sum payments/interest; for non-overlapping periods,
+  // track each sub-loan's CRD independently (before start or after end).
   const schedule = [];
-  // Track last known CRD per sub-loan for dates where a loan hasn't started yet or has ended
-  const lastCRD = dateMaps.map(d => d.principal); // start at full principal
+  const lastCRD = dateMaps.map(d => d.principal); // Initialize: start at full principal
 
   for (let i = 0; i < sortedDates.length; i++) {
     const date = sortedDates[i];
@@ -1422,18 +1584,21 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
     for (let k = 0; k < dateMaps.length; k++) {
       const row = dateMaps[k].map[date];
       if (row) {
+        // Sub-loan is active on this date: aggregate from its schedule
         totalPayment += row.payment;
         totalInterest += row.interest;
         totalPrincipal += row.principal;
         totalCRD += row.remainingCRD;
         lastCRD[k] = row.remainingCRD;
       } else {
-        // Loan hasn't started yet → use full principal, or has ended → use 0
+        // Sub-loan inactive: either hasn't started yet or already ended
         const loanDates = Object.keys(dateMaps[k].map).sort();
         if (loanDates.length === 0 || date < loanDates[0]) {
+          // Before start: use full principal (not yet activated)
           totalCRD += dateMaps[k].principal;
         } else {
-          totalCRD += 0; // loan ended
+          // After end: use 0 (fully amortized)
+          totalCRD += 0;
         }
       }
     }
@@ -1448,19 +1613,23 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
     });
   }
 
-  // Find current month index
+  // ── Aggregates & milestones computation ──
+  // Find current month index (today's date vs schedule)
   const now = new Date();
   const nowKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   let currentIdx = schedule.findIndex(r => r.date >= nowKey);
   if (currentIdx < 0) currentIdx = schedule.length - 1;
 
+  // Interest aggregates: paid to date, remaining, total
   const interestPaid = schedule.slice(0, currentIdx + 1).reduce((s, r) => s + r.interest, 0);
   const interestRemaining = schedule.slice(currentIdx + 1).reduce((s, r) => s + r.interest, 0);
   const totalInterest = schedule.reduce((s, r) => s + r.interest, 0);
   const ins = insuranceMonthly || 0;
-  const totalCost = totalInterest + ins * schedule.length;
+  const totalCost = totalInterest + ins * schedule.length;  // Total cost = interest + insurance
 
-  // Combined principal
+  // Milestones: key dates for dashboard visualization
+  // 1. halfCRDDate: when remaining CRD drops to 50% of original principal (mid-point)
+  // 2. crossoverDate: when principal payment > interest payment (shift to equity-building)
   const combinedPrincipal = subLoans.reduce((s, l) => s + l.principal, 0);
   const halfCRD = combinedPrincipal / 2;
   const halfCRDMonth = schedule.find(r => r.remainingCRD <= halfCRD);
@@ -1583,8 +1752,35 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
 }
 
 /**
- * Compute exit costs for a property at a given sale price and holding duration
- * Returns breakdown: PV tax (IR + PS + surtaxe), agency fees, mainlevée, TVA clawback, total
+ * Compute exit costs (capital gains tax and fees) for a property at a given sale price
+ *
+ * Calculates the full cost of selling a property today (or at targetDate), including:
+ *   - Capital gains tax (IR + PS + sur-taxation)
+ *   - Agency fees (typically 5-8%)
+ *   - Mainlevée costs (loan payoff fees)
+ *   - TVA clawback (for LMNP with depreciation clawback on gains)
+ *   - Net equity after all exit costs
+ *
+ * Tax computation depends on:
+ *   - Holding duration (exemption after 5 years for some regimes)
+ *   - Amortissements (LMNP réel): TVA at 20% applies to depreciation recapture
+ *   - Regime type (micro vs réel LMNP vs foncier)
+ *   - Personal tax rate (TMI) and social contribution rate (PS)
+ *
+ * For multi-loan properties (loanCRDs):
+ *   - Distributes penalties/fees proportionally across sub-loans
+ *   - IRA (Indemnité Remboursement Anticipé) calculated per sub-loan
+ *
+ * @param {string} loanKey - Property key (vitry, rueil, villejuif)
+ * @param {number} salePrice - Assumed sale price today
+ * @param {number} purchasePrice - Original purchase price
+ * @param {number} holdingYears - Holding duration (affects tax rates)
+ * @param {number} crdAtExit - Capital Restant Dû (total remaining loan balance)
+ * @param {number} totalAmortissements - Cumulative depreciation (LMNP réel)
+ * @param {string|null} targetDate - Optional target date (for scenario analysis); defaults to today
+ * @param {Array|null} loanCRDs - For multi-loan: array of {name, crd, rate} for IRA per sub-loan
+ * @returns {Object} { salePrice, purchasePrice, capitalGain, pvTaxBeforeAbattement, pvTax,
+ *                      agencyFees, totalCosts, netEquityAfterExit, iraTotalEUR, details: {...} }
  */
 function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate = null, loanCRDs = null) {
   const EC = EXIT_COSTS;
@@ -1897,7 +2093,32 @@ function computeVillejuifRegimeComparison() {
 }
 
 /**
- * Compute immo view data
+ * Compute immo (real estate) view: property valuations, cash flows, wealth creation, and fiscal impact
+ *
+ * This is the core wealth computation for real estate assets. For each property (Vitry, Rueil, Villejuif),
+ * it computes:
+ *   1. Current property value (with appreciation curve from valueDate)
+ *   2. Monthly revenues: loyer (rent) + parking + charges locataire (tenant charges)
+ *   3. Monthly charges: loan payment + insurance + property taxes (PNO) + transfer tax (TF) + copro
+ *   4. Monthly cash flow: totalRevenue - charges
+ *   5. Fiscal impact: tax on rental income (regime micro-foncier, micro-BIC, or réel)
+ *   6. Wealth creation breakdown:
+ *      - Capital amortization: from loan schedule (principal paid down this month)
+ *      - Appreciation: property value × appreciation rate / 12
+ *      - Cash flow: monthly surplus (or deficit if "effort épargne")
+ *   7. Exit costs: capital gains tax, notary fees, agency fees if sold today
+ *   8. Loan details: for multi-loan properties, tracks sub-loan schedules and current periods
+ *
+ * Multi-loan support (v227+):
+ *   - Properties can have vitryLoans (array of sub-loans) instead of vitry (single loan)
+ *   - Uses computeMultiLoanSchedule() to merge CRDs and compute combined amortization
+ *
+ * Conditional properties (not signed / not delivered):
+ *   - If conditional: no cash flow, no capital amortization → only appreciation counts
+ *
+ * @param {Object} portfolio - Portfolio data from data.js
+ * @param {Object} fx - Current FX rates (for multi-currency handling)
+ * @returns {Object} { properties: [...], totalProperties, totalWealthCreation, totalYieldNet, etc. }
  */
 function computeImmoView(portfolio, fx) {
   const IC = IMMO_CONSTANTS;
@@ -1920,8 +2141,18 @@ function computeImmoView(portfolio, fx) {
 
   // Helper to build property with fiscal data
   function buildProperty(name, owner, propData, chargesConfig, loanKey, conditional) {
-    // ── Dynamic property valuation ──
-    // Value evolves from valueDate using appreciation rate (compound monthly)
+    // ── Dynamic property valuation with phase-specific appreciation ──
+    // Property value evolves from valueDate using appreciation rate (compound monthly)
+    // Supports both constant appreciation and phase-specific rates (e.g., different rates for years 1-5 vs 5+)
+    //
+    // Algorithm:
+    //   1. If no valueDate or appreciation rate: use static propData.value
+    //   2. Otherwise, iterate month-by-month from valueDate to today
+    //   3. For each month, check if we're in a specific appreciation phase
+    //   4. Apply phase-specific rate (if available) or default appreciation rate
+    //   5. Compound: val = val × (1 + rate/12) each month
+    //
+    // This allows modeling: acquisition at 500k (Jan 2024), appreciates 2% Year 1, then 1% Year 2+
     const propMeta0 = IC.properties[loanKey] || {};
     const appreciationRate0 = propMeta0.appreciation || 0;
     let currentValue = propData.value;
@@ -1931,7 +2162,7 @@ function computeImmoView(portfolio, fx) {
       const now0 = new Date();
       const monthsSinceRef = (now0.getFullYear() - vy) * 12 + (now0.getMonth() + 1 - vm);
       if (monthsSinceRef > 0) {
-        // Use phase-specific rates if available
+        // Use phase-specific rates if available (e.g., different appreciation by year)
         const phases = propMeta0.appreciationPhases || [];
         let val = propData.value;
         let refYear = vy;
@@ -1939,6 +2170,7 @@ function computeImmoView(portfolio, fx) {
         for (let m = 0; m < monthsSinceRef; m++) {
           const yr = refYear + Math.floor((refMonth + m - 1) / 12);
           let rate = appreciationRate0;
+          // Check if current month falls into a phase with custom rate
           for (const ph of phases) { if (yr >= ph.start && yr <= ph.end) { rate = ph.rate; break; } }
           val *= (1 + rate / 12);
         }
@@ -1950,13 +2182,19 @@ function computeImmoView(portfolio, fx) {
     const _refValue = propData.value;
     const _refDate = valueDateStr;
 
+    // ── Monthly charges computation ──
+    // Total charges: loan payment (principal + interest) + insurance + property taxes + transfer tax + copro
     const charges = chargesConfig.pret + chargesConfig.assurance + chargesConfig.pno + chargesConfig.tf + chargesConfig.copro;
-    // loyerHC: rent portion (excluding tenant charges provision)
+
+    // ── Monthly revenue computation ──
+    // loyerHC: base rent (excluding tenant charges provision, e.g., "€1200 HC")
     const loyerHC = propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0);
-    const parking = propData.parking || 0;
-    const chargesLoc = propData.chargesLocataire || 0;
-    const loyer = loyerHC + parking;        // HC display value
-    const totalRevenue = loyer + chargesLoc; // full revenue (charges provision offsets copro)
+    const parking = propData.parking || 0;           // Parking revenue (if applicable)
+    const chargesLoc = propData.chargesLocataire || 0;  // Tenant charges provision (e.g., "€200 charges")
+    const loyer = loyerHC + parking;                 // Total rent for display (HC+parking)
+    const totalRevenue = loyer + chargesLoc;         // Full revenue including charges provision
+
+    // Monthly cash flow: totalRevenue - charges (can be negative if effort épargne)
     const cf = totalRevenue - charges;
     const amort = amortSchedules[loanKey];
 
@@ -1984,8 +2222,24 @@ function computeImmoView(portfolio, fx) {
       : propData.crd;
 
     // Loan details for detail panel
-    // ── Helper: compute current period payment for multi-period loans ──
-    // Uses loan.startDate + today's date to find which period we're in
+    /**
+     * Get current period payment for multi-period loans (variable rate/amortization)
+     *
+     * Multi-period loans have different payment amounts across periods, e.g.:
+     *   Period 1 (months 0-60): 300 EUR/month (interest-only or partial amortization)
+     *   Period 2 (months 60-300): 400 EUR/month (full amortization)
+     *
+     * Algorithm:
+     *   1. If loan has monthlyPayment, it's a standard constant-payment loan → return it
+     *   2. Parse loan.startDate to get start year/month
+     *   3. Calculate months elapsed from start date to today
+     *   4. Iterate through loan.periods, accumulating months until we exceed elapsed months
+     *   5. Return the payment amount for the current period
+     *   6. If past all periods, return the last period's payment
+     *
+     * @param {Object} loan - Loan object with optional periods array: [{months, payment}, ...]
+     * @returns {number} Current monthly payment amount
+     */
     function getCurrentPeriodPayment(loan) {
       if (loan.monthlyPayment) return loan.monthlyPayment;
       if (!loan.periods || !loan.startDate) return 0;
@@ -2001,7 +2255,15 @@ function computeImmoView(portfolio, fx) {
       return loan.periods[loan.periods.length - 1].payment;
     }
 
-    // ── Helper: find current period index (0-based) ──
+    /**
+     * Find current period index in multi-period loan (0-based)
+     *
+     * Returns the index (0, 1, 2, ...) of which period the loan is currently in.
+     * Used for UI highlighting and period-specific analytics.
+     *
+     * @param {Object} loan - Loan object with periods array
+     * @returns {number} Current period index (0-based), or -1 if no periods or not started
+     */
     function getCurrentPeriodIndex(loan) {
       if (!loan.periods || !loan.startDate) return -1;
       const [sy, sm] = loan.startDate.split('-').map(Number);
@@ -2074,14 +2336,22 @@ function computeImmoView(portfolio, fx) {
     // ── PV Abattement schedule (for chart visualization) ──
     const pvAbattementSchedule = computePVAbattementSchedule();
 
-    // ── Wealth creation breakdown (computed dynamically) ──
+    // ── Wealth creation breakdown (three components) ──
+    // 1. Capital amortization: monthly principal repayment (reduces CRD, increases equity)
     const currentAmortRow = amort ? amort.schedule[amort.currentIdx] : null;
     const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
+
+    // 2. Appreciation: property value growth from market appreciation rate
     const appreciationRate = (IC.properties[loanKey] || {}).appreciation || 0;
     const appreciationMois = _val * appreciationRate / 12;
-    // For conditional properties (not signed / not delivered): no CF, no capital — only appreciation
+
+    // 3. Cash flow: monthly surplus (negative if "effort épargne" — self-funded repairs/costs)
+    // For conditional properties (not yet signed / not delivered): no CF, no capital amortization
+    // Only appreciation counts for properties not yet generating revenue
     const wealthCF = conditional ? 0 : cf;
     const wealthCapital = conditional ? 0 : capitalAmortiMois;
+
+    // Total wealth creation = capital amortization + appreciation + cashflow
     const wealthCreationComputed = wealthCapital + appreciationMois + wealthCF;
 
     return {
@@ -2506,8 +2776,36 @@ function computeCreancesView(portfolio, fx) {
 }
 
 /**
- * Compute budget view — monthly expenses breakdown
- * Separates personal expenses from investment (immo) expenses
+ * Compute budget view: monthly expense tracking and forecasting
+ *
+ * Separates personal living expenses from investment (real estate) expenses.
+ * Supports multiple frequencies (monthly, quarterly, yearly) and currencies (EUR, USD, MAD, AED).
+ *
+ * Personal expenses (from BUDGET_EXPENSES constant):
+ *   - Living: housing, utilities, food, transport, healthcare
+ *   - Subscriptions: streaming, memberships, insurance
+ *   - Discretionary: travel, hobbies, dining
+ *   - By zone: FR, UAE, MOROCCO
+ *   - By type: housing, transport, health, discretionary, etc.
+ *
+ * Investment expenses (from IMMO_CONSTANTS.charges):
+ *   - Loan payments (principal + interest)
+ *   - Property insurance (assurance emprunteur)
+ *   - Property taxes (taxe foncière)
+ *   - Property management (copropriété)
+ *   - Maintenance costs (per property)
+ *
+ * Aggregates:
+ *   - Personal monthly total
+ *   - Investment monthly total (by property)
+ *   - Combined total
+ *   - Breakdown by zone, type, currency
+ *
+ * @param {Object} portfolio - Portfolio data
+ * @param {Object} fx - FX rates for currency conversion
+ * @returns {Object} { personal, personalTotal, personalByZone, personalByType,
+ *                     investment, investmentTotal, investmentByProperty,
+ *                     combined, combinedTotal, ... }
  */
 function computeBudgetView(portfolio, fx) {
   const IC = IMMO_CONSTANTS;
@@ -2727,7 +3025,52 @@ function computeDividendAnalysis(ibkrPositions, fx) {
 // NW history chart removed v86 — no real historical data available
 
 /**
- * Master compute function — returns complete STATE
+ * Master compute function — returns complete STATE object for dashboard rendering
+ *
+ * Main entry point for all computations. Orchestrates six major views:
+ *   1. immoView: Real estate assets, revenues, charges, wealth creation, fiscal impact
+ *   2. cashView: Cash holdings, yields, inflation, FX impact
+ *   3. actionsView: Equity positions (IBKR, SGTM, ESPP, Degiro), P&L, dividends
+ *   4. budgetView: Personal and investment expense tracking
+ *   5. creancesView: Receivables (invoices, family loans)
+ *   6. dividendAnalysis: Dividend calendar, WHT optimization
+ *
+ * Key computation order:
+ *   1. immoView computed FIRST (to extract CRDs for net wealth calculations)
+ *   2. Amine & Nezha asset aggregation (using computed CRDs)
+ *   3. Net worth calculation (assets - debts)
+ *   4. Per-person statement (Amine, Nezha, Combined)
+ *   5. Historical comparison (vs data.NW_HISTORY)
+ *   6. Projection views (wealth creation forecast, exit cost scenarios)
+ *
+ * Handles:
+ *   - Multi-currency consolidation (EUR, USD, AED, MAD, JPY)
+ *   - FX rate conversion and daily variance tracking
+ *   - Tax regimes (micro-foncier, micro-BIC, réal, regimes)
+ *   - Multi-loan properties with sub-loan tracking
+ *   - Conditional properties (not yet signed/delivered)
+ *   - Dividend withholding tax optimization
+ *   - Exit cost forecasting (PV tax, IRA, agency fees, TVA clawback)
+ *
+ * Performance: Pure computation, no I/O, ~100ms on modern hardware
+ *
+ * @param {Object} portfolio - Complete portfolio data from data.js
+ * @param {Object} fx - Current FX rates {EUR: 1, USD: rate, AED: rate, ...}
+ * @param {string} stockSource - 'live' (use current market prices) or 'statique' (use static NAV)
+ * @returns {Object} STATE object:
+ *   {
+ *     immoView: {...},
+ *     cashView: {...},
+ *     actionsView: {...},
+ *     budgetView: {...},
+ *     creancesView: {...},
+ *     dividendAnalysis: {...},
+ *     amine: {...}, nezha: {...}, combined: {...},
+ *     netWorthHistory: [{date, nw, change}, ...],
+ *     forecastChart: {projections: [...], exitCosts: {...}, ...},
+ *     fxDaily: {variance: {...}, rates: {...}},
+ *     ... (additional metadata)
+ *   }
  */
 export function compute(portfolio, fx, stockSource = 'statique') {
   const p = portfolio;
