@@ -4742,29 +4742,39 @@ function renderAptView(state, loanKey) {
   const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
   const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
   const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
+  // ── UX: Visual bar comparison for Revenus vs Charges ──
+  const maxCFBarApt = Math.max(prop.totalRevenue || 0, Math.round(prop.charges) || 0);
+  function cfBarRowApt(label, amount, color, maxRef) {
+    const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
+      + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
+      + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
+      + '</div>'
+      + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' €</span>'
+      + '</div>';
+  }
   html += '<div style="margin-bottom:24px;">'
     + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel</h3>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
     // Revenus
     + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
-    + '<div style="font-weight:700;color:#276749;margin-bottom:6px;">Revenus</div>'
-    + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
-    + '<span>Loyer HC</span><span class="num">' + prop.loyerHC + ' €</span>'
-    + (prop.parking > 0 ? '<span>Parking</span><span class="num">' + prop.parking + ' €</span>' : '')
-    + (prop.chargesLoc > 0 ? '<span>Charges locataire</span><span class="num">' + prop.chargesLoc + ' €</span>' : '')
-    + '<span style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">Total revenus</span><span class="num" style="font-weight:700;border-top:1px solid #c6f6d5;padding-top:4px;">' + prop.totalRevenue + ' €</span>'
-    + '</div></div>'
+    + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
+    + cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
+    + (prop.parking > 0 ? cfBarRowApt('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBarApt) : '')
+    + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
+    + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + prop.totalRevenue + ' €</span></div>'
+    + '</div>'
     // Charges
     + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
-    + '<div style="font-weight:700;color:#c53030;margin-bottom:6px;">Charges</div>'
-    + '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px;">'
-    + '<span>Prêt</span><span class="num">' + Math.round(cd.pret || 0) + ' €</span>'
-    + '<span>Assurance empr.</span><span class="num">' + Math.round(cd.assurance || 0) + ' €</span>'
-    + '<span>PNO</span><span class="num">' + Math.round(cd.pno || 0) + ' €</span>'
-    + '<span>Taxe foncière</span><span class="num">' + Math.round(cd.tf || 0) + ' €</span>'
-    + '<span>Copro</span><span class="num">' + Math.round(cd.copro || 0) + ' €</span>'
-    + '<span style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">Total charges</span><span class="num" style="font-weight:700;border-top:1px solid #fed7d7;padding-top:4px;">' + Math.round(prop.charges) + ' €</span>'
-    + '</div></div></div>';
+    + '<div style="font-weight:700;color:#c53030;margin-bottom:8px;">Charges</div>'
+    + cfBarRowApt('Prêt', Math.round(cd.pret || 0), 'linear-gradient(90deg,#feb2b2,#e53e3e)', maxCFBarApt)
+    + cfBarRowApt('Assurance', Math.round(cd.assurance || 0), 'linear-gradient(90deg,#feb2b2,#fc8181)', maxCFBarApt)
+    + cfBarRowApt('PNO', Math.round(cd.pno || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + cfBarRowApt('TF', Math.round(cd.tf || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + cfBarRowApt('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
+    + '</div></div>';
   // CF KPIs
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
