@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=225';
-import { getGrandTotal } from './engine.js?v=225';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=226';
+import { getGrandTotal } from './engine.js?v=226';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -673,7 +673,7 @@ function renderDynamicInsights(state, view) {
     const vilMens = villejuifP ? Math.round(villejuifP.charges) : 0;
     const totalMens = rueilMens + vilMens;
     nzBox.innerHTML =
-      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison ete 2029.<br><br>' +
+      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison Q1 2028.<br><br>' +
       '<strong>Insights Nezha :</strong><br>' +
       '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont ' + K(rueilP ? rueilP.equity : 0) + ' en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>' +
       '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
@@ -706,12 +706,12 @@ function renderDynamicInsights(state, view) {
       html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
     });
     html += '</tr>';
-    // Equity Villejuif row (0 before 2029, then growing)
+    // Equity Villejuif row (0 before 2028, then growing — livraison Q1 2028)
     html += '<tr><td>Equity Villejuif</td>';
     years.forEach(y => {
-      if (y < 2029) { html += '<td class="num">0</td>'; }
+      if (y < 2028) { html += '<td class="num">0</td>'; }
       else {
-        const mSince = (y - 2029) * 12;
+        const mSince = (y - 2028) * 12;
         const eq = vilGrowth * mSince;
         html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
       }
@@ -734,7 +734,7 @@ function renderDynamicInsights(state, view) {
       const m = monthsFromNow(y);
       const eqR = rueilP ? rueilP.equity + rueilGrowth * m : 0;
       let eqV = 0;
-      if (y >= 2029) { eqV = vilGrowth * (y - 2029) * 12; }
+      if (y >= 2028) { eqV = vilGrowth * (y - 2028) * 12; }
       const cash = Math.max(0, nzCash + nzCashDrift * m);
       html += '<td class="num"><strong>' + N(eqR + eqV + cash) + '</strong></td>';
     });
@@ -3594,7 +3594,7 @@ function renderImmoView(state) {
         + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
         + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2029)</div>'
+        + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2028)</div>'
         + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
         + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
@@ -3919,7 +3919,7 @@ function renderImmoView(state) {
       const loyerText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.loyerHC || 0).toLocaleString('fr-FR');
       const revText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.totalRevenue || 0).toLocaleString('fr-FR');
       const cfStyle = prop.conditional ? ' style="color:var(--gray)"' : ' style="font-weight:700"';
-      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 livraison ete 2029</span>'
+      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 livraison Q1 2028</span>'
         : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyerHC || 0) + (prop.parking > 0 ? ' + pkg ' + prop.parking : '') + '</span>';
       html += '<tr' + rowBg + '>'
         + '<td><strong>' + prop.name + '</strong><br>' + desc + '</td>'
@@ -5556,7 +5556,7 @@ function attachKPIInsights(state, view) {
   const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
   insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
   insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac838/mois de richesse.';
-  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison \u00e9t\u00e9 2029. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
+  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison Q1 2028. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
   insights['kpiNzCash'] = 'Cash total \u20ac' + f(s.nezha.cash) + ' dont Livret A \u20ac' + f(s.nezha.livretA) + ' (1.5%) + \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA) + ' dormant (0%). Optimiser : assurance-vie ou SCPI.';
 
   // ── Actions view ──
@@ -5589,7 +5589,7 @@ function attachKPIInsights(state, view) {
     const twb = iv.totalWealthBreakdown || {};
     insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = Capital amorti ' + f(twb.capitalAmorti || 0) + ' + Appr\u00e9ciation ' + f(twb.appreciation || 0) + (twb.cashflow >= 0 ? ' + CF +' + f(twb.cashflow) : ' - Effort ' + f(Math.abs(twb.cashflow || 0))) + '. Soit ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an.';
     const cfSign = iv.totalCF >= 0 ? '+' : '';
-    insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison 2029). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
+    insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison Q1 2028). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
   }
 
   // ── Cr\u00e9ances view ──
