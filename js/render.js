@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=223';
-import { getGrandTotal } from './engine.js?v=223';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=224';
+import { getGrandTotal } from './engine.js?v=224';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -3300,6 +3300,9 @@ function renderImmoView(state) {
   // ── UX: Mini wealth breakdown bar under KPI ──
   const wealthKpiEl = document.getElementById('kpiImmoViewWealth');
   if (wealthKpiEl) {
+    // Clean up previous bars before re-rendering
+    const parent = wealthKpiEl.parentElement;
+    parent.querySelectorAll('.wealth-mini-bar, .wealth-mini-leg').forEach(el => el.remove());
     const wb = fTotalWealthBreakdown;
     const wbTotal = Math.abs(wb.capitalAmorti || 0) + Math.abs(wb.appreciation || 0) + Math.abs(wb.cashflow || 0);
     if (wbTotal > 0) {
@@ -3307,18 +3310,20 @@ function renderImmoView(state) {
       const pctApp = Math.round((wb.appreciation || 0) / wbTotal * 100);
       const pctCF = 100 - pctCap - pctApp;
       const bar = document.createElement('div');
+      bar.className = 'wealth-mini-bar';
       bar.style.cssText = 'display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:6px;gap:1px;';
       bar.innerHTML = '<div style="width:' + pctCap + '%;background:#3182ce;" title="Capital amorti ' + fmt(wb.capitalAmorti) + '"></div>'
         + '<div style="width:' + pctApp + '%;background:#38a169;" title="Appréciation ' + fmt(wb.appreciation) + '"></div>'
         + '<div style="width:' + Math.abs(pctCF) + '%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';" title="CF ' + fmt(wb.cashflow) + '"></div>';
-      wealthKpiEl.parentElement.appendChild(bar);
+      parent.appendChild(bar);
       // Mini legend
       const leg = document.createElement('div');
+      leg.className = 'wealth-mini-leg';
       leg.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:3px;font-size:9px;color:#718096;';
       leg.innerHTML = '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#3182ce;margin-right:2px;"></span>Capital</span>'
         + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38a169;margin-right:2px;"></span>Appréc.</span>'
         + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';margin-right:2px;"></span>CF</span>';
-      wealthKpiEl.parentElement.appendChild(leg);
+      parent.appendChild(leg);
     }
   }
 
