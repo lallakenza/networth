@@ -3,8 +3,8 @@
 // ============================================================
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=224';
-import { getGrandTotal } from './engine.js?v=224';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=225';
+import { getGrandTotal } from './engine.js?v=225';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -202,6 +202,8 @@ function renderKPIs(state, view) {
     setDelta('kpiCoupleNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
   }
   setEur('kpiCoupleImmo', s.couple.immoEquity);
+  setEur('kpiCoupleCash', s.couple.cashTotal);
+  setEur('kpiCoupleActions', s.couple.actionsTotal);
 
   setEur('kpiAmNW', s.amine.nw);
   // Add delta indicator for amine NW
@@ -224,11 +226,13 @@ function renderKPIs(state, view) {
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
   setEur('kpiNzCash', s.nezha.cash + s.nezha.recvOmar);
+  setEur('kpiNzActions', s.nezha.espp + s.nezha.sgtm);
 
   // Amine detail KPIs
   setEur('kpiAmIBKR', s.amine.ibkr);
   setEur('kpiAmESPP', s.amine.espp);
   setEur('kpiAmSGTM', s.amine.sgtm);
+  setEur('kpiAmCash', s.amine.cashTotal);
 
   // IBKR NAV label
   setText('ibkrNAVLabel', fmt(s.amine.ibkr));
@@ -772,7 +776,7 @@ function renderCoupleTable(state) {
     ['Creance Omar \u2014 Nezha (40K MAD)', s.nezha.recvOmar],
     ['TVA a payer (Amine)', s.amine.tva],
   ];
-  buildDetailTable('#coupleDetailTable tbody', rows, 'Net Worth Couple');
+  buildDetailTableWithPct('#coupleDetailTable', rows, 'Net Worth Couple', s.couple.nw);
 }
 
 function renderAmineTable(state) {
@@ -787,7 +791,7 @@ function renderAmineTable(state) {
     ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED)', s.amine.uae],
     ['Revolut EUR', s.amine.revolutEUR],
     ['Cash Maroc (' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.amine.moroccoCash],
-    ['Immobilier Vitry (equity \u2014 val. appreciee 2%/an)', s.amine.vitryEquity],
+    ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', s.amine.recvPro],
     ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
@@ -803,7 +807,7 @@ function renderNezhaTable(state, view) {
   const esppLabel = (p.nezha.espp ? p.nezha.espp.shares : 0) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0);
   const rows = [
     ['Equity Rueil-Malmaison', s.nezha.rueilEquity],
-    ['ESPP Accenture (' + esppLabel + ')', s.nezha.espp],
+    ['ESPP Accenture (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.espp],
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
@@ -4288,10 +4292,11 @@ function renderPropertyDetail(state, prop) {
     if (prop.loanDetails && prop.loanDetails.length > 0) {
       html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
         + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
-      let totalMens = 0, totalAss = 0;
+      let totalMens = 0, totalAss = 0, totalPrincipal = 0;
       prop.loanDetails.forEach(l => {
         totalMens += l.monthlyPayment || 0;
         totalAss += l.insuranceMonthly || 0;
+        totalPrincipal += l.principal || 0;
         const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
         html += '<tr>'
           + '<td>' + l.name + '</td>'
@@ -4303,11 +4308,20 @@ function renderPropertyDetail(state, prop) {
           + '</tr>';
       });
       html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
-        + '<td>Total</td><td></td><td></td><td></td>'
+        + '<td>Total</td><td class="num">' + Math.round(totalPrincipal).toLocaleString('fr-FR') + ' €</td><td></td><td></td>'
         + '<td class="num">' + Math.round(totalMens).toLocaleString('fr-FR') + ' €</td>'
         + '<td class="num">' + Math.round(totalAss).toLocaleString('fr-FR') + ' €</td></tr>';
       html += '</tbody></table></div>';
       html += '<div style="margin-top:6px;font-size:12px;color:#718096;">CRD actuel : <strong>' + fmt(prop.crd) + '</strong> | Fin prêt : <strong>' + (prop.endYear || '—') + '</strong></div>';
+      // Show franchise note for deferred loans (VEFA)
+      if (prop.vefaConfig && prop.vefaConfig.franchiseMonths) {
+        const fc = prop.vefaConfig;
+        const franchiseNote = fc.loanDisbursed && fc.franchiseStart
+          ? 'Franchise totale ' + fc.franchiseMonths + ' mois (depuis ' + fc.franchiseStart + '). Intérêts capitalisés.'
+          : 'Franchise totale ' + fc.franchiseMonths + ' mois (en attente de déblocage). Intérêts capitalisés.';
+        html += '<div style="margin-top:4px;font-size:12px;padding:6px 10px;background:#fef3c7;border-radius:6px;color:#92400e;">'
+          + '<strong>&#9888; Franchise :</strong> ' + franchiseNote + '</div>';
+      }
     } else {
       html += '<p style="color:#718096;font-size:13px;">Aucun détail de prêt disponible</p>';
     }
@@ -4721,10 +4735,11 @@ function renderAptView(state, loanKey) {
   if (prop.loanDetails && prop.loanDetails.length > 0) {
     html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
       + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
-    let totalMens = 0, totalAss = 0;
+    let totalMens = 0, totalAss = 0, totalPrincipal = 0;
     prop.loanDetails.forEach(l => {
       totalMens += l.monthlyPayment || 0;
       totalAss += l.insuranceMonthly || 0;
+      totalPrincipal += l.principal || 0;
       const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
       html += '<tr><td>' + l.name + '</td>'
         + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
@@ -4734,11 +4749,20 @@ function renderAptView(state, loanKey) {
         + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td></tr>';
     });
     html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
-      + '<td>Total</td><td></td><td></td><td></td>'
+      + '<td>Total</td><td class="num">' + Math.round(totalPrincipal).toLocaleString('fr-FR') + ' €</td><td></td><td></td>'
       + '<td class="num">' + Math.round(totalMens).toLocaleString('fr-FR') + ' €</td>'
       + '<td class="num">' + Math.round(totalAss).toLocaleString('fr-FR') + ' €</td></tr>';
     html += '</tbody></table></div>';
     html += '<div style="margin-top:8px;font-size:12px;color:#718096;">CRD actuel : <strong>' + fmt(prop.crd) + '</strong> | Fin prêt : <strong>' + (prop.endYear || '—') + '</strong></div>';
+    // Franchise note for VEFA
+    if (prop.vefaConfig && prop.vefaConfig.franchiseMonths) {
+      const fc = prop.vefaConfig;
+      const franchiseNote = fc.loanDisbursed && fc.franchiseStart
+        ? 'Franchise totale ' + fc.franchiseMonths + ' mois (depuis ' + fc.franchiseStart + '). Intérêts capitalisés.'
+        : 'Franchise totale ' + fc.franchiseMonths + ' mois (en attente de déblocage). Intérêts capitalisés.';
+      html += '<div style="margin-top:4px;font-size:12px;padding:6px 10px;background:#fef3c7;border-radius:6px;color:#92400e;">'
+        + '<strong>&#9888; Franchise :</strong> ' + franchiseNote + '</div>';
+    }
   }
   html += '</div>';
 
@@ -5418,6 +5442,39 @@ function renderWHTRows() {
       + '<td style="font-size:11px;color:var(--gray)">' + (p.alternativeETF || '-') + '</td>';
     tbody.appendChild(tr);
   });
+}
+
+function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
+  const table = document.querySelector(tableSelector);
+  if (!table) return;
+  const thead = table.querySelector('thead tr');
+  const tbody = table.querySelector('tbody');
+  if (!thead || !tbody) return;
+  // Add % column header if not already present
+  if (thead.children.length < 3) {
+    const th = document.createElement('th');
+    th.className = 'num';
+    th.textContent = '%';
+    th.style.width = '50px';
+    thead.appendChild(th);
+  }
+  tbody.innerHTML = '';
+  let total = 0;
+  const data = rows.map(([label, val]) => { total += val; return { label, val, cond: label.includes('conditionnel') }; });
+  const absTotal = Math.abs(nwTotal || total);
+  data.forEach(d => {
+    const tr = document.createElement('tr');
+    const cls = d.val < 0 ? 'neg' : '';
+    const cond = d.cond ? ' style="color:#92400e;font-style:italic"' : '';
+    const pct = absTotal > 0 ? (d.val / absTotal * 100).toFixed(1) : '0.0';
+    const pctColor = d.val < 0 ? '#c53030' : '#718096';
+    tr.innerHTML = '<td' + cond + '>' + d.label + '</td><td class="num ' + cls + '">' + fmt(d.val) + '</td><td class="num" style="color:' + pctColor + ';font-size:0.82rem;">' + pct + '%</td>';
+    tbody.appendChild(tr);
+  });
+  const totalRow = document.createElement('tr');
+  totalRow.style.fontWeight = '700'; totalRow.style.background = '#edf2f7';
+  totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td><td class="num"><strong>100%</strong></td>';
+  tbody.appendChild(totalRow);
 }
 
 function buildDetailTable(selector, rows, totalLabel) {
