@@ -1,10 +1,38 @@
 // ============================================================
 // RENDER LAYER — DOM write-only. Takes STATE, outputs to DOM.
 // ============================================================
+// Patrimonial dashboard rendering engine (v228)
+//
+// Purpose:
+//   Converts application state into DOM elements. No computation here.
+//   Only formatting, DOM manipulation, and event binding.
+//
+// Key Export Functions:
+//   - render(state, view, currency): Main entry point for all views
+//   - renderImmoView(state): Real estate (immobilier) dashboard
+//   - renderPropertyDetail(state, prop): Single property detail panel (#propDetailCF)
+//   - renderWealthBreakdown(iv, filteredProps, filteredTotals): Wealth creation breakdown
+//   - renderLoanSchedule(loan): Multi-period loan badge display
+//   - renderAptView(state, loanKey): Apartment-specific view (Vitry, Rueil, Villejuif)
+//   - renderCashView(state): Cash/liquid assets view
+//   - renderActionsView(state): Stock portfolio view
+//   - renderBudgetView(state): Monthly budget tracking
+//
+// Tooltip System (CF Ribbon & Wealth Bar):
+//   - CF Summary Ribbon (cfSummaryRibbon): Revenus/Charges/CF net bars with hover tooltips
+//   - Wealth Stacked Bar (wealthStackedBar): Capital amorti / Appréciation / Cash flow segments
+//   - Each bar/segment shows per-property breakdown on mouseenter
+//   - Tooltips positioned absolutely below parent with dark background (#1a202c)
+//   - Consistent .kpi-tooltip styling for immobilier KPI cards
+//
+// Dual Rendering Paths:
+//   1. Property Detail Panel (#propDetailCF): Full layout with all sections via renderPropertyDetail()
+//   2. Apartment Tab: Inline rendering via renderAptView() for apartment-specific views
+//
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=227';
-import { getGrandTotal } from './engine.js?v=227';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=228';
+import { getGrandTotal } from './engine.js?v=228';
 
 // ---- Generic table sort utility ----
 // makeTableSortable(tableEl, data, renderRowsFn)
@@ -65,6 +93,24 @@ let _currency = 'EUR';
 
 // ── Helper: render multi-period loan schedule as inline badge row ──
 // Shows each period with duration × amount, highlights current period
+/**
+ * Renders multi-period loan schedule as inline badges
+ *
+ * Displays loan payment phases across time with visual indicators:
+ * - Current period: highlighted blue badge with dot indicator (#ebf8ff)
+ * - Future/past periods: gray badges (#edf2f7)
+ * - Each badge shows: duration × monthly payment (or "Différé" if zero)
+ * - Hover title shows full date range (e.g., "jan 2025 → avr 2030")
+ * - Periods separated by arrow indicators (→)
+ *
+ * Used in: renderPropertyDetail() loans table, renderAptView() loan rows
+ *
+ * @param {Object} loan - Loan object with periods array and startDate
+ * @param {Array} loan.periods - Array of {months, payment, ...}
+ * @param {number} loan.currentPeriodIndex - Index of active period (highlighted)
+ * @param {string} loan.startDate - Loan start date (YYYY-MM-DD format)
+ * @returns {string} HTML string of period badges
+ */
 function renderLoanSchedule(loan) {
   if (!loan.periods || loan.periods.length <= 1) return '';
   const startParts = loan.startDate ? loan.startDate.split('-').map(Number) : null;
@@ -2618,7 +2664,8 @@ function setupKPIDetailPanels(state) {
       if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
       losers.forEach(function(p) {
         var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
-        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+        var tipText = p.label + ' | P&L: ' + fmt(Math.round(p.unrealizedPL)) + ' \u20ac (' + p.pctPL.toFixed(1) + '%) | Valeur: ' + fmt(Math.round(p.value || 0)) + ' \u20ac';
+        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;cursor:pointer;" title="' + tipText + '">';
         html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">' + p.pctPL.toFixed(1) + '%</span></span>';
         html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(p.unrealizedPL)) + '</span>';
         html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
@@ -2634,7 +2681,8 @@ function setupKPIDetailPanels(state) {
       if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
       gainers.forEach(function(p) {
         var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
-        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
+        var tipText = p.label + ' | P&L: +' + fmt(Math.round(p.unrealizedPL)) + ' \u20ac (+' + p.pctPL.toFixed(1) + '%) | Valeur: ' + fmt(Math.round(p.value || 0)) + ' \u20ac';
+        html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;cursor:pointer;" title="' + tipText + '">';
         html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">+' + p.pctPL.toFixed(1) + '%</span></span>';
         html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(p.unrealizedPL)) + '</span>';
         html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
@@ -3185,6 +3233,33 @@ function renderCashView(state) {
   }
 }
 
+/**
+ * Renders wealth creation breakdown section with stacked bar visualization
+ *
+ * Comprehensive display of monthly wealth generation across three vectors:
+ * - Capital amorti: Principal repayment (loan amortization by tenants)
+ * - Appréciation: Property appreciation (Vitry 1.5%/an, Rueil 1%/an, etc.)
+ * - Cash flow net: Monthly operating income (loyers - all charges)
+ *
+ * Visual Components:
+ * 1. Stacked percentage bar (#wealthStackedBar) with per-segment hover tooltips
+ *    - Each segment shows per-property breakdown on mouseenter
+ *    - Consistent dark tooltip (#1a202c) with arrow pointer
+ * 2. Detailed table with per-property values (rows) and totals
+ * 3. Legend with color keys and monthly/annual projections
+ * 4. Explanatory text block with CF interpretation
+ *
+ * Tooltip System:
+ * - Position: absolute, below bar, centered (left:50%, transform:translateX(-50%))
+ * - Trigger: mouseenter/mouseleave on .wb-seg elements
+ * - Content: per-property values + total + annualized (*12)
+ *
+ * Called from: renderImmoView() after cfRibbon
+ *
+ * @param {Object} iv - Immo view object with totalWealthBreakdown, totalWealthCreation, properties
+ * @param {Array} filteredProps - Properties array (pre-filtered if used with filteredTotals)
+ * @param {Object} filteredTotals - Optional totals override {wealthBreakdown, wealthCreation}
+ */
 function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
   const section = document.getElementById('wealthBreakdownSection');
   const content = document.getElementById('wealthBreakdownContent');
@@ -3237,13 +3312,14 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     + 'Chaque mois, votre patrimoine immobilier augmente de <strong style="color:var(--green)">+' + fmt(total) + '</strong> '
     + '(<strong>' + fmt(annuel) + '/an</strong>). Voici les moteurs :'
     + '</p>'
-    // Stacked bar visualization
-    + '<div style="display:flex;border-radius:8px;overflow:hidden;height:32px;margin-bottom:16px;font-size:11px;font-weight:600;color:#fff">'
-    + '<div style="background:#2b6cb0;width:' + capPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (capPct > 8 ? '0' : '60') + 'px" title="Capital amorti">' + (capPct > 8 ? capPct + '%' : '') + '</div>'
-    + '<div style="background:#276749;width:' + apPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (apPct > 8 ? '0' : '60') + 'px" title="Appr\u00e9ciation">' + (apPct > 8 ? apPct + '%' : '') + '</div>'
+    // Stacked bar visualization — with hover tooltip on each segment
+    // Each segment shows per-property breakdown on hover
+    + '<div id="wealthStackedBar" style="display:flex;border-radius:8px;overflow:visible;height:32px;margin-bottom:16px;font-size:11px;font-weight:600;color:#fff;position:relative">'
+    + '<div class="wb-seg" data-seg="cap" style="background:#2b6cb0;width:' + capPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (capPct > 8 ? '0' : '60') + 'px;border-radius:8px 0 0 8px;position:relative;cursor:pointer">' + (capPct > 8 ? capPct + '%' : '') + '</div>'
+    + '<div class="wb-seg" data-seg="app" style="background:#276749;width:' + apPct + '%;display:flex;align-items:center;justify-content:center;min-width:' + (apPct > 8 ? '0' : '60') + 'px;position:relative;cursor:pointer">' + (apPct > 8 ? apPct + '%' : '') + '</div>'
     + (tb.cashflow >= 0
-      ? '<div style="background:#48bb78;width:' + cfPct.toFixed(0) + '%;display:flex;align-items:center;justify-content:center" title="Cash flow positif">' + (cfPct > 8 ? cfPct.toFixed(0) + '%' : '') + '</div>'
-      : '<div style="background:#e53e3e;width:' + effortPct + '%;display:flex;align-items:center;justify-content:center" title="Effort d\u2019\u00e9pargne">' + (effortPct > 8 ? '-' + effortPct + '%' : '') + '</div>')
+      ? '<div class="wb-seg" data-seg="cf" style="background:#48bb78;width:' + cfPct.toFixed(0) + '%;display:flex;align-items:center;justify-content:center;border-radius:0 8px 8px 0;position:relative;cursor:pointer">' + (cfPct > 8 ? cfPct.toFixed(0) + '%' : '') + '</div>'
+      : '<div class="wb-seg" data-seg="cf" style="background:#e53e3e;width:' + effortPct + '%;display:flex;align-items:center;justify-content:center;border-radius:0 8px 8px 0;position:relative;cursor:pointer">' + (effortPct > 8 ? '-' + effortPct + '%' : '') + '</div>')
     + '</div>'
     // Legend
     + '<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;font-size:12px">'
@@ -3274,8 +3350,112 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     + '</div>';
 
   section.style.display = 'block';
+
+  // ── TOOLTIP SYSTEM: Wealth Stacked Bar Segment Hover ──
+  // Architecture:
+  //   1. Parent (.wb-seg) has position:relative to create stacking context
+  //   2. Tooltip child div has position:absolute, hidden by default (display:none)
+  //   3. Mouseenter shows tooltip, mouseleave hides it (no click needed)
+  //   4. Tooltip positioned below bar center with arrow pointer (CSS triangle)
+  //
+  // Tooltip Content:
+  //   - Segment name (Capital amorti, Appréciation, Cash flow/Effort)
+  //   - Per-property breakdown: name + value €
+  //   - Total line with divider
+  //   - Annualized amount (* 12 = annual)
+  //
+  // Styling (consistent dark theme .kpi-tooltip):
+  //   - Background: #1a202c (dark gray-900)
+  //   - Text: white with gray labels (#a0aec0)
+  //   - Arrow: CSS triangle pointing up (border-left/right transparent, border-bottom solid)
+  //   - Shadow: 0 8px 24px rgba(0,0,0,0.25) for depth
+  //   - z-index: 100 to float above other content
+  //
+  // Attach hover tooltips to wealth stacked bar segments
+  // Each segment gets a dark tooltip showing per-property breakdown
+  const wbBar = document.getElementById('wealthStackedBar');
+  if (wbBar) {
+    const wbTipStyle = 'display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 10px);'
+      + 'background:#1a202c;color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;line-height:1.6;'
+      + 'white-space:nowrap;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;min-width:180px;';
+    const wbTipArrow = '<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);'
+      + 'width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;'
+      + 'border-bottom:6px solid #1a202c;"></div>';
+
+    // Tooltip data keyed by segment type
+    const segConfig = {
+      cap: { label: 'Capital amorti', color: '#63b3ed', total: tb.capitalAmorti, key: 'capitalAmorti' },
+      app: { label: 'Appr\u00e9ciation', color: '#68d391', total: tb.appreciation, key: 'appreciation' },
+      cf:  { label: tb.cashflow >= 0 ? 'Cash flow' : 'Effort d\u2019\u00e9pargne',
+             color: tb.cashflow >= 0 ? '#68d391' : '#fc8181',
+             total: tb.cashflow, key: 'cashflow' },
+    };
+
+    wbBar.querySelectorAll('.wb-seg').forEach(seg => {
+      const type = seg.getAttribute('data-seg');
+      const cfg = segConfig[type];
+      if (!cfg) return;
+
+      // Build tooltip content with per-property values
+      let tipHTML = wbTipArrow
+        + '<div style="font-weight:700;margin-bottom:4px;color:' + cfg.color + '">' + cfg.label + '</div>';
+      props.forEach(p => {
+        const wb = p.wealthBreakdown || {};
+        const val = wb[cfg.key] || 0;
+        if (p.conditional && val === 0) return;
+        const sign = (type === 'cf' && val >= 0) ? '+' : (type === 'cf' && val < 0 ? '' : '');
+        tipHTML += '<div style="display:flex;justify-content:space-between;gap:20px;">'
+          + '<span style="color:#a0aec0">' + p.name + '</span>'
+          + '<span style="font-weight:600;color:' + cfg.color + '">' + sign + fmt(val) + ' \u20ac</span></div>';
+      });
+      tipHTML += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:20px;font-weight:700;">'
+        + '<span>Total</span><span style="color:' + cfg.color + '">'
+        + (type === 'cf' ? (cfg.total >= 0 ? '+' : '') : '') + fmt(cfg.total) + ' \u20ac/mois</span></div>'
+        + '<div style="color:#718096;font-size:10px;margin-top:2px;">\u00d7 12 = ' + fmt(cfg.total * 12) + ' \u20ac/an</div>';
+
+      // Create tooltip element
+      const tipEl = document.createElement('div');
+      tipEl.style.cssText = wbTipStyle;
+      tipEl.innerHTML = tipHTML;
+      seg.appendChild(tipEl);
+
+      seg.addEventListener('mouseenter', () => { tipEl.style.display = 'block'; });
+      seg.addEventListener('mouseleave', () => { tipEl.style.display = 'none'; });
+    });
+  }
 }
 
+/**
+ * Renders the real estate (immobilier) dashboard view
+ *
+ * Main property portfolio dashboard with multiple sections:
+ * 1. Villejuif property inclusion toggle (#immoVillejuifToggle)
+ * 2. KPI row (#immoKPIs): Total value, equity, CRD, wealth creation, LTV
+ * 3. Wealth breakdown with mini bar visualization
+ * 4. CF Summary Ribbon (#cfSummaryRibbon): Revenus/Charges/CF net with hover tooltips
+ * 5. Wealth breakdown section (#wealthBreakdownSection): detailed breakdown table
+ * 6. Wealth projection chart (#wealthProjectionSection)
+ * 7. Property list (#immoPropList): sortable properties table
+ * 8. Property detail panel (#propDetailCF): opened on property click
+ *
+ * Two-tier Rendering:
+ * - Summary view: displays portfolio KPIs and property list in main panel
+ * - Detail view: full property breakdown in detail panel (renderPropertyDetail)
+ *
+ * Key Functions Called:
+ *   - renderWealthBreakdown(): Creates wealth creation visualization
+ *   - renderPropertyDetail(state, prop): Opens property detail panel
+ *   - renderPropertyInfoCard(details): Room breakdown visualization
+ *   - cfBarRow(label, amount, color, maxRef): Revenue/charges bars
+ *
+ * Tooltip Systems Active:
+ *   - CF ribbon: Revenus/Charges/CF net bars (lines 3423-3570)
+ *   - Wealth bar: capital/appreciation/CF segments (lines 3279-3422)
+ *   - KPI cards: hover tooltips via _setTip() function
+ *
+ * @param {Object} state - Application state containing immoView and all properties
+ */
 function renderImmoView(state) {
   const iv = state.immoView;
 
@@ -3349,23 +3529,84 @@ function renderImmoView(state) {
       const pctCF = 100 - pctCap - pctApp;
       const bar = document.createElement('div');
       bar.className = 'wealth-mini-bar';
-      bar.style.cssText = 'display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:6px;gap:1px;';
-      bar.innerHTML = '<div style="width:' + pctCap + '%;background:#3182ce;" title="Capital amorti ' + fmt(wb.capitalAmorti) + '"></div>'
-        + '<div style="width:' + pctApp + '%;background:#38a169;" title="Appréciation ' + fmt(wb.appreciation) + '"></div>'
-        + '<div style="width:' + Math.abs(pctCF) + '%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';" title="CF ' + fmt(wb.cashflow) + '"></div>';
+      bar.style.cssText = 'display:flex;height:5px;border-radius:3px;overflow:visible;margin-top:6px;gap:1px;position:relative;cursor:pointer;';
+      bar.innerHTML = '<div style="width:' + pctCap + '%;background:#3182ce;border-radius:3px 0 0 3px;"></div>'
+        + '<div style="width:' + pctApp + '%;background:#38a169;"></div>'
+        + '<div style="width:' + Math.abs(pctCF) + '%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';border-radius:0 3px 3px 0;"></div>';
       parent.appendChild(bar);
+
+      // Rich hover tooltip for mini wealth bar — per-property breakdown
+      let wbMiniTip = null;
+      bar.addEventListener('mouseenter', () => {
+        if (!wbMiniTip) {
+          wbMiniTip = document.createElement('div');
+          wbMiniTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
+            + 'box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;font-size:12px;line-height:1.6;white-space:nowrap;';
+          document.body.appendChild(wbMiniTip);
+        }
+        // Build tooltip content
+        let tipH = '<div style="font-weight:700;margin-bottom:6px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px;">'
+          + 'Cr\u00e9ation Richesse — +' + fmt(fTotalWealthCreation) + '/mois</div>';
+        // Per-property breakdown
+        fp.forEach(p => {
+          if (p.conditional && p.wealthCreation === 0) return;
+          const pwb = p.wealthBreakdown || {};
+          tipH += '<div style="font-weight:600;color:#e2e8f0;margin-top:4px;">' + p.name + '</div>';
+          tipH += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;">'
+            + '<span style="color:#63b3ed;">Capital</span><span>' + fmt(pwb.capitalAmorti || 0) + '</span></div>';
+          tipH += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;">'
+            + '<span style="color:#68d391;">Appr\u00e9c.</span><span>' + fmt(pwb.appreciation || 0) + '</span></div>';
+          tipH += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;">'
+            + '<span style="color:' + ((pwb.cashflow || 0) >= 0 ? '#d69e2e' : '#fc8181') + ';">CF</span><span>' + ((pwb.cashflow || 0) >= 0 ? '+' : '') + fmt(pwb.cashflow || 0) + '</span></div>';
+        });
+        tipH += '<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:6px;padding-top:4px;font-size:11px;text-align:center;">'
+          + '\u00d7 12 = <span style="color:#68d391;font-weight:700;">+' + fmt(fTotalWealthCreation * 12) + '/an</span></div>';
+        wbMiniTip.innerHTML = tipH;
+        wbMiniTip.style.display = 'block';
+        const rect = bar.getBoundingClientRect();
+        wbMiniTip.style.left = (rect.left + rect.width / 2 - 130) + 'px';
+        wbMiniTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
+      });
+      bar.addEventListener('mouseleave', () => {
+        if (wbMiniTip) wbMiniTip.style.display = 'none';
+      });
+
       // Mini legend
       const leg = document.createElement('div');
       leg.className = 'wealth-mini-leg';
       leg.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:3px;font-size:9px;color:#718096;';
       leg.innerHTML = '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#3182ce;margin-right:2px;"></span>Capital</span>'
-        + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38a169;margin-right:2px;"></span>Appréc.</span>'
+        + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38a169;margin-right:2px;"></span>Appr\u00e9c.</span>'
         + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + (wb.cashflow >= 0 ? '#d69e2e' : '#e53e3e') + ';margin-right:2px;"></span>CF</span>';
       parent.appendChild(leg);
     }
   }
 
-  // ── UX: CF Summary Ribbon ──
+  // ── UX: CF Summary Ribbon with hover tooltips ──
+  // Shows Revenus / Charges / CF net bars at top of Immobilier view.
+  // Each bar has a hover tooltip showing per-property breakdown.
+  //
+  // TOOLTIP ARCHITECTURE (CF Ribbon):
+  //   1. Three hoverable containers (cfRib_rev, cfRib_chg, cfRib_cf)
+  //   2. Each has position:relative to anchor absolute tooltip children
+  //   3. Tooltip elements (cfRib_revTip, cfRib_chgTip, cfRib_cfTip)
+  //      - Hidden by default (display:none)
+  //      - Shown on mouseenter, hidden on mouseleave
+  //      - Positioned absolute below parent: left:50%, transform:translateX(-50%)
+  //   4. Arrow pointer: CSS triangle (border technique)
+  //   5. Dark background: #1a202c (consistent with .kpi-tooltip class)
+  //
+  // TOOLTIP CONTENT:
+  //   Revenus: per-property breakdown of loyer + parking + charges locataires
+  //   Charges: per-property breakdown of prêt + assurance + PNO + TF + copro
+  //   CF net: per-property CF (revenue - charges), marked ±, with annual projection
+  //
+  // All tooltips include:
+  //   - Per-property line items with colored values
+  //   - Subtotal line separator
+  //   - Total monthly amount (color-coded green or red)
+  //   - Annualized calculation (* 12 = annual)
+  //
   const cfRibbon = document.getElementById('cfSummaryRibbon');
   if (cfRibbon) {
     const totalRevenue = fp.reduce((s, p) => s + (p.totalRevenue || 0), 0);
@@ -3376,21 +3617,123 @@ function renderImmoView(state) {
     const chgPct = maxBar > 0 ? Math.round(totalCharges / maxBar * 100) : 0;
     const cfColor = netCF >= 0 ? '#38a169' : '#e53e3e';
     const cfSign = netCF >= 0 ? '+' : '';
+
+    // ── Tooltip Style & Structure (shared dark popup) ──
+    // Position: absolute, below parent, centered horizontally
+    // Trigger: mouseenter/mouseleave event listeners (see line ~3570)
+    const tipStyle = 'display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 10px);'
+      + 'background:#1a202c;color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;line-height:1.6;'
+      + 'white-space:nowrap;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;'
+      + 'min-width:200px;';
+    const tipArrow = '<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);'
+      + 'width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;'
+      + 'border-bottom:6px solid #1a202c;"></div>';
+    // Tooltip line helper: label + value aligned right
+    function tipLine(label, val, color) {
+      return '<div style="display:flex;justify-content:space-between;gap:20px;">'
+        + '<span style="color:#a0aec0">' + label + '</span>'
+        + '<span style="font-weight:600;' + (color ? 'color:' + color : '') + '">' + fmt(val) + ' \u20ac</span>'
+        + '</div>';
+    }
+    function tipDivider() {
+      return '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>';
+    }
+    function tipHeader(name) {
+      return '<div style="font-weight:700;color:#e2e8f0;margin-top:4px;margin-bottom:2px;">' + name + '</div>';
+    }
+
+    // ── Build Revenus tooltip: per-property revenue breakdown ──
+    let revTip = tipArrow;
+    fp.forEach(p => {
+      if (p.conditional) return; // skip non-signed properties
+      revTip += tipHeader(p.name);
+      revTip += tipLine('Loyer HC', p.loyerHC || 0, '#68d391');
+      if (p.parking > 0) revTip += tipLine('Parking', p.parking, '#68d391');
+      if (p.chargesLoc > 0) revTip += tipLine('Charges loc.', p.chargesLoc, '#4fd1c5');
+      revTip += tipLine('\u2192 Sous-total', p.totalRevenue || 0, '#fff');
+    });
+    revTip += tipDivider();
+    revTip += '<div style="display:flex;justify-content:space-between;gap:20px;font-weight:700;">'
+      + '<span>Total</span><span style="color:#68d391">' + fmt(totalRevenue) + ' \u20ac/mois</span></div>';
+    revTip += '<div style="color:#718096;font-size:10px;margin-top:2px;">\u00d7 12 = ' + fmt(totalRevenue * 12) + ' \u20ac/an</div>';
+
+    // ── Build Charges tooltip: per-property charges breakdown ──
+    let chgTip = tipArrow;
+    fp.forEach(p => {
+      if (p.conditional) return;
+      const cd = p.chargesDetail || {};
+      chgTip += tipHeader(p.name);
+      if (Math.round(cd.pret || 0) > 0) chgTip += tipLine('Pr\u00eat', Math.round(cd.pret), '#fc8181');
+      if (Math.round(cd.assurance || 0) > 0) chgTip += tipLine('Assurance', Math.round(cd.assurance), '#fc8181');
+      if (Math.round(cd.pno || 0) > 0) chgTip += tipLine('PNO', Math.round(cd.pno), '#fbd38d');
+      if (Math.round(cd.tf || 0) > 0) chgTip += tipLine('TF', Math.round(cd.tf), '#fbd38d');
+      if (Math.round(cd.copro || 0) > 0) chgTip += tipLine('Copro', Math.round(cd.copro), '#fbd38d');
+      const propCharges = Math.round((cd.pret || 0) + (cd.assurance || 0) + (cd.pno || 0) + (cd.tf || 0) + (cd.copro || 0));
+      chgTip += tipLine('\u2192 Sous-total', propCharges, '#fff');
+    });
+    chgTip += tipDivider();
+    chgTip += '<div style="display:flex;justify-content:space-between;gap:20px;font-weight:700;">'
+      + '<span>Total</span><span style="color:#fc8181">' + fmt(totalCharges) + ' \u20ac/mois</span></div>';
+    chgTip += '<div style="color:#718096;font-size:10px;margin-top:2px;">\u00d7 12 = ' + fmt(totalCharges * 12) + ' \u20ac/an</div>';
+
+    // ── Build CF net tooltip: per-property CF + annual ──
+    let cfTip = tipArrow;
+    fp.forEach(p => {
+      if (p.conditional) {
+        cfTip += '<div style="display:flex;justify-content:space-between;gap:20px;">'
+          + '<span style="color:#a0aec0">' + p.name + '</span>'
+          + '<span style="color:#718096;font-style:italic">\u2014 (non livr\u00e9)</span></div>';
+        return;
+      }
+      const pCF = p.cf || 0;
+      const pSign = pCF >= 0 ? '+' : '';
+      const pColor = pCF >= 0 ? '#68d391' : '#fc8181';
+      cfTip += '<div style="display:flex;justify-content:space-between;gap:20px;">'
+        + '<span style="color:#a0aec0">' + p.name + '</span>'
+        + '<span style="font-weight:600;color:' + pColor + '">' + pSign + fmt(pCF) + ' \u20ac</span></div>';
+    });
+    cfTip += tipDivider();
+    const cfTotalColor = netCF >= 0 ? '#68d391' : '#fc8181';
+    cfTip += '<div style="display:flex;justify-content:space-between;gap:20px;font-weight:700;">'
+      + '<span>CF net</span><span style="color:' + cfTotalColor + '">' + cfSign + fmt(netCF) + ' \u20ac/mois</span></div>';
+    cfTip += '<div style="color:#718096;font-size:10px;margin-top:2px;">\u00d7 12 = ' + cfSign + fmt(netCF * 12) + ' \u20ac/an</div>';
+
     cfRibbon.style.display = '';
     cfRibbon.innerHTML = '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">'
-      + '<div style="flex:1;min-width:200px;">'
+      // ── Revenus bar + tooltip ──
+      + '<div id="cfRib_rev" style="flex:1;min-width:200px;position:relative;cursor:pointer;">'
       + '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;color:#718096;"><span>Revenus</span><span style="color:#276749;font-weight:600;">' + fmt(totalRevenue) + ' /mois</span></div>'
       + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;"><div style="height:100%;width:' + revPct + '%;background:linear-gradient(90deg,#68d391,#38a169);border-radius:4px;"></div></div>'
+      + '<div id="cfRib_revTip" style="' + tipStyle + '">' + revTip + '</div>'
       + '</div>'
-      + '<div style="flex:1;min-width:200px;">'
+      // ── Charges bar + tooltip ──
+      + '<div id="cfRib_chg" style="flex:1;min-width:200px;position:relative;cursor:pointer;">'
       + '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px;color:#718096;"><span>Charges</span><span style="color:#c53030;font-weight:600;">' + fmt(totalCharges) + ' /mois</span></div>'
       + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;"><div style="height:100%;width:' + chgPct + '%;background:linear-gradient(90deg,#fc8181,#e53e3e);border-radius:4px;"></div></div>'
+      + '<div id="cfRib_chgTip" style="' + tipStyle + '">' + chgTip + '</div>'
       + '</div>'
-      + '<div style="text-align:center;padding:4px 16px;background:' + (netCF >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;border:1px solid ' + (netCF >= 0 ? '#c6f6d5' : '#fed7d7') + ';">'
+      // ── CF net box + tooltip ──
+      + '<div id="cfRib_cf" style="text-align:center;padding:4px 16px;background:' + (netCF >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;border:1px solid ' + (netCF >= 0 ? '#c6f6d5' : '#fed7d7') + ';position:relative;cursor:pointer;">'
       + '<div style="font-size:18px;font-weight:700;color:' + cfColor + ';">' + cfSign + fmt(netCF) + '</div>'
       + '<div style="font-size:10px;color:#718096;">CF net /mois</div>'
+      + '<div id="cfRib_cfTip" style="' + tipStyle + '">' + cfTip + '</div>'
       + '</div>'
       + '</div>';
+
+    // ── Attach hover listeners for tooltip show/hide ──
+    // Iterates over three bar keys (rev, chg, cf) and attaches mouseenter/mouseleave
+    // to toggle tooltip visibility. Tooltips are initially display:none (hidden).
+    // On mouseenter: tooltip.style.display = 'block' (shows tooltip)
+    // On mouseleave: tooltip.style.display = 'none' (hides tooltip)
+    // This creates a smooth reveal/hide effect without click requirement.
+    ['rev', 'chg', 'cf'].forEach(key => {
+      const wrap = document.getElementById('cfRib_' + key);
+      const tip = document.getElementById('cfRib_' + key + 'Tip');
+      if (wrap && tip) {
+        wrap.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+        wrap.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      }
+    });
   }
 
   // ── Wealth creation breakdown section ──
@@ -3456,7 +3799,29 @@ function renderImmoView(state) {
     exitEl.setAttribute('data-eur', Math.round(fTotalExitCosts || 0));
   }
 
-  // ── Hover tooltips for immobilier KPIs ──
+  /**
+   * Helper: Attach or update hover tooltip on KPI card
+   *
+   * Creates/updates a .kpi-tooltip div within the parent .kpi card.
+   * Tooltip appears on hover with dark background (consistent styling).
+   * Position can be above or below the KPI element.
+   *
+   * Tooltip Structure:
+   * - Parent: .kpi element (KPI card container)
+   * - Tooltip: .kpi-tooltip div (hidden by default, shown on hover via CSS)
+   * - Positioning: .above class positions above KPI, otherwise below
+   * - Styling: Dark background (#1a202c) with white text (from CSS)
+   *
+   * Used throughout renderImmoView() for contextual KPI details:
+   * - Equity breakdown (per property)
+   * - Wealth creation breakdown
+   * - Exit costs breakdown
+   * - LTV details
+   *
+   * @param {string} elId - ID of the element to attach tooltip to
+   * @param {string} html - HTML content for tooltip (internal markup)
+   * @param {boolean} above - If true, position tooltip above element; else below
+   */
   function _setTip(elId, html, above) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -4282,6 +4647,35 @@ function renderPropertyInfoCard(details) {
 }
 
 // ============ PROPERTY DETAIL PANEL ============
+/**
+ * Renders complete property detail panel (#propDetailCF)
+ *
+ * Full-page property breakdown displayed when user clicks a property in immoView.
+ * This is the main dual-rendering path for property details (vs inline apartment tabs).
+ *
+ * Sections Rendered:
+ * 1. Property title + address (#propDetailTitle)
+ * 2. Info card with room/surface breakdown (#propDetailInfo)
+ * 3. Property metadata table (#propDetailFiche): surface, purchase price, current value,
+ *    equity, type, purchase date, appreciation rate, LTV
+ * 4. Loan details table (#propDetailLoans): per-loan breakdown with multi-period schedules
+ * 5. Revenue breakdown (#propDetailRevenue): loyer HC, parking, charges locataires
+ * 6. Charges breakdown (#propDetailCharges): prêt, assurance, PNO, TF, copro
+ * 7. CF visualizations (#propDetailCF): side-by-side revenue/charges bars with cfBarRow()
+ * 8. KPI cards (#propDetailKPIs): monthly CF, annual CF, CAP annual, yield
+ * 9. Fiscal details (#propDetailFiscal): if applicable
+ * 10. VEFA timeline (#propDetailVEFA): if VEFA property
+ * 11. Property simulator (#propDetailSimulator): sensitivity analysis
+ *
+ * Key Helper Functions Used:
+ *   - renderPropertyInfoCard(details): Room breakdown visualization
+ *   - renderLoanSchedule(loan): Multi-period loan badge display
+ *   - cfBarRow(label, amount, color, maxRef): Revenue/charges bar renderer
+ *   - _setTip(elId, html, above): Attach KPI hover tooltips
+ *
+ * @param {Object} state - Application state with immoView
+ * @param {Object} prop - Property object with all calculations
+ */
 function renderPropertyDetail(state, prop) {
   const meta = prop.propertyMeta || {};
   const cd = prop.chargesDetail || {};
@@ -4377,14 +4771,37 @@ function renderPropertyDetail(state, prop) {
     const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
     // ── UX: Visual bar comparison for Revenus vs Charges ──
     const maxCFBar = Math.max(prop.totalRevenue, prop.charges);
+
+    /**
+     * Renders a single revenue/charge line with visual bar + hover tooltip
+     *
+     * Creates a horizontal bar chart row showing:
+     * - Label (left): revenue/charge category name
+     * - Bar (center): proportional width bar (pct = amount/maxRef * 100)
+     * - Amount (right): actual EUR value with font-weight:600
+     *
+     * Visual Style:
+     * - Bar background: #edf2f7 (light gray)
+     * - Bar fill: gradient color provided (e.g., green for revenue, red for charges)
+     * - Responsive: uses flexbox with gap:8px spacing
+     * - Hover title: shows label + amount + percentage
+     *
+     * Used in: renderPropertyDetail(), renderAptView() for revenue/charge lists
+     *
+     * @param {string} label - Display label (e.g., "Loyer HC", "Prêt")
+     * @param {number} amount - Value in EUR (formatted with toLocaleString)
+     * @param {string} color - CSS color or gradient for bar fill
+     * @param {number} maxRef - Reference maximum (typically maxCFBar)
+     * @returns {string} HTML string of one bar row
+     */
     function cfBarRow(label, amount, color, maxRef) {
       const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
-      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;" title="' + label + ' : ' + amount + ' \u20ac (' + pct + '% du max)">'
         + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
         + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
         + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
         + '</div>'
-        + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' €</span>'
+        + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' \u20ac</span>'
         + '</div>';
     }
     let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Cash Flow mensuel</h4>'
@@ -4819,14 +5236,38 @@ function renderAptView(state, loanKey) {
   const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
   // ── UX: Visual bar comparison for Revenus vs Charges ──
   const maxCFBarApt = Math.max(prop.totalRevenue || 0, Math.round(prop.charges) || 0);
+
+  /**
+   * Renders a single revenue/charge line with visual bar (apartment view variant)
+   *
+   * Identical to cfBarRow() but used in apartment-specific views (renderAptView).
+   * Creates a horizontal bar chart row showing:
+   * - Label (left): revenue/charge category name
+   * - Bar (center): proportional width bar (pct = amount/maxRef * 100)
+   * - Amount (right): actual EUR value with font-weight:600
+   *
+   * Visual Style:
+   * - Bar background: #edf2f7 (light gray)
+   * - Bar fill: gradient color provided (e.g., green for revenue, red for charges)
+   * - Responsive: uses flexbox with gap:8px spacing
+   * - Hover title: shows label + amount + percentage
+   *
+   * Used in: renderAptView() for revenue/charge lists
+   *
+   * @param {string} label - Display label (e.g., "Loyer HC", "Prêt")
+   * @param {number} amount - Value in EUR (formatted with toLocaleString)
+   * @param {string} color - CSS color or gradient for bar fill
+   * @param {number} maxRef - Reference maximum (typically maxCFBarApt)
+   * @returns {string} HTML string of one bar row
+   */
   function cfBarRowApt(label, amount, color, maxRef) {
     const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;" title="' + label + ' : ' + amount + ' \u20ac (' + pct + '% du max)">'
       + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
       + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
       + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
       + '</div>'
-      + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' €</span>'
+      + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' \u20ac</span>'
       + '</div>';
   }
   html += '<div style="margin-bottom:24px;">'
@@ -5164,8 +5605,9 @@ function renderCreancesView(state) {
         const followUpIcon = item.needsFollowUp ? ' <span title="Relancer ! Dernier contact il y a ' + item.daysSinceContact + 'j" style="color:var(--red);font-weight:700;cursor:help">\u26a0</span>' : '';
         const overdueTxt = item.daysOverdue > 0 ? ' <span style="color:var(--red);font-size:11px">(' + item.daysOverdue + 'j retard)</span>' : '';
         const recovPct = Math.min(100, item.recoveryPct);
+        const recovTip = 'Recouvr\u00e9 : ' + fmt(Math.round(item.paymentsTotal || 0)) + ' \u20ac / ' + fmt(Math.round(item.amount || 0)) + ' \u20ac (' + recovPct.toFixed(0) + '%)';
         const recovBar = item.paymentsTotal > 0
-          ? '<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:4px"><div style="background:var(--green);height:100%;border-radius:4px;width:' + recovPct + '%"></div></div>'
+          ? '<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:4px;cursor:pointer" title="' + recovTip + '"><div style="background:var(--green);height:100%;border-radius:4px;width:' + recovPct + '%"></div></div>'
           : '';
 
         tr.innerHTML = '<td>' + item.label + ' ' + statusBadge + followUpIcon + overdueTxt + recovBar + '</td>'
@@ -5192,13 +5634,53 @@ function renderCreancesView(state) {
     makeTableSortable(creancesTable, crv.items, renderCreancesRows);
   }
 
-  // Garanti vs Incertain bar
+  // Garanti vs Incertain bar — with hover tooltip showing per-créance breakdown
   const bar = document.getElementById('creancesBar');
   if (bar && crv.totalNominal > 0) {
     const pctG = (crv.totalGuaranteed / crv.totalNominal * 100).toFixed(0);
     const pctU = (100 - pctG).toFixed(0);
-    bar.innerHTML = '<div class="mb-seg" style="width:' + pctG + '%;background:var(--green)">' + pctG + '% (' + fmt(crv.totalGuaranteed, true) + ')</div>'
-      + '<div class="mb-seg" style="width:' + pctU + '%;background:var(--red)">' + pctU + '% (' + fmt(crv.totalUncertain, true) + ')</div>';
+    // Build rich tooltip content for each segment
+    const crTipStyle = 'display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 10px);'
+      + 'background:#1a202c;color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;line-height:1.6;'
+      + 'white-space:nowrap;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;min-width:200px;';
+    const crTipArr = '<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;'
+      + 'border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #1a202c;"></div>';
+
+    // Garanti tooltip
+    let gTip = crTipArr + '<div style="font-weight:700;color:#68d391;margin-bottom:4px;">Cr\u00e9ances garanties</div>';
+    crv.items.filter(c => c.guaranteed).forEach(c => {
+      gTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
+        + '<span style="color:#a0aec0">' + c.label + '</span>'
+        + '<span style="font-weight:600;color:#68d391">' + fmt(c.amountEUR) + ' \u20ac</span></div>';
+    });
+    gTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
+      + '<div style="display:flex;justify-content:space-between;font-weight:700;"><span>Total</span><span style="color:#68d391">' + fmt(crv.totalGuaranteed) + ' \u20ac</span></div>';
+
+    // Incertain tooltip
+    let uTip = crTipArr + '<div style="font-weight:700;color:#fc8181;margin-bottom:4px;">Cr\u00e9ances incertaines</div>';
+    crv.items.filter(c => !c.guaranteed).forEach(c => {
+      uTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
+        + '<span style="color:#a0aec0">' + c.label + ' <span style="font-size:10px">(' + (c.probability * 100).toFixed(0) + '%)</span></span>'
+        + '<span style="font-weight:600;color:#fc8181">' + fmt(c.amountEUR) + ' \u20ac</span></div>';
+    });
+    uTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
+      + '<div style="display:flex;justify-content:space-between;font-weight:700;"><span>Total</span><span style="color:#fc8181">' + fmt(crv.totalUncertain) + ' \u20ac</span></div>';
+
+    bar.style.position = 'relative';
+    bar.innerHTML = '<div id="crBarG" class="mb-seg" style="width:' + pctG + '%;background:var(--green);position:relative;cursor:pointer">' + pctG + '% (' + fmt(crv.totalGuaranteed, true) + ')'
+      + '<div id="crBarGTip" style="' + crTipStyle + '">' + gTip + '</div></div>'
+      + '<div id="crBarU" class="mb-seg" style="width:' + pctU + '%;background:var(--red);position:relative;cursor:pointer">' + pctU + '% (' + fmt(crv.totalUncertain, true) + ')'
+      + '<div id="crBarUTip" style="' + crTipStyle + '">' + uTip + '</div></div>';
+
+    // Attach hover listeners
+    ['G', 'U'].forEach(k => {
+      const seg = document.getElementById('crBar' + k);
+      const tip = document.getElementById('crBar' + k + 'Tip');
+      if (seg && tip) {
+        seg.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+        seg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      }
+    });
   }
 
   // Follow-up alert
@@ -5337,17 +5819,52 @@ function renderBudgetView(state) {
       html += '</tbody></table></div>';
     });
 
-    // Summary bar
+    // Summary bar — with hover tooltips showing per-property breakdown
     const barPctLoyer = bv.investTotal > 0 ? Math.min(100, bv.investLoyerTotal / bv.investTotal * 100) : 0;
     html += '<div style="margin-top:12px">';
     html += '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px">';
     html += '<span>Charges totales : ' + fmt(bv.investTotal) + '/mois</span>';
     html += '<span>Loyers totaux : ' + fmt(bv.investLoyerTotal) + '/mois</span>';
     html += '</div>';
-    html += '<div class="meter-bar" style="height:28px">';
-    html += '<div class="mb-seg" style="width:' + Math.min(barPctLoyer, 100).toFixed(0) + '%;background:var(--green)">' + fmt(bv.investLoyerTotal) + '</div>';
+    html += '<div id="budgetInvestBar" class="meter-bar" style="height:28px;position:relative">';
+
+    // Build tooltip for "Couvert par loyers" (green) segment
+    const bTipStyle = 'display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 10px);'
+      + 'background:#1a202c;color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;line-height:1.6;'
+      + 'white-space:nowrap;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;min-width:220px;';
+    const bTipArr = '<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;'
+      + 'border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #1a202c;"></div>';
+
+    // Green tip: per-property loyer contribution
+    let greenTip = bTipArr + '<div style="font-weight:700;color:#68d391;margin-bottom:4px;">Couvert par les loyers</div>';
+    bv.investProperties.forEach(prop => {
+      if (prop.loyer > 0) {
+        greenTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
+          + '<span style="color:#a0aec0">' + prop.name + '</span>'
+          + '<span style="font-weight:600;color:#68d391">' + fmt(prop.loyer) + ' \u20ac</span></div>';
+      }
+    });
+    greenTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
+      + '<div style="display:flex;justify-content:space-between;font-weight:700;"><span>Total loyers</span><span style="color:#68d391">' + fmt(bv.investLoyerTotal) + ' \u20ac/mois</span></div>';
+
+    // Red tip: per-property effort
+    const effort = bv.investTotal - bv.investLoyerTotal;
+    let redTip = bTipArr + '<div style="font-weight:700;color:#fc8181;margin-bottom:4px;">Effort d\u2019\u00e9pargne</div>';
+    bv.investProperties.forEach(prop => {
+      if (prop.cf < 0) {
+        redTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
+          + '<span style="color:#a0aec0">' + prop.name + '</span>'
+          + '<span style="font-weight:600;color:#fc8181">' + fmt(Math.abs(prop.cf)) + ' \u20ac</span></div>';
+      }
+    });
+    redTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
+      + '<div style="display:flex;justify-content:space-between;font-weight:700;"><span>Effort total</span><span style="color:#fc8181">' + fmt(effort) + ' \u20ac/mois</span></div>';
+
+    html += '<div id="budgetBarG" class="mb-seg" style="width:' + Math.min(barPctLoyer, 100).toFixed(0) + '%;background:var(--green);position:relative;cursor:pointer">' + fmt(bv.investLoyerTotal)
+      + '<div id="budgetBarGTip" style="' + bTipStyle + '">' + greenTip + '</div></div>';
     if (barPctLoyer < 100) {
-      html += '<div class="mb-seg" style="width:' + (100 - barPctLoyer).toFixed(0) + '%;background:var(--red)">' + fmt(bv.investTotal - bv.investLoyerTotal) + '</div>';
+      html += '<div id="budgetBarR" class="mb-seg" style="width:' + (100 - barPctLoyer).toFixed(0) + '%;background:var(--red);position:relative;cursor:pointer">' + fmt(effort)
+        + '<div id="budgetBarRTip" style="' + bTipStyle + '">' + redTip + '</div></div>';
     }
     html += '</div>';
     html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray);margin-top:4px">';
@@ -5356,6 +5873,16 @@ function renderBudgetView(state) {
     html += '</div></div>';
 
     investDiv.innerHTML = html;
+
+    // Attach hover listeners for budget bar tooltips
+    ['G', 'R'].forEach(k => {
+      const seg = document.getElementById('budgetBar' + k);
+      const tip = document.getElementById('budgetBar' + k + 'Tip');
+      if (seg && tip) {
+        seg.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+        seg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      }
+    });
   }
 }
 

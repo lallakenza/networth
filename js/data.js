@@ -1,6 +1,23 @@
 // ============================================================
-// DATA LAYER — Raw portfolio data in native currencies
+// DATA LAYER — Central data store for patrimonial dashboard
 // ============================================================
+// Purpose: Source of truth for all portfolio, property, debt,
+// and financial data used by the wealth tracking system.
+//
+// Architecture: data.js → engine.js → render.js pipeline
+// - data.js: Raw portfolio data in native currencies
+// - engine.js: Financial calculations, conversions, schedules
+// - render.js: DOM rendering and visualization
+//
+// Data sources:
+// - PDF amortization tables (Banque Populaire, Action Logement, LCL)
+// - Notaire acts (actes de vente immobilier)
+// - Bank statements (Mashreq, Wio, Attijari, Nabd, IBKR, Degiro)
+// - Market data (Yahoo Finance API, broker statements)
+// - Tax/fiscal documents (TVA, PTZ, LMNP constraints)
+//
+// Last updated: March 2026
+// Version: v228 (v227 → v228 : documentation enhancement)
 // All amounts are in their NATIVE currency (AED, MAD, USD, EUR, JPY)
 // Never converted here. Engine does all conversions.
 //
@@ -144,24 +161,50 @@ export const PORTFOLIO = {
       // Shares achetées: 170.7833 — vendues tax: 3.7361 — fractionnaires: 3.0472 — entiers UBS: 164
     },
 
-    // ──────────────────────────────────────────────────────
-    // IBKR — Télécharger le CSV "Net Asset Value" depuis
-    //        Interactive Brokers > Performance & Reports
+    // ════════════════════════════════════════════════════════════
+    // INTERACTIVE BROKERS (IBKR) — Compte intégré multimonis
+    // Actifs: Actions, ETFs, crypto ETFs, cash multi-devises
+    // Accès: ibkr.com — Account de Amine
+    // ════════════════════════════════════════════════════════════
+    // NOTE: Pour télécharger les données récentes :
+    //   → IBKR > Performance & Reports > Net Asset Value CSV
+    //   → Réconcilier deposits[], positions[], trades[] avec statement
+    //   → Vérifier "Change in NAV" pour commissions, intérêts, dividendes
     //
-    // Positions : mettre à jour price (cours) et shares (nb)
-    // Cash : mettre à jour cashEUR, cashUSD, cashJPY
-    // cashJPY est NÉGATIF = emprunt (short JPY pour levier)
+    //
+    // ── PORTFOLIO POSITIONS — Actions, ETFs, crypto ETFs ──
+    // Mise à jour : 21/03/2026 (clôture marché jeudi 20 mars 2026)
+    // Sources : Yahoo Finance (API live), Interactive Brokers (statement)
+    //
+    // Structure position:
+    //   - ticker: symbole Yahoo Finance (ex: 'AIR.PA' = Airbus Paris)
+    //   - shares: nombre d'actions détenues (entiers)
+    //   - price: cours actuel (fallback statique si API indisponible)
+    //   - costBasis: PRU (prix revient unitaire, devise native)
+    //   - currency: devise native (EUR, USD, JPY, etc.)
+    //   - label: nom complet pour affichage
+    //   - sector: secteur d'activité (industrials, luxury, tech, etc.)
+    //   - geo: géographie (france, germany, japan, crypto, etc.)
+    //   - ytdOpen: clôture 1er jour bourse 2026 (2 janvier) — historique
+    //   - mtdOpen: clôture 1er jour du mois courant (3 mars 2026)
+    //   - oneMonthAgo: clôture ~30 jours avant (10 février 2026)
+    //
+    // MISE À JOUR DES PRIX :
+    //   1. price: est mis à jour par l'API Yahoo Finance (range=1d)
+    //   2. ytdOpen/mtdOpen/oneMonthAgo: refs historiques, mis à jour mensuellement
+    //   3. Fallback statique si API indisponible = dernier prix connu
+    //
+    // ── CASH MULTI-DEVISES ──
+    // cashEUR, cashUSD, cashJPY = soldes bruts chez IBKR
+    // Négatif = emprunt (ex: JPY carry trade = short JPY pour levier)
     // ──────────────────────────────────────────────────────
     ibkr: {
-      staticNAV: 185383,    // NAV totale calculée au 21/03/2026 (positions + cash multi-devises)
+      staticNAV: 185383,    // NAV totale estimée au 21/03/2026 (positions + cash + actifs)
       positions: [
-        // { ticker, shares, price (cours actuel fallback), costBasis (PRU), currency, label, sector, geo }
-        // price: mis à jour par l'API Yahoo range=1d, sinon fallback statique ci-dessous
-        // ytdOpen/mtdOpen/oneMonthAgo: prix de référence historiques — stockés une fois, mis à jour mensuellement
-        //   ytdOpen = clôture 1er jour de bourse 2026 (2 jan)
-        //   mtdOpen = clôture 1er jour du mois courant (3 mar 2026)
-        //   oneMonthAgo = clôture ~30 jours avant (10 fév 2026)
-        // Prices mis à jour 21/03/2026 — clôture vendredi 20 mars 2026 (Yahoo Finance)
+        // ── ACTIONS CAC 40 & EUROPÉENNES (11 positions) ──
+        // Achetées progressivement avril-nov 2025
+        // Cours: Yahoo Finance clôture 20 mars 2026
+        // PRU: prix d'achat moyen (costBasis EUR)
         { ticker: 'AIR.PA',  shares: 200,  price: 160.92, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 180.28, oneMonthAgo: 187.24 },
         { ticker: 'BN.PA',   shares: 200,  price: 68.50,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 71.22, oneMonthAgo: 69.02 },
         { ticker: 'DG.PA',   shares: 100,  price: 123.95, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 138.40, oneMonthAgo: 133.55 },
@@ -218,10 +261,14 @@ export const PORTFOLIO = {
         { date: '2026-01-06', type: 'interest', eurAmount: -70.27,  usdAmount: -12.40, jpyAmount: -1778, label: 'Interest Dec-2025' },
         { date: '2026-02-04', type: 'interest', eurAmount: -49.42,  usdAmount: -26.00, jpyAmount: -4619, label: 'Interest Jan-2026' },
         { date: '2026-03-04', type: 'interest', eurAmount: -27.73,  usdAmount: -74.31, jpyAmount: -23049,label: 'Interest Feb-2026' },
-        // Dividendes IBKR (net après WHT prélevée à la source)
+        // ── DIVIDENDES IBKR (net après WHT) ──
         // Source: IBKR Activity Statement CSV, sections "Dividends" + "Withholding Tax"
-        // WHT France = 30%, WHT US = 30% (QQQM)
-        // Formule: eurAmount = brut - WHT (montant net crédité sur le compte)
+        // Format: { date, type, [ticker], eurAmount, label }
+        // Taxation: WHT (Withholding Tax) prélevée à la source
+        //   - France (PAC, GLE, DG, MC, RMS): 25% WHT
+        //   - USA (QQQM): 30% WHT
+        // Formule: eurAmount = montant brut - WHT (= net crédité sur compte)
+        // Note: montants bruts stockés dans "label" pour audit fiscal
         { date: '2025-10-09', type: 'dividend', ticker: 'GLE',    eurAmount: 91.50,  label: 'Div GLE net (€122 brut − €30.50 WHT 25%)' },
         { date: '2025-10-16', type: 'dividend', ticker: 'DG.PA',  eurAmount: 157.50, label: 'Div DG net (€210 brut − €52.50 WHT 25%)' },
         { date: '2025-12-04', type: 'dividend', ticker: 'MC.PA',  eurAmount: 165.00, label: 'Div MC net (€220 brut − €55 WHT 25%)' },
@@ -447,13 +494,25 @@ export const PORTFOLIO = {
     },
 
     // ──────────────────────────────────────────────────────
-    // SGTM (Bourse Casablanca) — voir cours sur casablanca-bourse.com
+    // SGTM (Société Générale Maroc) — Bourse Casablanca
+    // Ticker: SGTM.MA (code ISIN: MA0000011214)
+    // Propriétaire : Amine | Lieu acquisition : IPO déc 2025
     // ──────────────────────────────────────────────────────
-    sgtm: { shares: 32 },   // prix unitaire dans market.sgtmPriceMAD
+    // Prix: disponible sur casablanca-bourse.com
+    // Mise à jour : voir market.sgtmPriceMAD (MAD) + market.sgtmCostBasisMAD
+    sgtm: { shares: 32 },   // 32 actions SGTM — prix unitaire dans market.sgtmPriceMAD
 
-    // ──────────────────────────────────────────────────────
-    // IMMOBILIER — mettre à jour valeur estimée + CRD mensuel
-    // CRD = Capital Restant Dû (vérifier sur tableau d'amortissement)
+    // ════════════════════════════════════════════════════════
+    // IMMOBILIER — Propriétés & valeurs estimées
+    // ════════════════════════════════════════════════════════
+    // CRD = Capital Restant Dû (solde emprunt, depuis tableau amort)
+    // value = estimation conservatrice marché (mise à jour septembre 2025)
+    // valueDate = date estimation (YYYY-MM)
+    //
+    // Mise à jour:
+    //   1. CRD: vérifier dans tableau d'amortissement prêts (BP, AL, LCL)
+    //   2. value: MeilleursAgents + efficity moyenne × surface m²
+    //   3. loyers: vérifier LRAR + encaissements mensuels
     // ──────────────────────────────────────────────────────
     immo: {
       vitry: { value: 300000, valueDate: '2025-09', crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 },
@@ -476,16 +535,33 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     vehicles: { cayenne: 45000, mercedes: 10000 },   // mis à jour 8 Mar 2026
 
-    // ──────────────────────────────────────────────────────
-    // CRÉANCES — argent qu'on nous doit
-    // guaranteed: true = certain, false = incertain
-    // probability: 0.7 = 70% de chances de récupérer
-    // delayDays: délai avant paiement (ex: 45j pour SAP)
+    // ════════════════════════════════════════════════════════
+    // CRÉANCES — Argent à recevoir (dettes d'autrui)
+    // ════════════════════════════════════════════════════════
+    // Utilisation: Assets actifs incluent créances garanties (P=1.0)
+    // Exclus: créances incertaines (P<1.0) ou statut en_retard
+    //
+    // Structure de chaque créance:
+    //   - label: description claire
+    //   - amount: montant EUR/MAD
+    //   - currency: EUR ou MAD
+    //   - type: 'pro' (professionnel) ou 'perso' (personnel)
+    //   - guaranteed: true/false = degré certitude
+    //   - probability: 0.7 = 70% chances récupération (si non garantie)
+    //   - delayDays: délai estimé avant paiement
+    //   - status: en_cours | relancé | en_retard | recouvré | litige
+    //   - dueDate: échéance (YYYY-MM-DD)
+    //   - lastContact: date dernier contact
+    //   - payments: historique des paiements partiels
+    //   - notes: contexte/explications
     // ──────────────────────────────────────────────────────
     creances: {
       items: [
-        // status: en_cours | relancé | en_retard | recouvré | litige
-        // payments: historique des paiements partiels reçus
+        // ── CRÉANCES PROFESSIONNELLES (2 items) ──
+        // Sources: factures, notes de frais, baux locatifs
+        //
+        // ── CRÉANCES PERSONNELLES (4 items) ──
+        // Sources: emprunts familiaux, avances remboursables
         { label: 'SAP & Tax (20j x 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-01', payments: [], notes: 'Facture envoyée, paiement sous 45j' },
         { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-08', payments: [], notes: 'Note de frais déplacement NZ — Sourcing Desk L\'Oréal, livré 26 fév 2026' },
         { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: false, probability: 0.7, status: 'relancé', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' },
@@ -813,15 +889,29 @@ export const DEGIRO_STATIC_PRICES = {
 
 // ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
+// ════════════════════════════════════════════════════════════
+// Utilisé pour calculer l'intérêt/rendement du cash dormant
+// Format: clé = identifiant compte, valeur = taux annuel décimal
 //
-// ⚠️  Pour IBKR : les taux ci-dessous sont les taux NOMINAUX
-//     (avant seuil 10K). Le rendement EFFECTIF est calculé
-//     dans engine.js en tenant compte de :
-//     - EUR/USD : premiers 10 000 à 0% (seuil IBKR)
-//     - JPY : taux par tranche (voir ibkrJPYBorrowCost)
+// ACCOUNTS — Structure :
+// - UAE (Amine) : Mashreq, Wio Savings, Wio Current, Revolut
+// - Maroc (Amine) : Attijari, Nabd
+// - Revolut EUR (Amine) : no yield
+// - IBKR (Amine) : EUR, USD, JPY avec seuils spéciaux
+// - Nezha (multiples) : Revolut, Crédit Mutuel, Livret A, LCL, Attijari, Wio
 //
-// Source : https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php
-// Dernière vérification : 7 mars 2026
+// TAUX IBKR — ⚠️  Gestion spéciale dans engine.js ⚠️
+// Ces taux ci-dessous sont NOMINAUX (avant seuils).
+// Rendement EFFECTIF calculé dans engine.js avec :
+//   - EUR/USD : premiers 10K à 0% (seuil IBKR), reste au taux ci-dessous
+//   - JPY : taux par tranche dégressive (voir IBKR_CONFIG.jpyTiers)
+//   - See engine.js > ibkrJPYBorrowCost() pour calcul détaillé
+//
+// MISE À JOUR :
+// - Taux UAE: vérifier Mashreq app / Wio app
+// - Taux Maroc: Attijari/Nabd mobile app
+// - Taux IBKR: https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php
+// - Dernière vérification : 7 mars 2026
 // ════════════════════════════════════════════════════════════
 export const CASH_YIELDS = {
   // --- UAE ---
@@ -852,37 +942,62 @@ export const CASH_YIELDS = {
 export const INFLATION_RATE = 0.03; // 3% annuel
 
 // ════════════════════════════════════════════════════════════
-// IBKR CONFIGURATION — seuils et taux par tranche
-// Source : interactivebrokers.com/en/trading/margin-rates.php
-// Dernière vérification : mars 2026
+// IBKR CONFIGURATION — Seuils, taux, limites de crédit
+// ════════════════════════════════════════════════════════════
+// Configuration de compte Interactive Brokers pour calculs
+// See engine.js pour implémentation (ibkrJPYBorrowCost, ibkrCashYield)
+//
+// Source : https://www.interactivebrokers.com/en/trading/margin-rates.php
+// Dernière vérification : 7 mars 2026
 // ════════════════════════════════════════════════════════════
 export const IBKR_CONFIG = {
-  // Premiers 10K EUR/USD à 0% (seuil IBKR standard pour intérêts)
+  // ── Seuil cash EUR/USD ──
+  // Premiers 10 000 EUR (ou USD équivalent) à 0% de taux
+  // Au-delà : appliqué taux IBKR_CONFIG.CASH_YIELDS
   cashThreshold: 10000,
-  // JPY Margin Tiers (emprunt — taux négatif appliqué)
-  // BM JPY = 0.704% (mars 2026)
+
+  // ── Tiers d'emprunt JPY (marge) ──
+  // Utilisé pour calcul intérêt/coût carry trade JPY short
+  // Benchmark JPY mars 2026 = 0.704% (variable marché)
+  // Taux = Benchmark + spread (spread dépend du tier)
+  // Calcul: engine.js ibkrJPYBorrowCost()
   jpyTiers: [
-    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   = BM + 1.5%
-    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M = BM + 1.0%
-    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      = BM + 0.75%
+    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   (BM + 1.5%)
+    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M (BM + 1.0%)
+    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      (BM + 0.75%)
   ],
-  // Recommandation : solde optimal EUR pour éviter les pénalités
+
+  // ── Gestion de trésorerie ──
+  // Solde EUR optimal = seuil recommandé pour éviter frais margin
+  // Amine maintient ~20K EUR pour éviter maintenance fee
   optimalCashEUR: 20000,
-  // Rendement de référence cible (pour calcul coût d'opportunité)
+
+  // ── Rendement de référence ──
+  // Taux benchmark pour calcul coût d'opportunité (6% = rendement médian cash)
   refYield: 0.06,
 };
 
 // ════════════════════════════════════════════════════════════
-// TAUX DE CHANGE STATIQUES (fallback si API indisponible)
-// Format : 1 EUR = X devises étrangères
-// Source : Yahoo Finance — Dernière vérification : 21 mars 2026
+// TAUX DE CHANGE STATIQUES — Fallback si API indisponible
+// ════════════════════════════════════════════════════════════
+// Format: 1 EUR = X devises étrangères (tous les taux pivotent sur EUR)
+// Utilisation: conversion actifs, calculs NAV
+//
+// MISE À JOUR:
+// - Source: Yahoo Finance (API live = prioritaire)
+// - Fallback statique si API indisponible = derniers taux connus
+// - Mise à jour statique: 1x par semaine (vendredi clôture)
+//
+// Taux historiques (ref):
+// - 21 mars 2026 (clôture vendredi marché)
+//   EUR/AED: 4.2507, EUR/MAD: 10.804, EUR/USD: 1.1575, EUR/JPY: 184.25
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
-  EUR: 1,
-  AED: 4.2507,       // Yahoo 21/03: 4.2507
-  MAD: 10.804,       // Yahoo 21/03: 10.804
-  USD: 1.1575,       // Yahoo 21/03: 1.1575
-  JPY: 184.25,       // Yahoo 21/03: 184.25
+  EUR: 1,                   // Base de référence
+  AED: 4.2507,              // Dirham des EAU (Dubai)
+  MAD: 10.804,              // Dirham marocain (Maroc)
+  USD: 1.1575,              // Dollar US
+  JPY: 184.25,              // Yen japonais
 };
 
 // Symboles devises pour affichage
@@ -892,11 +1007,27 @@ export const CURRENCY_CONFIG = {
 };
 
 // ════════════════════════════════════════════════════════════
-// IMMOBILIER — constantes pour simulations
+// IMMOBILIER — Constantes charges, loyers, amortissement
+// ════════════════════════════════════════════════════════════
+// Utilisé pour:
+// - Calcul rendement locatif net (loyers - charges - intérêts)
+// - Projections régimes fiscaux (micro vs réel)
+// - Simulation amortissement (déduction LMNP)
+// - Calcul croissance nette du patrimoine immobilier
+//
+// Structure:
+//   vitry / rueil / villejuif: {
+//     loyerBrut: loyer annuel sans charges
+//     chargesAnnuelles: copro, PNO, taxe foncière, assurance
+//     appreciation: taux croissance annuel
+//     lmnpAmortStart: date début amortissement (si LMNP)
+//   }
+//
+// NOTE: Croissance calculée dynamiquement dans engine.js
+// depuis les éléments: tableau amortissement prêts + appreciation + CF net
+// Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  // growth: calculé dynamiquement dans engine.js depuis amortSchedules + appreciation + CF
-  // Ancien hardcodé supprimé — voir wealthBreakdown dans computeImmoView()
   villejuifStartMonth: 24, // Q1 2028 ~ 24 mois à partir de mars 2026 (contrat: livraison max 31/03/2028)
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
@@ -1012,55 +1143,85 @@ export const IMMO_CONSTANTS = {
         cotisationAssociative: 9.60,
       },
     },
+    // ── RUEIL-MALMAISON — Prêt unique (251 200€) ──
+    // Propriétaire : Nezha
+    // Source : contrat notarié 5 novembre 2019
+    // Bien financé : Rue Jean Bourgey, Rueil-Malmaison (75m² + parking)
+    // Taux nominal fixe 1.20%
+    // Assurance ACM VIE dégressive
     rueil: {
       principal: 251200,
-      rate: 0.012,           // 1.20%
+      rate: 0.012,           // 1.20% taux nominal fixe
       startDate: '2019-12',   // 1ère échéance 5 décembre 2019
-      durationMonths: 300,   // 25 ans
-      monthlyPayment: 969.62, // contrat notarié 5 nov 2019
+      durationMonths: 300,   // 25 ans (déc 2019 → nov 2044)
+      monthlyPayment: 969.62, // échéance constante contrat notarié
       insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
     },
-    // ── VILLEJUIF : 2 prêts LCL — CRD calculé dynamiquement depuis villejuifLoans ──
-    // ⚠️ Le contrat de réservation mentionne un financement Crédit Agricole (332 967€, 300 mois, 3.50%)
-    //    mais ce sont des données INDICATIVES. Les vrais prêts sont ceux de l'offre LCL ci-dessous.
-    villejuifInsurance: 51.29,   // 46.10 + 5.19
+    // ── VILLEJUIF — 2 prêts LCL (318 469€ total) ──
+    // Propriétaire : Nezha
+    // Source : offres de prêt LCL signées 2025, pas encore débloquées
+    // Bien financé : T3 VEFA — Bd Gorki, Villejuif (68.92m² + parking)
+    // Prix contrat réservation : 336 330€ TTC (TVA 20%), signé 20/06/2025
+    // Livraison estimée : Q1 2028 (construction en cours)
+    // ⚠️ Le contrat de réservation mentionne un financement Crédit Agricole
+    //    (332 967€, 300 mois, 3.50%) → données INDICATIVES UNIQUEMENT
+    //    Les vrais prêts sont les 2 offres LCL ci-dessous.
+    // CRD global calculé dynamiquement par computeMultiLoanSchedule(villejuifLoans)
+    villejuifInsurance: 51.29,   // 46.10 (Prêt 1) + 5.19 (Prêt 2)
     villejuifLoans: [
+      // ── PRÊT 1 : LCL Immo Taux Fixe (286 669€) ──
+      // Taux nominal 3.27% — TAEG 3.73% (avec assurance)
+      // Franchise totale 36 mois (intérêts capitalisés, pas de mensualité)
+      // Puis amortissement 291 mois à 1 572.79€
+      // Assurance ACM : 46.10€/mois (débute à la première échéance, pas pendant franchise)
+      // Coût total intérêts : 142 199€ (offre de prêt, pour référence)
+      // Intérêts différés pendant franchise : 19 055€
       {
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
-        rate: 0.0327,          // 3.27%
-        startDate: '2025-08',  // début franchise août 2025
-        durationMonths: 327,   // 36 franchise + 291 amort
+        rate: 0.0327,          // 3.27% taux nominal fixe
+        startDate: '2025-08',  // début franchise août 2025 (pas encore débloqué)
+        durationMonths: 327,   // 36 mois franchise + 291 mois amortissement
         periods: [
-          { months: 36, payment: 0 },       // Franchise totale — intérêts capitalisés
-          { months: 291, payment: 1572.79 }, // Amortissement
+          { months: 36, payment: 0 },       // P1 : franchise totale (août 2025 – juillet 2028)
+          { months: 291, payment: 1572.79 }, // P2 : amortissement constant (août 2028 – déc 2051)
         ],
-        insuranceMonthly: 46.10,
-        taeg: 0.0373,
-        totalInterestRef: 142199,  // coût total intérêts (offre de prêt, pour ref)
-        deferredInterestRef: 19055,
+        insuranceMonthly: 46.10,            // ACM assurance
+        taeg: 0.0373,                       // Taux annuel effectif global
+        totalInterestRef: 142199,  // coût total intérêts (offre de prêt, pour référence)
+        deferredInterestRef: 19055,         // intérêts capitalisés pendant 36 mois franchise
       },
+      // ── PRÊT 2 : LCL Immo Taux Fixe (31 800€) ──
+      // Complément financement — taux 0.90%
+      // Même structure franchise 36 mois + amortissement
+      // Assurance : 5.19€/mois
+      // Coût total intérêts : 3 791€ (offre de prêt)
       {
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
-        rate: 0.009,           // 0.90%
-        startDate: '2025-08',
+        rate: 0.009,           // 0.90% taux nominal fixe
+        startDate: '2025-08',  // début franchise août 2025 (pas encore débloqué)
         durationMonths: 327,
         periods: [
-          { months: 36, payment: 0 },       // Franchise totale
-          { months: 291, payment: 124.99 },  // Amortissement
+          { months: 36, payment: 0 },       // P1 : franchise totale
+          { months: 291, payment: 124.99 },  // P2 : amortissement constant
         ],
-        insuranceMonthly: 5.19,
-        taeg: 0.0139,
-        totalInterestRef: 3791,
-        deferredInterestRef: 575,
+        insuranceMonthly: 5.19,             // ACM assurance
+        taeg: 0.0139,                       // Taux annuel effectif global
+        totalInterestRef: 3791,             // coût total intérêts
+        deferredInterestRef: 575,           // intérêts capitalisés pendant franchise
       },
     ],
+    // ── Franchise des prêts LCL — déblocage + calendrier ──
+    // ⚠️ PRÊT NON ENCORE DÉBLOQUÉ — Nezha n'a pas signé définitivement
+    // Franchise: 36 mois à partir du déblocage (pas encore commencée)
+    // État: loanDisbursed = false (offres signées, déblocage en attente)
+    // Frais de dossier : 1 500€ (sera débité au déblocage)
     villejuifFranchise: {
       months: 36,
-      startDate: null,         // Prêt non encore débloqué — franchise non commencée
-      loanDisbursed: false,    // Nezha n'a pas encore signé l'offre / débloqué le prêt
-      fraisDossier: 1500,
+      startDate: null,         // Franchise non commencée (déblocage en attente)
+      loanDisbursed: false,    // Prêt non encore débloqué
+      fraisDossier: 1500,      // Frais dossier LCL (à débiter)
     },
   },
   // ──────────────────────────────────────────────────────
@@ -1676,46 +1837,103 @@ export const VILLEJUIF_REGIMES = {
 export const NW_HISTORY = [];
 
 // ════════════════════════════════════════════════════════════
-// TAUX WHT (Withholding Tax) PAR PAYS
+// TAUX WHT (Withholding Tax) — Retenue à la source par pays
+// ════════════════════════════════════════════════════════════
+// WHT = impôt retenu automatiquement par le pays émetteur
 // Applicable aux dividendes pour résident fiscal UAE
-// UAE : 0% income tax, mais WHT prélevé à la source par le pays émetteur
-// Plus-values : 0% WHT partout → objectif = éliminer les dividendes
+//
+// CONTEXTE AMINE (résident fiscal UAE):
+// - UAE: 0% impôt sur revenus → aucune imposition supplémentaire
+// - MAIS: WHT prélevée à la source dans chaque pays
+// - Plus-values: généralement 0% WHT partout
+// - Stratégie: minimiser les dividendes, maximiser plus-values
+// - Note: WHT France 30% très lourd → préférer vente plutôt que dividendes
+//
+// CONVENTIONS FISCALES (double imposition):
+// - France: 30% (pas de convention FR-UAE, taux droit commun)
+// - Allemagne: 26.375% (convention FR-DE, via Xetra)
+// - USA: 15% (convention FR-USA, requiert W-8BEN)
+// - Japon: 15% (convention FR-JP)
+// - Maroc: 15% (convention FR-MA)
+// - Crypto: 0% (les ETFs spot ne distribuent pas)
+//
+// IMPACT FISCAL:
+// - Non-résident UAE ne peut PAS récupérer le WHT
+// - Impôt effectif = WHT payée au pays × 1.0 (perte sèche)
+// - Exemple: divid France 100€ → 30€ WHT → net 70€ crédité
 // ════════════════════════════════════════════════════════════
 export const WHT_RATES = {
-  france: 0.30,       // 30% WHT dividendes France (pas de convention FR-UAE, taux de droit commun)
-  germany: 0.26375,   // 26.375% WHT dividendes Allemagne
-  us: 0.15,           // 15% WHT (convention US via W-8BEN)
-  japan: 0.15,        // 15% WHT (convention JP)
-  crypto: 0,          // ETFs crypto = pas de dividendes
-  morocco: 0.15,      // 15% WHT Maroc
-};
-
-// Dividend yields estimés par position (annualisé)
-export const DIV_YIELDS = {
-  'AIR.PA': 0.012,    // Airbus ~1.2%
-  'BN.PA': 0.034,     // Danone ~3.4%
-  'DG.PA': 0.038,     // Vinci ~3.8%
-  'FGR.PA': 0.045,    // Eiffage ~4.5%
-  'MC.PA': 0.017,     // LVMH ~1.7%
-  'OR.PA': 0.016,     // L'Oréal ~1.6%
-  'P911.DE': 0.024,   // Porsche ~2.4%
-  'RMS.PA': 0.008,    // Hermès ~0.8%
-  'SAN.PA': 0.041,    // Sanofi ~4.1%
-  'SAP.DE': 0.010,    // SAP ~1.0% (Xetra)
-  '4911.T': 0.020,    // Shiseido ~2.0%
-  'IBIT': 0,          // Bitcoin ETF — pas de dividendes
-  'ETHA': 0,          // Ethereum ETF — pas de dividendes
+  france: 0.30,       // 30% WHT (droit commun, pas convention FR-UAE)
+  germany: 0.26375,   // 26.375% WHT (convention FR-DE, Xetra)
+  us: 0.15,           // 15% WHT (convention FR-USA, W-8BEN)
+  japan: 0.15,        // 15% WHT (convention FR-JP)
+  crypto: 0,          // ETFs crypto = 0% (pas de distribution)
+  morocco: 0.15,      // 15% WHT (convention FR-MA)
 };
 
 // ════════════════════════════════════════════════════════════
-// CALENDRIER DIVIDENDES — DPS (Dividend Per Share) + Ex-dates
-// Utilisé pour calculer la projection WHT et les deadlines de vente
-// Données: mis à jour 8 Mar 2026 (sources: stockanalysis.com, dividendmax.com)
+// RENDEMENTS DIVIDENDES — Yield annualisé par position
+// ════════════════════════════════════════════════════════════
+// Dividend yield estimé = DPS annuel / cours action × 100
+// Format: annualisé décimal (ex: 0.034 = 3.4% de rendement annuel)
 //
-// dps: dividende par action (dans la devise de l'action)
-// exDates: liste des ex-dividend dates à venir (YYYY-MM-DD)
-//   → vendre AVANT cette date pour éviter la WHT
-// frequency: 'annual' | 'semi-annual' | 'quarterly'
+// Utilisation:
+// - Projection revenus passifs des actions détenues
+// - Calcul rendement portefeuille
+// - Comparaison allocation secteurs
+//
+// SOURCES & MISE À JOUR:
+// - Annonces d'IR (investor relations) des sociétés
+// - Consensus analystes (Bloomberg, Yahoo Finance)
+// - Historique dividendes (5 ans) pour moyenne pondérée
+// - Mise à jour: 1x par trimestre (après annonces dividendes)
+// - Dernière vérification: 8 mars 2026
+//
+// NOTES:
+// - Rendements variables en fonction du cycle dividende
+// - Certaines entreprises (Hermès, SAP) versent peu en dividendes
+// - ETFs crypto (IBIT, ETHA) ne versent PAS de dividendes
+// ════════════════════════════════════════════════════════════
+export const DIV_YIELDS = {
+  // ── Actions CAC 40 / Européennes ──
+  'AIR.PA': 0.012,    // Airbus ~1.2% (croissance vs dividendes)
+  'BN.PA': 0.034,     // Danone ~3.4%
+  'DG.PA': 0.038,     // Vinci ~3.8% (semi-annuel: mai + nov)
+  'FGR.PA': 0.045,    // Eiffage ~4.5% (parmi les plus hauts rendements)
+  'MC.PA': 0.017,     // LVMH ~1.7% (croissance > dividendes)
+  'OR.PA': 0.016,     // L'Oréal ~1.6% (croissance > dividendes)
+  'P911.DE': 0.024,   // Porsche ~2.4%
+  'RMS.PA': 0.008,    // Hermès ~0.8% (très faible, croissance priori)
+  'SAN.PA': 0.041,    // Sanofi ~4.1%
+  'SAP.DE': 0.010,    // SAP SE ~1.0% (Xetra, faible historique)
+  '4911.T': 0.020,    // Shiseido ~2.0% (JPY)
+  'IBIT': 0,          // iShares Bitcoin — PAS de dividendes (ETF spot)
+  'ETHA': 0,          // iShares Ethereum — PAS de dividendes (ETF spot)
+};
+
+// ════════════════════════════════════════════════════════════
+// CALENDRIER DIVIDENDES — DPS, ex-dates, fréquences
+// ════════════════════════════════════════════════════════════
+// Utilisé pour:
+// - Projections revenus dividendes
+// - Calcul WHT (withholding tax) à venir
+// - Planification fiscale (vente avant ex-date si souhaité)
+// - Alertes deadline action
+//
+// Structure:
+//   ticker: {
+//     dps: dividende par action (dans la devise de l'action)
+//     exDates: liste des ex-dividend dates à venir (YYYY-MM-DD)
+//       → VENDRE AVANT cette date pour éviter WHT détaché
+//       → PASSER APRÈS pour encaisser le dividende
+//     frequency: 'annual' | 'semi-annual' | 'quarterly'
+//     note: détails spécifiques (ex: versement en 2 fois pour semi-annual)
+//   }
+//
+// MISE À JOUR:
+// - Sources: stockanalysis.com, dividendmax.com, investor relations officiels
+// - Fréquence: vérifié 1x par mois (nouveau dividende annoncé)
+// - Dernière vérification: 8 mars 2026
 // ════════════════════════════════════════════════════════════
 export const DIV_CALENDAR = {
   'DG.PA':   { dps: 5.00,  exDates: ['2026-04-21'], frequency: 'semi-annual', note: 'Solde 3.95€ en avril + acompte ~1.05€ en nov' },
@@ -1734,11 +1952,33 @@ export const DIV_CALENDAR = {
 };
 
 // ════════════════════════════════════════════════════════════
-// BUDGET — Dépenses mensuelles fixes
-// freq: 'monthly' | 'quarterly' | 'yearly'
-// zone: 'Dubai' | 'France' | 'Digital'
-// type: 'Logement' | 'Crédits' | 'Utilities' | 'Abonnements'
-// Les crédits immo sont générés dynamiquement par engine.js depuis IMMO_CONSTANTS.charges
+// BUDGET — Dépenses mensuelles fixes & abonnements
+// ════════════════════════════════════════════════════════════
+// Utilisé pour calcul coût de vie, comparaison revenus/dépenses
+// ATTENTION: Crédits immobiliers générés dynamiquement par engine.js
+//
+// Structure dépense:
+//   - label: description lisible
+//   - amount: montant numérique
+//   - currency: devise (EUR, AED, MAD, USD, JPY)
+//   - freq: fréquence ('monthly', 'quarterly', 'yearly')
+//   - zone: localisation ('Dubai', 'France', 'Digital')
+//   - type: catégorie ('Logement', 'Utilities', 'Abonnements', 'Assurance')
+//
+// ZONES:
+// - Dubai: dépenses UAE (loyer, utilités, assurances voiture)
+// - France: dépenses France (assurances propriétés, impôts locaux)
+// - Digital: dépenses cloud/SaaS (Claude AI, Spotify, Netflix, YouTube)
+//
+// TYPES:
+// - Logement: loyer + charges
+// - Utilities: électricité, eau, gaz, internet
+// - Abonnements: services SaaS (Claude, Spotify, Netflix, etc.)
+// - Assurance: auto (Cayenne), immo, responsabilité civile
+//
+// NOTE: Crédits immobiliers (prêts Vitry/Rueil/Villejuif) sont
+// générés dynamiquement par engine.js depuis IMMO_CONSTANTS.charges
+// (ne pas dupliquer ici pour éviter double-comptage)
 // ════════════════════════════════════════════════════════════
 export const BUDGET_EXPENSES = [
   { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
