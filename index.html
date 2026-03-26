@@ -796,6 +796,270 @@
     .sim-result-strip { grid-template-columns: 1fr; }
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     MOBILE RESPONSIVE — iPhone (max-width: 480px)
+     ══════════════════════════════════════════════════════════════
+     Added: v229 — March 2026
+     Target devices: iPhone 14/15 (390px), iPhone SE (375px)
+     Breakpoint: 480px (sits below existing 600px + 900px)
+
+     Strategy:
+     - CSS-only — zero JavaScript changes for mobile
+     - All rules scoped inside @media (max-width: 480px)
+       → ZERO regression on desktop/tablet viewports
+     - Two @media blocks:
+       1) Class-based overrides (global, header, nav, KPI, tables, etc.)
+       2) Inline-style overrides via CSS attribute selectors with !important
+          (needed because render.js generates inline styles on grids/flex)
+
+     Key patterns:
+     - Navigation tabs → horizontal scroll (flex-wrap:nowrap + overflow-x:auto)
+     - 2-col grids → 1-col stack (grid-template-columns: 1fr !important)
+     - 3-col grids → 2-col (grid-template-columns: 1fr 1fr !important)
+     - Wide tables → horizontal scroll wrappers
+     - KPI cards → 2-col compact grid with smaller fonts
+     - Charts → max-height 250px
+     - Tooltips → max-width 320px + white-space:normal
+     - CF ribbon → vertical stack via flex-direction:column
+     ══════════════════════════════════════════════════════════════ */
+  @media (max-width: 480px) {
+
+    /* ── Global: reduce padding, prevent horizontal overflow ── */
+    body { overflow-x: hidden; }
+    .container { padding: 12px 10px; }
+    .card { padding: 14px 12px; margin-bottom: 16px; border-radius: 10px; }
+
+    /* ── Header: smaller fonts, tighter spacing ── */
+    header { padding: 20px 0 12px; }
+    header h1 { font-size: 22px; letter-spacing: -0.3px; }
+    header .subtitle { font-size: 12px; margin-top: 4px; }
+    header .badge { font-size: 11px; padding: 3px 10px; margin-top: 6px; }
+
+    /* ── Currency bar: smaller buttons ── */
+    .currency-bar { margin-top: 8px; justify-content: center; }
+    .cur-btn { padding: 5px 10px; font-size: 11px; }
+
+    /* ── Status bar (FX, actions, refresh) ── */
+    .status-bar, .api-status { font-size: 10px !important; flex-wrap: wrap; gap: 4px; }
+
+    /* ── Main navigation: horizontal scroll, no wrap ── */
+    .view-switcher {
+      flex-wrap: nowrap !important;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
+      scrollbar-width: none;
+    }
+    .view-switcher::-webkit-scrollbar { display: none; }
+    .view-btn {
+      padding: 10px 12px;
+      font-size: 11px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .view-sep { margin: 4px 6px 8px; }
+
+    /* ── Immo sub-navigation: horizontal scroll ── */
+    .immo-sub-nav {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
+      margin-bottom: 16px;
+      scrollbar-width: none;
+    }
+    .immo-sub-nav::-webkit-scrollbar { display: none; }
+    .immo-sub-btn {
+      padding: 10px 14px;
+      font-size: 11px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    /* ── KPI cards: 2-column grid, smaller fonts ── */
+    .kpi-strip {
+      grid-template-columns: 1fr 1fr !important;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .kpi {
+      padding: 10px 8px;
+      border-radius: 8px;
+    }
+    .kpi .value {
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+    .kpi .label {
+      font-size: 9px;
+      letter-spacing: 0.2px;
+    }
+    /* KPI tooltips: constrain width on mobile */
+    .kpi-tooltip {
+      white-space: normal;
+      max-width: 280px;
+      font-size: 11px;
+      left: 0;
+      transform: none;
+    }
+    .kpi-tooltip::before { left: 30px; transform: none; }
+
+    /* ── Card headings ── */
+    .card h2 { font-size: 16px; }
+    .card h3 { font-size: 14px; }
+
+    /* ── Tables: horizontal scroll wrapper ── */
+    table { font-size: 11px; }
+    th { font-size: 10px; padding: 6px 4px; }
+    td { padding: 6px 4px; }
+    .num { text-align: right; }
+
+    /* ── 2-column grids → stack to 1 column on mobile ── */
+    .grid2 { grid-template-columns: 1fr !important; gap: 12px; }
+    .detail-grid { grid-template-columns: 1fr !important; gap: 8px; }
+
+    /* ── Property cards: single column ── */
+    .prop-grid { grid-template-columns: 1fr !important; gap: 12px; }
+    .prop-card { border-radius: 10px; }
+    .prop-card .prop-kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    /* ── Category grid ── */
+    .cat-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+    .cat-card { padding: 10px; border-radius: 8px; }
+    .cat-card .cat-amount { font-size: 16px; }
+    .cat-card .cat-label { font-size: 10px; }
+
+    /* ── Simulators: single column controls ── */
+    .sim-controls { grid-template-columns: 1fr !important; gap: 10px; }
+    .sim-result-strip { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+    .sim-field label { font-size: 11px; }
+    .sim-field .range-val { font-size: 14px; }
+
+    /* ── Link grid ── */
+    .link-grid { grid-template-columns: 1fr !important; gap: 8px; }
+
+    /* ── Meter bars (stacked bars): ensure readable ── */
+    .meter-bar { height: 24px !important; font-size: 10px; }
+    .mb-seg { font-size: 10px; }
+
+    /* ── Detail panels ── */
+    .kpi-detail-panel { border-radius: 10px; margin-top: 8px; }
+    .kpi-detail-panel .detail-body { max-height: 250px; }
+
+    /* ── Charts: reduce height on mobile ── */
+    canvas { max-height: 250px !important; }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     MOBILE — Inline style overrides (for JS-generated content)
+     These use higher specificity to override inline styles.
+     ────────────────────────────────────────────────────────── */
+  @media (max-width: 480px) {
+
+    /* CF ribbon: stack vertically on mobile */
+    #cfSummaryRibbon > div {
+      flex-direction: column !important;
+      gap: 10px !important;
+    }
+    #cfSummaryRibbon > div > div {
+      min-width: 0 !important;
+    }
+
+    /* Wealth breakdown table: horizontal scroll */
+    #wealthBreakdownContent > div:last-of-type {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #wealthBreakdownContent table {
+      min-width: 400px;
+    }
+
+    /* Property detail CF section: stack revenue/charges */
+    #propDetailCF > div > div[style*="grid-template-columns: 1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Loan detail table: scroll */
+    #propDetailLoans {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #propDetailLoans table {
+      min-width: 500px;
+    }
+
+    /* Fiche propriété: stack on mobile */
+    #propDetailInfo {
+      overflow-x: auto;
+    }
+
+    /* Villejuif VEFA banner: wrap text */
+    .villejuif-banner, [style*="Villejuif VEFA"] {
+      font-size: 11px;
+      text-align: center;
+    }
+
+    /* Budget tables: horizontal scroll */
+    #budgetPersonalDetail, #budgetInvestDetail {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Créances table: horizontal scroll */
+    #creancesTable {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #creancesTable table {
+      min-width: 550px;
+    }
+
+    /* Actions view: position breakdown scrollable */
+    [id^="actionsView"] {
+      overflow-x: auto;
+    }
+
+    /* Tooltips on mobile: prevent overflow beyond viewport */
+    [id$="Tip"], [style*="position:absolute"][style*="z-index:100"] {
+      max-width: 320px !important;
+      white-space: normal !important;
+      font-size: 11px !important;
+    }
+
+    /* Force ALL inline 2-col grids to single column on mobile.
+       .kpi-strip uses class-based grid (not inline), so unaffected. */
+    div[style*="grid-template-columns:1fr 1fr"],
+    div[style*="grid-template-columns: 1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+    /* 3-col and 4-col inline grids also stack */
+    div[style*="grid-template-columns:1fr 1fr 1fr"],
+    div[style*="grid-template-columns: 1fr 1fr 1fr"] {
+      grid-template-columns: 1fr 1fr !important;
+    }
+
+    /* Inline flex containers: allow wrapping on mobile */
+    div[style*="display:flex"][style*="gap:12px"],
+    div[style*="display:flex"][style*="gap:16px"] {
+      flex-wrap: wrap !important;
+    }
+
+    /* Detail metric boxes: fit mobile width */
+    .detail-metric {
+      min-width: 0 !important;
+      padding: 8px !important;
+    }
+
+    /* Wealth projection chart & all chart wrappers */
+    #wealthProjectionChart,
+    #cfProjectionChart,
+    #wealthProjChart {
+      max-height: 240px !important;
+    }
+
+    /* Prop card: stack info/metrics vertically */
+    .prop-card .prop-header { flex-direction: column; align-items: flex-start; }
+  }
+
   /* Loading overlay */
   .loading-overlay {
     position: fixed;
@@ -2085,7 +2349,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=228"></script>
+<script type="module" src="js/app.js?v=229"></script>
 
 </body>
 </html>
