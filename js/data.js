@@ -948,7 +948,7 @@ export const INFLATION_RATE = 0.03; // 3% annuel
 // See engine.js pour implémentation (ibkrJPYBorrowCost, ibkrCashYield)
 //
 // Source : https://www.interactivebrokers.com/en/trading/margin-rates.php
-// Dernière vérification : 7 mars 2026
+// Dernière vérification : 31 mars 2026 — BOJ rate 0.75% (verified), IBKR rates via website
 // ════════════════════════════════════════════════════════════
 export const IBKR_CONFIG = {
   // ── Seuil cash EUR/USD ──
@@ -958,13 +958,15 @@ export const IBKR_CONFIG = {
 
   // ── Tiers d'emprunt JPY (marge) ──
   // Utilisé pour calcul intérêt/coût carry trade JPY short
-  // Benchmark JPY mars 2026 = 0.704% (variable marché)
+  // Benchmark JPY mars 2026 = 0.75% (BOJ Unsecured Overnight Call Rate, vérifiée)
+  // Note: Dernière vérification 31 mars 2026. Pour taux complets IBKR Pro:
+  //       consulter https://www.interactivebrokers.com/en/trading/margin-rates.php
   // Taux = Benchmark + spread (spread dépend du tier)
   // Calcul: engine.js ibkrJPYBorrowCost()
   jpyTiers: [
-    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   (BM + 1.5%)
-    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M (BM + 1.0%)
-    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      (BM + 0.75%)
+    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   (BM + 1.5% = 0.75% + 1.5% = 2.25%)
+    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M (BM + 1.0% = 0.75% + 1.0% = 1.75%)
+    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      (BM + 0.75% = 0.75% + 0.75% = 1.5%)
   ],
 
   // ── Gestion de trésorerie ──
@@ -1079,6 +1081,7 @@ export const IMMO_CONSTANTS = {
         durationMonths: 300,   // 25 ans (mars 2023 → fév 2048)
         monthlyPayment: 145.20,// échéance constante (hors 1ère: 156.53€)
         insuranceMonthly: 3.33,// assurance AL intégrée dans l'échéance
+        iraExempt: true,       // Action Logement loans are exempt from IRA
       },
       // ── PRÊT 2 : PTZ (Prêt à Taux Zéro) ──
       // Dossier : 08867339 — Banque Populaire Rives de Paris, agence Diderot
@@ -1099,6 +1102,7 @@ export const IMMO_CONSTANTS = {
           { months: 180, payment: 333.33 },   // P2 : amortissement constant 333.33€ (déc 2028 – nov 2043)
         ],                     // 60000 / 333.33 = 180 mois ✓
         insuranceMonthly: 0,   // assurance APRIL séparée (voir vitryInsuranceAPRIL)
+        iraExempt: true,       // PTZ loans are exempt from IRA
       },
       // ── PRÊT 3 : Banque Populaire Riv'immo ──
       // Dossier : 08867340 — Banque Populaire Rives de Paris, agence Diderot

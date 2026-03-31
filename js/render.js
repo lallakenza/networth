@@ -31,16 +31,32 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=229';
-import { getGrandTotal } from './engine.js?v=229';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=230';
+import { getGrandTotal } from './engine.js?v=230';
 
 // ---- Generic table sort utility ----
-// makeTableSortable(tableEl, data, renderRowsFn)
-//   tableEl: the <table> element (must have <thead> with <th> headers)
-//   data: array of row objects
-//   renderRowsFn(sortedData): function that repopulates the tbody
-// Headers with data-sort="key" become clickable sort triggers.
-// data-sort-type="string" for text sort, default is numeric.
+/**
+ * Makes table headers clickable to sort table rows
+ *
+ * Transforms headers with data-sort attribute into clickable sort triggers.
+ * On click, sorts data array and re-renders rows via callback function.
+ * Supports both numeric (default) and string sorting.
+ *
+ * @param {HTMLTableElement} tableEl - The <table> element (must have <thead> with <th> headers)
+ * @param {Array<Object>} data - Array of row data objects to sort
+ * @param {Function} renderRowsFn - Callback(sortedData) that re-populates the <tbody> with sorted rows
+ *
+ * Requirements:
+ *   - tableEl must have <thead> with <th> headers
+ *   - Each <th> should have data-sort="fieldName" to enable sorting
+ *   - Add data-sort-type="string" for text sort (default is numeric)
+ *
+ * Side Effects:
+ *   - Adds .sortable class to headers
+ *   - Inserts/updates .sort-arrow indicator spans in headers
+ *   - Clones headers to remove old event listeners
+ *   - Calls renderRowsFn on each sort click
+ */
 function makeTableSortable(tableEl, data, renderRowsFn) {
   if (!tableEl) return;
   let sortKey = null, sortDir = 'desc';
@@ -143,6 +159,23 @@ function renderLoanSchedule(loan) {
   return html;
 }
 
+/**
+ * Formats a EUR value as currency string with locale-specific symbol and number format
+ *
+ * Converts EUR-denominated values to the current display currency by applying
+ * the FX rate (_fx[_currency]). Supports compact notation for large values (M for millions, K for thousands).
+ *
+ * @param {number} eurVal - Value in EUR to format
+ * @param {boolean} [compact=false] - If true, use compact notation (2.5M, 45K)
+ * @returns {string} Formatted currency string (e.g., "€ 1,234,567" or "1.2M €" for MAD)
+ *
+ * Examples:
+ *   fmt(1234.56) → "€ 1,235" (rounded)
+ *   fmt(1234567, true) → "1.23M" in EUR
+ *   fmt(45000, true) → "45K" in EUR
+ *
+ * Note: Symbol position depends on currency (EUR/USD before, MAD after)
+ */
 function fmt(eurVal, compact) {
   const val = eurVal * (_fx[_currency] || 1);
   const sym = CURRENCY_CONFIG.symbols[_currency] || _currency;
@@ -158,6 +191,15 @@ function fmt(eurVal, compact) {
   return after ? num + ' ' + sym : sym + ' ' + num;
 }
 
+/**
+ * Formats a EUR value as compact currency string for chart axes
+ *
+ * Similar to fmt() but always uses compact notation (M or K) for axis labels.
+ * Used by Chart.js callbacks for axis labels.
+ *
+ * @param {number} v - Value in EUR to format
+ * @returns {string} Compact currency string (e.g., "1.2M €", "45K")
+ */
 export function fmtAxis(v) {
   const cv = v * (_fx[_currency] || 1);
   const sym = CURRENCY_CONFIG.symbols[_currency] || _currency;
@@ -171,6 +213,31 @@ export { fmt };
 
 // ---- Main render function ----
 
+/**
+ * Main entry point for all DOM rendering — converts state to visual output
+ *
+ * This is the only public rendering function. It orchestrates all view-specific
+ * rendering based on the requested view and currency. Updates FX rates and
+ * currency globally for all formatting functions (fmt, fmtAxis, etc.).
+ *
+ * Rendering Flow:
+ *   1. Set global FX rates and currency for all formatters
+ *   2. Render header + KPIs (common to all person views)
+ *   3. Route to view-specific rendering functions
+ *   4. Post-render updates: badges, data EUR conversion, visibility checks
+ *
+ * @param {Object} state - Complete application state (from engine.compute())
+ * @param {Object} state.fx - FX rates object {EUR: 1, USD: 1.1, JPY: 184, ...}
+ * @param {Object} state.views - View metadata {couple, amine, nezha, ...}
+ * @param {string} view - View to render: 'couple'|'amine'|'nezha'|'actions'|'cash'|'immobilier'|'creances'|'budget'|'apt_vitry'|'apt_rueil'|'apt_villejuif'
+ * @param {string} currency - Currency for display: 'EUR'|'USD'|'JPY'|'MAD'|'AED'
+ *
+ * Side Effects:
+ *   - Updates DOM elements with IDs matching view structure
+ *   - Sets global _currency and _fx for all fmt() calls
+ *   - Shows/hides sections based on view type
+ *   - Initializes interactive elements (sort, tooltips, collapsible panels)
+ */
 export function render(state, view, currency) {
   _fx = state.fx;
   _currency = currency;
@@ -298,7 +365,19 @@ function renderKPIs(state, view) {
     setText('kpiAmTWR', (_amTWR >= 0 ? '+' : '') + _amTWR.toFixed(1) + '%');
   }
 
-  setEur('kpiNzNW', s.nezha.nw);
+  // Show nwWithVillejuif if villejuifSigned, otherwise show nw
+  const nezhaNWDisplay = s.nezha.villejuifSigned ? s.nezha.nwWithVillejuif : s.nezha.nw;
+  setEur('kpiNzNW', nezhaNWDisplay);
+  // Add asterisk if showing with Villejuif
+  if (s.nezha.villejuifSigned) {
+    const el = document.getElementById('kpiNzNW');
+    if (el && el.parentElement) {
+      const label = el.parentElement.querySelector('.label');
+      if (label) {
+        label.innerHTML = 'Net Worth (actuel)<span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;margin-left:4px;">+VJ sign\u00e9</span>';
+      }
+    }
+  }
   // Add delta indicator for nezha NW
   if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
     setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
@@ -386,7 +465,14 @@ function renderExpandSubs(state, view) {
   // ── Dynamic créances breakdown by view ──
   const p = state.portfolio;
   const fx = state.fx;
-  const toEUR = (amt, cur) => cur === 'EUR' ? amt : amt / fx[cur];
+  const toEUR = (amt, cur) => {
+    if (cur === 'EUR') return amt;
+    if (!fx[cur]) {
+      console.warn('Missing FX rate for currency:', cur);
+      return amt;
+    }
+    return amt / fx[cur];
+  };
 
   let creanceItems = [];
   if (view === 'amine') {
@@ -581,12 +667,14 @@ function renderExpandSubs(state, view) {
         const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
         const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
         const cfStyle = prop.conditional ? 'color:var(--gray)' : '';
+        // Use net equity (after exit costs, floored at 0) instead of brute equity
+        const netEquity = prop.exitCosts ? Math.max(0, prop.exitCosts.netEquityAfterExit) : Math.max(0, prop.equity);
         html += '<tr' + rowStyle + '>'
           + '<td><strong>' + prop.name + '</strong><br><span style="font-size:12px;' + descStyle + '">' + dynDesc + '</span></td>'
           + '<td>' + (meta.owner || prop.owner) + '</td>'
           + '<td class="num" data-eur="' + Math.round(prop.value) + '">--</td>'
           + '<td class="num" data-eur="' + Math.round(prop.crd) + '">--</td>'
-          + '<td class="num pos" data-eur="' + Math.round(prop.equity) + '">--</td>'
+          + '<td class="num pos" data-eur="' + Math.round(netEquity) + '" title="après frais de sortie">--</td>'
           + '<td class="num ' + cfClass + '"' + (cfStyle ? ' style="' + cfStyle + '"' : '') + '>' + cfText + '</td>'
           + '<td><span style="background:' + (meta.statusBg || '#e2e8f0') + ';padding:2px 8px;border-radius:10px;font-size:12px;color:' + (meta.statusColor || '#2d3748') + '">' + (meta.status || '') + '</span></td>'
           + '</tr>';
@@ -686,11 +774,25 @@ function renderDynamicInsights(state, view) {
     const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
     const guarCreances = (p.amine.creances.items || []).filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
     const persoCreances = totalCreances - guarCreances;
+    // Check for overdue créances
+    const overdueCreances = (state.creancesView && state.creancesView.items)
+      ? state.creancesView.items.filter(c => c.status === 'en_retard')
+      : [];
+    let overdueAlert = '';
+    if (overdueCreances.length > 0) {
+      const overdueTotalEUR = overdueCreances.reduce((sum, c) => sum + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
+      const overdueText = overdueCreances.map(c => {
+        const amt = c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency];
+        const daysOverdue = c.daysOverdue || '?';
+        return K(Math.round(amt)) + ' (' + daysOverdue + 'j en retard)';
+      }).join(', ');
+      overdueAlert = '<br>- <strong style="color:#c53030">ALERTE : Creances en retard :</strong> ' + overdueText + ' (total ' + K(Math.round(overdueTotalEUR)) + '). Action de recouvrement requise.';
+    }
     cplRisks.innerHTML =
       '<strong>Risques & points d\'attention couple :</strong><br>' +
       '- <strong>Concentration immo IDF :</strong> ' + iv.properties.length + ' biens, ' + K(totalImmoVal) + ' de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -' + K(totalImmoVal * 0.1) + ' d\'equity couple.<br>' +
       '- <strong>Exposition devise :</strong> Le couple est multi-devise \u2014 ~' + K(cashAmine) + ' en AED/USD (Amine) + ~' + K(cashNezha) + ' en EUR/MAD (Nezha). Le risque USD/EUR est reel (~' + aedPct + '% du cash total en AED).<br>' +
-      '- <strong>Creances (' + K(totalCreances) + ') :</strong> ' + K(guarCreances) + ' garanti (delai de paiement 45 jours \u2014 quasi-cash) + creances perso ' + K(persoCreances) + ' (recouvrement incertain). Ne compter que les ' + K(guarCreances) + ' dans la planification.<br>' +
+      '- <strong>Creances (' + K(totalCreances) + ') :</strong> ' + K(guarCreances) + ' garanti (delai de paiement 45 jours \u2014 quasi-cash) + creances perso ' + K(persoCreances) + ' (recouvrement incertain). Ne compter que les ' + K(guarCreances) + ' dans la planification.' + overdueAlert + '<br>' +
       '- <strong>Levier JPY (Amine) :</strong> Emprunt -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR) sur IBKR. Une appreciation du yen de 10% couterait ~' + K(jpyEUR * 0.1) + '.';
   }
 
@@ -844,12 +946,16 @@ function renderCoupleTable(state) {
   const p = state.portfolio;
   const rows = [
     ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm],
+    ['ESPP Accenture (Nezha ' + (p.nezha.espp ? p.nezha.espp.shares : 0) + ' ACN)', s.nezha.espp],
+    ['SGTM (Nezha ' + (p.nezha.sgtm ? p.nezha.sgtm.shares : 0) + ' actions)', s.nezha.sgtm],
     ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
     ['Equity Immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['Equity Immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
     ['Equity Immo \u2014 Villejuif VEFA (Nezha) [conditionnel]', s.nezha.villejuifEquity],
+    ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
+    ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (garanti, 45j)', s.amine.recvPro],
     ['Creances personnelles Amine (recouvrement incertain)', s.amine.recvPersonal],
@@ -1662,7 +1768,7 @@ function renderActionsView(state) {
       el.className = 'value ' + (v >= 0 ? 'pl-pos' : 'pl-neg');
       // Add % vs period-start NAV (not current total — that inflates/deflates %)
       const periodStartNAV = av.totalStocks - p.data.total;
-      const pct = periodStartNAV > 0 ? (p.data.total / periodStartNAV * 100) : 0;
+      const pct = periodStartNAV > 0 ? (p.data.total / periodStartNAV * 100) : null;
       setSubPct(p.id, pct);
     });
   }
@@ -2142,6 +2248,17 @@ function renderActionsView(state) {
   // Metrics
   setText('actionsCommissions', fmt(Math.abs(av.commissions)));
   setText('actionsDeposits', fmt(av.totalDeposits));
+  // Add warning about Degiro estimated deposits
+  const depositsEl = document.getElementById('actionsDeposits');
+  if (depositsEl) {
+    // Check if Degiro has closed positions
+    const hasDegiroPositions = av.degiroClosedPositions && av.degiroClosedPositions.length > 0;
+    if (hasDegiroPositions) {
+      const warningSpan = document.createElement('span');
+      warningSpan.innerHTML = ' <span style="font-size:11px;color:#d69e2e;margin-left:4px;" title="Degiro deposits are estimated">&#9888; dep. est.</span>';
+      depositsEl.parentElement?.insertAdjacentElement('afterend', warningSpan);
+    }
+  }
   setText('actionsNAV', fmt(av.ibkrNAV));
   const _twrMetrics = window._chartKPIData?.twr ?? av.twr;
   setText('actionsTWR', (_twrMetrics >= 0 ? '+' : '') + _twrMetrics.toFixed(1) + '%');
@@ -6017,6 +6134,30 @@ function renderWHTRows() {
   });
 }
 
+/**
+ * Builds a detail table with percentage column and sortable headers
+ *
+ * Populates a table with rows of [label, value] pairs, adds a % column,
+ * calculates percentages as value/nwTotal, and makes headers sortable.
+ *
+ * @param {string} tableSelector - CSS selector for the <table> element
+ * @param {Array<Array>} rows - Array of [label, value] tuples
+ * @param {string} totalLabel - Label for total row (e.g., "Total Assets")
+ * @param {number} nwTotal - Denominator for percentage calculation (usually net worth)
+ *
+ * Features:
+ *   - Adds % column header if not present
+ *   - Marks rows with "conditionnel" in label with italic styling (#92400e)
+ *   - Calculates and displays percentages (with color coding: red for negative)
+ *   - Makes table headers (via makeTableSortable) clickable for sorting
+ *   - Total row: bold, light background, fixed at bottom
+ *   - Negative values colored red, positive gray
+ *
+ * DOM Requirements:
+ *   - Table must have <thead> with <tr>
+ *   - Table must have <tbody>
+ *   - Headers for sort must have data-sort attribute
+ */
 function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   const table = document.querySelector(tableSelector);
   if (!table) return;
@@ -6050,6 +6191,27 @@ function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   tbody.appendChild(totalRow);
 }
 
+/**
+ * Builds a simple detail table with sortable columns
+ *
+ * Populates a table tbody with rows of [label, value] pairs and makes headers sortable.
+ * Calculates total and adds a bold total row.
+ *
+ * @param {string} selector - CSS selector for the <tbody> element to populate
+ * @param {Array<Array>} rows - Array of [label, value] tuples
+ * @param {string} totalLabel - Label for total row (e.g., "Total")
+ *
+ * Features:
+ *   - Marks rows with "conditionnel" in label with italic styling (#92400e)
+ *   - Converts negative values to 'neg' class for red styling
+ *   - Makes table headers sortable via makeTableSortable
+ *   - Total row: bold, light background (#edf2f7), pinned to bottom
+ *   - Values formatted via fmt() in current currency
+ *
+ * DOM Requirements:
+ *   - Selector must point to a <tbody> within a <table>
+ *   - Headers for sort must have data-sort attribute
+ */
 function buildDetailTable(selector, rows, totalLabel) {
   const tbody = document.querySelector(selector);
   if (!tbody) return;
