@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=231';
-import { IMMO_CONSTANTS } from './data.js?v=231';
+import { fmt, fmtAxis } from './render.js?v=232';
+import { IMMO_CONSTANTS } from './data.js?v=232';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -817,6 +817,9 @@ export function initSimulators(state) {
 }
 
 export function bindSimulatorEvents(state, refreshFn) {
+  if (window._simulatorsInitialized) return; // AUD-012: prevent duplicate event listeners
+  window._simulatorsInitialized = true;
+
   // Couple
   ['cplSimSavings','cplSimPctActions','cplSimReturnActions','cplSimStopYear','cplSimHorizon'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => runCoupleSimulator(state));

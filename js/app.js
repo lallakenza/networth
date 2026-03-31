@@ -4,12 +4,12 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=231';
-import { compute } from './engine.js?v=231';
-import { render } from './render.js?v=231';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=231';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=231';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=231';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=232';
+import { compute } from './engine.js?v=232';
+import { render } from './render.js?v=232';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=232';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=232';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=232';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -394,8 +394,13 @@ async function refreshFX(force) {
 }
 refreshFX(false);
 
+// AUD-006: Module-level interval IDs for cleanup
+let _fxIntervalId = null;
+let _stockIntervalId = null;
+
 // Auto-refresh FX every 5 minutes
-setInterval(() => refreshFX(true), 5 * 60 * 1000);
+if (_fxIntervalId) clearInterval(_fxIntervalId);
+_fxIntervalId = setInterval(() => refreshFX(true), 5 * 60 * 1000);
 
 // ---- KPI computation from chart NAV series ----
 // Uses the accurate forward-simulation data from buildPortfolioYTDChart
@@ -712,16 +717,17 @@ function update1YKPIFromChart() {
 }
 
 // ---- Stock price loading with progress ----
-let stockRefreshInProgress = false;
+// AUD-011: Race condition guard
+let _stockRefreshInProgress = false;
 
 /**
  * @param {boolean} forceRefresh - true = hard refresh (ignore cache, re-fetch all)
  *                                 false = smart refresh (only fetch tickers missing from today's cache)
  */
 async function loadStockPrices(forceRefresh) {
-  // Allow hard refresh to interrupt a smart refresh in progress
-  if (stockRefreshInProgress && !forceRefresh) return;
-  stockRefreshInProgress = true;
+  // AUD-011: prevent concurrent stock refresh
+  if (_stockRefreshInProgress && !forceRefresh) return;
+  _stockRefreshInProgress = true;
 
   const sBadge = document.getElementById('stockBadge');
   const progressBar = document.getElementById('stockProgressBar');
@@ -1153,12 +1159,13 @@ async function loadStockPrices(forceRefresh) {
   } catch (e) {
     console.warn('Stock fetch error:', e);
     if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red)'; }
+    _stockRefreshInProgress = false; // AUD-011: clear flag on error
   }
 
   setTimeout(() => { if (progressBar) progressBar.style.display = 'none'; }, 2000);
   if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.style.opacity = '1'; }
   if (hardRefreshBtn) { hardRefreshBtn.disabled = false; hardRefreshBtn.style.opacity = '1'; }
-  stockRefreshInProgress = false;
+  _stockRefreshInProgress = false;
 }
 
 // Initial load — smart refresh (uses cache)
@@ -1171,4 +1178,5 @@ document.getElementById('refreshStocksBtn')?.addEventListener('click', () => loa
 document.getElementById('hardRefreshBtn')?.addEventListener('click', () => loadStockPrices(true));
 
 // Auto-refresh every 10 minutes (smart, uses cache)
-setInterval(() => loadStockPrices(false), 10 * 60 * 1000);
+if (_stockIntervalId) clearInterval(_stockIntervalId);
+_stockIntervalId = setInterval(() => loadStockPrices(false), 10 * 60 * 1000);
