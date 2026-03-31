@@ -19,8 +19,8 @@
 // - Market data (Yahoo Finance API, broker statements)
 // - Tax/fiscal documents (TVA, PTZ, LMNP constraints)
 //
-// Last updated: March 2026
-// Version: v228 (v227 → v228 : documentation enhancement)
+// Last updated: 31 March 2026
+// Version: v233 (v232 → v233 : data refresh — live stock prices, FX, CRD, historical refs)
 // All amounts are in their NATIVE currency (AED, MAD, USD, EUR, JPY)
 // Never converted here. Engine does all conversions.
 //
@@ -44,20 +44,24 @@ export const PORTFOLIO = {
   amine: {
     // ──────────────────────────────────────────────────────
     // CASH UAE (en AED) — se connecter à Mashreq/Wio app
+    // ⚠️ Soldes datés du 7 mars 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 360734,      // Mashreq NEO PLUS — mis à jour 7 Mar 2026
-      wioSavings: 220000,   // Wio Savings (~6% rendement)
-      wioCurrent: 4904,     // Wio Current (compte courant, 0% rendement)
+      wioSavings: 220000,   // Wio Savings (~6% rendement) — mis à jour 7 Mar 2026
+      wioCurrent: 4904,     // Wio Current (compte courant, 0% rendement) — mis à jour 7 Mar 2026
       revolutEUR: 5967,     // Revolut EUR balance (déjà en EUR) — mis à jour 7 Mar 2026
+      _lastUpdate: '2026-03-07',
     },
 
     // ──────────────────────────────────────────────────────
     // CASH MAROC (en MAD) — se connecter à Attijari/Nabd app
+    // ⚠️ Soldes datés du 7 mars 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 151202,     // Attijariwafa Courant (0% rendement)
-      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement)
+      attijari: 151202,     // Attijariwafa Courant (0% rendement) — mis à jour 7 Mar 2026
+      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — mis à jour 7 Mar 2026
+      _lastUpdate: '2026-03-07',
     },
 
     // ══════════════════════════════════════════════════════════════════
@@ -176,7 +180,7 @@ export const PORTFOLIO = {
     //
     //
     // ── PORTFOLIO POSITIONS — Actions, ETFs, crypto ETFs ──
-    // Mise à jour : 21/03/2026 (clôture marché jeudi 20 mars 2026)
+    // Mise à jour : 31/03/2026 (cours live Yahoo Finance 31 mars 2026)
     // Sources : Yahoo Finance (API live), Interactive Brokers (statement)
     //
     // Structure position:
@@ -190,7 +194,7 @@ export const PORTFOLIO = {
     //   - geo: géographie (france, germany, japan, crypto, etc.)
     //   - ytdOpen: clôture 1er jour bourse 2026 (2 janvier) — historique
     //   - mtdOpen: clôture 1er jour du mois courant (3 mars 2026)
-    //   - oneMonthAgo: clôture ~30 jours avant (10 février 2026)
+    //   - oneMonthAgo: clôture ~30 jours avant (27 février 2026)
     //
     // MISE À JOUR DES PRIX :
     //   1. price: est mis à jour par l'API Yahoo Finance (range=1d)
@@ -202,25 +206,25 @@ export const PORTFOLIO = {
     // Négatif = emprunt (ex: JPY carry trade = short JPY pour levier)
     // ──────────────────────────────────────────────────────
     ibkr: {
-      staticNAV: 185383,    // NAV totale estimée au 21/03/2026 (positions + cash + actifs)
+      staticNAV: 184520,    // NAV totale estimée au 31/03/2026 (positions + cash, recalculée avec prix live)
       positions: [
         // ── ACTIONS CAC 40 & EUROPÉENNES (11 positions) ──
         // Achetées progressivement avril-nov 2025
-        // Cours: Yahoo Finance clôture 20 mars 2026
+        // Cours: Yahoo Finance live 31 mars 2026
         // PRU: prix d'achat moyen (costBasis EUR)
-        { ticker: 'AIR.PA',  shares: 200,  price: 160.92, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 180.28, oneMonthAgo: 187.24 },
-        { ticker: 'BN.PA',   shares: 200,  price: 68.50,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 71.22, oneMonthAgo: 69.02 },
-        { ticker: 'DG.PA',   shares: 100,  price: 123.95, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 138.40, oneMonthAgo: 133.55 },
-        { ticker: 'FGR.PA',  shares: 100,  price: 128.30, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 145.60, oneMonthAgo: 135.40 },
-        { ticker: 'MC.PA',   shares: 40,   price: 457.95, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 520.50, oneMonthAgo: 525.10 },
-        { ticker: 'OR.PA',   shares: 30,   price: 347.70, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.95, oneMonthAgo: 391.90 },
-        { ticker: 'P911.DE', shares: 400,  price: 36.31,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 40.27, oneMonthAgo: 41.18 },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1656.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1967.00, oneMonthAgo: 2120.00 },
-        { ticker: 'SAN.PA',  shares: 50,   price: 77.79,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 81.45, oneMonthAgo: 82.56 },
-        { ticker: 'SAP.DE',  shares: 70,   price: 153.82, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 196.01, oneMonthAgo: 212.21 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
-        { ticker: '4911.T',  shares: 500,  price: 2986,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3239.00, oneMonthAgo: 3223.00 },
-        { ticker: 'IBIT',    shares: 1200, price: 39.77,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 38.97 },
-        { ticker: 'ETHA',    shares: 1100, price: 16.10,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 15.20 },
+        { ticker: 'AIR.PA',  shares: 200,  price: 160.62, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 175.42, oneMonthAgo: 184.24 },
+        { ticker: 'BN.PA',   shares: 200,  price: 69.22,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 69.94, oneMonthAgo: 72.64 },
+        { ticker: 'DG.PA',   shares: 100,  price: 128.95, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 133.25, oneMonthAgo: 140.75 },
+        { ticker: 'FGR.PA',  shares: 100,  price: 131.60, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 139.85, oneMonthAgo: 146.20 },
+        { ticker: 'MC.PA',   shares: 40,   price: 461.05, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 502.20, oneMonthAgo: 544.10 },
+        { ticker: 'OR.PA',   shares: 30,   price: 350.25, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 363.75, oneMonthAgo: 397.40 },
+        { ticker: 'P911.DE', shares: 400,  price: 38.25,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 38.78, oneMonthAgo: 41.39 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1605.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1897.50, oneMonthAgo: 2049.00 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 82.81,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 79.86, oneMonthAgo: 82.20 },
+        { ticker: 'SAP.DE',  shares: 70,   price: 147.64, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 165.48, oneMonthAgo: 170.96 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
+        { ticker: '4911.T',  shares: 500,  price: 3190,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3068.00, oneMonthAgo: 3300.00 },
+        { ticker: 'IBIT',    shares: 1200, price: 37.68,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 37.19 },
+        { ticker: 'ETHA',    shares: 1100, price: 15.27,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 14.52 },
       ],
       // ⬇️ Cash multi-devises (IBKR — mis à jour 18/03/2026 après deleverage JPY)
       cashEUR: -1,           // Solde EUR chez IBKR au 18/03/2026
@@ -518,7 +522,7 @@ export const PORTFOLIO = {
     //   3. loyers: vérifier LRAR + encaissements mensuels
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 300000, valueDate: '2025-09', crd: 268903, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 },
+      vitry: { value: 300000, valueDate: '2025-09', crd: 268061, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 }, // CRD mis à jour 31/03/2026 (AL 35208 + PTZ 60000 + BP 172853)
       // value: 300K = estimation sept 2025, 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
       // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
       // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
@@ -772,7 +776,7 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      rueil:     { value: 280000, valueDate: '2025-09', crd: 195275, loyerHC: 1300, chargesLocataire: 150 },
+      rueil:     { value: 280000, valueDate: '2025-09', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
       // value: 280K = estimation sept 2025, 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
@@ -793,11 +797,11 @@ export const PORTFOLIO = {
   market: {
     sgtmPriceMAD: 717,       // Cours SGTM en MAD (séance 11 Mar 2026) — casablanca-bourse.com
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
-    acnPriceUSD: 199.99,     // Cours Accenture en USD — clôture 20/03/2026 (Yahoo Finance)
+    acnPriceUSD: 197.55,     // Cours Accenture en USD — live 31/03/2026 (Yahoo Finance)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
     acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
     acnMtdOpen: 205.93,      // ACN clôture 3 mar 2026
-    acnOneMonthAgo: 240.86,  // ACN clôture ~10 fév 2026
+    acnOneMonthAgo: 208.72,  // ACN clôture ~27 fév 2026
     acnOneYearAgo: 305.32,   // ACN clôture 21 mars 2025 (Yahoo Finance)
     // ── Prix historiques 1Y ago (21 mars 2025) — pour P&L 1 An ──
     // Source : Yahoo Finance v8/chart API — fetched une fois, stockés en dur
@@ -851,7 +855,7 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '21/03/2026';
+export const DATA_LAST_UPDATE = '31/03/2026';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -994,15 +998,17 @@ export const IBKR_CONFIG = {
 // - Mise à jour statique: 1x par semaine (vendredi clôture)
 //
 // Taux historiques (ref):
+// - 31 mars 2026 (live open.er-api.com)
+//   EUR/AED: 4.2111, EUR/MAD: 10.7606, EUR/USD: 1.1467, EUR/JPY: 183.15
 // - 21 mars 2026 (clôture vendredi marché)
 //   EUR/AED: 4.2507, EUR/MAD: 10.804, EUR/USD: 1.0850, EUR/JPY: 162.50
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,                   // Base de référence
-  AED: 4.2507,              // Dirham des EAU (Dubai)
-  MAD: 10.804,              // Dirham marocain (Maroc)
-  USD: 1.0850,              // Dollar US — AUD-009: Updated to March 2026 market rates
-  JPY: 162.50,              // Yen japonais — AUD-009: Updated to March 2026 market rates
+  AED: 4.2111,              // Dirham des EAU (Dubai) — 31/03/2026
+  MAD: 10.7606,             // Dirham marocain (Maroc) — 31/03/2026
+  USD: 1.1467,              // Dollar US — 31/03/2026
+  JPY: 183.15,              // Yen japonais — 31/03/2026
 };
 
 // Symboles devises pour affichage
