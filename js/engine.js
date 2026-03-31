@@ -1839,7 +1839,9 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
       }
     }
     if (years >= 22) totalAbattIR = 1;  // Exonéré IR après 22 ans
-    result.abattementIR = Math.min(1, totalAbattIR);
+    // AUD-014: safety clamp to ensure totalAbattIR never exceeds 1
+    totalAbattIR = Math.min(1, totalAbattIR);
+    result.abattementIR = totalAbattIR;
 
     // Calcul abattement PS
     let totalAbattPS = 0;
@@ -1849,7 +1851,9 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
       }
     }
     if (years >= 30) totalAbattPS = 1;  // Exonéré PS après 30 ans
-    result.abattementPS = Math.min(1, totalAbattPS);
+    // AUD-014: safety clamp to ensure totalAbattPS never exceeds 1
+    totalAbattPS = Math.min(1, totalAbattPS);
+    result.abattementPS = totalAbattPS;
 
     // PV nettes après abattement
     result.pvNetteIR = result.pvBrute * (1 - result.abattementIR);
@@ -1927,7 +1931,8 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     const now = targetDate || new Date();
     const yearsSinceLivraison = (now.getFullYear() - livY) + (now.getMonth() + 1 - livM) / 12;
     if (yearsSinceLivraison < tva.dureeEngagement) {
-      const yearsRemaining = tva.dureeEngagement - Math.max(0, Math.floor(yearsSinceLivraison));
+      // AUD-008: use Math.ceil instead of Math.floor to avoid aggressive rounding down
+      const yearsRemaining = Math.ceil(tva.dureeEngagement - yearsSinceLivraison);
       const diffTVA = tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit);
       result.tvaClawback = Math.round(diffTVA * yearsRemaining / tva.dureeEngagement);
     }
@@ -1951,7 +1956,8 @@ export function computeExitCostsAtYear(loanKey, targetYear, projectedValue, purc
   const propMeta = IMMO_CONSTANTS.properties[loanKey] || {};
   const purchaseDate = propMeta.purchaseDate || '2023-01';
   const [pY, pM] = purchaseDate.split('-').map(Number);
-  const holdingYears = (targetYear - pY) + (6 - pM) / 12; // approx mid-year
+  // AUD-003: floor negative holding years to prevent negative exit cost
+  const holdingYears = Math.max(0, (targetYear - pY) + (6 - pM) / 12); // approx mid-year
   const targetDate = new Date(targetYear, 5, 1); // June 1 of target year
   return computeExitCosts(loanKey, projectedValue, purchasePrice, holdingYears, crdAtDate, totalAmortissements, targetDate, loanCRDs);
 }
@@ -3156,7 +3162,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   let amineRecvPro = 0, amineRecvPersonal = 0;
   if (p.amine.creances.items) {
     p.amine.creances.items.forEach(c => {
-      const val = toEUR(c.amount, c.currency, fx);
+      // AUD-001: weight by probability
+      const val = toEUR(c.amount * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
       if (c.type === 'pro') amineRecvPro += val;
       else amineRecvPersonal += val;
     });
@@ -3241,7 +3248,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Caution Rueil — dette envers locataire
   const nezhaCautionRueil = p.nezha.cautionRueil || 0;
   const nezhaRecvOmar = p.nezha.creances && p.nezha.creances.items
-    ? toEUR(p.nezha.creances.items[0].amount, p.nezha.creances.items[0].currency, fx)
+    // AUD-001: weight by probability
+    ? toEUR(p.nezha.creances.items[0].amount * (p.nezha.creances.items[0].probability !== undefined ? p.nezha.creances.items[0].probability : 1), p.nezha.creances.items[0].currency, fx)
     : 0;
   const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR;
   const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;

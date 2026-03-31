@@ -567,7 +567,7 @@ export const PORTFOLIO = {
         // Sources: emprunts familiaux, avances remboursables
         { label: 'SAP & Tax (20j x 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-01', payments: [], notes: 'Facture envoyée, paiement sous 45j' },
         { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-08', payments: [], notes: 'Note de frais déplacement NZ — Sourcing Desk L\'Oréal, livré 26 fév 2026' },
-        { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: false, probability: 0.7, status: 'relancé', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' },
+        { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: false, probability: 0.7, status: 'en_retard', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' }, // AUD-015: Updated 31/03/2026 — 30j overdue
         { label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
         { label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-09-30', lastContact: '2026-02-20', payments: [], notes: '' },
@@ -995,14 +995,14 @@ export const IBKR_CONFIG = {
 //
 // Taux historiques (ref):
 // - 21 mars 2026 (clôture vendredi marché)
-//   EUR/AED: 4.2507, EUR/MAD: 10.804, EUR/USD: 1.1575, EUR/JPY: 184.25
+//   EUR/AED: 4.2507, EUR/MAD: 10.804, EUR/USD: 1.0850, EUR/JPY: 162.50
 // ════════════════════════════════════════════════════════════
 export const FX_STATIC = {
   EUR: 1,                   // Base de référence
   AED: 4.2507,              // Dirham des EAU (Dubai)
   MAD: 10.804,              // Dirham marocain (Maroc)
-  USD: 1.1575,              // Dollar US
-  JPY: 184.25,              // Yen japonais
+  USD: 1.0850,              // Dollar US — AUD-009: Updated to March 2026 market rates
+  JPY: 162.50,              // Yen japonais — AUD-009: Updated to March 2026 market rates
 };
 
 // Symboles devises pour affichage

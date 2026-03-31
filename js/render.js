@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=231';
-import { getGrandTotal } from './engine.js?v=231';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=232';
+import { getGrandTotal } from './engine.js?v=232';
 
 // ---- Generic table sort utility ----
 /**
@@ -770,7 +770,7 @@ function renderDynamicInsights(state, view) {
     const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
     const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc;
     const cashTotal = cashAmine + cashNezha;
-    const aedPct = Math.round((s.amine.uae / cashTotal) * 100);
+    const aedPct = cashTotal > 0 ? Math.round((s.amine.uae / cashTotal) * 100) : 0; // AUD-004: guard div/0
     const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);
     const jpyEUR = Math.round(jpyShort / fx.JPY);
     const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
@@ -3027,7 +3027,7 @@ function renderCashView(state) {
         // Owner header row
         const hdr = document.createElement('tr');
         hdr.style.cssText = 'background:' + ownerColor + ';border-left:3px solid ' + borderColor + ';';
-        hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + ((ownerTotal / cv.totalCash) * 100).toFixed(0) + '% du total</td>';
+        hdr.innerHTML = '<td colspan="5" style="font-weight:700;font-size:13px;padding:8px 12px;">' + owner + ' \u2014 ' + fmt(ownerTotal) + '</td><td colspan="3" style="font-size:12px;color:var(--gray);text-align:right;padding-right:12px;">' + (cv.totalCash > 0 ? (ownerTotal / cv.totalCash * 100).toFixed(0) : '0') + '% du total</td>'; // AUD-005: guard div/0
         tbody.appendChild(hdr);
         let ownerYieldAnn = 0, ownerMissed = 0;
         let acctIndex = 0;
@@ -3242,8 +3242,10 @@ function renderCashView(state) {
       const idx = parseInt(row.getAttribute('data-bar-idx'));
       const r = rows[idx];
       if (!r) return;
+      barTip = document.getElementById('_barTip'); // AUD-007: reuse tooltip if exists
       if (!barTip) {
         barTip = document.createElement('div');
+        barTip.id = '_barTip';
         barTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
           + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;';
         document.body.appendChild(barTip);
@@ -3655,8 +3657,10 @@ function renderImmoView(state) {
       // Rich hover tooltip for mini wealth bar — per-property breakdown
       let wbMiniTip = null;
       bar.addEventListener('mouseenter', () => {
+        wbMiniTip = document.getElementById('_wbMiniTip'); // AUD-007: reuse tooltip if exists
         if (!wbMiniTip) {
           wbMiniTip = document.createElement('div');
+          wbMiniTip.id = '_wbMiniTip';
           wbMiniTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
             + 'box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;font-size:12px;line-height:1.6;white-space:nowrap;';
           document.body.appendChild(wbMiniTip);
