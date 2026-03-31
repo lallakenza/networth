@@ -946,8 +946,6 @@ function renderCoupleTable(state) {
   const p = state.portfolio;
   const rows = [
     ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm],
-    ['ESPP Accenture (Nezha ' + (p.nezha.espp ? p.nezha.espp.shares : 0) + ' ACN)', s.nezha.espp],
-    ['SGTM (Nezha ' + (p.nezha.sgtm ? p.nezha.sgtm.shares : 0) + ' actions)', s.nezha.sgtm],
     ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
