@@ -1296,7 +1296,7 @@ Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo
 
 ---
 
-## 26. Changelog v225→v231
+## 26. Changelog v225→v232
 
 | Version | Date | Commit | Description |
 |---------|------|--------|-------------|
@@ -1311,6 +1311,7 @@ Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo
 | v230 | 31 Mars 2026 | `2f887a8` | **Audit métier : 12 bugs corrigés** + documentation JSDoc complète — voir §27 ci-dessous |
 | v230b | 31 Mars 2026 | `6ed9e82` | Fix double-comptage ESPP/SGTM Nezha dans le tableau détail Couple |
 | v231 | 31 Mars 2026 | `cb699d4` | Bump cache busters v230→v231 pour forcer le CDN GitHub Pages à servir les fichiers corrigés |
+| v232 | 31 Mars 2026 | `644ef2f` | **Audit 360° : 13 findings corrigés** — probabilité créances, TVA clawback, abattement IR, division/0, race conditions, tooltips, FX — voir §33 |
 
 ---
 
@@ -1539,3 +1540,44 @@ Après toute modification de fichier JS :
    - `simulators.js` : imports de render, data
 3. **Critique** : si un même `?v=N` a déjà été déployé sur GitHub Pages, le CDN peut servir la version cachée. Il faut alors bumper à `N+1` (cf. incident v230→v231).
 4. Après push, vérifier le déploiement avec un hard refresh (`Cmd+Shift+R`) sur le site live.
+
+---
+
+## 33. Audit 360° v232 — Findings corrigés
+
+Un audit complet (données, calculs, rendu, qualité code) a identifié 15 findings. 13 corrigés, 1 exclu par l'utilisateur (AUD-002 véhicules), 1 différé (AUD-013 console.log).
+
+### 33.1 Données & Calculs
+
+| ID | Sévérité | Fichier | Description | Fix |
+|----|----------|---------|-------------|-----|
+| AUD-001 | HAUTE | `engine.js` | Créances comptées à 100% nominal sans pondération par probabilité de recouvrement → NW surestimé | `c.amount * (c.probability \|\| 1)` appliqué pour Amine et Nezha |
+| AUD-002 | MOY | — | Dépréciation véhicules non appliquée (valeur résiduelle fixe) | **Exclu** : l'utilisateur considère son assessment déjà conservateur |
+| AUD-003 | HAUTE | `engine.js` | `holdingYears` pouvait devenir négatif si `targetYear < purchaseYear` | `Math.max(0, ...)` guard ajouté |
+| AUD-008 | HAUTE | `engine.js` | TVA clawback prorata inversé — `Math.floor(yearsSinceLivraison)` au lieu de `Math.ceil(dureeEngagement - yearsSinceLivraison)` | Formule corrigée pour calculer les années restantes |
+| AUD-009 | MOY | `data.js` | FX_STATIC obsolète (USD 1.1575, JPY 184.25) — fallback trop éloigné des taux live | Mis à jour : USD 1.0850, JPY 162.50 |
+| AUD-014 | HAUTE | `engine.js` | Abattement IR/PS pouvait dépasser 100% pour très longues détentions | `Math.min(1, totalAbatt)` safety clamp |
+| AUD-015 | BASSE | `data.js` | Créance "Loyers impayés" statut `relancé` au lieu de `en_retard` | Statut corrigé → affichage badge EN RETARD |
+
+### 33.2 Rendu & UI
+
+| ID | Sévérité | Fichier | Description | Fix |
+|----|----------|---------|-------------|-----|
+| AUD-004 | MOY | `render.js` | Division par zéro `aedPct` quand `cashTotal === 0` | Guard `cashTotal > 0 ? ... : 0` |
+| AUD-005 | MOY | `render.js` | Division par zéro dans le pourcentage Cash view | Guard `cv.totalCash > 0 ? ... : '0'` |
+| AUD-007 | MOY | `render.js` | Tooltips body-appended créés à chaque hover sans cleanup → fuite DOM | Réutilisation par ID (`_barTip`, `_wbMiniTip`) |
+
+### 33.3 Code qualité & Performance
+
+| ID | Sévérité | Fichier | Description | Fix |
+|----|----------|---------|-------------|-----|
+| AUD-006 | MOY | `app.js` | `setInterval` FX/stocks créé sans cleanup → intervalles dupliqués après refresh | Variables `_fxIntervalId` / `_stockIntervalId` + `clearInterval` avant recréation |
+| AUD-011 | MOY | `app.js` | Race condition : `refreshStocks()` peut être appelé en parallèle | Guard `_stockRefreshInProgress` boolean |
+| AUD-012 | MOY | `simulators.js` | Event listeners dupliqués à chaque appel `initSimulators()` | Guard `window._simulatorsInitialized` |
+| AUD-013 | BASSE | tous | `console.log` de debug en production | **Différé** — nettoyage prévu dans une passe ultérieure |
+
+### 33.4 Impact mesuré
+
+- **NW Couple** : -€3 819 (créances pondérées par probabilité : 4 créances à 70%)
+- **Total Nominal créances** : €57 150 → **Valeur Attendue** : €53 331
+- **Garanti (100%)** : €44 421 (78%) | **Incertain (<100%)** : €12 729 (22%)
