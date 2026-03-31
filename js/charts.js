@@ -3,14 +3,24 @@
 // ============================================================
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=229';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=229';
-import { IMMO_CONSTANTS } from './data.js?v=229';
+import { fmt, fmtAxis } from './render.js?v=230';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=230';
+import { IMMO_CONSTANTS } from './data.js?v=230';
 
 let charts = {};
 let coupleSelectedCat = null;
 let _state = null;
 
+/**
+ * Destroys all cached Chart.js chart instances
+ *
+ * Called before rebuildAllCharts to avoid chart duplication.
+ * Preserves portfolioYTD chart (built separately by loadStockPrices) and restores it after clearing.
+ *
+ * Side Effects:
+ *   - Clears all entries from global charts object
+ *   - Calls .destroy() on each chart instance (required by Chart.js)
+ */
 export function destroyAllCharts() {
   const ytdChart = charts.portfolioYTD; // preserve — built separately by loadStockPrices
   Object.entries(charts).forEach(([k, c]) => {
@@ -24,6 +34,30 @@ export function destroyAllCharts() {
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 
 // ============ MAIN ENTRY ============
+/**
+ * Main entry point for all chart rebuilding — view-specific chart orchestration
+ *
+ * Called by app.refresh() after compute() generates new state. Destroys old charts,
+ * then builds all charts relevant to the requested view. Chart data is derived
+ * entirely from state (no DOM reads except for canvas elements).
+ *
+ * @param {Object} state - Computed application state from engine.compute()
+ * @param {string} view - Current view: 'couple'|'amine'|'nezha'|'actions'|'cash'|'immobilier'|'budget'
+ *
+ * Charts built per view:
+ *   - All person views: coupleAlloc (drill-down donut), amineDonut, nezhaDonut, geoChart, immoEquityBar, immoProjection, nwHistoryChart, coupleTreemap
+ *   - amine: amineTreemap
+ *   - nezha: nezhaTreemap
+ *   - actions: actionsGeoDonut, actionsSectorDonut, actionsTreemap
+ *   - cash: cashYieldPotential
+ *   - immobilier: immoViewEquityBar, immoViewProjection, amortChart
+ *   - budget: budgetZoneDonut, budgetTypeDonut
+ *
+ * Side Effects:
+ *   - Updates global _state variable
+ *   - Calls destroyAllCharts() first
+ *   - Each buildXxx function creates Chart.js instance and stores in charts object
+ */
 export function rebuildAllCharts(state, view) {
   _state = state;
   destroyAllCharts();
@@ -70,6 +104,31 @@ export function rebuildAllCharts(state, view) {
 }
 
 // ============ COUPLE DRILL-DOWN DONUT ============
+/**
+ * Creates interactive drill-down donut chart for couple asset allocation
+ *
+ * Main couple view chart showing asset categories (Actions, Immobilier, Cash, Créances, etc.)
+ * with the ability to click a slice to drill down and show sub-categories.
+ *
+ * Interactive Features:
+ *   - Click a slice to drill down (show sub-items within that category)
+ *   - Click same slice again to zoom out (toggle behavior)
+ *   - Back button to zoom out (updates title and chart)
+ *   - Title and hint text update based on selection state
+ *
+ * @param {Object} state - Computed state with coupleCategories array
+ * @param {number} [clickedIdx] - Index of clicked slice (for drill-down). Omit or null to show parent level
+ *
+ * DOM Updates:
+ *   - Renders into #coupleAllocChart canvas
+ *   - Updates #coupleChartTitle with category name + amount + %
+ *   - Shows/hides #coupleChartBack button
+ *   - Updates #coupleChartHint visibility
+ *
+ * Side Effects:
+ *   - Stores chart in charts.coupleAlloc for later destruction
+ *   - Updates global coupleSelectedCat to remember selected category
+ */
 export function buildCoupleDrillDown(state, clickedIdx) {
   _state = state || _state;
   const s = _state;
@@ -369,6 +428,32 @@ function buildImmoProjection(state) {
 }
 
 // ============ CF PROJECTION 10 ANS ============
+/**
+ * Creates 10-year cash flow projection chart for real estate properties
+ *
+ * Displays stacked line chart of monthly net cash flow (loyers - charges) projected over 10 years.
+ * Accounts for rent growth, loan amortization, and property-specific schedules (e.g., Villejuif start 2028).
+ *
+ * Projection Features:
+ *   - Base rent 2026: Vitry 1200€, Rueil 1300€, Villejuif 1700€
+ *   - Annual rent growth: 1.5% after year 1
+ *   - Loan payment phases: principal + interest deduction (LMNP)
+ *   - Per-property breakdown (Vitry, Rueil, Villejuif) + total
+ *   - Conditional Villejuif (respects user toggle: window._immoIncludeVillejuif())
+ *
+ * @param {Object} state - Computed state (used to determine Villejuif activation status)
+ *
+ * DOM Updates:
+ *   - Renders into #cfProjChart canvas
+ *   - Shows per-property monthly CF in line chart with color coding
+ *   - Tooltip shows formatted currency values
+ *   - Y-axis shows compact currency (fmtAxis)
+ *
+ * Side Effects:
+ *   - Destroys previous charts.cfProj instance
+ *   - Stores new chart in charts.cfProj
+ *   - Uses window._immoIncludeVillejuif() to determine if Villejuif is included
+ */
 export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
   const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;

@@ -1082,12 +1082,12 @@ function computeCashView(portfolio, fx) {
 
   // ── IBKR JPY Emprunt (margin) — taux par tranche ──────
   // Source : interactivebrokers.com/en/trading/margin-rates.php
-  // IBKR Pro — Benchmark (BM) JPY = 0.704% (mars 2026)
+  // IBKR Pro — Benchmark (BM) JPY = 0.75% (BOJ Unsecured Overnight Call Rate, 31 mars 2026)
   //
   // ⚠️  POUR METTRE À JOUR : modifier les taux ci-dessous
-  //     Tier 1: 0 → ¥11M    = BM + 1.5%  (actuellement 2.204%)
-  //     Tier 2: ¥11M → ¥114M = BM + 1.0%  (actuellement 1.704%)
-  //     Tier 3: > ¥114M      = BM + 0.75% (actuellement 1.454%)
+  //     Tier 1: 0 → ¥11M    = BM + 1.5%  (actuellement 2.25%)
+  //     Tier 2: ¥11M → ¥114M = BM + 1.0%  (actuellement 1.75%)
+  //     Tier 3: > ¥114M      = BM + 0.75% (actuellement 1.50%)
   function ibkrJPYBorrowCost(absJPY) {
     const tiers = IBKR_CONFIG.jpyTiers;
     let remaining = absJPY, totalCost = 0, prev = 0;
@@ -1889,8 +1889,16 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
       // Per-loan IRA calculation
       let totalIRA = 0;
       for (const loan of loanCRDs) {
-        const lname = (loan.name || '').toLowerCase();
-        const isExempt = exemptTypes.some(t => lname.includes(t));
+        /**
+         * IRA exemption detection: explicit field takes precedence over string matching.
+         * 1. Check loan.iraExempt boolean field first (explicit declaration)
+         * 2. Fall back to string matching against exemptTypes if field not present
+         * This allows data.js to declare exemptions declaratively while maintaining
+         * backward compatibility with loans identified by name pattern matching.
+         */
+        const isExempt = loan.iraExempt !== undefined
+          ? !!loan.iraExempt
+          : exemptTypes.some(t => (loan.name || '').toLowerCase().includes(t));
         if (isExempt || loan.crd <= 0) continue;
         const sixMonthsInterest = loan.crd * (loan.rate || 0) / 12 * EC.iraMonthsInterest;
         const threePctCRD = loan.crd * EC.iraPctCRD;
@@ -2421,12 +2429,45 @@ function computeImmoView(portfolio, fx) {
       const april = IC.loans.vitryInsuranceAPRIL || {};
       const alInsurance = (IC.loans.vitryLoans && IC.loans.vitryLoans[0]) ? IC.loans.vitryLoans[0].insuranceMonthly * 12 : 0;
       const vitryProp = portfolio.amine.immo.vitry;
+
+      /**
+       * Vitry fiscal config derivation logic:
+       *
+       * contractStartMonth: Derived from property delivery date + rental start offset
+       *   - deliveryDate in propMeta: '2025-07' (July 2025)
+       *   - Rental contract starts ~9 months later in April 2026 (month 4)
+       *   - General formula: (deliveryMonth + offsetMonths - 1) % 12 + 1
+       *   - For Vitry: (7 + 9 - 1) % 12 + 1 = 4 (April) ✓
+       *
+       * tfExemptionEndYear: New construction property tax exemption lasts 2 years from delivery
+       *   - deliveryDate year: 2025
+       *   - TF exemption window: 2025-2026 (delivery year + 2)
+       *   - Exemption ends start of year 2027 → tfExemptionEndYear = 2027
+       *
+       * startYear: Use delivery year as baseline (or current calendar year if later)
+       *   - Reflects when the property acquisition/fiscal event begins
+       */
+      let contractStartMonth = 4;    // Default: April 2026
+      let tfExemptionEndYear = 2027; // Default: 2 years from 2025 delivery
+      let startYear = 2026;          // Default: use current/operational year
+
+      if (propMeta.deliveryDate) {
+        const [deliveryYear, deliveryMonth] = propMeta.deliveryDate.split('-').map(Number);
+        // contractStartMonth: derive from delivery + 9 month offset (delivery in July → rental in April next year)
+        const rentalOffsetMonths = 9;
+        contractStartMonth = ((deliveryMonth + rentalOffsetMonths - 1) % 12) + 1;
+        // tfExemptionEndYear: TF exemption for new construction = 2 years from delivery
+        tfExemptionEndYear = deliveryYear + 2;
+        // startYear: use delivery year
+        startYear = deliveryYear;
+      }
+
       prop.fiscalSimConfig = {
         loyerTotalCC: vitryProp.loyerTotalCC || propMeta.loyerObjectif || 1200,
         loyerDeclareCC: vitryProp.loyerDeclareCC || 600,
-        contractStartMonth: 4,    // Location effective starts April 2026
-        tfExemptionEndYear: 2027, // TF exonerated for new construction
-        startYear: 2026,
+        contractStartMonth: contractStartMonth,
+        tfExemptionEndYear: tfExemptionEndYear,
+        startYear: startYear,
         nYears: 10,
         totalRate: (IC.fiscalite.vitry.tmi + IC.fiscalite.vitry.ps),
         tmi: IC.fiscalite.vitry.tmi,

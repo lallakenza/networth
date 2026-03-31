@@ -2,12 +2,12 @@
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=229';
-import { compute } from './engine.js?v=229';
-import { render } from './render.js?v=229';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=229';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=229';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=229';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=230';
+import { compute } from './engine.js?v=230';
+import { render } from './render.js?v=230';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=230';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=230';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=230';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -25,7 +25,27 @@ const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 
 const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
 
 // ---- Scope-aware KPI card updater ----
-// Updates the static (non-period) KPI cards when toggling scope
+/**
+ * Updates static KPI cards in Actions view when toggling portfolio scope
+ *
+ * Recalculates and re-renders KPI totals (Total, P/L Unrealized, P/L Realized, Deposits, Dividends)
+ * when the user switches between portfolio scopes (all, Amine, Nezha, ESPP, etc.).
+ *
+ * @param {string} scope - Portfolio scope: 'all'|'amine'|'nezha'|'espp'|'sgtm'|'ibkr'
+ *
+ * Flow:
+ *   1. Fetch cached _actionsView (updated by renderActionsView)
+ *   2. Look up scope-specific totals and P/L metrics
+ *   3. Format values (EUR currency) and update DOM elements
+ *   4. Add color coding: green for gains, red for losses
+ *   5. Show P/L as percentage of deposits (sub-text)
+ *
+ * DOM Updates:
+ *   - kpiActionsTotal: portfolio value
+ *   - kpiActionsUnrealizedPL, kpiActionsRealizedPL: profit/loss with color
+ *   - kpiActionsTotalDeposits: total invested
+ *   - kpiActionsDividends: dividend income
+ */
 function updateStaticKPIsForScope(scope) {
   const av = window._actionsView;
   if (!av) return;
@@ -94,6 +114,17 @@ function updateStaticKPIsForScope(scope) {
 }
 
 // ---- URL hash routing ----
+/**
+ * Updates browser hash/URL to match current view
+ *
+ * Syncs window.location.hash with currentView/currentSubView for browser history support.
+ * Uses replaceState (not pushState) to avoid accumulating history entries.
+ *
+ * Hash Format:
+ *   - 'couple' view → no hash
+ *   - other views → '#viewName'
+ *   - immo sub-views → '#apt_vitry', '#apt_rueil', etc.
+ */
 function updateHash() {
   const view = currentSubView || currentView;
   const hash = view === 'couple' ? '' : '#' + view;
@@ -102,6 +133,15 @@ function updateHash() {
   }
 }
 
+/**
+ * Restores view state from browser URL hash on page load
+ *
+ * Parses location.hash and sets currentView/currentSubView. Handles both
+ * main views (actions, cash, immobilier) and immo sub-views (apt_vitry, apt_rueil).
+ * Defaults to 'couple' if no hash or invalid hash.
+ *
+ * Called once on app initialization.
+ */
 function restoreFromHash() {
   const hash = location.hash.replace('#', '');
   if (!hash) return; // default to couple
@@ -114,6 +154,17 @@ function restoreFromHash() {
   }
 }
 
+/**
+ * Syncs navigation UI buttons to match current view state
+ *
+ * Updates .active classes on view buttons (.view-btn) and immo sub-buttons (.immo-sub-btn)
+ * to highlight the currently selected view. Called after any view change.
+ *
+ * DOM Updates:
+ *   - Adds .active to selected main view button
+ *   - Adds .active to selected immo sub-view button (if in immobilier view)
+ *   - Removes .active from all other buttons
+ */
 function syncNavUI() {
   // Sync main view buttons
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
@@ -130,6 +181,21 @@ function syncNavUI() {
 }
 
 // ---- Central refresh ----
+/**
+ * Main refresh pipeline: compute state → render → rebuildAllCharts
+ *
+ * This is the central function called whenever data changes (view switch, FX update, price refresh).
+ * Orchestrates the complete DATA → ENGINE → RENDER → CHARTS pipeline.
+ *
+ * Flow:
+ *   1. compute(PORTFOLIO, currentFX, stockSource) → state object
+ *   2. render(state, view, currency) → update DOM
+ *   3. rebuildAllCharts(state, view) → rebuild all Chart.js charts
+ *   4. buildCFProjection(state) → cash flow projection graph (person/immo views)
+ *   5. initSimulators(state) → bind simulator event handlers
+ *
+ * Note: Expensive operations (FX fetch, price fetch) are separate async functions
+ */
 function refresh() {
   currentState = compute(PORTFOLIO, currentFX, stockSource);
 
