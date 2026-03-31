@@ -1,6 +1,8 @@
 // ============================================================
 // APP — Entry point. Orchestrates DATA → ENGINE → RENDER
 // ============================================================
+// See ARCHITECTURE.md for full documentation (pipeline, state
+// flow, cache-busting, version history, and audit changelog).
 
 import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=231';
 import { compute } from './engine.js?v=231';

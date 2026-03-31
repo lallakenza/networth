@@ -1,7 +1,9 @@
 // ============================================================
 // ENGINE — Pure computation. No DOM access, no side effects.
 // ============================================================
-// Version: v228
+// See ARCHITECTURE.md for full documentation (NW formulas,
+// Villejuif logic, exit costs, IRA, fiscal config, audit fixes).
+// Version: v231
 //
 // Purpose: Computation engine for the patrimonial dashboard
 //

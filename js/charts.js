@@ -1,6 +1,8 @@
 // ============================================================
 // CHARTS — All Chart.js chart creation and management
 // ============================================================
+// See ARCHITECTURE.md §9-10 for chart breakdown system, scope
+// architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
 import { fmt, fmtAxis } from './render.js?v=231';

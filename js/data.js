@@ -1,6 +1,9 @@
 // ============================================================
 // DATA LAYER — Central data store for patrimonial dashboard
 // ============================================================
+// See ARCHITECTURE.md for full documentation (data schema,
+// pipeline, property configs, loan structures, and version history).
+//
 // Purpose: Source of truth for all portfolio, property, debt,
 // and financial data used by the wealth tracking system.
 //

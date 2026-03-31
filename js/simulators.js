@@ -1,6 +1,7 @@
 // ============================================================
 // SIMULATORS — 3 projection simulators (couple, amine, nezha)
 // ============================================================
+// See ARCHITECTURE.md for full documentation.
 
 import { fmt, fmtAxis } from './render.js?v=231';
 import { IMMO_CONSTANTS } from './data.js?v=231';

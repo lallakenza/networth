@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 24 mars 2026 (v224)
+> Dernière mise à jour : 31 mars 2026 (v231)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -1293,3 +1293,249 @@ Charts impactés :
 | v224 | `bbb4d18` | Fix: prevent wealth mini-bar DOM duplication on Villejuif checkbox toggle (class markers + cleanup before render) |
 
 Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo différent (range=1y) avec un historique plus long mais une résolution inférieure.
+
+---
+
+## 26. Changelog v225→v231
+
+| Version | Date | Commit | Description |
+|---------|------|--------|-------------|
+| v225 | 26 Mars 2026 | `af0958d` | **Total capital dans les tableaux prêts** + 12 améliorations Couple/Amine/Nezha (KPIs enrichis, détails créances) |
+| v225b | 26 Mars 2026 | `f4fe9d6` | Fix KPI strip grid : 6 colonnes Couple, 5 colonnes Amine/Nezha pour les nouveaux KPIs |
+| v226 | 27 Mars 2026 | `7c18228` | **Corrections Villejuif** depuis le contrat de réservation PDF (prix, surfaces, frais notaire, livraison) |
+| v226b | 27 Mars 2026 | `40dcfae` | Fix montant réservation 3 600 → 3 363 EUR dans le bandeau Villejuif |
+| v226c | 27 Mars 2026 | `47ad714` | Fix `totalOperation` et surface dans la section comparaison JEANBRUN/LMNP |
+| v227 | 28 Mars 2026 | `3c48ae6` | **Fix affichage prêts multi-période** + documentation complète du système de prêts (franchise, paliers, IRA) |
+| v228 | 29 Mars 2026 | `0fcb5d3` | **Rich hover tooltips** sur toutes les barres visuelles (LTV, wealth, CF) + documentation complète |
+| v229 | 30 Mars 2026 | `a5802c5` | **Mobile responsive CSS** pour iPhone (390px/375px) — 2 blocs `@media (max-width: 480px)` (~240 lignes) avec class-based et inline-style overrides |
+| v230 | 31 Mars 2026 | `2f887a8` | **Audit métier : 12 bugs corrigés** + documentation JSDoc complète — voir §27 ci-dessous |
+| v230b | 31 Mars 2026 | `6ed9e82` | Fix double-comptage ESPP/SGTM Nezha dans le tableau détail Couple |
+| v231 | 31 Mars 2026 | `cb699d4` | Bump cache busters v230→v231 pour forcer le CDN GitHub Pages à servir les fichiers corrigés |
+
+---
+
+## 27. Audit métier v230 — Bugs corrigés
+
+Un audit approfondi de l'ensemble du dashboard a identifié 13 findings. 12 ont été corrigés (1 faux positif — BUG-011 loyers Vitry non payés, confirmé payés par l'utilisateur).
+
+### 27.1 Bugs critiques (sévérité haute)
+
+| ID | Fichier | Description | Fix |
+|----|---------|-------------|-----|
+| BUG-001+013 | `render.js` | Écart NW Couple KPI vs tableau détail — lignes ESPP Nezha et SGTM Nezha comptées 2× (déjà incluses dans la ligne "Actions & ETFs") | Suppression des lignes dupliquées dans `renderCoupleTable()` |
+| BUG-002 | `render.js` + `index.html` | Colonne "EQUITY" dans Résumé Immobilier affichait l'equity **brute** (valeur - CRD) au lieu de l'equity **nette** (après frais de sortie) | Remplacement par `exitCosts.netEquityAfterExit`, header renommé "EQ. NETTE" |
+| BUG-003 | `render.js` | P&L % pouvait être `Infinity` ou `NaN` si `periodStartNAV === 0` | Guard `periodStartNAV > 0 ? ... : null` |
+| BUG-004 | `render.js` | `toEUR()` propageait `NaN` si le taux FX était absent | Ajout `if (!fx[cur]) { console.warn(...); return amt; }` |
+
+### 27.2 Bugs moyens
+
+| ID | Fichier | Description | Fix |
+|----|---------|-------------|-----|
+| BUG-005 | `render.js` | NW Nezha n'affichait pas l'equity Villejuif quand `signed=true` | Ajout `nwWithVillejuif` dans le rendu Nezha (affiché uniquement quand signé) |
+| BUG-006 | `engine.js` | Config fiscale Villejuif (startYear, TF exemption, début contrat) hardcodée au lieu d'être dérivée de `deliveryDate` | `contractStartMonth = deliveryDate + 9 mois`, `tfExemptionEndYear = deliveryYear + 2` |
+| BUG-008 | `engine.js` + `data.js` | PTZ et Action Logement détectés IRA par nom alors qu'ils sont exonérés | Ajout champ `iraExempt: true` explicite + priorité sur la détection par nom |
+| BUG-009 | `render.js` | Aucune alerte quand des créances sont en retard de paiement | Ajout calcul jours de retard + alerte rouge "ALERTE : Créances en retard" dans la section Insights |
+| BUG-010 | `render.js` | Dépôts Degiro estimés sans avertissement visible | Ajout warning "⚠ Dépôts estimés" sous le KPI Total Déposé quand scope=Degiro |
+
+### 27.3 Bugs mineurs
+
+| ID | Fichier | Description | Fix |
+|----|---------|-------------|-----|
+| BUG-007 | `data.js` | Taux JPY benchmark IBKR obsolète (0.704% → 0.75% suite décision BOJ mars 2026) | Mise à jour valeur + date de vérification |
+
+### 27.4 Faux positifs (non corrigés)
+
+| ID | Raison |
+|----|--------|
+| BUG-011 | Loyers Vitry signalés impayés → confirmés payés par l'utilisateur |
+| BUG-012 | Viewport meta tag signalé manquant → déjà présent ligne 5 de `index.html` |
+
+### 27.5 Documentation ajoutée (v230)
+
+JSDoc complet ajouté aux fonctions clés :
+
+- **`render.js`** : `fmt()`, `fmtAxis()`, `render()`, `buildDetailTableWithPct()`, `buildDetailTable()`, `makeTableSortable()`
+- **`charts.js`** : `rebuildAllCharts()`, `buildCFProjection()`, `buildPortfolioYTDChart()`
+- **`app.js`** : `refresh()`, `init()`
+
+---
+
+## 28. Mobile responsive (v229)
+
+### Architecture CSS-only
+
+Le responsive est implémenté **exclusivement en CSS** via deux blocs `@media (max-width: 480px)` dans `index.html`. Aucun JavaScript n'est modifié.
+
+**Bloc 1 — Class-based overrides** (~130 lignes) :
+
+| Cible | Adaptation |
+|-------|------------|
+| `body` | `overflow-x: hidden` pour empêcher le scroll horizontal |
+| `.view-switcher` | `flex-wrap: nowrap`, `overflow-x: auto` — scroll horizontal des onglets |
+| `.kpi-strip` | `grid-template-columns: 1fr 1fr` — grille 2 colonnes au lieu de 5-6 |
+| Tables (`.num`, `th`, `td`) | `font-size: 0.7rem`, `padding: 4px 6px` — compactes |
+| Treemap, Charts | `height: 250px` — hauteur réduite |
+| `.insight-card` | `flex-direction: column` — empilement vertical |
+
+**Bloc 2 — Inline-style overrides** (~60 lignes) :
+
+Pour les styles inline générés par JavaScript (qui ne peuvent pas être overridés par des classes seules), utilise des sélecteurs CSS d'attribut avec `!important` :
+
+```css
+div[style*="grid-template-columns:1fr 1fr"] {
+  grid-template-columns: 1fr !important;
+}
+#cfSummaryRibbon > div {
+  flex-direction: column !important;
+}
+```
+
+### Contrainte : pas de régression desktop
+
+Tous les overrides sont encapsulés dans `@media (max-width: 480px)` — aucun impact sur la version desktop (> 480px).
+
+---
+
+## 29. Net Worth — Calcul détaillé Couple
+
+### Formule de base
+
+```
+nezhaNW = rueilEquity + cashFrance + cashMaroc + cashUAE + espp + sgtm
+         + recvOmar + villejuifReservation - cautionRueil
+         // ⚠ N'inclut PAS villejuifEquity
+
+coupleNW = amineNW + nezhaNW + villejuifEquity
+         // villejuifEquity ajouté uniquement au niveau couple
+```
+
+### Pourquoi Villejuif est exclu de nezhaNW
+
+Villejuif VEFA est un bien **conditionnel** (dépend de la signature de l'acte authentique). Pour éviter de gonfler artificiellement le NW de Nezha, l'equity Villejuif :
+
+1. N'est **pas** comptée dans `nezhaNW` (calculé dans `engine.js` l.3204)
+2. Est ajoutée **une seule fois** dans `coupleNW` (l.3256)
+3. Le champ `nwWithVillejuif` existe pour afficher le NW Nezha incluant Villejuif quand `signed=true`
+
+### Tableau détail Couple (`renderCoupleTable`)
+
+La fonction `buildDetailTableWithPct()` **somme** toutes les valeurs des lignes et affiche le total. Chaque composante du NW doit apparaître **exactement une fois** :
+
+```
+Actions & ETFs (IBKR + ACN + SGTM)   ← inclut Amine + Nezha
+Cash EUR / MAD / AED                   ← toujours des sommes Amine + Nezha
+Equity Immo Vitry / Rueil / Villejuif
+Villejuif Reservation Fees             ← conditionnel (non-signé uniquement)
+Caution Rueil                          ← négatif (dette locataire)
+Véhicules / Créances / TVA
+= Net Worth Couple                     ← doit matcher le KPI
+```
+
+### Net Equity Immobilier
+
+L'equity **nette** (affichée dans "EQ. NETTE") prend en compte les frais de sortie :
+
+```
+netEquity = max(0, equity - agencyFees - capitalGainsTax - IRA)
+```
+
+Si les frais de sortie dépassent l'equity brute, la valeur est floorée à 0 (pas d'equity négative).
+Vitry affiche €0 car les pénalités de remboursement anticipé et les frais de sortie absorbent toute l'equity brute.
+
+---
+
+## 30. Tooltip System (v228)
+
+Deux patterns de tooltips coexistent dans le dashboard :
+
+### Pattern 1 — Inline absolute-positioned
+
+Utilisé par les barres visuelles (LTV, wealth, CF) dans les cartes immobilier. Le tooltip est un `<div>` enfant positionné en `position: absolute` par rapport au parent `position: relative`.
+
+```html
+<div style="position: relative;">
+  <div class="bar" onmouseenter="..." onmouseleave="..."></div>
+  <div class="tooltip" style="position: absolute; top: -40px; ...">Contenu</div>
+</div>
+```
+
+### Pattern 2 — Body-appended
+
+Utilisé par les charts Chart.js et certains éléments complexes. Le tooltip est appendé à `<body>` avec `position: fixed` et positionné via les coordonnées du mouse event.
+
+```javascript
+const tip = document.createElement('div');
+tip.style.position = 'fixed';
+document.body.appendChild(tip);
+// ... removed on mouseleave
+```
+
+**Règle** : les tooltips du Pattern 2 **doivent** être nettoyés au changement de vue (via `cleanup()` dans render).
+
+---
+
+## 31. Vues détaillées
+
+### COUPLE (vue par défaut)
+
+- **KPI strip** : NW Combiné, NW Amine, NW Nezha, Equity Nette Immo, Cash Total, Actions Total
+- **Treemap Patrimonial** : visualisation D3 treemap des actifs par catégorie (Actions, Cash Productif, Cash Dormant, Immobilier, Véhicules, Crypto, Créances)
+- **Patrimoine par Catégorie** : 4 cartes synthétiques (Actions & Crypto, Cash & Épargne, Immobilier, Autres Actifs)
+- **Tableau détail consolidé** : `renderCoupleTable()` → `buildDetailTableWithPct()` — chaque composante du NW avec montant et % du total
+- **Donut Répartition** : Chart.js doughnut par catégorie
+- **Résumé Immobilier** : 4 KPIs (Equity Nette, Valeur, CRD, CF/mois) + tableau des 3 biens
+- **Vue d'ensemble & Insights** : Points forts + Risques du couple (dynamiques depuis le STATE)
+- **Simulateur NW Couple** : projection 20 ans avec épargne mensuelle configurable
+
+### AMINE / NEZHA
+
+- **KPI strip** : NW, Cash Total, Actions Total, Immo Equity, Créances Nettes
+- **Tableau détail** : `renderAmineTable()` / `renderNezhaTable()` — mêmes principes que couple
+- **Charts patrimoine** : donut + bar chart d'allocation
+
+### ACTIONS
+
+- **Scope switcher** : IBKR | ESPP | Degiro | Maroc | Tous
+- **Chart NAV évolution** : YTD par défaut, switchable (MTD, 1M, 3M, YTD, 1Y)
+- **Mode Valeur / P&L** : toggle entre NAV absolue et P&L cumulé
+- **KPI strip** : Total Actions, P/L Non Réalisé, P/L Réalisé, Total Déposé, TWR, Dividendes bruts
+- **P&L strip** : Daily, MTD, 1 Mois, YTD, 1 An
+- **Tableau positions** : triable par colonne, filtrable par scope, avec P&L coloré
+
+### CASH
+
+- **Répartition par devise** : EUR, AED, MAD, USD, JPY
+- **Tableau comptes** : rendement annuel, type (productif/dormant), solde
+- **Optimisation** : suggestions de placement pour le cash dormant
+
+### IMMOBILIER
+
+- **Sous-onglets** : Vue d'ensemble | Vitry | Rueil | Villejuif
+- **Vue d'ensemble** : KPIs agrégés, tableau comparatif, projection richesse
+- **Chaque bien** : 6 cartes KPI, tableau amortissement prêts, tableau fiscal, chart CF projection, chart equity, toggle Villejuif signé/non-signé
+
+### CRÉANCES
+
+- **Tableau créances** : montant nominal, montant attendu, probabilité recouvrement, statut, jours de retard
+- **Alerte retard** : badge rouge pour les créances échues non payées
+
+### BUDGET
+
+- **Dépenses mensuelles** : par zone (Dubai, France, Maroc) et par type (logement, transport, alimentation, etc.)
+- **Total mensuel EUR** : converti depuis devises natives
+
+---
+
+## 32. Cache-busting — Procédure de mise à jour
+
+Après toute modification de fichier JS :
+
+1. Incrémenter `N` dans **tous** les imports `?v=N` des fichiers impactés
+2. Les fichiers à vérifier :
+   - `index.html` : `<script src="js/app.js?v=N">`
+   - `app.js` : imports de data, engine, render, api, charts, simulators
+   - `charts.js` : imports de render, engine, data
+   - `render.js` : imports de data, engine
+   - `simulators.js` : imports de render, data
+3. **Critique** : si un même `?v=N` a déjà été déployé sur GitHub Pages, le CDN peut servir la version cachée. Il faut alors bumper à `N+1` (cf. incident v230→v231).
+4. Après push, vérifier le déploiement avec un hard refresh (`Cmd+Shift+R`) sur le site live.

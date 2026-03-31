@@ -1,6 +1,8 @@
 // ============================================================
 // API LAYER — Fetch live FX rates and stock prices
 // ============================================================
+// See ARCHITECTURE.md for full documentation (CORS proxy
+// strategy, cache TTL, fallback to static prices).
 // Returns data only, never touches the DOM.
 // Uses localStorage as daily cache to avoid redundant API calls.
 //
