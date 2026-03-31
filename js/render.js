@@ -1,7 +1,9 @@
 // ============================================================
 // RENDER LAYER — DOM write-only. Takes STATE, outputs to DOM.
 // ============================================================
-// Patrimonial dashboard rendering engine (v228)
+// See ARCHITECTURE.md for full documentation (couple NW calc,
+// detail table logic, net equity, mobile CSS, audit bug fixes).
+// Patrimonial dashboard rendering engine (v231)
 //
 // Purpose:
 //   Converts application state into DOM elements. No computation here.
