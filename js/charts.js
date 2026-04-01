@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=233';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=233';
-import { IMMO_CONSTANTS } from './data.js?v=233';
+import { fmt, fmtAxis } from './render.js?v=236';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=236';
+import { IMMO_CONSTANTS, EQUITY_HISTORY } from './data.js?v=236';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1991,11 +1991,15 @@ function renderPortfolioChart(overrides = {}) {
     if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
     if (ytdEndEl) ytdEndEl.textContent = fmt(endVal);
     if (ytdStartLabel) {
-      if (data.mode === '1y') {
+      const MFL = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+      if (data.mode === '5y' || data.mode === 'max') {
         const startD = data.labels[0];
         const sp = startD.split('-');
-        const MF = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-        ytdStartLabel.innerHTML = 'NAV ' + parseInt(sp[2]) + ' ' + MF[parseInt(sp[1])-1] + ' ' + sp[0];
+        ytdStartLabel.innerHTML = 'NAV ' + MFL[parseInt(sp[1])-1] + ' ' + sp[0];
+      } else if (data.mode === '1y') {
+        const startD = data.labels[0];
+        const sp = startD.split('-');
+        ytdStartLabel.innerHTML = 'NAV ' + parseInt(sp[2]) + ' ' + MFL[parseInt(sp[1])-1] + ' ' + sp[0];
       } else {
         ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
       }
@@ -2005,8 +2009,14 @@ function renderPortfolioChart(overrides = {}) {
   // ── Build chart ──
   if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
 
+  const isLongTerm = data._isEquityHistory;
+  const MF = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
   const displayLabels = slicedLabels.map(d => {
     const p = d.split('-');
+    if (isLongTerm) {
+      // Monthly data: "jan 20", "fév 20", etc.
+      return MF[parseInt(p[1]) - 1] + ' ' + p[0].slice(2);
+    }
     return p[2] + '/' + p[1];
   });
 
@@ -3395,4 +3405,72 @@ export function switchChartMode(displayMode) {
   window._ytdDisplayMode = displayMode;
   const data = window._ytdChartFullData;
   renderPortfolioChart({ displayMode, period: data?.currentPeriod });
+}
+
+// ============================================================
+// EQUITY HISTORY CHART — 5Y / MAX
+// Uses EQUITY_HISTORY from data.js (monthly snapshots)
+// Maps to the same _ytdChartFullData format so renderPortfolioChart
+// can render it seamlessly.
+// ============================================================
+export function buildEquityHistoryChart(period, options) {
+  const el = document.getElementById('portfolioYTDChart');
+  if (!el || !EQUITY_HISTORY || EQUITY_HISTORY.length === 0) return;
+
+  // Filter by period
+  let cutoffDate = '1900-01-01';
+  if (period === '5Y') {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 5);
+    cutoffDate = d.toISOString().slice(0, 10);
+  }
+  // MAX: use all data (cutoff stays at 1900)
+
+  const filtered = EQUITY_HISTORY.filter(h => h.date >= cutoffDate);
+  if (filtered.length === 0) return;
+
+  // Build arrays in _ytdChartFullData format
+  const labels = filtered.map(h => h.date);
+  const totalValues = filtered.map(h => h.total);
+  const degiroValues = filtered.map(h => h.degiro);
+  const esppValues = filtered.map(h => h.espp);
+  const ibkrValues = filtered.map(h => h.ibkr);
+
+  // P&L = value - first value (relative change)
+  const startTotal = totalValues[0];
+  const startDegiro = degiroValues[0];
+  const startESPP = esppValues[0];
+  const startIBKR = ibkrValues[0];
+  const plValuesTotal = totalValues.map(v => v - startTotal);
+  const plValuesDegiro = degiroValues.map(v => v - startDegiro);
+  const plValuesESPP = esppValues.map(v => v - startESPP);
+  const plValuesIBKR = ibkrValues.map(v => v - startIBKR);
+
+  // Also build a SGTM series (zeros — SGTM is separate from equity history)
+  const sgtmValues = filtered.map(() => 0);
+  const plValuesSGTM = filtered.map(() => 0);
+
+  // Store as _ytdChartFullData so renderPortfolioChart can use it
+  window._ytdChartFullData = {
+    labels,
+    ibkrValues,
+    totalValues,
+    esppValues,
+    sgtmValues,
+    degiroValues,
+    plValuesIBKR,
+    plValuesTotal,
+    plValuesESPP,
+    plValuesSGTM,
+    plValuesDegiro,
+    mode: period === '5Y' ? '5y' : 'max',
+    scope: (options && options.scope) || 'all',
+    currentPeriod: period,
+    degiroRealizedPL: 50187,
+    _isEquityHistory: true,
+  };
+
+  // Render
+  renderPortfolioChart({ period, scope: (options && options.scope) || 'all' });
+  console.log('[equity-history] Built ' + period + ' chart with ' + filtered.length + ' monthly points');
 }

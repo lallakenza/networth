@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY } from './data.js?v=176';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=236';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -501,6 +501,22 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     return { total, items };
   }
 
+  // ── Degiro historical dividends (from annual reports) ──
+  function computeDegiroDividends(startDate) {
+    const degiroDivs = (portfolio.amine.degiro || {}).dividends || {};
+    let total = 0;
+    const items = [];
+    Object.entries(degiroDivs).forEach(([year, yearData]) => {
+      if (!yearData || !yearData.net) return;
+      // Use Dec 31 of each year as proxy date (dividends paid throughout year)
+      const proxyDate = year + '-12-31';
+      if (proxyDate < startDate) return;
+      total += yearData.net;
+      items.push({ date: proxyDate, label: 'Div Degiro ' + year + ' (net)', netEUR: yearData.net, grossEUR: yearData.gross, wht: yearData.withholding });
+    });
+    return { total, items };
+  }
+
   // ── Aggregate all costs per period ──
   function computeAllCosts(startDate) {
     const ftt = computeFTT(startDate);
@@ -508,7 +524,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const interest = computeInterest(startDate);
     const ibkrDiv = computeIBKRDividends(startDate);
     const acnDiv = computeACNDividends(startDate);
-    const totalDividends = ibkrDiv.total + acnDiv.total;
+    const degiroDiv = computeDegiroDividends(startDate);
+    const totalDividends = ibkrDiv.total + acnDiv.total + degiroDiv.total;
     return {
       fttEUR: ftt.total,
       fttItems: ftt.items,
@@ -519,6 +536,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       dividendsEUR: totalDividends,
       ibkrDivItems: ibkrDiv.items,
       acnDivItems: acnDiv.items,
+      degiroDivItems: degiroDiv.items,
     };
   }
 
@@ -624,6 +642,17 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
     // Accumulate cost from buy trades (sell trades have cost:''), converted to EUR
     cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
+    // Fallback cost when no buy entries exist:
+    // 1) Use cost field from sell entries (filled from proceeds-PL for EUR, or matched buys for USD)
+    // 2) Derive from proceedsEUR - pl (when report P/L is available and proceeds known)
+    if (cp.costEUR === 0) {
+      const sellCost = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
+      if (sellCost > 0) {
+        cp.costEUR = sellCost;
+      } else if (cp._hasReportPL && cp.proceedsEUR > 0) {
+        cp.costEUR = cp.proceedsEUR - cp.pl;
+      }
+    }
     // Compute P/L:
     // - If ALL sells have report PL → use summed report PL (already EUR-converted above)
     // - If PARTIAL or NO report + cost data available → use proceeds-cost (already in EUR)
@@ -1013,7 +1042,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
             items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: periodCosts.commissionsEUR, _isCost: true, _detail: periodCosts.commissionsItems });
           }
           if (periodCosts.dividendsEUR && Math.abs(periodCosts.dividendsEUR) >= 1) {
-            const divDetail = [...(periodCosts.ibkrDivItems || []), ...(periodCosts.acnDivItems || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            const divDetail = [...(periodCosts.ibkrDivItems || []), ...(periodCosts.acnDivItems || []), ...(periodCosts.degiroDivItems || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
             items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: periodCosts.dividendsEUR, _isCost: true, _detail: divDetail });
           }
         }
@@ -3654,6 +3683,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     budgetView,
     dividendAnalysis,
     nwHistory: NW_HISTORY,
+    equityHistory: EQUITY_HISTORY,
   };
 }
 
