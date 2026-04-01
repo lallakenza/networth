@@ -4,12 +4,12 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=233';
-import { compute } from './engine.js?v=233';
-import { render } from './render.js?v=233';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=233';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode } from './charts.js?v=233';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=233';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=236';
+import { compute } from './engine.js?v=236';
+import { render } from './render.js?v=236';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=236';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=236';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=236';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1087,7 +1087,10 @@ async function loadStockPrices(forceRefresh) {
 
             // Select correct historical data based on period
             // All series are always computed; scope controls which one is displayed
-            if (currentPeriod === '1Y') {
+            if (currentPeriod === '5Y' || currentPeriod === 'MAX') {
+              // Long-term: use EQUITY_HISTORY static monthly data
+              buildEquityHistoryChart(currentPeriod, { scope: currentScope });
+            } else if (currentPeriod === '1Y') {
               historicalDataToUse = historicalData1Y;
               const result1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
@@ -1109,10 +1112,10 @@ async function loadStockPrices(forceRefresh) {
               });
               if (scopeResult) updateKPIsFromChart(scopeResult);
             } else {
-              // If coming from 1Y mode, _ytdChartFullData contains weekly-sampled 1Y data.
+              // If coming from 1Y/5Y/MAX mode, _ytdChartFullData contains non-YTD data.
               // We must rebuild the YTD chart (daily resolution) before applying sub-period filter.
               const currentChartMode = window._ytdChartFullData?.mode;
-              if (currentChartMode === '1y') {
+              if (currentChartMode === '1y' || currentChartMode === '5y' || currentChartMode === 'max') {
                 historicalDataToUse = historicalDataYTD;
                 const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
                   mode: 'ytd',

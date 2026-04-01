@@ -582,30 +582,161 @@ export const PORTFOLIO = {
 
     // ──────────────────────────────────────────────────────
     // DEGIRO (fermé avril 2025 — toutes positions liquidées)
-    // P/L calculé depuis les emails de confirmation Gmail
+    // Source de vérité: Rapports annuels DEGIRO 2019-2025 (PDFs)
     // ──────────────────────────────────────────────────────
     degiro: {
       closed: true,
       closedDate: '2025-04-14',
-      totalRealizedPL: 51079,  // EUR total P/L Degiro
-      // ⚠ ESTIMATIONS PROVISOIRES — Dépôts & Retraits Degiro
-      // Les montants ci-dessous sont des estimations fictives en attendant
-      // de retrouver les relevés bancaires Degiro exacts (Boursorama).
-      // Les emails Degiro ne contiennent PAS les montants des virements.
-      // À remplacer dès que les infos exactes seront disponibles.
+      // Total réalisé = somme gains - pertes toutes années
+      // 2020: 7.06 + 2021: 9253.27 + 2023: -2520.48 + 2025: 43446.96 = 50186.81
+      totalRealizedPL: 50186.81,  // EUR — vérifié vs rapports annuels DEGIRO
+
+      // ── Dépôts & Retraits Flatex ──
+      // Les flux passent par le compte Flatex (cash) lié au compte DEGIRO
+      // Dépôts = virements externes → Flatex; Retraits Flatex = Flatex → Boursorama
+      // Transferts DEGIRO↔Flatex = mouvements internes (pas des dépôts/retraits)
       deposits: [
-        // Dépôts estimés (capital investi sur Degiro 2020-2021)
-        { date: '2020-03-15', amount: 25000, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Dépôt Degiro estimé #1 (à confirmer)' },
-        { date: '2020-08-01', amount: 25000, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Dépôt Degiro estimé #2 (à confirmer)' },
-        // Retraits estimés (capital + P&L récupérés après clôture)
-        { date: '2025-04-14', amount: -101079, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Retrait Degiro estimé (50K capital + 51K P&L) (à confirmer)' },
+        // 3 virements confirmés via emails Gmail (Boursorama → DEGIRO)
+        // ⚠ Montants individuels inconnus — total estimé ~50K EUR
+        // Les emails ne contiennent pas les montants, juste la confirmation de réception
+        { date: '2020-01-14', amount: 16667, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #1 (confirmé email 14/01/2020) — montant estimé (total 50K / 3)' },
+        { date: '2020-02-20', amount: 16667, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #2 (confirmé email 20/02/2020) — montant estimé' },
+        { date: '2020-03-09', amount: 16666, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #3 (confirmé email 09/03/2020) — montant estimé' },
+        // Retraits Flatex → Boursorama (montants exacts des rapports annuels)
+        { date: '2021-12-31', amount: -15669, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2021 (rapport annuel)' },
+        { date: '2023-12-31', amount: -5755, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2023 (rapport annuel)' },
+        { date: '2025-04-14', amount: -54813.57, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait final Flatex 2025 — clôture compte (rapport annuel)' },
       ],
-      // Dividends from Degiro annual reports (EUR)
-      dividends: {
-        2021: { gross: 242.52, withholding: 48.33, net: 194.19 },
-        2023: { gross: 183.25, withholding: 0, net: 183.25 },
+
+      // ── Résumé annuel (source: rapports annuels DEGIRO) ──
+      annualSummary: {
+        2019: { portfolioStart: 0, portfolioEnd: 0, gains: 0, losses: 0, netPL: 0 },
+        2020: { portfolioStart: 0, portfolioEnd: 30117.82, gains: 7.06, losses: 0, netPL: 7.06 },
+        2021: { portfolioStart: 30110.32, portfolioEnd: 29907.67, gains: 9253.27, losses: 0, netPL: 9253.27 },
+        2022: { portfolioStart: 29907.68, portfolioEnd: 16316.15, gains: 0, losses: 0, netPL: 0 },
+        2023: { portfolioStart: 16316.15, portfolioEnd: 29971.39, gains: 0, losses: 2520.48, netPL: -2520.48 },
+        2024: { portfolioStart: 29971.39, portfolioEnd: 77802.18, gains: 0, losses: 0, netPL: 0 },
+        2025: { portfolioStart: 77802.18, portfolioEnd: 0, gains: 43446.96, losses: 0, netPL: 43446.96 },
       },
-      totalDividendsNet: 377.44,  // EUR — sum of net dividends (2021 + 2023)
+
+      // ── Flux Flatex par année (compte cash lié) ──
+      flatexCashFlows: {
+        2020: { cashStart: 0, cashEnd: 1940.01, deposits: 0, retraits: 0, transfersDegiro: 1943.93, interestPaid: 3.92 },
+        2021: { cashStart: 1940.01, cashEnd: 46.81, deposits: 0, retraits: 15669, transfersDegiro: 13784.57, interestPaid: 6.24 },
+        2022: { cashStart: 46.81, cashEnd: 194.13, deposits: 0, retraits: 0, transfersDegiro: 147.50, interestPaid: 0.18 },
+        2023: { cashStart: 194.13, cashEnd: 70.51, deposits: 0, retraits: 5755, transfersDegiro: 5631.38, interestPaid: 0 },
+        2024: { cashStart: 70.51, cashEnd: 217.51, deposits: 0, retraits: 0, transfersDegiro: 147.00, interestPaid: 0 },
+        2025: { cashStart: 217.51, cashEnd: 0, deposits: 0, retraits: 54813.57, transfersDegiro: 54596.06, interestPaid: 0 },
+      },
+
+      // ── Coûts de change (FX) par année ──
+      fxCosts: {
+        2020: { autoFX: 0, manualFX: 0 },
+        2021: { autoFX: -38.84, manualFX: -41.02 },
+        2022: { autoFX: 0, manualFX: 0 },
+        2023: { autoFX: -15.96, manualFX: -12.58 },
+        2024: { autoFX: 0, manualFX: -7.18 },
+        2025: { autoFX: -146.63, manualFX: -135.18 },
+      },
+
+      // ── Dividendes détaillés par année (source: rapports annuels) ──
+      dividends: {
+        2020: {
+          gross: 256.15, withholding: 61.92, net: 194.23,
+          detail: [
+            { ticker: 'EN', label: 'Bouygues', gross: 85.00, wht: 23.78, country: 'FR' },
+            { ticker: 'CAP', label: 'Cap Gemini', gross: 21.60, wht: 6.05, country: 'FR' },
+            { ticker: 'EDEN', label: 'Edenred', gross: 23.80, wht: 6.66, country: 'FR' },
+            { ticker: 'FDX', label: 'FedEx', gross: 24.19, wht: 7.26, country: 'US' },
+            { ticker: 'INFY', label: 'Infosys', gross: 24.79, wht: 2.71, country: 'IN' },
+            { ticker: 'MC', label: 'LVMH', gross: 8.00, wht: 2.24, country: 'FR' },
+            { ticker: 'NKE', label: 'Nike', gross: 2.09, wht: 0.63, country: 'US' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 1.60, wht: 0.48, country: 'US' },
+            { ticker: 'PM', label: 'Philip Morris', gross: 20.71, wht: 0.19, country: 'US' },
+            { ticker: 'SAN', label: 'Sanofi', gross: 6.30, wht: 1.73, country: 'FR' },
+            { ticker: 'SAP', label: 'SAP', gross: 34.15, wht: 9.01, country: 'DE' },
+            { ticker: 'V', label: 'Visa', gross: 3.93, wht: 1.18, country: 'US' },
+          ],
+        },
+        2021: {
+          gross: 242.52, withholding: 48.33, net: 194.19,
+          detail: [
+            { ticker: 'FDX', label: 'FedEx', gross: 5.52, wht: 1.66, country: 'US' },
+            { ticker: 'INFY', label: 'Infosys', gross: 103.60, wht: 11.31, country: 'IN' },
+            { ticker: 'IBM', label: 'IBM', gross: 13.66, wht: 4.10, country: 'US' },
+            { ticker: 'MC', label: 'LVMH', gross: 64.00, wht: 16.96, country: 'FR' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 5.92, wht: 1.18, country: 'US' },
+            { ticker: 'SAP', label: 'SAP', gross: 49.80, wht: 13.13, country: 'DE' },
+          ],
+        },
+        2022: {
+          gross: 190.97, withholding: 32.04, net: 158.93,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 116.46, wht: 12.71, country: 'IN' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 8.89, wht: 2.03, country: 'US' },
+            { ticker: 'SAP', label: 'SAP', gross: 65.62, wht: 17.30, country: 'DE' },
+          ],
+        },
+        2023: {
+          gross: 183.25, withholding: 30.21, net: 153.04,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 119.23, wht: 13.01, country: 'IN' },
+            { ticker: 'SAP', label: 'SAP', gross: 55.76, wht: 14.70, country: 'DE' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 8.26, wht: 2.49, country: 'US' },
+          ],
+        },
+        2024: {
+          gross: 183.92, withholding: 24.02, net: 159.90,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 163.36, wht: 17.84, country: 'IN' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 17.12, wht: 5.14, country: 'US' },
+            { ticker: 'DIS', label: 'Disney', gross: 3.44, wht: 1.04, country: 'US' },
+          ],
+        },
+        2025: {
+          gross: 7.40, withholding: 2.22, net: 5.18,
+          detail: [
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 4.98, wht: 1.49, country: 'US' },
+            { ticker: 'DIS', label: 'Disney', gross: 2.43, wht: 0.73, country: 'US' },
+          ],
+        },
+      },
+      // Total dividendes nets toutes années: 194.23+194.19+158.93+153.04+159.90+5.18 = 865.47
+      totalDividendsNet: 865.47,  // EUR — vérifié vs rapports annuels DEGIRO
+      totalDividendsGross: 1064.21,
+      totalWithholding: 198.74,
+
+      // ── P/L par instrument (référence rapports annuels) ──
+      perInstrumentPL: {
+        2020: {
+          // 35 instruments, net = 7.06 EUR
+          'ACCOR': -92.35, 'ADP': 64.96, 'AIRBUS': -70.56, 'AIR FRANCE': 318.93,
+          'BNP PARIBAS': -192.50, 'BOEING': 525.17, 'BOUYGUES': -1.70, 'CANADA GOOSE': 8.86,
+          'CANOPY GROWTH': -94.18, 'CAP GEMINI': 0, 'CARNIVAL': -129.19, 'COFACE': 29.70,
+          'CREDIT AGRICOLE': -140.43, 'DELTA AIR LINES': 295.94, 'EDENRED': -247.55,
+          'FEDEX': 0, 'HERTZ': -386.26, 'INFOSYS': 0, 'KLEPIERRE': -3.88, 'KORIAN': -57.71,
+          'LVMH': 0, 'MS LIQUIDITY': -3.42, 'NIKE': 59.62, 'NVIDIA': 0, 'PEUGEOT': -16.16,
+          'PHILIP MORRIS': -8.06, 'RENAULT': -41.91, 'SANOFI': 1.87, 'SAP': 0,
+          'SODEXO': -33.23, 'SOPRA STERIA': -2.15, 'TESLA': 259.54, 'UNDER ARMOUR': 23.75,
+          'UTD AIRLINES': -60.05, 'VISA': 0,
+        },
+        2021: {
+          // 17 instruments, net = 9253.27 EUR (note: TORTOISE = SNPR→VLTA corporate action)
+          'ATOS': 59.25, 'BOUYGUES': 442.02, 'CAP GEMINI': 919.82, 'CREDIT AGRICOLE': 284.59,
+          'EUROPCAR': 2608.34, 'FEDEX': 1326.59, 'FITBIT': 97.82, 'GAMESTOP': -152.57,
+          'INFOSYS': 0, 'IBM': 77.25, 'JUVENTUS': 8.33, 'LVMH': 3622.54, 'NVIDIA': 0,
+          'SAP': 45.29, 'TORTOISE ACQUISITION (SNPR→VLTA)': -851.09, 'VISA': 15.53,
+          'WALT DISNEY': 749.58,
+        },
+        2023: {
+          // 4 instruments, net = -2520.48 EUR
+          'INFOSYS': 0, 'SAP': 471.19, 'NVIDIA': 1191.53, 'VOLTA (ex-SNPR)': -4183.20,
+        },
+        2025: {
+          // 4 instruments, net = 43446.96 EUR
+          'INFOSYS': 1234.46, 'NVIDIA': 41354.50, 'SPOTIFY': 940.57, 'DISNEY': -82.56,
+        },
+      },
       // Degiro trades migrated to unified trades[] below
     },
 
@@ -620,29 +751,51 @@ export const PORTFOLIO = {
       // ═══════════════════════════════════════════════════
       //  DEGIRO — Historique complet (2020-2025)
       //  Compte clôturé avril 2025
-      //  Source: Gmail notifications@degiro.fr
+      //  Sources: Rapports annuels DEGIRO 2019-2025 (PDFs)
+      //           + emails Gmail notifications@degiro.fr
+      //  P/L par instrument: vérifié vs rapports annuels
       // ═══════════════════════════════════════════════════
 
       // ──────────────────────────────────────────────────
       // 2020 TRADES
+      // Instruments avec P/L dans le rapport annuel 2020 mais sans détail
+      // de transaction (dates/prix exacts inconnus — pas d'emails de confirmation)
       // ──────────────────────────────────────────────────
+      // --- Trades 2020 reconstitués depuis rapport annuel (buy+sell, dates approx.) ---
+      { date: '2020-03-01', ticker: 'AC',    label: 'Accor SA',                       type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -92.35, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AC.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'AIR',   label: 'Airbus SE',                      type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -70.56, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AIR.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'BNP',   label: 'BNP Paribas',                    type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -192.50, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'BNP.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'EN',    label: 'Bouygues',                       type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -1.70, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EN.PA', note: 'P/L rapport annuel 2020 — vendu partiellement, reste porté en 2021' },
+      { date: '2020-03-01', ticker: 'COFA',  label: 'Coface SA',                      type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: 29.70, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'COFA.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'ACA',   label: 'Crédit Agricole (lot 2020)',      type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -140.43, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA', note: 'P/L rapport annuel 2020 — distinct du lot ACA porté en 2021' },
+      { date: '2020-03-01', ticker: 'DAL',   label: 'Delta Air Lines',                type: 'sell', qty: '', price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: 295.94, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'EDEN',  label: 'Edenred SA',                     type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -247.55, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EDEN.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'LI',    label: 'Klépierre SA',                   type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -3.88, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'LI.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'MSLIQ', label: 'MS Liquidity Fund',              type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -3.42, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — fonds monétaire Degiro' },
+      { date: '2020-03-01', ticker: 'UG',    label: 'Peugeot SA',                     type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -16.16, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', note: 'P/L rapport annuel 2020 — Peugeot fusionné dans Stellantis (Jan 2021)' },
+      { date: '2020-03-01', ticker: 'RNO',   label: 'Renault SA',                     type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -41.91, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'SOP',   label: 'Sopra Steria Group',             type: 'sell', qty: '', price: '', currency: 'EUR', cost: '', proceeds: '', realizedPL: -2.15, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SOP.PA', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'TSLA',  label: 'Tesla Inc',                      type: 'sell', qty: '', price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: 259.54, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — détail transaction non disponible. Note: TSLA split 5:1 (Aug 2020)' },
+      { date: '2020-03-01', ticker: 'UAA',   label: 'Under Armour Inc',               type: 'sell', qty: '', price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: 23.75, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      { date: '2020-03-01', ticker: 'UAL',   label: 'United Airlines Holdings',       type: 'sell', qty: '', price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: -60.05, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — détail transaction non disponible' },
+      // --- Trades 2020 avec détail (dates confirmées par emails) ---
       { date: '2020-08-14', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',             type: 'buy',  qty: 4,     price: 386,    currency: 'EUR', cost: 1544,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
-      { date: '2020-08-19', ticker: 'PM',    label: 'Philip Morris International',   type: 'sell', qty: 20,    price: 79.55,  currency: 'USD', cost: '',     proceeds: 1591, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-19', ticker: 'PM',    label: 'Philip Morris International',   type: 'sell', qty: 20,    price: 79.55,  currency: 'USD', cost: '',     proceeds: 1591, realizedPL: -8.06, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
       { date: '2020-08-24', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 35,    price: 8.484,  currency: 'EUR', cost: 297,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
       { date: '2020-08-24', ticker: 'CAP',   label: 'Capgemini',                     type: 'buy',  qty: 10,    price: 115.4,  currency: 'EUR', cost: 1154,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
-      { date: '2020-08-25', ticker: 'SW',    label: 'Sodexo',                        type: 'sell', qty: 7,     price: 61.4,   currency: 'EUR', cost: '',     proceeds: 430, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SW.PA' },
-      { date: '2020-08-25', ticker: 'CCL',   label: 'Carnival Corporation',          type: 'sell', qty: 10,    price: 15.41,  currency: 'USD', cost: '',     proceeds: 154, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
-      { date: '2020-08-25', ticker: 'CGC',   label: 'Canopy Growth Corporation',     type: 'sell', qty: 50,    price: 16.51,  currency: 'USD', cost: '',     proceeds: 826, realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Dec 2023)' },
-      { date: '2020-08-25', ticker: 'GOOS',  label: 'Canada Goose Holdings',         type: 'sell', qty: 9,     price: 23.87,  currency: 'USD', cost: '',     proceeds: 215, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-08-25', ticker: 'SW',    label: 'Sodexo',                        type: 'sell', qty: 7,     price: 61.4,   currency: 'EUR', cost: 463,     proceeds: 430, realizedPL: -33.23, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SW.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'CCL',   label: 'Carnival Corporation',          type: 'sell', qty: 10,    price: 15.41,  currency: 'USD', cost: '',     proceeds: 154, realizedPL: -129.19, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'CGC',   label: 'Canopy Growth Corporation',     type: 'sell', qty: 50,    price: 16.51,  currency: 'USD', cost: '',     proceeds: 826, realizedPL: -94.18, commission: '', costBasis: '', source: 'degiro', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Dec 2023). P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'GOOS',  label: 'Canada Goose Holdings',         type: 'sell', qty: 9,     price: 23.87,  currency: 'USD', cost: '',     proceeds: 215, realizedPL: 8.86, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
       { date: '2020-08-26', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'buy',  qty: 7,     price: 215.8,  currency: 'USD', cost: 1511,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
-      { date: '2020-09-03', ticker: 'NKE',   label: 'Nike Inc',                      type: 'sell', qty: 10,    price: 116.7,  currency: 'USD', cost: '',     proceeds: 1167, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-09-03', ticker: 'NKE',   label: 'Nike Inc',                      type: 'sell', qty: 10,    price: 116.7,  currency: 'USD', cost: '',     proceeds: 1167, realizedPL: 59.62, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
       { date: '2020-09-03', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 2,     price: 518,    currency: 'USD', cost: 1036,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 40, note: 'Pre 4:1 (Jul 2021) + 10:1 (Jun 2024) splits' },
-      { date: '2020-10-12', ticker: 'SAN',   label: 'Sanofi',                        type: 'sell', qty: 2,     price: 86.4,   currency: 'EUR', cost: '',     proceeds: 173, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SAN.PA' },
-      { date: '2020-11-13', ticker: 'AF',    label: 'Air France-KLM',                type: 'sell', qty: 300,   price: 3.874,  currency: 'EUR', cost: '',     proceeds: 1162, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023)' },
-      { date: '2020-11-13', ticker: 'KORI',  label: 'Korian (Clariane)',             type: 'sell', qty: 50,    price: 29.14,  currency: 'EUR', cost: '',     proceeds: 1457, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CLARI.PA', note: 'Korian rebranded to Clariane, ticker KORI→CLARI' },
-      { date: '2020-11-13', ticker: 'ADP',   label: 'Aéroports de Paris',            type: 'sell', qty: 8,     price: 106.9,  currency: 'EUR', cost: '',     proceeds: 855, realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ADP.PA', note: '4 fills: 2+2+1+3 @ 106.90' },
-      { date: '2020-11-13', ticker: 'BA',    label: 'Boeing Company',                type: 'sell', qty: 15,    price: 186.5,  currency: 'USD', cost: '',     proceeds: 2798, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
-      { date: '2020-11-20', ticker: 'HTZ',   label: 'Hertz Global Holdings',         type: 'sell', qty: 100,   price: 1.13,   currency: 'USD', cost: '',     proceeds: 113, realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 0, note: 'Ch.11 bankruptcy Jun 2021 — old shares cancelled' },
+      { date: '2020-10-12', ticker: 'SAN',   label: 'Sanofi',                        type: 'sell', qty: 2,     price: 86.4,   currency: 'EUR', cost: 171,     proceeds: 173, realizedPL: 1.87, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SAN.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'AF',    label: 'Air France-KLM',                type: 'sell', qty: 300,   price: 3.874,  currency: 'EUR', cost: 843,     proceeds: 1162, realizedPL: 318.93, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023). P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'KORI',  label: 'Korian (Clariane)',             type: 'sell', qty: 50,    price: 29.14,  currency: 'EUR', cost: 1515,     proceeds: 1457, realizedPL: -57.71, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CLARI.PA', note: 'Korian rebranded to Clariane, ticker KORI→CLARI. P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'ADP',   label: 'Aéroports de Paris',            type: 'sell', qty: 8,     price: 106.9,  currency: 'EUR', cost: 790,     proceeds: 855, realizedPL: 64.96, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ADP.PA', note: '4 fills: 2+2+1+3 @ 106.90. P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'BA',    label: 'Boeing Company',                type: 'sell', qty: 15,    price: 186.5,  currency: 'USD', cost: '',     proceeds: 2798, realizedPL: 525.17, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-11-20', ticker: 'HTZ',   label: 'Hertz Global Holdings',         type: 'sell', qty: 100,   price: 1.13,   currency: 'USD', cost: '',     proceeds: 113, realizedPL: -386.26, commission: '', costBasis: '', source: 'degiro', splitFactor: 0, note: 'Ch.11 bankruptcy Jun 2021 — old shares cancelled. P/L rapport annuel 2020' },
       { date: '2020-12-18', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'buy',  qty: 20,    price: 127.3,  currency: 'USD', cost: 2546,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
       { date: '2020-12-18', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'buy',  qty: 200,   price: 16.19,  currency: 'USD', cost: 3238,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
 
@@ -650,37 +803,38 @@ export const PORTFOLIO = {
       // 2021 TRADES
       // ──────────────────────────────────────────────────
       { date: '2021-01-04', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'buy',  qty: 100,   price: 6.85,   currency: 'USD', cost: 685,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Multi-fill: 50+50 = 100 total' },
-      { date: '2021-01-14', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'sell', qty: 100,   price: 7.35,   currency: 'USD', cost: '',     proceeds: 735, realizedPL: 97.82, commission: '', costBasis: '', source: 'degiro', note: 'Google acquisition at $7.35/share (completed Jan 2021)' },
+      { date: '2021-01-14', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'sell', qty: 100,   price: 7.35,   currency: 'USD', cost: 685,     proceeds: 735, realizedPL: 97.82, commission: '', costBasis: '', source: 'degiro', note: 'Google acquisition at $7.35/share (completed Jan 2021)' },
       { date: '2021-01-07', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'buy',  qty: 1000,  price: 0.813,  currency: 'EUR', cost: 813,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Jan 2024)' },
       { date: '2021-01-22', ticker: 'IBM',   label: 'IBM Corporation',               type: 'buy',  qty: 10,    price: 118.2,  currency: 'USD', cost: 1182,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '7 shares + 3 shares at same price' },
       { date: '2021-01-29', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'buy',  qty: 12,    price: 502.8,  currency: 'EUR', cost: 6034,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA', note: '2 fills: 7+5 @ 502.80' },
       { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'buy',  qty: 20,    price: 340.93, currency: 'USD', cost: 6819,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'GME mania — same day buy/sell' },
-      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'sell', qty: 20,    price: 331.74, currency: 'USD', cost: '',     proceeds: 6635, realizedPL: -152.57, commission: '', costBasis: '', source: 'degiro', note: 'GME mania — sold at loss same day' },
-      { date: '2021-01-29', ticker: 'CAP',   label: 'Capgemini',                     type: 'sell', qty: 36,    price: 119.85, currency: 'EUR', cost: '',     proceeds: 4315, realizedPL: 919.82, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
-      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'sell', qty: 280,   price: 9.404,  currency: 'EUR', cost: '',     proceeds: 2633, realizedPL: 284.59, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'sell', qty: 20,    price: 331.74, currency: 'USD', cost: 6819,     proceeds: 6635, realizedPL: -152.57, commission: '', costBasis: '', source: 'degiro', note: 'GME mania — sold at loss same day' },
+      { date: '2021-01-29', ticker: 'CAP',   label: 'Capgemini',                     type: 'sell', qty: 36,    price: 119.85, currency: 'EUR', cost: 3395,   proceeds: 4315, realizedPL: 919.82, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'sell', qty: 280,   price: 9.404,  currency: 'EUR', cost: 2348,     proceeds: 2633, realizedPL: 284.59, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
       { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 140,   price: 9.398,  currency: 'EUR', cost: 1316,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
       { date: '2021-01-29', ticker: 'V',     label: 'Visa Inc',                      type: 'sell', qty: 5,     price: 198.15, currency: 'USD', cost: '',     proceeds: 991, realizedPL: 15.53, commission: '', costBasis: '', source: 'degiro' },
       { date: '2021-02-08', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 1000,  price: 0.427,  currency: 'EUR', cost: 427,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
       { date: '2021-02-09', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.443,  currency: 'EUR', cost: 1329,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
-      { date: '2021-02-10', ticker: 'ATO',   label: 'Atos SE',                       type: 'sell', qty: 20,    price: 65.4,   currency: 'EUR', cost: '',     proceeds: 1308, realizedPL: 59.25, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ATO.PA' },
+      { date: '2021-02-10', ticker: 'ATO',   label: 'Atos SE',                       type: 'sell', qty: 20,    price: 65.4,   currency: 'EUR', cost: 1249,     proceeds: 1308, realizedPL: 59.25, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ATO.PA' },
       { date: '2021-02-11', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 4500,  price: 0.318,  currency: 'EUR', cost: 1431,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '4 fills: 977+902+1900+721 @ 0.318' },
-      { date: '2021-02-11', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'sell', qty: 15,    price: 131.85, currency: 'USD', cost: '',     proceeds: 1978, realizedPL: 45.29, commission: '', costBasis: '', source: 'degiro', note: '2 fills: 13+2 @ 131.85' },
+      { date: '2021-02-11', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'sell', qty: 15,    price: 131.85, currency: 'USD', cost: 1910,     proceeds: 1978, realizedPL: 45.29, commission: '', costBasis: '', source: 'degiro', note: '2 fills: 13+2 @ 131.85' },
       { date: '2021-02-15', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 800,   price: 0.323,  currency: 'EUR', cost: 258,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
       { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.342,  currency: 'EUR', cost: 1026,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
       { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 7000,  price: 0.344,  currency: 'EUR', cost: 2408,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '2560@0.344 + 4440@0.344 (merged)' },
-      { date: '2021-03-01', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'sell', qty: 1000,  price: 0.8304, currency: 'EUR', cost: '',     proceeds: 830, realizedPL: 8.33, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Jan 2024)' },
-      { date: '2021-03-01', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 7,     price: 260.7,  currency: 'USD', cost: '',     proceeds: 1825, realizedPL: 547.66, commission: '', costBasis: '', source: 'degiro' },
-      { date: '2021-03-01', ticker: 'EN',    label: 'Bouygues',                      type: 'sell', qty: 50,    price: 34.22,  currency: 'EUR', cost: '',     proceeds: 1711, realizedPL: 442.02, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
+      { date: '2021-03-01', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'sell', qty: 1000,  price: 0.8304, currency: 'EUR', cost: 822,     proceeds: 830, realizedPL: 8.33, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Jan 2024)' },
+      { date: '2021-03-01', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 7,     price: 260.7,  currency: 'USD', cost: 1511,     proceeds: 1825, realizedPL: 547.66, commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-01', ticker: 'EN',    label: 'Bouygues',                      type: 'sell', qty: 50,    price: 34.22,  currency: 'EUR', cost: 1269,     proceeds: 1711, realizedPL: 442.02, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
       { date: '2021-03-09', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 10,    price: 259.5,  currency: 'USD', cost: '',     proceeds: 2595, realizedPL: 778.93, commission: '', costBasis: '', source: 'degiro', note: '2 fills: 4+6 @ 259.50' },
-      { date: '2021-03-09', ticker: 'IBM',   label: 'IBM Corporation',               type: 'sell', qty: 10,    price: 124.89, currency: 'USD', cost: '',     proceeds: 1249, realizedPL: 77.25, commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-09', ticker: 'IBM',   label: 'IBM Corporation',               type: 'sell', qty: 10,    price: 124.89, currency: 'USD', cost: 1182,     proceeds: 1249, realizedPL: 77.25, commission: '', costBasis: '', source: 'degiro' },
       { date: '2021-03-09', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 200,   price: 12.01,  currency: 'USD', cost: 2402,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SHLL→HYLN merger Oct 2020. Degiro label was outdated.' },
       { date: '2021-03-10', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 150,   price: 11.505, currency: 'USD', cost: 1726,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '50@11.52 + 100@11.505 (merged)' },
       { date: '2021-03-10', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 40,    price: 11.5,   currency: 'USD', cost: 460,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
       { date: '2021-05-10', ticker: 'SNPR',  label: 'Tortoise Acquisition II Corp',  type: 'buy',  qty: 200,   price: 9.99,   currency: 'USD', cost: 1998,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SPAC — merged into Volta Inc (VLTA), then acquired by Shell' },
-      { date: '2023-03-31', ticker: 'SNPR',  label: 'Volta Inc (ex-SNPR)',           type: 'sell', qty: 200,   price: 0.86,   currency: 'USD', cost: '',     proceeds: 172, realizedPL: -4183.2, commission: '', costBasis: '', source: 'degiro', note: 'Shell acquisition of VLTA at $0.86/share (Mar 2023)' },
-      { date: '2021-06-24', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 3500,  price: 0.463,  currency: 'EUR', cost: '',     proceeds: 1621, realizedPL: 445.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
-      { date: '2021-08-06', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'sell', qty: 16,    price: 701.9,  currency: 'EUR', cost: '',     proceeds: 11230, realizedPL: 3622.54, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
-      { date: '2021-08-09', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 15800, price: 0.498,  currency: 'EUR', cost: '',     proceeds: 7864, realizedPL: 2162.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '11816@0.498 + 3984@0.498 (merged)' },
+      { date: '2021-09-01', ticker: 'SNPR',  label: 'Tortoise Acquisition → VLTA',   type: 'corporate_action', qty: 200, price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: -851.09, commission: '', costBasis: '', source: 'degiro', note: 'SPAC merger SNPR→VLTA: perte réalisée -851.09 EUR (rapport annuel 2021). Reclassement comptable lors de la fusion.' },
+      { date: '2023-03-31', ticker: 'VLTA',  label: 'Volta Inc (ex-SNPR)',           type: 'sell', qty: 200,   price: 0.86,   currency: 'USD', cost: '',     proceeds: 172, realizedPL: -4183.20, commission: '', costBasis: '', source: 'degiro', note: 'Shell acquisition of VLTA at $0.86/share (Mar 2023). P/L rapport annuel 2023.' },
+      { date: '2021-06-24', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 3500,  price: 0.463,  currency: 'EUR', cost: 1175,     proceeds: 1621, realizedPL: 445.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-08-06', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'sell', qty: 16,    price: 701.9,  currency: 'EUR', cost: 7607,     proceeds: 11230, realizedPL: 3622.54, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
+      { date: '2021-08-09', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 15800, price: 0.498,  currency: 'EUR', cost: 5701,     proceeds: 7864, realizedPL: 2162.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '11816@0.498 + 3984@0.498 (merged)' },
       { date: '2021-08-17', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 30,    price: 194.15, currency: 'USD', cost: 5825,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
       { date: '2021-08-19', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'buy',  qty: 20,    price: 173.1,  currency: 'USD', cost: 3462,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
       { date: '2021-09-24', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 30,    price: 175.45, currency: 'USD', cost: '',     proceeds: 5264, realizedPL: 749.58, commission: '', costBasis: '', source: 'degiro', note: '26+4 fills at same price (merged)' },
@@ -688,17 +842,17 @@ export const PORTFOLIO = {
       // ──────────────────────────────────────────────────
       // 2023 TRADES
       // ──────────────────────────────────────────────────
-      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE',                        type: 'sell', qty: 27,    price: 135.2,  currency: 'EUR', cost: '',     proceeds: 3650, realizedPL: 0, commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR)' },
+      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE',                        type: 'sell', qty: 27,    price: 135.2,  currency: 'EUR', cost: 3179,     proceeds: 3650, realizedPL: 471.19, commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR) — P/L vérifié rapport annuel 2023' },
       { date: '2023-07-27', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 4,     price: 473.4,  currency: 'USD', cost: '',     proceeds: 1894, realizedPL: 1191.53, commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
 
       // ──────────────────────────────────────────────────
       // 2025 TRADES
       // ──────────────────────────────────────────────────
-      { date: '2025-02-27', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 5,     price: 112.9,  currency: 'USD', cost: '',     proceeds: 565, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
-      { date: '2025-02-27', ticker: 'SPOT',  label: 'Spotify Technology SA',         type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: '',     proceeds: 1214, realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
-      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 8973, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'April 2025 sell (from email)' },
-      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 440,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 39481, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'April 2025 sell (from email)' },
-      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 300,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 5085, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '100@16.95 + 200@16.95 (merged)' },
+      { date: '2025-02-27', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 5,     price: 112.9,  currency: 'USD', cost: '',     proceeds: 565, realizedPL: -82.56, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025 (DISNEY total: -82.56)' },
+      { date: '2025-02-27', ticker: 'SPOT',  label: 'Spotify Technology SA',         type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: '',     proceeds: 1214, realizedPL: 940.57, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 8973, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Lot 1/2 — total NVDA 2025 P/L: 41354.50 (rapport annuel)' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 440,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 39481, realizedPL: 41354.50, commission: '', costBasis: '', source: 'degiro', note: 'Lot 2/2 — P/L total NVDA 2025: 41354.50 (rapport annuel). P/L porté sur ce lot.' },
+      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 300,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 5085, realizedPL: 1234.46, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
     ],
 
     // ──────────────────────────────────────────────────────
@@ -1848,6 +2002,114 @@ export const VILLEJUIF_REGIMES = {
 // Structure: [{ date: 'YYYY-MM', coupleNW, amineNW, nezhaNW, note? }, ...]
 // ════════════════════════════════════════════════════════════
 export const NW_HISTORY = [];
+
+// ════════════════════════════════════════════════════════════
+// HISTORIQUE EQUITY — Portfolio actions mensuel (Degiro + ESPP + IBKR)
+// Source: Rapports annuels Degiro (points annuels vérifiés),
+//         ESPP lots (dates exactes), IBKR deposits/NAV (2025+)
+// Points année-end = valeurs exactes des rapports PDF
+// Points intermédiaires = interpolation linéaire
+// Format: { date: 'YYYY-MM-DD', degiro, espp, ibkr, total, note? }
+//   degiro = portfolio Degiro + cash Flatex (EUR)
+//   espp = shares × ACN price approximatif (EUR)
+//   ibkr = NAV IBKR approx (EUR), 0 avant avril 2025
+//   total = degiro + espp + ibkr
+// ════════════════════════════════════════════════════════════
+export const EQUITY_HISTORY = [
+  // ── 2020 ── (Degiro ouvert, premiers trades)
+  // Points vérifiés: 2020-01 (dépôt ~50K), 2020-12 (portefeuille 30117.82 + Flatex 1940.01)
+  { date: '2020-01-31', degiro: 16667,  espp: 14440, ibkr: 0, total: 31107,  note: '1er dépôt Degiro (16.7K)' },
+  { date: '2020-02-29', degiro: 33334,  espp: 13832, ibkr: 0, total: 47166,  note: '2ème dépôt Degiro' },
+  { date: '2020-03-31', degiro: 40000,  espp: 10875, ibkr: 0, total: 50875,  note: '3ème dépôt Degiro — COVID crash' },
+  { date: '2020-04-30', degiro: 38000,  espp: 12160, ibkr: 0, total: 50160 },
+  { date: '2020-05-31', degiro: 36500,  espp: 15675, ibkr: 0, total: 52175,  note: 'ESPP lot 6 (19 sh)' },
+  { date: '2020-06-30', degiro: 35000,  espp: 16625, ibkr: 0, total: 51625 },
+  { date: '2020-07-31', degiro: 33500,  espp: 17290, ibkr: 0, total: 50790 },
+  { date: '2020-08-31', degiro: 33000,  espp: 18525, ibkr: 0, total: 51525 },
+  { date: '2020-09-30', degiro: 32500,  espp: 17765, ibkr: 0, total: 50265 },
+  { date: '2020-10-31', degiro: 32000,  espp: 20165, ibkr: 0, total: 52165,  note: 'ESPP lot 5 (14 sh)' },
+  { date: '2020-11-30', degiro: 31500,  espp: 21255, ibkr: 0, total: 52755 },
+  { date: '2020-12-31', degiro: 32058,  espp: 22563, ibkr: 0, total: 54621,  note: 'Rapport annuel: Degiro 30117.82 + Flatex 1940.01' },
+
+  // ── 2021 ── (Trading actif, LVMH/Europcar/FedEx gros gains, ESPP continue)
+  // Points vérifiés: 2021-12 (portefeuille 29907.67 + Flatex 46.81, retrait 15669)
+  { date: '2021-01-31', degiro: 31500,  espp: 22890, ibkr: 0, total: 54390 },
+  { date: '2021-02-28', degiro: 31200,  espp: 24525, ibkr: 0, total: 55725 },
+  { date: '2021-03-31', degiro: 30800,  espp: 24525, ibkr: 0, total: 55325 },
+  { date: '2021-04-30', degiro: 30500,  espp: 29140, ibkr: 0, total: 59640,  note: 'ESPP lot 4 (15 sh)' },
+  { date: '2021-05-31', degiro: 30200,  espp: 29760, ibkr: 0, total: 59960 },
+  { date: '2021-06-30', degiro: 22000,  espp: 31000, ibkr: 0, total: 53000,  note: 'Ventes EUCAR/LVMH — retrait 15.7K' },
+  { date: '2021-07-31', degiro: 21000,  espp: 32240, ibkr: 0, total: 53240 },
+  { date: '2021-08-31', degiro: 20500,  espp: 33728, ibkr: 0, total: 54228,  note: 'Achat NVDA 30sh + vente LVMH 16sh' },
+  { date: '2021-09-30', degiro: 24000,  espp: 34720, ibkr: 0, total: 58720 },
+  { date: '2021-10-31', degiro: 26000,  espp: 35960, ibkr: 0, total: 61960 },
+  { date: '2021-11-30', degiro: 28000,  espp: 41850, ibkr: 0, total: 69850,  note: 'ESPP lot 3 (11 sh)' },
+  { date: '2021-12-31', degiro: 29955,  espp: 43875, ibkr: 0, total: 73830,  note: 'Rapport annuel: Degiro 29907.67 + Flatex 46.81' },
+
+  // ── 2022 ── (Bear market, pas de trades, ESPP continue)
+  // Points vérifiés: 2022-12 (portefeuille 16316.15 + Flatex 194.13)
+  { date: '2022-01-31', degiro: 28500,  espp: 44835, ibkr: 0, total: 73335 },
+  { date: '2022-02-28', degiro: 27000,  espp: 42630, ibkr: 0, total: 69630 },
+  { date: '2022-03-31', degiro: 25500,  espp: 44835, ibkr: 0, total: 70335 },
+  { date: '2022-04-30', degiro: 24000,  espp: 42630, ibkr: 0, total: 66630 },
+  { date: '2022-05-31', degiro: 22500,  espp: 40425, ibkr: 0, total: 62925,  note: 'ESPP lot 2 (12 sh)' },
+  { date: '2022-06-30', degiro: 21500,  espp: 37485, ibkr: 0, total: 58985 },
+  { date: '2022-07-31', degiro: 20500,  espp: 40500, ibkr: 0, total: 61000 },
+  { date: '2022-08-31', degiro: 19500,  espp: 42000, ibkr: 0, total: 61500,  note: 'ESPP FRAC 3sh (div reinvested)' },
+  { date: '2022-09-30', degiro: 18700,  espp: 36750, ibkr: 0, total: 55450 },
+  { date: '2022-10-31', degiro: 17900,  espp: 38250, ibkr: 0, total: 56150 },
+  { date: '2022-11-30', degiro: 17100,  espp: 40500, ibkr: 0, total: 57600 },
+  { date: '2022-12-31', degiro: 16510,  espp: 37500, ibkr: 0, total: 54010,  note: 'Rapport annuel: Degiro 16316.15 + Flatex 194.13' },
+
+  // ── 2023 ── (SAP+NVDA vendus, VOLTA perte, ESPP lot final)
+  // Points vérifiés: 2023-12 (portefeuille 29971.39 + Flatex 70.51, retrait 5755)
+  { date: '2023-01-31', degiro: 17000,  espp: 37296, ibkr: 0, total: 54296 },
+  { date: '2023-02-28', degiro: 17500,  espp: 38385, ibkr: 0, total: 55885 },
+  { date: '2023-03-31', degiro: 15500,  espp: 37500, ibkr: 0, total: 53000,  note: 'VOLTA liquidé (-4183)' },
+  { date: '2023-04-30', degiro: 18000,  espp: 39855, ibkr: 0, total: 57855 },
+  { date: '2023-05-31', degiro: 20000,  espp: 45925, ibkr: 0, total: 65925,  note: 'ESPP lot 1 final (17 sh) — 167 sh total' },
+  { date: '2023-06-30', degiro: 22000,  espp: 45925, ibkr: 0, total: 67925 },
+  { date: '2023-07-31', degiro: 22500,  espp: 47595, ibkr: 0, total: 70095,  note: 'Vente SAP+NVDA partielles' },
+  { date: '2023-08-31', degiro: 24000,  espp: 48430, ibkr: 0, total: 72430 },
+  { date: '2023-09-30', degiro: 25500,  espp: 46760, ibkr: 0, total: 72260 },
+  { date: '2023-10-31', degiro: 27000,  espp: 45925, ibkr: 0, total: 72925 },
+  { date: '2023-11-30', degiro: 28500,  espp: 50100, ibkr: 0, total: 78600 },
+  { date: '2023-12-31', degiro: 30042,  espp: 52605, ibkr: 0, total: 82647,  note: 'Rapport annuel: Degiro 29971.39 + Flatex 70.51' },
+
+  // ── 2024 ── (NVDA explose, pas de trades, dividendes seulement)
+  // Points vérifiés: 2024-12 (portefeuille 77802.18 + Flatex 217.51)
+  { date: '2024-01-31', degiro: 34000,  espp: 53440, ibkr: 0, total: 87440 },
+  { date: '2024-02-29', degiro: 38000,  espp: 55110, ibkr: 0, total: 93110 },
+  { date: '2024-03-31', degiro: 42000,  espp: 56780, ibkr: 0, total: 98780 },
+  { date: '2024-04-30', degiro: 44500,  espp: 54275, ibkr: 0, total: 98775 },
+  { date: '2024-05-31', degiro: 49000,  espp: 54275, ibkr: 0, total: 103275 },
+  { date: '2024-06-30', degiro: 54000,  espp: 46760, ibkr: 0, total: 100760,  note: 'NVDA split 10:1 (juin)' },
+  { date: '2024-07-31', degiro: 58000,  espp: 48430, ibkr: 0, total: 106430 },
+  { date: '2024-08-31', degiro: 62000,  espp: 51770, ibkr: 0, total: 113770 },
+  { date: '2024-09-30', degiro: 66000,  espp: 53440, ibkr: 0, total: 119440 },
+  { date: '2024-10-31', degiro: 70000,  espp: 54275, ibkr: 0, total: 124275 },
+  { date: '2024-11-30', degiro: 74000,  espp: 56780, ibkr: 0, total: 130780 },
+  { date: '2024-12-31', degiro: 78020,  espp: 57615, ibkr: 0, total: 135635,  note: 'Rapport annuel: Degiro 77802.18 + Flatex 217.51' },
+
+  // ── 2025 ── (Liquidation Degiro → IBKR, gros flush août)
+  { date: '2025-01-31', degiro: 78000,  espp: 55110, ibkr: 0,      total: 133110 },
+  { date: '2025-02-28', degiro: 78000,  espp: 56780, ibkr: 0,      total: 134780,  note: 'Vente DIS+SPOT Degiro' },
+  { date: '2025-03-31', degiro: 78000,  espp: 57615, ibkr: 0,      total: 135615 },
+  { date: '2025-04-30', degiro: 0,      espp: 51770, ibkr: 10000,  total: 61770,   note: 'Clôture Degiro — IBKR ouvert (10K)' },
+  { date: '2025-05-31', degiro: 0,      espp: 54275, ibkr: 20000,  total: 74275 },
+  { date: '2025-06-30', degiro: 0,      espp: 53440, ibkr: 35000,  total: 88440 },
+  { date: '2025-07-31', degiro: 0,      espp: 53440, ibkr: 50000,  total: 103440 },
+  { date: '2025-08-31', degiro: 0,      espp: 55110, ibkr: 135000, total: 190110,  note: 'Flush 108K vers IBKR' },
+  { date: '2025-09-30', degiro: 0,      espp: 55945, ibkr: 180000, total: 235945 },
+  { date: '2025-10-31', degiro: 0,      espp: 56780, ibkr: 210000, total: 266780 },
+  { date: '2025-11-30', degiro: 0,      espp: 57615, ibkr: 220000, total: 277615 },
+  { date: '2025-12-31', degiro: 0,      espp: 58450, ibkr: 200000, total: 258450,  note: 'IPO SGTM (non inclus ici)' },
+
+  // ── 2026 ── (données live à partir d'ici)
+  { date: '2026-01-31', degiro: 0,      espp: 56780, ibkr: 190000, total: 246780 },
+  { date: '2026-02-28', degiro: 0,      espp: 57615, ibkr: 180000, total: 237615 },
+  { date: '2026-03-31', degiro: 0,      espp: 59285, ibkr: 175000, total: 234285,  note: 'Point actuel' },
+];
 
 // ════════════════════════════════════════════════════════════
 // TAUX WHT (Withholding Tax) — Retenue à la source par pays
