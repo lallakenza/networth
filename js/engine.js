@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=237';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=238';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -765,17 +765,142 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     divYield: totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0,
   });
 
-  // 6. Strategic recommendation
-  // NOTE: twr here is a static fallback — overridden by window._chartKPIData?.twr in render.js
+  // Pre-compute JPY debt for use in recommendations + macro risks
+  const jpyDebtEUR = Math.abs(toEUR(ibkr.cashJPY, 'JPY', fx));
+
+  // 6. Strategic recommendation — 100% dynamique
+  // Toutes les recommandations sont générées à partir des données réelles du portefeuille
+  const recs = [];
+  const recTWR = meta.twr || 0; // overridden by window._chartKPIData?.twr in render.js
+
+  // --- Points positifs (dynamiques) ---
+  const positives = [];
+  if (combinedRealizedPL > 0) positives.push('P/L réalisé cumulé ' + (combinedRealizedPL >= 0 ? '+' : '') + '€' + Math.round(Math.abs(combinedRealizedPL)).toLocaleString('fr-FR') + ' — historique rentable');
+  if (winRate > 55) positives.push('Win rate de ' + winRate.toFixed(0) + '% — bon flair de sélection');
+  if (totalWins > 0 && totalLosses > 0) {
+    const pf = totalWins / totalLosses;
+    if (pf > 2) positives.push('Profit factor ' + pf.toFixed(1) + 'x — les gains dominent largement les pertes');
+  }
+  const divYield = totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0;
+  if (divYield > 1.5) positives.push('Rendement dividendes ' + divYield.toFixed(1) + '% — flux de revenus récurrent');
+  if (combinedUnrealizedPL > 0) positives.push('Plus-value latente +€' + Math.round(combinedUnrealizedPL).toLocaleString('fr-FR') + ' — portefeuille en territoire positif');
+
+  // --- Alertes performance (dynamiques) ---
+  const alerts = [];
+  // Identify biggest detractors dynamically
+  const bigLosers = ibkrPositions.filter(p => p.unrealizedPL < -500).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
+  const bigLoserNames = bigLosers.slice(0, 3).map(p => p.label + ' (' + Math.round(p.unrealizedPL).toLocaleString('fr-FR') + '€)');
+  if (bigLosers.length > 0) {
+    alerts.push('Principaux détracteurs : ' + bigLoserNames.join(', '));
+  }
+
+  // --- Axes d'amélioration (100% data-driven) ---
+
+  // a) Geo concentration
+  const usPct = totalGeo > 0 ? ((geoAllocation.us || 0) / totalGeo * 100) : 0;
+  const europePct = totalGeo > 0 ? (((geoAllocation.france || 0) + (geoAllocation.europe || 0)) / totalGeo * 100) : 0;
+  if (francePct > 40) {
+    recs.push({ priority: 1, icon: '🌍', title: 'Réduire le biais France (' + francePct.toFixed(0) + '%)',
+      detail: 'Allouer davantage en ETF World (IWDA/VWCE) pour capturer la croissance US/Asie. Cible : France < 30%.' });
+  } else if (europePct > 60) {
+    recs.push({ priority: 1, icon: '🌍', title: 'Diversifier hors Europe (' + europePct.toFixed(0) + '% Europe)',
+      detail: 'Exposition Europe élevée. Renforcer l\'exposition US/Asie via ETFs internationaux.' });
+  }
+
+  // b) Number of positions vs portfolio size
+  const nbPositions = ibkrPositions.length;
+  if (nbPositions > 12) {
+    const costTotal = Math.abs(costsAllTime.commissionsEUR) + costsAllTime.fttEUR;
+    recs.push({ priority: 2, icon: '🎯', title: 'Trop de lignes (' + nbPositions + ' positions)',
+      detail: nbPositions + ' positions génèrent des frais (€' + Math.round(costTotal).toLocaleString('fr-FR') + ' cumulés) et du stress. Un cœur ETF (80%) + satellites stock picking (20%) serait plus efficace.' });
+  }
+
+  // c) DCA opportunity
+  const avgTradesPerMonth = withKnownPL.length > 0 ? (withKnownPL.length / ((new Date().getFullYear() - 2020 + 1) * 12)) : 0;
+  if (avgTradesPerMonth < 1) {
+    recs.push({ priority: 3, icon: '📅', title: 'Stratégie DCA',
+      detail: 'Automatiser des versements mensuels sur 2-3 ETFs plutôt que du timing de marché. Régularité > timing.' });
+  }
+
+  // d) Dead positions
+  if (currentLosers.length > 2) {
+    const deadVal = currentLosers.reduce((s, p) => s + Math.abs(p.unrealizedPL), 0);
+    recs.push({ priority: 2, icon: '✂️', title: 'Couper les positions mortes (' + currentLosers.length + ' à -10%+)',
+      detail: '€' + Math.round(deadVal).toLocaleString('fr-FR') + ' de perte latente sur ces positions. Évaluer si la thèse d\'investissement tient toujours pour chacune.' });
+  }
+
+  // e) Gold exposure check
+  const hasGold = ibkrPositions.some(p => ['GLD', 'SGOL', 'IAU', 'GOLD', 'PHAU'].includes(p.ticker));
+  if (!hasGold) {
+    recs.push({ priority: 3, icon: '🥇', title: 'Zéro exposition Or',
+      detail: 'Aucune couverture or dans le portefeuille. Considérer GLD/SGOL (5-10%) comme hedge géopolitique et inflation.' });
+  }
+
+  // f) Tech US exposure check
+  const techUSTickers = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'QQQ', 'VGT'];
+  const hasTechUS = ibkrPositions.some(p => techUSTickers.includes(p.ticker));
+  const techUSPct = totalGeo > 0 ? (ibkrPositions.filter(p => techUSTickers.includes(p.ticker)).reduce((s, p) => s + p.valEUR, 0) / totalGeo * 100) : 0;
+  if (!hasTechUS || techUSPct < 5) {
+    recs.push({ priority: 3, icon: '💻', title: 'Peu/pas de tech US directe' + (techUSPct > 0 ? ' (' + techUSPct.toFixed(0) + '%)' : ''),
+      detail: 'Manque d\'exposition aux Magnificent 7 / GAFAM. Considérer un ETF Nasdaq (QQQ/EQQQ) ou S&P 500 Tech.' });
+  }
+
+  // g) Cash drag — too much cash vs portfolio
+  const cashPct = ibkrCashTotal > 0 && ibkrNAV > 0 ? (ibkrCashTotal / ibkrNAV * 100) : 0;
+  if (cashPct > 15) {
+    recs.push({ priority: 1, icon: '💰', title: 'Cash élevé (' + cashPct.toFixed(0) + '% du portefeuille)',
+      detail: '€' + Math.round(ibkrCashTotal).toLocaleString('fr-FR') + ' non investis. Ce cash ne travaille pas — déployer progressivement en DCA.' });
+  }
+
+  // h) Currency risk — JPY debt
+  if (jpyDebtEUR > 5000) {
+    recs.push({ priority: 2, icon: '💴', title: 'Risque carry trade JPY (€' + Math.round(jpyDebtEUR).toLocaleString('fr-FR') + ')',
+      detail: 'Si le yen se renforce (flight-to-safety), la dette en EUR augmente. Surveiller la BoJ.' });
+  }
+
+  // i) Crypto allocation check
+  const cryptoVal = ibkrPositions.filter(p => (p.sector === 'crypto' || p.ticker === 'IBIT' || p.ticker === 'ETHA')).reduce((s, p) => s + p.valEUR, 0);
+  const cryptoPctPortfolio = totalPositionsVal > 0 ? (cryptoVal / totalPositionsVal * 100) : 0;
+  if (cryptoPctPortfolio > 15) {
+    recs.push({ priority: 1, icon: '⚡', title: 'Crypto > 15% du portefeuille (' + cryptoPctPortfolio.toFixed(0) + '%)',
+      detail: 'Volatilité extrême. Considérer un rééquilibrage pour limiter le risque crypto à 5-10%.' });
+  }
+
+  // j) Sector concentration
+  const sectorEntries = Object.entries(sectorAllocation).sort((a, b) => b[1] - a[1]);
+  const totalSectorVal = sectorEntries.reduce((s, [, v]) => s + v, 0);
+  if (sectorEntries.length > 0 && totalSectorVal > 0) {
+    const topSector = sectorEntries[0];
+    const topSectorPct = topSector[1] / totalSectorVal * 100;
+    if (topSectorPct > 35) {
+      recs.push({ priority: 2, icon: '📊', title: 'Concentration sectorielle : ' + topSector[0] + ' (' + topSectorPct.toFixed(0) + '%)',
+        detail: 'Plus d\'un tiers du portefeuille est dans un seul secteur. Diversifier pour réduire le risque spécifique.' });
+    }
+  }
+
+  // Sort by priority
+  recs.sort((a, b) => a.priority - b.priority);
+
   insights.push({
     type: 'recommendation',
     title: 'Recommandations Stratégiques',
-    twr: meta.twr || 0, // overridden at render time
+    twr: recTWR,
     combinedRealizedPL: combinedRealizedPL,
+    combinedUnrealizedPL: combinedUnrealizedPL,
     totalDeposits: totalDeposits,
     francePct: francePct,
+    usPct: usPct,
+    europePct: europePct,
     currentLosersCount: currentLosers.length,
     winRate: winRate,
+    profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
+    nbPositions: nbPositions,
+    cashPct: cashPct,
+    cryptoPct: cryptoPctPortfolio,
+    divYield: divYield,
+    positives: positives,
+    alerts: alerts,
+    recommendations: recs,
   });
 
   // 7. Benchmark comparison (YTD 2026 — updated 21 mars 2026)
@@ -824,8 +949,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       detail: 'BTC -25% YTD, ETH -33% YTD. Perte latente crypto : \u20ac' + Math.abs(Math.round(cryptoLoss)).toLocaleString('fr-FR') + '. Th\u00e8se long-terme intacte mais volatilit\u00e9 extr\u00eame.',
     });
   }
-  // JPY carry trade risk
-  const jpyDebtEUR = Math.abs(toEUR(ibkr.cashJPY, 'JPY', fx));
+  // JPY carry trade risk (jpyDebtEUR pre-computed above)
   macroRisks.push({
     severity: jpyDebtEUR > 100000 ? 'high' : 'medium',
     label: 'Carry Trade JPY (\u00a5' + Math.round(Math.abs(ibkr.cashJPY)/1000000) + 'M)',
