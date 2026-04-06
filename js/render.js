@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=237';
-import { getGrandTotal } from './engine.js?v=237';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=238';
+import { getGrandTotal } from './engine.js?v=238';
 
 // ---- Generic table sort utility ----
 /**
@@ -2376,32 +2376,53 @@ function renderActionsView(state) {
       else if (ins.type === 'recommendation') {
         const recTWR = window._chartKPIData?.twr ?? ins.twr;
         html += '<div style="font-size:13px;line-height:1.6;">';
-        // Show TWR prominently at top
+        // TWR banner
         html += '<div style="margin-bottom:10px;padding:8px 12px;background:' + (recTWR >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;font-size:14px;">';
-        html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong></div>';
-        html += '<div style="margin-bottom:6px;"><strong>\u2705 Points positifs :</strong></div>';
-        html += '<div style="margin-left:8px;margin-bottom:8px;">';
-        html += '- P/L réalisé cumulé ' + (ins.combinedRealizedPL >= 0 ? '+' : '') + fmt(ins.combinedRealizedPL) + ' montre un historique rentable<br>';
-        if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '% (comparer au MSCI World +7.5%)<br>';
-        if (ins.winRate > 60) html += '- Win rate de ' + ins.winRate.toFixed(0) + '% montre un bon flair de sélection<br>';
+        html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong>';
+        html += ' &nbsp;|&nbsp; ' + ins.nbPositions + ' positions &nbsp;|&nbsp; Cash ' + ins.cashPct.toFixed(0) + '%';
         html += '</div>';
-        if (recTWR < 0) {
-          html += '<div style="margin-bottom:6px;"><strong style="color:#c53030;">⚠ Performance négative :</strong></div>';
+
+        // Points positifs (dynamiques)
+        if (ins.positives && ins.positives.length > 0) {
+          html += '<div style="margin-bottom:6px;"><strong>✅ Points positifs :</strong></div>';
           html += '<div style="margin-left:8px;margin-bottom:8px;">';
-          html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — le portefeuille sous-performe le cash<br>';
-          html += '- Principalement dû aux drawdowns crypto (BTC/ETH) et luxe (LVMH, Hermès)<br>';
-          html += '- Le stock picking a coûté vs un ETF World (+7.5% YTD en EUR)<br>';
+          ins.positives.forEach(function(p) { html += '- ' + p + '<br>'; });
+          if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '%<br>';
           html += '</div>';
         }
-        html += '<div style="margin-bottom:6px;"><strong>\u26A0 Axes d\'am\u00e9lioration :</strong></div>';
-        html += '<div style="margin-left:8px;">';
-        if (ins.francePct > 50) html += '- <strong>R\u00e9duire le biais France</strong> : allouer 50-70% en ETF World (IWDA) pour capturer la croissance US/Asie<br>';
-        html += '- <strong>Moins de stock picking</strong> : les 14 lignes g\u00e9n\u00e8rent du stress et des commissions. Un c\u0153ur ETF (80%) + satellites stock picking (20%) serait plus efficace<br>';
-        html += '- <strong>Strat\u00e9gie DCA</strong> : automatiser des versements mensuels sur 2-3 ETFs plut\u00f4t que du timing de march\u00e9<br>';
-        if (ins.currentLosersCount > 2) html += '- <strong>Couper les positions mortes</strong> : ' + ins.currentLosersCount + ' positions \u00e0 -10%+. \u00c9valuer si la th\u00e8se d\'investissement tient toujours<br>';
-        html += '- <strong>Ajouter de l\'or</strong> : 0% d\'exposition, or +61% YTD. Un hedge g\u00e9opolitique (5-10% via GLD/SGOL) am\u00e9liorerait le profil risque<br>';
-        html += '- <strong>Pas de tech US directe</strong> : manque d\'exposition aux GAFAM/Magnificent 7 (seulement via ESPP Accenture)<br>';
-        html += '</div></div>';
+
+        // Alertes (dynamiques)
+        if (recTWR < 0 || (ins.alerts && ins.alerts.length > 0)) {
+          html += '<div style="margin-bottom:6px;"><strong style="color:#c53030;">⚠ Alertes :</strong></div>';
+          html += '<div style="margin-left:8px;margin-bottom:8px;">';
+          if (recTWR < 0) html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — sous-performe le cash<br>';
+          if (ins.alerts) ins.alerts.forEach(function(a) { html += '- ' + a + '<br>'; });
+          html += '</div>';
+        }
+
+        // Recommandations (100% dynamiques, générées par engine.js)
+        if (ins.recommendations && ins.recommendations.length > 0) {
+          html += '<div style="margin-bottom:6px;"><strong>🎯 Axes d\'amélioration :</strong></div>';
+          html += '<div style="margin-left:8px;">';
+          ins.recommendations.forEach(function(rec) {
+            var pColor = rec.priority === 1 ? '#c53030' : rec.priority === 2 ? '#dd6b20' : '#718096';
+            html += '<div style="margin-bottom:6px;padding:4px 0;border-left:3px solid ' + pColor + ';padding-left:8px;">';
+            html += '<strong>' + rec.icon + ' ' + rec.title + '</strong><br>';
+            html += '<span style="font-size:12px;color:#4a5568;">' + rec.detail + '</span>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        // Résumé allocation en mini-badges
+        html += '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">';
+        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">🇫🇷 ' + ins.francePct.toFixed(0) + '%</span>';
+        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">🇺🇸 ' + ins.usPct.toFixed(0) + '%</span>';
+        if (ins.cryptoPct > 0) html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">₿ ' + ins.cryptoPct.toFixed(0) + '%</span>';
+        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">Win ' + ins.winRate.toFixed(0) + '%</span>';
+        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">PF ' + (ins.profitFactor === Infinity ? '∞' : ins.profitFactor.toFixed(1)) + 'x</span>';
+        html += '</div>';
+        html += '</div>';
       }
 
       else if (ins.type === 'benchmark') {
