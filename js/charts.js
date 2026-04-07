@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=253';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=253';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=253';
+import { fmt, fmtAxis } from './render.js?v=254';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=254';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=254';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2134,9 +2134,9 @@ function renderPortfolioChart(overrides = {}) {
     const dp = dateStr.split('-');
     const dateLabel = dp[2] + '/' + dp[1] + '/' + dp[0];
 
-    const nav = { degiro: navDegiro[idx] || 0, espp: navESPP[idx] || 0, ibkr: navIBKR[idx] || 0, total: navTotal[idx] || 0 };
-    const pl = { degiro: plDegiro[idx] || 0, espp: plESPP[idx] || 0, ibkr: plIBKR[idx] || 0, total: plTotal[idx] || 0 };
-    const dep = { degiro: cumDepsDegiro[idx] || 0, espp: cumDepsESPP[idx] || 0, ibkr: cumDepsIBKR[idx] || 0, total: cumDepsTotal[idx] || 0 };
+    const nav = { degiro: navDegiro[idx] || 0, espp: navESPP[idx] || 0, ibkr: navIBKR[idx] || 0, sgtm: navSGTM[idx] || 0, total: navTotal[idx] || 0 };
+    const pl = { degiro: plDegiro[idx] || 0, espp: plESPP[idx] || 0, ibkr: plIBKR[idx] || 0, sgtm: plSGTM[idx] || 0, total: plTotal[idx] || 0 };
+    const dep = { degiro: cumDepsDegiro[idx] || 0, espp: cumDepsESPP[idx] || 0, ibkr: cumDepsIBKR[idx] || 0, sgtm: cumDepsSGTM[idx] || 0, total: cumDepsTotal[idx] || 0 };
 
     const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
     const color = v => v >= 0 ? 'var(--green)' : 'var(--red)';
@@ -2163,6 +2163,7 @@ function renderPortfolioChart(overrides = {}) {
     if (nav.degiro > 0 || pl.degiro !== 0) html += row('Degiro', nav.degiro, dep.degiro, pl.degiro);
     if (nav.espp > 0 || pl.espp !== 0) html += row('ESPP', nav.espp, dep.espp, pl.espp);
     if (nav.ibkr > 0 || pl.ibkr !== 0) html += row('IBKR', nav.ibkr, dep.ibkr, pl.ibkr);
+    if (nav.sgtm > 0 || pl.sgtm !== 0) html += row('SGTM', nav.sgtm, dep.sgtm, pl.sgtm);
     html += row('<strong>Total</strong>', nav.total, dep.total, pl.total);
 
     html += '</table>';
