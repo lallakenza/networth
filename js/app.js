@@ -4,12 +4,12 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=249';
-import { compute } from './engine.js?v=249';
-import { render } from './render.js?v=249';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=249';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=249';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=249';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=250';
+import { compute } from './engine.js?v=250';
+import { render } from './render.js?v=250';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=250';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=250';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=250';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -992,6 +992,17 @@ async function loadStockPrices(forceRefresh) {
           scope: 'all',
         });
         update1YKPIFromChart();
+
+        // ── Build alltime simulation to populate _simulationAllTimeCache ──
+        // This cache is used by buildEquityHistoryChart to splice accurate
+        // daily simulation data into the 5Y/MAX equity history chart.
+        buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+          mode: 'alltime',
+          includeESPP: true,
+          includeSGTM: true,
+        });
+        console.log('[app] alltime simulation cache built for 5Y/MAX splice');
+
         // Rebuild visible YTD chart (1Y build overwrote the canvas and _ytdChartFullData)
         const chartResultYTD2 = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
           mode: 'ytd',

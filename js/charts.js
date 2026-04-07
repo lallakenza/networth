@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=249';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=249';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=249';
+import { fmt, fmtAxis } from './render.js?v=250';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=250';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=250';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2270,18 +2270,29 @@ function renderPortfolioChart(overrides = {}) {
  * @param {object} [options] - { startingNAV: number }
  */
 export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, options) {
-  const el = document.getElementById('portfolioYTDChart');
-  if (!el) return;
-  if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
-  // Hide external tooltip on chart destroy
-  const _tt = document.getElementById('chartTooltip');
-  if (_tt) _tt.style.opacity = '0';
-
-  // ── Determine simulation mode (YTD or 1Y) ──
   const mode = (options && options.mode) || 'ytd';
-  // 1Y: dynamically compute 1 year ago from today (covers full 365 days)
+
+  // 'alltime' mode: silent simulation for 5Y chart splice — no chart rendering needed
+  if (mode !== 'alltime') {
+    const el = document.getElementById('portfolioYTDChart');
+    if (!el) return;
+    if (charts.portfolioYTD) { charts.portfolioYTD.destroy(); delete charts.portfolioYTD; }
+    const _tt = document.getElementById('chartTooltip');
+    if (_tt) _tt.style.opacity = '0';
+  }
+
+  // ── Determine simulation start date based on mode ──
   let START_DATE;
-  if (mode === '1y') {
+  if (mode === 'alltime') {
+    // Start 1 day before the first IBKR deposit — ensures ALL deposits are included
+    // by the `d.date > START_DATE` filter used in P&L cumDeposit computation.
+    const firstDeposit = (portfolio.amine.ibkr.deposits || [])
+      .filter(d => d.amount > 0)
+      .sort((a, b) => a.date.localeCompare(b.date))[0];
+    const fd = new Date(firstDeposit?.date || '2025-04-08');
+    fd.setDate(fd.getDate() - 1);
+    START_DATE = fd.toISOString().slice(0, 10);
+  } else if (mode === '1y') {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
     START_DATE = d.toISOString().slice(0, 10);
@@ -2308,12 +2319,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   let IBKR_USD_START = -4356;
   let IBKR_EUR_START_OVERRIDE = -17534;  // Traced from IBKR CSV — do NOT derive as residual
 
-  // For 1Y mode: start from scratch (NAV = 0, all cash = 0)
-  if (mode === '1y') {
+  // For 1Y/alltime mode: start from scratch (NAV = 0, all cash = 0)
+  if (mode === '1y' || mode === 'alltime') {
     STARTING_NAV = 0;
     IBKR_JPY_START = 0;
     IBKR_USD_START = 0;
-    IBKR_EUR_START_OVERRIDE = null; // no override for 1Y
+    IBKR_EUR_START_OVERRIDE = null; // no override — build from deposits/trades
   }
 
   // ── Ticker mapping: trade tickers → Yahoo Finance tickers ──
@@ -2357,7 +2368,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       if (startHoldings[k].shares <= 0) delete startHoldings[k];
     });
   }
-  // For 1Y: startHoldings remains empty (no account before Apr 1, 2025)
+  // For 1Y/alltime: startHoldings remains empty (account opens during the simulation)
 
   console.log('[ytd-chart] Start holdings (' + mode.toUpperCase() + '):', Object.entries(startHoldings).map(
     ([t, d]) => t + ':' + d.shares
@@ -2778,9 +2789,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   if (chartLabels.length === 0) return;
 
-  // ── Weekly sampling for 1Y mode (reduce ~250 points → ~52) ──
+  // ── Weekly sampling for 1Y/alltime mode (reduce ~250 points → ~52) ──
   // Keeps simulation daily for accuracy, but thins out chart data
-  if (mode === '1y' && chartLabels.length > 60) {
+  if ((mode === '1y' || mode === 'alltime') && chartLabels.length > 60) {
     const weeklyLabels = [chartLabels[0]];
     const weeklyValues = [chartValues[0]];
     const weeklyTotals = [chartValuesTotal[0]];
@@ -3397,6 +3408,21 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
   );
 
+  // ── 'alltime' mode: cache and return early (no chart rendering) ──
+  if (mode === 'alltime') {
+    window._simulationAllTimeCache = {
+      labels: chartLabels.slice(),
+      ibkrValues: chartValues.slice(),
+      totalValues: chartValuesTotal.slice(),
+      esppValues: chartValuesESPP.slice(),
+      sgtmValues: chartValuesSGTM.slice(),
+      degiroValues: chartValuesDegiro.slice(),
+    };
+    console.log('[sim-alltime] Cached all-time simulation: ' + chartLabels.length + ' pts, ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
+    console.log('[sim-alltime] IBKR NAV first: €' + chartValues[0] + ', last: €' + chartValues[chartValues.length - 1]);
+    return { labels: chartLabels, ibkrValues: chartValues, totalValues: chartValuesTotal };
+  }
+
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
   window._ytdChartFullData = {
@@ -3453,22 +3479,6 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       depositsByDate[d.date] = (depositsByDate[d.date] || 0) + amountEUR;
     });
 
-  // ── Cache 1Y simulation NAV data for 5Y chart splice ──
-  // The 5Y chart (buildEquityHistoryChart) uses EQUITY_HISTORY which has
-  // inaccurate manual estimates for 2025. By caching the 1Y simulation's
-  // accurate daily NAV values, the 5Y chart can splice them in for 2025+.
-  if (mode === '1y') {
-    window._simulation1YCache = {
-      labels: chartLabels.slice(),
-      ibkrValues: chartValues.slice(),
-      totalValues: chartValuesTotal.slice(),
-      esppValues: chartValuesESPP.slice(),
-      sgtmValues: chartValuesSGTM.slice(),
-      degiroValues: chartValuesDegiro.slice(),
-    };
-    console.log('[ytd-chart] Cached 1Y simulation for 5Y splice: ' + chartLabels.length + ' points, range ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
-  }
-
   // Return NAV series so KPIs can be computed from chart data
   return {
     labels: chartLabels,          // ['2026-01-02', '2026-01-03', ...]
@@ -3520,82 +3530,55 @@ export function buildEquityHistoryChart(period, options) {
 
   // ══════════════════════════════════════════════════════════════
   // SPLICE: Replace inaccurate EQUITY_HISTORY estimates with
-  // simulation data for the period where IBKR trading data exists.
-  // EQUITY_HISTORY has manual monthly estimates that diverge from
-  // reality (especially 2025 IBKR values). The 1Y simulation
-  // replays actual trades/deposits daily → much more accurate.
+  // all-time simulation data (absolute NAV from account opening).
+  //
+  // Architecture:
+  //   - buildPortfolioYTDChart(mode='alltime') produces accurate NAV
+  //     from the first deposit date, replaying all trades/deposits.
+  //   - For dates BEFORE the simulation: keep EQUITY_HISTORY (Degiro era)
+  //   - For dates IN the simulation range: use simulation NAV values
+  //   - P&L is recomputed uniformly by this function's deposit tracking
   // ══════════════════════════════════════════════════════════════
-  const sim = window._simulation1YCache;
+  const sim = window._simulationAllTimeCache;
   let dataPoints;
 
   if (sim && sim.labels && sim.labels.length > 0) {
-    // ── Find the safe splice date ──
-    // The simulation starts with NAV=0 and needs time to "warm up":
-    //   - IBKR deposits must be processed (first deposit = April 8, 2025)
-    //   - Degiro must be fully closed (April 14, 2025 cash-out)
-    //   - Positions must be established (first trades ~late April)
-    // We splice from the first simulation point where IBKR NAV > 0 AND
-    // at least 30 days after simulation start (avoids transition artifacts).
     const simStart = sim.labels[0];
-    const minSpliceDate = new Date(simStart);
-    minSpliceDate.setDate(minSpliceDate.getDate() + 30);
-    const minSpliceDateStr = minSpliceDate.toISOString().slice(0, 10);
 
-    // Find first stable simulation index (after min date AND IBKR NAV > 0)
-    let spliceSimIdx = -1;
-    for (let i = 0; i < sim.labels.length; i++) {
-      if (sim.labels[i] >= minSpliceDateStr && sim.ibkrValues[i] > 0) {
-        spliceSimIdx = i;
-        break;
-      }
-    }
+    // Keep EQUITY_HISTORY entries strictly before the simulation start
+    const ehBefore = filtered.filter(h => h.date < simStart);
 
-    if (spliceSimIdx >= 0) {
-      const spliceDate = sim.labels[spliceSimIdx];
-
-      // Keep EQUITY_HISTORY entries strictly before the splice date
-      const ehBefore = filtered.filter(h => h.date < spliceDate);
-
-      dataPoints = [];
-      // Pre-splice: monthly EQUITY_HISTORY snapshots (Degiro era + transition)
-      for (const h of ehBefore) {
-        dataPoints.push({
-          date: h.date, degiro: h.degiro, espp: h.espp,
-          ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
-        });
-      }
-      // Post-splice: accurate weekly NAV from simulation trade replay
-      for (let i = spliceSimIdx; i < sim.labels.length; i++) {
-        dataPoints.push({
-          date: sim.labels[i],
-          degiro: sim.degiroValues[i],
-          espp: sim.esppValues[i],
-          ibkr: sim.ibkrValues[i],
-          sgtm: sim.sgtmValues[i] || 0,
-        });
-      }
-      // Recompute total from components for consistency
-      for (const dp of dataPoints) {
-        dp.total = (dp.degiro || 0) + (dp.espp || 0) + (dp.ibkr || 0) + (dp.sgtm || 0);
-      }
-
-      console.log('[equity-history] SPLICE: ' + ehBefore.length + ' EH points + ' +
-        (sim.labels.length - spliceSimIdx) + ' simulation points (from ' + spliceDate + ')');
-    } else {
-      // No stable simulation point found — fall back to EQUITY_HISTORY
-      dataPoints = filtered.map(h => ({
+    dataPoints = [];
+    for (const h of ehBefore) {
+      dataPoints.push({
         date: h.date, degiro: h.degiro, espp: h.espp,
-        ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
-      }));
-      console.log('[equity-history] No stable simulation point — using EQUITY_HISTORY only');
+        ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
+      });
     }
+    // Append all simulation points (absolute NAV — no warm-up needed)
+    for (let i = 0; i < sim.labels.length; i++) {
+      dataPoints.push({
+        date: sim.labels[i],
+        degiro: sim.degiroValues[i],
+        espp: sim.esppValues[i],
+        ibkr: sim.ibkrValues[i],
+        sgtm: sim.sgtmValues[i] || 0,
+      });
+    }
+    // Recompute total from components for consistency
+    for (const dp of dataPoints) {
+      dp.total = (dp.degiro || 0) + (dp.espp || 0) + (dp.ibkr || 0) + (dp.sgtm || 0);
+    }
+
+    console.log('[equity-history] SPLICE: ' + ehBefore.length + ' EH + ' +
+      sim.labels.length + ' alltime sim (from ' + simStart + ')');
   } else {
     // No simulation data cached — fall back to EQUITY_HISTORY only
     dataPoints = filtered.map(h => ({
       date: h.date, degiro: h.degiro, espp: h.espp,
       ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
     }));
-    console.log('[equity-history] No 1Y simulation cache — using EQUITY_HISTORY only (' + dataPoints.length + ' points)');
+    console.log('[equity-history] No alltime cache — using EQUITY_HISTORY only (' + dataPoints.length + ' points)');
   }
 
   if (dataPoints.length === 0) return;
