@@ -342,10 +342,10 @@ export const PORTFOLIO = {
       //      affiché dans le statement IBKR (section "Change in NAV")
       //   5. Ne PAS regrouper les virements — garder les dates et montants exacts du statement
       //
-      // RÉCONCILIATION au 19/03/2026:
-      //   EUR brut: +199,000 - 45,000 = +154,000
+      // RÉCONCILIATION au 31/03/2026:
+      //   EUR brut: +199,000 - 45,000 - 2,000 = +152,000
       //   AED brut: +195,000 (= €45,886.10 au taux IBKR)
-      //   TOTAL IBKR "Deposits & Withdrawals": €199,886.10 ✓
+      //   TOTAL IBKR "Deposits & Withdrawals": €197,886.10 ✓
       // ══════════════════════════════════════════════════════════════
       deposits: [
         // ── EUR deposits (statement IBKR lignes 318-331) ──
@@ -363,13 +363,14 @@ export const PORTFOLIO = {
         { date: '2025-11-04', amount: 5000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement novembre' },
         { date: '2025-12-19', amount: 15000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement décembre' },
         { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement janvier 2026' },
+        { date: '2026-03-31', amount: -2000,  currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (mars 2026)' },
         // ── AED deposits (statement IBKR lignes 312-315) ──
         { date: '2025-10-22', amount: 10000,  currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #1 (Mashreq→IBKR)' },
         { date: '2025-10-22', amount: 100000, currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #2 (Mashreq→IBKR)' },
         { date: '2025-11-03', amount: 70000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #3 (Mashreq→IBKR)' },
         { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
       ],
-      // Total dépôts IBKR = €199,886.10 (vérifié vs statement "Change in NAV")
+      // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
       // ══════════════════════════════════════════════════════════════
       // HISTORIQUE COMPLET DES TRADES IBKR
       // ══════════════════════════════════════════════════════════════
@@ -2186,9 +2187,10 @@ export const EQUITY_HISTORY = [
   { date: '2025-12-31', degiro: 0,      espp: 58450, ibkr: 200000, total: 258450,  note: 'IPO SGTM (non inclus ici)' },
 
   // ── 2026 ── (données live à partir d'ici)
-  { date: '2026-01-31', degiro: 0,      espp: 56780, ibkr: 190000, total: 246780 },
-  { date: '2026-02-28', degiro: 0,      espp: 57615, ibkr: 180000, total: 237615 },
-  { date: '2026-03-31', degiro: 0,      espp: 59285, ibkr: 175000, total: 234285,  note: 'Point actuel' },
+  // espp = (Amine 167 + Nezha 40) × ACN_USD / fx_EURUSD + cash (€2000 + $109.56)
+  { date: '2026-01-31', degiro: 0,      espp: 53855, ibkr: 190000, total: 243855,  note: 'ACN~$260, fx~1.04' },
+  { date: '2026-02-28', degiro: 0,      espp: 43700, ibkr: 180000, total: 223700,  note: 'ACN~$209, fx~1.04' },
+  { date: '2026-03-31', degiro: 0,      espp: 37757, ibkr: 187700, total: 225457,  note: 'ACN=$197.55, fx=1.1467, IBKR NAV=185700+2000 retrait' },
 ];
 
 // ════════════════════════════════════════════════════════════

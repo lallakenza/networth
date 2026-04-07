@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v243)
+> Dernière mise à jour : 7 avril 2026 (v245)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -1978,3 +1978,59 @@ externalTooltipHandler(context)
 | tooltip.enabled = false + external handler | ✅ |
 | #chartTooltip nettoyé au destroy | ✅ (2 emplacements) |
 | Version bumped v243→v244 dans 5 fichiers JS | ✅ |
+
+## §39 — Changelog v244 → v245 : Correction données IBKR + ESPP
+
+### 39.1 Contexte
+
+L'utilisateur a signalé que les valeurs P&L affichées étaient incorrectes :
+- **IBKR NAV** : affiché 175 000 € vs valeur réelle 187 700 € (185 700 + 2 000 retrait)
+- **ESPP (ACN)** : les valeurs EQUITY_HISTORY pour 2026 n'avaient pas été mises à jour
+  après la chute d'ACN de ~$330 à $197.55 (Q1 2026)
+
+### 39.2 Corrections v245
+
+**BUG-A11 — CRITICAL : IBKR NAV sous-estimé de 12 700 €**
+- Fichier : `data.js` (EQUITY_HISTORY)
+- Problème : L'entrée 2026-03-31 avait `ibkr: 175000` mais la valeur réelle est 187 700 €
+  (portefeuille actuel 185 700 € + retrait récent de 2 000 €)
+- Fix : `ibkr: 175000` → `ibkr: 187700`, total mis à jour
+- Impact : P&L IBKR affiché -24 928 € au lieu de ~-10 186 €
+
+**BUG-A12 — WARNING : Retrait 2 000 € manquant dans deposits IBKR**
+- Fichier : `data.js` (ibkr.deposits[])
+- Problème : L'utilisateur a retiré 2 000 € de son compte IBKR (mars 2026), mais
+  ce retrait n'était pas dans le tableau deposits
+- Fix : Ajout `{ date: '2026-03-31', amount: -2000, currency: 'EUR' }`
+- Impact : Total dépôts net passe de 199 886 € à 197 886 €
+
+**BUG-A13 — CRITICAL : ESPP surévalué de ~21 500 € dans EQUITY_HISTORY 2026**
+- Fichier : `data.js` (EQUITY_HISTORY, 3 entrées 2026)
+- Problème : Les valeurs `espp` pour 2026 n'avaient pas été mises à jour après la chute
+  d'ACN de ~$330 à $197.55. L'entrée mars affichait 59 285 € au lieu de ~37 757 €.
+  Formule correcte : (167 + 40 shares) × ACN_USD / fx_EURUSD + cash
+- Fix :
+  - Jan : 56 780 → 53 855 (ACN~$260, fx~1.04)
+  - Fév : 57 615 → 43 700 (ACN~$209, fx~1.04)
+  - Mar : 59 285 → 37 757 (ACN=$197.55, fx=1.1467)
+- Impact : Total portfolio 2026-03-31 passe de 234 285 € à 225 457 €
+
+### 39.3 Note sur les ESPP historiques (2025 et avant)
+
+Les valeurs `espp` dans EQUITY_HISTORY pour 2025 et avant sont des **approximations
+interpolées** (cf. commentaire "Points intermédiaires = interpolation linéaire").
+Elles peuvent être décalées de 5-20% par rapport à la réalité, notamment :
+- Jun-Dec 2025 : probablement sous-estimées (ACN était à $330-370)
+- Les entrées ne distinguent pas clairement Amine (167 sh) vs Nezha (40 sh)
+Pour une correction complète, il faudrait les cours ACN mensuels exacts + fx historiques.
+
+### 39.4 Vérifications v245
+
+| Check | Résultat |
+|-------|----------|
+| IBKR NAV 2026-03-31 = 187700 | ✅ |
+| Retrait -2000 dans deposits[] | ✅ |
+| Total dépôts net = 197 886 € | ✅ |
+| ESPP Jan/Fév/Mar 2026 recalculés | ✅ |
+| Total 2026-03-31 = 225 457 | ✅ |
+| Version bumped v244→v245 | ✅ |
