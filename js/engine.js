@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=240';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=241';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -269,6 +269,41 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     }
   });
   const combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
+
+  // ── Authoritative Degiro P/L per ticker from annual reports ──
+  // Degiro is a closed account — this mapping is fixed.
+  // Maps perInstrumentPL instrument names → trade tickers used in allTrades.
+  const DEGIRO_INSTRUMENT_TO_TICKER = {
+    'ACCOR': 'AC', 'ADP': 'ADP', 'AIRBUS': 'AIR', 'AIR FRANCE': 'AF',
+    'BNP PARIBAS': 'BNP', 'BOEING': 'BA', 'BOUYGUES': 'EN',
+    'CANADA GOOSE': 'GOOS', 'CANOPY GROWTH': 'CGC', 'CAP GEMINI': 'CAP',
+    'CARNIVAL': 'CCL', 'COFACE': 'COFA', 'CREDIT AGRICOLE': 'ACA',
+    'DELTA AIR LINES': 'DAL', 'EDENRED': 'EDEN', 'FEDEX': 'FDX',
+    'HERTZ': 'HTZ', 'INFOSYS': 'INFY', 'KLEPIERRE': 'LI',
+    'KORIAN': 'KORI', 'LVMH': 'MC', 'MS LIQUIDITY': 'MSLIQ',
+    'NIKE': 'NKE', 'NVIDIA': 'NVDA', 'PEUGEOT': 'UG',
+    'PHILIP MORRIS': 'PM', 'RENAULT': 'RNO', 'SANOFI': 'SAN',
+    'SAP': 'SAP', 'SODEXO': 'SW', 'SOPRA STERIA': 'SOP',
+    'TESLA': 'TSLA', 'UNDER ARMOUR': 'UA', 'UTD AIRLINES': 'UAL',
+    'VISA': 'V', 'ATOS': 'ATO', 'EUROPCAR': 'EUCAR',
+    'FITBIT': 'FIT', 'GAMESTOP': 'GME', 'IBM': 'IBM',
+    'JUVENTUS': 'JUVE', 'TORTOISE ACQUISITION (SNPR→VLTA)': 'VLTA',
+    'WALT DISNEY': 'DIS', 'VOLTA (ex-SNPR)': 'VLTA',
+    'SPOTIFY': 'SPOT', 'DISNEY': 'DIS',
+  };
+  // Build ticker → total P/L by summing perInstrumentPL across all years
+  const degiroPerTickerPL = {};
+  const perInstrumentPL = degiro.perInstrumentPL || {};
+  Object.values(perInstrumentPL).forEach(yearData => {
+    Object.entries(yearData).forEach(([name, pl]) => {
+      const ticker = DEGIRO_INSTRUMENT_TO_TICKER[name];
+      if (ticker) {
+        degiroPerTickerPL[ticker] = (degiroPerTickerPL[ticker] || 0) + pl;
+      } else {
+        console.warn('[engine] perInstrumentPL instrument not mapped:', name);
+      }
+    });
+  });
 
   // Cross-platform deposits — detailed history with FX comparison
   const depositHistory = [];
@@ -654,14 +689,23 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       }
     }
     // Compute P/L:
-    // - If ALL sells have report PL → use summed report PL (already EUR-converted above)
-    // - If PARTIAL or NO report + cost data available → use proceeds-cost (already in EUR)
-    // - Otherwise → keep pl=0 (no data)
-    const allSellsCoveredByReport = cp._hasReportPL && cp._reportPLCount === cp.sells;
-    if (allSellsCoveredByReport) {
-      // cp.pl already correct from summing EUR-converted realizedPL during aggregation
-    } else if (cp.costEUR > 0) {
-      cp.pl = cp.proceedsEUR - cp.costEUR; // both already in EUR
+    // For Degiro: use authoritative perInstrumentPL data (from verified annual reports)
+    // For IBKR: use summed report PL if all sells covered, else proceeds-cost fallback
+    if (cp.source === 'degiro' && degiroPerTickerPL[cp.ticker] !== undefined) {
+      // Authoritative P/L from Degiro annual reports — verified against PDFs
+      cp.pl = degiroPerTickerPL[cp.ticker];
+      cp._hasReportPL = true;
+      // Derive cost if missing: cost = proceeds - P/L
+      if (cp.costEUR === 0 && cp.proceedsEUR > 0) {
+        cp.costEUR = cp.proceedsEUR - cp.pl;
+      }
+    } else {
+      const allSellsCoveredByReport = cp._hasReportPL && cp._reportPLCount === cp.sells;
+      if (allSellsCoveredByReport) {
+        // cp.pl already correct from summing EUR-converted realizedPL during aggregation
+      } else if (cp.costEUR > 0) {
+        cp.pl = cp.proceedsEUR - cp.costEUR; // both already in EUR
+      }
     }
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
     const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
@@ -695,6 +739,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
   const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
+  // Sanity check: table P/L should match card combinedRealizedPL
+  const tableTotalPL = allClosed.reduce((s, p) => s + (p.pl || 0), 0);
+  const plDelta = Math.abs(tableTotalPL - combinedRealizedPL);
+  if (plDelta > 1) {
+    console.warn('[engine] P/L alignment delta:', plDelta.toFixed(2), '| table:', tableTotalPL.toFixed(2), '| card:', combinedRealizedPL.toFixed(2));
+  } else {
+    console.log('[engine] P/L aligned ✓ table:', tableTotalPL.toFixed(2), '≈ card:', combinedRealizedPL.toFixed(2));
+  }
   // For Track Record: only count trades with known P/L
   // Include if: (a) has report-based realizedPL, OR (b) has both buy cost and sell proceeds (can compute P/L)
   // Exclude: sell-only trades from 2020/2025 with no report data and no buy cost
@@ -1067,7 +1119,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     degiroClosedPositions: degiroOnlyClosed.map(t => {
       const cost = t.costEUR || 0;
       const proceeds = t.proceedsEUR || 0;
-      const pl = t.pl || (cost > 0 ? (proceeds - cost) : 0);
+      // Use t.pl directly (already set from degiroPerTickerPL in byTickerSource enrichment)
+      // Use !== undefined to preserve pl=0 (some positions like INFY 2020 have zero P/L)
+      const pl = (typeof t.pl === 'number') ? t.pl : (cost > 0 ? (proceeds - cost) : 0);
       // hasCost: true if we have buy cost data OR report-based P/L (can show meaningful numbers)
       const hasCost = cost > 0 || t._hasReportPL;
       return {
