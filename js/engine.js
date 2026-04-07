@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=245';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=246';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -220,18 +220,28 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalCostBasis = ibkrPositions.reduce((s, p) => s + p.costEUR, 0);
   const totalUnrealizedPL = totalPositionsVal - totalCostBasis;
 
-  // ESPP cost basis & P/L
-  const esppCostBasisUSD = espp.totalCostBasisUSD || 0;
-  const esppCostBasisEUR = toEUR(esppCostBasisUSD, 'USD', fx);
+  // ESPP cost basis & P/L — v246: use contribEUR (actual salary deductions in EUR)
+  // NOT totalCostBasisUSD/currentFX, which fluctuates with EUR/USD and diverges from chart deposits
+  // contribEUR = exact EUR deducted from salary each ESPP period (source: EsppPurchaseReport.pdf)
+  // For lots without contribEUR (e.g. FRAC dividends), use 0 (they were free shares)
+  // For Nezha: fallback to costBasis × shares / fxRate (same as depositHistory)
+  function esppLotCostEUR(lot, defaultFx) {
+    if (lot.contribEUR !== undefined) return lot.contribEUR; // Amine lots have exact EUR contributions
+    return (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
+  }
+  const esppCostBasisEUR = (espp.lots || []).reduce((s, l) => s + esppLotCostEUR(l, 1.15), 0);
   const esppCurrentVal = toEUR(espp.shares * m.acnPriceUSD, 'USD', fx);
-  const esppUnrealizedPL = esppCurrentVal - esppCostBasisEUR;
+  // v246: include ESPP cash in P&L (it's part of the ESPP account NAV in EQUITY_HISTORY)
+  const esppCashEUR = (espp.cashEUR || 0) + toEUR(espp.cashUSD || 0, 'USD', fx);
+  const esppUnrealizedPL = (esppCurrentVal + esppCashEUR) - esppCostBasisEUR;
 
-  // Nezha ESPP
+  // Nezha ESPP — uses same helper (no contribEUR → fallback costBasis/fxRate)
   const nezhaEsppData = portfolio.nezha.espp || {};
   const nezhaEsppShares = nezhaEsppData.shares || 0;
   const nezhaEsppCurrentVal = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
-  const nezhaEsppCostBasisEUR = toEUR(nezhaEsppData.totalCostBasisUSD || 0, 'USD', fx);
-  const nezhaEsppUnrealizedPL = nezhaEsppCurrentVal - nezhaEsppCostBasisEUR;
+  const nezhaCashEUR = toEUR(nezhaEsppData.cashUSD || 0, 'USD', fx);
+  const nezhaEsppCostBasisEUR = (nezhaEsppData.lots || []).reduce((s, l) => s + esppLotCostEUR(l, 1.10), 0);
+  const nezhaEsppUnrealizedPL = (nezhaEsppCurrentVal + nezhaCashEUR) - nezhaEsppCostBasisEUR;
 
   // Total all stocks (IBKR + ESPP Amine + ESPP Nezha + SGTM)
   const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
@@ -257,7 +267,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Degiro (closed account)
   const degiro = portfolio.amine.degiro || {};
-  const degiroRealizedPL = degiro.totalRealizedPL || 0;
+  // v246: use totalPLAllComponents (includes dividends, FX, interest) for consistency with chart
+  // Previously used totalRealizedPL (trading gains only), causing a ~€478 gap
+  const degiroRealizedPL = degiro.totalPLAllComponents || degiro.totalRealizedPL || 0;
 
   // Combined realized P/L (IBKR + Degiro)
   // Compute IBKR realized P/L dynamically from trade data (not hardcoded meta)
@@ -268,7 +280,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       ibkrRealizedPL += toEUR(t.realizedPL, t.currency, fx);
     }
   });
-  const combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
+  let combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
+  // v246: adjusted below (after costs computed) to include IBKR dividends and subtract costs
 
   // ── Authoritative Degiro P/L per ticker from annual reports ──
   // Degiro is a closed account — this mapping is fixed.
@@ -332,24 +345,19 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     addDeposit(d.date, d.label || 'Dépôt Degiro', 'Amine', 'Degiro', d.amount, d.currency, d.fxRateAtDate || 1);
   });
 
-  // 2. ESPP lots (Amine) — contribution from French salary in EUR
-  // The ESPP buys ACN in USD, but the employee contributes from EUR salary
-  // So the deposit is recorded in EUR (what was actually deducted from pay)
+  // 2. ESPP lots (Amine) — v246: use esppLotCostEUR (same as unrealized P&L)
+  // Ensures deposits in depositHistory = cost basis used for unrealized P&L card
   (espp.lots || []).forEach(lot => {
-    const costUSD = lot.shares * lot.costBasis;
-    const fxRate = lot.fxRateAtDate || 1.15; // EUR/USD at purchase date
-    const costEUR = costUSD / fxRate;
+    const costEUR = Math.round(esppLotCostEUR(lot, 1.15));
     addDeposit(lot.date, 'ESPP ' + lot.shares + ' ACN @ $' + lot.costBasis.toFixed(0), 'Amine', 'ESPP (UBS)',
-      Math.round(costEUR), 'EUR', 1);
+      costEUR, 'EUR', 1);
   });
 
-  // 2b. ESPP Nezha — same logic (French salary → EUR)
+  // 2b. ESPP Nezha — same helper, same consistency
   (nezhaEsppData.lots || []).forEach(lot => {
-    const costUSD = lot.shares * lot.costBasis;
-    const fxRate = lot.fxRateAtDate || 1.10; // EUR/USD at purchase date (2023-2025)
-    const costEUR = costUSD / fxRate;
+    const costEUR = Math.round(esppLotCostEUR(lot, 1.10));
     addDeposit(lot.date, 'ESPP ' + lot.shares + ' ACN @ $' + lot.costBasis.toFixed(0), 'Nezha', 'ESPP (UBS)',
-      Math.round(costEUR), 'EUR', 1);
+      costEUR, 'EUR', 1);
   });
 
   // 3. SGTM IPO — Amine + Nezha
@@ -371,7 +379,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const degiroDepositsGross = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR > 0).reduce((s, d) => s + d.amountEUR, 0);
   const degiroWithdrawals = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR < 0).reduce((s, d) => s + d.amountEUR, 0);
   const degiroDepositsTotal = degiroDepositsGross; // Gross for KPI/ROI (v243 fix)
-  const esppDeposits = esppCostBasisEUR + nezhaEsppCostBasisEUR;
+  // v246: esppDeposits from depositHistory (same source as chart), not from USD cost basis / currentFX
+  const esppDeposits = depositHistory.filter(d => d.platform === 'ESPP (UBS)').reduce((s, d) => s + d.amountEUR, 0);
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
   const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
@@ -635,6 +644,17 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const costsYtd      = computeAllCosts(ytdStartStr);
   const costsOneYear  = computeAllCosts(oneYearStr);
   const costsAllTime  = computeAllCosts('2000-01-01');
+
+  // v246: Adjust combinedRealizedPL to include IBKR dividends and costs
+  // so that (unrealized + realized) ≈ chart P&L (NAV - deposits)
+  // Note: Degiro dividends/costs are already in degiroRealizedPL (via totalPLAllComponents)
+  // Only add IBKR+ACN dividends and subtract IBKR costs (commissions, FTT, interest)
+  const ibkrDividendsAllTime = costsAllTime.ibkrDivItems.reduce((s, d) => s + d.amount, 0);
+  const acnDividendsAllTime  = costsAllTime.acnDivItems.reduce((s, d) => s + d.netEUR, 0);
+  combinedRealizedPL += ibkrDividendsAllTime + acnDividendsAllTime
+                      + costsAllTime.commissionsEUR   // negative = cost
+                      + costsAllTime.fttEUR            // negative = cost
+                      + costsAllTime.interestEUR;      // negative = cost
 
   // ── Degiro 1Y (only period with Degiro activity) ──
   const degiro1Y = degiroPeriodPL(oneYearStr);
