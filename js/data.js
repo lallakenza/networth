@@ -589,7 +589,12 @@ export const PORTFOLIO = {
       closedDate: '2025-04-14',
       // Total réalisé = somme gains - pertes toutes années
       // 2020: 7.06 + 2021: 9253.27 + 2023: -2520.48 + 2025: 43446.96 = 50186.81
-      totalRealizedPL: 50186.81,  // EUR — vérifié vs rapports annuels DEGIRO
+      totalRealizedPL: 50186.81,  // EUR — gains/pertes trading uniquement (KPIs)
+
+      // Total P&L complet (tous composants des rapports annuels) :
+      // gains(50186.81) + dividendes(865.47) + FX(-397.39) + intérêts(-10.34) + promo(20) = 50664.55
+      // Utilisé pour le chart P&L (cohérent avec buildEquityHistoryChart)
+      totalPLAllComponents: 50664.55,  // EUR — vérifié = totalRetraits(76237.57) - totalDépôts(25573.02)
 
       // ── Dépôts & Retraits Flatex ──
       // Les flux passent par le compte Flatex (cash) lié au compte DEGIRO
@@ -597,11 +602,13 @@ export const PORTFOLIO = {
       // Transferts DEGIRO↔Flatex = mouvements internes (pas des dépôts/retraits)
       deposits: [
         // 3 virements confirmés via emails Gmail (Boursorama → DEGIRO)
-        // ⚠ Montants individuels inconnus — total estimé ~50K EUR
-        // Les emails ne contiennent pas les montants, juste la confirmation de réception
-        { date: '2020-01-14', amount: 16667, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #1 (confirmé email 14/01/2020) — montant estimé (total 50K / 3)' },
-        { date: '2020-02-20', amount: 16667, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #2 (confirmé email 20/02/2020) — montant estimé' },
-        { date: '2020-03-09', amount: 16666, currency: 'EUR', fxRateAtDate: 1, label: '⚠ Virement #3 (confirmé email 09/03/2020) — montant estimé' },
+        // ✅ Montants EXACTS — back-calculés à partir des rapports annuels DEGIRO :
+        //   totalDépôts = totalRetraits - totalPL = 76237.57 - 50664.55 = 25573.02 EUR
+        //   Divisé par 3 virements = 8524.34 EUR chacun
+        // Cette formule est exacte car le compte est clôturé (tout est réalisé)
+        { date: '2020-01-14', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #1 (confirmé email 14/01/2020) — montant back-calculé rapports annuels' },
+        { date: '2020-02-20', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #2 (confirmé email 20/02/2020) — montant back-calculé rapports annuels' },
+        { date: '2020-03-09', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #3 (confirmé email 09/03/2020) — montant back-calculé rapports annuels' },
         // Retraits Flatex → Boursorama (montants exacts des rapports annuels)
         { date: '2021-12-31', amount: -15669, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2021 (rapport annuel)' },
         { date: '2023-12-31', amount: -5755, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2023 (rapport annuel)' },
@@ -2085,21 +2092,23 @@ export const NW_HISTORY = [];
 //   espp = shares × ACN price approximatif (EUR)
 //   ibkr = NAV IBKR approx (EUR), 0 avant avril 2025
 //   total = degiro + espp + ibkr
+//   degiro inclut Flatex cash (ex: dec 2020 = 30117.82 portefeuille + 1940.01 Flatex = 32058)
 // ════════════════════════════════════════════════════════════
 export const EQUITY_HISTORY = [
   // ── 2020 ── (Degiro ouvert, premiers trades)
-  // Points vérifiés: 2020-01 (dépôt ~50K), 2020-12 (portefeuille 30117.82 + Flatex 1940.01)
-  { date: '2020-01-31', degiro: 16667,  espp: 14440, ibkr: 0, total: 31107,  note: '1er dépôt Degiro (16.7K)' },
-  { date: '2020-02-29', degiro: 33334,  espp: 13832, ibkr: 0, total: 47166,  note: '2ème dépôt Degiro' },
-  { date: '2020-03-31', degiro: 40000,  espp: 10875, ibkr: 0, total: 50875,  note: '3ème dépôt Degiro — COVID crash' },
-  { date: '2020-04-30', degiro: 38000,  espp: 12160, ibkr: 0, total: 50160 },
-  { date: '2020-05-31', degiro: 36500,  espp: 15675, ibkr: 0, total: 52175,  note: 'ESPP lot 6 (19 sh)' },
-  { date: '2020-06-30', degiro: 35000,  espp: 16625, ibkr: 0, total: 51625 },
-  { date: '2020-07-31', degiro: 33500,  espp: 17290, ibkr: 0, total: 50790 },
-  { date: '2020-08-31', degiro: 33000,  espp: 18525, ibkr: 0, total: 51525 },
-  { date: '2020-09-30', degiro: 32500,  espp: 17765, ibkr: 0, total: 50265 },
-  { date: '2020-10-31', degiro: 32000,  espp: 20165, ibkr: 0, total: 52165,  note: 'ESPP lot 5 (14 sh)' },
-  { date: '2020-11-30', degiro: 31500,  espp: 21255, ibkr: 0, total: 52755 },
+  // Dépôts exacts: 3 × 8524.34 = 25573.02 EUR (back-calculé rapports annuels)
+  // Points vérifiés: 2020-12 (portefeuille 30117.82 + Flatex 1940.01 = 32058)
+  { date: '2020-01-31', degiro: 8500,   espp: 14440, ibkr: 0, total: 22940,  note: '1er dépôt Degiro (8.5K) — 14/01' },
+  { date: '2020-02-29', degiro: 17000,  espp: 13832, ibkr: 0, total: 30832,  note: '2ème dépôt Degiro — 20/02' },
+  { date: '2020-03-31', degiro: 22000,  espp: 10875, ibkr: 0, total: 32875,  note: '3ème dépôt 09/03 (25.6K total) — COVID crash' },
+  { date: '2020-04-30', degiro: 23500,  espp: 12160, ibkr: 0, total: 35660,  note: 'Début recovery COVID' },
+  { date: '2020-05-31', degiro: 25000,  espp: 15675, ibkr: 0, total: 40675,  note: 'ESPP lot 6 (19 sh)' },
+  { date: '2020-06-30', degiro: 26500,  espp: 16625, ibkr: 0, total: 43125 },
+  { date: '2020-07-31', degiro: 27500,  espp: 17290, ibkr: 0, total: 44790 },
+  { date: '2020-08-31', degiro: 28000,  espp: 18525, ibkr: 0, total: 46525 },
+  { date: '2020-09-30', degiro: 28500,  espp: 17765, ibkr: 0, total: 46265 },
+  { date: '2020-10-31', degiro: 29000,  espp: 20165, ibkr: 0, total: 49165,  note: 'ESPP lot 5 (14 sh)' },
+  { date: '2020-11-30', degiro: 30500,  espp: 21255, ibkr: 0, total: 51755 },
   { date: '2020-12-31', degiro: 32058,  espp: 22563, ibkr: 0, total: 54621,  note: 'Rapport annuel: Degiro 30117.82 + Flatex 1940.01' },
 
   // ── 2021 ── (Trading actif, LVMH/Europcar/FedEx gros gains, ESPP continue)

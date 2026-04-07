@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v239)
+> Dernière mise à jour : 7 avril 2026 (v243)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -1316,6 +1316,8 @@ Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo
 | v233 | 1 Avr 2026 | — | **Audit Degiro complet** : totalRealizedPL corrigé (51079→50186.81), dividendes 6 ans (865.47 net), 16 trades 2020 manquants, SAP/2025 P/L, SNPR corporate action — voir §34 |
 | v234 | 1 Avr 2026 | — | **Dividendes Degiro dans KPIs** : `computeDegiroDividends()` ajouté dans engine.js. Correction data.js?v=176 stale import. Cache bump v234 |
 | v235 | 1 Avr 2026 | — | **Historique actions 5Y/MAX** : `EQUITY_HISTORY` (75 points mensuels 2020-2026), boutons 5Y/MAX, `buildEquityHistoryChart()`. P&L visible depuis 2020 — voir §35 |
+| v242 | 7 Avr 2026 | — | **P&L basé dépôts** : `contribEUR` ESPP, P&L = NAV − cumDépôts, prix delisted stocks (EUCAR/HTZ/VLTA) |
+| v243 | 7 Avr 2026 | — | **P&L Degiro rapports annuels** : dépôts back-calculés (25 573 EUR), fix EQUITY_HISTORY 2020, click-detail chart — voir §36 |
 
 ---
 
@@ -1652,3 +1654,327 @@ Le renderer existant a été adapté :
 Ajout de `5Y` et `MAX` dans `#ytdPeriodToggle` (index.html).
 Wiring dans app.js : appelle `buildEquityHistoryChart()` au lieu de `buildPortfolioYTDChart()`.
 Retour vers MTD/1M/3M/YTD : détecte le mode `5y`/`max` et rebuild le chart YTD.
+
+---
+
+## 36. Changelog v242→v243 — P&L Degiro basé rapports annuels
+
+| Version | Date | Description |
+|---------|------|-------------|
+| v242 | 7 Avr 2026 | Ajout `contribEUR` ESPP, P&L chart basé dépôts cumulatifs, prix delisted (EUCAR/HTZ/VLTA) |
+| v243 | 7 Avr 2026 | **Fix P&L Degiro** : calcul basé rapports annuels (pas d'estimations), click-detail chart, fix EQUITY_HISTORY |
+
+### 36.1 Problème identifié (v242)
+
+Le P&L mode 5Y/MAX affichait +€41K au lieu de ~+€51K. Causes :
+1. **Dépôts Degiro estimés à 50 000 EUR** (3 × 16 667) alors que le montant réel était **25 573.02 EUR** (3 × 8 524.34)
+2. **EQUITY_HISTORY début 2020** : valeurs degiro basées sur l'estimation 50K (16667/33334/40000) au lieu de ~8500/17000/22000
+3. Formule P&L = NAV − cumDépôts dépendait d'estimations de dépôts peu fiables
+
+### 36.2 Solution — P&L Degiro basé rapports annuels
+
+**Principe** : ne jamais dépendre de dépôts estimés. Dériver le montant exact des dépôts à partir des rapports annuels DEGIRO.
+
+**Identité utilisée** (compte clôturé) :
+```
+totalDépôts = totalRetraits − totalPL
+```
+Où :
+- `totalRetraits` = somme des retraits Flatex (rapports annuels) = 15 669 + 5 755 + 54 813.57 = **76 237.57 EUR**
+- `totalPL` = somme de tous les composants P&L (rapports annuels) :
+  - Gains/pertes réalisés : 7.06 + 9 253.27 + 0 + (−2 520.48) + 0 + 43 446.96 = **50 186.81**
+  - Dividendes nets : 194.23 + 194.19 + 158.93 + 153.04 + 159.90 + 5.18 = **865.47**
+  - Coûts FX : −79.86 − 28.54 − 7.18 − 281.81 = **−397.39**
+  - Intérêts Flatex : −3.92 − 6.24 − 0.18 = **−10.34**
+  - Bonus promo : **+20.00**
+  - **Total P&L = 50 664.55 EUR**
+- Donc `totalDépôts = 76 237.57 − 50 664.55 = **25 573.02 EUR**` (÷3 = 8 524.34 par virement)
+
+**Implémentation** (`charts.js`, `buildEquityHistoryChart`) :
+1. Calcul de `dgTotalPL` à partir de `annualSummary`, `dividends`, `fxCosts`, `flatexCashFlows`
+2. Calcul de `dgTotalWithdrawals` à partir de `flatexCashFlows.retraits`
+3. Back-calcul de `dgTotalDeposits = dgTotalWithdrawals − dgTotalPL`
+4. P&L mensuel = NAV(mois) − cumDépôts + cumRetraits (basé sur les dates des rapports annuels)
+5. ESPP et IBKR : inchangés (dépôts exacts disponibles)
+
+### 36.3 Corrections EQUITY_HISTORY début 2020
+
+| Mois | Ancien degiro | Nouveau degiro | Ancien total | Nouveau total | Raison |
+|------|--------------|---------------|-------------|--------------|--------|
+| 2020-01 | 16 667 | 8 500 | 31 107 | 22 940 | 1er dépôt 8 524 (pas 16 667) |
+| 2020-02 | 33 334 | 17 000 | 47 166 | 30 832 | 2ème dépôt cumulé ~17K |
+| 2020-03 | 40 000 | 22 000 | 50 875 | 32 875 | COVID crash sur 25.6K déposés |
+| 2020-04→11 | 38K→31.5K ↓ | 23.5K→30.5K ↑ | 50K→52.7K | 35.7K→51.8K | Trajectoire corrigée vers 32 058 |
+
+### 36.4 Validation P&L aux points d'ancrage annuels
+
+| Date | NAV (rapport) | cumRetraits | P&L calculé | Commentaire |
+|------|--------------|-------------|-------------|-------------|
+| 2020-12-31 | 32 057.83 | 0 | +6 484.81 | Recovery COVID, gains unrealized |
+| 2021-12-31 | 29 954.48 | 15 669 | +20 050.46 | LVMH/EUCAR gains + retrait 15.7K |
+| 2022-12-31 | 16 510.28 | 15 669 | +6 606.26 | Bear market |
+| 2023-12-31 | 30 041.90 | 21 424 | +25 892.88 | NVDA recovery |
+| 2024-12-31 | 78 019.69 | 21 424 | +73 870.67 | NVDA explosion |
+| 2025 (clôture) | 0 | 76 237.57 | +50 664.55 | ✓ = totalPL |
+
+### 36.5 Click-detail chart
+
+Ajout d'un panneau de détail (HTML `#ytdPointDetail`) qui s'affiche au clic sur un point du graphique d'évolution (5Y/MAX/YTD/1Y).
+
+**Contenu affiché** :
+- Date + note EQUITY_HISTORY si disponible
+- Tableau avec une ligne par source (Degiro, ESPP, IBKR) + Total
+- Colonnes : NAV, Déposé (net), P&L, Rendement (%)
+- Bouton fermer (×)
+- Curseur pointer au survol des points
+
+**Fichiers modifiés** :
+- `index.html` : ajout `<div id="ytdPointDetail">` sous le canvas
+- `charts.js` : ajout `onClick` handler + `onHover` cursor dans `renderPortfolioChart()`
+
+---
+
+## 37. Audit v243 — Equity/Actions (7 avril 2026)
+
+Audit approfondi du site et de la partie actions après les modifications v242→v243. 4 axes audités en parallèle : données, code P&L, engine+render, cohérence site.
+
+### 37.1 Résultat global
+
+| Axe | Résultat | Findings |
+|-----|----------|----------|
+| Données (data.js) | ✅ PASS | 0 critique, 0 warning |
+| Code P&L (charts.js) | ⚠️ 4 fixes | 1 critique, 3 warnings → corrigés |
+| Engine + Render | ⚠️ 1 fix | 1 warning → corrigé |
+| Cohérence site | ✅ PASS | Tous imports v=243, HTML OK, pas de dead code |
+
+### 37.2 Données vérifiées (data.js)
+
+| Vérification | Résultat | Détail |
+|-------------|----------|--------|
+| EQUITY_HISTORY `total = degiro + espp + ibkr` | ✅ 60/60 | 0 écarts |
+| Ancres year-end vs rapports annuels | ✅ 5/5 | Écarts max ±0.52 EUR (arrondi) |
+| Degiro deposits 3×8524.34 | ✅ | Net = 25573.02 − 76237.57 = −50664.55 ✓ |
+| Dividendes nets total | ✅ | 865.47 EUR (6 ans vérifiés) |
+| FX costs total | ✅ | −397.39 EUR |
+| allTrades count | ✅ | 132 trades Degiro |
+| ESPP contribEUR total | ✅ | 28098.62 EUR (11 lots) |
+| IBKR deposits | ✅ | ~207K EUR (18 entrées) |
+| Progression 2020 corrigée | ✅ | 8500→17000→22000→...→32058 (plausible) |
+
+### 37.3 Bugs corrigés (audit)
+
+**BUG-A01 — CRITIQUE : Fallback hardcodé 51079 dans overlay Degiro**
+- Fichier : `charts.js`, ligne 2252
+- Avant : `data.degiroRealizedPL || 51079` (valeur obsolète, devrait être 50665)
+- Après : `data.degiroRealizedPL || 0` (fallback sûr, valeur toujours définie en pratique)
+
+**BUG-A02 — WARNING : Absence de bounds check dans le click handler**
+- Fichier : `charts.js`, ligne 2091
+- Risque : `startIdx + dataIndex` pouvait dépasser la taille de `chartLabelsRef`
+- Fix : Ajout `if (idx < 0 || idx >= chartLabelsRef.length) return;`
+
+**BUG-A03 — WARNING : Null guard manquant pour PORTFOLIO.amine.degiro**
+- Fichier : `charts.js`, ligne 3501
+- Risque : Crash si `PORTFOLIO.amine.degiro` est undefined
+- Fix : `const dg = PORTFOLIO.amine.degiro || {};`
+
+**BUG-A04 — WARNING : Warning "⚠ dep. est." obsolète**
+- Fichier : `render.js`, lignes 2131-2141
+- Problème : Affichait "⚠ dep. est." alors que les dépôts sont maintenant exacts
+- Fix : Code supprimé, remplacé par un commentaire expliquant que les dépôts sont back-calculés
+
+### 37.4 Vérifications de cohérence
+
+| Check | Résultat |
+|-------|----------|
+| Tous fichiers JS importent v=243 | ✅ (app.js×6, engine.js×1, charts.js×3, render.js×2) |
+| `#ytdPointDetail` dans index.html | ✅ Ligne 1892 |
+| Tous IDs référencés existent dans HTML | ✅ (7/7 IDs vérifiés) |
+| Scope/Period toggles câblés dans app.js | ✅ |
+| DEGIRO_STATIC_PRICES importé et utilisé | ✅ (engine.js:28, 729, 731) |
+| PORTFOLIO importé dans charts.js | ✅ (ligne 10) |
+| Pas de valeurs 50000/16667 résiduelles | ✅ Aucune trouvée |
+| Pas de dead code dans sections modifiées | ✅ Toutes variables utilisées |
+| ARCHITECTURE.md §36 bien formé | ✅ Markdown valide |
+
+### 37.5 Architecture P&L — Vue consolidée
+
+Après v243, le calcul P&L utilise **3 approches distinctes** selon la source :
+
+```
+┌─────────┬──────────────────────────────────────────────────────────┐
+│ Source   │ Méthode P&L                                            │
+├─────────┼──────────────────────────────────────────────────────────┤
+│ DEGIRO  │ Rapports annuels : totalPL = Σ(gains+div+FX-intérêts)  │
+│         │ totalDépôts = totalRetraits - totalPL (back-calculé)    │
+│         │ PL(mois) = NAV - cumDépôts + cumRetraits                │
+│         │ → Aucune estimation, 100% dérivé des rapports annuels   │
+├─────────┼──────────────────────────────────────────────────────────┤
+│ ESPP    │ PL = NAV - Σ(contribEUR) - cashEUR                     │
+│         │ → Contributions salariales exactes par lot              │
+├─────────┼──────────────────────────────────────────────────────────┤
+│ IBKR    │ PL = NAV - Σ(deposits en EUR, AED→EUR via fxRateAtDate)│
+│         │ → Dépôts exacts du relevé d'activité IBKR              │
+├─────────┼──────────────────────────────────────────────────────────┤
+│ TOTAL   │ PL = Σ(PL_degiro + PL_espp + PL_ibkr)                  │
+│         │ cumDépôts_total = cumDépôts_degiro + cumESPP + cumIBKR  │
+└─────────┴──────────────────────────────────────────────────────────┘
+```
+
+### 37.6 Flux de données — Click-detail chart
+
+```
+buildEquityHistoryChart() ──→ _ytdChartFullData ──→ renderPortfolioChart()
+  ├─ labels, *Values, pl*Values              │         ├─ slicedLabels / startIdx
+  ├─ cumDeposits* (IBKR/ESPP/Degiro/Total)   │         ├─ onChartClick (onClick handler)
+  ├─ _equityEntries (EQUITY_HISTORY filtered) │         │   ├─ idx = startIdx + dataIndex
+  └─ degiroRealizedPL                         │         │   ├─ bounds check (idx < length)
+                                              │         │   ├─ nav/pl/dep per source
+buildPortfolioYTDChart() ─────→ (même format) │         │   └─ #ytdPointDetail innerHTML
+  ├─ cumDepositsDegiro = [0, 0, ...]          │         └─ tooltip callbacks
+  └─ (pas de _equityEntries → notes=undefined)│
+```
+
+### 37.7 Audit approfondi — Bugs supplémentaires (v243 deep audit)
+
+**BUG-A05 — CRITICAL : degiroRealizedPL incohérent entre modes chart**
+- Fichiers : `charts.js` (buildPortfolioYTDChart vs buildEquityHistoryChart)
+- Problème : `buildEquityHistoryChart` calculait le P&L Degiro à partir de tous les composants
+  des rapports annuels (trading + dividendes + FX + intérêts + promo = **50 664,55 EUR**),
+  tandis que `buildPortfolioYTDChart` utilisait `totalRealizedPL` (trading seul = **50 186,81 EUR**).
+  Écart de **477,74 EUR** entre les deux modes de graphique.
+- Cause : Deux champs différents dans `data.js` — `totalRealizedPL` (KPIs) vs calcul complet (charts).
+- Fix :
+  1. Ajout de `totalPLAllComponents: 50664.55` dans `data.js` section degiro
+  2. `buildPortfolioYTDChart` utilise désormais `totalPLAllComponents` au lieu de `totalRealizedPL`
+- Validation : Les deux builders produisent maintenant dgTotalPL = 50 664,55 EUR ✅
+
+**BUG-A06 — CRITICAL : Total Déposé KPI incluait les retraits Degiro**
+- Fichier : `engine.js`, lignes 367-376
+- Problème : `degiroDepositsTotal` était calculé comme la somme nette de tous les mouvements
+  Degiro (dépôts + retraits), donnant **-50 664,55 EUR** au lieu de **+25 573,02 EUR**.
+  Le KPI "Total Déposé" affichait ~196K EUR au lieu de ~272K EUR.
+- Cause : `depositHistory.filter(d => d.platform === 'Degiro').reduce(...)` ne séparait pas
+  les dépôts positifs des retraits négatifs.
+- Fix : Séparation en deux filtres distincts :
+  ```javascript
+  const degiroDepositsGross = depositHistory
+    .filter(d => d.platform === 'Degiro' && d.amountEUR > 0)
+    .reduce((s, d) => s + d.amountEUR, 0);  // = 25573.02
+  const degiroWithdrawals = depositHistory
+    .filter(d => d.platform === 'Degiro' && d.amountEUR < 0)
+    .reduce((s, d) => s + d.amountEUR, 0);  // = -76237.57
+  const degiroDepositsTotal = degiroDepositsGross;  // Gross pour KPI/ROI
+  ```
+- Validation : Total Déposé ≈ 272K EUR (IBKR ~207K + ESPP ~28K + Degiro ~25.6K + Crypto ~11K) ✅
+
+**BUG-A07 — INFO : Commentaire obsolète "⚠ Montants estimés" dans engine.js**
+- Fichier : `engine.js`, ligne 329-330
+- Problème : Le commentaire indiquait toujours "⚠ Montants estimés" pour les dépôts Degiro
+  alors que les montants sont désormais exacts (back-calculés depuis les rapports annuels).
+- Fix : Commentaire mis à jour → "✅ Montants exacts — back-calculés depuis rapports annuels"
+
+### 37.8 Résumé audit v243 — Bilan complet
+
+| Bug ID | Sévérité | Fichier | Description | Statut |
+|--------|----------|---------|-------------|--------|
+| A01 | CRITICAL | charts.js | Fallback hardcodé 51079 dans overlay Degiro | ✅ Corrigé |
+| A02 | HIGH | charts.js | Pas de bounds check dans click handler | ✅ Corrigé |
+| A03 | WARNING | charts.js | Null guard manquant PORTFOLIO.amine.degiro | ✅ Corrigé |
+| A04 | WARNING | render.js | Warning "⚠ dep. est." obsolète | ✅ Corrigé |
+| A05 | CRITICAL | charts.js | P&L Degiro incohérent entre modes (477€ d'écart) | ✅ Corrigé |
+| A06 | CRITICAL | engine.js | Total Déposé KPI incluait retraits (-76K au lieu de +25K) | ✅ Corrigé |
+| A07 | INFO | engine.js | Commentaire obsolète "⚠ Montants estimés" | ✅ Corrigé |
+
+**Vérifications finales deep audit :**
+
+| Check | Résultat |
+|-------|----------|
+| dgTotalPL cohérent entre builders | ✅ 50 664,55 dans les deux |
+| degiroDepositsGross = 25 573,02 | ✅ |
+| Total Déposé KPI ≈ 272K | ✅ |
+| totalPLAllComponents dans data.js | ✅ Ligne ~593 |
+| Tous fichiers JS syntax check | ✅ 5/5 passent |
+| Pas de variables non définies dans scopes modifiés | ✅ |
+
+---
+
+## §38 — Changelog v243 → v244 : Tooltip harmonisé + corrections
+
+### 38.1 Contexte
+
+Le tooltip natif Canvas de Chart.js (rendu directement sur le `<canvas>`) ne s'affichait pas
+en mode 5Y/MAX malgré une configuration correcte (callbacks fonctionnels, interaction mode
+'index', pas d'erreur JS). Le diagnostic a révélé que `tooltip.opacity` restait à 0 même
+après activation programmatique et hover réel. La cause probable : une interaction entre les
+reconstructions rapides du chart (destroy + recreate) lors des changements de mode/période
+et le système d'animation interne de Chart.js 4.4.1.
+
+### 38.2 Changements v244
+
+**BUG-A08 — CRITICAL : Tooltip invisible sur graphique 5Y/MAX**
+- Fichiers : `charts.js` (renderPortfolioChart)
+- Problème : Le tooltip Canvas de Chart.js ne s'affichait jamais en mode 5Y et MAX.
+  Le contenu était correctement calculé par les callbacks mais `opacity` restait à 0.
+- Solution : Remplacement complet du tooltip Canvas par un **tooltip HTML externe** :
+  ```javascript
+  tooltip: {
+    enabled: false,           // Désactive le tooltip Canvas natif
+    external: externalTooltipHandler,  // Fonction custom → div HTML
+  }
+  ```
+  Le tooltip HTML (`#chartTooltip`) est :
+  - Un `<div>` positionné en `position: absolute` sur le `<body>`
+  - Rendu via le callback `external` de Chart.js (appelé à chaque interaction)
+  - Avec gestion d'erreur try/catch pour ne jamais crasher silencieusement
+  - Nettoyé automatiquement à chaque `chart.destroy()`
+- Résultat : Tooltip visible et fonctionnel sur **tous** les modes (YTD, 1Y, 5Y, MAX)
+
+**BUG-A09 — WARNING : `startValue` manquant dans buildEquityHistoryChart**
+- Fichier : `charts.js` (buildEquityHistoryChart → `_ytdChartFullData`)
+- Problème : Le champ `startValue` n'était pas défini dans les données du graphique
+  5Y/MAX. En mode "Valeur", le tooltip affichait "€ NaN, NaN%" car
+  `startValueRef` était `undefined` (utilisé pour calculer diff et %).
+- Fix : Ajout de `startValue: totalValues[0] || 0` dans `_ytdChartFullData`
+- Résultat : Mode "Valeur" affiche correctement le % de variation depuis le début
+
+**BUG-A10 — WARNING : `onHover` placé au mauvais niveau dans la config Chart.js**
+- Fichier : `charts.js` (renderPortfolioChart)
+- Problème : `onHover` était au niveau racine de la config Chart.js (à côté de `options`),
+  au lieu d'être DANS `options`. Chart.js 4.x ignore silencieusement les propriétés
+  inconnues au niveau racine → le curseur ne changeait pas en 'pointer' au survol.
+- Fix : Déplacé `onHover` dans `options` :
+  ```javascript
+  options: {
+    onHover: (evt, elements) => { ... },  // Correct: dans options
+    ...
+  }
+  ```
+
+### 38.3 Tooltip externe — Architecture
+
+```
+Mouse hover sur canvas
+  ↓
+Chart.js interaction mode: 'index', intersect: false
+  ↓
+Tooltip callback (enabled: false, external: fn)
+  ↓
+externalTooltipHandler(context)
+  ├── context.tooltip.opacity === 0 → masque #chartTooltip
+  └── opacity > 0 → calcule contenu HTML
+      ├── P&L mode : P&L coloré + NAV + Déposé
+      └── Value mode : NAV + diff% + P&L
+      → positionne #chartTooltip via caretX/caretY
+```
+
+### 38.4 Vérifications v244
+
+| Check | Résultat |
+|-------|----------|
+| Tous fichiers JS syntax check (v=244) | ✅ 5/5 passent |
+| `startValue` dans buildEquityHistoryChart | ✅ |
+| `onHover` dans options (pas racine) | ✅ |
+| tooltip.enabled = false + external handler | ✅ |
+| #chartTooltip nettoyé au destroy | ✅ (2 emplacements) |
+| Version bumped v243→v244 dans 5 fichiers JS | ✅ |

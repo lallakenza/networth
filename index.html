@@ -1889,6 +1889,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
       <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);margin-top:2px;"></div>
     </div>
     <div class="chart-container" style="height:340px"><canvas id="portfolioYTDChart"></canvas></div>
+    <div id="ytdPointDetail" style="display:none;margin:8px 0;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:13px;line-height:1.6;"></div>
     <p id="ytdChartFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;">
       Simulation calibr&eacute;e : NAV initiale IBKR + prix historiques Yahoo Finance + trades 2026 + cash multi-devises.
       Inclut EUR, USD, JPY. Positions valu&eacute;es uniquement pendant la p&eacute;riode de d&eacute;tention.
@@ -2343,7 +2344,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=242"></script>
+<script type="module" src="js/app.js?v=244"></script>
 
 </body>
 </html>

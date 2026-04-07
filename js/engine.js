@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=242';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=244';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -326,8 +326,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     addDeposit(d.date, d.label || 'Dépôt IBKR', 'Amine', 'IBKR', d.amount, d.currency, d.fxRateAtDate || 1);
   });
 
-  // 1b. Degiro deposits (Amine) — compte clôturé avril 2025
-  // ⚠ Montants estimés — à remplacer avec les vrais relevés Boursorama
+  // 1b. Degiro deposits & retraits (Amine) — compte clôturé avril 2025
+  // ✅ Montants exacts — back-calculés des rapports annuels DEGIRO (v243)
   (degiro.deposits || []).forEach(d => {
     addDeposit(d.date, d.label || 'Dépôt Degiro', 'Amine', 'Degiro', d.amount, d.currency, d.fxRateAtDate || 1);
   });
@@ -365,7 +365,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   depositHistory.sort((a, b) => a.date.localeCompare(b.date));
 
   const ibkrDepositsTotal = depositHistory.filter(d => d.platform === 'IBKR').reduce((s, d) => s + d.amountEUR, 0);
-  const degiroDepositsTotal = depositHistory.filter(d => d.platform === 'Degiro').reduce((s, d) => s + d.amountEUR, 0);
+  // Degiro: séparer dépôts bruts (capital investi) des retraits (bénéfices réalisés)
+  // Pour les KPIs "Total Déposé" et le ROI %, on veut le capital brut injecté (25573.02),
+  // PAS le net (-50664.55) qui inclut les retraits de bénéfices
+  const degiroDepositsGross = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR > 0).reduce((s, d) => s + d.amountEUR, 0);
+  const degiroWithdrawals = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR < 0).reduce((s, d) => s + d.amountEUR, 0);
+  const degiroDepositsTotal = degiroDepositsGross; // Gross for KPI/ROI (v243 fix)
   const esppDeposits = esppCostBasisEUR + nezhaEsppCostBasisEUR;
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
   const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;

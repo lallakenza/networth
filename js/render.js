@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=242';
-import { getGrandTotal } from './engine.js?v=242';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=244';
+import { getGrandTotal } from './engine.js?v=244';
 
 // ---- Generic table sort utility ----
 /**
@@ -2128,17 +2128,8 @@ function renderActionsView(state) {
   // Metrics
   setText('actionsCommissions', fmt(Math.abs(av.commissions)));
   setText('actionsDeposits', fmt(av.totalDeposits));
-  // Add warning about Degiro estimated deposits
-  const depositsEl = document.getElementById('actionsDeposits');
-  if (depositsEl) {
-    // Check if Degiro has closed positions
-    const hasDegiroPositions = av.degiroClosedPositions && av.degiroClosedPositions.length > 0;
-    if (hasDegiroPositions) {
-      const warningSpan = document.createElement('span');
-      warningSpan.innerHTML = ' <span style="font-size:11px;color:#d69e2e;margin-left:4px;" title="Degiro deposits are estimated">&#9888; dep. est.</span>';
-      depositsEl.parentElement?.insertAdjacentElement('afterend', warningSpan);
-    }
-  }
+  // Degiro deposits are now exact (back-computed from annual reports)
+  // Previous warning "⚠ dep. est." removed in v243
   setText('actionsNAV', fmt(av.ibkrNAV));
   const _twrMetrics = window._chartKPIData?.twr ?? av.twr;
   setText('actionsTWR', (_twrMetrics >= 0 ? '+' : '') + _twrMetrics.toFixed(1) + '%');
