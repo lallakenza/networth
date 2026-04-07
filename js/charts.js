@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=251';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=251';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=251';
+import { fmt, fmtAxis } from './render.js?v=252';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=252';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=252';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3592,11 +3592,22 @@ export function buildEquityHistoryChart(period, options) {
         ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
       });
     }
+    // ── Carry forward last known Degiro NAV for dates before closure ──
+    // The simulation sets degiro=0 for all dates, but Degiro was still active
+    // until its closure (April 14, 2025). Use the last EQUITY_HISTORY Degiro
+    // value for simulation dates before the closure to avoid a false -100% P&L.
+    const DEGIRO_CLOSURE_DATE = '2025-04-14';
+    const lastEHDegiro = ehBefore.length > 0
+      ? ehBefore[ehBefore.length - 1].degiro || 0
+      : 0;
+
     // Append all simulation points (absolute NAV — no warm-up needed)
     for (let i = 0; i < sim.labels.length; i++) {
+      // Before Degiro closure: carry forward last known EH value
+      const degiroNAV = sim.labels[i] < DEGIRO_CLOSURE_DATE ? lastEHDegiro : 0;
       dataPoints.push({
         date: sim.labels[i],
-        degiro: sim.degiroValues[i],
+        degiro: degiroNAV,
         espp: sim.esppValues[i],
         ibkr: sim.ibkrValues[i],
         sgtm: sim.sgtmValues[i] || 0,
