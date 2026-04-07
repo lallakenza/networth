@@ -122,46 +122,46 @@ export const PORTFOLIO = {
       lots: [
         // Période Nov 2022 → May 2023 | Contrib €3,845.99 | FX 0.911 | Discount $236.88/sh | FMV $278.68/sh
         // 17.8222 shares achetées, 0.7609 vendues pour impôt (€193.18), 0.0613 fractionnaires remboursées
-        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788 },  // cost $4,026.94
+        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788, contribEUR: 3845.99 },  // cost $4,026.94
 
         // Actions fractionnaires issues de dividendes réinvestis (~août 2022)
-        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600 },  // cost $817.08
+        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600, contribEUR: 0 },  // cost $817.08 — dividendes réinvestis, pas de contribution
 
         // Période Nov 2021 → May 2022 | Contrib €3,018.32 | FX 0.948 | Discount $260.01/sh | FMV $305.89/sh
         // 12.2453 shares achetées, 0 vendues pour impôt, 0.2453 fractionnaires remboursées (€71.13)
-        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900 },  // cost $3,670.68
+        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900, contribEUR: 3018.32 },  // cost $3,670.68
 
         // Période May 2021 → Nov 2021 | Contrib €3,020.66 | FX 0.8616 | Discount $302.59/sh | FMV $355.99/sh
         // 11.5861 shares achetées, 0 vendues pour impôt, 0.5861 fractionnaires remboursées (€179.77)
-        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900 },  // cost $3,915.89
+        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900, contribEUR: 3020.66 },  // cost $3,915.89
 
         // Période Nov 2020 → May 2021 | Contrib €3,217.57 | FX 0.8318 | Discount $246.19/sh | FMV $289.64/sh
         // 15.7120 shares achetées, 0.7105 vendues pour impôt (€171.18), 0.0015 fractionnaires remboursées
-        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400 },  // cost $4,344.60
+        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400, contribEUR: 3217.57 },  // cost $4,344.60
 
         // Période May 2020 → Nov 2020 | Contrib €2,365.80 | FX 0.8584 | Discount $183.37/sh | FMV $215.73/sh
         // 15.0303 shares achetées, 0.6626 vendues pour impôt (€122.70), 0.3677 fractionnaires remboursées (€68.09)
-        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250 },  // cost $3,020.15
+        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250, contribEUR: 2365.80 },  // cost $3,020.15
 
         // Période Nov 2019 → May 2020 | Contrib €2,796.67 | FX 0.9105 | Discount $153.96/sh | FMV $181.13/sh
         // 19.9509 shares achetées, 0.9410 vendues pour impôt (€155.18), 0.0099 fractionnaires remboursées
-        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250 },  // cost $3,441.38
+        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250, contribEUR: 2796.67 },  // cost $3,441.38
 
         // Période May 2019 → Nov 2019 | Contrib €2,653.00 | FX 0.8955 | Discount $159.14/sh | FMV $187.23/sh
         // 18.6160 shares achetées, 0 vendues pour impôt, 0.6160 fractionnaires remboursées (€103.28)
-        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2260 },  // cost $3,370.07 (corrigé: était 187.2300)
+        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2260, contribEUR: 2653.00 },  // cost $3,370.07 (corrigé: était 187.2300)
 
         // Période Nov 2018 → May 2019 | Contrib €2,401.55 | FX 0.8926 | Discount $154.97/sh | FMV $182.32/sh
         // 17.3612 shares achetées, 0 vendues pour impôt, 0.3612 fractionnaires remboursées (€58.78)
-        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200 },  // cost $3,099.44
+        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200, contribEUR: 2401.55 },  // cost $3,099.44
 
         // Période May 2018 → Nov 2018 | Contrib €2,533.06 | FX 0.8766 | Discount $134.58/sh | FMV $158.33/sh
         // 21.4721 shares achetées, 0 vendues pour impôt, 0.4721 fractionnaires remboursées (€65.52)
-        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250 },  // cost $3,324.83
+        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250, contribEUR: 2533.06 },  // cost $3,324.83
 
         // Période Nov 2017 → May 2018 | Contrib €2,246.00 | FX 0.8336 | Discount $128.38/sh | FMV $151.04/sh
         // 20.9872 shares achetées, 0.6611 vendues pour impôt (€83.23), 0.3261 fractionnaires remboursées (€41.06)
-        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350 },  // cost $3,020.70
+        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350, contribEUR: 2246.00 },  // cost $3,020.70
       ],
       totalCostBasisUSD: 36052,  // Somme de tous les (costBasis × shares) ci-dessus
       // Résumé contributions: 10 périodes, €28,097.62 total prélevé du salaire = $31,844.39
@@ -1102,6 +1102,8 @@ export const DEGIRO_STATIC_PRICES = {
   SAP:   { price: 189.97, currency: 'USD' },  // ADR price (NYSE)
   CGC:   { price: 1.02,   currency: 'USD' },
   HYLN:  { price: 2.01,   currency: 'USD' },
+  HTZ:   { price: 0.00,   currency: 'USD', delisted: true, note: 'Ch.11 bankruptcy — old shares cancelled (Jun 2021)' },
+  VLTA:  { price: 0.86,   currency: 'USD', delisted: true, note: 'Acquired by Shell at $0.86/share (Mar 2023)' },
   // European stocks (EUR)
   MC:    { price: 479.00, currency: 'EUR' },
   CAP:   { price: 107.80, currency: 'EUR' },
@@ -1114,6 +1116,7 @@ export const DEGIRO_STATIC_PRICES = {
   ATO:   { price: 36.86,  currency: 'EUR' },
   SAN:   { price: 83.00,  currency: 'EUR' },
   JUVE:  { price: 2.17,   currency: 'EUR' },  // post reverse split 10:1
+  EUCAR: { price: 0.50,   currency: 'EUR', delisted: true, note: 'VW squeeze-out at €0.50/share (Jul 2022)' },
 };
 
 // ════════════════════════════════════════════════════════════

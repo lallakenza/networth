@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=241';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=241';
-import { IMMO_CONSTANTS, EQUITY_HISTORY } from './data.js?v=241';
+import { fmt, fmtAxis } from './render.js?v=242';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=242';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO } from './data.js?v=242';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3436,15 +3436,78 @@ export function buildEquityHistoryChart(period, options) {
   const esppValues = filtered.map(h => h.espp);
   const ibkrValues = filtered.map(h => h.ibkr);
 
-  // P&L = value - first value (relative change)
-  const startTotal = totalValues[0];
-  const startDegiro = degiroValues[0];
-  const startESPP = esppValues[0];
-  const startIBKR = ibkrValues[0];
-  const plValuesTotal = totalValues.map(v => v - startTotal);
-  const plValuesDegiro = degiroValues.map(v => v - startDegiro);
-  const plValuesESPP = esppValues.map(v => v - startESPP);
-  const plValuesIBKR = ibkrValues.map(v => v - startIBKR);
+  // ── Build sorted deposit events from all three sources ──
+  // Each event: { date, amountEUR, source: 'degiro'|'espp'|'ibkr' }
+  const depositEvents = [];
+
+  // 1) Degiro deposits & withdrawals
+  const degiroDeposits = PORTFOLIO.amine.degiro.deposits || [];
+  for (const d of degiroDeposits) {
+    depositEvents.push({ date: d.date, amountEUR: d.amount, source: 'degiro' });
+  }
+
+  // 2) ESPP salary contributions (contribEUR on each lot)
+  const esppLots = PORTFOLIO.amine.espp.lots || [];
+  for (const lot of esppLots) {
+    if (lot.contribEUR) {
+      depositEvents.push({ date: lot.date, amountEUR: lot.contribEUR, source: 'espp' });
+    }
+  }
+  // Also count ESPP cashEUR as a deposit (residual cash in UBS account)
+  const esppCash = PORTFOLIO.amine.espp.cashEUR || 0;
+  if (esppCash > 0) {
+    // Attribute to the earliest ESPP lot date (it's been there since the beginning)
+    const earliestESPP = esppLots.length > 0
+      ? esppLots.reduce((a, b) => a.date < b.date ? a : b).date
+      : '2018-01-01';
+    depositEvents.push({ date: earliestESPP, amountEUR: esppCash, source: 'espp' });
+  }
+
+  // 3) IBKR deposits (convert AED to EUR using fxRateAtDate)
+  const ibkrDeposits = PORTFOLIO.amine.ibkr.deposits || [];
+  for (const d of ibkrDeposits) {
+    const eur = d.currency === 'EUR' ? d.amount : d.amount / d.fxRateAtDate;
+    depositEvents.push({ date: d.date, amountEUR: eur, source: 'ibkr' });
+  }
+
+  // Sort by date ascending
+  depositEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── Compute cumulative deposits at each EQUITY_HISTORY date ──
+  // For each filtered date, sum all deposit events with date <= that date
+  // We use a running-sum approach since both arrays are sorted
+  let depIdx = 0;
+  let cumTotal = 0, cumDegiro = 0, cumESPP = 0, cumIBKR = 0;
+  const cumDepositsTotal = [];
+  const cumDepositsDegiro = [];
+  const cumDepositsESPP = [];
+  const cumDepositsIBKR = [];
+
+  for (const snapDate of labels) {
+    while (depIdx < depositEvents.length && depositEvents[depIdx].date <= snapDate) {
+      const ev = depositEvents[depIdx];
+      cumTotal += ev.amountEUR;
+      if (ev.source === 'degiro') cumDegiro += ev.amountEUR;
+      else if (ev.source === 'espp') cumESPP += ev.amountEUR;
+      else if (ev.source === 'ibkr') cumIBKR += ev.amountEUR;
+      depIdx++;
+    }
+    cumDepositsTotal.push(cumTotal);
+    cumDepositsDegiro.push(cumDegiro);
+    cumDepositsESPP.push(cumESPP);
+    cumDepositsIBKR.push(cumIBKR);
+  }
+
+  // P&L = NAV - cumulative deposits (real gain/loss, excluding money put in)
+  const plValuesTotal = totalValues.map((v, i) => v - cumDepositsTotal[i]);
+  const plValuesDegiro = degiroValues.map((v, i) => v - cumDepositsDegiro[i]);
+  const plValuesESPP = esppValues.map((v, i) => v - cumDepositsESPP[i]);
+  const plValuesIBKR = ibkrValues.map((v, i) => v - cumDepositsIBKR[i]);
+
+  console.log('[equity-history] Deposit events:', depositEvents.length,
+    '| CumDeposits at end:', Math.round(cumTotal),
+    '| NAV at end:', Math.round(totalValues[totalValues.length - 1]),
+    '| P&L at end:', Math.round(plValuesTotal[plValuesTotal.length - 1]));
 
   // Also build a SGTM series (zeros — SGTM is separate from equity history)
   const sgtmValues = filtered.map(() => 0);
