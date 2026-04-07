@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v247)
+> Dernière mise à jour : 7 avril 2026 (v252)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2137,3 +2137,83 @@ buildEquityHistoryChart(period='5Y')
 | Nezha ESPP deposits comptés dans 5Y | ✅ |
 | FX_STATIC importé dans charts.js | ✅ |
 | Version bump v245→v247 (all files) | ✅ |
+
+## §41 — Changelog v248 → v252 : Mode alltime + Unification P&L
+
+### 41.1 Problème résolu
+
+Le graphe 5Y utilisait un hack de "30 jours de warmup" pour éviter les artefacts au point de splice entre EQUITY_HISTORY (mensuel) et la simulation 1Y (quotidienne). Ce hack perdait ~30 jours de données et causait des P&L Degiro incorrects. De plus, le titre du graphe affichait le changement de NAV (incluant les dépôts) tandis que les cards P&L affichaient le vrai P&L (NAV - dépôts), créant une incohérence visible.
+
+### 41.2 Solution : mode 'alltime' (v250)
+
+Ajout d'un 3ème mode de simulation dans `buildPortfolioYTDChart` :
+
+| Mode | START_DATE | STARTING_NAV | Usage |
+|------|-----------|-------------|-------|
+| `ytd` | 1er jan 2026 | 209495 (IBKR NAV) | Graphe YTD visible + KPIs Daily/MTD/1M/YTD |
+| `1y` | 1 an avant aujourd'hui | 0 | KPI P&L 1Y (silencieux) |
+| `alltime` | 1 jour avant 1er dépôt IBKR | 0 | Cache pour splice 5Y (silencieux) |
+
+Le mode `alltime` :
+- Démarre le 07/04/2025 (veille du 1er dépôt IBKR)
+- NAV initiale = 0, toutes les devises à 0
+- Rejoue TOUS les dépôts et trades depuis le début
+- Ne rend aucun graphe — stocke le résultat dans `window._simulationAllTimeCache`
+- Retourne immédiatement après le cache (pas de Chart.js)
+
+`buildEquityHistoryChart` utilise ce cache pour le splice :
+- Dates **avant** le début de la simulation → EQUITY_HISTORY (mensuel)
+- Dates **dans** la simulation → données alltime (hebdomadaire)
+- Plus de warmup nécessaire, plus de perte de données
+
+### 41.3 Unification P&L (v251)
+
+**Source unique de vérité** : les arrays `plValues` de la simulation.
+
+Avant v251, deux méthodes coexistaient :
+- Cards P&L : `NAV_end - NAV_start - deposits_period` (recomputation indépendante)
+- Titre graphe : `NAV_end - NAV_start` (changement NAV, dépôts inclus)
+
+Après v251, tout utilise `plValues[end] - plValues[start]` :
+- `plValues[i] = NAV[i] - cumDeposits[i]` (calculé dans la simulation)
+- Cards : `updateKPIsFromChart()` lit directement `plSeries` depuis `_ytdChartFullData`
+- Titre graphe : `renderPortfolioChart()` lit le PL correspondant au scope/période
+- % calculé sur capital déployé : `startNAV + deposits_period` (cohérent partout)
+
+### 41.4 Fix Degiro au splice (v252)
+
+La simulation alltime met `degiro=0` pour toutes ses dates (Degiro n'est pas simulé). Mais Degiro était encore actif jusqu'au 14/04/2025. Au point de splice (07/04/2025), cela causait un P&L Degiro de -€4,149 (-100%).
+
+Fix : reporter la dernière valeur Degiro connue de EQUITY_HISTORY pour les dates de simulation avant `DEGIRO_CLOSURE_DATE = '2025-04-14'`.
+
+### 41.5 Note explicative P&L (v252)
+
+Ajout d'une note dans `index.html` entre les KPI (Réalisé/Non Réalisé) et les cards P&L périodiques, expliquant la différence :
+- **P/L Réalisé + Non Réalisé** = somme position par position
+- **P&L périodique** = NAV − dépôts (inclut intérêts marge, FX cash, commissions, FTT)
+
+### 41.6 Init flow (app.js)
+
+```
+1. buildPortfolioYTDChart(mode='ytd')     → graphe visible + KPIs Daily/MTD/1M/YTD
+2. buildPortfolioYTDChart(mode='1y')      → silencieux, KPI P&L 1Y
+3. buildPortfolioYTDChart(mode='alltime') → silencieux, cache _simulationAllTimeCache
+4. buildPortfolioYTDChart(mode='ytd')     → rebuild (1Y a écrasé le canvas)
+5. buildEquityHistoryChart('5Y')          → quand user clique 5Y, utilise alltime cache
+```
+
+### 41.7 Checklist v248→v252
+
+| Changement | Status |
+|---|---|
+| Mode alltime dans buildPortfolioYTDChart | ✅ |
+| _simulationAllTimeCache dans charts.js | ✅ |
+| Appel alltime dans app.js init flow | ✅ |
+| Splice simplifié (plus de warmup 30j) | ✅ |
+| Cards P&L via plSeries (source unique) | ✅ |
+| Titre graphe via plSeries | ✅ |
+| % via capital déployé (startNAV + dépôts) | ✅ |
+| Fix Degiro NAV au splice (carry forward EH) | ✅ |
+| Note explicative P&L dans index.html | ✅ |
+| ARCHITECTURE.md mis à jour | ✅ |
+| Version bump v247→v252 (all files) | ✅ |
