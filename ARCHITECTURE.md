@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v252)
+> Dernière mise à jour : 7 avril 2026 (v257)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2217,3 +2217,114 @@ Ajout d'une note dans `index.html` entre les KPI (Réalisé/Non Réalisé) et le
 | Note explicative P&L dans index.html | ✅ |
 | ARCHITECTURE.md mis à jour | ✅ |
 | Version bump v247→v252 (all files) | ✅ |
+
+---
+
+## §42 — Changelog v253 → v257 : Tooltip absolu + SGTM + UX fixes
+
+### 42.1 Contexte
+
+Après l'unification P&L (v252), le tooltip de détail (panneau au clic) et le hover tooltip montraient des données incohérentes selon la période sélectionnée. En mode YTD/1Y, les dépôts affichés étaient relatifs à la période (uniquement les nouveaux dépôts dans la fenêtre), pas les dépôts cumulés à vie. Résultat : P&L ≠ NAV − Déposé dans le tooltip.
+
+Exemple concret : en 1Y au 23/03/2026, le tooltip Degiro montrait NAV=0, Déposé=0, P&L=+50 665€ (incohérent).
+
+### 42.2 v253 — Note méthodologique P&L + SGTM tooltip (5Y)
+
+- Ajout note explicative entre les KPI strips : différence entre P&L position par position et P&L simulation (NAV−dépôts)
+- Ajout ligne SGTM dans le tableau de détail au clic du graphe 5Y (buildEquityHistoryChart)
+- Condition : `if (nav.sgtm > 0 || pl.sgtm !== 0) html += row('SGTM', ...)`
+
+### 42.3 v255 — Tooltip absolu : computeAbsoluteTooltipArrays()
+
+Nouvelle fonction helper `computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal)` qui calcule les dépôts cumulés à vie et le P&L absolu pour chaque courtier à chaque date.
+
+Sources de données par courtier :
+
+| Courtier | Méthode dépôts |
+|----------|----------------|
+| Degiro | Back-calcul rapports annuels : `dépôts = retraits − totalPL`, 3 versements en 2020, retraits annuels |
+| ESPP | `contribEUR` de chaque lot (Amine + Nezha) + cash EUR/USD |
+| IBKR | Tous les dépôts du relevé (`deposits[]`), convertis en EUR via `fxRateAtDate` |
+| SGTM | Coût IPO : `totalShares × market.sgtmCostBasisMAD / FX_STATIC.MAD`, date: 2025-12-15 |
+
+Stockage : `_ytdChartFullData._absoluteTooltip = { absDepsIBKR, absPLIBKR, ... }`
+
+Séparation des références :
+- **Hover tooltip** : P&L période-relative (matche la ligne du graphe) + P&L/Déposé absolus en contexte
+- **Click detail panel** : toujours données absolues → garantit P&L = NAV − Déposé(net)
+
+### 42.4 v256 — Fix source coût SGTM
+
+Bug : `PORTFOLIO.amine.sgtm?.costPerShareMAD` n'existe pas dans data.js.
+Fix : utiliser `PORTFOLIO.market?.sgtmCostBasisMAD` (= 420 MAD/action).
+Corrigé dans :
+1. `computeAbsoluteTooltipArrays()` (helper)
+2. `buildEquityHistoryChart()` section SGTM P&L
+
+### 42.5 v257 — Tooltip flip gauche + hover enrichi
+
+- Le hover tooltip bascule automatiquement à gauche du curseur quand il dépasse le bord droit du viewport
+- Format hover tooltip enrichi :
+  - Mode P&L : "P&L période: +X" (première ligne) + "NAV | Déposé | P&L total" (ligne contexte)
+  - Mode Valeur : "NAV Tous: X" + "diff start" + "P&L: +X | Déposé: Y" (ligne contexte)
+
+### 42.6 Vérification
+
+Testé sur toutes les combinaisons période × mode :
+
+| Période | Mode | P&L = NAV − Deps |
+|---------|------|-------------------|
+| MTD | Value/P&L | ✅ |
+| 1M | Value/P&L | ✅ |
+| 3M | Value/P&L | ✅ |
+| YTD | Value/P&L | ✅ |
+| 1Y | Value/P&L | ✅ |
+| 5Y | Value/P&L | ✅ |
+| MAX | Value/P&L | ✅ |
+
+### 42.7 Checklist v253→v257
+
+| Changement | Status |
+|---|---|
+| SGTM ajouté au tooltip 5Y breakdown | ✅ v253 |
+| Note méthodologique P&L dans index.html | ✅ v253 |
+| computeAbsoluteTooltipArrays() dans charts.js | ✅ v255 |
+| Click detail panel → données absolues | ✅ v255 |
+| Hover tooltip → P&L abs en contexte | ✅ v255 |
+| Fix SGTM costPerShareMAD → market.sgtmCostBasisMAD | ✅ v256 |
+| Hover tooltip flip gauche (bord droit) | ✅ v257 |
+| Version bump v252→v257 (all files) | ✅ |
+
+---
+
+## §43 — Audit UX v257 (7 avril 2026)
+
+### 43.1 Résumé
+
+Audit UX complet sur les 8 onglets (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget) au viewport 1440px.
+
+### 43.2 Points positifs
+
+- Pas de scroll horizontal → layout bien contenu
+- Navigation par onglets en `<button>` avec cursor:pointer
+- Bon contraste texte blanc sur fond bleu foncé
+- 27 charts/visualisations bien intégrés
+- Formatage des nombres cohérent via `fmt()` (espaces milliers, symbole €)
+
+### 43.3 Issues identifiées
+
+| # | Sévérité | Issue | Recommandation |
+|---|----------|-------|----------------|
+| ACC-001 | Critique | 15 `<input type="range">` sans `aria-label` | Ajouter `aria-label` décrivant chaque slider |
+| UI-001 | Moyen | Padding boutons inconsistant (5+ valeurs) | Standardiser 2-3 tailles de boutons |
+| UI-002 | Moyen | Hiérarchie headings cassée (h2→h4 sans h3) | Respecter h1>h2>h3>h4 strict |
+| UI-003 | Moyen | `margin-top: 0` sur h2/h3 (sections collées) | Ajouter margin-top: 32px/24px |
+| UI-004 | Moyen | Pas de responsive mobile | Media queries pour 768px et 425px |
+| UI-005 | Faible | Active tab = bold uniquement | Ajouter border-bottom sur onglet actif |
+| UI-006 | Faible | Pas de hover states sur boutons | Ajouter opacity/shadow au hover |
+
+### 43.4 Roadmap recommandée
+
+Phase 1 (rapide, haut impact) : aria-labels sliders, margin headings
+Phase 2 (moyen effort) : responsive design, heading hierarchy
+Phase 3 (polish) : boutons hover, active tab styling
