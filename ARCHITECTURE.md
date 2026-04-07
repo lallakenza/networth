@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 31 mars 2026 (v231)
+> Dernière mise à jour : 7 avril 2026 (v239)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -33,7 +33,7 @@ index.html          ← Structure HTML + CSS
 
 ## 2. Fichiers — Responsabilités détaillées
 
-### `data.js` (~1 716 lignes)
+### `data.js` (~2 344 lignes)
 
 Couche de données brutes. **Aucune computation.** Contient :
 
@@ -642,14 +642,15 @@ Les dépôts sont agrégés depuis 4 sources :
 const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
 ```
 
-### ⚠ Données Degiro estimées
+### Données Degiro — Audit v233
 
-Les dépôts/retraits Degiro dans `data.js` sont des **estimations provisoires** :
-- **50K € dépôts** : 2 × 25K (mars et août 2020) — montants fictifs
-- **101K € retrait** : 50K capital + 51K P&L réalisé (avril 2025)
-- **P&L Degiro** : 51 079 € (calculé depuis les emails de confirmation Gmail)
+Les données Degiro sont vérifiées depuis les rapports annuels PDF (2019-2025) :
+- **50K € dépôts** : 3 virements (jan/fév/mar 2020) — montants individuels estimés (~16.7K chacun), total confirmé
+- **76 237.57 € retraits** : 15 669 (2021) + 5 755 (2023) + 54 813.57 (2025) — vérifié rapports annuels
+- **P&L Degiro** : 50 186.81 € (vérifié somme per-instrument des 7 rapports annuels)
+- **Dividendes nets** : 865.47 € sur 6 ans (2020-2025) — 12 instruments, 3 pays
 
-Les emails Degiro ne contiennent PAS les montants des virements. À remplacer dès que les relevés bancaires Boursorama seront retrouvés.
+Voir §34 pour le détail complet de l'audit.
 
 ### Impact sur les calculs
 
@@ -1312,6 +1313,9 @@ Ce mécanisme est nécessaire car les données 1Y proviennent d'un dataset Yahoo
 | v230b | 31 Mars 2026 | `6ed9e82` | Fix double-comptage ESPP/SGTM Nezha dans le tableau détail Couple |
 | v231 | 31 Mars 2026 | `cb699d4` | Bump cache busters v230→v231 pour forcer le CDN GitHub Pages à servir les fichiers corrigés |
 | v232 | 31 Mars 2026 | `644ef2f` | **Audit 360° : 13 findings corrigés** — probabilité créances, TVA clawback, abattement IR, division/0, race conditions, tooltips, FX — voir §33 |
+| v233 | 1 Avr 2026 | — | **Audit Degiro complet** : totalRealizedPL corrigé (51079→50186.81), dividendes 6 ans (865.47 net), 16 trades 2020 manquants, SAP/2025 P/L, SNPR corporate action — voir §34 |
+| v234 | 1 Avr 2026 | — | **Dividendes Degiro dans KPIs** : `computeDegiroDividends()` ajouté dans engine.js. Correction data.js?v=176 stale import. Cache bump v234 |
+| v235 | 1 Avr 2026 | — | **Historique actions 5Y/MAX** : `EQUITY_HISTORY` (75 points mensuels 2020-2026), boutons 5Y/MAX, `buildEquityHistoryChart()`. P&L visible depuis 2020 — voir §35 |
 
 ---
 
@@ -1581,3 +1585,70 @@ Un audit complet (données, calculs, rendu, qualité code) a identifié 15 findi
 - **NW Couple** : -€3 819 (créances pondérées par probabilité : 4 créances à 70%)
 - **Total Nominal créances** : €57 150 → **Valeur Attendue** : €53 331
 - **Garanti (100%)** : €44 421 (78%) | **Incertain (<100%)** : €12 729 (22%)
+
+---
+
+## 34. Audit Degiro v233 — Rapports annuels 2019-2025
+
+Audit complet des données Degiro en croisant 7 rapports annuels PDF, emails Gmail, et les données du site.
+
+### 34.1 Corrections data.js
+
+| Champ | Avant | Après | Source |
+|-------|-------|-------|--------|
+| `totalRealizedPL` | 51 079 | 50 186.81 | Somme rapports annuels (±0.02 arrondi) |
+| `totalDividendsNet` | 377.44 | 865.47 | 6 années complètes (2020-2025) |
+| `dividends` | 2 années | 6 années avec détail par instrument | Rapports annuels |
+| `dividends.2023.withholding` | 0 | 30.21 | Rapport 2023 |
+| Deposits | 2 × 25K | 3 × 16.7K (montants estimés) | 3 emails Gmail virement |
+| SAP 2023 `realizedPL` | 0 | 471.19 | Rapport 2023 |
+| 2025 trades `realizedPL` | vides | DIS -82.56, SPOT 940.57, NVDA 41354.50, INFY 1234.46 | Rapport 2025 |
+
+### 34.2 Structures ajoutées
+
+- `annualSummary` : portfolioStart/End, gains, losses par année (2019-2025)
+- `flatexCashFlows` : soldes et flux cash Flatex par année
+- `fxCosts` : coûts de change AutoFX/ManualFX par année
+- `perInstrumentPL` : P/L par instrument pour 2020, 2021, 2023, 2025
+- `dividends[year].detail[]` : dividendes par instrument avec WHT et pays
+- 16 trades 2020 reconstitués (P/L depuis PDF, sans détail qty/prix)
+- Corporate action SNPR→VLTA 2021 (-851.09 EUR)
+
+### 34.3 Correction engine.js (v234)
+
+Nouvelle fonction `computeDegiroDividends(startDate)` qui agrège les dividendes nets Degiro depuis `degiro.dividends`. Intégrée dans `computeAllCosts()` pour que les KPIs affichent IBKR + ACN + Degiro.
+
+---
+
+## 35. Historique actions 5Y/MAX v235
+
+### 35.1 Données : `EQUITY_HISTORY`
+
+Nouveau tableau exporté depuis `data.js` — 75 points mensuels de jan 2020 à mars 2026.
+
+Format : `{ date: 'YYYY-MM-DD', degiro, espp, ibkr, total, note? }`
+
+- `degiro` = portefeuille Degiro + cash Flatex (EUR)
+- `espp` = 167 actions ACN × prix historique approximatif (EUR)
+- `ibkr` = NAV IBKR estimée (EUR), 0 avant avril 2025
+- `total` = degiro + espp + ibkr
+
+**Points vérifiés (rapports annuels)** : déc 2020, déc 2021, déc 2022, déc 2023, déc 2024. Points intermédiaires interpolés linéairement.
+
+### 35.2 Chart : `buildEquityHistoryChart(period, options)`
+
+Nouvelle fonction dans `charts.js` qui :
+1. Filtre `EQUITY_HISTORY` par période (5Y = 5 ans glissants, MAX = tout)
+2. Construit les séries dans le format `_ytdChartFullData`
+3. Appelle `renderPortfolioChart()` pour le rendu
+
+Le renderer existant a été adapté :
+- Labels mensuels : "jan 20", "fév 21" (au lieu de "DD/MM")
+- Start label : "NAV jan 2020" (au lieu de "NAV 1er jan")
+- Flag `_isEquityHistory` pour distinguer les modes
+
+### 35.3 Boutons période
+
+Ajout de `5Y` et `MAX` dans `#ytdPeriodToggle` (index.html).
+Wiring dans app.js : appelle `buildEquityHistoryChart()` au lieu de `buildPortfolioYTDChart()`.
+Retour vers MTD/1M/3M/YTD : détecte le mode `5y`/`max` et rebuild le chart YTD.
