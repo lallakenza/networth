@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=255';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=255';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=255';
+import { fmt, fmtAxis } from './render.js?v=256';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=256';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=256';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1906,7 +1906,7 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
 
   // ── 4) SGTM: IPO cost basis ──
   const sgtmTotalShares = (PORTFOLIO.amine.sgtm?.shares || 0) + (PORTFOLIO.nezha?.sgtm?.shares || 0);
-  const sgtmCostMAD = PORTFOLIO.amine.sgtm?.costPerShareMAD || 0;
+  const sgtmCostMAD = PORTFOLIO.market?.sgtmCostBasisMAD || 0;
   const sgtmDepositEvents = [];
   if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
     const fxMAD = FX_STATIC?.MAD || 10.85;
@@ -3903,7 +3903,7 @@ export function buildEquityHistoryChart(period, options) {
 
   // ── 4) SGTM P&L: NAV - cost basis (IPO cost in EUR) ──
   const sgtmTotalShares = (PORTFOLIO.amine.sgtm?.shares || 0) + (PORTFOLIO.nezha?.sgtm?.shares || 0);
-  const sgtmCostMAD = PORTFOLIO.amine.sgtm?.costPerShareMAD || 0;
+  const sgtmCostMAD = PORTFOLIO.market?.sgtmCostBasisMAD || 0;
   const sgtmDepositEvents = [];
   if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
     const fxMAD = FX_STATIC?.MAD || 10.85;
