@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=248';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=248';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=248';
+import { fmt, fmtAxis } from './render.js?v=249';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=249';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=249';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3529,35 +3529,66 @@ export function buildEquityHistoryChart(period, options) {
   let dataPoints;
 
   if (sim && sim.labels && sim.labels.length > 0) {
+    // ── Find the safe splice date ──
+    // The simulation starts with NAV=0 and needs time to "warm up":
+    //   - IBKR deposits must be processed (first deposit = April 8, 2025)
+    //   - Degiro must be fully closed (April 14, 2025 cash-out)
+    //   - Positions must be established (first trades ~late April)
+    // We splice from the first simulation point where IBKR NAV > 0 AND
+    // at least 30 days after simulation start (avoids transition artifacts).
     const simStart = sim.labels[0];
+    const minSpliceDate = new Date(simStart);
+    minSpliceDate.setDate(minSpliceDate.getDate() + 30);
+    const minSpliceDateStr = minSpliceDate.toISOString().slice(0, 10);
 
-    // Keep EQUITY_HISTORY entries strictly before the simulation start
-    const ehBefore = filtered.filter(h => h.date < simStart);
-
-    dataPoints = [];
-    // Pre-simulation: monthly EQUITY_HISTORY snapshots (Degiro era, 2020-2025)
-    for (const h of ehBefore) {
-      dataPoints.push({
-        date: h.date, degiro: h.degiro, espp: h.espp,
-        ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
-      });
-    }
-    // Simulation period: accurate daily/weekly NAV from trade replay
+    // Find first stable simulation index (after min date AND IBKR NAV > 0)
+    let spliceSimIdx = -1;
     for (let i = 0; i < sim.labels.length; i++) {
-      dataPoints.push({
-        date: sim.labels[i],
-        degiro: sim.degiroValues[i],
-        espp: sim.esppValues[i],
-        ibkr: sim.ibkrValues[i],
-        sgtm: sim.sgtmValues[i] || 0,
-      });
-    }
-    // Recompute total from components for consistency
-    for (const dp of dataPoints) {
-      dp.total = (dp.degiro || 0) + (dp.espp || 0) + (dp.ibkr || 0) + (dp.sgtm || 0);
+      if (sim.labels[i] >= minSpliceDateStr && sim.ibkrValues[i] > 0) {
+        spliceSimIdx = i;
+        break;
+      }
     }
 
-    console.log('[equity-history] SPLICE: ' + ehBefore.length + ' EH points (before ' + simStart + ') + ' + sim.labels.length + ' simulation points');
+    if (spliceSimIdx >= 0) {
+      const spliceDate = sim.labels[spliceSimIdx];
+
+      // Keep EQUITY_HISTORY entries strictly before the splice date
+      const ehBefore = filtered.filter(h => h.date < spliceDate);
+
+      dataPoints = [];
+      // Pre-splice: monthly EQUITY_HISTORY snapshots (Degiro era + transition)
+      for (const h of ehBefore) {
+        dataPoints.push({
+          date: h.date, degiro: h.degiro, espp: h.espp,
+          ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
+        });
+      }
+      // Post-splice: accurate weekly NAV from simulation trade replay
+      for (let i = spliceSimIdx; i < sim.labels.length; i++) {
+        dataPoints.push({
+          date: sim.labels[i],
+          degiro: sim.degiroValues[i],
+          espp: sim.esppValues[i],
+          ibkr: sim.ibkrValues[i],
+          sgtm: sim.sgtmValues[i] || 0,
+        });
+      }
+      // Recompute total from components for consistency
+      for (const dp of dataPoints) {
+        dp.total = (dp.degiro || 0) + (dp.espp || 0) + (dp.ibkr || 0) + (dp.sgtm || 0);
+      }
+
+      console.log('[equity-history] SPLICE: ' + ehBefore.length + ' EH points + ' +
+        (sim.labels.length - spliceSimIdx) + ' simulation points (from ' + spliceDate + ')');
+    } else {
+      // No stable simulation point found — fall back to EQUITY_HISTORY
+      dataPoints = filtered.map(h => ({
+        date: h.date, degiro: h.degiro, espp: h.espp,
+        ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
+      }));
+      console.log('[equity-history] No stable simulation point — using EQUITY_HISTORY only');
+    }
   } else {
     // No simulation data cached — fall back to EQUITY_HISTORY only
     dataPoints = filtered.map(h => ({

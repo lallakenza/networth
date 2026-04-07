@@ -349,8 +349,9 @@ export const PORTFOLIO = {
       // ══════════════════════════════════════════════════════════════
       deposits: [
         // ── EUR deposits (statement IBKR lignes 318-331) ──
-        { date: '2025-04-01', amount: 10000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement initial IBKR' },
-        { date: '2025-04-04', amount: 45000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement complémentaire avril' },
+        // Dates alignées sur le CSV IBKR (compte ouvert le 8 avril 2025, Starting NAV: €54,398.37)
+        { date: '2025-04-08', amount: 10000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement initial IBKR' },
+        { date: '2025-04-08', amount: 45000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement complémentaire avril' },
         { date: '2025-04-23', amount: -45000, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (disbursement)' },
         { date: '2025-08-11', amount: 20000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #1' },
         { date: '2025-08-19', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #2' },
