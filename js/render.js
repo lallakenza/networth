@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=238';
-import { getGrandTotal } from './engine.js?v=238';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=239';
+import { getGrandTotal } from './engine.js?v=239';
 
 // ---- Generic table sort utility ----
 /**
@@ -1920,29 +1920,48 @@ function renderActionsView(state) {
   renderAllPositions(allPositions, null, null);
   setupAllPositionsSort(allPositions);
 
-  // Closed positions
-  const closedTbody = document.getElementById('actionsClosedTbody');
-  const closedTable = document.getElementById('actionsClosedTable');
-  if (closedTbody) {
-    const closedData = av.closedPositions.map(cp => ({ ...cp, label: cp.label + ' (' + cp.ticker + ')' }));
+  // ── Unified closed positions table (IBKR + Degiro) ──
+  const allClosedTbody = document.getElementById('allClosedTbody');
+  const allClosedTable = document.getElementById('allClosedTable');
+  if (allClosedTbody) {
+    // Merge IBKR closed + Degiro closed into one array
+    const ibkrClosed = (av.closedPositions || []).map(cp => ({ ...cp, source: 'ibkr', hasCost: true }));
+    const degiroClosed = (av.degiroClosedPositions || []).map(cp => ({ ...cp, source: 'degiro' }));
+    const allClosedData = [...ibkrClosed, ...degiroClosed].map(cp => ({
+      ...cp, label: cp.label + ' (' + cp.ticker + ')'
+    }));
     let _expandedClosed = null;
-    function renderClosedRows(items) {
-      closedTbody.innerHTML = '';
-      let totalClosed = 0, totalIfHeld = 0, totalIfHeldDiff = 0, totalProceeds = 0;
+    let _closedShowAll = false;
+    const CLOSED_TOP_N = 15;
+    function renderAllClosedRows(items) {
+      allClosedTbody.innerHTML = '';
+      // Compute totals on ALL items
+      let totalCost = 0, totalProceeds = 0, totalPL = 0, totalIfHeld = 0, totalIfHeldDiff = 0;
       items.forEach(cp => {
-        totalClosed += cp.pl;
+        totalCost += (cp.costEUR || 0);
         totalProceeds += (cp.proceedsEUR || 0);
-        // "Si gardé auj." columns for main row
+        totalPL += cp.pl;
+        const ifHeldVal = cp._ifHeldValueEUR || 0;
+        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
+        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
+      });
+      // Visible rows (top N or all)
+      const visibleItems = _closedShowAll ? items : items.slice(0, CLOSED_TOP_N);
+      visibleItems.forEach(cp => {
         const ifHeldVal = cp._ifHeldValueEUR || 0;
         const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
         const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
-        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
         cp._ifHeldPLvsProceeds = diffVsSale;
         cp._ifHeldPctVsSale = pctVsSale;
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
+        // Source badge
+        const srcColor = cp.source === 'ibkr' ? '#3182ce' : '#d69e2e';
+        const srcLabel = cp.source === 'ibkr' ? 'IBKR' : 'Degiro';
+        const srcBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + srcColor + '15;color:' + srcColor + ';font-weight:600">' + srcLabel + '</span>';
+        // If held columns
         let ifHeldCols = '';
         if (ifHeldVal) {
           const dCls = diffVsSale >= 0 ? 'pl-pos' : 'pl-neg';
@@ -1954,25 +1973,34 @@ function renderActionsView(state) {
         } else {
           ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
         }
-        tr.innerHTML = '<td>' + cp.label + '</td><td class="num ' + cls + '">' + s + fmt(cp.pl) + '</td>' + ifHeldCols;
+        // Cost & proceeds — show n/a for Degiro positions without cost data
+        const naCss = 'color:#cbd5e0;font-size:11px';
+        const hasCost = cp.hasCost !== false && (cp.costEUR > 0 || cp._hasReportPL);
+        const costCell = hasCost ? fmt(cp.costEUR || 0) : '<span style="' + naCss + '">n/a</span>';
+        const proceedsCell = fmt(cp.proceedsEUR || 0);
+        const plCell = hasCost ? (s + fmt(cp.pl)) : '<span style="' + naCss + '">n/a</span>';
+        const plCls = hasCost ? cls : '';
+        tr.innerHTML = '<td>' + cp.label + '</td><td>' + srcBadge + '</td><td class="num">' + costCell + '</td><td class="num">' + proceedsCell + '</td><td class="num ' + plCls + '">' + plCell + '</td>' + ifHeldCols;
+        // Click to expand trade detail
         tr.addEventListener('click', () => {
-          closedTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
-          closedTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
-          if (_expandedClosed === cp.ticker) { _expandedClosed = null; return; }
-          _expandedClosed = cp.ticker;
+          allClosedTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
+          allClosedTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
+          const key = cp.ticker + '_' + cp.source;
+          if (_expandedClosed === key) { _expandedClosed = null; return; }
+          _expandedClosed = key;
           tr.style.background = '#f7fafc';
           const trades = cp._allTrades || [];
           const detailTr = document.createElement('tr');
           detailTr.className = 'closed-detail-row';
           detailTr.style.background = '#f7fafc';
           if (trades.length === 0) {
-            detailTr.innerHTML = '<td colspan="5" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun détail disponible</td>';
+            detailTr.innerHTML = '<td colspan="8" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun d\u00e9tail disponible</td>';
           } else {
             const hp = 'padding:3px 10px';
-            let h = '<td colspan="5" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
+            let h = '<td colspan="8" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
               + '<thead><tr style="color:#718096;font-weight:600">'
               + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
-              + '<td class="num" style="' + hp + '">Qté</td><td class="num" style="' + hp + '">Prix</td>'
+              + '<td class="num" style="' + hp + '">Qt\u00e9</td><td class="num" style="' + hp + '">Prix</td>'
               + '<td class="num" style="' + hp + '">Montant</td>'
               + '<td class="num" style="' + hp + '">Valeur auj.</td>'
               + '<td class="num" style="' + hp + '">+/- value</td>'
@@ -2012,13 +2040,13 @@ function renderActionsView(state) {
                 + '</tr>';
             });
             if (cp._ifHeldValueEUR) {
-              const diff = cp._ifHeldValueEUR - cp.proceedsEUR;
-              const pct = cp.proceedsEUR > 0 ? (diff / cp.proceedsEUR * 100) : 0;
+              const diff = cp._ifHeldValueEUR - (cp.proceedsEUR || 0);
+              const pct = (cp.proceedsEUR || 0) > 0 ? (diff / (cp.proceedsEUR || 1) * 100) : 0;
               const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
               const diffS = diff >= 0 ? '+' : '';
               const pctS = pct >= 0 ? '+' : '';
               h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
-                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR)) + '</td>'
+                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR || 0)) + '</td>'
                 + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + '</td>'
                 + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
                 + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td></tr>';
@@ -2028,12 +2056,25 @@ function renderActionsView(state) {
           }
           tr.after(detailTr);
         });
-        closedTbody.appendChild(tr);
+        allClosedTbody.appendChild(tr);
       });
+      // Toggle button
+      if (items.length > CLOSED_TOP_N) {
+        const toggleTr = document.createElement('tr');
+        toggleTr.style.cursor = 'pointer';
+        const btnLabel = _closedShowAll ? 'Top ' + CLOSED_TOP_N + ' \u25B2' : 'Voir les ' + items.length + ' positions \u25BC';
+        toggleTr.innerHTML = '<td colspan="8" style="text-align:center;padding:10px;color:#4a7cbc;font-size:13px;font-weight:500">' + btnLabel + '</td>';
+        toggleTr.addEventListener('click', () => {
+          _closedShowAll = !_closedShowAll;
+          renderAllClosedRows(items);
+        });
+        allClosedTbody.appendChild(toggleTr);
+      }
+      // Total row
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-      const cls = totalClosed >= 0 ? 'pl-pos' : 'pl-neg';
-      const ts = totalClosed >= 0 ? '+' : '';
+      const cls = totalPL >= 0 ? 'pl-pos' : 'pl-neg';
+      const ts = totalPL >= 0 ? '+' : '';
       let totalIfHeldCols = '';
       if (totalIfHeld > 0) {
         const tDCls = totalIfHeldDiff >= 0 ? 'pl-pos' : 'pl-neg';
@@ -2046,11 +2087,13 @@ function renderActionsView(state) {
       } else {
         totalIfHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
       }
-      tr.innerHTML = '<td><strong>Total</strong></td><td class="num ' + cls + '"><strong>' + ts + fmt(totalClosed) + '</strong></td>' + totalIfHeldCols;
-      closedTbody.appendChild(tr);
+      tr.innerHTML = '<td><strong>Total</strong></td><td></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ts + fmt(totalPL) + '</strong></td>' + totalIfHeldCols;
+      allClosedTbody.appendChild(tr);
     }
-    renderClosedRows(closedData);
-    makeTableSortable(closedTable, closedData, renderClosedRows);
+    // Default sort: P/L descending (biggest wins first)
+    allClosedData.sort((a, b) => b.pl - a.pl);
+    renderAllClosedRows(allClosedData);
+    makeTableSortable(allClosedTable, allClosedData, renderAllClosedRows);
   }
 
   // IBKR cash table
@@ -2074,170 +2117,7 @@ function renderActionsView(state) {
     cashTbody.appendChild(tr);
   }
 
-  // Degiro closed positions (expandable, Top 10 by default)
-  const degiroTbody = document.getElementById('degiroClosedTbody');
-  const degiroTable = document.getElementById('degiroClosedTable');
-  if (degiroTbody) {
-    let _expandedDegiroClosed = null;
-    let _degiroShowAll = false;
-    const DEGIRO_TOP_N = 10;
-    function renderDegiroRows(items) {
-      degiroTbody.innerHTML = '';
-      // Always compute totals on ALL items, but only render visible rows
-      let totalCost = 0, totalProceeds = 0, totalDegiro = 0, totalIfHeld = 0, totalIfHeldDiff = 0;
-      items.forEach(cp => {
-        totalCost += (cp.costEUR || 0);
-        totalProceeds += (cp.proceedsEUR || 0);
-        totalDegiro += cp.pl;
-        const ifHeldVal = cp._ifHeldValueEUR || 0;
-        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
-        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
-      });
-      // Determine visible rows
-      const visibleItems = _degiroShowAll ? items : items.slice(0, DEGIRO_TOP_N);
-      const hiddenCount = items.length - visibleItems.length;
-      visibleItems.forEach(cp => {
-        // "Si gardé auj." columns
-        const ifHeldVal = cp._ifHeldValueEUR || 0;
-        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
-        const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
-        // Store computed values for sorting
-        cp._ifHeldPLvsProceeds = diffVsSale;
-        cp._ifHeldPctVsSale = pctVsSale;
-        const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
-        const s = cp.pl >= 0 ? '+' : '';
-        const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer';
-        // If held columns
-        let ifHeldCols = '';
-        if (ifHeldVal) {
-          const dCls = diffVsSale >= 0 ? 'pl-pos' : 'pl-neg';
-          const dS = diffVsSale >= 0 ? '+' : '';
-          const pS = pctVsSale >= 0 ? '+' : '';
-          ifHeldCols = '<td class="num">' + fmt(Math.round(ifHeldVal)) + '</td>'
-            + '<td class="num ' + dCls + '">' + dS + fmt(Math.round(diffVsSale)) + '</td>'
-            + '<td class="num ' + dCls + '">' + pS + pctVsSale.toFixed(0) + '%</td>';
-        } else {
-          ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
-        }
-        const naCss = 'color:#cbd5e0;font-size:11px';
-        const costCell = cp.hasCost ? fmt(cp.costEUR) : '<span style="' + naCss + '">n/a</span>';
-        const plCell = cp.hasCost ? (s + fmt(cp.pl)) : '<span style="' + naCss + '">n/a</span>';
-        const plCls = cp.hasCost ? cls : '';
-        tr.innerHTML = '<td>' + cp.label + '</td><td class="num">' + costCell + '</td><td class="num">' + fmt(cp.proceedsEUR || 0) + '</td><td class="num ' + plCls + '">' + plCell + '</td>' + ifHeldCols;
-        tr.addEventListener('click', () => {
-          degiroTbody.querySelectorAll('.closed-detail-row').forEach(r => r.remove());
-          degiroTbody.querySelectorAll('tr').forEach(r => { if (r.style.fontWeight !== '700') r.style.background = ''; });
-          if (_expandedDegiroClosed === cp.ticker) { _expandedDegiroClosed = null; return; }
-          _expandedDegiroClosed = cp.ticker;
-          tr.style.background = '#f7fafc';
-          const trades = cp._allTrades || [];
-          const detailTr = document.createElement('tr');
-          detailTr.className = 'closed-detail-row';
-          detailTr.style.background = '#f7fafc';
-          if (trades.length === 0) {
-            detailTr.innerHTML = '<td colspan="4" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun d\u00e9tail disponible</td>';
-          } else {
-            const hp = 'padding:3px 10px';
-            let h = '<td colspan="7" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
-              + '<thead><tr style="color:#718096;font-weight:600">'
-              + '<td style="' + hp + '">Date</td><td style="' + hp + '">Type</td>'
-              + '<td class="num" style="' + hp + '">Qt\u00e9</td><td class="num" style="' + hp + '">Prix</td>'
-              + '<td class="num" style="' + hp + '">Montant</td>'
-              + '<td class="num" style="' + hp + '">Valeur auj.</td>'
-              + '<td class="num" style="' + hp + '">+/- value</td>'
-              + '<td class="num" style="' + hp + '">%</td>'
-              + '</tr></thead><tbody>';
-            trades.forEach(t => {
-              const isSell = t.type === 'sell';
-              const tColor = isSell ? 'color:#c53030' : '';
-              const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
-              const amtLabel = fmt(Math.round(amt));
-              let ifHeldCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
-              if (isSell && cp._ifHeldPriceEUR && t.qty) {
-                const hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR;
-                const diff = hypothetical - amt;
-                const pct = amt > 0 ? (diff / amt * 100) : 0;
-                const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
-                const diffS = diff >= 0 ? '+' : '';
-                const pctS = pct >= 0 ? '+' : '';
-                ifHeldCols = '<td class="num" style="' + hp + '">' + fmt(Math.round(hypothetical)) + '</td>'
-                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
-                  + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td>';
-              }
-              // Calculate unit price: use t.price, or derive from amount/qty
-              let unitPrice = t.price;
-              if (!unitPrice && t.qty) {
-                unitPrice = isSell ? (t.proceeds || 0) / t.qty : (t.cost || 0) / t.qty;
-              }
-              const currSym = t.currency === 'USD' ? '$' : t.currency === 'MAD' ? '' : '\u20ac ';
-              const currSuffix = t.currency === 'MAD' ? ' DH' : '';
-              const priceTxt = unitPrice ? currSym + Number(unitPrice).toFixed(2) + currSuffix : '\u2014';
-              h += '<tr style="' + tColor + '">'
-                + '<td style="' + hp + '">' + t.date + '</td>'
-                + '<td style="' + hp + '">' + (isSell ? 'Vente' : 'Achat') + '</td>'
-                + '<td class="num" style="' + hp + '">' + (t.qty || '') + '</td>'
-                + '<td class="num" style="' + hp + '">' + priceTxt + '</td>'
-                + '<td class="num" style="' + hp + '">' + amtLabel + '</td>'
-                + ifHeldCols
-                + '</tr>';
-            });
-            if (cp._ifHeldValueEUR) {
-              const diff = cp._ifHeldValueEUR - (cp.proceedsEUR || 0);
-              const pct = (cp.proceedsEUR || 0) > 0 ? (diff / (cp.proceedsEUR || 1) * 100) : 0;
-              const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
-              const diffS = diff >= 0 ? '+' : '';
-              const pctS = pct >= 0 ? '+' : '';
-              h += '<tr style="font-weight:600;background:#edf2f7"><td colspan="4" style="' + hp + '">Total si gard\u00e9</td>'
-                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp.proceedsEUR || 0)) + '</td>'
-                + '<td class="num" style="' + hp + '">' + fmt(Math.round(cp._ifHeldValueEUR)) + '</td>'
-                + '<td class="num" style="' + hp + ';' + diffCls + '">' + diffS + fmt(Math.round(diff)) + '</td>'
-                + '<td class="num" style="' + hp + ';' + diffCls + '">' + pctS + pct.toFixed(0) + '%</td></tr>';
-            }
-            h += '</tbody></table></td>';
-            detailTr.innerHTML = h;
-          }
-          tr.after(detailTr);
-        });
-        degiroTbody.appendChild(tr);
-      });
-      // "Voir tout" / "Top 10" toggle button
-      if (items.length > DEGIRO_TOP_N) {
-        const toggleTr = document.createElement('tr');
-        toggleTr.style.cursor = 'pointer';
-        const btnLabel = _degiroShowAll ? 'Top ' + DEGIRO_TOP_N + ' \u25B2' : 'Voir les ' + items.length + ' positions \u25BC';
-        toggleTr.innerHTML = '<td colspan="7" style="text-align:center;padding:10px;color:#4a7cbc;font-size:13px;font-weight:500">' + btnLabel + '</td>';
-        toggleTr.addEventListener('click', () => {
-          _degiroShowAll = !_degiroShowAll;
-          renderDegiroRows(items);
-        });
-        degiroTbody.appendChild(toggleTr);
-      }
-      const tr = document.createElement('tr');
-      tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-      const cls = totalDegiro >= 0 ? 'pl-pos' : 'pl-neg';
-      const ds = totalDegiro >= 0 ? '+' : '';
-      // Total "si gardé" columns
-      let totalIfHeldCols = '';
-      if (totalIfHeld > 0) {
-        const tDCls = totalIfHeldDiff >= 0 ? 'pl-pos' : 'pl-neg';
-        const tDS = totalIfHeldDiff >= 0 ? '+' : '';
-        const tPct = totalProceeds > 0 ? (totalIfHeldDiff / totalProceeds * 100) : 0;
-        const tPS = tPct >= 0 ? '+' : '';
-        totalIfHeldCols = '<td class="num"><strong>' + fmt(Math.round(totalIfHeld)) + '</strong></td>'
-          + '<td class="num ' + tDCls + '"><strong>' + tDS + fmt(Math.round(totalIfHeldDiff)) + '</strong></td>'
-          + '<td class="num ' + tDCls + '"><strong>' + tPS + tPct.toFixed(0) + '%</strong></td>';
-      } else {
-        totalIfHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
-      }
-      tr.innerHTML = '<td><strong>Total Degiro</strong></td><td class="num"><strong>' + fmt(totalCost) + '</strong></td><td class="num"><strong>' + fmt(totalProceeds) + '</strong></td><td class="num ' + cls + '"><strong>' + ds + fmt(totalDegiro) + '</strong></td>' + totalIfHeldCols;
-      degiroTbody.appendChild(tr);
-    }
-    // Default sort: proceeds descending (biggest trades first for Top 10)
-    av.degiroClosedPositions.sort((a, b) => (b.proceedsEUR || 0) - (a.proceedsEUR || 0));
-    renderDegiroRows(av.degiroClosedPositions);
-    makeTableSortable(degiroTable, av.degiroClosedPositions, renderDegiroRows);
-  }
+  // (Degiro closed positions table removed — merged into unified allClosedTable above)
 
   // Combined realized P/L
   const cSign = av.combinedRealizedPL >= 0 ? '+' : '';
