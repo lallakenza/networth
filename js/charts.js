@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=246';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=246';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO } from './data.js?v=246';
+import { fmt, fmtAxis } from './render.js?v=247';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=247';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=247';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3453,6 +3453,22 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       depositsByDate[d.date] = (depositsByDate[d.date] || 0) + amountEUR;
     });
 
+  // ── Cache 1Y simulation NAV data for 5Y chart splice ──
+  // The 5Y chart (buildEquityHistoryChart) uses EQUITY_HISTORY which has
+  // inaccurate manual estimates for 2025. By caching the 1Y simulation's
+  // accurate daily NAV values, the 5Y chart can splice them in for 2025+.
+  if (mode === '1y') {
+    window._simulation1YCache = {
+      labels: chartLabels.slice(),
+      ibkrValues: chartValues.slice(),
+      totalValues: chartValuesTotal.slice(),
+      esppValues: chartValuesESPP.slice(),
+      sgtmValues: chartValuesSGTM.slice(),
+      degiroValues: chartValuesDegiro.slice(),
+    };
+    console.log('[ytd-chart] Cached 1Y simulation for 5Y splice: ' + chartLabels.length + ' points, range ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
+  }
+
   // Return NAV series so KPIs can be computed from chart data
   return {
     labels: chartLabels,          // ['2026-01-02', '2026-01-03', ...]
@@ -3502,12 +3518,64 @@ export function buildEquityHistoryChart(period, options) {
   const filtered = EQUITY_HISTORY.filter(h => h.date >= cutoffDate);
   if (filtered.length === 0) return;
 
-  // Build arrays in _ytdChartFullData format
-  const labels = filtered.map(h => h.date);
-  const totalValues = filtered.map(h => h.total);
-  const degiroValues = filtered.map(h => h.degiro);
-  const esppValues = filtered.map(h => h.espp);
-  const ibkrValues = filtered.map(h => h.ibkr);
+  // ══════════════════════════════════════════════════════════════
+  // SPLICE: Replace inaccurate EQUITY_HISTORY estimates with
+  // simulation data for the period where IBKR trading data exists.
+  // EQUITY_HISTORY has manual monthly estimates that diverge from
+  // reality (especially 2025 IBKR values). The 1Y simulation
+  // replays actual trades/deposits daily → much more accurate.
+  // ══════════════════════════════════════════════════════════════
+  const sim = window._simulation1YCache;
+  let dataPoints;
+
+  if (sim && sim.labels && sim.labels.length > 0) {
+    const simStart = sim.labels[0];
+
+    // Keep EQUITY_HISTORY entries strictly before the simulation start
+    const ehBefore = filtered.filter(h => h.date < simStart);
+
+    dataPoints = [];
+    // Pre-simulation: monthly EQUITY_HISTORY snapshots (Degiro era, 2020-2025)
+    for (const h of ehBefore) {
+      dataPoints.push({
+        date: h.date, degiro: h.degiro, espp: h.espp,
+        ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
+      });
+    }
+    // Simulation period: accurate daily/weekly NAV from trade replay
+    for (let i = 0; i < sim.labels.length; i++) {
+      dataPoints.push({
+        date: sim.labels[i],
+        degiro: sim.degiroValues[i],
+        espp: sim.esppValues[i],
+        ibkr: sim.ibkrValues[i],
+        sgtm: sim.sgtmValues[i] || 0,
+      });
+    }
+    // Recompute total from components for consistency
+    for (const dp of dataPoints) {
+      dp.total = (dp.degiro || 0) + (dp.espp || 0) + (dp.ibkr || 0) + (dp.sgtm || 0);
+    }
+
+    console.log('[equity-history] SPLICE: ' + ehBefore.length + ' EH points (before ' + simStart + ') + ' + sim.labels.length + ' simulation points');
+  } else {
+    // No simulation data cached — fall back to EQUITY_HISTORY only
+    dataPoints = filtered.map(h => ({
+      date: h.date, degiro: h.degiro, espp: h.espp,
+      ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
+    }));
+    console.log('[equity-history] No 1Y simulation cache — using EQUITY_HISTORY only (' + dataPoints.length + ' points)');
+  }
+
+  if (dataPoints.length === 0) return;
+
+  // Build arrays from (possibly spliced) data points
+  const labels = dataPoints.map(d => d.date);
+  const totalValues = dataPoints.map(d => d.total);
+  const degiroValues = dataPoints.map(d => d.degiro);
+  const esppValues = dataPoints.map(d => d.espp);
+  const ibkrValues = dataPoints.map(d => d.ibkr);
+  const sgtmValues = dataPoints.map(d => d.sgtm || 0);
 
   // ══════════════════════════════════════════════════════════════
   // P&L COMPUTATION — 3 sources, 3 approches différentes
@@ -3612,11 +3680,40 @@ export function buildEquityHistoryChart(period, options) {
   }
   ibkrDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  // ── Compute cumulative ESPP + IBKR deposits at each snapshot ──
-  let esppIdx = 0, ibkrIdx = 0;
-  let cumESPP = 0, cumIBKR = 0;
+  // ── 4) SGTM P&L: NAV - cost basis (IPO cost in EUR) ──
+  const sgtmTotalShares = (PORTFOLIO.amine.sgtm?.shares || 0) + (PORTFOLIO.nezha?.sgtm?.shares || 0);
+  const sgtmCostMAD = PORTFOLIO.amine.sgtm?.costPerShareMAD || 0;
+  const sgtmDepositEvents = [];
+  if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
+    const fxMAD = FX_STATIC?.MAD || 10.85;
+    const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / fxMAD;
+    sgtmDepositEvents.push({ date: '2025-12-15', amountEUR: sgtmCostEUR });
+  }
+
+  // Nezha ESPP deposits (lots without contribEUR)
+  const nezhaESPPLots = PORTFOLIO.nezha?.espp?.lots || [];
+  for (const lot of nezhaESPPLots) {
+    if (lot.contribEUR) {
+      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
+    } else {
+      const defaultFx = 1.10;
+      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx) });
+    }
+  }
+  // Nezha cash
+  const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
+  if (nezhaCashUSD > 0) {
+    const fxUSD = FX_STATIC?.USD || 1.15;
+    esppDepositEvents.push({ date: '2018-01-01', amountEUR: nezhaCashUSD / fxUSD });
+  }
+  esppDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── Compute cumulative ESPP + IBKR + SGTM deposits at each snapshot ──
+  let esppIdx = 0, ibkrIdx = 0, sgtmIdx = 0;
+  let cumESPP = 0, cumIBKR = 0, cumSGTM = 0;
   const cumDepositsESPP = [];
   const cumDepositsIBKR = [];
+  const cumDepositsSGTM = [];
   const cumDepositsTotal = [];
 
   for (let i = 0; i < labels.length; i++) {
@@ -3629,24 +3726,27 @@ export function buildEquityHistoryChart(period, options) {
       cumIBKR += ibkrDepositEvents[ibkrIdx].amountEUR;
       ibkrIdx++;
     }
+    while (sgtmIdx < sgtmDepositEvents.length && sgtmDepositEvents[sgtmIdx].date <= snapDate) {
+      cumSGTM += sgtmDepositEvents[sgtmIdx].amountEUR;
+      sgtmIdx++;
+    }
     cumDepositsESPP.push(cumESPP);
     cumDepositsIBKR.push(cumIBKR);
-    cumDepositsTotal.push(cumDepositsDegiro[i] + cumESPP + cumIBKR);
+    cumDepositsSGTM.push(cumSGTM);
+    cumDepositsTotal.push(cumDepositsDegiro[i] + cumESPP + cumIBKR + cumSGTM);
   }
 
   const plValuesESPP = esppValues.map((v, i) => v - cumDepositsESPP[i]);
   const plValuesIBKR = ibkrValues.map((v, i) => v - cumDepositsIBKR[i]);
+  const plValuesSGTM = sgtmValues.map((v, i) => v - cumDepositsSGTM[i]);
   const plValuesTotal = totalValues.map((v, i) => v - cumDepositsTotal[i]);
 
   console.log('[equity-history] P&L summary:',
     '| Degiro=' + Math.round(plValuesDegiro[plValuesDegiro.length - 1]),
     '| ESPP=' + Math.round(plValuesESPP[plValuesESPP.length - 1]),
     '| IBKR=' + Math.round(plValuesIBKR[plValuesIBKR.length - 1]),
+    '| SGTM=' + Math.round(plValuesSGTM[plValuesSGTM.length - 1]),
     '| Total=' + Math.round(plValuesTotal[plValuesTotal.length - 1]));
-
-  // Also build a SGTM series (zeros — SGTM is separate from equity history)
-  const sgtmValues = filtered.map(() => 0);
-  const plValuesSGTM = filtered.map(() => 0);
 
   // Store as _ytdChartFullData so renderPortfolioChart can use it
   // startValue = first total NAV in the filtered range (for value mode tooltip %)
@@ -3668,7 +3768,7 @@ export function buildEquityHistoryChart(period, options) {
     cumDepositsAtPoint: cumDepositsIBKR,
     cumDepositsAtPointTotal: cumDepositsTotal,
     cumDepositsESPP,
-    cumDepositsSGTM: filtered.map(() => 0),
+    cumDepositsSGTM,
     cumDepositsDegiro,
     startValue,  // v244: needed for value mode tooltip (diff from start)
     mode: period === '5Y' ? '5y' : 'max',
@@ -3676,7 +3776,7 @@ export function buildEquityHistoryChart(period, options) {
     currentPeriod: period,
     degiroRealizedPL: Math.round(dgTotalPL),
     _isEquityHistory: true,
-    _equityEntries: filtered,  // for click-detail notes
+    _equityEntries: dataPoints.filter(d => d.note),  // for click-detail notes (EH entries with notes)
   };
 
   // Render

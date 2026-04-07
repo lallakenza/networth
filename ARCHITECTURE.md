@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v245)
+> Dernière mise à jour : 7 avril 2026 (v247)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2034,3 +2034,106 @@ Pour une correction complète, il faudrait les cours ACN mensuels exacts + fx hi
 | ESPP Jan/Fév/Mar 2026 recalculés | ✅ |
 | Total 2026-03-31 = 225 457 | ✅ |
 | Version bumped v244→v245 | ✅ |
+
+## §40 — Changelog v245 → v247 : Harmonisation P&L + Splice 5Y/simulation
+
+### 40.1 Contexte
+
+Deux problèmes critiques identifiés :
+
+1. **P&L Cards vs P&L Graphique** : Les KPI cards (P/L Non Réalisé + P/L Réalisé) ne
+   correspondaient pas au P&L affiché sur le graphique. Écart de ~11 774 €.
+2. **5Y vs 1Y contradiction** : Le graphique 5Y (basé sur EQUITY_HISTORY) affichait
+   ~130K € de P&L à août 2025, tandis que le 1Y (simulation) affichait ~40K € à la
+   même date. Cause : les valeurs IBKR dans EQUITY_HISTORY pour 2025 étaient des
+   estimations manuelles grossièrement fausses (ex: May=20K, Jul=50K avec seulement
+   ~10K déposés à ce moment-là).
+
+### 40.2 Corrections v246 — Harmonisation P&L
+
+**BUG-A14 — ESPP cost basis utilisait totalCostBasisUSD/currentFX au lieu de contribEUR**
+- Fichier : `engine.js`
+- Impact : ~10K € d'écart sur le P&L non réalisé ESPP
+- Fix : Nouvelle fonction `esppLotCostEUR(lot, defaultFx)` qui utilise `contribEUR`
+  (contributions salariales exactes) comme base canonique, avec fallback sur
+  `costBasis/fxRateAtDate` pour les lots Nezha
+
+**BUG-A15 — Degiro realized P&L excluait dividendes/FX/intérêts**
+- Fichier : `engine.js`
+- Fix : `degiroRealizedPL = totalPLAllComponents` (50 664,55 € vs 50 186,81 €)
+
+**BUG-A16 — IBKR dividendes et coûts absents du realized P&L**
+- Fichier : `engine.js`
+- Fix : `combinedRealizedPL += ibkrDividendsAllTime + acnDividendsAllTime + commissions + FTT + interest`
+
+**BUG-A17 — ESPP cash non inclus dans unrealized P&L**
+- Fichier : `engine.js`
+- Fix : `esppCashEUR = cashEUR + toEUR(cashUSD, 'USD', fx)` ajouté au calcul
+
+### 40.3 Correction v247 — Splice simulation dans 5Y chart
+
+**BUG-A18 — CRITICAL : EQUITY_HISTORY 2025 IBKR = estimations fausses**
+- Fichier : `charts.js` (buildEquityHistoryChart)
+- Problème : Les valeurs IBKR dans EQUITY_HISTORY pour Apr-Dec 2025 étaient des
+  estimations manuelles interpolées qui ne correspondaient pas à la réalité.
+  Exemple : May=20K€, Jul=50K€ avec seulement ~10K€ de dépôts cumulés.
+  Le graphique 5Y affichait donc un P&L artificiellement gonflé.
+- Solution : **Splice simulation ↔ EQUITY_HISTORY**
+  1. `buildPortfolioYTDChart` (mode 1Y) cache ses NAV journaliers dans
+     `window._simulation1YCache` (labels, ibkrValues, esppValues, sgtmValues, etc.)
+  2. `buildEquityHistoryChart` détecte ce cache et découpe les données :
+     - **Avant la date de début simulation** : utilise EQUITY_HISTORY (ère Degiro, 2020-2024)
+     - **Après** : utilise les NAV quotidiens/hebdomadaires de la simulation 1Y
+  3. Le P&L est recalculé uniformément sur les données combinées, avec le même
+     système de dépôts cumulatifs (Degiro rapports annuels + ESPP contribEUR + IBKR deposits)
+- Impact : Le 5Y chart affiche maintenant des données cohérentes avec le 1Y chart
+
+**FIX-A19 — SGTM P&L ajouté au 5Y chart**
+- Fichier : `charts.js` (buildEquityHistoryChart)
+- Problème : Le 5Y chart n'incluait pas SGTM (zéros partout). Or la simulation
+  inclut les actions SGTM (Maroc Telecom IPO Dec 2025).
+- Fix : Ajout du tracking des dépôts SGTM (cost basis IPO en EUR) et calcul
+  du P&L SGTM dans le 5Y chart.
+
+**FIX-A20 — Nezha ESPP deposits manquants dans 5Y chart**
+- Fichier : `charts.js` (buildEquityHistoryChart)
+- Problème : Les dépôts ESPP du 5Y chart ne comptaient que les lots d'Amine.
+  Les 4 lots de Nezha (40 shares) n'étaient pas inclus dans le tracking.
+- Fix : Ajout des lots Nezha (avec fallback costBasis/fxRate) + cashUSD Nezha
+  dans esppDepositEvents.
+
+**FIX-A21 — Import FX_STATIC dans charts.js**
+- Fichier : `charts.js` (imports)
+- Fix : Ajout de `FX_STATIC` à l'import depuis `data.js` pour la conversion
+  SGTM (MAD→EUR) et Nezha cash (USD→EUR) dans le 5Y chart.
+
+### 40.4 Architecture du splice
+
+```
+buildPortfolioYTDChart(mode='1y')
+  → Simule NAV quotidien depuis 1 an (replays trades + deposits)
+  → Downsample hebdomadaire (>60 points)
+  → Cache dans window._simulation1YCache
+  → { labels[], ibkrValues[], esppValues[], sgtmValues[], degiroValues[], totalValues[] }
+
+buildEquityHistoryChart(period='5Y')
+  → Filtre EQUITY_HISTORY par période
+  → SI _simulation1YCache existe :
+      → Garde EH avant date début simulation (ère Degiro)
+      → Remplace par NAV simulation après (ère IBKR)
+      → Recalcule total = degiro + espp + ibkr + sgtm
+  → Calcule P&L avec dépôts cumulatifs complets (all-time)
+  → Stocke dans _ytdChartFullData → renderPortfolioChart()
+```
+
+### 40.5 Vérifications v247
+
+| Check | Résultat |
+|-------|----------|
+| 1Y cache stocké après buildPortfolioYTDChart(1y) | ✅ |
+| 5Y chart splice EH + simulation | ✅ |
+| P&L 5Y cohérent avec P&L 1Y pour dates communes | ✅ |
+| SGTM P&L inclus dans 5Y chart | ✅ |
+| Nezha ESPP deposits comptés dans 5Y | ✅ |
+| FX_STATIC importé dans charts.js | ✅ |
+| Version bump v245→v247 (all files) | ✅ |
