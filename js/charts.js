@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=256';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=256';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=256';
+import { fmt, fmtAxis } from './render.js?v=257';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=257';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=257';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2391,12 +2391,20 @@ function renderPortfolioChart(overrides = {}) {
       console.warn('[tooltip] Error in external tooltip:', e);
     }
 
-    // Position tooltip near cursor
+    // Position tooltip near cursor — flip left when near right edge
     const pos = c.canvas.getBoundingClientRect();
     const caretX = tip.caretX;
     const caretY = tip.caretY;
     tooltipEl.style.opacity = '1';
-    tooltipEl.style.left = (pos.left + window.scrollX + caretX) + 'px';
+    const ttWidth = tooltipEl.offsetWidth || 320;
+    const absX = pos.left + window.scrollX + caretX;
+    const viewportRight = window.innerWidth + window.scrollX;
+    // If tooltip would overflow right edge, place it to the left of the cursor
+    if (absX + ttWidth + 12 > viewportRight) {
+      tooltipEl.style.left = (absX - ttWidth - 12) + 'px';
+    } else {
+      tooltipEl.style.left = absX + 'px';
+    }
     tooltipEl.style.top = (pos.top + window.scrollY + caretY - tooltipEl.offsetHeight - 12) + 'px';
   };
 
