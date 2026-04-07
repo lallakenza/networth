@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=239';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=239';
-import { IMMO_CONSTANTS, EQUITY_HISTORY } from './data.js?v=239';
+import { fmt, fmtAxis } from './render.js?v=240';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=240';
+import { IMMO_CONSTANTS, EQUITY_HISTORY } from './data.js?v=240';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1842,7 +1842,7 @@ function renderPortfolioChart(overrides = {}) {
 
   // ── Slice data by period ──
   let startIdx = 0;
-  if (period && period !== 'YTD' && period !== '1Y') {
+  if (period && period !== 'YTD' && period !== '1Y' && period !== '5Y' && period !== 'MAX') {
     const today = new Date();
     let cutoff;
     if (period === 'MTD') {
