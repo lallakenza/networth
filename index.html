@@ -1981,21 +1981,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     </div>
   </div>
 
-  <div class="grid2" style="margin-top:16px;">
-    <div>
-      <h3 style="margin-top:20px;">Positions Ferm&eacute;es IBKR (12 mois)</h3>
-      <table id="actionsClosedTable">
-        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
-        <tbody id="actionsClosedTbody"></tbody>
-      </table>
-    </div>
-    <div>
-      <h3 style="margin-top:20px;">Historique Degiro (compte cl&ocirc;tur&eacute; Avr. 2025)</h3>
-      <table id="degiroClosedTable">
-        <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
-        <tbody id="degiroClosedTbody"></tbody>
-      </table>
-    </div>
+  <div style="margin-top:16px;">
+    <h3 style="margin-top:20px;">Positions Ferm&eacute;es (IBKR + Degiro)</h3>
+    <table id="allClosedTable">
+      <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th data-sort="source" data-sort-type="string">Source</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
+      <tbody id="allClosedTbody"></tbody>
+    </table>
   </div>
 
   <div class="success" style="margin-top:14px;">
@@ -2352,7 +2343,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=238"></script>
+<script type="module" src="js/app.js?v=239"></script>
 
 </body>
 </html>
