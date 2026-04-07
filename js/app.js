@@ -4,12 +4,12 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=245';
-import { compute } from './engine.js?v=245';
-import { render } from './render.js?v=245';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=245';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=245';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=245';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=246';
+import { compute } from './engine.js?v=246';
+import { render } from './render.js?v=246';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=246';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=246';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=246';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };

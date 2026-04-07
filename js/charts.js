@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=245';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=245';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO } from './data.js?v=245';
+import { fmt, fmtAxis } from './render.js?v=246';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=246';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO } from './data.js?v=246';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2824,20 +2824,22 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     });
 
   // ── 2. ESPP acquisition costs (for Total P&L) ──
-  // ESPP lots are "deposits" into the ESPP account — their cost basis must be
-  // subtracted from NAV change to get true P&L, just like IBKR bank transfers.
-  // costBasis is in USD/share → convert to EUR at the FX rate on acquisition date.
+  // v246: use contribEUR (actual EUR salary deductions) where available
+  // This matches engine.js deposit computation — ensures chart P&L = card P&L
+  // For lots without contribEUR (Nezha, FRAC), fallback to costBasis/fxRate
   const allTotalDepositsEUR = { ...allDepositsEUR }; // starts with IBKR deposits
-  // Reuse allESPPLots defined earlier for dynamic share tracking
   allESPPLots
     .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
     .forEach(lot => {
-      // Cost in USD = shares × costBasis (USD/share)
-      // Convert to EUR using FX rate at acquisition date (approximate with
-      // the closest available FX rate from the historical data)
-      const costUSD = lot.shares * lot.costBasis;
-      const fxAtDate = getFxRate('USD', lot.date) || fxStatic.USD || 1.08;
-      const costEUR = costUSD / fxAtDate;
+      let costEUR;
+      if (lot.contribEUR !== undefined) {
+        costEUR = lot.contribEUR; // Exact EUR from salary (Amine lots)
+      } else {
+        // Fallback: costBasis × shares / fxRate (Nezha lots, FRAC)
+        const isNezha = (portfolio.nezha?.espp?.lots || []).includes(lot);
+        const defaultFx = isNezha ? 1.10 : 1.15;
+        costEUR = (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
+      }
       allTotalDepositsEUR[lot.date] = (allTotalDepositsEUR[lot.date] || 0) + costEUR;
     });
 
@@ -2887,13 +2889,19 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── Track ESPP deposits separately ──
+  // v246: same contribEUR logic as above for consistency
   const allDepositsESPP = {};
   allESPPLots
     .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
     .forEach(lot => {
-      const costUSD = lot.shares * lot.costBasis;
-      const fxAtDate = getFxRate('USD', lot.date) || fxStatic.USD || 1.08;
-      const costEUR = costUSD / fxAtDate;
+      let costEUR;
+      if (lot.contribEUR !== undefined) {
+        costEUR = lot.contribEUR;
+      } else {
+        const isNezha = (portfolio.nezha?.espp?.lots || []).includes(lot);
+        const defaultFx = isNezha ? 1.10 : 1.15;
+        costEUR = (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
+      }
       allDepositsESPP[lot.date] = (allDepositsESPP[lot.date] || 0) + costEUR;
     });
 
