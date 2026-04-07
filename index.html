@@ -1928,7 +1928,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div class="kpi gold kpi-clickable" data-detail="detailDeposits"><div class="value" id="kpiActionsTotalDeposits">--</div><div class="label" id="kpiActionsDepositsLabel">Total D&eacute;pos&eacute;</div></div>
     <div class="kpi kpi-clickable" data-detail="detailDividends"><div class="value" id="kpiActionsDividends">--</div><div class="sub" id="kpiActionsTWR"></div><div class="label">Dividendes bruts</div></div>
   </div>
-  <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(5, 1fr); margin-top:8px;">
+  <div id="plMethodNote" style="margin:10px 0 2px;padding:6px 10px;font-size:11px;color:#718096;background:#f7fafc;border-left:3px solid #cbd5e0;border-radius:0 4px 4px 0;line-height:1.5">
+    <strong style="color:#4a5568">P/L R&eacute;alis&eacute; + Non R&eacute;alis&eacute;</strong> = somme position par position (gains sur trades + valorisation des positions ouvertes).<br>
+    <strong style="color:#4a5568">P&amp;L ci-dessous</strong> = NAV &minus; d&eacute;p&ocirc;ts (simulation globale du portefeuille). Inclut en plus : int&eacute;r&ecirc;ts sur marge, FX sur cash, commissions, FTT.
+    La diff&eacute;rence entre les deux correspond &agrave; ces co&ucirc;ts/revenus annexes.
+  </div>
+  <div class="kpi-strip" id="kpi-actions-pl" style="grid-template-columns: repeat(5, 1fr); margin-top:4px;">
     <div class="kpi kpi-clickable" data-detail="detailPLDaily"><div class="value" id="kpiPLDaily">--</div><div class="label">P&amp;L Daily</div></div>
     <div class="kpi kpi-clickable" data-detail="detailPLMTD"><div class="value" id="kpiPLMTD">--</div><div class="label">P&amp;L MTD</div></div>
     <div class="kpi kpi-clickable" data-detail="detailPL1M"><div class="value" id="kpiPL1M">--</div><div class="label">P&amp;L 1 Mois</div></div>
@@ -2344,7 +2349,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=252"></script>
+<script type="module" src="js/app.js?v=253"></script>
 
 </body>
 </html>
