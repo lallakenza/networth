@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v257)
+> Dernière mise à jour : 7 avril 2026 (v258)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2328,3 +2328,42 @@ Audit UX complet sur les 8 onglets (Couple, Amine, Nezha, Actions, Cash, Immobil
 Phase 1 (rapide, haut impact) : aria-labels sliders, margin headings
 Phase 2 (moyen effort) : responsive design, heading hierarchy
 Phase 3 (polish) : boutons hover, active tab styling
+
+---
+
+## §44 — v258 : Implémentation audit UX (7 avril 2026)
+
+### 44.1 Changements appliqués
+
+**ACC-001 (Critique) — Aria-labels sur tous les sliders**
+- 15 `<input type="range">` ont reçu un `aria-label` descriptif unique
+- Ajout de `for="id"` sur chaque `<label>` associé pour lien explicite label↔input
+- Concerne : simulateurs Couple (5), Amine (5), Nezha (3), Coût d'opportunité (2)
+
+**UI-003 (Moyen) — Espacement headings amélioré**
+- `.card h2` : ajout `margin-top: 8px` (+ `:first-child { margin-top: 0 }` pour éviter padding en haut de carte)
+- `.card h3` : margin-top augmenté de 18px → 24px (+ `:first-child` idem)
+- Résultat : sections visuellement mieux séparées sans casser le layout existant
+
+**UI-005 + UI-006 (Faible) — Hover/active/focus states sur boutons**
+- `.view-btn` : ajout `background: rgba(255,255,255,0.08)` au hover, 0.12 au active, 0.1 sur `.active`
+- `.immo-sub-btn` : idem avec valeurs légèrement inférieures
+- `focus-visible` ajouté sur `.cur-btn`, `.view-btn`, `.immo-sub-btn` pour navigation clavier
+- `input[type="range"]` : ajout `cursor: pointer` + `focus-visible` outline
+
+**Mobile — Touch target amélioré**
+- `input[type="range"]` dans `@media (max-width: 480px)` : `height: 32px` pour zone tactile plus large
+
+**Note** : UI-004 (responsive mobile) était déjà implémenté depuis v229 avec 3 breakpoints (900px, 600px, 480px). L'audit §43 l'avait signalé par erreur.
+
+### 44.2 Checklist v258
+
+| Changement | Status |
+|---|---|
+| aria-label sur 15 range inputs | ✅ |
+| label[for] lié aux inputs | ✅ |
+| margin-top headings h2/h3 | ✅ |
+| Hover/active states boutons nav | ✅ |
+| focus-visible boutons + sliders | ✅ |
+| Touch target sliders mobile | ✅ |
+| Version bump v257→v258 (all files) | ✅ |

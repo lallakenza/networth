@@ -70,19 +70,22 @@
     font-size: 20px;
     font-weight: 400;
     color: var(--text);
+    margin-top: 8px;
     margin-bottom: 16px;
     border-bottom: 1px solid var(--border);
     padding-bottom: 12px;
     letter-spacing: -0.3px;
   }
+  .card h2:first-child { margin-top: 0; }
   .card h3 {
     font-family: 'Instrument Serif', serif;
     font-size: 16px;
     font-weight: 400;
     color: var(--text);
-    margin: 18px 0 10px;
+    margin: 24px 0 10px;
     letter-spacing: -0.2px;
   }
+  .card h3:first-child { margin-top: 0; }
   table {
     border-collapse: separate;
     border-spacing: 0;
@@ -145,6 +148,7 @@
   .cur-btn:last-child { border-radius: 0 6px 6px 0; }
   .cur-btn.active { color: white; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
   .cur-btn:hover { color: white; }
+  .cur-btn:focus-visible, .view-btn:focus-visible, .immo-sub-btn:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: -2px; }
 
   .view-switcher {
     display: flex;
@@ -171,11 +175,13 @@
     transition: all 0.2s;
     font-family: 'DM Sans', sans-serif;
   }
-  .view-btn:hover { color: white; }
+  .view-btn:hover { color: white; background: rgba(255,255,255,0.08); }
+  .view-btn:active { background: rgba(255,255,255,0.12); }
   .view-btn.active {
     color: white;
     border-bottom-color: white;
     font-weight: 700;
+    background: rgba(255,255,255,0.1);
   }
   .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
   .view-btn.asset-view-btn.active { border-bottom-color: var(--gold); }
@@ -200,11 +206,13 @@
     transition: all 0.2s;
     font-family: 'DM Sans', sans-serif;
   }
-  .immo-sub-btn:hover { color: rgba(255,255,255,0.9); }
+  .immo-sub-btn:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.06); }
+  .immo-sub-btn:active { background: rgba(255,255,255,0.1); }
   .immo-sub-btn.active {
     color: white;
     border-bottom-color: var(--gold);
     font-weight: 600;
+    background: rgba(255,255,255,0.08);
   }
 
   .sortable { cursor: pointer; user-select: none; position: relative; }
@@ -592,7 +600,8 @@
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
-  .sim-field input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--accent); }
+  .sim-field input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--accent); cursor: pointer; }
+  .sim-field input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
   .sim-field .range-val {
     font-family: 'DM Sans', sans-serif;
     font-size: 18px;
@@ -934,6 +943,7 @@
     .sim-result-strip { grid-template-columns: 1fr 1fr !important; gap: 8px; }
     .sim-field label { font-size: 11px; }
     .sim-field .range-val { font-size: 14px; }
+    .sim-field input[type="range"] { height: 32px; }
 
     /* ── Link grid ── */
     .link-grid { grid-template-columns: 1fr !important; gap: 8px; }
@@ -1784,11 +1794,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha).<br>
   <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
   <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="sim-field"><label>Epargne mensuelle (Amine)</label><input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="cplSimSavingsVal">8,000</div></div>
-    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="cplSimPctActionsVal">100%</div></div>
-    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="cplSimReturnActionsVal">10.0%</div></div>
-    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="cplSimHorizonVal">20 ans</div></div>
+    <div class="sim-field"><label for="cplSimSavings">Epargne mensuelle (Amine)</label><input type="range" id="cplSimSavings" min="3000" max="15000" step="500" value="8000" aria-label="Epargne mensuelle Amine"><div class="range-val" id="cplSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label for="cplSimPctActions">% en Actions (reste en Cash 6%)</label><input type="range" id="cplSimPctActions" min="0" max="100" step="5" value="100" aria-label="Pourcentage en actions couple"><div class="range-val" id="cplSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label for="cplSimReturnActions">Rendement Actions annuel</label><input type="range" id="cplSimReturnActions" min="0" max="20" step="0.5" value="10" aria-label="Rendement actions annuel couple"><div class="range-val" id="cplSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label for="cplSimStopYear">Fin de contribution</label><input type="range" id="cplSimStopYear" min="0" max="30" step="0.5" value="3" aria-label="Fin de contribution couple"><div class="range-val" id="cplSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label for="cplSimHorizon">Horizon (annees)</label><input type="range" id="cplSimHorizon" min="1" max="30" step="1" value="20" aria-label="Horizon en annees couple"><div class="range-val" id="cplSimHorizonVal">20 ans</div></div>
   </div>
   <div id="cplSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="cplSimStopBannerText"></span></div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
@@ -1808,11 +1818,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine d'Amine seul.<br>
   <strong style="color:var(--gold)">Aujourd'hui : Vitry represente <span id="amImmoPct">--</span>% du NW Amine (<span id="amImmoVal">--</span> d'equity).</strong></p>
   <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
-    <div class="sim-field"><label>Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="8000"><div class="range-val" id="amSimSavingsVal">8,000</div></div>
-    <div class="sim-field"><label>% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="100"><div class="range-val" id="amSimPctActionsVal">100%</div></div>
-    <div class="sim-field"><label>Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="10"><div class="range-val" id="amSimReturnActionsVal">10.0%</div></div>
-    <div class="sim-field"><label>Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="30" step="0.5" value="3"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="amSimHorizonVal">20 ans</div></div>
+    <div class="sim-field"><label for="amSimSavings">Epargne mensuelle</label><input type="range" id="amSimSavings" min="3000" max="15000" step="500" value="8000" aria-label="Epargne mensuelle Amine"><div class="range-val" id="amSimSavingsVal">8,000</div></div>
+    <div class="sim-field"><label for="amSimPctActions">% en Actions (reste en Cash 6%)</label><input type="range" id="amSimPctActions" min="0" max="100" step="5" value="100" aria-label="Pourcentage en actions Amine"><div class="range-val" id="amSimPctActionsVal">100%</div></div>
+    <div class="sim-field"><label for="amSimReturnActions">Rendement Actions annuel</label><input type="range" id="amSimReturnActions" min="0" max="20" step="0.5" value="10" aria-label="Rendement actions annuel Amine"><div class="range-val" id="amSimReturnActionsVal">10.0%</div></div>
+    <div class="sim-field"><label for="amSimStopYear">Fin de contribution</label><input type="range" id="amSimStopYear" min="0" max="30" step="0.5" value="3" aria-label="Fin de contribution Amine"><div class="range-val" id="amSimStopYearVal" style="font-size:15px;">mars 2029</div></div>
+    <div class="sim-field"><label for="amSimHorizon">Horizon (annees)</label><input type="range" id="amSimHorizon" min="1" max="30" step="1" value="20" aria-label="Horizon en annees Amine"><div class="range-val" id="amSimHorizonVal">20 ans</div></div>
   </div>
   <div id="amSimStopBanner" class="info" style="display:none; margin-bottom:16px;"><strong>Mode arret de contribution :</strong> <span id="amSimStopBannerText"></span></div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(5, 1fr);">
@@ -1831,9 +1841,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <h2><span class="section-icon" style="background: #d69e2e;">&#x1F3AF;</span>Simulateur — Patrimoine Nezha</h2>
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine immobilier de Nezha. Pas d'actions — uniquement Rueil (loue) et Villejuif (apres livraison Q4 2028).</p>
   <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="sim-field"><label>Appreciation immobiliere annuelle</label><input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1"><div class="range-val" id="nzSimAppreciationVal">1.0%</div></div>
-    <div class="sim-field"><label>Rendement Cash Nezha</label><input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2"><div class="range-val" id="nzSimCashReturnVal">2.0%</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="30" step="1" value="20"><div class="range-val" id="nzSimHorizonVal">20 ans</div></div>
+    <div class="sim-field"><label for="nzSimAppreciation">Appreciation immobiliere annuelle</label><input type="range" id="nzSimAppreciation" min="0" max="5" step="0.5" value="1" aria-label="Appreciation immobiliere annuelle Nezha"><div class="range-val" id="nzSimAppreciationVal">1.0%</div></div>
+    <div class="sim-field"><label for="nzSimCashReturn">Rendement Cash Nezha</label><input type="range" id="nzSimCashReturn" min="0" max="6" step="0.5" value="2" aria-label="Rendement cash Nezha"><div class="range-val" id="nzSimCashReturnVal">2.0%</div></div>
+    <div class="sim-field"><label for="nzSimHorizon">Horizon (annees)</label><input type="range" id="nzSimHorizon" min="1" max="30" step="1" value="20" aria-label="Horizon en annees Nezha"><div class="range-val" id="nzSimHorizonVal">20 ans</div></div>
   </div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(4, 1fr);">
     <div class="sim-result green-r"><div class="sr-val" id="nzSimNW">--</div><div class="sr-label">NW Final Nezha</div></div>
@@ -1853,8 +1863,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Combien coute reellement un achat aujourd'hui si cet argent etait investi ? Un achat de 10 000 EUR aujourd'hui, c'est potentiellement beaucoup plus dans 20 ans.</p>
   <div class="sim-controls" style="grid-template-columns: repeat(3, 1fr);">
     <div class="sim-field"><label>Montant de l'achat (EUR)</label><input type="number" id="oppCostAmount" value="10000" min="100" max="1000000" step="100" style="width:100%;padding:8px;border:1px solid #cbd5e0;border-radius:6px;font-size:15px;text-align:center;"></div>
-    <div class="sim-field"><label>Retour annuel des marches</label><input type="range" id="oppCostReturn" min="1" max="15" step="0.5" value="10"><div class="range-val" id="oppCostReturnVal">10.0%</div></div>
-    <div class="sim-field"><label>Horizon (annees)</label><input type="range" id="oppCostHorizon" min="1" max="40" step="1" value="20"><div class="range-val" id="oppCostHorizonVal">20 ans</div></div>
+    <div class="sim-field"><label for="oppCostReturn">Retour annuel des marches</label><input type="range" id="oppCostReturn" min="1" max="15" step="0.5" value="10" aria-label="Retour annuel des marches"><div class="range-val" id="oppCostReturnVal">10.0%</div></div>
+    <div class="sim-field"><label for="oppCostHorizon">Horizon (annees)</label><input type="range" id="oppCostHorizon" min="1" max="40" step="1" value="20" aria-label="Horizon en annees cout opportunite"><div class="range-val" id="oppCostHorizonVal">20 ans</div></div>
   </div>
   <div class="sim-result-strip" style="grid-template-columns: repeat(3, 1fr);">
     <div class="sim-result" style="background:#fff5f5;"><div class="sr-val" id="oppCostFuture" style="color:#c53030;font-size:28px;">--</div><div class="sr-label">Cout reel dans le futur</div></div>
@@ -2349,7 +2359,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=257"></script>
+<script type="module" src="js/app.js?v=258"></script>
 
 </body>
 </html>
