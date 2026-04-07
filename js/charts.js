@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=254';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=254';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=254';
+import { fmt, fmtAxis } from './render.js?v=255';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=255';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=255';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1827,6 +1827,142 @@ function buildBudgetTypeDonut(state) {
 // EUR at YTD start = derived so that total NAV = IBKR starting NAV
 // ============================================================
 
+// ── Compute ABSOLUTE lifetime deposits & P&L for tooltip consistency ──
+// Ensures P&L = NAV − Déposé(net) at every point, regardless of chart period.
+// Called by both buildPortfolioYTDChart and buildEquityHistoryChart.
+function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal) {
+  // ── 1) DEGIRO: back-compute from annual reports ──
+  const dg = PORTFOLIO.amine.degiro || {};
+  const dgAnnual = dg.annualSummary || {};
+  const dgDiv = dg.dividends || {};
+  const dgFX = dg.fxCosts || {};
+  const dgFlatex = dg.flatexCashFlows || {};
+
+  let dgTotalPL = 0;
+  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
+    const as = dgAnnual[y] || {};
+    const div = dgDiv[y] || {};
+    const fx = dgFX[y] || {};
+    const fl = dgFlatex[y] || {};
+    dgTotalPL += (as.netPL || 0) + (div.net || 0)
+      + (fx.autoFX || 0) + (fx.manualFX || 0) - (fl.interestPaid || 0);
+  }
+  dgTotalPL += 20; // promo bonus 2020
+
+  let dgTotalWithdrawals = 0;
+  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
+    dgTotalWithdrawals += (dgFlatex[y] || {}).retraits || 0;
+  }
+  const dgTotalDeposits = dgTotalWithdrawals - dgTotalPL;
+
+  const dgWithdrawalEvents = [];
+  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
+    const ret = (dgFlatex[y] || {}).retraits || 0;
+    if (ret > 0) {
+      dgWithdrawalEvents.push({ date: y === 2025 ? '2025-04-14' : y + '-12-31', amount: ret });
+    }
+  }
+  const dgDepositDates = ['2020-01-14', '2020-02-20', '2020-03-09'];
+  const dgPerDeposit = dgTotalDeposits / dgDepositDates.length;
+
+  // ── 2) ESPP: all lots contribEUR ──
+  const esppDepositEvents = [];
+  const esppLotsAmine = PORTFOLIO.amine.espp?.lots || [];
+  for (const lot of esppLotsAmine) {
+    if (lot.contribEUR) {
+      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
+    } else {
+      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
+    }
+  }
+  const esppCash = PORTFOLIO.amine.espp?.cashEUR || 0;
+  if (esppCash > 0) {
+    const earliest = esppLotsAmine.length > 0
+      ? esppLotsAmine.reduce((a, b) => a.date < b.date ? a : b).date : '2018-01-01';
+    esppDepositEvents.push({ date: earliest, amountEUR: esppCash });
+  }
+  // Nezha ESPP
+  const nezhaLots = PORTFOLIO.nezha?.espp?.lots || [];
+  for (const lot of nezhaLots) {
+    if (lot.contribEUR) {
+      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
+    } else {
+      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
+    }
+  }
+  const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
+  if (nezhaCashUSD > 0) {
+    esppDepositEvents.push({ date: '2018-01-01', amountEUR: nezhaCashUSD / (FX_STATIC?.USD || 1.15) });
+  }
+  esppDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── 3) IBKR: all deposits from records ──
+  const ibkrDepositEvents = [];
+  for (const d of (PORTFOLIO.amine.ibkr?.deposits || [])) {
+    const eur = d.currency === 'EUR' ? d.amount : d.amount / d.fxRateAtDate;
+    ibkrDepositEvents.push({ date: d.date, amountEUR: eur });
+  }
+  ibkrDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── 4) SGTM: IPO cost basis ──
+  const sgtmTotalShares = (PORTFOLIO.amine.sgtm?.shares || 0) + (PORTFOLIO.nezha?.sgtm?.shares || 0);
+  const sgtmCostMAD = PORTFOLIO.amine.sgtm?.costPerShareMAD || 0;
+  const sgtmDepositEvents = [];
+  if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
+    const fxMAD = FX_STATIC?.MAD || 10.85;
+    sgtmDepositEvents.push({ date: '2025-12-15', amountEUR: sgtmTotalShares * sgtmCostMAD / fxMAD });
+  }
+
+  // ── Build cumulative arrays ──
+  const absDepsIBKR = [], absDepsESPP = [], absDepsSGTM = [], absDepsDegiro = [], absDepsTotal = [];
+  let cumIBKR = 0, cumESPP = 0, cumSGTM = 0;
+  let esppI = 0, ibkrI = 0, sgtmI = 0;
+
+  for (let i = 0; i < chartLabels.length; i++) {
+    const snapDate = chartLabels[i];
+
+    // Degiro
+    const depsIn = dgDepositDates.filter(d => d <= snapDate).length;
+    const cumDgDep = depsIn * dgPerDeposit;
+    let cumDgRet = 0;
+    for (const w of dgWithdrawalEvents) { if (w.date <= snapDate) cumDgRet += w.amount; }
+    absDepsDegiro.push(cumDgDep - cumDgRet);
+
+    // ESPP
+    while (esppI < esppDepositEvents.length && esppDepositEvents[esppI].date <= snapDate) {
+      cumESPP += esppDepositEvents[esppI].amountEUR; esppI++;
+    }
+    absDepsESPP.push(cumESPP);
+
+    // IBKR
+    while (ibkrI < ibkrDepositEvents.length && ibkrDepositEvents[ibkrI].date <= snapDate) {
+      cumIBKR += ibkrDepositEvents[ibkrI].amountEUR; ibkrI++;
+    }
+    absDepsIBKR.push(cumIBKR);
+
+    // SGTM
+    while (sgtmI < sgtmDepositEvents.length && sgtmDepositEvents[sgtmI].date <= snapDate) {
+      cumSGTM += sgtmDepositEvents[sgtmI].amountEUR; sgtmI++;
+    }
+    absDepsSGTM.push(cumSGTM);
+
+    // Total
+    absDepsTotal.push(absDepsDegiro[i] + cumESPP + cumIBKR + cumSGTM);
+  }
+
+  // P&L = NAV - absolute deposits
+  const absPLDegiro = navDegiro.map((v, i) => Math.round((v || 0) - absDepsDegiro[i]));
+  const absPLESPP = navESPP.map((v, i) => Math.round((v || 0) - absDepsESPP[i]));
+  const absPLIBKR = navIBKR.map((v, i) => Math.round((v || 0) - absDepsIBKR[i]));
+  const absPLSGTM = navSGTM.map((v, i) => Math.round((v || 0) - absDepsSGTM[i]));
+  const absPLTotal = navTotal.map((v, i) => Math.round((v || 0) - absDepsTotal[i]));
+
+  return {
+    absDepsIBKR, absDepsESPP, absDepsSGTM, absDepsDegiro, absDepsTotal,
+    absPLIBKR, absPLESPP, absPLSGTM, absPLDegiro, absPLTotal,
+  };
+}
+
 // ── Unified chart rendering function ──
 function renderPortfolioChart(overrides = {}) {
   const el = document.getElementById('portfolioYTDChart');
@@ -2100,7 +2236,7 @@ function renderPortfolioChart(overrides = {}) {
     },
   ];
 
-  // Tooltip references
+  // ── Period-relative references (for hover tooltip — must match chart line) ──
   const chartLabelsRef = data.labels;
   const plIBKR = data.plValuesIBKR;
   const plTotal = data.plValuesTotal;
@@ -2119,6 +2255,19 @@ function renderPortfolioChart(overrides = {}) {
   const cumDepsDegiro = data.cumDepositsDegiro;
   const startValueRef = data.startValue;
 
+  // ── ABSOLUTE lifetime references (for click detail panel — P&L = NAV − Déposé) ──
+  const abs = data._absoluteTooltip || {};
+  const absPlIBKR = abs.absPLIBKR || plIBKR;
+  const absPlTotal = abs.absPLTotal || plTotal;
+  const absPlESPP = abs.absPLESPP || plESPP;
+  const absPlSGTM = abs.absPLSGTM || plSGTM;
+  const absPlDegiro = abs.absPLDegiro || plDegiro;
+  const absCumDepsIBKR = abs.absDepsIBKR || cumDepsIBKR;
+  const absCumDepsTotal = abs.absDepsTotal || cumDepsTotal;
+  const absCumDepsESPP = abs.absDepsESPP || cumDepsESPP;
+  const absCumDepsSGTM = abs.absDepsSGTM || cumDepsSGTM;
+  const absCumDepsDegiro = abs.absDepsDegiro || cumDepsDegiro;
+
   // ── Click handler: show detailed breakdown panel ──
   const onChartClick = (evt, elements) => {
     const detailEl = document.getElementById('ytdPointDetail');
@@ -2134,9 +2283,10 @@ function renderPortfolioChart(overrides = {}) {
     const dp = dateStr.split('-');
     const dateLabel = dp[2] + '/' + dp[1] + '/' + dp[0];
 
+    // Use ABSOLUTE lifetime data for the click detail panel
     const nav = { degiro: navDegiro[idx] || 0, espp: navESPP[idx] || 0, ibkr: navIBKR[idx] || 0, sgtm: navSGTM[idx] || 0, total: navTotal[idx] || 0 };
-    const pl = { degiro: plDegiro[idx] || 0, espp: plESPP[idx] || 0, ibkr: plIBKR[idx] || 0, sgtm: plSGTM[idx] || 0, total: plTotal[idx] || 0 };
-    const dep = { degiro: cumDepsDegiro[idx] || 0, espp: cumDepsESPP[idx] || 0, ibkr: cumDepsIBKR[idx] || 0, sgtm: cumDepsSGTM[idx] || 0, total: cumDepsTotal[idx] || 0 };
+    const pl = { degiro: absPlDegiro[idx] || 0, espp: absPlESPP[idx] || 0, ibkr: absPlIBKR[idx] || 0, sgtm: absPlSGTM[idx] || 0, total: absPlTotal[idx] || 0 };
+    const dep = { degiro: absCumDepsDegiro[idx] || 0, espp: absCumDepsESPP[idx] || 0, ibkr: absCumDepsIBKR[idx] || 0, sgtm: absCumDepsSGTM[idx] || 0, total: absCumDepsTotal[idx] || 0 };
 
     const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
     const color = v => v >= 0 ? 'var(--green)' : 'var(--red)';
@@ -2205,24 +2355,26 @@ function renderPortfolioChart(overrides = {}) {
       const dp = chartLabelsRef[idx].split('-');
       const dateLabel = dp[2] + '/' + dp[1] + '/' + dp[0];
 
-      // Get scope-specific values
-      let nav, pl, dep;
+      // Get scope-specific values (period-relative for chart line, absolute for context)
+      let nav, pl, absPl, absDep;
       switch (scope) {
-        case 'espp':  nav = navESPP[idx] || 0;  pl = plESPP[idx] || 0;  dep = cumDepsESPP[idx] || 0;  break;
-        case 'maroc': nav = navSGTM[idx] || 0;  pl = plSGTM[idx] || 0;  dep = cumDepsSGTM[idx] || 0;  break;
-        case 'degiro': nav = navDegiro[idx] || 0; pl = plDegiro[idx] || 0; dep = cumDepsDegiro[idx] || 0; break;
-        case 'all':   nav = navTotal[idx] || 0;  pl = plTotal[idx] || 0;  dep = cumDepsTotal[idx] || 0;  break;
-        default:      nav = navIBKR[idx] || 0;   pl = plIBKR[idx] || 0;   dep = cumDepsIBKR[idx] || 0;
+        case 'espp':  nav = navESPP[idx] || 0;  pl = plESPP[idx] || 0;  absPl = absPlESPP[idx] || 0;  absDep = absCumDepsESPP[idx] || 0;  break;
+        case 'maroc': nav = navSGTM[idx] || 0;  pl = plSGTM[idx] || 0;  absPl = absPlSGTM[idx] || 0;  absDep = absCumDepsSGTM[idx] || 0;  break;
+        case 'degiro': nav = navDegiro[idx] || 0; pl = plDegiro[idx] || 0; absPl = absPlDegiro[idx] || 0; absDep = absCumDepsDegiro[idx] || 0; break;
+        case 'all':   nav = navTotal[idx] || 0;  pl = plTotal[idx] || 0;  absPl = absPlTotal[idx] || 0;  absDep = absCumDepsTotal[idx] || 0;  break;
+        default:      nav = navIBKR[idx] || 0;   pl = plIBKR[idx] || 0;   absPl = absPlIBKR[idx] || 0;  absDep = absCumDepsIBKR[idx] || 0;
       }
 
       const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
-      const plColor = pl >= 0 ? '#48bb78' : '#fc8181';
+      const plColor = absPl >= 0 ? '#48bb78' : '#fc8181';
 
       let html = '<div style="font-weight:600;margin-bottom:4px;font-size:13px">' + dateLabel + '</div>';
 
       if (displayMode === 'pl') {
-        html += '<div style="color:' + plColor + ';font-weight:600">P&L: ' + fmtPL(pl) + '</div>';
-        html += '<div style="color:#cbd5e0;font-size:11px">NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(dep) + '</div>';
+        // Chart line shows period-relative P&L; supplementary shows absolute
+        const relColor = pl >= 0 ? '#48bb78' : '#fc8181';
+        html += '<div style="color:' + relColor + ';font-weight:600">P&L période: ' + fmtPL(pl) + '</div>';
+        html += '<div style="color:#cbd5e0;font-size:11px">NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(absDep) + ' | P&L total: ' + fmtPL(absPl) + '</div>';
       } else {
         const startV = startValueRef || nav; // fallback to prevent NaN
         const diff = nav - startV;
@@ -2230,7 +2382,7 @@ function renderPortfolioChart(overrides = {}) {
         const diffColor = diff >= 0 ? '#48bb78' : '#fc8181';
         html += '<div>NAV ' + scopeLabel + ': <b>' + fmt(nav) + '</b></div>';
         html += '<div style="color:' + diffColor + '">' + fmtPL(diff) + ' (' + (diff >= 0 ? '+' : '') + pct + '%)</div>';
-        html += '<div style="color:#cbd5e0;font-size:11px">P&L: ' + fmtPL(pl) + '</div>';
+        html += '<div style="color:#cbd5e0;font-size:11px">P&L: ' + fmtPL(absPl) + ' | Déposé: ' + fmt(absDep) + '</div>';
       }
 
       tooltipEl.innerHTML = html;
@@ -3461,6 +3613,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     return { labels: chartLabels, ibkrValues: chartValues, totalValues: chartValuesTotal };
   }
 
+  // ── Compute absolute tooltip data (lifetime deposits & P&L) ──
+  const absTooltip = computeAbsoluteTooltipArrays(
+    chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal
+  );
+
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
   window._ytdChartFullData = {
@@ -3470,6 +3627,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     esppValues: chartValuesESPP,
     sgtmValues: chartValuesSGTM,
     degiroValues: chartValuesDegiro,
+    _absoluteTooltip: absTooltip,
     plValuesIBKR,
     plValuesESPP,
     plValuesSGTM,
@@ -3833,6 +3991,15 @@ export function buildEquityHistoryChart(period, options) {
     cumDepositsESPP,
     cumDepositsSGTM,
     cumDepositsDegiro,
+    // Absolute tooltip data (equity history is already absolute)
+    _absoluteTooltip: {
+      absDepsIBKR: cumDepositsIBKR, absDepsESPP: cumDepositsESPP,
+      absDepsSGTM: cumDepositsSGTM, absDepsDegiro: cumDepositsDegiro,
+      absDepsTotal: cumDepositsTotal,
+      absPLIBKR: plValuesIBKR, absPLESPP: plValuesESPP,
+      absPLSGTM: plValuesSGTM, absPLDegiro: plValuesDegiro,
+      absPLTotal: plValuesTotal,
+    },
     startValue,  // v244: needed for value mode tooltip (diff from start)
     mode: period === '5Y' ? '5y' : 'max',
     scope: (options && options.scope) || 'all',
