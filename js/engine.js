@@ -1091,7 +1091,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     esppVal: amineEspp,
     esppShares: espp.shares,
     esppPrice: m.acnPriceUSD,
-    esppCostBasisUSD, esppCostBasisEUR, esppCurrentVal, esppUnrealizedPL,
+    esppCostBasisEUR, esppCurrentVal, esppUnrealizedPL,
     esppCashEUR: espp.cashEUR,
     // Nezha ESPP
     nezhaEsppVal: nezhaEsppCurrentVal,
