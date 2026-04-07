@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=247';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=247';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=247';
+import { fmt, fmtAxis } from './render.js?v=248';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=248';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=248';
 
 let charts = {};
 let coupleSelectedCat = null;
