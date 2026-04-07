@@ -4,12 +4,12 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=250';
-import { compute } from './engine.js?v=250';
-import { render } from './render.js?v=250';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=250';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=250';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=250';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=251';
+import { compute } from './engine.js?v=251';
+import { render } from './render.js?v=251';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=251';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=251';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=251';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -414,28 +414,35 @@ function updateKPIsFromChart(chartData) {
   const activeScope = window._currentScope || window._ytdChartFullData?.scope || 'ibkr';
   const fullData = window._ytdChartFullData;
 
-  // Select the correct NAV series and cumDeposits based on scope
-  let values, cumDeposits;
+  // ── Select the correct NAV, P&L, and cumDeposits series based on scope ──
+  // P&L series come from the simulation (plValues) — these are the SAME values
+  // used by the chart title and chart P&L mode, guaranteeing consistency.
+  let values, plSeries, cumDeposits;
   switch (activeScope) {
     case 'espp':
       values = fullData?.esppValues || ibkrValues;
+      plSeries = fullData?.plValuesESPP;
       cumDeposits = fullData?.cumDepositsESPP;
       break;
     case 'maroc':
       values = fullData?.sgtmValues || ibkrValues;
+      plSeries = fullData?.plValuesSGTM;
       cumDeposits = fullData?.cumDepositsSGTM;
       break;
     case 'degiro':
       values = fullData?.degiroValues || ibkrValues;
+      plSeries = fullData?.plValuesDegiro;
       cumDeposits = fullData?.cumDepositsDegiro;
       break;
     case 'all':
       values = totalValues && totalValues.length > 0 ? totalValues : ibkrValues;
+      plSeries = fullData?.plValuesTotal;
       cumDeposits = fullData?.cumDepositsAtPointTotal;
       break;
     case 'ibkr':
     default:
       values = ibkrValues;
+      plSeries = fullData?.plValuesIBKR;
       cumDeposits = fullData?.cumDepositsAtPoint;
       break;
   }
@@ -444,34 +451,18 @@ function updateKPIsFromChart(chartData) {
   const lastNAV = values[n - 1];
   const prevNAV = values[n - 2];
 
-  // Helper: find NAV at or just before a target date
-  function navAtDate(targetDate) {
+  // ── Helper: find index at or just before a target date ──
+  function idxAtDate(targetDate) {
     for (let i = labels.length - 1; i >= 0; i--) {
-      if (labels[i] <= targetDate) return values[i];
+      if (labels[i] <= targetDate) return i;
     }
-    return values[0]; // fallback to first
+    return 0;
   }
 
-  // Helper: find cumDeposits at or just before a target date
-  function cumDepositsAtDate(targetDate) {
+  // Helper: cumDeposits between two indices
+  function depositsInIdxRange(startIdx, endIdx) {
     if (!cumDeposits) return 0;
-    for (let i = labels.length - 1; i >= 0; i--) {
-      if (labels[i] <= targetDate) return cumDeposits[i] || 0;
-    }
-    return cumDeposits[0] || 0;
-  }
-
-  // Helper: deposits between two dates = difference in cumulative deposits
-  function depositsInRange(startDate, endDate) {
-    if (cumDeposits) {
-      return cumDepositsAtDate(endDate) - cumDepositsAtDate(startDate);
-    }
-    // Fallback to old method for IBKR (depositsByDate)
-    let total = 0;
-    for (const [date, amount] of Object.entries(depositsByDate)) {
-      if (date > startDate && date <= endDate) total += amount;
-    }
-    return total;
+    return (cumDeposits[endIdx] || 0) - (cumDeposits[startIdx] || 0);
   }
 
   const lastDate = labels[n - 1];
@@ -480,37 +471,38 @@ function updateKPIsFromChart(chartData) {
 
   // Compute period boundaries
   const lastDateObj = new Date(lastDate);
-  // MTD: first day of current month
   const mtdStart = lastDate.slice(0, 8) + '01';
-  // 1 Month ago
   const oneMonthAgo = new Date(lastDateObj);
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
   const oneMonthStr = oneMonthAgo.toISOString().slice(0, 10);
 
-  // P&L = NAV change minus deposits in the period
+  // ── Compute P&L from plSeries (single source of truth) ──
+  // P&L for a period = plSeries[end] - plSeries[periodStart]
+  // This matches the chart title exactly.
+  const lastPL = plSeries ? plSeries[n - 1] : 0;
+  const prevPL = plSeries ? plSeries[n - 2] : 0;
+
   // P&L Daily
-  const depositsDaily = depositsInRange(prevDate, lastDate);
-  const plDaily = lastNAV - prevNAV - depositsDaily;
+  const plDaily = plSeries ? (lastPL - prevPL) : (lastNAV - prevNAV);
 
   // P&L MTD
   const mtdRefDate = mtdStart < firstDate ? firstDate : mtdStart;
   const mtdStartActual = labels.find(d => d >= mtdRefDate) || firstDate;
-  const prevMtdDate = labels[Math.max(0, labels.indexOf(mtdStartActual) - 1)] || firstDate;
-  const navBeforeMTD = navAtDate(prevMtdDate);
-  const depositsMTD = depositsInRange(prevMtdDate, lastDate);
-  const plMTD = lastNAV - navBeforeMTD - depositsMTD;
+  const prevMtdIdx = Math.max(0, labels.indexOf(mtdStartActual) - 1);
+  const plMTD = plSeries ? (lastPL - plSeries[prevMtdIdx]) : (lastNAV - values[prevMtdIdx]);
 
   // P&L 1 Month
   const date1MAgo = labels.find(d => d >= oneMonthStr) || firstDate;
-  const prevDate1M = labels[Math.max(0, labels.indexOf(date1MAgo) - 1)] || firstDate;
-  const navBefore1M = navAtDate(prevDate1M);
-  const deposits1M = depositsInRange(prevDate1M, lastDate);
-  const pl1M = lastNAV - navBefore1M - deposits1M;
+  const prevIdx1M = Math.max(0, labels.indexOf(date1MAgo) - 1);
+  const pl1M = plSeries ? (lastPL - plSeries[prevIdx1M]) : (lastNAV - values[prevIdx1M]);
 
-  // P&L YTD — use first chart value as start NAV (already accounts for scope)
+  // P&L YTD = plSeries[last] - plSeries[first]
+  const plYTD = plSeries ? (lastPL - plSeries[0]) : (lastNAV - values[0]);
+
+  // Reference NAVs for percentage computation (capital deployed = startNAV + deposits)
   const ytdStartNAV = values[0];
-  const depositsYTD = depositsInRange('2025-12-31', lastDate);
-  const plYTD = lastNAV - ytdStartNAV - depositsYTD;
+  const navBeforeMTD = values[prevMtdIdx];
+  const navBefore1M = values[prevIdx1M];
 
   // TWR (Time-Weighted Return) using Modified Dietz / daily chaining
   // TWR = product of (1 + daily_return) - 1, where daily_return adjusts for deposits
@@ -563,10 +555,16 @@ function updateKPIsFromChart(chartData) {
     }
   }
 
-  updateKPI('kpiPLDaily', plDaily, prevNAV);
-  updateKPI('kpiPLMTD', plMTD, navBeforeMTD);
-  updateKPI('kpiPL1M', pl1M, navBefore1M);
-  updateKPI('kpiPLYTD', plYTD, ytdStartNAV);
+  // Compute capital deployed (startNAV + deposits) for each period's %
+  // This matches the chart title percentage formula exactly.
+  const depDaily = depositsInIdxRange(n - 2, n - 1);
+  const depMTD = depositsInIdxRange(prevMtdIdx, n - 1);
+  const dep1M = depositsInIdxRange(prevIdx1M, n - 1);
+  const depYTD = depositsInIdxRange(0, n - 1);
+  updateKPI('kpiPLDaily', plDaily, prevNAV + depDaily);
+  updateKPI('kpiPLMTD', plMTD, navBeforeMTD + depMTD);
+  updateKPI('kpiPL1M', pl1M, navBefore1M + dep1M);
+  updateKPI('kpiPLYTD', plYTD, ytdStartNAV + depYTD);
 
   // Update TWR
   const twrEl = document.getElementById('kpiActionsTWR');
@@ -610,11 +608,18 @@ function updateKPIsFromChart(chartData) {
     String(_now1Y.getDate()).padStart(2, '0');
 
   // Store cost breakdowns for each period on window for render.js detail generators
+  // Percentages use capital deployed (start NAV + deposits) for consistency with chart
+  const prevMtdDate = labels[prevMtdIdx];
+  const prevDate1M = labels[prevIdx1M];
+  const capDaily = prevNAV + depDaily;
+  const capMTD = navBeforeMTD + depMTD;
+  const cap1M = navBefore1M + dep1M;
+  const capYTD = ytdStartNAV + depYTD;
   window._chartKPIData = {
-    daily: { pl: plDaily, pct: prevNAV > 0 ? (plDaily / prevNAV * 100) : 0, costs: aggregateCosts(prevDate, lastDate) },
-    mtd: { pl: plMTD, pct: navBeforeMTD > 0 ? (plMTD / navBeforeMTD * 100) : 0, costs: aggregateCosts(prevMtdDate, lastDate) },
-    oneMonth: { pl: pl1M, pct: navBefore1M > 0 ? (pl1M / navBefore1M * 100) : 0, costs: aggregateCosts(prevDate1M, lastDate) },
-    ytd: { pl: plYTD, pct: ytdStartNAV > 0 ? (plYTD / ytdStartNAV * 100) : 0, costs: aggregateCosts('2025-12-31', lastDate) },
+    daily: { pl: plDaily, pct: capDaily > 0 ? (plDaily / capDaily * 100) : 0, costs: aggregateCosts(prevDate, lastDate) },
+    mtd: { pl: plMTD, pct: capMTD > 0 ? (plMTD / capMTD * 100) : 0, costs: aggregateCosts(prevMtdDate, lastDate) },
+    oneMonth: { pl: pl1M, pct: cap1M > 0 ? (pl1M / cap1M * 100) : 0, costs: aggregateCosts(prevDate1M, lastDate) },
+    ytd: { pl: plYTD, pct: capYTD > 0 ? (plYTD / capYTD * 100) : 0, costs: aggregateCosts('2025-12-31', lastDate) },
     // 1Y costs: aggregate from 1Y ago to last chart date
     // Note: chart data starts April 2025 so all chart cost items are within 1Y window
     oneYear: { costs: aggregateCosts(oneYearAgoStr, lastDate) },
