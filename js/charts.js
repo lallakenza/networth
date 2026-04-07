@@ -5,9 +5,9 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=250';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=250';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=250';
+import { fmt, fmtAxis } from './render.js?v=251';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=251';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=251';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1945,10 +1945,47 @@ function renderPortfolioChart(overrides = {}) {
   const endVal = mainData[mainData.length - 1];
   const plStartVal = mainData[0]; // P&L at start of displayed period
   const plChange = endVal - plStartVal; // P&L change during displayed period
-  const plEUR = displayMode === 'pl' ? plChange : (endVal - refValue);
-  // plPct is only used in value mode title (P&L mode title shows no percentage)
-  const plPct = (refValue !== 0) ? ((endVal / refValue - 1) * 100).toFixed(2) : '0.00';
-  const isPositive = displayMode === 'pl' ? plChange >= 0 : plEUR >= 0;
+
+  // ── In value mode, compute true P&L from the PL series (not NAV change) ──
+  // This ensures the title P&L matches the KPI cards exactly.
+  // NAV change includes deposits; P&L subtracts them.
+  let plForTitle;
+  if (displayMode === 'pl') {
+    plForTitle = plChange;
+  } else {
+    // Look up the matching PL series for the current scope
+    let plSeries;
+    switch (scope) {
+      case 'espp': plSeries = slicedPLESPP; break;
+      case 'maroc': plSeries = slicedPLSGTM; break;
+      case 'degiro': plSeries = slicedPLDegiro; break;
+      case 'all': plSeries = slicedPLTotal; break;
+      case 'ibkr': default: plSeries = slicedPLIBKR; break;
+    }
+    if (plSeries && plSeries.length > 0) {
+      plForTitle = plSeries[plSeries.length - 1] - plSeries[0];
+    } else {
+      plForTitle = endVal - refValue; // fallback to NAV change
+    }
+  }
+  const plEUR = plForTitle;
+  // Compute % relative to start NAV + cumulative deposits (= capital deployed)
+  const slicedCumDep = displayMode !== 'pl' ? (() => {
+    let depSeries;
+    switch (scope) {
+      case 'espp': depSeries = (data.cumDepositsESPP || []).slice(startIdx); break;
+      case 'maroc': depSeries = (data.cumDepositsSGTM || []).slice(startIdx); break;
+      case 'degiro': depSeries = (data.cumDepositsDegiro || []).slice(startIdx); break;
+      case 'all': depSeries = (data.cumDepositsAtPointTotal || []).slice(startIdx); break;
+      case 'ibkr': default: depSeries = (data.cumDepositsAtPoint || []).slice(startIdx); break;
+    }
+    return depSeries;
+  })() : null;
+  const depositsInPeriod = slicedCumDep && slicedCumDep.length > 0
+    ? (slicedCumDep[slicedCumDep.length - 1] || 0) - (slicedCumDep[0] || 0) : 0;
+  const capitalDeployed = (refValue || 0) + depositsInPeriod;
+  const plPct = capitalDeployed > 0 ? (plEUR / capitalDeployed * 100).toFixed(2) : '0.00';
+  const isPositive = plEUR >= 0;
 
   // ── Update UI elements ──
   const titleEl = document.getElementById('ytdChartTitle');
