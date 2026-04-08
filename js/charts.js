@@ -2351,9 +2351,25 @@ function renderPortfolioChart(overrides = {}) {
     const dateLabel = dp[2] + '/' + dp[1] + '/' + dp[0];
 
     // Use ABSOLUTE lifetime data for the click detail panel
-    const nav = { degiro: navDegiro[idx] || 0, espp: navESPP[idx] || 0, ibkr: navIBKR[idx] || 0, sgtm: navSGTM[idx] || 0, total: navTotal[idx] || 0 };
-    const pl = { degiro: absPlDegiro[idx] || 0, espp: absPlESPP[idx] || 0, ibkr: absPlIBKR[idx] || 0, sgtm: absPlSGTM[idx] || 0, total: absPlTotal[idx] || 0 };
-    const dep = { degiro: absCumDepsDegiro[idx] || 0, espp: absCumDepsESPP[idx] || 0, ibkr: absCumDepsIBKR[idx] || 0, sgtm: absCumDepsSGTM[idx] || 0, total: absCumDepsTotal[idx] || 0 };
+    // v273: apply owner ratios when filtered
+    let _oIR = 1, _oDR = 1, _oER = 1, _oSR = 1;
+    if (owner !== 'both') {
+      const _aeS = window.PORTFOLIO?.amine?.espp?.shares || 167;
+      const _neS = window.PORTFOLIO?.nezha?.espp?.shares || 40;
+      const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
+      const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+      _oER = owner === 'amine' ? _aeS / (_aeS + _neS) : _neS / (_aeS + _neS);
+      _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
+      _oIR = owner === 'amine' ? 1 : 0;
+      _oDR = owner === 'amine' ? 1 : 0;
+    }
+    const _r = v => Math.round(v);
+    const nav = { degiro: _r((navDegiro[idx]||0)*_oDR), espp: _r((navESPP[idx]||0)*_oER), ibkr: _r((navIBKR[idx]||0)*_oIR), sgtm: _r((navSGTM[idx]||0)*_oSR) };
+    nav.total = nav.ibkr + nav.espp + nav.sgtm + nav.degiro;
+    const pl = { degiro: _r((absPlDegiro[idx]||0)*_oDR), espp: _r((absPlESPP[idx]||0)*_oER), ibkr: _r((absPlIBKR[idx]||0)*_oIR), sgtm: _r((absPlSGTM[idx]||0)*_oSR) };
+    pl.total = pl.ibkr + pl.espp + pl.sgtm + pl.degiro;
+    const dep = { degiro: _r((absCumDepsDegiro[idx]||0)*_oDR), espp: _r((absCumDepsESPP[idx]||0)*_oER), ibkr: _r((absCumDepsIBKR[idx]||0)*_oIR), sgtm: _r((absCumDepsSGTM[idx]||0)*_oSR) };
+    dep.total = dep.ibkr + dep.espp + dep.sgtm + dep.degiro;
 
     const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
     const color = v => v >= 0 ? 'var(--green)' : 'var(--red)';
@@ -2430,6 +2446,33 @@ function renderPortfolioChart(overrides = {}) {
         case 'degiro': nav = navDegiro[idx] || 0; pl = plDegiro[idx] || 0; absPl = absPlDegiro[idx] || 0; absDep = absCumDepsDegiro[idx] || 0; break;
         case 'all':   nav = navTotal[idx] || 0;  pl = plTotal[idx] || 0;  absPl = absPlTotal[idx] || 0;  absDep = absCumDepsTotal[idx] || 0;  break;
         default:      nav = navIBKR[idx] || 0;   pl = plIBKR[idx] || 0;   absPl = absPlIBKR[idx] || 0;  absDep = absCumDepsIBKR[idx] || 0;
+      }
+      // v273: Apply owner filter to tooltip values (same ratios as chart line)
+      if (owner !== 'both') {
+        const _aeS = window.PORTFOLIO?.amine?.espp?.shares || 167;
+        const _neS = window.PORTFOLIO?.nezha?.espp?.shares || 40;
+        const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
+        const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+        const _oER = owner === 'amine' ? _aeS / (_aeS + _neS) : _neS / (_aeS + _neS);
+        const _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
+        const _oIR = owner === 'amine' ? 1 : 0;
+        const _oDR = owner === 'amine' ? 1 : 0;
+        // Re-compute per scope
+        if (scope === 'espp') { nav *= _oER; pl *= _oER; absPl *= _oER; absDep *= _oER; }
+        else if (scope === 'maroc') { nav *= _oSR; pl *= _oSR; absPl *= _oSR; absDep *= _oSR; }
+        else if (scope === 'degiro') { nav *= _oDR; pl *= _oDR; absPl *= _oDR; absDep *= _oDR; }
+        else if (scope === 'all') {
+          // Recompute total from per-platform owner-filtered values
+          const oIBKR = (navIBKR[idx] || 0) * _oIR;
+          const oESPP = (navESPP[idx] || 0) * _oER;
+          const oSGTM = (navSGTM[idx] || 0) * _oSR;
+          const oDegiro = (navDegiro[idx] || 0) * _oDR;
+          nav = Math.round(oIBKR + oESPP + oSGTM + oDegiro);
+          pl = Math.round((plIBKR[idx]||0)*_oIR + (plESPP[idx]||0)*_oER + (plSGTM[idx]||0)*_oSR + (plDegiro[idx]||0)*_oDR);
+          absPl = Math.round((absPlIBKR[idx]||0)*_oIR + (absPlESPP[idx]||0)*_oER + (absPlSGTM[idx]||0)*_oSR + (absPlDegiro[idx]||0)*_oDR);
+          absDep = Math.round((absCumDepsIBKR[idx]||0)*_oIR + (absCumDepsESPP[idx]||0)*_oER + (absCumDepsSGTM[idx]||0)*_oSR + (absCumDepsDegiro[idx]||0)*_oDR);
+        } else { nav *= _oIR; pl *= _oIR; absPl *= _oIR; absDep *= _oIR; }
+        nav = Math.round(nav); pl = Math.round(pl); absPl = Math.round(absPl); absDep = Math.round(absDep);
       }
 
       const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
@@ -4139,7 +4182,8 @@ export function buildEquityHistoryChart(period, options) {
   // startValue = first total NAV in the filtered range (for value mode tooltip %)
   const startValue = totalValues[0] || 0;
 
-  window._ytdChartFullData = {
+  const modeKey = period === '5Y' ? '5y' : 'max';
+  const chartData = {
     labels,
     ibkrValues,
     totalValues,
@@ -4167,13 +4211,17 @@ export function buildEquityHistoryChart(period, options) {
       absPLTotal: plValuesTotal,
     },
     startValue,  // v244: needed for value mode tooltip (diff from start)
-    mode: period === '5Y' ? '5y' : 'max',
+    mode: modeKey,
     scope: (options && options.scope) || 'all',
     currentPeriod: period,
     degiroRealizedPL: Math.round(dgTotalPL),
     _isEquityHistory: true,
     _equityEntries: dataPoints.filter(d => d.note),  // for click-detail notes (EH entries with notes)
   };
+  // v273: Store in per-mode data store AND set active mode (fixes 5Y/MAX rendering)
+  window._chartDataByMode[modeKey] = chartData;
+  window._activeChartMode = modeKey;
+  window._ytdChartFullData = chartData;
 
   // Render
   renderPortfolioChart({ period, scope: (options && options.scope) || 'all' });
