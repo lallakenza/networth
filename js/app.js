@@ -1011,7 +1011,7 @@ async function loadStockPrices(forceRefresh) {
         // chart-derived values, ensuring breakdown == table for all positions.
         refresh();
         // Re-apply chart KPI overrides (refresh() resets them to engine.js values)
-        if (chartResultYTD2) updateKPIsFromChart(chartResultYTD2);
+        if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         update1YKPIFromChart();
 
         // Track current state for toggles (exposed on window for KPI functions)
