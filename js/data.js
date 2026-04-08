@@ -214,7 +214,8 @@ export const PORTFOLIO = {
         // PRU: prix d'achat moyen (costBasis EUR)
         { ticker: 'AIR.PA',  shares: 200,  price: 160.62, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 175.42, oneMonthAgo: 184.24 },
         { ticker: 'BN.PA',   shares: 200,  price: 69.22,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 69.94, oneMonthAgo: 72.64 },
-        { ticker: 'DG.PA',   shares: 100,  price: 128.95, costBasis: 122.46, currency: 'EUR', label: 'Vinci (DG)', sector: 'industrials', geo: 'france', ytdOpen: 121.15, mtdOpen: 133.25, oneMonthAgo: 140.75 },
+        // DG.PA — position fermée le 8 avr 2026 (100 actions vendues à 136.65)
+
         { ticker: 'FGR.PA',  shares: 100,  price: 131.60, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 139.85, oneMonthAgo: 146.20 },
         { ticker: 'MC.PA',   shares: 40,   price: 461.05, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 502.20, oneMonthAgo: 544.10 },
         { ticker: 'OR.PA',   shares: 30,   price: 350.25, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 363.75, oneMonthAgo: 397.40 },
@@ -226,10 +227,11 @@ export const PORTFOLIO = {
         { ticker: 'IBIT',    shares: 1200, price: 37.68,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 37.19 },
         { ticker: 'ETHA',    shares: 1100, price: 15.27,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 14.52 },
       ],
-      // ⬇️ Cash multi-devises (IBKR — mis à jour 18/03/2026 après deleverage JPY)
-      cashEUR: -1,           // Solde EUR chez IBKR au 18/03/2026
-      cashUSD: 0,            // Solde USD chez IBKR au 18/03/2026
-      cashJPY: -4590694,     // Solde JPY chez IBKR au 18/03/2026 (après rachat 13111 EUR→JPY)
+      // ⬇️ Cash multi-devises (IBKR — mis à jour 08/04/2026 après vente DG + deleverage JPY)
+      // Depuis 18/03: -2000 retrait + 13665 DG sell - 6.83 comm - 11679 EUR→JPY - 319.17 FX fees ≈ -341
+      cashEUR: -341,         // Solde EUR chez IBKR au 08/04/2026 (approx, hors intérêts mars/avr)
+      cashUSD: 0,            // Solde USD chez IBKR au 08/04/2026
+      cashJPY: -2429378,     // Solde JPY chez IBKR au 08/04/2026 (-4590694 + 2161316 EUR→JPY)
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
       meta: {
@@ -479,6 +481,8 @@ export const PORTFOLIO = {
         // ─── DG vente partielle (100/200) — 17 mars 2026 ───
         { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 40,   price: 131.20,  currency: 'EUR', proceeds: 5248,  realizedPL: 349.60,  commission: -3.00, costBasis: 122.46 , source: 'ibkr' },  // 40×(131.20-122.46)
         { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: 524.40,  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },  // 60×(131.20-122.46)
+        // ─── DG (Vinci) — solde position 8 avr 2026 ───
+        { date: '2026-04-08', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 100,  price: 136.65,  currency: 'EUR', proceeds: 13665, realizedPL: 1419.00, commission: -6.83, costBasis: 122.46 , source: 'ibkr' },  // 100×(136.65-122.46)
 
         // ═══════════════════════════════════════════════════
         //  FX TRADES — conversions de devises & carry trade
@@ -499,6 +503,8 @@ export const PORTFOLIO = {
         { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
         // ─── JPY deleverage 18 mars 2026 ───
         { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -1.73, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
+        // ─── JPY deleverage 8 avr 2026 ───
+        { date: '2026-04-08', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 11679, price: 185.060, currency: 'EUR', jpyAmount: 2161316,  commission: -319.17, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
       ],
     },
 
