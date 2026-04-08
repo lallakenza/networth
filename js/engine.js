@@ -3558,11 +3558,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nbBiens: nbBiens,
     cashTotal: amineCashTotal + nezhaCash,
     actionsTotal: amineIbkr + amineEspp + amineSgtm + nezhaEspp + nezhaSgtm,
-    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar,
+    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
     autreVehicles: amineVehicles,
     autreCreancesPro: amineRecvPro,
     autreCreancesPerso: amineRecvPersonal + nezhaRecvOmar,
     autreTva: amineTva,
+    autreVillejuifReservation: nezhaVillejuifReservation,
+    autreCautionRueil: -nezhaCautionRueil,
   };
 
   // ---- POOLS (for simulators) ----
