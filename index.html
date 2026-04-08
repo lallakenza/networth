@@ -1929,6 +1929,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
       <button data-period="5Y" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s;border-left:1px solid #cbd5e0">5Y</button>
       <button data-period="MAX" style="padding:4px 10px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">MAX</button>
     </div>
+    <div id="ytdOwnerToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
+      <button data-owner="amine" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Amine</button>
+      <button data-owner="nezha" style="padding:4px 12px;border:none;cursor:pointer;background:#fff;color:#4a5568;transition:all .15s">Nezha</button>
+      <button data-owner="both" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Both</button>
+    </div>
   </div>
 
   <!-- KPI CARDS — scope-aware: updated when toggling IBKR/Tout -->
@@ -2360,7 +2365,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=268"></script>
+<script type="module" src="js/app.js?v=269"></script>
 
 </body>
 </html>
