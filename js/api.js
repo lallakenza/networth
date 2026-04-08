@@ -625,135 +625,142 @@ async function fetchTickerHistory(symbol, range) {
 }
 
 /**
- * Fetch YTD historical prices for all given tickers + FX rates.
- * Returns { tickers: { [ticker]: { dates, closes } }, fx: { usd: { dates, closes }, jpy: { dates, closes } } }
+ * Fetch historical prices using snapshot + delta strategy.
+ *
+ * Architecture (v259):
+ *   1. Start from PRICE_SNAPSHOT (static file, 1Y+ of daily data)
+ *   2. Check delta cache in localStorage (today's delta)
+ *   3. If stale/missing, fetch only YTD range from Yahoo (covers snapshot→today gap)
+ *   4. Merge: snapshot base + delta extension (dates after snapshot end)
+ *   5. Result: complete dataset usable for ALL periods (MTD→MAX)
+ *
+ * This replaces the former fetchHistoricalPricesYTD + fetchHistoricalPrices1Y
+ * dual-fetch approach. One fetch, one dataset, all periods.
  *
  * @param {string[]} tickers - Yahoo Finance tickers to fetch
+ * @param {object} snapshot - PRICE_SNAPSHOT from price_snapshot.js
  * @param {function} [onProgress] - callback(loaded, total, ticker)
- * @returns {object} Historical data map
+ * @returns {object} { tickers: { [t]: {dates,closes} }, fx: { usd, jpy, mad } }
  */
-export async function fetchHistoricalPricesYTD(tickers, onProgress) {
+export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
+  // ── Step 1: Deep-clone snapshot as our base ──
+  const result = { tickers: {}, fx: {} };
+  for (const [t, d] of Object.entries(snapshot.tickers || {})) {
+    result.tickers[t] = { dates: [...d.dates], closes: [...d.closes] };
+  }
+  for (const [k, d] of Object.entries(snapshot.fx || {})) {
+    result.fx[k] = { dates: [...d.dates], closes: [...d.closes] };
+  }
+  const snapshotDate = snapshot._snapshotDate || '1900-01-01';
+  console.log('[hist] Snapshot base loaded: ' + Object.keys(result.tickers).length + ' tickers + ' + Object.keys(result.fx).length + ' FX, up to ' + snapshotDate);
+
+  // ── Step 2: Check delta cache ──
   const cached = loadHistCache();
   if (cached && cached.tickers && cached.fx) {
-    const missing = tickers.filter(t => !cached.tickers[t]);
+    const missing = tickers.filter(t => !cached.tickers[t] && !result.tickers[t]);
     if (missing.length === 0) {
-      console.log('[hist] All historical data from cache (' + tickers.length + ' tickers + FX)');
-      return cached;
+      // Merge cached delta into snapshot
+      mergeInto(result, cached, snapshotDate);
+      console.log('[hist] Delta from cache, merged. Total coverage → ' + getLastDate(result));
+      return result;
     }
-    console.log('[hist] Cache hit but missing ' + missing.length + ' tickers, re-fetching all');
   }
 
-  const total = tickers.length + 2; // +2 for EURUSD + EURJPY
+  // ── Step 3: Fetch delta (YTD range — covers Jan 1 → today) ──
+  // YTD range is sufficient: snapshot already has data back to ~1 year ago.
+  // Any new tickers not in snapshot will get full YTD data.
+  const fxPairs = [
+    { symbol: 'EURUSD=X', key: 'usd' },
+    { symbol: 'EURJPY=X', key: 'jpy' },
+    { symbol: 'EURMAD=X', key: 'mad' },
+  ];
+  const total = tickers.length + fxPairs.length;
   let loaded = 0;
-  const result = { tickers: {}, fx: {} };
+  const delta = { tickers: {}, fx: {} };
   const allPromises = [];
 
   for (const ticker of tickers) {
     allPromises.push(
       fetchTickerHistory(ticker).then(data => {
         loaded++;
-        if (data) result.tickers[ticker] = data;
+        if (data) delta.tickers[ticker] = data;
         if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
       })
     );
   }
 
-  // FX: EUR/USD and EUR/JPY historical rates
-  allPromises.push(
-    fetchTickerHistory('EURUSD=X').then(data => {
-      loaded++;
-      if (data) result.fx.usd = data;
-      if (onProgress) onProgress(loaded, total, 'EUR/USD' + (data ? ' ✓' : ' ✗'));
-    })
-  );
-  allPromises.push(
-    fetchTickerHistory('EURJPY=X').then(data => {
-      loaded++;
-      if (data) result.fx.jpy = data;
-      if (onProgress) onProgress(loaded, total, 'EUR/JPY' + (data ? ' ✓' : ' ✗'));
-    })
-  );
-
-  await Promise.all(allPromises);
-  saveHistCache(result);
-
-  const loadedCount = Object.keys(result.tickers).length;
-  console.log('[hist] Fetched ' + loadedCount + '/' + tickers.length + ' ticker histories + FX (USD: ' + (result.fx.usd ? '✓' : '✗') + ', JPY: ' + (result.fx.jpy ? '✓' : '✗') + ')');
-
-  return result;
-}
-
-/**
- * Fetch 1Y historical prices for all given tickers + FX rates.
- * Similar to fetchHistoricalPricesYTD but uses range='1y' and separate cache.
- * Returns { tickers: { [ticker]: { dates, closes } }, fx: { usd: { dates, closes }, jpy: { dates, closes } } }
- *
- * @param {string[]} tickers - Yahoo Finance tickers to fetch
- * @param {function} [onProgress] - callback(loaded, total, ticker)
- * @returns {object} Historical data map
- */
-export async function fetchHistoricalPrices1Y(tickers, onProgress) {
-  // Load cache (separate key for 1Y data)
-  const cacheKey = 'HIST_CACHE_1Y';
-  let cached = null;
-  try {
-    const stored = localStorage.getItem(cacheKey);
-    if (stored) cached = JSON.parse(stored);
-  } catch (e) { /* ignore */ }
-
-  if (cached && cached.tickers && cached.fx) {
-    const missing = tickers.filter(t => !cached.tickers[t]);
-    if (missing.length === 0) {
-      console.log('[hist-1y] All historical data from cache (' + tickers.length + ' tickers + FX)');
-      return cached;
-    }
-    console.log('[hist-1y] Cache hit but missing ' + missing.length + ' tickers, re-fetching all');
-  }
-
-  const total = tickers.length + 2; // +2 for EURUSD + EURJPY
-  let loaded = 0;
-  const result = { tickers: {}, fx: {} };
-  const allPromises = [];
-
-  for (const ticker of tickers) {
+  for (const { symbol, key } of fxPairs) {
     allPromises.push(
-      fetchTickerHistory(ticker, '1y').then(data => {
+      fetchTickerHistory(symbol).then(data => {
         loaded++;
-        if (data) result.tickers[ticker] = data;
-        if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
+        if (data) delta.fx[key] = data;
+        if (onProgress) onProgress(loaded, total, symbol + (data ? ' ✓' : ' ✗'));
       })
     );
   }
 
-  // FX: EUR/USD and EUR/JPY historical rates for 1Y
-  allPromises.push(
-    fetchTickerHistory('EURUSD=X', '1y').then(data => {
-      loaded++;
-      if (data) result.fx.usd = data;
-      if (onProgress) onProgress(loaded, total, 'EUR/USD' + (data ? ' ✓' : ' ✗'));
-    })
-  );
-  allPromises.push(
-    fetchTickerHistory('EURJPY=X', '1y').then(data => {
-      loaded++;
-      if (data) result.fx.jpy = data;
-      if (onProgress) onProgress(loaded, total, 'EUR/JPY' + (data ? ' ✓' : ' ✗'));
-    })
-  );
-
   await Promise.all(allPromises);
+  saveHistCache(delta);
 
-  // Save to separate cache
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify(result));
-  } catch (e) {
-    if (e.code === 22 || e.name === 'QuotaExceededError') {
-      localStorage.removeItem(cacheKey);
-    }
-  }
+  // ── Step 4: Merge delta into snapshot ──
+  mergeInto(result, delta, snapshotDate);
 
-  const loadedCount = Object.keys(result.tickers).length;
-  console.log('[hist-1y] Fetched ' + loadedCount + '/' + tickers.length + ' ticker histories + FX (USD: ' + (result.fx.usd ? '✓' : '✗') + ', JPY: ' + (result.fx.jpy ? '✓' : '✗') + ')');
+  const loadedCount = Object.keys(delta.tickers).length;
+  const fxStatus = Object.keys(delta.fx).map(k => k.toUpperCase() + ': ' + (delta.fx[k] ? '✓' : '✗')).join(', ');
+  console.log('[hist] Fetched delta: ' + loadedCount + '/' + tickers.length + ' tickers + FX (' + fxStatus + ')');
+  console.log('[hist] Merged snapshot+delta → coverage ' + getFirstDate(result) + ' → ' + getLastDate(result));
 
   return result;
 }
+
+/** Merge delta data into base, adding only dates after snapshotDate */
+function mergeInto(base, delta, snapshotDate) {
+  // Merge tickers
+  for (const [ticker, d] of Object.entries(delta.tickers || {})) {
+    if (!base.tickers[ticker]) {
+      // Ticker not in snapshot (new position or sold ticker) — use full delta
+      base.tickers[ticker] = { dates: [...d.dates], closes: [...d.closes] };
+    } else {
+      // Extend with dates after snapshot
+      const lastBase = base.tickers[ticker].dates[base.tickers[ticker].dates.length - 1];
+      for (let i = 0; i < d.dates.length; i++) {
+        if (d.dates[i] > lastBase) {
+          base.tickers[ticker].dates.push(d.dates[i]);
+          base.tickers[ticker].closes.push(d.closes[i]);
+        }
+      }
+    }
+  }
+  // Merge FX
+  for (const [key, d] of Object.entries(delta.fx || {})) {
+    if (!base.fx[key]) {
+      base.fx[key] = { dates: [...d.dates], closes: [...d.closes] };
+    } else {
+      const lastBase = base.fx[key].dates[base.fx[key].dates.length - 1];
+      for (let i = 0; i < d.dates.length; i++) {
+        if (d.dates[i] > lastBase) {
+          base.fx[key].dates.push(d.dates[i]);
+          base.fx[key].closes.push(d.closes[i]);
+        }
+      }
+    }
+  }
+}
+
+function getLastDate(data) {
+  let max = '';
+  for (const d of Object.values(data.tickers)) { const l = d.dates[d.dates.length - 1]; if (l > max) max = l; }
+  for (const d of Object.values(data.fx)) { const l = d.dates[d.dates.length - 1]; if (l > max) max = l; }
+  return max;
+}
+
+function getFirstDate(data) {
+  let min = '9999';
+  for (const d of Object.values(data.tickers)) { if (d.dates[0] < min) min = d.dates[0]; }
+  for (const d of Object.values(data.fx)) { if (d.dates[0] < min) min = d.dates[0]; }
+  return min;
+}
+
+// ── Legacy aliases (backward compat during transition) ──
+export const fetchHistoricalPricesYTD = fetchHistoricalPrices;
+export const fetchHistoricalPrices1Y = fetchHistoricalPrices;

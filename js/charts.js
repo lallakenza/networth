@@ -5,9 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=258';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=258';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=258';
+import { fmt, fmtAxis } from './render.js?v=259';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=259';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=259';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=259';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1829,8 +1830,27 @@ function buildBudgetTypeDonut(state) {
 
 // ── Compute ABSOLUTE lifetime deposits & P&L for tooltip consistency ──
 // Ensures P&L = NAV − Déposé(net) at every point, regardless of chart period.
+/**
+ * Lookup a historical FX rate from historicalData.fx.{key}
+ * Used by standalone helpers that don't have access to the scoped getFxRate.
+ * @param {object} fxData - historicalData object with .fx.{usd,jpy,mad}
+ * @param {string} key - 'usd', 'jpy', or 'mad'
+ * @param {string} date - 'YYYY-MM-DD'
+ * @returns {number|null}
+ */
+function _lookupFx(fxData, key, date) {
+  const d = fxData?.fx?.[key];
+  if (!d) return null;
+  const idx = d.dates.indexOf(date);
+  if (idx >= 0 && d.closes[idx]) return d.closes[idx];
+  for (let i = d.dates.length - 1; i >= 0; i--) {
+    if (d.dates[i] <= date && d.closes[i]) return d.closes[i];
+  }
+  return null;
+}
+
 // Called by both buildPortfolioYTDChart and buildEquityHistoryChart.
-function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal) {
+function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal, historicalFxData) {
   // ── 1) DEGIRO: back-compute from annual reports ──
   const dg = PORTFOLIO.amine.degiro || {};
   const dgAnnual = dg.annualSummary || {};
@@ -1909,7 +1929,8 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
   const sgtmCostMAD = PORTFOLIO.market?.sgtmCostBasisMAD || 0;
   const sgtmDepositEvents = [];
   if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
-    const fxMAD = FX_STATIC?.MAD || 10.85;
+    // Use historical EUR/MAD rate at IPO date if available
+    const fxMAD = _lookupFx(historicalFxData, 'mad', '2025-12-15') || FX_STATIC?.MAD || 10.85;
     sgtmDepositEvents.push({ date: '2025-12-15', amountEUR: sgtmTotalShares * sgtmCostMAD / fxMAD });
   }
 
@@ -2599,14 +2620,17 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   function getFxRate(currency, date) {
     if (currency === 'EUR') return 1;
-    const fxData = currency === 'USD' ? historicalData.fx.usd : historicalData.fx.jpy;
-    if (!fxData) return currency === 'USD' ? (fxStatic.USD || 1.04) : (fxStatic.JPY || 161);
+    const fxMap = { USD: 'usd', JPY: 'jpy', MAD: 'mad' };
+    const fxKey = fxMap[currency];
+    const fxData = fxKey ? historicalData.fx[fxKey] : null;
+    const fallbacks = { USD: fxStatic.USD || 1.04, JPY: fxStatic.JPY || 161, MAD: fxStatic.MAD || 10.85 };
+    if (!fxData) return fallbacks[currency] || 1;
     const idx = fxData.dates.indexOf(date);
     if (idx >= 0 && fxData.closes[idx]) return fxData.closes[idx];
     for (let i = fxData.dates.length - 1; i >= 0; i--) {
       if (fxData.dates[i] <= date && fxData.closes[i]) return fxData.closes[i];
     }
-    return currency === 'USD' ? (fxStatic.USD || 1.04) : (fxStatic.JPY || 161);
+    return fallbacks[currency] || 1;
   }
 
   // ── SGTM key prices (MAD) - IPO Dec 2025, Casablanca Bourse ──
@@ -2619,7 +2643,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     ['2026-03-19', 720],
   ];
   const SGTM_SHARES = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha?.sgtm?.shares || 0);
-  const EURMAD = fxStatic.MAD || 10.85;
+  // EURMAD now uses historical rates via getFxRate('MAD', date) — no more fixed constant
 
   function getSgtmPrice(date) {
     // Find the key price entry for this date
@@ -2976,7 +3000,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const SGTM_IPO_DATE = '2025-12-15';
     if (SGTM_SHARES > 0 && date >= SGTM_IPO_DATE) {
       const sgtmPrice = getSgtmPrice(date);
-      sgtmValue = SGTM_SHARES * sgtmPrice / EURMAD;
+      sgtmValue = SGTM_SHARES * sgtmPrice / getFxRate('MAD', date);
     }
     chartValuesSGTM.push(Math.round(sgtmValue));
 
@@ -3623,7 +3647,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // ── Compute absolute tooltip data (lifetime deposits & P&L) ──
   const absTooltip = computeAbsoluteTooltipArrays(
-    chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal
+    chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal, historicalData
   );
 
   // Store full data for period filtering and mode switching
@@ -3909,12 +3933,12 @@ export function buildEquityHistoryChart(period, options) {
   }
   ibkrDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  // ── 4) SGTM P&L: NAV - cost basis (IPO cost in EUR) ──
+  // ── 4) SGTM P&L: NAV - cost basis (IPO cost in EUR at historical rate) ──
   const sgtmTotalShares = (PORTFOLIO.amine.sgtm?.shares || 0) + (PORTFOLIO.nezha?.sgtm?.shares || 0);
   const sgtmCostMAD = PORTFOLIO.market?.sgtmCostBasisMAD || 0;
   const sgtmDepositEvents = [];
   if (sgtmTotalShares > 0 && sgtmCostMAD > 0) {
-    const fxMAD = FX_STATIC?.MAD || 10.85;
+    const fxMAD = _lookupFx(PRICE_SNAPSHOT, 'mad', '2025-12-15') || FX_STATIC?.MAD || 10.85;
     const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / fxMAD;
     sgtmDepositEvents.push({ date: '2025-12-15', amountEUR: sgtmCostEUR });
   }

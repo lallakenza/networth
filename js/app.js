@@ -4,12 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=258';
-import { compute } from './engine.js?v=258';
-import { render } from './render.js?v=258';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPricesYTD, fetchHistoricalPrices1Y } from './api.js?v=258';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=258';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=258';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=259';
+import { compute } from './engine.js?v=259';
+import { render } from './render.js?v=259';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=259';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=259';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=259';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=259';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -914,18 +915,16 @@ async function loadStockPrices(forceRefresh) {
         const ytdLabel = document.getElementById('ytdProgressLabel');
         if (ytdProgress) ytdProgress.style.display = 'block';
 
-        // Fetch both YTD and 1Y data
-        const historicalDataYTD = await fetchHistoricalPricesYTD(ytdTickers, (loaded, total, ticker) => {
+        // ── Single fetch: snapshot (static 1Y+) + delta (YTD from API) ──
+        // v259: One dataset serves ALL periods (MTD→MAX). No more dual fetch.
+        const historicalData = await fetchHistoricalPrices(ytdTickers, PRICE_SNAPSHOT, (loaded, total, ticker) => {
           const pct = Math.round(loaded / total * 100);
           if (ytdFill) ytdFill.style.width = pct + '%';
-          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — YTD: ' + ticker + (loaded === total ? ' ✓' : '...');
+          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
         });
-
-        const historicalData1Y = await fetchHistoricalPrices1Y(ytdTickers, (loaded, total, ticker) => {
-          const pct = Math.round(loaded / total * 100);
-          if (ytdFill) ytdFill.style.width = pct + '%';
-          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — 1Y: ' + ticker + (loaded === total ? ' ✓' : '...');
-        });
+        // Legacy aliases for backward compatibility
+        const historicalDataYTD = historicalData;
+        const historicalData1Y = historicalData;
 
         if (ytdProgress) ytdProgress.style.display = 'none';
 
@@ -958,23 +957,23 @@ async function loadStockPrices(forceRefresh) {
               td.closes[lastIdx] = PORTFOLIO.market.acnPriceUSD;
             }
           });
-          // Inject live FX rates
-          if (histData.fx?.usd && currentFX.USD > 0) {
-            const lastIdx = histData.fx.usd.dates.length - 1;
-            if (lastIdx >= 0 && histData.fx.usd.dates[lastIdx] === todayStr) {
-              histData.fx.usd.closes[lastIdx] = currentFX.USD;
-            }
-          }
-          if (histData.fx?.jpy && currentFX.JPY > 0) {
-            const lastIdx = histData.fx.jpy.dates.length - 1;
-            if (lastIdx >= 0 && histData.fx.jpy.dates[lastIdx] === todayStr) {
-              histData.fx.jpy.closes[lastIdx] = currentFX.JPY;
+          // Inject live FX rates (USD, JPY, MAD)
+          const fxPairs = [
+            { key: 'usd', rate: currentFX.USD },
+            { key: 'jpy', rate: currentFX.JPY },
+            { key: 'mad', rate: currentFX.MAD },
+          ];
+          for (const { key, rate } of fxPairs) {
+            if (histData.fx?.[key] && rate > 0) {
+              const lastIdx = histData.fx[key].dates.length - 1;
+              if (lastIdx >= 0 && histData.fx[key].dates[lastIdx] === todayStr) {
+                histData.fx[key].closes[lastIdx] = rate;
+              }
             }
           }
         }
-        unifyPrices(historicalDataYTD);
-        unifyPrices(historicalData1Y);
-        console.log('[app] Price unification: injected live quote prices + FX into historical data for ' + todayStr);
+        unifyPrices(historicalData);
+        console.log('[app] Price unification: injected live quote prices + FX (USD/JPY/MAD) into historical data for ' + todayStr);
 
         // Build the YTD portfolio evolution chart — default scope is 'all' (Tous)
         const chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
