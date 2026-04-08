@@ -454,6 +454,7 @@ Page load
 | v272-v274 | Avril 2026 | **Fix chart blank** + barre progression : re-render explicite après refresh, progression 2 phases (live 0-50%, historique 50-100%) |
 | v275 | Avril 2026 | **Fix 1Y button** : `chartResultYTD2` → `chartResultYTD` (ReferenceError empêchant tous les handlers). Fix 5Y/MAX stale data. Fix owner tooltip |
 | v276 | 8 Avril 2026 | **Refactoring owner ESPP per-owner** : remplacement du ratio proportionnel ESPP par un calcul lot-par-lot. `esppSharesAtDateAmine/Nezha()`, séries NAV/P&L/dépôts per-owner dans `buildPortfolioYTDChart` + `buildEquityHistoryChart`. `renderPortfolioChart` utilise les arrays per-owner directement. Tooltips et click detail panel mis à jour. **Fix critique** : `renderPortfolioChart` exporté de charts.js (était privé → `ReferenceError` silencieux cassant tout l'init). Voir `BUG_TRACKER.md` BUG-005, BUG-013 |
+| v277 | 8 Avril 2026 | **Animation login data-dependent** : l'animation grille du login est maintenant liée au chargement réel des données. Phase 1 : remplissage lent (~80% valeur statique) pendant le chargement. Phase 2 : remplissage rapide vers la vraie valeur marché après chargement complet (live + historique). La valeur affichée est le `getGrandTotal()` réel, plus la valeur statique codée en dur. Signal via `window._gridAnimationComplete(realTotal)` appelé dans `app.js` après `renderPortfolioChart()`. |
 
 ---
 

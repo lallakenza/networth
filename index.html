@@ -1122,37 +1122,47 @@
   </div>
 
   <!-- Grid animation script (runs immediately, before app.js) -->
+  <!-- v277: Two-phase data-dependent animation.
+       Phase 1: Slow fill to ~80% while data loads (uses static estimate).
+       Phase 2: On window._gridAnimationComplete(realValue), fast-fill to real value.
+       The displayed EUR total is the REAL computed grand total after market update. -->
   <script>
   (function() {
     // ── Config ──
     const COLS = 40, ROWS = 25;
     const TOTAL_SQUARES = COLS * ROWS;  // 1000
     const TARGET_EUR = 1000000;
-    const PORTFOLIO_EUR = 665970;
-    const FILL_COUNT = Math.round((PORTFOLIO_EUR / TARGET_EUR) * TOTAL_SQUARES);
+    const STATIC_EUR = 665970;  // static estimate (used during Phase 1)
+
+    // Phase 1 config: fill slowly to 80% of static estimate
+    const PHASE1_RATIO = 0.80;
+    const PHASE1_TARGET_EUR = Math.round(STATIC_EUR * PHASE1_RATIO);
+    const PHASE1_FILL_COUNT = Math.round((PHASE1_TARGET_EUR / TARGET_EUR) * TOTAL_SQUARES);
+    const PHASE1_BATCH = 1;
+    const PHASE1_INTERVAL = 35;  // slow — "le temps que tout charge"
+
+    // Phase 2 config: fast fill to real value once data is ready
+    const PHASE2_BATCH = 3;
+    const PHASE2_INTERVAL = 8;
 
     // ── Color palette: water-level gradient (deep → surface → foam) ──
     const EMPTY_COLOR = 'rgba(255,255,255,0.035)';
 
-    // Row gets a color based on its "depth" (0 = bottom = darkest, 1 = surface = brightest)
     function getRowColor(row, waterlineRow) {
-      // row = grid row (0=top, 24=bottom). waterlineRow = highest filled row.
-      // depth: 0 = at waterline (surface), 1 = at bottom (deep)
       const depth = (row - waterlineRow) / (ROWS - waterlineRow);
-      // Surface shimmer for topmost 2 rows
-      if (depth < 0.08) return '#6ee7a0';  // bright green foam
+      if (depth < 0.08) return '#6ee7a0';
       if (depth < 0.15) return '#4ade80';
       if (depth < 0.25) return '#34c276';
       if (depth < 0.40) return '#2dac66';
       if (depth < 0.55) return '#27965a';
       if (depth < 0.70) return '#22804e';
       if (depth < 0.85) return '#1e6b42';
-      return '#1a5c3a';                     // deep green at bottom
+      return '#1a5c3a';
     }
 
     // ── Build grid ──
     const grid = document.getElementById('milGrid');
-    const squares = [];  // 2D: squares[row][col]
+    const squares = [];
     for (let r = 0; r < ROWS; r++) {
       squares[r] = [];
       for (let c = 0; c < COLS; c++) {
@@ -1163,11 +1173,10 @@
       }
     }
 
-    // ── Fill order: snake pattern (bottom-up, alternating direction per row) ──
-    // Row 24 (bottom): right → left, Row 23: left → right, Row 22: right → left, etc.
+    // ── Fill order: snake pattern (bottom-up, alternating direction) ──
     function buildFillOrder() {
       const order = [];
-      let leftToRight = false; // bottom row starts right-to-left
+      let leftToRight = false;
       for (let r = ROWS - 1; r >= 0; r--) {
         if (leftToRight) {
           for (let c = 0; c < COLS; c++) order.push({ r, c });
@@ -1181,7 +1190,7 @@
 
     const fillOrder = buildFillOrder();
 
-    // ── Animate ──
+    // ── DOM refs ──
     const counter = document.getElementById('gridCounter');
     const label = document.getElementById('gridLabel');
     const pctEl = document.getElementById('gridPct');
@@ -1193,15 +1202,17 @@
     }, 300);
 
     let filled = 0;
-    const BATCH_SIZE = 2;
-    const INTERVAL = 12;
-    let highestFilledRow = ROWS; // track the waterline
+    let highestFilledRow = ROWS;
+    let phase1Done = false;
+    let dataReady = false;
+    let realPortfolioEUR = null;
+    let realFillCount = null;
+    let animationFullyDone = false;
 
     function formatEur(n) {
       return '€ ' + Math.round(n).toLocaleString('fr-FR');
     }
 
-    // Recolor all filled squares when waterline rises (gradient shifts)
     function recolorAll() {
       for (let r = ROWS - 1; r >= highestFilledRow; r--) {
         const color = getRowColor(r, highestFilledRow);
@@ -1213,65 +1224,109 @@
       }
     }
 
-    function animateStep() {
-      if (filled >= FILL_COUNT) {
-        counter.textContent = formatEur(PORTFOLIO_EUR);
-        pctEl.textContent = (PORTFOLIO_EUR / TARGET_EUR * 100).toFixed(1) + '%';
+    // Generic fill step: fills squares and updates counter
+    // eurStart/eurEnd define the EUR range to interpolate over for the counter display
+    function fillBatch(batchSize, targetFill, eurStart, eurEnd, interval, onDone) {
+      const startFill = filled;  // snapshot of fill count at start of this batch
+      const fillRange = targetFill - startFill;
+
+      function step() {
+        if (filled >= targetFill) {
+          counter.textContent = formatEur(eurEnd);
+          pctEl.textContent = (eurEnd / TARGET_EUR * 100).toFixed(1) + '%';
+          if (onDone) onDone();
+          return;
+        }
+
+        const end = Math.min(filled + batchSize, targetFill);
+        let waterlineMoved = false;
+
+        for (let j = filled; j < end; j++) {
+          const { r, c } = fillOrder[j];
+          const sq = squares[r][c];
+          sq._filled = true;
+          if (r < highestFilledRow) {
+            highestFilledRow = r;
+            waterlineMoved = true;
+          }
+          const color = getRowColor(r, highestFilledRow);
+          sq.style.background = color;
+          sq.style.transform = 'scaleY(1.4)';
+          ((s) => setTimeout(() => { s.style.transform = 'scaleY(1)'; }, 120))(sq);
+        }
+
+        filled = end;
+        if (waterlineMoved) recolorAll();
+
+        // Smooth EUR interpolation from eurStart to eurEnd
+        const progress = fillRange > 0 ? (filled - startFill) / fillRange : 1;
+        const currentVal = eurStart + progress * (eurEnd - eurStart);
+        counter.textContent = formatEur(currentVal);
+        pctEl.textContent = (currentVal / TARGET_EUR * 100).toFixed(1) + '%';
+
+        setTimeout(step, interval);
+      }
+      step();
+    }
+
+    // ── Phase 1: Slow fill while data loads ──
+    function startPhase1() {
+      fillBatch(PHASE1_BATCH, PHASE1_FILL_COUNT, 0, PHASE1_TARGET_EUR, PHASE1_INTERVAL, function() {
+        phase1Done = true;
+        console.log('[grid] Phase 1 complete: filled ' + filled + '/' + TOTAL_SQUARES + ' squares (' + PHASE1_TARGET_EUR + '€)');
+        // If data arrived before phase 1 ended, start phase 2 immediately
+        if (dataReady) {
+          startPhase2();
+        }
+        // Otherwise: pause here — animation waits for data
+      });
+    }
+
+    // ── Phase 2: Fast fill to real value ──
+    function startPhase2() {
+      if (animationFullyDone) return;
+      console.log('[grid] Phase 2: filling to ' + realPortfolioEUR + '€ (' + realFillCount + ' squares)');
+      // Counter continues from where Phase 1 left off (PHASE1_TARGET_EUR) to real value
+      fillBatch(PHASE2_BATCH, realFillCount, PHASE1_TARGET_EUR, realPortfolioEUR, PHASE2_INTERVAL, function() {
+        animationFullyDone = true;
+        // Final value display (exact)
+        counter.textContent = formatEur(realPortfolioEUR);
+        pctEl.textContent = (realPortfolioEUR / TARGET_EUR * 100).toFixed(1) + '%';
         // Pulse on complete
         counter.style.transition = 'transform 0.3s';
         counter.style.transform = 'scale(1.06)';
         setTimeout(() => { counter.style.transform = 'scale(1)'; }, 350);
-        // Add surface wave + living color shift
+        // Surface wave + living color shift
         addSurfaceWave();
         startColorShift();
-        return;
-      }
-
-      const end = Math.min(filled + BATCH_SIZE, FILL_COUNT);
-      let waterlineMoved = false;
-
-      for (let j = filled; j < end; j++) {
-        const { r, c } = fillOrder[j];
-        const sq = squares[r][c];
-        sq._filled = true;
-
-        if (r < highestFilledRow) {
-          highestFilledRow = r;
-          waterlineMoved = true;
-        }
-
-        const color = getRowColor(r, highestFilledRow);
-        sq.style.background = color;
-        // Pop-in effect: quick scale up then back
-        sq.style.transform = 'scaleY(1.4)';
-        ((s) => setTimeout(() => { s.style.transform = 'scaleY(1)'; }, 120))(sq);
-      }
-
-      filled = end;
-
-      // When waterline moves up, recolor everything for smooth gradient
-      if (waterlineMoved) recolorAll();
-
-      // Update counter
-      const currentVal = (filled / FILL_COUNT) * PORTFOLIO_EUR;
-      counter.textContent = formatEur(currentVal);
-      pctEl.textContent = (currentVal / TARGET_EUR * 100).toFixed(1) + '%';
-
-      setTimeout(animateStep, INTERVAL);
+        console.log('[grid] Animation complete: ' + realPortfolioEUR + '€');
+      });
     }
+
+    // ── Global callback: app.js calls this when all data is loaded ──
+    window._gridAnimationComplete = function(realValue) {
+      realPortfolioEUR = realValue;
+      realFillCount = Math.min(Math.round((realValue / TARGET_EUR) * TOTAL_SQUARES), TOTAL_SQUARES);
+      dataReady = true;
+      console.log('[grid] Data ready signal received: ' + realValue + '€ → ' + realFillCount + ' squares');
+
+      // If phase 1 already done (or current fill already past phase 1 target), start phase 2
+      if (phase1Done || filled >= PHASE1_FILL_COUNT) {
+        startPhase2();
+      }
+      // Otherwise: phase 1 will call startPhase2() when it finishes
+    };
 
     // Subtle breathing wave on the surface row after fill completes
     function addSurfaceWave() {
       if (highestFilledRow >= ROWS) return;
       const surfaceRow = highestFilledRow;
-      // Gentle oscillation on surface squares
       for (let c = 0; c < COLS; c++) {
         const sq = squares[surfaceRow][c];
         if (!sq._filled) continue;
-        const delay = (c * 60) % 2400; // stagger across row
+        const delay = (c * 60) % 2400;
         sq.style.transition = 'transform 1.2s ease-in-out, background 0.4s';
-        sq.style.animationName = 'none'; // reset
-        // Use CSS animation via JS
+        sq.style.animationName = 'none';
         sq.animate([
           { transform: 'scaleY(1)', opacity: 1 },
           { transform: 'scaleY(1.15)', opacity: 0.9 },
@@ -1283,7 +1338,6 @@
           easing: 'ease-in-out',
         });
       }
-      // Also animate 2nd row from surface (subtler)
       if (surfaceRow + 1 < ROWS) {
         for (let c = 0; c < COLS; c++) {
           const sq = squares[surfaceRow + 1][c];
@@ -1302,21 +1356,12 @@
       }
     }
 
-    // ── Living color shift: filled squares gently cycle hues after fill ──
+    // ── Living color shift ──
     function startColorShift() {
-      // Palette of greens/teals that squares will drift between
       const palette = [
-        [30, 92, 58],   // #1e5c3a deep green
-        [34, 128, 78],  // #22804e
-        [39, 150, 90],  // #27965a
-        [45, 172, 102], // #2dac66
-        [52, 194, 118], // #34c276
-        [74, 222, 128], // #4ade80
-        [110, 231, 160],// #6ee7a0 foam
-        [34, 197, 94],  // #22c55e emerald
-        [16, 185, 129], // #10b981 teal
-        [20, 184, 166], // #14b8a6 teal-green
-        [52, 211, 153], // #34d399 light emerald
+        [30, 92, 58], [34, 128, 78], [39, 150, 90], [45, 172, 102],
+        [52, 194, 118], [74, 222, 128], [110, 231, 160], [34, 197, 94],
+        [16, 185, 129], [20, 184, 166], [52, 211, 153],
       ];
 
       function lerpColor(a, b, t) {
@@ -1327,7 +1372,6 @@
         ];
       }
 
-      // Each filled square gets an offset for organic wave movement
       const offsets = [];
       for (let r = 0; r < ROWS; r++) {
         offsets[r] = [];
@@ -1337,7 +1381,7 @@
       }
 
       let tick = 0;
-      const SPEED = 0.008; // slow drift
+      const SPEED = 0.008;
 
       function shiftFrame() {
         tick++;
@@ -1345,18 +1389,13 @@
           const depth = (r - highestFilledRow) / (ROWS - highestFilledRow);
           for (let c = 0; c < COLS; c++) {
             if (!squares[r][c]._filled) continue;
-
-            // Organic wave: combine depth, column position, time, and unique offset
             const wave = Math.sin(tick * SPEED + offsets[r][c] + c * 0.15 + r * 0.1);
-            const t = (wave + 1) / 2; // normalize 0–1
-
-            // Pick two palette colors based on depth, then lerp between them with wave
+            const t = (wave + 1) / 2;
             const baseIdx = Math.min(Math.floor(depth * (palette.length - 2)), palette.length - 2);
             const shift = Math.floor(t * 2) % (palette.length - 1);
             const idxA = (baseIdx + shift) % palette.length;
             const idxB = (idxA + 1) % palette.length;
             const frac = (t * 2) % 1;
-
             const [rr, gg, bb] = lerpColor(palette[idxA], palette[idxB], frac);
             squares[r][c].style.background = 'rgb(' + rr + ',' + gg + ',' + bb + ')';
           }
@@ -1364,12 +1403,11 @@
         requestAnimationFrame(shiftFrame);
       }
 
-      // Small delay then start the living effect
       setTimeout(() => requestAnimationFrame(shiftFrame), 500);
     }
 
-    // Start
-    setTimeout(animateStep, 600);
+    // Start Phase 1
+    setTimeout(startPhase1, 600);
   })();
   </script>
 </div>
@@ -2368,7 +2406,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=276"></script>
+<script type="module" src="js/app.js?v=277"></script>
 
 </body>
 </html>

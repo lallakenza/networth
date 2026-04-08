@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=276';
-import { compute } from './engine.js?v=276';
-import { render } from './render.js?v=276';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=276';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=276';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=276';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=276';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=277';
+import { compute, getGrandTotal } from './engine.js?v=277';
+import { render } from './render.js?v=277';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=277';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=277';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=277';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=277';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1029,6 +1029,14 @@ async function loadStockPrices(forceRefresh) {
         // refresh() → rebuildAllCharts() destroys/rebuilds other charts which can
         // sometimes leave the portfolioYTD canvas blank. This ensures it's always visible.
         renderPortfolioChart();
+
+        // v277: Signal grid animation that all data (live + historical) is loaded.
+        // Compute the real grand total and tell the login animation to complete.
+        if (typeof window._gridAnimationComplete === 'function') {
+          const realTotal = getGrandTotal(currentState);
+          console.log('[app] Signaling grid animation with real total:', Math.round(realTotal));
+          window._gridAnimationComplete(realTotal);
+        }
 
         // Track current state for toggles (exposed on window for KPI functions)
         let currentScope = 'all';
