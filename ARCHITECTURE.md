@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 7 avril 2026 (v258)
+> Dernière mise à jour : 8 avril 2026 (v259)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2367,3 +2367,67 @@ Phase 3 (polish) : boutons hover, active tab styling
 | focus-visible boutons + sliders | ✅ |
 | Touch target sliders mobile | ✅ |
 | Version bump v257→v258 (all files) | ✅ |
+
+---
+
+## §45 — v259 : Architecture snapshot+delta + EUR/MAD historique (8 avril 2026)
+
+### 45.1 Problème
+
+Le dashboard faisait 2 requêtes massives séparées à Yahoo Finance (YTD + 1Y) à chaque chargement, puis reconstruisait le chart 4 fois (YTD → 1Y silencieux → alltime silencieux → YTD visible). Le taux EUR/MAD pour la valorisation SGTM utilisait un taux fixe (`FX_STATIC.MAD`), ignorant l'évolution de ~7% sur l'année.
+
+### 45.2 Solution : Snapshot + Delta
+
+**Nouveau fichier : `js/price_snapshot.js`** (~110 KB)
+- Contient 1Y+ de prix quotidiens pour 19 tickers + 3 paires FX (USD, JPY, MAD)
+- Généré par `node generate_snapshot.mjs` (nouveau script utilitaire)
+- Les données historiques ne changent pas → stockage statique optimal
+- Mis en cache navigateur naturellement (fichier JS statique)
+
+**Nouveau flow de chargement :**
+```
+1. Charger PRICE_SNAPSHOT (statique, instantané)
+2. fetchHistoricalPrices() : fetch YTD delta depuis Yahoo API
+3. Merger snapshot + delta (dates après le snapshot uniquement)
+4. Résultat : un seul dataset couvrant 1Y+ → utilisé pour TOUS les périodes
+```
+
+**Avant (v258) :**
+- 2 fetches séparées (YTD + 1Y) = ~40 requêtes API
+- 4 passes de build chart (YTD → 1Y → alltime → YTD)
+- Deux chemins de données différents (YTD/1Y vs 5Y/MAX)
+
+**Après (v259) :**
+- 1 fetch unique (delta YTD) = ~22 requêtes API (-45%)
+- Données snapshot pré-chargées instantanément
+- Un seul dataset pour toutes les périodes
+
+### 45.3 EUR/MAD historique
+
+- `EURMAD=X` ajouté au fetch (api.js) et au snapshot
+- `getFxRate()` dans charts.js supporte maintenant USD, JPY et MAD
+- SGTM valorisé avec le taux EUR/MAD du jour (au lieu du taux fixe)
+- Coût de base SGTM (IPO) converti au taux du 15/12/2025 via `_lookupFx()`
+- `unifyPrices()` injecte le taux MAD live comme pour USD/JPY
+- Variation observée EUR/MAD sur 1 an : 10.11 → 10.85 (~7%)
+
+### 45.4 Fichiers modifiés
+
+| Fichier | Changement |
+|---|---|
+| `js/price_snapshot.js` | **Nouveau** — snapshot statique 19 tickers + 3 FX |
+| `generate_snapshot.mjs` | **Nouveau** — script Node.js pour régénérer le snapshot |
+| `js/api.js` | `fetchHistoricalPrices()` remplace YTD+1Y, ajoute EUR/MAD, merge snapshot+delta |
+| `js/charts.js` | `getFxRate()` supporte MAD, `_lookupFx()` helper, `EURMAD` constant éliminée |
+| `js/app.js` | Import PRICE_SNAPSHOT, un seul fetch, unification FX MAD |
+| `index.html` | Version bump v259 |
+
+### 45.5 Maintenance du snapshot
+
+Pour mettre à jour le snapshot (recommandé mensuellement ou après ajout de nouveaux tickers) :
+```bash
+node generate_snapshot.mjs
+git add js/price_snapshot.js
+git commit -m "Refresh price snapshot"
+```
+Le delta runtime couvre automatiquement la période snapshot→aujourd'hui.
