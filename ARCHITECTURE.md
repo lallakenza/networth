@@ -450,6 +450,10 @@ Page load
 | v219 | 23 Mars 2026 | **Fix timing render** : ajout `refresh()` après le build chart pour que `_chartBreakdown` soit disponible lors du override des positions table. Re-apply `updateKPIsFromChart()` après le refresh |
 | v220 | 24 Mars 2026 | **Fix breakdown ESPP/SGTM + MTD state** : (1) `injectExternalItems()` ajoute ESPP/SGTM dans le breakdown quand scope=Tous (résout KPI Daily ≠ breakdown), (2) fix MTD corrompu après 1Y→MTD (rebuild YTD si `_ytdChartFullData.mode === '1y'`) |
 | v221 | 24 Mars 2026 | **Fix 5 inconsistencies immobilier** : (1) Loyer HC affichait loyer+parking (1120→1050 +70 pkg), (2) surface Villejuif 68.92→68.94 (match somme pièces), (3) data-eur périmés index.html (293K→300K, 272K→280K, 360K→370K), (4) dashboard.html valeurs périmées (loyer 1200→1050, CF, equity), (5) descriptions propriétés dynamiques depuis data.js |
+| v271 | Avril 2026 | **Fix Total Déposé** : dépôts nets Degiro (soustraction retraits), 263K→238K |
+| v272-v274 | Avril 2026 | **Fix chart blank** + barre progression : re-render explicite après refresh, progression 2 phases (live 0-50%, historique 50-100%) |
+| v275 | Avril 2026 | **Fix 1Y button** : `chartResultYTD2` → `chartResultYTD` (ReferenceError empêchant tous les handlers). Fix 5Y/MAX stale data. Fix owner tooltip |
+| v276 | 8 Avril 2026 | **Refactoring owner ESPP per-owner** : remplacement du ratio proportionnel ESPP par un calcul lot-par-lot. `esppSharesAtDateAmine/Nezha()`, séries NAV/P&L/dépôts per-owner dans `buildPortfolioYTDChart` + `buildEquityHistoryChart`. `renderPortfolioChart` utilise les arrays per-owner directement. Tooltips et click detail panel mis à jour. **Fix critique** : `renderPortfolioChart` exporté de charts.js (était privé → `ReferenceError` silencieux cassant tout l'init). Voir `BUG_TRACKER.md` BUG-005, BUG-013 |
 
 ---
 
