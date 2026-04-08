@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=274';
-import { compute } from './engine.js?v=274';
-import { render } from './render.js?v=274';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=274';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=274';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=274';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=274';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=275';
+import { compute } from './engine.js?v=275';
+import { render } from './render.js?v=275';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=275';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=275';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=275';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=275';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -752,10 +752,19 @@ async function loadStockPrices(forceRefresh) {
   if (progressBar) progressBar.style.display = 'block';
   if (progressFill) progressFill.style.width = '0%';
 
+  // v275: Also update chart area overlay during stock price loading (Phase 1)
+  const _chartOverlayFill = document.getElementById('ytdProgressFill');
+  const _chartOverlayLabel = document.getElementById('ytdProgressLabel');
+  const _chartOverlayTitle = document.getElementById('ytdProgressTitle');
+
   function onProgress(loaded, total, ticker) {
     const pct = Math.round(loaded / total * 100);
     if (progressFill) progressFill.style.width = pct + '%';
     if (progressLabel) progressLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
+    // Mirror to chart overlay
+    if (_chartOverlayFill) _chartOverlayFill.style.width = Math.round(pct * 0.5) + '%'; // Phase 1 = 0-50%
+    if (_chartOverlayLabel) _chartOverlayLabel.textContent = loaded + '/' + total + ' — ' + ticker;
+    if (_chartOverlayTitle && loaded === 1) _chartOverlayTitle.textContent = 'Chargement des prix live...';
   }
 
   // Throttled refresh: max once every 800ms to avoid thrashing
@@ -910,20 +919,20 @@ async function loadStockPrices(forceRefresh) {
         const ytdTickers = [...ytdTickerSet];
         console.log('[app] Fetching historical prices for charts:', ytdTickers);
 
-        // Show progress on YTD chart area
+        // Show progress on YTD chart area (Phase 2: 50-100%)
         const ytdProgress = document.getElementById('ytdChartProgress');
         const ytdFill = document.getElementById('ytdProgressFill');
         const ytdLabel = document.getElementById('ytdProgressLabel');
         const ytdTitle = document.getElementById('ytdProgressTitle');
         if (ytdProgress) ytdProgress.style.display = 'flex';
         if (ytdTitle) ytdTitle.textContent = 'Chargement des prix historiques...';
-        if (ytdFill) ytdFill.style.width = '0%';
+        if (ytdFill) ytdFill.style.width = '50%';
 
         // ── Single fetch: snapshot (static 1Y+) + delta (YTD from API) ──
         // v259: One dataset serves ALL periods (MTD→MAX). No more dual fetch.
         const historicalData = await fetchHistoricalPrices(ytdTickers, PRICE_SNAPSHOT, (loaded, total, ticker) => {
           const pct = Math.round(loaded / total * 100);
-          if (ytdFill) ytdFill.style.width = pct + '%';
+          if (ytdFill) ytdFill.style.width = (50 + Math.round(pct * 0.5)) + '%'; // 50-100%
           if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
         });
         // Legacy aliases for backward compatibility
@@ -1016,6 +1025,10 @@ async function loadStockPrices(forceRefresh) {
         // Re-apply chart KPI overrides (refresh() resets them to engine.js values)
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         update1YKPIFromChart();
+        // v274: Force re-render the portfolio chart after refresh().
+        // refresh() → rebuildAllCharts() destroys/rebuilds other charts which can
+        // sometimes leave the portfolioYTD canvas blank. This ensures it's always visible.
+        renderPortfolioChart();
 
         // Track current state for toggles (exposed on window for KPI functions)
         let currentScope = 'all';
