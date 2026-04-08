@@ -353,6 +353,7 @@ function renderKPIs(state, view) {
   setEur('kpiCoupleImmo', s.couple.immoEquity);
   setEur('kpiCoupleCash', s.couple.cashTotal);
   setEur('kpiCoupleActions', s.couple.actionsTotal);
+  setEur('kpiCoupleAutre', s.couple.autreTotal);
 
   setEur('kpiAmNW', s.amine.nw);
   // Add delta indicator for amine NW
@@ -6172,10 +6173,11 @@ function attachKPIInsights(state, view) {
   const immoEq = s.couple.immoEquity;
   const stocksTotal = s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm;
   const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cash;
-  insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%). Contexte : conflit Iran, or +21% YTD, BTC -25% YTD.';
-  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + '. Portefeuille diversifi\u00e9 sur 4 classes d\'actifs.';
+  insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%) + Autre \u20ac' + f(s.couple.autreTotal) + ' (' + pct(s.couple.autreTotal, gt) + '%).';
+  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.tva) + '.';
   insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE). Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
+  insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + TVA \u20ac' + f(s.couple.autreTva) + '.';
 
   // ── Amine view ──
   insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
