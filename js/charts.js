@@ -2944,7 +2944,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       const fxRate = getFxRate(data.currency, date);
       const valEUR = data.shares * price / fxRate;
       posValue += valEUR;
-      posBreakdown[ticker] = { shares: data.shares, price, currency: data.currency, fxRate, valEUR: Math.round(valEUR) };
+      // Store both unrounded and rounded values:
+      // - valEUR (unrounded): used for M2M calculation to avoid compounding rounding errors
+      // - valEURRounded (rounded): used for display in diagnostics and snapshots
+      posBreakdown[ticker] = { shares: data.shares, price, currency: data.currency, fxRate, valEUR: valEUR, valEURRounded: Math.round(valEUR) };
     });
 
     // Cash value in EUR
@@ -2972,8 +2975,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     if (date === '2026-03-19' || date === '2026-03-18' || date === '2026-01-02') {
       console.log('[ytd-diag] === ' + date + ' ===');
       console.log('[ytd-diag] Positions (ticker: shares × price / fx = EUR):');
-      Object.entries(posBreakdown).sort((a,b) => b[1].valEUR - a[1].valEUR).forEach(([t, d]) => {
-        console.log('  ' + t + ': ' + d.shares + ' × ' + d.price.toFixed(2) + ' ' + d.currency + ' / ' + d.fxRate.toFixed(4) + ' = ' + d.valEUR + ' EUR');
+      Object.entries(posBreakdown).sort((a,b) => b[1].valEURRounded - a[1].valEURRounded).forEach(([t, d]) => {
+        console.log('  ' + t + ': ' + d.shares + ' × ' + d.price.toFixed(2) + ' ' + d.currency + ' / ' + d.fxRate.toFixed(4) + ' = ' + d.valEURRounded + ' EUR');
       });
       console.log('[ytd-diag] Pos total: ' + Math.round(posValue) + ' EUR');
       console.log('[ytd-diag] Cash: EUR=' + Math.round(cashEUR) + ', USD=' + Math.round(cashUSD) + ' (/' + fxUSD.toFixed(4) + '=' + Math.round(cashUSD/fxUSD) + '), JPY=' + Math.round(cashJPY) + ' (/' + fxJPY.toFixed(4) + '=' + Math.round(cashJPY/fxJPY) + ')');
@@ -3319,6 +3322,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       let totalPosM2M = 0;
 
       allTickers.forEach(ticker => {
+        // Use UNROUNDED valEUR for M2M calculation to avoid compounding rounding errors
+        // over the entire period. Each daily snapshot rounds its positions independently,
+        // which causes systematic errors when summed (e.g., a position growing from
+        // €40,499.6 → €42,000.4 has intermediate rounding that doesn't match the endpoint).
         const startVal = snapStart.posBreakdown[ticker]?.valEUR || 0;
         const endVal = snapEnd.posBreakdown[ticker]?.valEUR || 0;
         const netFlow = tradeFlows[ticker] || 0;
@@ -3334,8 +3341,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
             ticker: ticker,
             pl: Math.round(m2m),
             pct: pct !== null ? Math.round(pct * 10) / 10 : null,
-            startVal: Math.round(startVal),
-            endVal: Math.round(endVal),
+            startVal: Math.round(startVal),  // Round only for display
+            endVal: Math.round(endVal),      // Round only for display
             valEUR: endVal,
           });
           totalPosM2M += m2m;
@@ -3354,6 +3361,28 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
       const chartPL = snapEnd.nav - snapStart.nav - deposits;
       const fxOnCash = chartPL - Math.round(totalPosM2M);
+
+      // v261 debug: trace the exact decomposition
+      if (periodKey === 'oneYear') {
+        const sumTradeFlows = Object.values(tradeFlows).reduce((s, v) => s + v, 0);
+        console.log('[breakdown-debug] 1Y decomposition:', {
+          navStart: snapStart.nav, navEnd: snapEnd.nav, deposits,
+          chartPL,
+          posValueEnd: snapEnd.posValueEUR,
+          cashValueEnd: snapEnd.cashValueEUR,
+          cashEUR_end: snapEnd.cashEUR,
+          cashUSD_end: snapEnd.cashUSD, fxUSD_end: snapEnd.fxUSD,
+          cashJPY_end: snapEnd.cashJPY, fxJPY_end: snapEnd.fxJPY,
+          totalPosM2M: Math.round(totalPosM2M),
+          sumTradeFlows: Math.round(sumTradeFlows),
+          fxOnCash,
+          posItems_count: items.length,
+        });
+        // Also log each position's contribution
+        items.forEach(i => {
+          console.log('[breakdown-debug] pos:', i.ticker, 'start=' + i.startVal, 'end=' + i.endVal, 'flow=' + Math.round(tradeFlows[i.ticker] || 0), 'pl=' + i.pl);
+        });
+      }
 
       // Costs are already embedded in position M2M and cash flows
       // (commissions reduce cash, which reduces NAV → captured in the residual)
@@ -3589,6 +3618,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       // Expose snapshots for debugging
       window._simSnapshots = _simSnapshots;
     } else if (mode === '1y') {
+      window._simSnapshots = _simSnapshots; // v261: expose for all modes
       chartBreakdown.oneYear = computePeriodBreakdown(oneYStartDate, lastDate, 'oneYear');
       injectExternalItems(chartBreakdown.oneYear, oneYStartDate, lastDate);
       console.log('[breakdown] 1Y chart breakdown computed:', {
