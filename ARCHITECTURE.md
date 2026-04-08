@@ -2480,3 +2480,86 @@ Aucun autre endroit ne mélange capital et P&L :
 - `charts.js` : `computePeriodBreakdown()` — 3 corrections (commission FX, pureFxOnCash, détail FX pur)
 - `app.js` : version bump imports → v260
 - `index.html` : version bump → v260
+
+## §47 — v263 : Fix "Autres (arrondis)" residual ~€14,729 in 1Y breakdown (8 avril 2026)
+
+### Contexte
+Après les correctifs v260 (§46), la ligne "Autres (arrondis)" dans le détail
+"Effet de change" affichait +€14,729 en période 1Y — un résidu bien trop élevé
+pour être du simple arrondi. L'audit a montré que cette valeur représentait en
+réalité le P&L réalisé de positions clôturées, non capturé par `totalPosM2M`.
+
+### Cause racine : positions clôturées absentes de `allTickers`
+
+Le set `allTickers` était construit à partir des snapshots de début et de fin
+de période UNIQUEMENT :
+```javascript
+// AVANT (v260-v262) — BUG
+const allTickers = new Set([
+  ...Object.keys(snapStart.posBreakdown),
+  ...Object.keys(snapEnd.posBreakdown),
+]);
+```
+
+En mode 1Y (simulation from scratch), `snapStart` a un `posBreakdown` vide
+(pas de positions au départ) et `snapEnd` ne contient que les positions
+**actuellement détenues**. Les positions ouvertes ET fermées pendant la période
+(GLE, WLN, NXI, EDEN, QQQM) n'apparaissent dans **aucun** des deux snapshots.
+
+Conséquence : ces tickers avaient des `tradeFlows` (achats/ventes) mais leur
+M2M n'était jamais calculé. Pour une position clôturée :
+```
+m2m = endVal(0) - startVal(0) - tradeFlow = -tradeFlow = P&L réalisé
+```
+Ce P&L réalisé, non capturé par `totalPosM2M`, se retrouvait intégralement
+dans le résidu `pureFxOnCash = chartPL - totalPosM2M - displayedCosts`.
+
+### Positions affectées et P&L manquant
+
+| Ticker | Opérations | P&L manquant (€) |
+|--------|-----------|-------------------|
+| QQQM | buy avr 2025 (exclu du 1Y), sell fév 2026 | +12 318 |
+| GLE | buy août 2025, sell fév 2026 | +4 820 |
+| WLN | buy août/oct 2025, sell fév 2026 | -3 193 |
+| EDEN | buy sept 2025, sell oct 2025/fév 2026 | +615 |
+| NXI | buy août/oct 2025, sell fév 2026 | +420 |
+| **Total** | | **~14 980** |
+
+Note : QQQM est un cas particulier — l'achat (avr 2025-04-03) est 5 jours
+avant `START_DATE` ('2025-04-08') et donc exclu du 1Y. Le sell crédite
+$14 528 en cashUSD sans achat correspondant dans la simulation.
+
+### Fix (v263)
+
+Inclure les clés de `tradeFlows` dans `allTickers` :
+```javascript
+// APRÈS (v263) — CORRIGÉ
+const allTickers = new Set([
+  ...Object.keys(snapStart.posBreakdown),
+  ...Object.keys(snapEnd.posBreakdown),
+  ...Object.keys(tradeFlows),  // positions clôturées
+]);
+```
+
+Le calcul de `tradeFlows` a été déplacé AVANT la construction de `allTickers`
+(il était déjà juste après dans le code, mais l'ordre est désormais explicite).
+
+### Résultat
+
+| Période | "Autres (arrondis)" avant | après |
+|---------|---------------------------|-------|
+| Daily | 0 | 0 |
+| MTD | 0 | 1 |
+| 1M | ~120 | ~120 |
+| YTD | ~12 500 | -216 |
+| 1Y | **+14 729** | **-251** |
+
+Le résidu restant (~250€) est un arrondi légitime dû à :
+- `nav` arrondi à l'entier dans chaque snapshot (`Math.round`)
+- Précision discrète du décomposition FX jour-par-jour (cashJPY/USD de la veille)
+- Différence entre taux FX snapshot et taux FX réels des trades intra-journaliers
+
+### Fichiers modifiés
+- `charts.js` : `computePeriodBreakdown()` — allTickers inclut tradeFlows keys
+- `app.js` : version bump imports → v263
+- `index.html` : version bump → v263
