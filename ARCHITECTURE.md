@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 8 avril 2026 (v259)
+> Dernière mise à jour : 8 avril 2026 (v265)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2563,3 +2563,99 @@ Le résidu restant (~250€) est un arrondi légitime dû à :
 - `charts.js` : `computePeriodBreakdown()` — allTickers inclut tradeFlows keys
 - `app.js` : version bump imports → v263
 - `index.html` : version bump → v263
+
+---
+
+## §48 — v264 : Fix NAV divergence ~€10K between 1Y and YTD at same date (8 avril 2026)
+
+### Contexte
+Après le fix v263, un second problème est apparu : le NAV affiché au 16 mars 2026
+différait de ~€10K entre la vue 1Y (€249,361) et la vue 1M/YTD (€239,534).
+
+### Cause racine : QQQM buy exclu du 1Y simulation
+
+Le mode 1Y calcule `START_DATE` comme `today - 1 an` = 2025-04-08. Mais l'achat
+de QQQM a eu lieu le 2025-04-03, soit 5 jours AVANT `START_DATE`. La simulation
+1Y incluait donc la vente de QQQM ($14,528 en proceeds) sans l'achat correspondant
+($10,776 en cost), créant un gain fantôme de ~€10K.
+
+### Fix (v264) : étendre START_DATE pour inclure le premier trade
+
+Pour les modes `1y` et `alltime`, on étend `START_DATE` pour inclure le trade le
+plus ancien (tous les tickers, pas seulement QQQM) :
+
+```javascript
+// Mode 1Y — v264
+const d = new Date();
+d.setFullYear(d.getFullYear() - 1);
+START_DATE = d.toISOString().slice(0, 10);
+
+// v264 fix: extend START_DATE to include trades before the 1Y mark
+const earliestTradeDate = (portfolio.amine.ibkr.trades || [])
+  .filter(t => t.type !== 'fx')
+  .reduce((min, t) => t.date < min ? t.date : min, START_DATE);
+if (earliestTradeDate < START_DATE) {
+  const et = new Date(earliestTradeDate);
+  et.setDate(et.getDate() - 1);
+  START_DATE = et.toISOString().slice(0, 10);
+}
+```
+
+Même logique pour le mode `alltime` (premier dépôt OU premier trade).
+
+### Résultat
+
+| Métrique | Avant v264 | Après v264 |
+|----------|-----------|------------|
+| 1Y total P&L | -9,399 | -17,909 |
+| QQQM P&L dans breakdown | +12,318 (fantôme) | +3,210 (correct) |
+| NAV gap 1Y vs YTD (Mar 16) | ~€10,000 | **€403** |
+| "Autres (arrondis)" 1Y | -251 | -251 (inchangé) |
+
+Le gap résiduel de €403 est un offset de calibration constant entre les deux modes :
+- YTD démarre avec des valeurs de cash calibrées (relevé IBKR au 31/12/2025)
+- 1Y reconstruit le cash en rejouant tous les dépôts/trades depuis zéro
+- La différence vient d'arrondis cumulés dans les conversions FX des transactions
+
+### Fichiers modifiés
+- `charts.js` : extension de START_DATE en modes 1y et alltime
+- `app.js` : version bump imports → v264
+- `index.html` : version bump → v264
+
+---
+
+## §49 — v265 : Infrastructure de vérification cross-mode (8 avril 2026)
+
+### Objectif
+Ajouter des globals de débogage pour préserver les données de chaque mode de
+simulation, car le build sequence (YTD → 1Y → alltime → YTD) écrase
+`_simSnapshots` et `_ytdChartFullData` à chaque passage.
+
+### Globals ajoutés
+- `window._1ySimSnapshots` : snapshots jour-par-jour du mode 1Y
+- `window._1yChartFullData` : données complètes du chart 1Y
+- `window._alltimeChartFullData` : données complètes du chart alltime
+
+Ces globals permettent de comparer programmatiquement les NAV entre modes à
+n'importe quelle date de chevauchement, sans avoir à modifier le build sequence.
+
+### Vérification effectuée (v265)
+
+Comparaison NAV IBKR entre 1Y et YTD à 6 dates :
+
+| Date | YTD NAV | 1Y NAV | Diff |
+|------|---------|--------|------|
+| 2026-01-02 | 210,944 | 211,347 | +403 |
+| 2026-02-02 | 202,293 | 202,696 | +403 |
+| 2026-03-02 | 201,566 | 201,969 | +403 |
+| 2026-03-16 | 197,101 | 197,504 | +403 |
+| 2026-04-07 | 186,677 | 187,080 | +403 |
+| 2026-04-08 | 195,044 | 195,446 | +402 |
+
+L'offset est **constant à €403** — calibration drift acceptable entre les deux
+approches de simulation.
+
+### Fichiers modifiés
+- `charts.js` : ajout globals `_1ySimSnapshots`, `_1yChartFullData`, `_alltimeChartFullData`
+- `app.js` : version bump imports → v265
+- `index.html` : version bump → v265
