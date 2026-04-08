@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 8 avril 2026 (v265)
+> Dernière mise à jour : 8 avril 2026 (v267)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2659,3 +2659,65 @@ approches de simulation.
 - `charts.js` : ajout globals `_1ySimSnapshots`, `_1yChartFullData`, `_alltimeChartFullData`
 - `app.js` : version bump imports → v265
 - `index.html` : version bump → v265
+
+---
+
+## §50 — v266 : Carte KPI "Autre" sur la vue COUPLE (8 avril 2026)
+
+### Problème
+Les 3 cartes visibles (Actions, Cash, Immo) ne totalisaient que ~€582K vs
+NW Combiné ~€675K. L'écart de ~€93K correspondait à des composantes incluses
+dans `amineNW`/`nezhaNW` mais sans carte dédiée : véhicules, créances, TVA.
+
+### Solution
+Ajout d'une 7ᵉ carte KPI "Autre (Véhicules, Créances)" sur la vue COUPLE.
+
+**engine.js** — nouveaux champs dans `couple` :
+```javascript
+autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva
+  + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
+autreVehicles, autreCreancesPro, autreCreancesPerso, autreTva,
+autreVillejuifReservation, autreCautionRueil,
+```
+
+**index.html** — grille passée de `repeat(6, 1fr)` à `repeat(7, 1fr)` +
+nouvelle carte `kpiCoupleAutre`.
+
+**render.js** — `setEur('kpiCoupleAutre', s.couple.autreTotal)` + insight
+détaillant chaque composante. Insights `kpiCoupleNW` et `kpiCoupleAmNW`
+corrigés pour inclure la catégorie "Autre".
+
+### Vérification
+Immo + Cash + Actions + Autre = NW Combiné ± €1 (arrondi).
+
+### Fichiers modifiés
+- `engine.js` : ajout `autreTotal` et sous-composantes dans `couple`
+- `render.js` : rendu carte + insights mis à jour
+- `index.html` : 7ᵉ carte + grille 7 colonnes, version bump → v266
+
+---
+
+## §51 — v267 : Trades 8 avril 2026 — DG.PA vendu + EUR.JPY deleverage (8 avril 2026)
+
+### Trades ajoutés
+1. **DG.PA (Vinci)** — sell 100 @ 136.65€. Position entièrement fermée.
+   P&L réalisé : +€1,419 (costBasis 122.46). Commission : -€6.83.
+2. **EUR.JPY** — sell 11,679 EUR @ 185.060 → +¥2,161,316 (rachat JPY short).
+   Commission : -€319.17. Deleverage du short JPY (carry trade).
+
+### Données mises à jour
+- `positions[]` : DG.PA retiré (0 actions restantes, commentaire "position fermée")
+- `trades[]` : 2 nouvelles entrées datées 2026-04-08
+- `cashEUR` : -1 → -341 (approx, hors intérêts mars/avr)
+- `cashJPY` : -4,590,694 → -2,429,378 (short JPY réduit de 47%)
+- Compteur actions : 14/14 → 13/13
+
+### Impact portefeuille
+- DG.PA contribuait ~€13,7K au portefeuille → converti en cash EUR
+- Short JPY passé de ¥-4,6M à ¥-2,4M → exposition FX réduite
+- NW Amine passe de ~€480K à ~€477K (variation prix intraday)
+
+### Fichiers modifiés
+- `data.js` : positions, trades, cash IBKR
+- `app.js` : version bump imports → v267
+- `index.html` : version bump → v267
