@@ -1,6 +1,6 @@
 # Architecture — Dashboard Patrimonial
 
-> Dernière mise à jour : 8 avril 2026 (v267)
+> Dernière mise à jour : 8 avril 2026 (v268)
 > Repo : `lallakenza/networth` — GitHub Pages
 > URL : https://lallakenza.github.io/networth/
 
@@ -2721,3 +2721,50 @@ Immo + Cash + Actions + Autre = NW Combiné ± €1 (arrondi).
 - `data.js` : positions, trades, cash IBKR
 - `app.js` : version bump imports → v267
 - `index.html` : version bump → v267
+
+## §52 — v268 : Fix P&L 1Y/alltime — double-comptage des dépôts (8 avril 2026)
+
+### Problème
+
+Le graphique P&L en mode 1Y affichait des valeurs aberrantes (P&L ≈ -55 000€ au premier point, -55 939€ au dernier). Le P&L total affiché était ~-17 102€ alors qu'il aurait dû être positif (grâce au Degiro réalisé).
+
+### Cause racine
+
+La formule P&L est : `P&L(t) = NAV(t) − startNAVRef − cumDeposits(t)`.
+
+En mode 1Y, la simulation démarre à NAV=0 et reconstruit tout depuis zéro. Le premier point de NAV (~€54 234) est **entièrement financé par les dépôts** (~€55 000). L'ancien code utilisait `startNAVRef = chartValues[0]` (≈54 234) comme base, ce qui revenait à :
+
+```
+P&L = NAV(t) − 54234 − cumDeposits(t)
+```
+
+Cela **double-comptait** les dépôts : une fois via `startNAVRef` (qui inclut les dépôts du jour 1) et une fois via `cumDeposits`. En mode YTD, `chartValues[0]` représente le NAV calibré IBKR (STARTING_NAV ≈ €209 495) qui est un vrai point de départ indépendant des dépôts simulés, donc la formule fonctionnait correctement.
+
+### Solution
+
+Introduire `startNAVRef` conditionnel selon le mode :
+
+```javascript
+const startNAVRef = (mode === '1y' || mode === 'alltime') ? 0 : chartValues[0];
+```
+
+Appliqué aux 4 séries P&L : IBKR, ESPP, SGTM, Total. Le `startValue` utilisé dans le tooltip VALUE est **inchangé** (`chartValues[0]`) car il sert au calcul de variation % et non au P&L.
+
+### Vérification
+
+| Point   | NAV     | cumDeposits | P&L attendu | P&L avant fix | P&L après fix |
+|---------|---------|-------------|-------------|----------------|---------------|
+| Premier | 54 234  | 55 000      | −766        | −55 000        | −766          |
+| Dernier | 196 223 | 197 928     | −1 705      | −55 939        | −1 705        |
+
+P&L Total (avec Degiro +€50 665) : premier = €101 239, dernier = €84 137. Cohérent.
+
+### Note — Degiro réalisé dans le 1Y
+
+Le P&L Total inclut `degiroRealizedPL = +€50 664.55` comme constante ajoutée à chaque point. Ce gain Degiro date d'avant la période 1Y (compte clôturé avril 2025). Pour une vue 1Y pure, il faudrait conditionner l'ajout de ce terme. Non corrigé ici — signalé pour décision future.
+
+### Fichiers modifiés
+
+- `charts.js` : lignes ~3200-3218 — `startNAVRef` conditionnel pour les 4 séries P&L
+- `app.js` : version bump imports → v268
+- `index.html` : version bump → v268

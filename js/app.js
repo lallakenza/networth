@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=268';
-import { compute } from './engine.js?v=268';
-import { render } from './render.js?v=268';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=268';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=268';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=268';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=268';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=269';
+import { compute } from './engine.js?v=269';
+import { render } from './render.js?v=269';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=269';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=269';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=269';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=269';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -986,37 +986,24 @@ async function loadStockPrices(forceRefresh) {
         if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
         console.log('[app] YTD portfolio chart built successfully (scope: all)');
 
-        // ── Silently build 1Y chart to populate P&L 1Y KPI on initial load ──
-        // Without this, the 1Y KPI shows the static render.js value (position M2M)
-        // instead of the chart-based NAV simulation value (which is the authoritative one).
+        // v269: Silently build 1Y chart — skipRender prevents canvas/data overwrite
         buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
           mode: '1y',
           includeESPP: true,
           includeSGTM: true,
           scope: 'all',
+          skipRender: true,  // v269: store in _chartDataByMode['1y'], don't touch canvas
         });
         update1YKPIFromChart();
 
-        // ── Build alltime simulation to populate _simulationAllTimeCache ──
-        // This cache is used by buildEquityHistoryChart to splice accurate
-        // daily simulation data into the 5Y/MAX equity history chart.
+        // v269: Silently build alltime simulation for 5Y/MAX splice
         buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
           mode: 'alltime',
           includeESPP: true,
           includeSGTM: true,
+          skipRender: true,  // v269: alltime never renders anyway, but be explicit
         });
-        console.log('[app] alltime simulation cache built for 5Y/MAX splice');
-
-        // Rebuild visible YTD chart (1Y build overwrote the canvas and _ytdChartFullData)
-        const chartResultYTD2 = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
-          mode: 'ytd',
-          startingNAV: 209495,
-          includeESPP: true,
-          includeSGTM: true,
-          scope: 'all',
-        });
-        if (chartResultYTD2) updateKPIsFromChart(chartResultYTD2);
-        console.log('[app] 1Y KPI initialized from chart data on page load');
+        console.log('[app] v269: 1Y + alltime stored silently (no YTD rebuild needed)');
 
         // Re-render positions table now that _chartBreakdown is available.
         // The override in render.js replaces engine.js period P&L with
@@ -1062,23 +1049,17 @@ async function loadStockPrices(forceRefresh) {
             if (scopeResult && scopeMode !== '1y') updateKPIsFromChart(scopeResult);
             // But always update 1Y KPI from 1Y chart when in 1Y mode
             if (scopeResult && scopeMode === '1y') update1YKPIFromChart();
-            // When NOT in 1Y mode, silently rebuild 1Y chart to update P&L 1Y KPI
+            // v269: When NOT in 1Y mode, silently update 1Y data (skipRender prevents canvas overwrite)
             if (scopeMode !== '1y') {
               buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
                 mode: '1y',
                 includeESPP: true,
                 includeSGTM: true,
                 scope: currentScope,
+                skipRender: true,  // v269: no canvas overwrite, no triple-rebuild
               });
               update1YKPIFromChart();
-              // Rebuild visible chart (1Y build overwrote the canvas)
-              buildPortfolioYTDChart(PORTFOLIO, historicalDataToUse, FX_STATIC, {
-                mode: scopeMode,
-                startingNAV: 209495,
-                includeESPP: true,
-                includeSGTM: true,
-                scope: currentScope,
-              });
+              // v269: No need to rebuild visible chart — YTD data was never overwritten
             }
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);
@@ -1117,21 +1098,13 @@ async function loadStockPrices(forceRefresh) {
               if (result1Y) update1YKPIFromChart();
             } else if (currentPeriod === 'YTD') {
               historicalDataToUse = historicalDataYTD;
-              // Rebuild full YTD chart
-              const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
-                mode: 'ytd',
-                startingNAV: 209495,
-                includeESPP: true,
-                includeSGTM: true,
-                scope: currentScope,
-              });
-              if (scopeResult) updateKPIsFromChart(scopeResult);
-            } else {
-              // If coming from 1Y/5Y/MAX mode, _ytdChartFullData contains non-YTD data.
-              // We must rebuild the YTD chart (daily resolution) before applying sub-period filter.
-              const currentChartMode = window._ytdChartFullData?.mode;
-              if (currentChartMode === '1y' || currentChartMode === '5y' || currentChartMode === 'max') {
-                historicalDataToUse = historicalDataYTD;
+              // v269: if YTD data exists for current scope, just switch to it
+              if (window._chartDataByMode.ytd && window._chartDataByMode.ytd.scope === currentScope) {
+                window._activeChartMode = 'ytd';
+                window._ytdChartFullData = window._chartDataByMode.ytd;
+                redrawChartForPeriod('YTD');
+              } else {
+                // Rebuild full YTD chart
                 const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
                   mode: 'ytd',
                   startingNAV: 209495,
@@ -1140,6 +1113,27 @@ async function loadStockPrices(forceRefresh) {
                   scope: currentScope,
                 });
                 if (scopeResult) updateKPIsFromChart(scopeResult);
+              }
+            } else {
+              // v269: Sub-period (MTD, 1M, 3M) — switch to YTD data from per-mode store
+              if (window._activeChartMode !== 'ytd') {
+                // If YTD data not yet built for this scope, rebuild it
+                if (!window._chartDataByMode.ytd || window._chartDataByMode.ytd.scope !== currentScope) {
+                  historicalDataToUse = historicalDataYTD;
+                  const scopeResult = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+                    mode: 'ytd',
+                    startingNAV: 209495,
+                    includeESPP: true,
+                    includeSGTM: true,
+                    scope: currentScope,
+                  });
+                  if (scopeResult) updateKPIsFromChart(scopeResult);
+                } else {
+                  // v269: just switch to stored YTD data, no rebuild
+                  window._activeChartMode = 'ytd';
+                  window._ytdChartFullData = window._chartDataByMode.ytd;
+                  historicalDataToUse = historicalDataYTD;
+                }
               }
               redrawChartForPeriod(currentPeriod);
             }
@@ -1166,6 +1160,25 @@ async function loadStockPrices(forceRefresh) {
             });
             btn.style.background = '#2d3748'; btn.style.color = '#fff';
             switchChartMode(btn.dataset.mode);
+          });
+        });
+
+        // v269: Bind Owner toggle (Amine / Nezha / Both)
+        window._activeOwner = 'both';
+        document.querySelectorAll('#ytdOwnerToggle button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#ytdOwnerToggle button').forEach(b => {
+              b.style.background = '#fff'; b.style.color = '#4a5568';
+            });
+            btn.style.background = '#2d3748'; btn.style.color = '#fff';
+            window._activeOwner = btn.dataset.owner;
+            // Re-render current chart with owner filter (no rebuild needed)
+            const currentMode = window._ytdDisplayMode || 'value';
+            const activeData = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
+            if (activeData) {
+              redrawChartForPeriod(activeData.currentPeriod || currentPeriod);
+              if (currentMode === 'pl') switchChartMode('pl');
+            }
           });
         });
       } catch (e) {

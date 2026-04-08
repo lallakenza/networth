@@ -14,6 +14,12 @@ let charts = {};
 let coupleSelectedCat = null;
 let _state = null;
 
+// v269: Per-mode data store — each mode stores its chart data independently.
+// This eliminates the singleton _ytdChartFullData overwrite bug that caused
+// 5+ patches (v245-v268). See ARCHITECTURE.md §53 and TEST_SPEC.md.
+window._chartDataByMode = { ytd: null, '1y': null, alltime: null, '5y': null, max: null };
+window._activeChartMode = 'ytd';
+
 /**
  * Destroys all cached Chart.js chart instances
  *
@@ -1989,7 +1995,8 @@ function renderPortfolioChart(overrides = {}) {
   const el = document.getElementById('portfolioYTDChart');
   if (!el) return;
 
-  const data = window._ytdChartFullData;
+  // v269: read from per-mode store (fallback to legacy global)
+  const data = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
   if (!data || !data.labels.length) return;
 
   // Merge overrides with stored state
@@ -2037,6 +2044,43 @@ function renderPortfolioChart(overrides = {}) {
   const slicedPLDegiro = (data.plValuesDegiro || []).slice(startIdx);
 
   if (slicedLabels.length === 0) return;
+
+  // v269: Owner filter (Amine / Nezha / Both)
+  // Applies proportional split to ESPP and SGTM series.
+  // IBKR and Degiro are 100% Amine.
+  const owner = window._activeOwner || 'both';
+  if (owner !== 'both') {
+    // Compute owner ratios from PORTFOLIO data
+    const amineESPPShares = PORTFOLIO.amine?.espp?.shares || 167;
+    const nezhaESPPShares = PORTFOLIO.nezha?.espp?.shares || 40;
+    const totalESPPShares = amineESPPShares + nezhaESPPShares;
+    const amineSGTMShares = PORTFOLIO.amine?.sgtm?.shares || 32;
+    const nezhaSGTMShares = PORTFOLIO.nezha?.sgtm?.shares || 32;
+    const totalSGTMShares = amineSGTMShares + nezhaSGTMShares;
+
+    const esppRatio = owner === 'amine'
+      ? amineESPPShares / totalESPPShares
+      : nezhaESPPShares / totalESPPShares;
+    const sgtmRatio = owner === 'amine'
+      ? amineSGTMShares / totalSGTMShares
+      : nezhaSGTMShares / totalSGTMShares;
+    const ibkrRatio = owner === 'amine' ? 1 : 0;  // IBKR = 100% Amine
+    const degiroRatio = owner === 'amine' ? 1 : 0; // Degiro = 100% Amine
+
+    // Apply ratios to all sliced series
+    for (let i = 0; i < slicedLabels.length; i++) {
+      slicedIBKR[i] = Math.round(slicedIBKR[i] * ibkrRatio);
+      slicedESPP[i] = Math.round((slicedESPP[i] || 0) * esppRatio);
+      slicedSGTM[i] = Math.round((slicedSGTM[i] || 0) * sgtmRatio);
+      slicedDegiro[i] = Math.round((slicedDegiro[i] || 0) * degiroRatio);
+      slicedTotal[i] = slicedIBKR[i] + slicedESPP[i] + slicedSGTM[i] + slicedDegiro[i];
+      slicedPLIBKR[i] = Math.round((slicedPLIBKR[i] || 0) * ibkrRatio);
+      slicedPLESPP[i] = Math.round((slicedPLESPP[i] || 0) * esppRatio);
+      slicedPLSGTM[i] = Math.round((slicedPLSGTM[i] || 0) * sgtmRatio);
+      slicedPLDegiro[i] = Math.round((slicedPLDegiro[i] || 0) * degiroRatio);
+      slicedPLTotal[i] = slicedPLIBKR[i] + slicedPLESPP[i] + slicedPLSGTM[i] + slicedPLDegiro[i];
+    }
+  }
 
   // ── Select data based on scope and mode ──
   let mainData, refValue, mainLabel, scopeLabel;
@@ -2164,12 +2208,14 @@ function renderPortfolioChart(overrides = {}) {
           ' <small style="color:#a0aec0;font-weight:normal">(compte clôturé)</small>';
       }
     } else if (displayMode === 'pl') {
+      const ownerSuffix = owner !== 'both' ? ' (' + (owner === 'amine' ? 'Amine' : 'Nezha') + ')' : '';
       titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
-        'P&L ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
+        'P&L ' + scopeLabel + ownerSuffix + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
         (plChange >= 0 ? '+' : '') + fmt(plChange) + '</span>';
     } else {
+      const ownerSuffix = owner !== 'both' ? ' (' + (owner === 'amine' ? 'Amine' : 'Nezha') + ')' : '';
       titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
-        'Evolution ' + scopeLabel + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
+        'Evolution ' + scopeLabel + ownerSuffix + ' ' + periodLabel + ' — <span style="color:' + color + '">' +
         (plEUR >= 0 ? '+' : '') + fmt(plEUR) + ' (' + (plEUR >= 0 ? '+' : '') + plPct + '%)</span>';
     }
   }
@@ -3692,6 +3738,24 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       sgtmValues: chartValuesSGTM.slice(),
       degiroValues: chartValuesDegiro.slice(),
     };
+    // v269: also store alltime P&L data for cross-mode validation
+    window._chartDataByMode.alltime = {
+      labels: chartLabels.slice(),
+      ibkrValues: chartValues.slice(),
+      totalValues: chartValuesTotal.slice(),
+      esppValues: chartValuesESPP.slice(),
+      sgtmValues: chartValuesSGTM.slice(),
+      plValuesIBKR,
+      plValuesESPP,
+      plValuesSGTM,
+      plValuesTotal: plValuesIBKR.map((v, i) =>
+        v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
+      ),
+      cumDepositsAtPoint,
+      cumDepositsAtPointTotal,
+      degiroRealizedPL,
+      mode: 'alltime',
+    };
     console.log('[sim-alltime] Cached all-time simulation: ' + chartLabels.length + ' pts, ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
     console.log('[sim-alltime] IBKR NAV first: €' + chartValues[0] + ', last: €' + chartValues[chartValues.length - 1]);
     return { labels: chartLabels, ibkrValues: chartValues, totalValues: chartValuesTotal };
@@ -3731,15 +3795,27 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     mode,
     currentPeriod: 'YTD',
   };
-  window._ytdChartFullData = _chartFullData;
-  // v265: preserve per-mode chart data for cross-mode verification
+  // v269: store per-mode — never overwrite another mode's data
+  const modeKey = mode === '1y' ? '1y' : (mode === 'alltime' ? 'alltime' : 'ytd');
+  window._chartDataByMode[modeKey] = _chartFullData;
+
+  // Compatibility: _ytdChartFullData always points to the ACTIVE mode's data
+  // Only update _ytdChartFullData + _activeChartMode for non-silent builds
+  if (!options?.skipRender) {
+    window._activeChartMode = modeKey;
+    window._ytdChartFullData = _chartFullData;
+  }
+
+  // Legacy compat for cross-mode debug (can be removed later)
   if (mode === '1y') window._1yChartFullData = _chartFullData;
   if (mode === 'alltime') window._alltimeChartFullData = _chartFullData;
 
-  // Render the chart
-  renderPortfolioChart();
+  // v269: skip render for silent builds (1Y KPI, alltime cache)
+  if (!options?.skipRender) {
+    renderPortfolioChart();
+  }
 
-  console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, scope=' + scope + ', mode=' + mode);
+  console.log('[ytd-chart] Built: ' + chartLabels.length + ' points, scope=' + scope + ', mode=' + mode + (options?.skipRender ? ' (silent)' : ''));
 
   // ── Track deposits by date for TWR / KPI computation ──
   // Convert all deposits to EUR for TWR calculation
@@ -3777,7 +3853,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
 // ── Period filter: re-draw the YTD chart for a sub-period ──
 export function redrawChartForPeriod(period) {
-  const data = window._ytdChartFullData;
+  // v269: read from per-mode store
+  const data = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
   if (!data) return;
   data.currentPeriod = period;
   renderPortfolioChart({ period });
@@ -3786,7 +3863,8 @@ export function redrawChartForPeriod(period) {
 // ── Switch between Valeur (NAV) and P&L display modes ──
 export function switchChartMode(displayMode) {
   window._ytdDisplayMode = displayMode;
-  const data = window._ytdChartFullData;
+  // v269: read from per-mode store
+  const data = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
   renderPortfolioChart({ displayMode, period: data?.currentPeriod });
 }
 
