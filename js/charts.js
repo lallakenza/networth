@@ -3429,7 +3429,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         // Excluded: flow effects (new borrowing, deposits, trade flows) — NOT P&L.
         let jpyFxEffect = 0;
         let usdFxEffect = 0;
-        const periodDates = chartLabels.filter(d => d >= startDateSnap && d <= endDateSnap);
+        // ⚠ v261 fix: use ALL daily snapshot dates, not weekly-sampled chartLabels
+        // In 1Y/alltime mode, chartLabels are thinned to ~38 weekly points,
+        // but FX decomposition needs daily precision to avoid large residuals.
+        const allSnapshotDates = Object.keys(_simSnapshots).sort();
+        const periodDates = allSnapshotDates.filter(d => d >= startDateSnap && d <= endDateSnap);
         let prevSnap = _simSnapshots[startDateSnap];
         for (let i = 1; i < periodDates.length; i++) {
           const curSnap = _simSnapshots[periodDates[i]];
