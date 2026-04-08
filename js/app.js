@@ -639,7 +639,8 @@ function updateKPIsFromChart(chartData) {
 // Uses the pre-computed P&L values from _ytdChartFullData (set by buildPortfolioYTDChart)
 // Separate from updateKPIsFromChart to avoid corrupting Daily/MTD/YTD
 function update1YKPIFromChart() {
-  const data = window._ytdChartFullData;
+  // v269: prefer per-mode store for 1Y data (doesn't get overwritten by YTD builds)
+  const data = window._chartDataByMode?.['1y'] || window._ytdChartFullData;
   if (!data || !data.labels || data.labels.length < 2) return;
 
   // ── Scope-aware: select the correct P&L and deposit series ──
@@ -1094,6 +1095,9 @@ async function loadStockPrices(forceRefresh) {
                 includeSGTM: true,
                 scope: currentScope,
               });
+              // v269: explicitly set active mode (belt-and-suspenders with the build function)
+              window._activeChartMode = '1y';
+              window._ytdChartFullData = window._chartDataByMode['1y'];
               // Only update the 1Y KPI card (not Daily/MTD/YTD which need YTD chart data)
               if (result1Y) update1YKPIFromChart();
             } else if (currentPeriod === 'YTD') {
