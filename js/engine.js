@@ -378,7 +378,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // PAS le net (-50664.55) qui inclut les retraits de bénéfices
   const degiroDepositsGross = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR > 0).reduce((s, d) => s + d.amountEUR, 0);
   const degiroWithdrawals = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR < 0).reduce((s, d) => s + d.amountEUR, 0);
-  const degiroDepositsTotal = degiroDepositsGross; // Gross for KPI/ROI (v243 fix)
+  // v271: Net deposits for "Total Déposé" KPI — withdrawals reduce deployed capital
+  // Degiro: all capital was withdrawn (+profit), so net ≈ -50K → capped at 0
+  const degiroDepositsNet = Math.max(0, degiroDepositsGross + degiroWithdrawals);
+  const degiroDepositsTotal = degiroDepositsNet; // v271: net deposits (was gross before)
   // v246: esppDeposits from depositHistory (same source as chart), not from USD cost basis / currentFX
   const esppDeposits = depositHistory.filter(d => d.platform === 'ESPP (UBS)').reduce((s, d) => s + d.amountEUR, 0);
   const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);

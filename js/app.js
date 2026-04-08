@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=270';
-import { compute } from './engine.js?v=270';
-import { render } from './render.js?v=270';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=270';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=270';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=270';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=270';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=271';
+import { compute } from './engine.js?v=271';
+import { render } from './render.js?v=271';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=271';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=271';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=271';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=271';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1089,17 +1089,34 @@ async function loadStockPrices(forceRefresh) {
               buildEquityHistoryChart(currentPeriod, { scope: currentScope });
             } else if (currentPeriod === '1Y') {
               historicalDataToUse = historicalData1Y;
-              const result1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
-                mode: '1y',
-                includeESPP: true,
-                includeSGTM: true,
-                scope: currentScope,
-              });
-              // v269: explicitly set active mode (belt-and-suspenders with the build function)
-              window._activeChartMode = '1y';
-              window._ytdChartFullData = window._chartDataByMode['1y'];
+              // v271: use cached 1Y data when available (fixes bug where buildPortfolioYTDChart
+              // silently failed to execute). Only rebuild if scope changed.
+              const cached1Y = window._chartDataByMode?.['1y'];
+              if (cached1Y && cached1Y.scope === currentScope) {
+                // Cache hit — just switch mode and re-render
+                window._activeChartMode = '1y';
+                window._ytdChartFullData = cached1Y;
+                redrawChartForPeriod('1Y');
+                console.log('[app] 1Y: using cached data (scope=' + currentScope + ')');
+              } else {
+                // Cache miss or scope changed — rebuild
+                console.log('[app] 1Y: rebuilding (cached=' + !!cached1Y + ', scope=' + currentScope + ')');
+                try {
+                  const result1Y = buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
+                    mode: '1y',
+                    includeESPP: true,
+                    includeSGTM: true,
+                    scope: currentScope,
+                  });
+                  if (result1Y) console.log('[app] 1Y build succeeded');
+                } catch (e) {
+                  console.error('[app] 1Y build error:', e);
+                }
+                window._activeChartMode = '1y';
+                window._ytdChartFullData = window._chartDataByMode['1y'];
+              }
               // Only update the 1Y KPI card (not Daily/MTD/YTD which need YTD chart data)
-              if (result1Y) update1YKPIFromChart();
+              update1YKPIFromChart();
             } else if (currentPeriod === 'YTD') {
               historicalDataToUse = historicalDataYTD;
               // v269: if YTD data exists for current scope, just switch to it
