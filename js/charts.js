@@ -3282,11 +3282,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         return null;
       }
 
-      // Collect all tickers that appear at start or end
-      const allTickers = new Set([
-        ...Object.keys(snapStart.posBreakdown),
-        ...Object.keys(snapEnd.posBreakdown),
-      ]);
+      // Collect all tickers that appear at start, end, OR in trade flows.
+      // v263 fix: positions that were fully opened AND closed during the period
+      // (e.g. GLE, WLN, NXI, EDEN, QQQM) don't appear in snapStart or snapEnd,
+      // but DO have tradeFlows. Without including them, their realized P&L
+      // (m2m = 0 - 0 - tradeFlow) leaks into the FX residual — this was the
+      // root cause of the ~€14,729 "Autres (arrondis)" bug in 1Y mode.
+      // tradeFlows is computed just below; we build allTickers after it.
+      //
+      // NOTE: tradeFlows is now computed BEFORE allTickers (moved up).
 
       // ── Compute net trade flows per ticker during the period ──
       // This is the net capital invested: buys add, sells subtract.
@@ -3317,6 +3321,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
           }
         }
       });
+
+      // v263: build allTickers AFTER tradeFlows, including closed-position tickers
+      const allTickers = new Set([
+        ...Object.keys(snapStart.posBreakdown),
+        ...Object.keys(snapEnd.posBreakdown),
+        ...Object.keys(tradeFlows),
+      ]);
 
       const items = [];
       let totalPosM2M = 0;
@@ -3362,25 +3373,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       const chartPL = snapEnd.nav - snapStart.nav - deposits;
       const fxOnCash = chartPL - Math.round(totalPosM2M);
 
-      // v261 debug: trace the exact decomposition
-      if (periodKey === 'oneYear') {
-        const sumTradeFlows = Object.values(tradeFlows).reduce((s, v) => s + v, 0);
-        console.log('[breakdown-debug] 1Y decomposition:', {
-          navStart: snapStart.nav, navEnd: snapEnd.nav, deposits,
-          chartPL,
-          posValueEnd: snapEnd.posValueEUR,
-          cashValueEnd: snapEnd.cashValueEUR,
-          cashEUR_end: snapEnd.cashEUR,
-          cashUSD_end: snapEnd.cashUSD, fxUSD_end: snapEnd.fxUSD,
-          cashJPY_end: snapEnd.cashJPY, fxJPY_end: snapEnd.fxJPY,
-          totalPosM2M: Math.round(totalPosM2M),
-          sumTradeFlows: Math.round(sumTradeFlows),
-          fxOnCash,
-          posItems_count: items.length,
-        });
-        // Also log each position's contribution
-        items.forEach(i => {
-          console.log('[breakdown-debug] pos:', i.ticker, 'start=' + i.startVal, 'end=' + i.endVal, 'flow=' + Math.round(tradeFlows[i.ticker] || 0), 'pl=' + i.pl);
+      // v263 debug: compact decomposition trace
+      if (periodKey === 'oneYear' || periodKey === 'ytd') {
+        console.log('[breakdown] ' + periodKey + ':', {
+          chartPL, posM2M: Math.round(totalPosM2M), fxOnCash,
+          items: items.length, tickers: allTickers.size,
         });
       }
 
