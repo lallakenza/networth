@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=267';
-import { compute } from './engine.js?v=267';
-import { render } from './render.js?v=267';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=267';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=267';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=267';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=267';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=268';
+import { compute } from './engine.js?v=268';
+import { render } from './render.js?v=268';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=268';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=268';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=268';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=268';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };

@@ -3198,20 +3198,24 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // P&L IBKR = NAV(t) - NAV(start) - cumDeposits_IBKR(t)
-  const startNAVRef = chartValues[0];
+  // v268 fix: in 1Y/alltime modes (STARTING_NAV=0), the first chart point's NAV
+  // is entirely funded by deposits. Using chartValues[0] as startNAVRef would
+  // double-count deposits. Use STARTING_NAV (=0 for 1Y/alltime, ~210K for YTD).
+  const startNAVRef = (mode === '1y' || mode === 'alltime') ? 0 : chartValues[0];
   const plValuesIBKR = chartValues.map((nav, i) => Math.round(nav - startNAVRef - cumDepositsAtPoint[i]));
 
   // P&L ESPP = NAV(t) - NAV(start) - cumDeposits_ESPP(t)
-  const startNAVRefESPP = chartValuesESPP[0];
+  const startNAVRefESPP = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesESPP[0];
   const plValuesESPP = chartValuesESPP.map((nav, i) => Math.round(nav - startNAVRefESPP - cumDepositsESPP[i]));
 
   // P&L SGTM = NAV(t) - NAV(start) - cumDeposits_SGTM(t)
-  const startNAVRefSGTM = chartValuesSGTM[0];
+  const startNAVRefSGTM = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesSGTM[0];
   const plValuesSGTM = chartValuesSGTM.map((nav, i) => Math.round(nav - startNAVRefSGTM - cumDepositsSGTM[i]));
 
   // P&L Total = NAV_total(t) - NAV_total(start) - cumDeposits_Total(t)
   // Uses cumDepositsAtPointTotal which includes ESPP lots + SGTM IPO cost
-  const startNAVRefTotal = chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0];
+  const startNAVRefTotal = (mode === '1y' || mode === 'alltime') ? 0
+    : (chartValuesTotal.length > 0 ? chartValuesTotal[0] : chartValues[0]);
   const plValuesTotal = chartValuesTotal.length > 0
     ? chartValuesTotal.map((nav, i) => Math.round(nav - startNAVRefTotal - cumDepositsAtPointTotal[i]))
     : plValuesIBKR;
