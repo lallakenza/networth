@@ -3378,13 +3378,18 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         }
       });
       // Commissions from trades
+      // ⚠ t.commission is in the trade's NATIVE currency (JPY, USD, or EUR)
+      //   → must convert to EUR, otherwise ¥871 (Shiseido) shows as €871
       (portfolio.amine.ibkr.trades || []).forEach(t => {
         if (t.date > startDateSnap && t.date <= endDateSnap && t.commission) {
-          periodCosts.commissions += t.commission; // negative number
+          let commEUR = t.commission;
+          if (t.currency === 'JPY') commEUR = t.commission / (snapEnd.fxJPY || 160);
+          else if (t.currency === 'USD') commEUR = t.commission / (snapEnd.fxUSD || 1.1);
+          periodCosts.commissions += commEUR;
           periodCosts.commItems.push({
             date: t.date,
             label: (t.label || t.ticker) + ' (' + t.type + ')',
-            amount: Math.round(t.commission),
+            amount: Math.round(commEUR),
           });
         }
       });
@@ -3403,78 +3408,71 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: Math.round(periodCosts.dividends), _isCost: true, _detail: periodCosts.divItems });
       }
 
-      // Add FX/Cash residual as a line item (captures JPY carry FX, USD FX, EUR interest effect)
-      // Only show if non-trivial
-      if (Math.abs(fxOnCash) >= 1) {
-        // ── Decompose JPY/USD into "pure FX effect" vs "cash flow effect" ──
-        // Pure FX = same cash balance, different exchange rate
-        // Cash flow = additional borrowing/repayment valued at new FX rate
-        // This avoids misleading display: e.g. -19K JPY "effect" is mostly
-        // increased JPY borrowing to buy Shiseido, not currency movement.
-        const jpyTotal = Math.round(snapEnd.cashJPY / snapEnd.fxJPY - snapStart.cashJPY / snapStart.fxJPY);
-        const usdTotal = Math.round(snapEnd.cashUSD / snapEnd.fxUSD - snapStart.cashUSD / snapStart.fxUSD);
+      // ── Effet de change pur sur le cash ──
+      // fxOnCash (residual = chartPL - posM2M) includes EVERYTHING not in position M2M:
+      //   - pure FX effects on JPY/USD cash balances (real P&L)
+      //   - costs flowing through cash: interest, commissions, FTT, dividends
+      //   - deposits, trade flows (cancel out in chartPL)
+      //
+      // Since costs are displayed as separate line items above, subtract them
+      // so this line shows ONLY the pure FX effect — no capital movements.
+      const displayedCosts = Math.round(periodCosts.interest)
+        + Math.round(periodCosts.commissions)
+        + Math.round(periodCosts.ftt)
+        + Math.round(periodCosts.dividends);
+      const pureFxOnCash = fxOnCash - displayedCosts;
 
-        // Decompose JPY: iterate through snapshots for accurate day-by-day attribution
-        let jpyFxEffect = 0, jpyFlowEffect = 0;
-        let usdFxEffect = 0, usdFlowEffect = 0;
+      if (Math.abs(pureFxOnCash) >= 1) {
+        // Compute pure FX effect per currency: day-by-day iteration
+        // "If the cash balance stayed the same as yesterday, how much did the
+        //  EUR value change due to FX rate movement?" — this IS P&L.
+        // Excluded: flow effects (new borrowing, deposits, trade flows) — NOT P&L.
+        let jpyFxEffect = 0;
+        let usdFxEffect = 0;
         const periodDates = chartLabels.filter(d => d >= startDateSnap && d <= endDateSnap);
         let prevSnap = _simSnapshots[startDateSnap];
         for (let i = 1; i < periodDates.length; i++) {
           const curSnap = _simSnapshots[periodDates[i]];
           if (!curSnap || !prevSnap) { prevSnap = curSnap; continue; }
-          // FX effect: same cash, new rate
+          // Pure FX: same cash balance (yesterday's), new rate
           jpyFxEffect += prevSnap.cashJPY / curSnap.fxJPY - prevSnap.cashJPY / prevSnap.fxJPY;
-          // Flow effect: new cash at new rate
-          jpyFlowEffect += (curSnap.cashJPY - prevSnap.cashJPY) / curSnap.fxJPY;
-          // Same for USD
           usdFxEffect += prevSnap.cashUSD / curSnap.fxUSD - prevSnap.cashUSD / prevSnap.fxUSD;
-          usdFlowEffect += (curSnap.cashUSD - prevSnap.cashUSD) / curSnap.fxUSD;
           prevSnap = curSnap;
         }
 
-        // Build detail items with sub-decomposition for JPY if borrowing changed significantly
-        const jpyDetail = [];
-        const jpyBorrowingChanged = Math.abs(snapEnd.cashJPY - snapStart.cashJPY) > 100000;
-        if (jpyBorrowingChanged) {
-          // Show JPY sub-breakdown: FX movement vs borrowing change
-          jpyDetail.push({
-            label: 'JPY — effet change (¥ ' + Math.round(snapStart.cashJPY).toLocaleString('fr-FR') + ' à taux variable)',
-            amount: Math.round(jpyFxEffect),
-          });
-          jpyDetail.push({
-            label: 'JPY — variation emprunt (' + Math.round(snapStart.cashJPY).toLocaleString('fr-FR') + ' → ' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)',
-            amount: Math.round(jpyFlowEffect),
-          });
-        } else {
-          jpyDetail.push({
-            label: 'JPY cash (' + Math.round(snapEnd.cashJPY).toLocaleString('fr-FR') + ' ¥)',
-            amount: jpyTotal,
+        // Detail: only pure FX effects per currency
+        // Balancing line captures rounding & cross-effects
+        const jpyFxRound = Math.round(jpyFxEffect);
+        const usdFxRound = Math.round(usdFxEffect);
+        const balancing = pureFxOnCash - jpyFxRound - usdFxRound;
+
+        const detailItems = [];
+        if (Math.abs(jpyFxRound) >= 1) {
+          // Contextual label: show average JPY exposure during the period
+          const avgJPY = Math.round((snapStart.cashJPY + snapEnd.cashJPY) / 2);
+          detailItems.push({
+            label: 'EUR/JPY (moy. ¥ ' + avgJPY.toLocaleString('fr-FR') + ')',
+            amount: jpyFxRound,
           });
         }
-
-        const usdBorrowingChanged = Math.abs(snapEnd.cashUSD - snapStart.cashUSD) > 1000;
-        let usdDetail;
-        if (usdBorrowingChanged) {
-          usdDetail = [
-            { label: 'USD — effet change', amount: Math.round(usdFxEffect) },
-            { label: 'USD — variation solde (' + Math.round(snapStart.cashUSD).toLocaleString('fr-FR') + ' → ' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: Math.round(usdFlowEffect) },
-          ];
-        } else {
-          usdDetail = [
-            { label: 'USD cash (' + Math.round(snapEnd.cashUSD).toLocaleString('fr-FR') + ' $)', amount: usdTotal },
-          ];
+        if (Math.abs(usdFxRound) >= 1) {
+          const avgUSD = Math.round((snapStart.cashUSD + snapEnd.cashUSD) / 2);
+          detailItems.push({
+            label: 'EUR/USD (moy. $ ' + avgUSD.toLocaleString('fr-FR') + ')',
+            amount: usdFxRound,
+          });
         }
-
-        const detailItems = [
-          ...jpyDetail,
-          ...usdDetail,
-          { label: 'EUR cash (solde)', amount: Math.round(snapEnd.cashEUR - snapStart.cashEUR + deposits) },
-        ].filter(d => Math.abs(d.amount) >= 1);
+        if (Math.abs(balancing) >= 1) {
+          detailItems.push({
+            label: 'Autres (arrondis)',
+            amount: balancing,
+          });
+        }
 
         items.push({
-          label: 'Effet FX / Cash',
+          label: 'Effet de change',
           ticker: '_FX_CASH',
-          pl: fxOnCash,
+          pl: pureFxOnCash,
           _isCost: true,
           _detail: detailItems,
         });
