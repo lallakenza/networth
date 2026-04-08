@@ -3634,6 +3634,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       window._simSnapshots = _simSnapshots;
     } else if (mode === '1y') {
       window._simSnapshots = _simSnapshots; // v261: expose for all modes
+      window._1ySimSnapshots = _simSnapshots; // v265: preserve 1Y snapshots separately
       chartBreakdown.oneYear = computePeriodBreakdown(oneYStartDate, lastDate, 'oneYear');
       injectExternalItems(chartBreakdown.oneYear, oneYStartDate, lastDate);
       console.log('[breakdown] 1Y chart breakdown computed:', {
@@ -3699,7 +3700,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
-  window._ytdChartFullData = {
+  const _chartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
     totalValues: chartValuesTotal,
@@ -3726,6 +3727,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     mode,
     currentPeriod: 'YTD',
   };
+  window._ytdChartFullData = _chartFullData;
+  // v265: preserve per-mode chart data for cross-mode verification
+  if (mode === '1y') window._1yChartFullData = _chartFullData;
+  if (mode === 'alltime') window._alltimeChartFullData = _chartFullData;
 
   // Render the chart
   renderPortfolioChart();
