@@ -166,7 +166,32 @@ async function main() {
     }
   }
 
-  // Set snapshot date
+  // Set snapshot date — optionally truncate to a cutoff date
+  // Usage: node generate_snapshot.mjs --cutoff 2026-03-31
+  const cutoffArg = process.argv.find(a => a.startsWith('--cutoff'));
+  const cutoffIdx = process.argv.indexOf('--cutoff');
+  const cutoffDate = cutoffIdx >= 0 ? process.argv[cutoffIdx + 1] : null;
+
+  if (cutoffDate) {
+    console.log(`\n--- Truncating to cutoff date: ${cutoffDate} ---`);
+    for (const [t, d] of Object.entries(snapshot.tickers)) {
+      const idx = d.dates.findIndex(dt => dt > cutoffDate);
+      if (idx >= 0) {
+        const removed = d.dates.length - idx;
+        d.dates = d.dates.slice(0, idx);
+        d.closes = d.closes.slice(0, idx);
+        console.log(`  ${t}: removed ${removed} days after ${cutoffDate} → last: ${d.dates[d.dates.length - 1]}`);
+      }
+    }
+    for (const [k, d] of Object.entries(snapshot.fx)) {
+      const idx = d.dates.findIndex(dt => dt > cutoffDate);
+      if (idx >= 0) {
+        d.dates = d.dates.slice(0, idx);
+        d.closes = d.closes.slice(0, idx);
+      }
+    }
+  }
+
   let maxDate = '1900-01-01';
   for (const d of Object.values(snapshot.tickers)) {
     const last = d.dates[d.dates.length - 1];

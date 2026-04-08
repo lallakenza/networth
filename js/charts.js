@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=270';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=270';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=270';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=270';
+import { fmt, fmtAxis } from './render.js?v=276';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=276';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=276';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=276';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1990,8 +1990,68 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
   };
 }
 
+// v276: Compute per-owner absolute ESPP deposits and P&L for click detail panel
+function computeAbsoluteTooltipPerOwnerESPP(chartLabels, navESPPAmine, navESPPNezha, historicalFxData) {
+  // Amine ESPP deposits
+  const amineDepEvents = [];
+  const amineLots = PORTFOLIO.amine?.espp?.lots || [];
+  for (const lot of amineLots) {
+    if (lot.contribEUR) {
+      amineDepEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
+    } else {
+      amineDepEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
+    }
+  }
+  const amineCash = PORTFOLIO.amine?.espp?.cashEUR || 0;
+  if (amineCash > 0) {
+    const earliest = amineLots.length > 0
+      ? amineLots.reduce((a, b) => a.date < b.date ? a : b).date : '2018-01-01';
+    amineDepEvents.push({ date: earliest, amountEUR: amineCash });
+  }
+  amineDepEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Nezha ESPP deposits
+  const nezhaDepEvents = [];
+  const nezhaLots = PORTFOLIO.nezha?.espp?.lots || [];
+  for (const lot of nezhaLots) {
+    if (lot.contribEUR) {
+      nezhaDepEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
+    } else {
+      nezhaDepEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
+    }
+  }
+  const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
+  if (nezhaCashUSD > 0) {
+    nezhaDepEvents.push({ date: '2018-01-01', amountEUR: nezhaCashUSD / (FX_STATIC?.USD || 1.15) });
+  }
+  nezhaDepEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build cumulative arrays
+  const absDepsAmine = [], absDepsNezha = [];
+  let cumAmine = 0, cumNezha = 0, aI = 0, nI = 0;
+  for (let i = 0; i < chartLabels.length; i++) {
+    const d = chartLabels[i];
+    while (aI < amineDepEvents.length && amineDepEvents[aI].date <= d) {
+      cumAmine += amineDepEvents[aI].amountEUR; aI++;
+    }
+    while (nI < nezhaDepEvents.length && nezhaDepEvents[nI].date <= d) {
+      cumNezha += nezhaDepEvents[nI].amountEUR; nI++;
+    }
+    absDepsAmine.push(cumAmine);
+    absDepsNezha.push(cumNezha);
+  }
+
+  return {
+    absDepsESPPAmine: absDepsAmine,
+    absDepsESPPNezha: absDepsNezha,
+    absPLESPPAmine: navESPPAmine.map((v, i) => Math.round((v || 0) - absDepsAmine[i])),
+    absPLESPPNezha: navESPPNezha.map((v, i) => Math.round((v || 0) - absDepsNezha[i])),
+  };
+}
+
 // ── Unified chart rendering function ──
-function renderPortfolioChart(overrides = {}) {
+// v276: exported for app.js to call after refresh() (fixes blank chart on init)
+export function renderPortfolioChart(overrides = {}) {
   const el = document.getElementById('portfolioYTDChart');
   if (!el) return;
 
@@ -2045,37 +2105,38 @@ function renderPortfolioChart(overrides = {}) {
 
   if (slicedLabels.length === 0) return;
 
-  // v269: Owner filter (Amine / Nezha / Both)
-  // Applies proportional split to ESPP and SGTM series.
-  // IBKR and Degiro are 100% Amine.
+  // v276: Owner filter (Amine / Nezha / Both)
+  // ESPP: uses per-owner NAV/P&L computed from actual lots (different shapes per owner).
+  // SGTM: proportional 50/50 (same shares, same cost basis, same dates — ratio is correct).
+  // IBKR & Degiro: 100% Amine.
   const owner = window._activeOwner || 'both';
   if (owner !== 'both') {
-    // Compute owner ratios from PORTFOLIO data
-    const amineESPPShares = PORTFOLIO.amine?.espp?.shares || 167;
-    const nezhaESPPShares = PORTFOLIO.nezha?.espp?.shares || 40;
-    const totalESPPShares = amineESPPShares + nezhaESPPShares;
+    // SGTM ratio (proportional is correct for SGTM — same purchase date/price for both owners)
     const amineSGTMShares = PORTFOLIO.amine?.sgtm?.shares || 32;
     const nezhaSGTMShares = PORTFOLIO.nezha?.sgtm?.shares || 32;
     const totalSGTMShares = amineSGTMShares + nezhaSGTMShares;
-
-    const esppRatio = owner === 'amine'
-      ? amineESPPShares / totalESPPShares
-      : nezhaESPPShares / totalESPPShares;
     const sgtmRatio = owner === 'amine'
       ? amineSGTMShares / totalSGTMShares
       : nezhaSGTMShares / totalSGTMShares;
-    const ibkrRatio = owner === 'amine' ? 1 : 0;  // IBKR = 100% Amine
-    const degiroRatio = owner === 'amine' ? 1 : 0; // Degiro = 100% Amine
+    const ibkrRatio = owner === 'amine' ? 1 : 0;
+    const degiroRatio = owner === 'amine' ? 1 : 0;
 
-    // Apply ratios to all sliced series
+    // Per-owner ESPP: use actual per-owner arrays instead of proportional ratio
+    const ownerESPPValues = owner === 'amine'
+      ? (data.esppValuesAmine || []).slice(startIdx)
+      : (data.esppValuesNezha || []).slice(startIdx);
+    const ownerPLESPP = owner === 'amine'
+      ? (data.plValuesESPPAmine || []).slice(startIdx)
+      : (data.plValuesESPPNezha || []).slice(startIdx);
+
     for (let i = 0; i < slicedLabels.length; i++) {
       slicedIBKR[i] = Math.round(slicedIBKR[i] * ibkrRatio);
-      slicedESPP[i] = Math.round((slicedESPP[i] || 0) * esppRatio);
+      slicedESPP[i] = ownerESPPValues[i] || 0;  // v276: actual per-owner value
       slicedSGTM[i] = Math.round((slicedSGTM[i] || 0) * sgtmRatio);
       slicedDegiro[i] = Math.round((slicedDegiro[i] || 0) * degiroRatio);
       slicedTotal[i] = slicedIBKR[i] + slicedESPP[i] + slicedSGTM[i] + slicedDegiro[i];
       slicedPLIBKR[i] = Math.round((slicedPLIBKR[i] || 0) * ibkrRatio);
-      slicedPLESPP[i] = Math.round((slicedPLESPP[i] || 0) * esppRatio);
+      slicedPLESPP[i] = ownerPLESPP[i] || 0;  // v276: actual per-owner P&L
       slicedPLSGTM[i] = Math.round((slicedPLSGTM[i] || 0) * sgtmRatio);
       slicedPLDegiro[i] = Math.round((slicedPLDegiro[i] || 0) * degiroRatio);
       slicedPLTotal[i] = slicedPLIBKR[i] + slicedPLESPP[i] + slicedPLSGTM[i] + slicedPLDegiro[i];
@@ -2173,12 +2234,33 @@ function renderPortfolioChart(overrides = {}) {
   // Compute % relative to start NAV + cumulative deposits (= capital deployed)
   const slicedCumDep = displayMode !== 'pl' ? (() => {
     let depSeries;
-    switch (scope) {
-      case 'espp': depSeries = (data.cumDepositsESPP || []).slice(startIdx); break;
-      case 'maroc': depSeries = (data.cumDepositsSGTM || []).slice(startIdx); break;
-      case 'degiro': depSeries = (data.cumDepositsDegiro || []).slice(startIdx); break;
-      case 'all': depSeries = (data.cumDepositsAtPointTotal || []).slice(startIdx); break;
-      case 'ibkr': default: depSeries = (data.cumDepositsAtPoint || []).slice(startIdx); break;
+    // v276: Use per-owner ESPP deposits when owner filter is active
+    if (owner !== 'both' && (scope === 'espp' || scope === 'all')) {
+      const ownerESPPDeps = owner === 'amine'
+        ? (data.cumDepositsESPPAmine || []).slice(startIdx)
+        : (data.cumDepositsESPPNezha || []).slice(startIdx);
+      if (scope === 'espp') {
+        depSeries = ownerESPPDeps;
+      } else {
+        // 'all' scope: IBKR + per-owner ESPP + SGTM ratio + Degiro
+        const ibkrDeps = (data.cumDepositsAtPoint || []).slice(startIdx);
+        const sgtmDeps = (data.cumDepositsSGTM || []).slice(startIdx);
+        const ibkrRatio = owner === 'amine' ? 1 : 0;
+        const sgtmRatio = owner === 'amine'
+          ? (PORTFOLIO.amine?.sgtm?.shares || 32) / ((PORTFOLIO.amine?.sgtm?.shares || 32) + (PORTFOLIO.nezha?.sgtm?.shares || 32))
+          : (PORTFOLIO.nezha?.sgtm?.shares || 32) / ((PORTFOLIO.amine?.sgtm?.shares || 32) + (PORTFOLIO.nezha?.sgtm?.shares || 32));
+        depSeries = ownerESPPDeps.map((v, i) =>
+          (ibkrDeps[i] || 0) * ibkrRatio + v + (sgtmDeps[i] || 0) * sgtmRatio
+        );
+      }
+    } else {
+      switch (scope) {
+        case 'espp': depSeries = (data.cumDepositsESPP || []).slice(startIdx); break;
+        case 'maroc': depSeries = (data.cumDepositsSGTM || []).slice(startIdx); break;
+        case 'degiro': depSeries = (data.cumDepositsDegiro || []).slice(startIdx); break;
+        case 'all': depSeries = (data.cumDepositsAtPointTotal || []).slice(startIdx); break;
+        case 'ibkr': default: depSeries = (data.cumDepositsAtPoint || []).slice(startIdx); break;
+      }
     }
     return depSeries;
   })() : null;
@@ -2351,24 +2433,32 @@ function renderPortfolioChart(overrides = {}) {
     const dateLabel = dp[2] + '/' + dp[1] + '/' + dp[0];
 
     // Use ABSOLUTE lifetime data for the click detail panel
-    // v273: apply owner ratios when filtered
-    let _oIR = 1, _oDR = 1, _oER = 1, _oSR = 1;
+    // v276: use per-owner ESPP arrays (not ratios) for true owner-specific data
+    let _oIR = 1, _oDR = 1, _oSR = 1;
     if (owner !== 'both') {
-      const _aeS = window.PORTFOLIO?.amine?.espp?.shares || 167;
-      const _neS = window.PORTFOLIO?.nezha?.espp?.shares || 40;
       const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
       const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
-      _oER = owner === 'amine' ? _aeS / (_aeS + _neS) : _neS / (_aeS + _neS);
       _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
       _oIR = owner === 'amine' ? 1 : 0;
       _oDR = owner === 'amine' ? 1 : 0;
     }
     const _r = v => Math.round(v);
-    const nav = { degiro: _r((navDegiro[idx]||0)*_oDR), espp: _r((navESPP[idx]||0)*_oER), ibkr: _r((navIBKR[idx]||0)*_oIR), sgtm: _r((navSGTM[idx]||0)*_oSR) };
+    // v276: ESPP uses per-owner actual arrays; IBKR/Degiro/SGTM use ratios (correct for those)
+    const absPerOwner = data._absoluteTooltipPerOwner || {};
+    const ownerESPPNav = owner !== 'both'
+      ? (owner === 'amine' ? (data.esppValuesAmine || navESPP) : (data.esppValuesNezha || navESPP))
+      : navESPP;
+    const ownerESPPPl = owner !== 'both'
+      ? (owner === 'amine' ? (absPerOwner.absPLESPPAmine || absPlESPP) : (absPerOwner.absPLESPPNezha || absPlESPP))
+      : absPlESPP;
+    const ownerESPPDep = owner !== 'both'
+      ? (owner === 'amine' ? (absPerOwner.absDepsESPPAmine || absCumDepsESPP) : (absPerOwner.absDepsESPPNezha || absCumDepsESPP))
+      : absCumDepsESPP;
+    const nav = { degiro: _r((navDegiro[idx]||0)*_oDR), espp: _r(ownerESPPNav[idx]||0), ibkr: _r((navIBKR[idx]||0)*_oIR), sgtm: _r((navSGTM[idx]||0)*_oSR) };
     nav.total = nav.ibkr + nav.espp + nav.sgtm + nav.degiro;
-    const pl = { degiro: _r((absPlDegiro[idx]||0)*_oDR), espp: _r((absPlESPP[idx]||0)*_oER), ibkr: _r((absPlIBKR[idx]||0)*_oIR), sgtm: _r((absPlSGTM[idx]||0)*_oSR) };
+    const pl = { degiro: _r((absPlDegiro[idx]||0)*_oDR), espp: _r(ownerESPPPl[idx]||0), ibkr: _r((absPlIBKR[idx]||0)*_oIR), sgtm: _r((absPlSGTM[idx]||0)*_oSR) };
     pl.total = pl.ibkr + pl.espp + pl.sgtm + pl.degiro;
-    const dep = { degiro: _r((absCumDepsDegiro[idx]||0)*_oDR), espp: _r((absCumDepsESPP[idx]||0)*_oER), ibkr: _r((absCumDepsIBKR[idx]||0)*_oIR), sgtm: _r((absCumDepsSGTM[idx]||0)*_oSR) };
+    const dep = { degiro: _r((absCumDepsDegiro[idx]||0)*_oDR), espp: _r(ownerESPPDep[idx]||0), ibkr: _r((absCumDepsIBKR[idx]||0)*_oIR), sgtm: _r((absCumDepsSGTM[idx]||0)*_oSR) };
     dep.total = dep.ibkr + dep.espp + dep.sgtm + dep.degiro;
 
     const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
@@ -2447,30 +2537,30 @@ function renderPortfolioChart(overrides = {}) {
         case 'all':   nav = navTotal[idx] || 0;  pl = plTotal[idx] || 0;  absPl = absPlTotal[idx] || 0;  absDep = absCumDepsTotal[idx] || 0;  break;
         default:      nav = navIBKR[idx] || 0;   pl = plIBKR[idx] || 0;   absPl = absPlIBKR[idx] || 0;  absDep = absCumDepsIBKR[idx] || 0;
       }
-      // v273: Apply owner filter to tooltip values (same ratios as chart line)
+      // v276: Apply owner filter to tooltip values using per-owner ESPP arrays
       if (owner !== 'both') {
-        const _aeS = window.PORTFOLIO?.amine?.espp?.shares || 167;
-        const _neS = window.PORTFOLIO?.nezha?.espp?.shares || 40;
         const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
         const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
-        const _oER = owner === 'amine' ? _aeS / (_aeS + _neS) : _neS / (_aeS + _neS);
         const _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
         const _oIR = owner === 'amine' ? 1 : 0;
         const _oDR = owner === 'amine' ? 1 : 0;
-        // Re-compute per scope
-        if (scope === 'espp') { nav *= _oER; pl *= _oER; absPl *= _oER; absDep *= _oER; }
-        else if (scope === 'maroc') { nav *= _oSR; pl *= _oSR; absPl *= _oSR; absDep *= _oSR; }
+        // Per-owner ESPP from actual per-owner arrays
+        const _ownerESPPNav = owner === 'amine' ? (data.esppValuesAmine || []) : (data.esppValuesNezha || []);
+        const _ownerESPPPl = owner === 'amine' ? (data.plValuesESPPAmine || []) : (data.plValuesESPPNezha || []);
+        const _absPerOwner = data._absoluteTooltipPerOwner || {};
+        const _ownerAbsPlESPP = owner === 'amine' ? (_absPerOwner.absPLESPPAmine || []) : (_absPerOwner.absPLESPPNezha || []);
+        const _ownerAbsDepESPP = owner === 'amine' ? (_absPerOwner.absDepsESPPAmine || []) : (_absPerOwner.absDepsESPPNezha || []);
+        if (scope === 'espp') {
+          nav = _ownerESPPNav[idx] || 0; pl = _ownerESPPPl[idx] || 0;
+          absPl = _ownerAbsPlESPP[idx] || 0; absDep = _ownerAbsDepESPP[idx] || 0;
+        } else if (scope === 'maroc') { nav *= _oSR; pl *= _oSR; absPl *= _oSR; absDep *= _oSR; }
         else if (scope === 'degiro') { nav *= _oDR; pl *= _oDR; absPl *= _oDR; absDep *= _oDR; }
         else if (scope === 'all') {
-          // Recompute total from per-platform owner-filtered values
-          const oIBKR = (navIBKR[idx] || 0) * _oIR;
-          const oESPP = (navESPP[idx] || 0) * _oER;
-          const oSGTM = (navSGTM[idx] || 0) * _oSR;
-          const oDegiro = (navDegiro[idx] || 0) * _oDR;
-          nav = Math.round(oIBKR + oESPP + oSGTM + oDegiro);
-          pl = Math.round((plIBKR[idx]||0)*_oIR + (plESPP[idx]||0)*_oER + (plSGTM[idx]||0)*_oSR + (plDegiro[idx]||0)*_oDR);
-          absPl = Math.round((absPlIBKR[idx]||0)*_oIR + (absPlESPP[idx]||0)*_oER + (absPlSGTM[idx]||0)*_oSR + (absPlDegiro[idx]||0)*_oDR);
-          absDep = Math.round((absCumDepsIBKR[idx]||0)*_oIR + (absCumDepsESPP[idx]||0)*_oER + (absCumDepsSGTM[idx]||0)*_oSR + (absCumDepsDegiro[idx]||0)*_oDR);
+          // Recompute total from per-platform owner-filtered values (ESPP from per-owner arrays)
+          nav = Math.round((navIBKR[idx]||0)*_oIR + (_ownerESPPNav[idx]||0) + (navSGTM[idx]||0)*_oSR + (navDegiro[idx]||0)*_oDR);
+          pl = Math.round((plIBKR[idx]||0)*_oIR + (_ownerESPPPl[idx]||0) + (plSGTM[idx]||0)*_oSR + (plDegiro[idx]||0)*_oDR);
+          absPl = Math.round((absPlIBKR[idx]||0)*_oIR + (_ownerAbsPlESPP[idx]||0) + (absPlSGTM[idx]||0)*_oSR + (absPlDegiro[idx]||0)*_oDR);
+          absDep = Math.round((absCumDepsIBKR[idx]||0)*_oIR + (_ownerAbsDepESPP[idx]||0) + (absCumDepsSGTM[idx]||0)*_oSR + (absCumDepsDegiro[idx]||0)*_oDR);
         } else { nav *= _oIR; pl *= _oIR; absPl *= _oIR; absDep *= _oIR; }
         nav = Math.round(nav); pl = Math.round(pl); absPl = Math.round(absPl); absDep = Math.round(absDep);
       }
@@ -2936,22 +3026,29 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const chartLabels = [];
   const chartValues = [];       // IBKR-only NAV per day
   const chartValuesTotal = [];  // IBKR + ESPP + SGTM combined
-  const chartValuesESPP = [];   // ESPP-only valuation per day
+  const chartValuesESPP = [];   // ESPP-only valuation per day (combined)
   const chartValuesSGTM = [];   // SGTM/Maroc-only valuation per day
+  // v276: Per-owner ESPP NAV — computed from actual lots, NOT proportional ratios
+  const chartValuesESPPAmine = [];  // ESPP value from Amine's lots only
+  const chartValuesESPPNezha = [];  // ESPP value from Nezha's lots only
 
   // Setup ESPP data — shares evolve dynamically with lot acquisition dates
-  const allESPPLots = [
-    ...(portfolio.amine.espp?.lots || []),
-    ...(portfolio.nezha?.espp?.lots || []),
-  ].sort((a, b) => a.date.localeCompare(b.date)); // chronological
-  const ESPP_CASH_EUR = portfolio.amine.espp?.cashEUR || 0;
-  const ESPP_CASH_USD = portfolio.nezha?.espp?.cashUSD || 0;
+  // v276: Per-owner ESPP lots for true owner-specific NAV (not proportional ratios)
+  const amineLots = (portfolio.amine.espp?.lots || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const nezhaLots = (portfolio.nezha?.espp?.lots || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const allESPPLots = [...amineLots, ...nezhaLots].sort((a, b) => a.date.localeCompare(b.date));
+  const ESPP_CASH_EUR = portfolio.amine.espp?.cashEUR || 0;  // Amine UBS cash (EUR)
+  const ESPP_CASH_USD = portfolio.nezha?.espp?.cashUSD || 0;  // Nezha UBS cash (USD)
 
-  // Function: compute ESPP shares held at a given date
+  // Function: compute ESPP shares held at a given date (combined + per-owner)
   function esppSharesAtDate(date) {
-    return allESPPLots
-      .filter(lot => lot.date <= date)
-      .reduce((sum, lot) => sum + lot.shares, 0);
+    return allESPPLots.filter(lot => lot.date <= date).reduce((sum, lot) => sum + lot.shares, 0);
+  }
+  function esppSharesAtDateAmine(date) {
+    return amineLots.filter(lot => lot.date <= date).reduce((sum, lot) => sum + lot.shares, 0);
+  }
+  function esppSharesAtDateNezha(date) {
+    return nezhaLots.filter(lot => lot.date <= date).reduce((sum, lot) => sum + lot.shares, 0);
   }
 
   // ── Snapshot storage for per-period breakdown computation ──
@@ -3093,16 +3190,30 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
 
     // ── Compute ESPP value (always, regardless of scope — needed for Tous & ESPP views) ──
-    // Shares evolve dynamically: only count lots acquired by this date
+    // v276: compute per-owner ESPP NAV from actual lots (different purchase dates/prices/shares)
+    // This produces genuinely different chart shapes for Amine vs Nezha, unlike the old
+    // proportional ratio approach which scaled the same curve by a fixed factor.
     let esppValue = 0;
-    const esppSharesNow = esppSharesAtDate(date);
-    if (esppSharesNow > 0) {
-      const acnPrice = getClose('ACN', date);
-      if (acnPrice != null) {
-        esppValue = esppSharesNow * acnPrice / getFxRate('USD', date) + ESPP_CASH_EUR + ESPP_CASH_USD / getFxRate('USD', date);
+    let esppValueAmine = 0;
+    let esppValueNezha = 0;
+    const acnPrice = getClose('ACN', date);
+    const fxUSDForESPP = getFxRate('USD', date);
+    if (acnPrice != null) {
+      const amineShares = esppSharesAtDateAmine(date);
+      const nezhaShares = esppSharesAtDateNezha(date);
+      // Amine: shares × ACN price + Amine's EUR cash + 0 (no USD cash)
+      if (amineShares > 0 || ESPP_CASH_EUR > 0) {
+        esppValueAmine = amineShares * acnPrice / fxUSDForESPP + ESPP_CASH_EUR;
       }
+      // Nezha: shares × ACN price + 0 (no EUR cash) + Nezha's USD cash
+      if (nezhaShares > 0 || ESPP_CASH_USD > 0) {
+        esppValueNezha = nezhaShares * acnPrice / fxUSDForESPP + ESPP_CASH_USD / fxUSDForESPP;
+      }
+      esppValue = esppValueAmine + esppValueNezha;
     }
     chartValuesESPP.push(Math.round(esppValue));
+    chartValuesESPPAmine.push(Math.round(esppValueAmine));
+    chartValuesESPPNezha.push(Math.round(esppValueNezha));
 
     // ── Compute SGTM value (always, regardless of scope — needed for Tous & Maroc views) ──
     // SGTM shares only exist after IPO date (2025-12-15)
@@ -3129,12 +3240,16 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     const weeklyTotals = [chartValuesTotal[0]];
     const weeklyESPP = [chartValuesESPP[0]];
     const weeklySGTM = [chartValuesSGTM[0]];
+    const weeklyESPPAmine = [chartValuesESPPAmine[0]];
+    const weeklyESPPNezha = [chartValuesESPPNezha[0]];
     for (let i = 7; i < chartLabels.length - 1; i += 7) {
       weeklyLabels.push(chartLabels[i]);
       weeklyValues.push(chartValues[i]);
       weeklyTotals.push(chartValuesTotal[i]);
       weeklyESPP.push(chartValuesESPP[i]);
       weeklySGTM.push(chartValuesSGTM[i]);
+      weeklyESPPAmine.push(chartValuesESPPAmine[i]);
+      weeklyESPPNezha.push(chartValuesESPPNezha[i]);
     }
     // Always include the last point
     const last = chartLabels.length - 1;
@@ -3143,11 +3258,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     weeklyTotals.push(chartValuesTotal[last]);
     weeklyESPP.push(chartValuesESPP[last]);
     weeklySGTM.push(chartValuesSGTM[last]);
+    weeklyESPPAmine.push(chartValuesESPPAmine[last]);
+    weeklyESPPNezha.push(chartValuesESPPNezha[last]);
     chartLabels.length = 0; chartLabels.push(...weeklyLabels);
     chartValues.length = 0; chartValues.push(...weeklyValues);
     chartValuesTotal.length = 0; chartValuesTotal.push(...weeklyTotals);
     chartValuesESPP.length = 0; chartValuesESPP.push(...weeklyESPP);
     chartValuesSGTM.length = 0; chartValuesSGTM.push(...weeklySGTM);
+    chartValuesESPPAmine.length = 0; chartValuesESPPAmine.push(...weeklyESPPAmine);
+    chartValuesESPPNezha.length = 0; chartValuesESPPNezha.push(...weeklyESPPNezha);
   }
 
   // ── Compute P&L series: P&L(t) = NAV(t) - startNAV - cumDeposits_after_start(t) ──
@@ -3231,21 +3350,30 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     cumDepositsAtPointTotal.push(cumDepTotal);
   }
 
-  // ── Track ESPP deposits separately ──
-  // v246: same contribEUR logic as above for consistency
+  // ── Track ESPP deposits separately (combined + per-owner) ──
+  // v276: per-owner deposit tracking for true owner-specific P&L
   const allDepositsESPP = {};
-  allESPPLots
+  const allDepositsESPPAmine = {};
+  const allDepositsESPPNezha = {};
+  // Helper: compute lot cost in EUR
+  function lotCostEUR(lot, isNezha) {
+    if (lot.contribEUR !== undefined) return lot.contribEUR;
+    const defaultFx = isNezha ? 1.10 : 1.15;
+    return (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
+  }
+  amineLots
     .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
     .forEach(lot => {
-      let costEUR;
-      if (lot.contribEUR !== undefined) {
-        costEUR = lot.contribEUR;
-      } else {
-        const isNezha = (portfolio.nezha?.espp?.lots || []).includes(lot);
-        const defaultFx = isNezha ? 1.10 : 1.15;
-        costEUR = (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
-      }
+      const costEUR = lotCostEUR(lot, false);
       allDepositsESPP[lot.date] = (allDepositsESPP[lot.date] || 0) + costEUR;
+      allDepositsESPPAmine[lot.date] = (allDepositsESPPAmine[lot.date] || 0) + costEUR;
+    });
+  nezhaLots
+    .filter(lot => lot.date > START_DATE && lot.date <= todayStr)
+    .forEach(lot => {
+      const costEUR = lotCostEUR(lot, true);
+      allDepositsESPP[lot.date] = (allDepositsESPP[lot.date] || 0) + costEUR;
+      allDepositsESPPNezha[lot.date] = (allDepositsESPPNezha[lot.date] || 0) + costEUR;
     });
 
   // ── Track SGTM deposits separately ──
@@ -3258,18 +3386,26 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
   }
 
-  // ── Compute cumulative ESPP deposits at each chart point ──
-  let cumDepESPP = 0;
+  // ── Compute cumulative ESPP deposits at each chart point (combined + per-owner) ──
+  let cumDepESPP = 0, cumDepESPPAmine = 0, cumDepESPPNezha = 0;
   const cumDepositsESPP = [];
+  const cumDepositsESPPAmine = [];
+  const cumDepositsESPPNezha = [];
   for (let i = 0; i < chartLabels.length; i++) {
     const prevDate = i === 0 ? START_DATE : chartLabels[i - 1];
     const curDate = chartLabels[i];
     for (const [dDate, dAmt] of Object.entries(allDepositsESPP)) {
-      if (dDate > prevDate && dDate <= curDate) {
-        cumDepESPP += dAmt;
-      }
+      if (dDate > prevDate && dDate <= curDate) cumDepESPP += dAmt;
+    }
+    for (const [dDate, dAmt] of Object.entries(allDepositsESPPAmine)) {
+      if (dDate > prevDate && dDate <= curDate) cumDepESPPAmine += dAmt;
+    }
+    for (const [dDate, dAmt] of Object.entries(allDepositsESPPNezha)) {
+      if (dDate > prevDate && dDate <= curDate) cumDepESPPNezha += dAmt;
     }
     cumDepositsESPP.push(cumDepESPP);
+    cumDepositsESPPAmine.push(cumDepESPPAmine);
+    cumDepositsESPPNezha.push(cumDepESPPNezha);
   }
 
   // ── Compute cumulative SGTM deposits at each chart point ──
@@ -3296,6 +3432,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // P&L ESPP = NAV(t) - NAV(start) - cumDeposits_ESPP(t)
   const startNAVRefESPP = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesESPP[0];
   const plValuesESPP = chartValuesESPP.map((nav, i) => Math.round(nav - startNAVRefESPP - cumDepositsESPP[i]));
+  // v276: Per-owner ESPP P&L
+  const startNAVRefESPPAmine = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesESPPAmine[0];
+  const startNAVRefESPPNezha = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesESPPNezha[0];
+  const plValuesESPPAmine = chartValuesESPPAmine.map((nav, i) => Math.round(nav - startNAVRefESPPAmine - cumDepositsESPPAmine[i]));
+  const plValuesESPPNezha = chartValuesESPPNezha.map((nav, i) => Math.round(nav - startNAVRefESPPNezha - cumDepositsESPPNezha[i]));
 
   // P&L SGTM = NAV(t) - NAV(start) - cumDeposits_SGTM(t)
   const startNAVRefSGTM = (mode === '1y' || mode === 'alltime') ? 0 : chartValuesSGTM[0];
@@ -3778,24 +3919,33 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       ibkrValues: chartValues.slice(),
       totalValues: chartValuesTotal.slice(),
       esppValues: chartValuesESPP.slice(),
+      esppValuesAmine: chartValuesESPPAmine.slice(),  // v276
+      esppValuesNezha: chartValuesESPPNezha.slice(),  // v276
       sgtmValues: chartValuesSGTM.slice(),
       degiroValues: chartValuesDegiro.slice(),
     };
     // v269: also store alltime P&L data for cross-mode validation
+    // v276: includes per-owner ESPP data
     window._chartDataByMode.alltime = {
       labels: chartLabels.slice(),
       ibkrValues: chartValues.slice(),
       totalValues: chartValuesTotal.slice(),
       esppValues: chartValuesESPP.slice(),
+      esppValuesAmine: chartValuesESPPAmine.slice(),
+      esppValuesNezha: chartValuesESPPNezha.slice(),
       sgtmValues: chartValuesSGTM.slice(),
       plValuesIBKR,
       plValuesESPP,
+      plValuesESPPAmine,
+      plValuesESPPNezha,
       plValuesSGTM,
       plValuesTotal: plValuesIBKR.map((v, i) =>
         v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
       ),
       cumDepositsAtPoint,
       cumDepositsAtPointTotal,
+      cumDepositsESPPAmine,
+      cumDepositsESPPNezha,
       degiroRealizedPL,
       mode: 'alltime',
     };
@@ -3808,6 +3958,10 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const absTooltip = computeAbsoluteTooltipArrays(
     chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal, historicalData
   );
+  // v276: Compute per-owner absolute ESPP tooltip data
+  const absTooltipPerOwner = computeAbsoluteTooltipPerOwnerESPP(
+    chartLabels, chartValuesESPPAmine, chartValuesESPPNezha, historicalData
+  );
 
   // Store full data for period filtering and mode switching
   const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
@@ -3816,16 +3970,26 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     ibkrValues: chartValues,
     totalValues: chartValuesTotal,
     esppValues: chartValuesESPP,
+    // v276: Per-owner ESPP NAV computed from actual lots (not proportional ratios)
+    esppValuesAmine: chartValuesESPPAmine,
+    esppValuesNezha: chartValuesESPPNezha,
     sgtmValues: chartValuesSGTM,
     degiroValues: chartValuesDegiro,
     _absoluteTooltip: absTooltip,
+    _absoluteTooltipPerOwner: absTooltipPerOwner,
     plValuesIBKR,
     plValuesESPP,
+    // v276: Per-owner ESPP P&L
+    plValuesESPPAmine,
+    plValuesESPPNezha,
     plValuesSGTM,
     plValuesDegiro,
     plValuesTotal: plValuesTotalWithDegiro,
     cumDepositsAtPoint,
     cumDepositsESPP,
+    // v276: Per-owner ESPP deposits
+    cumDepositsESPPAmine,
+    cumDepositsESPPNezha,
     cumDepositsSGTM,
     cumDepositsDegiro,
     cumDepositsAtPointTotal,
@@ -3977,6 +4141,8 @@ export function buildEquityHistoryChart(period, options) {
         date: sim.labels[i],
         degiro: degiroNAV,
         espp: sim.esppValues[i],
+        esppAmine: (sim.esppValuesAmine || [])[i] || 0,  // v276
+        esppNezha: (sim.esppValuesNezha || [])[i] || 0,  // v276
         ibkr: sim.ibkrValues[i],
         sgtm: sim.sgtmValues[i] || 0,
       });
@@ -3992,6 +4158,7 @@ export function buildEquityHistoryChart(period, options) {
     // No simulation data cached — fall back to EQUITY_HISTORY only
     dataPoints = filtered.map(h => ({
       date: h.date, degiro: h.degiro, espp: h.espp,
+      esppAmine: 0, esppNezha: 0,  // v276: no per-owner data for pre-simulation EH entries
       ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
     }));
     console.log('[equity-history] No alltime cache — using EQUITY_HISTORY only (' + dataPoints.length + ' points)');
@@ -4004,6 +4171,8 @@ export function buildEquityHistoryChart(period, options) {
   const totalValues = dataPoints.map(d => d.total);
   const degiroValues = dataPoints.map(d => d.degiro);
   const esppValues = dataPoints.map(d => d.espp);
+  const esppValuesAmine = dataPoints.map(d => d.esppAmine || 0);  // v276
+  const esppValuesNezha = dataPoints.map(d => d.esppNezha || 0);  // v276
   const ibkrValues = dataPoints.map(d => d.ibkr);
   const sgtmValues = dataPoints.map(d => d.sgtm || 0);
 
@@ -4138,10 +4307,37 @@ export function buildEquityHistoryChart(period, options) {
   }
   esppDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
 
+  // v276: Build per-owner ESPP deposit events for equity history
+  const esppDepEventsAmine = [];
+  const amineLotsEH = PORTFOLIO.amine?.espp?.lots || [];
+  for (const lot of amineLotsEH) {
+    if (lot.contribEUR) esppDepEventsAmine.push({ date: lot.date, amountEUR: lot.contribEUR });
+    else esppDepEventsAmine.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
+  }
+  const amineCashEH = PORTFOLIO.amine?.espp?.cashEUR || 0;
+  if (amineCashEH > 0) {
+    const earliest = amineLotsEH.length > 0 ? amineLotsEH.reduce((a, b) => a.date < b.date ? a : b).date : '2018-01-01';
+    esppDepEventsAmine.push({ date: earliest, amountEUR: amineCashEH });
+  }
+  esppDepEventsAmine.sort((a, b) => a.date.localeCompare(b.date));
+
+  const esppDepEventsNezha = [];
+  const nezhaLotsEH = PORTFOLIO.nezha?.espp?.lots || [];
+  for (const lot of nezhaLotsEH) {
+    if (lot.contribEUR) esppDepEventsNezha.push({ date: lot.date, amountEUR: lot.contribEUR });
+    else esppDepEventsNezha.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
+  }
+  const nezhaCashEH = PORTFOLIO.nezha?.espp?.cashUSD || 0;
+  if (nezhaCashEH > 0) esppDepEventsNezha.push({ date: '2018-01-01', amountEUR: nezhaCashEH / (FX_STATIC?.USD || 1.15) });
+  esppDepEventsNezha.sort((a, b) => a.date.localeCompare(b.date));
+
   // ── Compute cumulative ESPP + IBKR + SGTM deposits at each snapshot ──
   let esppIdx = 0, ibkrIdx = 0, sgtmIdx = 0;
   let cumESPP = 0, cumIBKR = 0, cumSGTM = 0;
+  let esppAmIdx = 0, esppNeIdx = 0, cumESPPAmine = 0, cumESPPNezha = 0;
   const cumDepositsESPP = [];
+  const cumDepositsESPPAmine = [];
+  const cumDepositsESPPNezha = [];
   const cumDepositsIBKR = [];
   const cumDepositsSGTM = [];
   const cumDepositsTotal = [];
@@ -4152,6 +4348,12 @@ export function buildEquityHistoryChart(period, options) {
       cumESPP += esppDepositEvents[esppIdx].amountEUR;
       esppIdx++;
     }
+    while (esppAmIdx < esppDepEventsAmine.length && esppDepEventsAmine[esppAmIdx].date <= snapDate) {
+      cumESPPAmine += esppDepEventsAmine[esppAmIdx].amountEUR; esppAmIdx++;
+    }
+    while (esppNeIdx < esppDepEventsNezha.length && esppDepEventsNezha[esppNeIdx].date <= snapDate) {
+      cumESPPNezha += esppDepEventsNezha[esppNeIdx].amountEUR; esppNeIdx++;
+    }
     while (ibkrIdx < ibkrDepositEvents.length && ibkrDepositEvents[ibkrIdx].date <= snapDate) {
       cumIBKR += ibkrDepositEvents[ibkrIdx].amountEUR;
       ibkrIdx++;
@@ -4161,12 +4363,16 @@ export function buildEquityHistoryChart(period, options) {
       sgtmIdx++;
     }
     cumDepositsESPP.push(cumESPP);
+    cumDepositsESPPAmine.push(cumESPPAmine);
+    cumDepositsESPPNezha.push(cumESPPNezha);
     cumDepositsIBKR.push(cumIBKR);
     cumDepositsSGTM.push(cumSGTM);
     cumDepositsTotal.push(cumDepositsDegiro[i] + cumESPP + cumIBKR + cumSGTM);
   }
 
   const plValuesESPP = esppValues.map((v, i) => v - cumDepositsESPP[i]);
+  const plValuesESPPAmine = esppValuesAmine.map((v, i) => v - cumDepositsESPPAmine[i]);  // v276
+  const plValuesESPPNezha = esppValuesNezha.map((v, i) => v - cumDepositsESPPNezha[i]);  // v276
   const plValuesIBKR = ibkrValues.map((v, i) => v - cumDepositsIBKR[i]);
   const plValuesSGTM = sgtmValues.map((v, i) => v - cumDepositsSGTM[i]);
   const plValuesTotal = totalValues.map((v, i) => v - cumDepositsTotal[i]);
@@ -4188,17 +4394,23 @@ export function buildEquityHistoryChart(period, options) {
     ibkrValues,
     totalValues,
     esppValues,
+    esppValuesAmine,   // v276
+    esppValuesNezha,   // v276
     sgtmValues,
     degiroValues,
     plValuesIBKR,
     plValuesTotal,
     plValuesESPP,
+    plValuesESPPAmine,  // v276
+    plValuesESPPNezha,  // v276
     plValuesSGTM,
     plValuesDegiro,
     // Cumulative deposits for tooltip display
     cumDepositsAtPoint: cumDepositsIBKR,
     cumDepositsAtPointTotal: cumDepositsTotal,
     cumDepositsESPP,
+    cumDepositsESPPAmine,  // v276
+    cumDepositsESPPNezha,  // v276
     cumDepositsSGTM,
     cumDepositsDegiro,
     // Absolute tooltip data (equity history is already absolute)
@@ -4209,6 +4421,13 @@ export function buildEquityHistoryChart(period, options) {
       absPLIBKR: plValuesIBKR, absPLESPP: plValuesESPP,
       absPLSGTM: plValuesSGTM, absPLDegiro: plValuesDegiro,
       absPLTotal: plValuesTotal,
+    },
+    // v276: Per-owner absolute ESPP tooltip data
+    _absoluteTooltipPerOwner: {
+      absDepsESPPAmine: cumDepositsESPPAmine,
+      absDepsESPPNezha: cumDepositsESPPNezha,
+      absPLESPPAmine: plValuesESPPAmine,
+      absPLESPPNezha: plValuesESPPNezha,
     },
     startValue,  // v244: needed for value mode tooltip (diff from start)
     mode: modeKey,
