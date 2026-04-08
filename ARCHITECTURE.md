@@ -2431,3 +2431,52 @@ git add js/price_snapshot.js
 git commit -m "Refresh price snapshot"
 ```
 Le delta runtime couvre automatiquement la période snapshot→aujourd'hui.
+
+## §46 — v260 : Audit P&L breakdown — commission FX, double-comptage, pureté FX (8 avril 2026)
+
+### Contexte
+Audit de la "Répartition P&L par position" (breakdown YTD) — 3 bugs identifiés
+dans `computePeriodBreakdown()` (charts.js).
+
+### Bug 1 : Commission en devise native non convertie
+- **Symptôme** : Shiseido (buy) affiché €-872 au lieu de ~€-5
+- **Cause** : `periodCosts.commissions += t.commission` ajoutait ¥871.60 comme €871.60
+- **Fix** : Conversion via `t.commission / snapEnd.fxJPY` (ou fxUSD selon devise)
+- **Note** : engine.js faisait déjà la conversion correcte via `toEUR()`
+
+### Bug 2 : Double-comptage des frais
+- **Symptôme** : Somme des items = chartPL + 503€ (les frais comptés 2 fois)
+- **Cause** : `fxOnCash = chartPL - posM2M` est un résidu qui INCLUT déjà les
+  frais (intérêts, commissions, FTT, dividendes) car ils réduisent le cash → NAV.
+  Mais ces frais étaient aussi affichés comme lignes séparées.
+- **Fix** : `pureFxOnCash = fxOnCash - displayedCosts` retire les frais du résidu
+  avant affichage. Résultat : items somment à chartPL (±1€ arrondi).
+
+### Bug 3 : Mouvements de capital dans le P&L
+- **Symptôme** : Le détail "Effet FX / Cash" contenait :
+  - "JPY variation emprunt" (-18 448€) — nouvel emprunt JPY, PAS du P&L
+  - "USD variation solde" (+4 077€) — remboursement marge USD, PAS du P&L
+  - "EUR cash (solde)" (+16 263€) — dépôts + flux trades, PAS du P&L
+- **Principe** : Seuls les effets de change purs et les frais/intérêts sont du P&L.
+  Les dépôts, emprunts, et flux de trades sont des mouvements de capital.
+- **Fix** : La ligne "Effet de change" (anciennement "Effet FX / Cash") ne montre
+  plus que les effets de change purs par devise :
+  - `EUR/JPY` : effet FX jour par jour sur le solde JPY existant
+  - `EUR/USD` : idem sur le solde USD
+  - `Autres (arrondis)` : résidu d'équilibrage
+  Le calcul itère jour par jour : `prevSnap.cashJPY / curSnap.fxJPY - prevSnap.cashJPY / prevSnap.fxJPY`
+  (= "si le solde JPY n'avait pas bougé, combien le taux a-t-il coûté/rapporté ?")
+
+### Vérification exhaustive des autres fonctions
+Aucun autre endroit ne mélange capital et P&L :
+- `engine.js` `periodPL()` — P&L = valeur fin - valeur début (via refPrice), exclut dépôts ✓
+- `engine.js` `computeCommissions()` — convertit en EUR via `toEUR()` ✓
+- `charts.js` `buildEquityHistoryChart()` — P&L = NAV - cumDeposits ✓
+- `charts.js` `computeAbsoluteTooltipArrays()` — arrays tooltip, pas de mélange ✓
+- `render.js` `detailPL*()` — délèguent aux breakdowns charts.js ou engine.js ✓
+- `app.js` `updateKPIsFromChart()` — utilise les P&L du chart (dépôts soustraits) ✓
+
+### Fichiers modifiés
+- `charts.js` : `computePeriodBreakdown()` — 3 corrections (commission FX, pureFxOnCash, détail FX pur)
+- `app.js` : version bump imports → v260
+- `index.html` : version bump → v260
