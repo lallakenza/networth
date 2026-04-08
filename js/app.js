@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=272';
-import { compute } from './engine.js?v=272';
-import { render } from './render.js?v=272';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=272';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=272';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=272';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=272';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=273';
+import { compute } from './engine.js?v=273';
+import { render } from './render.js?v=273';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=273';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart } from './charts.js?v=273';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=273';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=273';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -914,7 +914,10 @@ async function loadStockPrices(forceRefresh) {
         const ytdProgress = document.getElementById('ytdChartProgress');
         const ytdFill = document.getElementById('ytdProgressFill');
         const ytdLabel = document.getElementById('ytdProgressLabel');
-        if (ytdProgress) ytdProgress.style.display = 'block';
+        const ytdTitle = document.getElementById('ytdProgressTitle');
+        if (ytdProgress) ytdProgress.style.display = 'flex';
+        if (ytdTitle) ytdTitle.textContent = 'Chargement des prix historiques...';
+        if (ytdFill) ytdFill.style.width = '0%';
 
         // ── Single fetch: snapshot (static 1Y+) + delta (YTD from API) ──
         // v259: One dataset serves ALL periods (MTD→MAX). No more dual fetch.

@@ -1892,14 +1892,17 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
         <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
       </div>
     </div>
-    <!-- Progress bar for historical data loading -->
-    <div id="ytdChartProgress" style="display:none;margin-bottom:8px;">
-      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
-        <div id="ytdProgressFill" style="background:var(--accent);height:100%;width:0%;transition:width .3s;border-radius:4px;"></div>
+    <!-- Chart container with overlay progress bar -->
+    <div class="chart-container" style="height:340px;position:relative">
+      <canvas id="portfolioYTDChart"></canvas>
+      <div id="ytdChartProgress" style="display:flex;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.85);z-index:5;gap:10px;border-radius:8px;">
+        <div id="ytdProgressTitle" style="font-size:13px;font-weight:600;color:#2d3748;">Chargement des donn&eacute;es...</div>
+        <div style="width:260px;background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
+          <div id="ytdProgressFill" style="background:var(--accent);height:100%;width:0%;transition:width .3s;border-radius:4px;"></div>
+        </div>
+        <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);"></div>
       </div>
-      <div id="ytdProgressLabel" style="font-size:11px;color:var(--gray);margin-top:2px;"></div>
     </div>
-    <div class="chart-container" style="height:340px"><canvas id="portfolioYTDChart"></canvas></div>
     <div id="ytdPointDetail" style="display:none;margin:8px 0;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:13px;line-height:1.6;"></div>
     <p id="ytdChartFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;">
       Simulation calibr&eacute;e : NAV initiale IBKR + prix historiques Yahoo Finance + trades 2026 + cash multi-devises.
@@ -2365,7 +2368,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=272"></script>
+<script type="module" src="js/app.js?v=273"></script>
 
 </body>
 </html>
