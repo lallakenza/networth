@@ -3558,6 +3558,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nbBiens: nbBiens,
     cashTotal: amineCashTotal + nezhaCash,
     actionsTotal: amineIbkr + amineEspp + amineSgtm + nezhaEspp + nezhaSgtm,
+    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar,
+    autreVehicles: amineVehicles,
+    autreCreancesPro: amineRecvPro,
+    autreCreancesPerso: amineRecvPersonal + nezhaRecvOmar,
+    autreTva: amineTva,
   };
 
   // ---- POOLS (for simulators) ----
