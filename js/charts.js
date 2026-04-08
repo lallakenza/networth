@@ -2503,18 +2503,36 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // ── Determine simulation start date based on mode ──
   let START_DATE;
   if (mode === 'alltime') {
-    // Start 1 day before the first IBKR deposit — ensures ALL deposits are included
-    // by the `d.date > START_DATE` filter used in P&L cumDeposit computation.
+    // Start 1 day before the first IBKR event (deposit or trade) — ensures ALL
+    // events are included by the filters that use `>= START_DATE` / `> START_DATE`.
+    // v264: also consider earliest trade (e.g. QQQM buy Apr 3, before first deposit Apr 8)
     const firstDeposit = (portfolio.amine.ibkr.deposits || [])
       .filter(d => d.amount > 0)
       .sort((a, b) => a.date.localeCompare(b.date))[0];
-    const fd = new Date(firstDeposit?.date || '2025-04-08');
+    const firstTrade = (portfolio.amine.ibkr.trades || [])
+      .filter(t => t.type !== 'fx')
+      .sort((a, b) => a.date.localeCompare(b.date))[0];
+    const firstDate = firstDeposit?.date || '2025-04-08';
+    const earliest = (firstTrade && firstTrade.date < firstDate) ? firstTrade.date : firstDate;
+    const fd = new Date(earliest);
     fd.setDate(fd.getDate() - 1);
     START_DATE = fd.toISOString().slice(0, 10);
   } else if (mode === '1y') {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
     START_DATE = d.toISOString().slice(0, 10);
+    // v264 fix: extend START_DATE to include trades before the 1Y mark.
+    // Without this, a buy before START_DATE (e.g. QQQM on 2025-04-03 when
+    // START_DATE=2025-04-08) is excluded while its sell IS included,
+    // inflating NAV by the buy cost (~€10K) and causing divergence vs YTD.
+    const earliestTradeDate = (portfolio.amine.ibkr.trades || [])
+      .filter(t => t.type !== 'fx')
+      .reduce((min, t) => t.date < min ? t.date : min, START_DATE);
+    if (earliestTradeDate < START_DATE) {
+      const et = new Date(earliestTradeDate);
+      et.setDate(et.getDate() - 1);
+      START_DATE = et.toISOString().slice(0, 10);
+    }
   } else {
     START_DATE = '2026-01-01';
   }
