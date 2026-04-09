@@ -1624,17 +1624,23 @@ export const IMMO_CONSTANTS = {
       totalOperation: 336330,   // montant TTC total (TVA 20%)
       purchaseDate: '2025-06',  // signature contrat réservation 20/06/2025
       deliveryDate: '2028-03',  // Q1 2028 — contrat §1.4 "au plus tard le 31 mars 2028"
-      // ── Appréciation réaliste par phase ──
-      // 2025-2028 : 3.0%/an — L15 Sud ouverture avril 2027, déjà L14 prolongée,
-      //   en face station Villejuif Louis Aragon (future L15), pôle santé Gustave Roussy
-      //   MeilleursAgents: Bd Gorki ~5 138€/m², hausse +20% entre 2021-2025
+      // ── Appréciation réaliste par phase (révisée avril 2026) ──
+      // Marché Villejuif : -1.17% sur 2 ans (2023-2025), tendance baissière
+      // L'effet L15 est largement pricé : +20% entre 2021-2025 autour Louis Aragon
+      // Études MeilleursAgents : les prix se tassent autour des futures stations GPE
+      // Référence L14 Saint-Ouen : +55% en 5 ans PUIS ralentissement à +1.4%/an
+      //   MeilleursAgents Bd Gorki : 5 138-5 210€/m² (fev-mars 2026)
       //   efficity: 5 050€/m² jan 2026, +6% vs ville
-      // 2028+ : 1.5%/an — livraison du bien (Q1 2028), L15 roulera depuis ~1 an, effet déjà pricé
-      // Moyenne lissée sur 10 ans ≈ 2.0%/an
-      appreciation: 0.02,        // 2.0%/an (moyenne lissée, hub L14+L15, pôle santé)
+      //   Neuf VEFA Villejuif : 5 500-6 850€/m² (programmes en cours)
+      // 2025-2027 : 2.0%/an — anticipation L15 (ouverture avril 2027) mais
+      //   marché en tassement, effet déjà largement pricé. L14 déjà là + pôle Gustave Roussy
+      // 2028-2040 : 1.5%/an — post-livraison, L15 opérationnelle, effet digéré
+      //   cohérent avec inflation immobilière IDF long-terme
+      // Moyenne lissée sur 15 ans ≈ 1.7%/an
+      appreciation: 0.017,       // 1.7%/an (moyenne lissée, hub L14+L15, pôle santé)
       appreciationPhases: [
-        { start: 2025, end: 2027, rate: 0.030, note: 'Anticipation L15 + L14 déjà là, pôle santé Gustave Roussy' },
-        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison bien Q1 2028, L15 roulera depuis ~1 an, effet pricé' },
+        { start: 2025, end: 2027, rate: 0.020, note: 'Anticipation L15 (avril 2027) + L14, marché en tassement, effet déjà pricé' },
+        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison bien Q1 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
       ],
       type: 'T3 — VEFA — LMNP',
       ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-04' },
@@ -2067,7 +2073,7 @@ export const VILLEJUIF_REGIMES = {
   simulation: {
     duree: 10,   // années
     hypotheses: {
-      appreciationAnnuelle: 0.02,   // 2%/an
+      appreciationAnnuelle: 0.017,  // 1.7%/an (cohérent avec IC.properties.villejuif.appreciation)
       inflationLoyer: 0.015,         // 1.5%/an (IRL)
       tauxIR: 0.20,                  // Non-résident
       tauxPS: 0.172,
