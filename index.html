@@ -1697,14 +1697,28 @@
       }
     };
 
-    // ── Required rhythm: straight line from now to TARGET_DATE ──
+    // ── Required rhythm: monthly savings needed to hit TARGET_DATE at 8%/an compound ──
+    //    Uses the SAME model as computeMonthsToTargetAtPace so the two numbers
+    //    (RYTHME CIBLE and RYTHME ACTUEL) are directly comparable.
+    //
+    //    Solve for P in: FV = PV·(1+r)^n + P · ((1+r)^n − 1)/r
+    //    where r = 0.08/12, n = monthsToTarget, FV = TARGET_EUR, PV = currentNW.
+    //    If compound growth alone already reaches FV, required P = 0.
     function computeRequiredMonthlyPace(currentNW) {
       const now = new Date();
       const monthsToTarget = Math.max(1,
         (TARGET_DATE.getFullYear() - now.getFullYear()) * 12
         + (TARGET_DATE.getMonth() - now.getMonth()));
-      const gap = TARGET_EUR - currentNW;
-      return { pace: gap / monthsToTarget, monthsToTarget: monthsToTarget };
+      const r = 0.08 / 12;  // same blended 8%/an as the rest of the pace logic
+      const growthFactor = Math.pow(1 + r, monthsToTarget);
+      const fvOfCurrent = currentNW * growthFactor;
+      const annuityFactor = (growthFactor - 1) / r;
+      const requiredSavings = (TARGET_EUR - fvOfCurrent) / annuityFactor;
+      return {
+        pace: Math.max(0, requiredSavings),
+        monthsToTarget: monthsToTarget,
+        compoundOnlyReaches: fvOfCurrent >= TARGET_EUR,
+      };
     }
 
     // ── ETA at a given monthly pace (with compound growth assumption) ──
@@ -1750,9 +1764,14 @@
         + (monthsRem > 0 ? (yearsLeft > 0 ? ' ' : '') + monthsRem + ' mois' : '');
       etaDateEl.textContent = tgtDateStr + (tgtDurStr ? ' · ' + tgtDurStr : '');
 
-      // (1) RYTHME CIBLE — required NW growth rate to hit the target linearly
-      //     = (TARGET - currentNW) / monthsToTarget. This is NW velocity, not savings.
-      rhythmReqVal.textContent = '~+€' + formatEurShort(req.pace) + ' de NW/mois pour viser avril 2028';
+      // (1) RYTHME CIBLE — monthly SAVINGS needed to hit target, assuming 8%/an compound.
+      //     Same model as computeMonthsToTargetAtPace, so this is directly comparable
+      //     to effectivePace below (apples-to-apples: both are "€/mois à investir").
+      if (req.compoundOnlyReaches) {
+        rhythmReqVal.textContent = '€0/mois (marché à 8%/an suffit ✓) pour avril 2028';
+      } else {
+        rhythmReqVal.textContent = '~€' + formatEurShort(req.pace) + '/mois à investir (marché 8%/an) pour avril 2028';
+      }
 
       // (2) RYTHME ACTUEL — what's actually driving NW right now
       //     - actuals6m: observed total NW delta over last 6 months (savings + market + immo)
