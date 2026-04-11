@@ -2818,6 +2818,111 @@ Le P&L Total inclut `degiroRealizedPL = +€50 664.55` comme constante ajoutée 
 
 ---
 
+## §54 — v283 : Mountain auth — Senior designer pass + per-person 75/25 target split (11 avril 2026)
+
+### Trigger
+Deux demandes utilisateur consécutives :
+1. Sur la login montagne, le compteur `€ 683,385` (font `min(44px, 8vw)`, positionné en `absolute` au-dessus de la SVG) chevauchait visuellement le sommet et le label « 🎯 1M€ ».
+2. Sur le banner motivation du simulateur couple, afficher combien chacun doit ajouter pour atteindre son target personnel (Amine 75%, Nezha 25% des contributions mensuelles).
+3. Demande complémentaire : « act as senior Designer et améliore le rendu de la montagne ».
+
+### Changements — index.html
+
+**1) Compteur sorti du layer absolu** (fix du chevauchement)
+- `#gridOverlay` (absolute par-dessus la SVG) remplacé par un nouveau bloc `#gridHeader` en flow normal placé *avant* `#mountainContainer`
+- Compteur + label « sur € 1 000 000 » + ligne « à gravir » empilés au-dessus, pas par-dessus
+- Résultat : séparation visuelle propre, sommet + 1M€ toujours lisibles même à 6-7 chiffres
+
+**2) Senior designer pass — profondeur atmosphérique**
+Nouveaux gradients dans `<defs>` :
+- `skyGrad` : ciel nocturne (deep blue → twilight horizon)
+- `farMtnGrad` / `midMtnGrad` : silhouettes de fond en brume bleutée
+- `stoneGrad` : 4 stops pour plus de profondeur
+- `stoneLitGrad` : overlay lumière lunaire (brighter à droite, shadow à gauche)
+- `snowGrad` : calotte blanche → grisé
+- `fogGrad` : brume de sol semi-transparente
+- `moonGlow` : radial glow de la lune
+- `goldPillGrad` : pill doré pour le label 1M€
+- `softBlur` filter : flou gaussien `stdDeviation=3`
+
+Nouveaux éléments de fond (rendus *avant* la montagne principale) :
+- **Sky rect** plein viewBox avec `skyGrad`
+- **Starfield** : 24 petites étoiles (r 0.6-1.1), animation `starTwinkle` staggered via `nth-child(3n/3n+1/3n+2)` sur 3.8-5.1s
+- **Moon** : groupe `#moon` à (418, 72), glow r=28 + disque r=12 `#fdf6d3` + 3 craters subtils, `moonPulse` 8s
+- **Far + mid silhouettes** : deux couches de montagnes éloignées, la plus lointaine floutée
+
+**3) Calotte neigeuse + éclairage latéral**
+Dans le groupe clippé :
+- `snowCap` : `<rect x=0 y=60 w=480 h=75>` `snowGrad` opacity=0.92
+- Snow-line drip `y=125 h=18 opacity=0.35` pour adoucir transition neige→roche
+- `stoneLitGrad` overlay entre stone et snow (face est claire, face ouest sombre)
+- Ridge stroke 1.8 → 2.2, gradient plus contrasté (white 92% → 15%)
+
+**4) Base fog mist**
+`<rect y=400 h=50>` `fogGrad` + `softBlur` devant le pied de la montagne, derrière les randonneurs.
+
+**5) Milestones pills**
+Avant : `circle` + `text` flottant. Après :
+- Anchor point (`circle r=4` blanc) sur la crête
+- Ligne pointillée vers la pill (`stroke-dasharray 1.5 1.5`)
+- Pill semi-transparente dark `rgba(15,31,51,0.82)` bord blanc fin, label `.ms-pill` en DM Sans 700
+- 1M€ : **pill doré** `goldPillGrad` avec shadow floutée copie en dessous, label `.ms-pill-gold` (noir sur or), anchor doré en haut du sommet
+
+**6) CSS ajouté**
+```css
+.star { animation: starTwinkle 4.2s ease-in-out infinite; }
+@keyframes starTwinkle { 0%,100% { opacity:.35 } 50% { opacity:1 } }
+.star:nth-child(3n)   { animation-delay:-1.3s; animation-duration:5.1s; }
+.star:nth-child(3n+1) { animation-delay:-2.6s; animation-duration:3.8s; }
+.star:nth-child(3n+2) { animation-delay:-0.4s; animation-duration:4.5s; }
+#moon { animation: moonPulse 8s ease-in-out infinite; }
+.ms-pill      { font:700 8.5px 'DM Sans'; fill:#fff; paint-order:stroke; stroke:rgba(10,18,32,.7); stroke-width:1.8; }
+.ms-pill-gold { font:800 9.5px 'DM Sans'; fill:#1a1206; }
+```
+
+### Changements — js/simulators.js (banner motivation)
+
+**1) `runSimulatorGeneric` accepte un nouveau param `ownerSplit`**
+```js
+ownerSplit: { amineNW, nezhaNW, amineShare, nezhaShare }
+```
+Quand présent, le banner motivation ajoute :
+- Titre « 📊 Répartition 75/25 (part des contributions mensuelles) »
+- Ligne Amine : `[current] / [target = 1M × amineShare] (%)` + reste OU ✅ atteint
+- Barre de progression verte (`#16a34a → #22c55e`) h=4px
+- Ligne Nezha identique, barre rose (`#db2777 → #ec4899`)
+- Note italique : « Cible Amine = 75% × 1M — Cible Nezha = 25% × 1M »
+
+**2) `runCoupleSimulator` passe les valeurs réelles**
+```js
+const amineNWStart = s.amine?.nw || 0;
+const nezhaNWStart = (s.nezha?.villejuifSigned)
+  ? (s.nezha.nwWithVillejuif || s.nezha.nw)
+  : (s.nezha?.nw || 0);
+
+runSimulatorGeneric({ ..., ownerSplit: {
+  amineNW: amineNWStart, nezhaNW: nezhaNWStart,
+  amineShare: 0.75, nezhaShare: 0.25
+}});
+```
+Pour Nezha on utilise `nwWithVillejuif` si signé, sinon `nw` brut (cohérent avec `render.js:372`).
+
+### Rationale
+- **Compteur hors overlay** : le compteur + label sont maintenant un bloc autonome au-dessus de la montagne → sommet + 1M€ + drapeau toujours lisibles quel que soit le nombre de chiffres
+- **Profondeur atmosphérique** : star + moon + far/mid silhouettes + ridge + snow cap + fog → hiérarchie far/mid/main, paysage « lu » immédiatement
+- **Moonlight overlay** : `stoneLitGrad` donne du volume au rocher (gris uniforme → face éclairée / face ombrée)
+- **Snow cap** : l'œil associe immédiatement la calotte blanche à « sommet » / « altitude »
+- **Milestones pills** : plus pro que des cercles + texte flottant, guide l'œil via la ligne pointillée
+- **75/25 split** : objectif individuel tangible — Amine voit « +X€ sur mon 750K », Nezha « +Y€ sur mon 250K »
+
+### Fichiers modifiés
+- `index.html` : restructure compteur, réécriture `<defs>` (9 gradients + filter), ajout starfield/moon/far/mid/snowcap/fog/pills, CSS, version bumps v282→v283
+- `js/simulators.js` : param `ownerSplit`, HTML banner étendu, `runCoupleSimulator` passe les NW
+- `ARCHITECTURE.md` : entrée §54 v283
+- `js/app.js`, `js/charts.js` : query string v282 → v283
+
+---
+
 ## §53 — v282 : Mountain auth — Couple Amine+Nezha + végétation alignée altitude (11 avril 2026)
 
 ### Contexte

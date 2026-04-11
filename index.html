@@ -1141,6 +1141,30 @@
     0%, 100% { transform: scaleX(1); }
     50%      { transform: scaleX(0.85); }
   }
+
+  /* v283 — Star twinkle (subtle opacity pulse, staggered via nth-child delays) */
+  .star { animation: starTwinkle 4.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes starTwinkle {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+  }
+  .star:nth-child(3n)   { animation-delay: -1.3s; animation-duration: 5.1s; }
+  .star:nth-child(3n+1) { animation-delay: -2.6s; animation-duration: 3.8s; }
+  .star:nth-child(3n+2) { animation-delay: -0.4s; animation-duration: 4.5s; }
+
+  /* Moon soft pulse */
+  #moon { animation: moonPulse 8s ease-in-out infinite; transform-origin: 418px 72px; transform-box: view-box; }
+  @keyframes moonPulse {
+    0%, 100% { filter: drop-shadow(0 0 6px rgba(255,245,210,0.35)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(255,245,210,0.55)); }
+  }
+
+  /* v283 — Milestone pill labels */
+  .ms-pill { font: 700 8.5px 'DM Sans', sans-serif; fill: #fff;
+             paint-order: stroke; stroke: rgba(10,18,32,0.7); stroke-width: 1.8;
+             letter-spacing: 0.2px; pointer-events: none; }
+  .ms-pill-gold { font: 800 9.5px 'DM Sans', sans-serif; fill: #1a1206;
+                  letter-spacing: 0.3px; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -1152,34 +1176,96 @@
        sky. Vegetation (clipped to the mountain silhouette) rises with the couple's
        altitude via a monotonic "highest-y-reached" tracker so it never recedes
        in a col. 1M peak is central; 500K/750K sit on left ridge; decorative
-       right peak for visual balance. Summit halo + flag illuminate at 1M. -->
+       right peak for visual balance. Summit halo + flag illuminate at 1M.
+       v283: counter block moved to normal flow ABOVE the mountain SVG to
+       eliminate visual superposition between the huge €XXX digits and the
+       summit / 1M€ milestone label. -->
+  <!-- ── Counter block (normal flow, above the mountain — v283) ── -->
+  <div id="gridHeader" style="display:flex;flex-direction:column;align-items:center;width:min(480px,94vw);margin-bottom:10px;text-align:center;">
+    <div id="gridCounter" style="font-family:'DM Sans',sans-serif;font-size:min(44px,8vw);font-weight:700;color:white;text-shadow:0 2px 22px rgba(0,0,0,0.75);letter-spacing:-1px;opacity:0;transition:opacity 0.8s, transform 0.3s;line-height:1;">€ 0</div>
+    <div id="gridLabel" style="font-family:'DM Sans',sans-serif;font-size:min(12px,2.4vw);color:rgba(255,255,255,0.7);margin-top:4px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">sur € 1 000 000</div>
+    <div id="gridRemaining" style="font-family:'DM Sans',sans-serif;font-size:min(13px,2.6vw);font-weight:500;color:rgba(255,255,255,0.82);margin-top:8px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">—</div>
+  </div>
   <div id="mountainContainer" style="position:relative;width:min(480px, 94vw);aspect-ratio:1;margin-bottom:20px;" role="img" aria-labelledby="mountainTitle">
     <svg id="mountainSvg" viewBox="0 0 480 480" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
       <title id="mountainTitle">Progression vers l'objectif 1 million d'euros</title>
       <defs>
-        <!-- Stone (gray) base gradient — what the mountain looks like at 0% -->
+        <!-- ── Sky gradient: deep night above, warmer twilight near horizon ── -->
+        <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#0a1424"/>
+          <stop offset="55%" stop-color="#142c49"/>
+          <stop offset="85%" stop-color="#2a4266"/>
+          <stop offset="100%" stop-color="#3a5277"/>
+        </linearGradient>
+        <!-- ── Far-distance mountain silhouette (pale blue haze) ── -->
+        <linearGradient id="farMtnGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="rgba(130,155,190,0.45)"/>
+          <stop offset="100%" stop-color="rgba(90,115,150,0.25)"/>
+        </linearGradient>
+        <!-- ── Mid-distance silhouette (slightly darker) ── -->
+        <linearGradient id="midMtnGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="rgba(70,95,130,0.65)"/>
+          <stop offset="100%" stop-color="rgba(50,70,100,0.55)"/>
+        </linearGradient>
+        <!-- ── Stone base gradient — cool rock with a hint of warmth where the sun would hit ── -->
         <linearGradient id="stoneGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#7d8694"/>
-          <stop offset="55%" stop-color="#4a5260"/>
-          <stop offset="100%" stop-color="#2a313c"/>
+          <stop offset="0%"  stop-color="#8a94a4"/>
+          <stop offset="35%" stop-color="#626d7f"/>
+          <stop offset="70%" stop-color="#3e4756"/>
+          <stop offset="100%" stop-color="#232a36"/>
         </linearGradient>
-        <!-- Vegetation (green) gradient — rises as the couple climbs -->
+        <!-- ── Lit-face overlay gradient (left-to-right, simulates moonlight from upper right) ── -->
+        <linearGradient id="stoneLitGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"  stop-color="rgba(0,0,0,0.28)"/>
+          <stop offset="40%" stop-color="rgba(0,0,0,0)"/>
+          <stop offset="100%" stop-color="rgba(255,240,210,0.12)"/>
+        </linearGradient>
+        <!-- ── Vegetation (green) gradient — rises as the couple climbs ── -->
         <linearGradient id="vegGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stop-color="#8bbd5e"/>
-          <stop offset="35%" stop-color="#4f9341"/>
-          <stop offset="75%" stop-color="#2d6a32"/>
-          <stop offset="100%" stop-color="#1a4a27"/>
+          <stop offset="0%"  stop-color="#9ac977"/>
+          <stop offset="35%" stop-color="#5aa24b"/>
+          <stop offset="75%" stop-color="#2f7238"/>
+          <stop offset="100%" stop-color="#194827"/>
         </linearGradient>
+        <!-- ── Snow cap gradient — icy white at the very top ── -->
+        <linearGradient id="snowGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#ffffff"/>
+          <stop offset="60%" stop-color="#e7edf5"/>
+          <stop offset="100%" stop-color="#a7b3c5"/>
+        </linearGradient>
+        <!-- ── Ridge highlight (top edge) ── -->
         <linearGradient id="ridgeGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
-          <stop offset="100%" stop-color="rgba(255,255,255,0.18)"/>
+          <stop offset="0%"  stop-color="rgba(255,255,255,0.92)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0.15)"/>
         </linearGradient>
-        <!-- Summit halo (radial) — grows to r=60 when 1M reached -->
+        <!-- ── Base fog / mist gradient ── -->
+        <linearGradient id="fogGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="rgba(200,215,235,0)"/>
+          <stop offset="55%"  stop-color="rgba(180,200,225,0.22)"/>
+          <stop offset="100%" stop-color="rgba(150,175,205,0.38)"/>
+        </linearGradient>
+        <!-- ── Moon glow (radial) ── -->
+        <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"  stop-color="rgba(255,248,220,0.95)"/>
+          <stop offset="35%" stop-color="rgba(255,245,210,0.35)"/>
+          <stop offset="100%" stop-color="rgba(255,245,210,0)"/>
+        </radialGradient>
+        <!-- ── Summit halo (radial) — grows to r=60 when 1M reached ── -->
         <radialGradient id="summitHaloGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"  stop-color="rgba(253,230,138,0.85)"/>
-          <stop offset="45%" stop-color="rgba(253,230,138,0.35)"/>
+          <stop offset="0%"  stop-color="rgba(253,230,138,0.90)"/>
+          <stop offset="45%" stop-color="rgba(253,230,138,0.38)"/>
           <stop offset="100%" stop-color="rgba(253,230,138,0)"/>
         </radialGradient>
+        <!-- ── Gold pill gradient for 1M€ label ── -->
+        <linearGradient id="goldPillGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#fde68a"/>
+          <stop offset="100%" stop-color="#d4a84a"/>
+        </linearGradient>
+        <!-- ── Subtle Gaussian blur for fog/haze ── -->
+        <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3"/>
+        </filter>
+        <!-- ── Twinkle animation for stars ── -->
         <!-- ClipPath matching the mountain silhouette — closed along y=440 (ground)
              so the stone & vegetation fills only show INSIDE the mountain shape,
              not as a horizontal band below it. -->
@@ -1193,23 +1279,90 @@
         </clipPath>
       </defs>
 
+      <!-- ═══════════════════════════════════════════════════════════
+           Background layers (sky → stars → moon → far mountains → fog)
+           Rendered behind the main mountain for atmospheric depth.
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Sky fill (fills viewBox; will be masked by authGate background anyway but adds depth) -->
+      <rect x="0" y="0" width="480" height="480" fill="url(#skyGrad)"/>
+
+      <!-- Starfield — 24 subtle stars with staggered twinkle via CSS animation delays -->
+      <g id="starfield" opacity="0.85">
+        <circle class="star" cx="42"  cy="38"  r="0.9" fill="#fff"/>
+        <circle class="star" cx="75"  cy="22"  r="0.7" fill="#fff"/>
+        <circle class="star" cx="110" cy="50"  r="0.8" fill="#fff"/>
+        <circle class="star" cx="142" cy="18"  r="1.1" fill="#fff"/>
+        <circle class="star" cx="175" cy="42"  r="0.6" fill="#fff"/>
+        <circle class="star" cx="205" cy="28"  r="0.8" fill="#fff"/>
+        <circle class="star" cx="235" cy="52"  r="0.7" fill="#fff"/>
+        <circle class="star" cx="305" cy="22"  r="0.9" fill="#fff"/>
+        <circle class="star" cx="338" cy="48"  r="0.6" fill="#fff"/>
+        <circle class="star" cx="368" cy="28"  r="1.0" fill="#fff"/>
+        <circle class="star" cx="400" cy="52"  r="0.7" fill="#fff"/>
+        <circle class="star" cx="432" cy="20"  r="0.8" fill="#fff"/>
+        <circle class="star" cx="455" cy="65"  r="0.6" fill="#fff"/>
+        <circle class="star" cx="25"  cy="95"  r="0.7" fill="#fff"/>
+        <circle class="star" cx="60"  cy="115" r="0.6" fill="#fff"/>
+        <circle class="star" cx="95"  cy="140" r="0.7" fill="#fff"/>
+        <circle class="star" cx="148" cy="95"  r="0.8" fill="#fff"/>
+        <circle class="star" cx="318" cy="100" r="0.6" fill="#fff"/>
+        <circle class="star" cx="360" cy="130" r="0.7" fill="#fff"/>
+        <circle class="star" cx="395" cy="155" r="0.8" fill="#fff"/>
+        <circle class="star" cx="438" cy="120" r="0.6" fill="#fff"/>
+        <circle class="star" cx="222" cy="36"  r="0.8" fill="#fff"/>
+        <circle class="star" cx="288" cy="58"  r="0.7" fill="#fff"/>
+        <circle class="star" cx="180" cy="115" r="0.6" fill="#fff"/>
+      </g>
+
+      <!-- Moon (upper-right, with soft glow) -->
+      <g id="moon">
+        <circle cx="418" cy="72" r="28" fill="url(#moonGlow)"/>
+        <circle cx="418" cy="72" r="12" fill="#fdf6d3"/>
+        <circle cx="414" cy="68" r="1.8" fill="rgba(180,160,120,0.35)"/>
+        <circle cx="422" cy="74" r="1.2" fill="rgba(180,160,120,0.30)"/>
+        <circle cx="416" cy="77" r="0.9" fill="rgba(180,160,120,0.25)"/>
+      </g>
+
+      <!-- Far mountain silhouettes (behind main mountain) — blueish haze -->
+      <path d="M -10 420 L 30 390 L 65 405 L 95 375 L 130 398 L 165 380 L 205 395
+               L 245 370 L 285 390 L 325 378 L 365 400 L 405 385 L 445 405 L 490 398
+               L 490 440 L -10 440 Z"
+            fill="url(#farMtnGrad)" filter="url(#softBlur)"/>
+
+      <!-- Mid-distance silhouettes (slightly sharper, closer) -->
+      <path d="M -10 440 L 15 420 L 45 415 L 80 425 L 120 400 L 160 422 L 200 408
+               L 240 430 L 290 412 L 340 425 L 380 418 L 420 428 L 460 420 L 490 425
+               L 490 440 L -10 440 Z"
+            fill="url(#midMtnGrad)"/>
+
       <!-- ── Summit halo (behind everything) — r=0 until 1M is reached ── -->
       <circle id="summitHalo" cx="270" cy="75" r="0" fill="url(#summitHaloGrad)"
               style="transition: r 1.2s ease-out;"/>
 
       <!-- ── Mountain stone base (gray/rock) clipped to silhouette ── -->
       <g clip-path="url(#mtnClip)">
+        <!-- Base stone gradient -->
         <rect x="0" y="0" width="480" height="480" fill="url(#stoneGrad)"/>
+        <!-- Moonlight overlay — brightens the east-facing slope, darkens the shadowed one -->
+        <rect x="0" y="0" width="480" height="480" fill="url(#stoneLitGrad)"/>
+        <!-- Permanent snow cap near the summit (above y=130, inside clip) -->
+        <rect id="snowCap" x="0" y="60" width="480" height="75" fill="url(#snowGrad)" opacity="0.92"/>
+        <!-- Snow line "drip" — softens the snow/stone boundary with a subtle gradient -->
+        <rect x="0" y="125" width="480" height="18" fill="url(#snowGrad)" opacity="0.35"/>
         <!-- Vegetation fill rect — y animated from 440 (ground) up to the leader's altitude -->
         <rect id="vegFill" x="0" y="440" width="480" height="40" fill="url(#vegGrad)"
               style="transition: y 0.35s ease-out, height 0.35s ease-out;"/>
       </g>
 
+      <!-- ── Base ground fog / mist (in front of mountain foot, behind hikers) ── -->
+      <rect x="0" y="400" width="480" height="50" fill="url(#fogGrad)" filter="url(#softBlur)" opacity="0.75"/>
+
       <!-- ── Mountain silhouette outline (white ridge highlight) ── -->
       <path id="mountainBody"
             fill="none"
             stroke="url(#ridgeGradient)"
-            stroke-width="1.8"
+            stroke-width="2.2"
             stroke-linejoin="round"
             stroke-linecap="round"
             d="M 0 440
@@ -1240,27 +1393,32 @@
                L 150 335 L 175 320 L 200 275 L 225 215
                L 245 160 L 258 110 L 270 75"/>
 
-      <!-- ── Milestones on the ridge ── -->
+      <!-- ── Milestones on the ridge — v283 pill-shaped labels ── -->
       <g id="ms500">
-        <circle cx="125" cy="310" r="6.5"
-                fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
-        <text x="125" y="332" text-anchor="middle"
-              font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
-              fill="rgba(255,255,255,0.78)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">500K</text>
+        <line x1="125" y1="310" x2="148" y2="330" stroke="rgba(255,255,255,0.35)" stroke-width="1" stroke-dasharray="1.5 1.5"/>
+        <circle cx="125" cy="310" r="4" fill="#fff" stroke="rgba(10,18,32,0.85)" stroke-width="1.2"/>
+        <rect x="134" y="325" width="34" height="13" rx="6.5"
+              fill="rgba(15,31,51,0.82)" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/>
+        <text class="ms-pill" x="151" y="334" text-anchor="middle">500K€</text>
       </g>
       <g id="ms750">
-        <circle cx="225" cy="215" r="6.5"
-                fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
-        <text x="225" y="237" text-anchor="middle"
-              font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
-              fill="rgba(255,255,255,0.78)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">750K</text>
+        <line x1="225" y1="215" x2="248" y2="198" stroke="rgba(255,255,255,0.35)" stroke-width="1" stroke-dasharray="1.5 1.5"/>
+        <circle cx="225" cy="215" r="4" fill="#fff" stroke="rgba(10,18,32,0.85)" stroke-width="1.2"/>
+        <rect x="234" y="190" width="34" height="13" rx="6.5"
+              fill="rgba(15,31,51,0.82)" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/>
+        <text class="ms-pill" x="251" y="199" text-anchor="middle">750K€</text>
       </g>
       <g id="ms1M">
-        <circle cx="270" cy="75" r="8"
-                fill="rgba(15,31,51,0.9)" stroke="rgba(255,225,140,0.9)" stroke-width="2"/>
-        <text x="270" y="58" text-anchor="middle"
-              font-family="'DM Sans',sans-serif" font-size="10.5" font-weight="700"
-              fill="rgba(255,225,140,0.95)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">🎯 1M€</text>
+        <!-- Gold pill ribbon above summit -->
+        <rect x="246" y="46" width="48" height="16" rx="8"
+              fill="url(#goldPillGrad)" stroke="rgba(120,80,20,0.6)" stroke-width="0.9"
+              filter="url(#softBlur)" opacity="0.55"/>
+        <rect x="246" y="46" width="48" height="16" rx="8"
+              fill="url(#goldPillGrad)" stroke="rgba(120,80,20,0.7)" stroke-width="0.9"/>
+        <text class="ms-pill-gold" x="270" y="57" text-anchor="middle">🎯 1M€</text>
+        <!-- Summit anchor point -->
+        <circle cx="270" cy="75" r="4.5" fill="#fde68a" stroke="rgba(80,50,5,0.75)" stroke-width="1.3"/>
+        <circle cx="270" cy="75" r="1.8" fill="#8b5a0e"/>
       </g>
 
       <!-- ── Summit flag (visible when 1M reached) ── -->
@@ -1310,13 +1468,6 @@
         </g>
       </g>
     </svg>
-
-    <!-- ── Typography overlay (inside the sky area, above the mountain body) ── -->
-    <div id="gridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;pointer-events:none;padding-top:4%;">
-      <div id="gridCounter" style="font-family:'DM Sans',sans-serif;font-size:min(44px,8vw);font-weight:700;color:white;text-shadow:0 2px 22px rgba(0,0,0,0.75);letter-spacing:-1px;opacity:0;transition:opacity 0.8s, transform 0.3s;">€ 0</div>
-      <div id="gridLabel" style="font-family:'DM Sans',sans-serif;font-size:min(12px,2.4vw);color:rgba(255,255,255,0.7);margin-top:2px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">sur € 1 000 000</div>
-      <div id="gridRemaining" style="font-family:'DM Sans',sans-serif;font-size:min(13px,2.6vw);font-weight:500;color:rgba(255,255,255,0.82);margin-top:10px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">—</div>
-    </div>
   </div>
 
   <!-- ── Velocity block (below the mountain, in the auth gate footer) ── -->
@@ -2721,7 +2872,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=282"></script>
+<script type="module" src="js/app.js?v=283"></script>
 
 </body>
 </html>

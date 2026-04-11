@@ -17,6 +17,7 @@ function runSimulatorGeneric(config) {
     startNW, startImmoEquity, startPoolActions, startPoolCash,
     staticAssets, immoGrowthFn, existingGains,
     immoBreakdown, // optional: [{label, startEquity, growthFn(m)}]
+    ownerSplit,    // v283 — optional: { amineNW, nezhaNW, amineShare, nezhaShare } → adds per-person target breakdown
   } = config;
 
   const months = horizonYears * 12;
@@ -166,13 +167,68 @@ function runSimulatorGeneric(config) {
     const d1mExact = new Date(2026, 2 + month1M, 1);
     m1MDateLabel = d1mExact.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     const yearsTo1M = (month1M / 12).toFixed(1);
+
+    // v283 — Per-person target split based on monthly investment contribution share.
+    // Amine invests 75% of the monthly savings, Nezha 25%. Pro-rata the 1M target
+    // using those shares so each has a clear personal goal + how much remains to add.
+    let ownerSplitHtml = '';
+    if (ownerSplit && typeof ownerSplit.amineNW === 'number' && typeof ownerSplit.nezhaNW === 'number') {
+      const aShare = (typeof ownerSplit.amineShare === 'number') ? ownerSplit.amineShare : 0.75;
+      const nShare = (typeof ownerSplit.nezhaShare === 'number') ? ownerSplit.nezhaShare : 0.25;
+      const aTarget = 1000000 * aShare;
+      const nTarget = 1000000 * nShare;
+      const aRemaining = Math.max(0, aTarget - ownerSplit.amineNW);
+      const nRemaining = Math.max(0, nTarget - ownerSplit.nezhaNW);
+      const aPct = Math.min(100, Math.round((ownerSplit.amineNW / aTarget) * 100));
+      const nPct = Math.min(100, Math.round((ownerSplit.nezhaNW / nTarget) * 100));
+      const aDone = ownerSplit.amineNW >= aTarget;
+      const nDone = ownerSplit.nezhaNW >= nTarget;
+      ownerSplitHtml =
+        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(22,163,74,0.28);font-size:12px;line-height:1.55;color:#1e3a2b;">' +
+          '<div style="font-weight:600;color:#166534;margin-bottom:6px;">\ud83d\udcca R\u00e9partition 75/25 (part des contributions mensuelles)</div>' +
+          // Amine line
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+            '<span style="min-width:54px;font-weight:600;">\ud83d\udc68 Amine</span>' +
+            '<span style="flex:1;">' + fmt(Math.round(ownerSplit.amineNW)) + ' / <strong>' + fmt(Math.round(aTarget)) + '</strong> ' +
+              '<span style="color:#059669;">(' + aPct + '%)</span>' +
+            '</span>' +
+            (aDone
+              ? '<span style="color:#059669;font-weight:600;">\u2705 atteint</span>'
+              : '<span style="color:#b45309;font-weight:600;">+ ' + fmt(Math.round(aRemaining)) + '</span>') +
+          '</div>' +
+          // Progress bar Amine
+          '<div style="height:4px;background:rgba(22,163,74,0.12);border-radius:2px;overflow:hidden;margin-bottom:8px;">' +
+            '<div style="width:' + aPct + '%;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e);"></div>' +
+          '</div>' +
+          // Nezha line
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+            '<span style="min-width:54px;font-weight:600;">\ud83d\udc69 Nezha</span>' +
+            '<span style="flex:1;">' + fmt(Math.round(ownerSplit.nezhaNW)) + ' / <strong>' + fmt(Math.round(nTarget)) + '</strong> ' +
+              '<span style="color:#db2777;">(' + nPct + '%)</span>' +
+            '</span>' +
+            (nDone
+              ? '<span style="color:#059669;font-weight:600;">\u2705 atteint</span>'
+              : '<span style="color:#b45309;font-weight:600;">+ ' + fmt(Math.round(nRemaining)) + '</span>') +
+          '</div>' +
+          // Progress bar Nezha
+          '<div style="height:4px;background:rgba(219,39,119,0.12);border-radius:2px;overflow:hidden;">' +
+            '<div style="width:' + nPct + '%;height:100%;background:linear-gradient(90deg,#db2777,#ec4899);"></div>' +
+          '</div>' +
+          '<div style="margin-top:8px;font-size:11px;color:#4b5563;font-style:italic;">' +
+            'Cible Amine = 75% \u00d7 1M (part des contributions mensuelles) \u2014 Cible Nezha = 25% \u00d7 1M.' +
+          '</div>' +
+        '</div>';
+    }
+
     m1MMotivation = '<br><div style="margin-top:8px;padding:10px 14px;background:#f0fff4;border-left:3px solid #16a34a;border-radius:6px;font-size:13px;">'
       + '\ud83c\udfaf <strong>1 000 000\u20ac atteint en ' + m1MDateLabel + '</strong> (' + yearsTo1M + ' ans).<br>'
       + '<span style="color:#276749;">'
       + (month1M <= 24 ? 'Vous \u00eates \u00e0 moins de 2 ans du million. Chaque mois investi acc\u00e9l\u00e8re l\'\u00e9cart. Ne l\u00e2chez rien !'
         : month1M <= 60 ? 'Le million est \u00e0 port\u00e9e de main. Les int\u00e9r\u00eats compos\u00e9s font le gros du travail \u2014 la discipline paie.'
         : 'La patience est votre meilleur alli\u00e9. Chaque euro investi aujourd\u2019hui vaut ' + Math.round(Math.pow(1 + (returnActions || 0.10), month1M/12)) + '\u20ac dans ' + yearsTo1M + ' ans.')
-      + '</span></div>';
+      + '</span>'
+      + ownerSplitHtml
+      + '</div>';
   }
 
   let insightHtml;
@@ -516,12 +572,20 @@ function runCoupleSimulator(state) {
   // Track previous total immo equity for delta calculation
   let prevImmoTotal = computedImmo0;
 
+  // v283 — per-owner NW at simulation start, to feed the 75/25 split banner
+  const amineNWStart = s.amine?.nw || 0;
+  // Nezha: include Villejuif future equity if already signed
+  const nezhaNWStart = (s.nezha && s.nezha.villejuifSigned)
+    ? (s.nezha.nwWithVillejuif || s.nezha.nw || 0)
+    : (s.nezha?.nw || 0);
+
   const result = runSimulatorGeneric({
     prefix: 'cplSim', monthlySavings, pctActions, returnActions,
     returnCash: 0.06, horizonYears, stopYears,
     startNW: coupleNW - coupleImmo + computedImmo0, startImmoEquity: computedImmo0,
     startPoolActions: couplePoolActions, startPoolCash: couplePoolCash,
     staticAssets: coupleStatic, existingGains: 45000,
+    ownerSplit: { amineNW: amineNWStart, nezhaNW: nezhaNWStart, amineShare: 0.75, nezhaShare: 0.25 },
     immoGrowthFn: (m) => {
       // Compute total absolute equity at month m
       let totalEquity = computeVitryEquity(m) + computeRueilEquity(m);
