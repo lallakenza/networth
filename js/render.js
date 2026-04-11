@@ -2128,7 +2128,9 @@ function renderActionsView(state) {
 
   // Metrics
   setText('actionsCommissions', fmt(Math.abs(av.commissions)));
-  setText('actionsDeposits', fmt(av.totalDeposits));
+  // v279: le libellé est "Dépôts IBKR", donc on affiche ibkrDepositsTotal
+  // (avant: affichait av.totalDeposits, mismatch avec le label).
+  setText('actionsDeposits', fmt(av.ibkrDepositsTotal));
   // Degiro deposits are now exact (back-computed from annual reports)
   // Previous warning "⚠ dep. est." removed in v243
   setText('actionsNAV', fmt(av.ibkrNAV));

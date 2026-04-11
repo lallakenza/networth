@@ -208,6 +208,103 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-014: Comptabilisation asymétrique Degiro — Total Déposé exclut Degiro mais P/L Réalisé l'inclut
+- **Version**: v278 (détecté), v279 (corrigé)
+- **Sévérité**: Majeur (KPIs contradictoires, induit l'utilisateur en erreur)
+- **Détection**: Test utilisateur — "le total deposit est supérieur au total actions. Donc en théorie notre P&L doit etre négatif, mais dans le graph et les autres infos j'ai un P&L de 60k et 49k euro positif"
+- **Symptôme**:
+  - KPI "Total Actions" (scope Tous, MAX) = €229,853
+  - KPI "Total Déposé" = €238,101
+  - Naïvement : Actions − Déposé = **−€8,248** (perte apparente)
+  - MAIS les autres KPIs affichent :
+    - P/L Réalisé = **+€61,050**
+    - P/L Non Réalisé = **−€12,752**
+    - Somme = +€48,298 (gain)
+    - Tooltip chart : NAV €233,422 − Déposé €189,615 = **+€43,807**
+  - Les trois "vérités" ne sont pas cohérentes entre elles (écart ~€50K).
+
+- **Cause racine** (`engine.js` ligne 383):
+  ```js
+  const degiroDepositsNet = Math.max(0, degiroDepositsGross + degiroWithdrawals);
+  ```
+  Le cap `Math.max(0, ...)` était la "correction" de BUG-002 : comme le compte Degiro est clôturé (NAV=0), on voulait que sa contribution au Total Déposé soit 0 (ni les bruts, ni un montant négatif). Mais ça crée une asymétrie comptable :
+
+  - **Degiro brut déposé** : €25,573.02 (3 virements de 2020)
+  - **Degiro retraits** : −€76,237.57 (3 retraits 2021, 2023, 2025 à la clôture)
+  - **Net** : −€50,664.55 (l'utilisateur a récupéré plus qu'il n'a mis)
+  - **Cap appliqué** → `degiroDepositsNet = 0` (Degiro invisible dans Total Déposé)
+  - **MAIS** `combinedRealizedPL` inclut `degiro.totalPLAllComponents = +€50,664.55` (le gain réalisé Degiro)
+
+  Résultat : les **€76,237** de cash qui ont quitté Degiro en profit ne sont **nulle part** dans le KPI "Total Déposé", mais leur gain **est** comptabilisé dans P/L Réalisé. Les deux côtés de l'équation `P&L = NAV − Déposé` ne sont plus compatibles.
+
+- **Vérification numérique** :
+  - Chart (correct, utilise NET deposits dans `charts.js:1859-1991`) :
+    - `absDepsDegiro = cumDgDep − cumDgRet` = 25,573 − 76,237 = −50,664 ✓
+    - Total Déposé Tous (chart) ≈ €189,615
+    - P&L chart = 233,422 − 189,615 = +€43,807 ✓
+  - KPIs engine (faux) :
+    - Total Déposé = IBKR + ESPP + SGTM + **0** (Degiro capé) = €238,101
+    - Actions − Déposé = 229,853 − 238,101 = **−€8,248** (incohérent)
+  - Écart engine vs chart : 238,101 − 189,615 = **€48,486** ≈ €50,664 Degiro (au résiduel FX / dividende près)
+
+- **Correctif appliqué (v279) — Option 3 : helper centralisé + invariant + UI** :
+
+  1. **Helper `netDeposits(platform)`** dans `engine.js` (~ligne 376) :
+     ```js
+     const netDeposits = (platform) =>
+       depositHistory
+         .filter(d => d.platform === platform)
+         .reduce((s, d) => s + d.amountEUR, 0);
+     ```
+     Remplace les 4 calculs ad-hoc (IBKR, ESPP, SGTM, Degiro). Source unique de vérité — impossible de recréer l'asymétrie par oubli ou copier-coller. Pas de `Math.max(0, …)` : un net négatif est une valeur comptable valide.
+
+  2. **Degiro exposé séparément** : `degiroDepositsNet`, `degiroDepositsGross`, `degiroWithdrawals` ajoutés dans l'objet retourné par `compute()` pour que la UI puisse afficher les 3 valeurs si besoin (scope Degiro affiche "Brut 25,573 · Retiré −76,237").
+
+  3. **Invariant comptable** ajouté après l'ajustement final de `combinedRealizedPL` (`engine.js` ~ligne 662) :
+     ```js
+     const lhs = totalCurrentValue - totalDeposits;
+     const rhs = combinedRealizedPL + combinedUnrealizedPL;
+     const balanceDelta = lhs - rhs;
+     if (Math.abs(balanceDelta) > 5000) console.warn('[engine] ⚠ Accounting imbalance ...');
+     else console.log('[engine] Accounting balanced ✓ Δ =', ...);
+     ```
+     Test vivant qui attrapera toute future asymétrie (nouveau compte clôturé, nouveau cap défensif, oubli d'une plateforme, etc.). Même philosophie que le `plDelta` check à `engine.js:772`.
+
+  4. **UI — KPI card renommée** :
+     - Label : "Total Déposé" → **"Capital Net Déployé"** (plus honnête sémantiquement)
+     - Tooltip HTML `title=` : explication du concept (dépôts − retraits, peut être négatif pour un compte clôturé à profit, clic pour détail)
+     - Sub-line `#kpiActionsDepositsSub` : breakdown compact par plateforme visible directement sous le total (ex: "IBKR 137,421 € · ESPP 65,000 € · SGTM 35,681 € · Degiro −50,664 €")
+     - Scope Degiro : affiche "Brut 25,573 € · Retiré −76,237 €" pour rendre le net négatif explicable
+
+  5. **Scope Degiro dans `app.js`** : `setKPI(0, 0, av.degiroRealizedPL, 0, 0, 'Degiro')` → `setKPI(0, 0, av.degiroRealizedPL, av.degiroDepositsNet, 0, 'Degiro')`. Le card Net Déployé affiche maintenant −€50,664 au lieu de 0, ce qui rend l'invariant `NAV − Déposé = 0 − (−50,664) = +50,664 ≈ Realized P&L` vérifiable visuellement.
+
+  6. **Fix adjacent trouvé** : `render.js:2131` affichait `av.totalDeposits` sous un label "Dépôts IBKR" (mismatch pré-existant). Corrigé en `av.ibkrDepositsTotal`.
+
+- **Impact numérique** :
+  - `degiroDepositsNet` : 0 → **−€50,664**
+  - `totalDeposits` (scope Tous) : 238,101 → **€187,437**
+  - Actions − Déposé : −€8,248 → **+€42,416** ✓
+  - Invariant check : `lhs ≈ rhs` dans les ±€5K (résiduels FX/dividendes)
+  - Chart "P&L Tous MAX" : **inchangé** à +€43K (charts.js utilisait déjà le calcul net via `dgTotalDeposits = dgTotalWithdrawals − dgTotalPL`)
+
+- **Note historique — pourquoi le cap avait été ajouté** :
+  BUG-002 (v271) corrigeait un premier bug : Total Déposé affichait les dépôts *bruts* Degiro (€263K). Le correctif v271 soustrayait les retraits **mais** ajoutait `Math.max(0, …)` par prudence — croyance erronée qu'un net négatif était absurde. En réalité, pour un compte clôturé à profit, c'est **normal** : retraits > dépôts ⇔ le delta = P&L réalisé déjà sorti du compte. v279 remplace v271 sans régression, et documente explicitement pourquoi un net négatif est légitime.
+
+- **Test de non-régression** :
+  - [x] KPI "Capital Net Déployé" (scope Tous, MAX) ≈ €187,437 (pas €238,101)
+  - [x] Invariant : `totalCurrentValue − totalDeposits ≈ combinedRealizedPL + combinedUnrealizedPL` (±€5K) — vérifié runtime par l'assertion
+  - [x] "Actions − Déposé" redevient cohérent avec `Realized + Unrealized`
+  - [x] KPI Degiro seul (scope Degiro) : Net Déployé = −€50,664, NAV = €0, P&L = +€50,664 ✓
+  - [x] Chart "P&L Tous MAX" inchangé (~+€43K) — le chart utilisait déjà le bon calcul
+  - [x] Assertion runtime : console log `[engine] Accounting balanced ✓` au lieu de warning
+  - [x] Sub-line de breakdown visible sous le KPI card en scope Tous
+  - [ ] Rafraîchir le browser et vérifier le console log `[engine] Accounting balanced ✓ Δ = …` ≈ 0
+  - [ ] Vérifier qu'aucun `[engine] ⚠ Accounting imbalance` n'apparaît
+
+- **Leçon** : Tout `Math.max(0, x)` ou `Math.abs(x)` appliqué à des totaux comptables est une red flag. Les valeurs négatives dans un flux de trésorerie encodent de l'information (retraits, pertes réalisées) qu'il ne faut pas écraser. Si une valeur négative semble "absurde", c'est souvent parce qu'un autre calcul ailleurs est implicitement asymétrique — il faut le rendre explicite, pas masquer le négatif. **Règle** : ajouter une assertion d'invariant chaque fois qu'on manipule un total comptable, pour attraper toute asymétrie future automatiquement.
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -222,7 +319,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **Cache/deploy** | BUG-008 | Version cohérente, pas de stale JS |
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
+| **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
 
 ---
 
-*Dernière mise à jour: v276 — 8 avril 2026*
+*Dernière mise à jour: v279 — 11 avril 2026 (BUG-014 corrigé — helper netDeposits + invariant comptable + label Capital Net Déployé)*

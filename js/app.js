@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=277';
-import { compute, getGrandTotal } from './engine.js?v=277';
-import { render } from './render.js?v=277';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=277';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=277';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=277';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=277';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=279';
+import { compute, getGrandTotal } from './engine.js?v=279';
+import { render } from './render.js?v=279';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=279';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=279';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=279';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=279';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -91,7 +91,26 @@ function updateStaticKPIsForScope(scope) {
     setT('kpiActionsTotalLabel', 'Total Actions (' + label + ')');
     setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (' + label + ')');
     setT('kpiActionsRealizedLabel', 'P/L Réalisé (' + label + ')');
-    setT('kpiActionsDepositsLabel', 'Total Déposé (' + label + ')');
+    setT('kpiActionsDepositsLabel', 'Capital Net Déployé (' + label + ')');
+    // v279 (BUG-014): sub-line breakdown per plateforme (brut / retiré / net)
+    const subEl = document.getElementById('kpiActionsDepositsSub');
+    if (subEl) {
+      const fmt0 = n => Math.round(n).toLocaleString('fr-FR') + ' €';
+      const parts = [];
+      if (scope === 'all') {
+        parts.push('IBKR ' + fmt0(av.ibkrDepositsTotal));
+        parts.push('ESPP ' + fmt0(av.esppDeposits));
+        parts.push('SGTM ' + fmt0(av.sgtmDepositsEUR));
+        if (av.degiroDepositsNet !== undefined) {
+          const dgNet = av.degiroDepositsNet;
+          parts.push('Degiro ' + (dgNet >= 0 ? '' : '−') + fmt0(Math.abs(dgNet)));
+        }
+      } else if (scope === 'degiro' && av.degiroDepositsGross !== undefined) {
+        parts.push('Brut ' + fmt0(av.degiroDepositsGross));
+        parts.push('Retiré ' + fmt0(av.degiroWithdrawals));
+      }
+      subEl.textContent = parts.join(' · ');
+    }
   };
 
   const esppTotal = (av.esppCurrentVal || 0) + (av.nezhaEsppCurrentVal || 0);
@@ -108,7 +127,9 @@ function updateStaticKPIsForScope(scope) {
       setKPI(esppTotal, esppPL, 0, av.esppDeposits || 0, 0, 'ESPP');
       break;
     case 'degiro':
-      setKPI(0, 0, av.degiroRealizedPL || 0, 0, 0, 'Degiro');
+      // v279 (BUG-014): Degiro NAV=0 (clôturé), Net Déployé = dépôts − retraits ≈ −50,664 €
+      // Invariant : NAV − Net Déployé = 0 − (−50,664) = +50,664 ≈ Realized P&L ✓
+      setKPI(0, 0, av.degiroRealizedPL || 0, av.degiroDepositsNet || 0, 0, 'Degiro');
       break;
     case 'maroc':
       setKPI(av.sgtmTotal || 0, av.sgtmUnrealizedPL || 0, 0, av.sgtmDepositsEUR || 0, 0, 'Maroc');

@@ -372,19 +372,40 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   depositHistory.sort((a, b) => a.date.localeCompare(b.date));
 
-  const ibkrDepositsTotal = depositHistory.filter(d => d.platform === 'IBKR').reduce((s, d) => s + d.amountEUR, 0);
-  // Degiro: séparer dépôts bruts (capital investi) des retraits (bénéfices réalisés)
-  // Pour les KPIs "Total Déposé" et le ROI %, on veut le capital brut injecté (25573.02),
-  // PAS le net (-50664.55) qui inclut les retraits de bénéfices
-  const degiroDepositsGross = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR > 0).reduce((s, d) => s + d.amountEUR, 0);
-  const degiroWithdrawals = depositHistory.filter(d => d.platform === 'Degiro' && d.amountEUR < 0).reduce((s, d) => s + d.amountEUR, 0);
-  // v271: Net deposits for "Total Déposé" KPI — withdrawals reduce deployed capital
-  // Degiro: all capital was withdrawn (+profit), so net ≈ -50K → capped at 0
-  const degiroDepositsNet = Math.max(0, degiroDepositsGross + degiroWithdrawals);
-  const degiroDepositsTotal = degiroDepositsNet; // v271: net deposits (was gross before)
-  // v246: esppDeposits from depositHistory (same source as chart), not from USD cost basis / currentFX
-  const esppDeposits = depositHistory.filter(d => d.platform === 'ESPP (UBS)').reduce((s, d) => s + d.amountEUR, 0);
-  const sgtmDepositsEUR = depositHistory.filter(d => d.platform === 'Attijari (SGTM)').reduce((s, d) => s + d.amountEUR, 0);
+  // ═══════════════════════════════════════════════════════════════════
+  // v279 (BUG-014 fix): Net Capital Deployed — source unique de vérité
+  // ═══════════════════════════════════════════════════════════════════
+  // "Net Déployé" par plateforme = Σ(dépôts) − Σ(retraits), sans floor.
+  // Pour un compte clôturé à profit (ex: Degiro), cette valeur est NÉGATIVE
+  // (l'utilisateur a extrait plus de cash qu'il n'en a versé — le delta est
+  // le P&L réalisé déjà sorti du compte). Un cap Math.max(0,…) rompt
+  // l'invariant comptable NAV − Net Déployé = P&L Réalisé + P&L Non Réalisé,
+  // car le gain réalisé reste dans combinedRealizedPL mais disparaît du total
+  // déposé. Voir BUG_TRACKER.md §BUG-014.
+  //
+  // Avant v279 : chaque plateforme avait son propre filter+reduce inline, et
+  // Degiro avait en plus un cap défensif Math.max(0,…) introduit en v271 pour
+  // patcher BUG-002 — mais ce patch a créé BUG-014. Centraliser via ce helper
+  // élimine la duplication et empêche une asymétrie future.
+  const netDeposits = (platform) =>
+    depositHistory
+      .filter(d => d.platform === platform)
+      .reduce((s, d) => s + d.amountEUR, 0);
+
+  const ibkrDepositsTotal = netDeposits('IBKR');
+  const esppDeposits      = netDeposits('ESPP (UBS)');
+  const sgtmDepositsEUR   = netDeposits('Attijari (SGTM)');
+  const degiroDepositsNet = netDeposits('Degiro'); // négatif attendu (compte clôturé à profit)
+  const degiroDepositsTotal = degiroDepositsNet;   // alias rétro-compatible pour la suite du fichier
+
+  // Pour diagnostics / tooltip détaillé
+  const degiroDepositsGross = depositHistory
+    .filter(d => d.platform === 'Degiro' && d.amountEUR > 0)
+    .reduce((s, d) => s + d.amountEUR, 0);
+  const degiroWithdrawals = depositHistory
+    .filter(d => d.platform === 'Degiro' && d.amountEUR < 0)
+    .reduce((s, d) => s + d.amountEUR, 0);
+
   const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
   // Cross-platform combined unrealized P/L (includes SGTM)
@@ -658,6 +679,42 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
                       + costsAllTime.commissionsEUR   // negative = cost
                       + costsAllTime.fttEUR            // negative = cost
                       + costsAllTime.interestEUR;      // negative = cost
+
+  // v279 (BUG-014): Invariant comptable
+  //   NAV − Net Déployé ≈ Realized P&L + Unrealized P&L
+  // Tolérance ±€10K pour absorber résiduels attendus :
+  //   - FX drift multi-année (dépôts convertis au taux historique vs. NAV
+  //     live au taux du jour, accumulé sur 6+ ans IBKR et Degiro)
+  //   - Résidus dividendes/commissions pré-refactor
+  //   - Arrondis historiques sur lots ESPP fallback (Nezha sans contribEUR)
+  // Si ça diverge au-delà, un Math.max(0,…), un oubli de plateforme ou une
+  // asymétrie de comptabilisation vient d'être introduit — même philosophie
+  // que le `plDelta` check ligne ~772. Seuil à resserrer quand la couverture
+  // FX historique aura été nettoyée.
+  {
+    const lhs = totalCurrentValue - totalDeposits;
+    const rhs = combinedRealizedPL + combinedUnrealizedPL;
+    const balanceDelta = lhs - rhs;
+    const BALANCE_TOLERANCE = 10000;
+    if (Math.abs(balanceDelta) > BALANCE_TOLERANCE) {
+      console.warn(
+        '[engine] ⚠ Accounting imbalance Δ =', balanceDelta.toFixed(2),
+        '| NAV−Déposé:', lhs.toFixed(2),
+        '| Realized+Unrealized:', rhs.toFixed(2),
+        '| totalDeposits:', totalDeposits.toFixed(2),
+        '(IBKR:', ibkrDepositsTotal.toFixed(0),
+        '| ESPP:', esppDeposits.toFixed(0),
+        '| SGTM:', sgtmDepositsEUR.toFixed(0),
+        '| Degiro:', degiroDepositsNet.toFixed(0), ')'
+      );
+    } else {
+      console.log(
+        '[engine] Accounting balanced ✓ Δ =', balanceDelta.toFixed(2),
+        '(NAV−Déposé:', lhs.toFixed(0),
+        '≈ Realized+Unrealized:', rhs.toFixed(0), ')'
+      );
+    }
+  }
 
   // ── Degiro 1Y (only period with Degiro activity) ──
   const degiro1Y = degiroPeriodPL(oneYearStr);
@@ -1138,6 +1195,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     ibkrDepositsTotal: ibkrDepositsTotal,
     esppDeposits: esppDeposits,
     sgtmDepositsEUR: sgtmDepositsEUR,
+    // v279 (BUG-014): Degiro net déployé (peut être négatif si compte clôturé à profit)
+    degiroDepositsNet: degiroDepositsNet,
+    degiroDepositsGross: degiroDepositsGross,
+    degiroWithdrawals: degiroWithdrawals,
     sgtmUnrealizedPL: sgtmUnrealizedPL,
     closedPositions: ibkrOnlyClosed,
     allClosedPositions: allClosed,

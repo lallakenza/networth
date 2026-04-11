@@ -455,6 +455,8 @@ Page load
 | v275 | Avril 2026 | **Fix 1Y button** : `chartResultYTD2` → `chartResultYTD` (ReferenceError empêchant tous les handlers). Fix 5Y/MAX stale data. Fix owner tooltip |
 | v276 | 8 Avril 2026 | **Refactoring owner ESPP per-owner** : remplacement du ratio proportionnel ESPP par un calcul lot-par-lot. `esppSharesAtDateAmine/Nezha()`, séries NAV/P&L/dépôts per-owner dans `buildPortfolioYTDChart` + `buildEquityHistoryChart`. `renderPortfolioChart` utilise les arrays per-owner directement. Tooltips et click detail panel mis à jour. **Fix critique** : `renderPortfolioChart` exporté de charts.js (était privé → `ReferenceError` silencieux cassant tout l'init). Voir `BUG_TRACKER.md` BUG-005, BUG-013 |
 | v277 | 8 Avril 2026 | **Animation login data-dependent** : l'animation grille du login est maintenant liée au chargement réel des données. Phase 1 : remplissage lent (~80% valeur statique) pendant le chargement. Phase 2 : remplissage rapide vers la vraie valeur marché après chargement complet (live + historique). La valeur affichée est le `getGrandTotal()` réel, plus la valeur statique codée en dur. Signal via `window._gridAnimationComplete(realTotal)` appelé dans `app.js` après `renderPortfolioChart()`. |
+| v278 | 11 Avril 2026 | **Mountain silhouette + liquid fill animation** : remplace la grille 40×25 du login par un SVG mountain (clipPath + linear gradient water). Ratio en hauteur (`waterY = BASE_Y − ratio × HEIGHT_RANGE`), surface ondulée sinusoïdale. Animation 2 phases (slow Phase 1 pendant load, fast Phase 2 sur data ready). Ajout d'un display `#gridEta` à la fin : "🎯 1M€ en mars 2029 · 2 ans 11 mois" calculé via `computeMonthsTo1M(nw, 8k€/mois, 8% r)`. **BUG-014 identifié** : asymétrie Degiro Total Déposé vs P&L Réalisé documentée dans `BUG_TRACKER.md`. |
+| v279 | 11 Avril 2026 | **BUG-014 fix — Net Capital Deployed** (Option 3) : (1) Helper centralisé `netDeposits(platform)` dans `engine.js` remplace les 4 calculs ad-hoc, sans `Math.max(0,…)` défensif. (2) Invariant comptable `NAV − Net Déployé ≈ Realized + Unrealized` vérifié runtime après ajustement de `combinedRealizedPL` avec log console (`[engine] Accounting balanced ✓`) ou warn si Δ > €5K. (3) KPI renommé "Total Déposé" → **"Capital Net Déployé"** avec tooltip explicatif + sub-line breakdown par plateforme (ex: "IBKR 137K · ESPP 65K · SGTM 36K · Degiro −51K"). (4) Scope Degiro affiche maintenant Net = −€50,664 (pas 0), rendant l'invariant vérifiable visuellement. (5) `degiroDepositsNet/Gross/Withdrawals` exposés dans l'objet `compute()`. (6) Fix adjacent : `render.js:2131` utilisait `av.totalDeposits` sous un label "Dépôts IBKR" → remplacé par `av.ibkrDepositsTotal`. Impact : `totalDeposits` 238K → 187K, Actions − Déposé repasse positif (+42K ≈ Realized+Unrealized). Voir `BUG_TRACKER.md` BUG-014. |
 
 ---
 
@@ -641,11 +643,49 @@ Les dépôts sont agrégés depuis 4 sources :
 | **ESPP** | `PORTFOLIO.amine.espp.lots[]` (cost basis) | EUR | ✅ Calculé depuis lots |
 | **SGTM** | IPO cost (inline dans engine.js) | MAD | ✅ Coût IPO |
 
-### Calcul dans engine.js
+### Calcul dans engine.js (v279+)
+
+Depuis v279, un helper unique calcule le **Net Capital Deployed** par plateforme :
 
 ```javascript
-const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
+// v279 (BUG-014 fix): source unique de vérité, sans floor défensif
+const netDeposits = (platform) =>
+  depositHistory
+    .filter(d => d.platform === platform)
+    .reduce((s, d) => s + d.amountEUR, 0);
+
+const ibkrDepositsTotal = netDeposits('IBKR');
+const esppDeposits      = netDeposits('ESPP (UBS)');
+const sgtmDepositsEUR   = netDeposits('Attijari (SGTM)');
+const degiroDepositsNet = netDeposits('Degiro'); // NÉGATIF attendu pour Degiro clôturé à profit
+
+const totalDeposits = ibkrDepositsTotal + esppDeposits + sgtmDepositsEUR + degiroDepositsNet;
 ```
+
+**Pourquoi un net négatif est valide** : pour un compte clôturé à profit (Degiro), l'utilisateur a retiré plus de cash (€76,237) qu'il n'en a versé (€25,573). Le delta (−€50,664) représente le P&L réalisé *déjà sorti* du compte. Si on cappe à 0 (comme en v271 avec `Math.max(0, …)`), on rompt l'équation `NAV − Déposé = P&L Réalisé + P&L Non Réalisé` car le gain reste comptabilisé dans `combinedRealizedPL` mais disparaît du total déposé. Voir BUG-014 pour l'analyse complète.
+
+### Invariant comptable (v279+)
+
+Après l'ajustement final de `combinedRealizedPL` (dividendes, commissions, FTT, intérêts), `engine.js` vérifie runtime que :
+
+```
+NAV − Net Déployé ≈ Realized P&L + Unrealized P&L   (±€5K)
+```
+
+L'écart autorisé (€5K) absorbe les résiduels FX/arrondis historiques (dépôts convertis au taux du jour du dépôt vs. positions valorisées au taux du jour). Toute divergence plus grande déclenche un `console.warn` avec le breakdown par plateforme, aidant à diagnostiquer immédiatement l'asymétrie.
+
+```javascript
+const lhs = totalCurrentValue - totalDeposits;
+const rhs = combinedRealizedPL + combinedUnrealizedPL;
+const balanceDelta = lhs - rhs;
+if (Math.abs(balanceDelta) > 5000) {
+  console.warn('[engine] ⚠ Accounting imbalance Δ =', balanceDelta.toFixed(2), ...);
+} else {
+  console.log('[engine] Accounting balanced ✓ Δ =', balanceDelta.toFixed(2), ...);
+}
+```
+
+**Règle de code** : jamais de `Math.max(0, x)` ou `Math.abs(x)` sur un total comptable. Les valeurs négatives encodent de l'information (retraits, pertes) qu'il ne faut pas écraser. Ajouter une assertion d'invariant dès qu'on introduit un nouveau total agrégé.
 
 ### Données Degiro — Audit v233
 
