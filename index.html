@@ -1326,6 +1326,36 @@
       return Math.round(n) + '';
     }
 
+    // ── Piecewise linear mapping: EUR amount → arc-length ratio on the trail ──
+    // Anchors are measured on the SVG path so that at EXACTLY €500K/€750K/€1M
+    // the hiker lands on the corresponding jalon peak. This is the v280
+    // invariant that prevents visual drift between progress and milestone rings.
+    //   0K  → arc 0.000 (trailhead)
+    //   500K → arc 0.414 (peak 1 jalon)
+    //   750K → arc 0.590 (peak 2 jalon)
+    //   1M  → arc 1.000 (summit)
+    const AMOUNT_ARC_ANCHORS = [
+      [0,       0.000],
+      [500000,  0.414],
+      [750000,  0.590],
+      [1000000, 1.000],
+    ];
+    function amountToArcRatio(eurVal) {
+      if (eurVal <= 0) return 0;
+      if (eurVal >= TARGET_EUR) return 1;
+      for (let i = 1; i < AMOUNT_ARC_ANCHORS.length; i++) {
+        const a0 = AMOUNT_ARC_ANCHORS[i - 1][0];
+        const r0 = AMOUNT_ARC_ANCHORS[i - 1][1];
+        const a1 = AMOUNT_ARC_ANCHORS[i][0];
+        const r1 = AMOUNT_ARC_ANCHORS[i][1];
+        if (eurVal <= a1) {
+          const t = (eurVal - a0) / (a1 - a0);
+          return r0 + t * (r1 - r0);
+        }
+      }
+      return 1;
+    }
+
     // ── Place hiker at arc-length position on the trail ──
     // Takes EUR amount, maps via piecewise function to arc ratio, then to SVG point.
     function placeHiker(eurVal) {
@@ -2532,7 +2562,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=280"></script>
+<script type="module" src="js/app.js?v=281"></script>
 
 </body>
 </html>
