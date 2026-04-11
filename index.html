@@ -1180,15 +1180,16 @@
           <stop offset="45%" stop-color="rgba(253,230,138,0.35)"/>
           <stop offset="100%" stop-color="rgba(253,230,138,0)"/>
         </radialGradient>
-        <!-- ClipPath matching the mountain silhouette — used for stone & vegetation fill -->
+        <!-- ClipPath matching the mountain silhouette — closed along y=440 (ground)
+             so the stone & vegetation fills only show INSIDE the mountain shape,
+             not as a horizontal band below it. -->
         <clipPath id="mtnClip">
-          <path d="M 0 440
-                   L 20 440 L 55 430 L 80 400 L 105 360 L 125 310
+          <path d="M 20 440 L 55 430 L 80 400 L 105 360 L 125 310
                    L 150 335 L 175 320 L 200 275 L 225 215
                    L 245 160 L 258 110 L 270 75
                    L 295 135 L 320 195 L 340 250 L 355 300 L 370 325
                    L 388 292 L 405 330 L 430 380 L 460 420 L 480 440
-                   L 480 480 L 0 480 Z"/>
+                   L 20 440 Z"/>
         </clipPath>
       </defs>
 
