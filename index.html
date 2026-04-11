@@ -1089,133 +1089,224 @@
   .kpi.primary .label { font-weight: 600; font-size: 12px; }
   /* Cost breakdown expandable */
   .costs-hidden { display: none; }
+
+  /* ── v282: Mountain couple (Amine + Nezha) walking animation ── */
+  .hiker-figure { animation: hikerBob 0.9s ease-in-out infinite; transform-origin: center bottom; transform-box: fill-box; }
+  .hiker-figure.nezha { animation-delay: -0.45s; }
+  @keyframes hikerBob {
+    0%, 100% { transform: translateY(0) rotate(-1deg); }
+    50%      { transform: translateY(-1.8px) rotate(1deg); }
+  }
+  .hiker-figure .leg-front,
+  .hiker-figure .leg-back,
+  .hiker-figure .arm-front,
+  .hiker-figure .arm-back { transform-origin: top center; transform-box: fill-box; }
+  .hiker-figure .leg-front { animation: legSwingFront 0.9s ease-in-out infinite; }
+  .hiker-figure .leg-back  { animation: legSwingBack  0.9s ease-in-out infinite; }
+  .hiker-figure .arm-front { animation: armSwingFront 0.9s ease-in-out infinite; }
+  .hiker-figure .arm-back  { animation: armSwingBack  0.9s ease-in-out infinite; }
+  .hiker-figure.nezha .leg-front,
+  .hiker-figure.nezha .leg-back,
+  .hiker-figure.nezha .arm-front,
+  .hiker-figure.nezha .arm-back { animation-delay: -0.45s; }
+  @keyframes legSwingFront { 0%,100% { transform: rotate(22deg); } 50% { transform: rotate(-18deg); } }
+  @keyframes legSwingBack  { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(22deg); } }
+  @keyframes armSwingFront { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
+  @keyframes armSwingBack  { 0%,100% { transform: rotate(18deg); } 50% { transform: rotate(-18deg); } }
+
+  .name-label { font: 600 5px 'DM Sans', sans-serif; fill: #fff; text-anchor: middle;
+                paint-order: stroke; stroke: rgba(10,18,32,0.85); stroke-width: 1.2;
+                letter-spacing: 0.3px; pointer-events: none; }
+
+  @keyframes heartBeat { 0%,100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+  .heart { animation: heartBeat 1.3s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+
+  /* Milestone pulses */
+  .ms-reached { animation: msPulseGreen 2.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes msPulseGreen {
+    0%, 100% { filter: drop-shadow(0 0 3px #6ee7a0); }
+    50%      { filter: drop-shadow(0 0 12px #6ee7a0); }
+  }
+  .ms-summit-lit { animation: msPulseGold 3s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes msPulseGold {
+    0%, 100% { filter: drop-shadow(0 0 4px #fde68a); }
+    50%      { filter: drop-shadow(0 0 20px #fde68a); }
+  }
+
+  /* Summit flag */
+  #summitFlag { opacity: 0; transition: opacity .6s, transform .6s; transform: translateY(6px); }
+  #summitFlag.visible { opacity: 1; transform: translateY(0); }
+  .flag-wave { animation: flagWave 1.6s ease-in-out infinite; transform-origin: left center; transform-box: fill-box; }
+  @keyframes flagWave {
+    0%, 100% { transform: scaleX(1); }
+    50%      { transform: scaleX(0.85); }
+  }
 </style>
 </head>
 <body>
 
 <div id="authGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f1f33;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;overflow:hidden;">
 
-  <!-- v280: 3-peak mountain chain + switchback trail + hiker marker.
-       Replace liquid-fill metaphor with a real climb narrative (Option C + C3).
-       Progress is mapped to arc-length along the trail (not height),
-       so the hiker's position is honest relative to effort remaining. -->
-  <div id="mountainContainer" style="position:relative;width:min(480px, 94vw);aspect-ratio:1.15;margin-bottom:20px;" role="img" aria-labelledby="mountainTitle">
-    <svg id="mountainSvg" viewBox="0 0 480 420" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
+  <!-- v282: Ridge-walking couple (Amine + Nezha) on 3-peak mountain chain.
+       The climbTrail path IS the actual mountain ridge — no more trail through
+       sky. Vegetation (clipped to the mountain silhouette) rises with the couple's
+       altitude via a monotonic "highest-y-reached" tracker so it never recedes
+       in a col. 1M peak is central; 500K/750K sit on left ridge; decorative
+       right peak for visual balance. Summit halo + flag illuminate at 1M. -->
+  <div id="mountainContainer" style="position:relative;width:min(480px, 94vw);aspect-ratio:1;margin-bottom:20px;" role="img" aria-labelledby="mountainTitle">
+    <svg id="mountainSvg" viewBox="0 0 480 480" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
       <title id="mountainTitle">Progression vers l'objectif 1 million d'euros</title>
       <defs>
-        <linearGradient id="mountainBodyGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1f4a38" stop-opacity="0.95"/>
-          <stop offset="55%" stop-color="#163a2c" stop-opacity="0.92"/>
-          <stop offset="100%" stop-color="#0d2a1e" stop-opacity="0.90"/>
+        <!-- Stone (gray) base gradient — what the mountain looks like at 0% -->
+        <linearGradient id="stoneGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#7d8694"/>
+          <stop offset="55%" stop-color="#4a5260"/>
+          <stop offset="100%" stop-color="#2a313c"/>
+        </linearGradient>
+        <!-- Vegetation (green) gradient — rises as the couple climbs -->
+        <linearGradient id="vegGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#8bbd5e"/>
+          <stop offset="35%" stop-color="#4f9341"/>
+          <stop offset="75%" stop-color="#2d6a32"/>
+          <stop offset="100%" stop-color="#1a4a27"/>
         </linearGradient>
         <linearGradient id="ridgeGradient" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
           <stop offset="100%" stop-color="rgba(255,255,255,0.18)"/>
         </linearGradient>
+        <!-- Summit halo (radial) — grows to r=60 when 1M reached -->
+        <radialGradient id="summitHaloGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"  stop-color="rgba(253,230,138,0.85)"/>
+          <stop offset="45%" stop-color="rgba(253,230,138,0.35)"/>
+          <stop offset="100%" stop-color="rgba(253,230,138,0)"/>
+        </radialGradient>
+        <!-- ClipPath matching the mountain silhouette — used for stone & vegetation fill -->
+        <clipPath id="mtnClip">
+          <path d="M 0 440
+                   L 20 440 L 55 430 L 80 400 L 105 360 L 125 310
+                   L 150 335 L 175 320 L 200 275 L 225 215
+                   L 245 160 L 258 110 L 270 75
+                   L 295 135 L 320 195 L 340 250 L 355 300 L 370 325
+                   L 388 292 L 405 330 L 430 380 L 460 420 L 480 440
+                   L 480 480 L 0 480 Z"/>
+        </clipPath>
       </defs>
 
-      <!-- ── Mountain body: 3-peak chain ──
-           Peak 1 (small, left):  jalon €500K at (130, 250)
-           Peak 2 (medium, mid):  jalon €750K at (215, 180)
-           Peak 3 (main, right):  jalon €1M   at (330,  60)   ← goal
-      -->
+      <!-- ── Summit halo (behind everything) — r=0 until 1M is reached ── -->
+      <circle id="summitHalo" cx="270" cy="75" r="0" fill="url(#summitHaloGrad)"
+              style="transition: r 1.2s ease-out;"/>
+
+      <!-- ── Mountain stone base (gray/rock) clipped to silhouette ── -->
+      <g clip-path="url(#mtnClip)">
+        <rect x="0" y="0" width="480" height="480" fill="url(#stoneGrad)"/>
+        <!-- Vegetation fill rect — y animated from 440 (ground) up to the leader's altitude -->
+        <rect id="vegFill" x="0" y="440" width="480" height="40" fill="url(#vegGrad)"
+              style="transition: y 0.35s ease-out, height 0.35s ease-out;"/>
+      </g>
+
+      <!-- ── Mountain silhouette outline (white ridge highlight) ── -->
       <path id="mountainBody"
-            fill="url(#mountainBodyGradient)"
+            fill="none"
             stroke="url(#ridgeGradient)"
             stroke-width="1.8"
             stroke-linejoin="round"
             stroke-linecap="round"
-            d="M 0 410
-               L 35 380
-               L 70 340
-               L 100 300
-               L 130 250
-               L 160 285
-               L 185 240
-               L 215 180
-               L 245 220
-               L 265 200
-               L 285 150
-               L 305 100
-               L 320 75
-               L 330 60
-               L 350 95
-               L 375 150
-               L 405 220
-               L 435 300
-               L 465 360
-               L 480 410 Z"/>
+            d="M 0 440
+               L 20 440 L 55 430 L 80 400 L 105 360 L 125 310
+               L 150 335 L 175 320 L 200 275 L 225 215
+               L 245 160 L 258 110 L 270 75
+               L 295 135 L 320 195 L 340 250 L 355 300 L 370 325
+               L 388 292 L 405 330 L 430 380 L 460 420 L 480 440"/>
 
-      <!-- ── Switchback trail (dashed) from base to main summit ──
-           Drawn as a separate path so we can query getTotalLength()
-           and place the hiker at arc-length = progress × totalLength. -->
+      <!-- ── Climb trail: the ACTUAL mountain ridge from base to 1M summit ──
+           This is the path the couple walks along via getPointAtLength. -->
       <path id="climbTrail"
             fill="none"
-            stroke="rgba(255,255,255,0.55)"
-            stroke-width="1.6"
+            stroke="none"
+            d="M 20 440 L 55 430 L 80 400 L 105 360 L 125 310
+               L 150 335 L 175 320 L 200 275 L 225 215
+               L 245 160 L 258 110 L 270 75"/>
+
+      <!-- ── Illuminated trail layer: progressively revealed behind the couple via stroke-dashoffset ── -->
+      <path id="trailLit"
+            fill="none"
+            stroke="rgba(253,230,138,0.85)"
+            stroke-width="1.8"
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-dasharray="3 4"
-            d="M 40 405
-               L 75 390
-               L 50 375
-               L 95 360
-               L 70 345
-               L 115 325
-               L 90 305
-               L 130 285
-               L 105 270
-               L 132 252
-               L 115 245
-               L 150 235
-               L 170 220
-               L 195 200
-               L 210 188
-               L 215 180
-               L 195 172
-               L 220 162
-               L 205 152
-               L 235 140
-               L 220 128
-               L 250 118
-               L 235 108
-               L 265 98
-               L 250 88
-               L 278 78
-               L 265 70
-               L 295 66
-               L 315 62
-               L 330 60"/>
+            style="filter: drop-shadow(0 0 4px rgba(253,230,138,0.6));"
+            d="M 20 440 L 55 430 L 80 400 L 105 360 L 125 310
+               L 150 335 L 175 320 L 200 275 L 225 215
+               L 245 160 L 258 110 L 270 75"/>
 
-      <!-- ── Milestones (peaks with jalon rings) ──
-           Empty ring = not yet reached. Filled ring + check = reached. -->
-      <g id="milestoneGroup">
-        <!-- 500K on peak 1 -->
-        <circle id="milestone500" cx="130" cy="250" r="7"
+      <!-- ── Milestones on the ridge ── -->
+      <g id="ms500">
+        <circle cx="125" cy="310" r="6.5"
                 fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
-        <text x="130" y="275" text-anchor="middle"
+        <text x="125" y="332" text-anchor="middle"
               font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
-              fill="rgba(255,255,255,0.68)">500K</text>
-
-        <!-- 750K on peak 2 -->
-        <circle id="milestone750" cx="215" cy="180" r="7"
+              fill="rgba(255,255,255,0.78)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">500K</text>
+      </g>
+      <g id="ms750">
+        <circle cx="225" cy="215" r="6.5"
                 fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
-        <text x="215" y="205" text-anchor="middle"
+        <text x="225" y="237" text-anchor="middle"
               font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
-              fill="rgba(255,255,255,0.68)">750K</text>
-
-        <!-- 1M on main peak -->
-        <circle id="milestone1M" cx="330" cy="60" r="8.5"
+              fill="rgba(255,255,255,0.78)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">750K</text>
+      </g>
+      <g id="ms1M">
+        <circle cx="270" cy="75" r="8"
                 fill="rgba(15,31,51,0.9)" stroke="rgba(255,225,140,0.9)" stroke-width="2"/>
-        <text x="330" y="44" text-anchor="middle"
+        <text x="270" y="58" text-anchor="middle"
               font-family="'DM Sans',sans-serif" font-size="10.5" font-weight="700"
-              fill="rgba(255,225,140,0.95)">🎯 1M€</text>
+              fill="rgba(255,225,140,0.95)" style="paint-order:stroke; stroke:rgba(0,0,0,0.6); stroke-width:2;">🎯 1M€</text>
       </g>
 
-      <!-- ── Hiker marker — position set at runtime via getPointAtLength ── -->
-      <g id="hikerMarker" transform="translate(40, 405)" style="opacity:0; transition:opacity 0.8s;">
-        <circle r="7.5" fill="#6ee7a0" stroke="rgba(15,31,51,0.95)" stroke-width="2.2"/>
-        <circle r="3.3" fill="rgba(15,31,51,0.95)"/>
+      <!-- ── Summit flag (visible when 1M reached) ── -->
+      <g id="summitFlag" transform="translate(270,75)">
+        <line x1="0" y1="-2" x2="0" y2="-18" stroke="#fde68a" stroke-width="1.2" stroke-linecap="round"/>
+        <path class="flag-wave" d="M 0 -18 L 10 -15.5 L 0 -13 Z" fill="#fde68a"/>
+      </g>
+
+      <!-- ── Couple (Amine leading, Nezha trailing) — placed via getPointAtLength on climbTrail ── -->
+      <g id="coupleMarker" style="opacity:0; transition:opacity 0.8s;">
+        <!-- Nezha (trailing) -->
+        <g id="nezhaMarker" transform="translate(20,440)">
+          <ellipse cx="0" cy="6" rx="6" ry="1.3" fill="rgba(0,0,0,0.35)"/>
+          <circle cx="0" cy="0" r="9" fill="#f472b6" opacity="0.16"/>
+          <circle cx="0" cy="0" r="5" fill="#f472b6" opacity="0.32"/>
+          <g class="hiker-figure nezha">
+            <rect class="leg-back"  x="-1"   y="-1.3" width="1.6" height="4.2" fill="#7a1f46" rx="0.3"/>
+            <rect class="leg-front" x="-0.6" y="-1.3" width="1.6" height="4.2" fill="#5a1535" rx="0.3"/>
+            <rect x="-2.2" y="-7" width="4.4" height="6" rx="1.2" fill="#f472b6"/>
+            <rect x="-3.2" y="-7" width="3.2" height="5.2" rx="0.8" fill="#ec4899"/>
+            <circle cx="0" cy="-8.2" r="1.9" fill="#f5c9a1"/>
+            <path d="M -2,-8 Q -2.4,-6.2 -1.6,-5.2 L 1.6,-5.2 Q 2.4,-6.2 2,-8 Q 1.5,-9.6 0,-9.8 Q -1.5,-9.6 -2,-8 Z" fill="#3a1f14"/>
+            <rect x="-1.6" y="-9.6" width="3.2" height="1.1" rx="0.3" fill="#fff1a8"/>
+            <line class="arm-back"  x1="0" y1="-6" x2="-2.4" y2="-2.6" stroke="#f472b6" stroke-width="1.1" stroke-linecap="round"/>
+            <line class="arm-front" x1="0" y1="-6" x2="2.4"  y2="-2.6" stroke="#f472b6" stroke-width="1.1" stroke-linecap="round"/>
+          </g>
+          <text class="name-label" y="-12.5">Nezha</text>
+        </g>
+        <!-- Amine (leading) -->
+        <g id="amineMarker" transform="translate(20,440)">
+          <ellipse cx="0" cy="6" rx="6.5" ry="1.4" fill="rgba(0,0,0,0.40)"/>
+          <circle cx="0" cy="0" r="10" fill="#6ee7a0" opacity="0.18"/>
+          <circle cx="0" cy="0" r="5.5" fill="#6ee7a0" opacity="0.35"/>
+          <g class="hiker-figure amine">
+            <rect class="leg-back"  x="-1"   y="-1.5" width="1.6" height="4.2" fill="#142449" rx="0.3"/>
+            <rect class="leg-front" x="-0.6" y="-1.5" width="1.6" height="4.2" fill="#0c1a30" rx="0.3"/>
+            <rect x="-2.2" y="-7" width="4.4" height="6" rx="1" fill="#e8f2ff"/>
+            <rect x="-3.2" y="-7" width="3.2" height="5.2" rx="0.8" fill="#6ee7a0"/>
+            <circle cx="0" cy="-8.2" r="1.9" fill="#d8a878"/>
+            <path d="M -2,-8.5 Q -2,-10 0,-10.1 Q 2,-10 2,-8.5 L 1.6,-8.3 L -1.6,-8.3 Z" fill="#1a1410"/>
+            <rect x="-0.4" y="-9.6" width="2.8" height="1.2" rx="0.2" fill="#6ee7a0"/>
+            <line class="arm-back"  x1="0" y1="-6" x2="-2.6" y2="-2.8" stroke="#e8f2ff" stroke-width="1.1" stroke-linecap="round"/>
+            <line class="arm-front" x1="0" y1="-6" x2="2.6"  y2="-2.8" stroke="#e8f2ff" stroke-width="1.1" stroke-linecap="round"/>
+          </g>
+          <text class="name-label" y="-12.5">Amine</text>
+          <path class="heart" d="M 0 -14.2 l -0.9 -0.9 a 0.9 0.9 0 0 1 1.28 -1.28 L 0 -15.6 l 0.62 -0.58 a 0.9 0.9 0 0 1 1.28 1.28 Z" fill="#ff5d8f" opacity="0.95"/>
+        </g>
       </g>
     </svg>
 
@@ -1274,32 +1365,44 @@
     const PHASE1_DURATION_MS = 18000;  // slow — le temps que tout charge
     const PHASE2_DURATION_MS = 1800;   // fast — on data ready
 
-    // Milestones (must match the SVG peak coordinates)
-    const MILESTONES = [
-      { amount: 500000, el: 'milestone500' },
-      { amount: 750000, el: 'milestone750' },
-      { amount: 1000000, el: 'milestone1M'  },
-    ];
+    // ── v282: Mountain geometry constants (must match SVG) ──
+    const GROUND_Y = 440;           // base Y of the mountain
+    const SUMMIT_Y = 75;            // Y of the 1M peak
+    // Arc offset in SVG units — how far Nezha trails behind Amine along the ridge
+    const NEZHA_TRAIL_OFFSET = 11;
 
     // ── DOM refs ──
-    const trailEl = document.getElementById('climbTrail');
-    const hikerEl = document.getElementById('hikerMarker');
-    const counter = document.getElementById('gridCounter');
-    const label = document.getElementById('gridLabel');
+    const trailEl     = document.getElementById('climbTrail');
+    const trailLit    = document.getElementById('trailLit');
+    const coupleEl    = document.getElementById('coupleMarker');
+    const amineEl     = document.getElementById('amineMarker');
+    const nezhaEl     = document.getElementById('nezhaMarker');
+    const vegFill     = document.getElementById('vegFill');
+    const summitHalo  = document.getElementById('summitHalo');
+    const summitFlag  = document.getElementById('summitFlag');
+    const ms500El     = document.getElementById('ms500');
+    const ms750El     = document.getElementById('ms750');
+    const ms1MEl      = document.getElementById('ms1M');
+    const counter     = document.getElementById('gridCounter');
+    const label       = document.getElementById('gridLabel');
     const remainingEl = document.getElementById('gridRemaining');
     const velocityBlock = document.getElementById('velocityBlock');
-    const etaDateEl = document.getElementById('gridEtaDate');
+    const etaDateEl   = document.getElementById('gridEtaDate');
     const rhythmReqEl = document.getElementById('gridRhythmRequired');
     const rhythmActEl = document.getElementById('gridRhythmActual');
 
     // Pre-compute trail total length (invariant anchor for arc-length mapping)
     const TRAIL_LENGTH = trailEl.getTotalLength();
 
+    // Initialize the illuminated trail as fully hidden (will be revealed as couple progresses)
+    trailLit.style.strokeDasharray = TRAIL_LENGTH + ' ' + TRAIL_LENGTH;
+    trailLit.style.strokeDashoffset = TRAIL_LENGTH;
+
     setTimeout(function() {
       counter.style.opacity = '1';
       label.style.opacity = '1';
       remainingEl.style.opacity = '1';
-      hikerEl.style.opacity = '1';
+      coupleEl.style.opacity = '1';
     }, 300);
 
     // ── State ──
@@ -1326,20 +1429,31 @@
       return Math.round(n) + '';
     }
 
-    // ── Piecewise linear mapping: EUR amount → arc-length ratio on the trail ──
-    // Anchors are measured on the SVG path so that at EXACTLY €500K/€750K/€1M
-    // the hiker lands on the corresponding jalon peak. This is the v280
-    // invariant that prevents visual drift between progress and milestone rings.
-    //   0K  → arc 0.000 (trailhead)
-    //   500K → arc 0.414 (peak 1 jalon)
-    //   750K → arc 0.590 (peak 2 jalon)
-    //   1M  → arc 1.000 (summit)
+    // ── Runtime arc-ratio anchors ──
+    // We find the arc-length ratio on the climbTrail that corresponds exactly
+    // to each milestone's (x,y) peak by scanning the path. This keeps the
+    // couple lined up with the jalon circles no matter how the geometry evolves.
+    function findArcRatioForPoint(tx, ty) {
+      let best = Infinity, bestS = 0;
+      const STEP = 0.5;
+      for (let s = 0; s <= TRAIL_LENGTH; s += STEP) {
+        const pt = trailEl.getPointAtLength(s);
+        const d = (pt.x - tx) * (pt.x - tx) + (pt.y - ty) * (pt.y - ty);
+        if (d < best) { best = d; bestS = s; }
+      }
+      return bestS / TRAIL_LENGTH;
+    }
+    const ARC_500K = findArcRatioForPoint(125, 310);
+    const ARC_750K = findArcRatioForPoint(225, 215);
     const AMOUNT_ARC_ANCHORS = [
-      [0,       0.000],
-      [500000,  0.414],
-      [750000,  0.590],
-      [1000000, 1.000],
+      [0,        0.0],
+      [500000,   ARC_500K],
+      [750000,   ARC_750K],
+      [1000000,  1.0],
     ];
+    console.log('[mountain] v282 arc anchors:',
+      { ARC_500K: ARC_500K.toFixed(3), ARC_750K: ARC_750K.toFixed(3) });
+
     function amountToArcRatio(eurVal) {
       if (eurVal <= 0) return 0;
       if (eurVal >= TARGET_EUR) return 1;
@@ -1356,37 +1470,78 @@
       return 1;
     }
 
-    // ── Place hiker at arc-length position on the trail ──
-    // Takes EUR amount, maps via piecewise function to arc ratio, then to SVG point.
+    // ── Place the couple on the ridge (Amine leads, Nezha trails by NEZHA_TRAIL_OFFSET) ──
+    // Returns the leader's Y coordinate so the caller can align vegetation with altitude.
     function placeHiker(eurVal) {
       const arcRatio = amountToArcRatio(eurVal);
       const clamped = Math.max(0, Math.min(1, arcRatio));
-      const s = clamped * TRAIL_LENGTH;
-      const pt = trailEl.getPointAtLength(s);
-      hikerEl.setAttribute('transform', 'translate(' + pt.x.toFixed(2) + ',' + pt.y.toFixed(2) + ')');
+      const sAmine = clamped * TRAIL_LENGTH;
+      const sNezha = Math.max(0, sAmine - NEZHA_TRAIL_OFFSET);
+
+      const ptA = trailEl.getPointAtLength(sAmine);
+      const ptN = trailEl.getPointAtLength(sNezha);
+
+      amineEl.setAttribute('transform', 'translate(' + ptA.x.toFixed(2) + ',' + ptA.y.toFixed(2) + ')');
+      nezhaEl.setAttribute('transform', 'translate(' + ptN.x.toFixed(2) + ',' + ptN.y.toFixed(2) + ')');
+
+      trailLit.style.strokeDashoffset = (TRAIL_LENGTH - sAmine).toFixed(2);
+
+      return ptA.y;
     }
 
-    // ── Update milestone states (filled when reached) ──
+    // ── Vegetation level aligned with the leader's altitude (monotonic max) ──
+    // Track the highest point (lowest y) ever reached so the green fill never
+    // recedes in a col — the mountain "grows" with them, never against them.
+    let highestYReached = GROUND_Y;
+    function updateVegetationFromHikerY(leaderY) {
+      if (leaderY < highestYReached) highestYReached = leaderY;
+      const vegY = highestYReached;
+      vegFill.setAttribute('y', vegY.toFixed(2));
+      vegFill.setAttribute('height', (480 - vegY).toFixed(2));
+    }
+    function resetVegetation() {
+      highestYReached = GROUND_Y;
+      vegFill.setAttribute('y', GROUND_Y.toFixed(2));
+      vegFill.setAttribute('height', (480 - GROUND_Y).toFixed(2));
+    }
+
+    // ── Milestone illumination (pulses + summit halo/flag) ──
     function updateMilestones(eurVal) {
-      MILESTONES.forEach(function(m) {
-        const el = document.getElementById(m.el);
-        if (!el) return;
-        const reached = eurVal >= m.amount;
-        if (reached) {
-          // 1M goal gets the gold treatment; others get green check
-          if (m.amount === TARGET_EUR) {
-            el.setAttribute('fill', 'rgba(255,225,140,0.95)');
-          } else {
-            el.setAttribute('fill', '#6ee7a0');
-            el.setAttribute('stroke', 'rgba(255,255,255,0.9)');
-          }
-        } else {
-          el.setAttribute('fill', 'rgba(15,31,51,0.9)');
-          el.setAttribute('stroke', m.amount === TARGET_EUR
-            ? 'rgba(255,225,140,0.9)'
-            : 'rgba(255,255,255,0.55)');
-        }
-      });
+      // 500K
+      const c500 = ms500El.querySelector('circle');
+      if (eurVal >= 500000) {
+        c500.setAttribute('fill', '#6ee7a0');
+        c500.setAttribute('stroke', 'rgba(255,255,255,0.95)');
+        ms500El.classList.add('ms-reached');
+      } else {
+        c500.setAttribute('fill', 'rgba(15,31,51,0.9)');
+        c500.setAttribute('stroke', 'rgba(255,255,255,0.55)');
+        ms500El.classList.remove('ms-reached');
+      }
+      // 750K
+      const c750 = ms750El.querySelector('circle');
+      if (eurVal >= 750000) {
+        c750.setAttribute('fill', '#6ee7a0');
+        c750.setAttribute('stroke', 'rgba(255,255,255,0.95)');
+        ms750El.classList.add('ms-reached');
+      } else {
+        c750.setAttribute('fill', 'rgba(15,31,51,0.9)');
+        c750.setAttribute('stroke', 'rgba(255,255,255,0.55)');
+        ms750El.classList.remove('ms-reached');
+      }
+      // 1M — summit treatment
+      const c1M = ms1MEl.querySelector('circle');
+      if (eurVal >= TARGET_EUR) {
+        c1M.setAttribute('fill', '#fde68a');
+        ms1MEl.classList.add('ms-summit-lit');
+        summitFlag.classList.add('visible');
+        summitHalo.setAttribute('r', '60');
+      } else {
+        c1M.setAttribute('fill', 'rgba(15,31,51,0.9)');
+        ms1MEl.classList.remove('ms-summit-lit');
+        summitFlag.classList.remove('visible');
+        summitHalo.setAttribute('r', '0');
+      }
     }
 
     // ── Render loop ──
@@ -1416,7 +1571,8 @@
       }
 
       const eurVal = currentRatio * TARGET_EUR;
-      placeHiker(eurVal);
+      const leaderY = placeHiker(eurVal);
+      updateVegetationFromHikerY(leaderY); // veg level tracks couple altitude (monotonic max)
       counter.textContent = formatEur(eurVal);
       const remaining = Math.max(0, TARGET_EUR - eurVal);
       remainingEl.textContent = remaining > 0
@@ -1562,6 +1718,8 @@
     }
 
     // ── Boot ──
+    resetVegetation();
+    updateMilestones(0);
     requestAnimationFrame(renderLoop);
     setTimeout(startPhase1, 600);
   })();
@@ -2562,7 +2720,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=281"></script>
+<script type="module" src="js/app.js?v=282"></script>
 
 </body>
 </html>

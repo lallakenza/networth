@@ -2815,3 +2815,104 @@ Le P&L Total inclut `degiroRealizedPL = +€50 664.55` comme constante ajoutée 
 - `charts.js` : lignes ~3200-3218 — `startNAVRef` conditionnel pour les 4 séries P&L
 - `app.js` : version bump imports → v268
 - `index.html` : version bump → v268
+
+---
+
+## §53 — v282 : Mountain auth — Couple Amine+Nezha + végétation alignée altitude (11 avril 2026)
+
+### Contexte
+
+v280 avait introduit la narrative "montagne à 3 pics + marcheur qui suit une arête". v281 corrigeait un `ReferenceError` (fonction `amountToArcRatio` manquante). v282 est une refonte visuelle complète demandée par l'utilisateur :
+
+1. Le marcheur unique n'était pas assez engageant. Il faut un **couple** (Amine + Nezha) qui grimpe ensemble.
+2. La montagne démarre grise et doit **verdir au fur et à mesure** qu'ils grimpent. Le niveau de verdure doit être **aligné sur l'altitude du couple** (même hauteur que le leader), pas juste sur la progression en euros.
+3. Le tracé doit passer par la **crête réelle** de la montagne, pas dans le ciel.
+4. Le sommet 1M doit être **central** (deux petits pics décoratifs latéraux).
+5. Les milestones atteints doivent être **illuminés** (pulse + halo + drapeau au sommet).
+
+### Géométrie v282
+
+La silhouette est un `<path>` fermé pour le `<clipPath id="mtnClip">`, avec les milestones :
+
+| Milestone | (x,y) sur l'arête | Signification         |
+|-----------|-------------------|-----------------------|
+| 500K€     | (125, 310)        | Petit pic à gauche    |
+| 750K€     | (225, 215)        | Épaule centrale       |
+| **1M€**   | **(270, 75)**     | **Sommet central**    |
+| (décor)   | (388, 292)        | Petit pic à droite    |
+
+Le `climbTrail` est un path ouvert qui suit la ligne du sommet depuis (20, 440) jusqu'à (270, 75) — c'est littéralement la crête de la montagne.
+
+Le viewBox du SVG passe de `0 0 480 420` à `0 0 480 480`, et le conteneur `aspect-ratio` passe de 1.15 à 1.0 pour que la scène carrée respecte ses proportions.
+
+### Mécanique végétation
+
+Le mont est dessiné en deux couches clipées à la silhouette :
+
+1. Un `<rect>` plein qui couvre tout en `url(#stoneGrad)` (gris/pierre).
+2. Un `<rect id="vegFill">` en `url(#vegGrad)` (dégradé vert) qui part de `y=440` (caché sous la base) et monte à mesure que le couple grimpe.
+
+Le niveau est piloté par `updateVegetationFromHikerY(leaderY)` qui **maintient un monotonic max** :
+
+```javascript
+let highestYReached = GROUND_Y; // lower y = higher altitude
+function updateVegetationFromHikerY(leaderY) {
+  if (leaderY < highestYReached) highestYReached = leaderY;
+  vegFill.setAttribute('y', highestYReached);
+  vegFill.setAttribute('height', 480 - highestYReached);
+}
+```
+
+Cette logique garantit que la verdure **n'aie jamais à redescendre** quand le couple traverse un col. Si on liait directement `vegFill.y = leaderY`, la végétation reculerait dans chaque creux de l'arête — c'est ce qu'on veut éviter.
+
+### Couple (Amine + Nezha)
+
+Deux groupes SVG distincts sous `#coupleMarker` :
+
+- **`#amineMarker`** : figure en tête (veste menthe `#6ee7a0`, cheveux courts foncés, casquette verte). Un petit `<path class="heart">` rose flotte au-dessus de sa tête et bat à 1.3s.
+- **`#nezhaMarker`** : figure juste derrière (veste corail `#f472b6`, longs cheveux `#3a1f14`, bandeau jaune). La classe `.nezha` décale ses animations de marche de `-0.45s` pour éviter le mouvement robotique synchrone.
+
+Chaque figure porte un label `<text class="name-label">` avec son prénom en `paint-order: stroke` pour lisibilité sur fond clair ou sombre.
+
+Les deux sont placés sur la même arête via `getPointAtLength()`, Nezha à `sAmine − NEZHA_TRAIL_OFFSET` (11 unités d'arc) pour qu'elle suive naturellement la forme du terrain à la bonne distance.
+
+### Anchors arc-ratio calculés à l'exécution
+
+v281 avait des anchors hardcodés (`ARC_500K = 0.414`, `ARC_750K = 0.590`) mesurés manuellement sur l'ancienne géométrie. v282 les calcule au runtime via `findArcRatioForPoint(tx, ty)` qui scanne le path par pas de 0.5 unités pour trouver le point le plus proche de la cible :
+
+```javascript
+function findArcRatioForPoint(tx, ty) {
+  let best = Infinity, bestS = 0;
+  for (let s = 0; s <= TRAIL_LENGTH; s += 0.5) {
+    const pt = trailEl.getPointAtLength(s);
+    const d = (pt.x - tx) ** 2 + (pt.y - ty) ** 2;
+    if (d < best) { best = d; bestS = s; }
+  }
+  return bestS / TRAIL_LENGTH;
+}
+const ARC_500K = findArcRatioForPoint(125, 310);
+const ARC_750K = findArcRatioForPoint(225, 215);
+```
+
+Avantage : si la géométrie évolue, les anchors se recalibrent automatiquement. Plus besoin de re-mesurer à la main.
+
+### Milestones illuminés
+
+Chaque milestone est un `<g id="msXXX">` contenant `<circle>` + `<text>`. Les classes CSS `.ms-reached` (vert) et `.ms-summit-lit` (doré) ajoutent une animation `filter: drop-shadow()` qui pulse. Au 1M, un `<circle id="summitHalo">` avec `fill="url(#summitHaloGrad)"` passe de `r=0` à `r=60` via `transition: r 1.2s`, et un `<g id="summitFlag">` (mât + drapeau ondulant via `.flag-wave`) apparaît via `opacity` transition.
+
+### Fichiers modifiés
+
+- `index.html` :
+  - Bloc CSS `<style>` : +60 lignes pour `.hiker-figure`, `@keyframes hikerBob / legSwing / armSwing / heartBeat / msPulseGreen / msPulseGold / flagWave`, `.name-label`, `#summitFlag`.
+  - Conteneur `#mountainContainer` : `aspect-ratio` 1.15 → 1.
+  - SVG `#mountainSvg` : viewBox 480×420 → 480×480, entièrement réécrit (defs, clipPath, stone/vegetation/outline layers, climbTrail, trailLit, milestones, summit halo/flag, coupleMarker).
+  - IIFE d'animation : refs DOM renommées (`hikerEl` → `coupleEl`/`amineEl`/`nezhaEl`, ajout de `vegFill`/`trailLit`/`summitHalo`/`summitFlag`/`ms500El`/`ms750El`/`ms1MEl`), ajout de `findArcRatioForPoint` + anchors runtime, `placeHiker` retourne `ptA.y`, ajout de `updateVegetationFromHikerY` + `resetVegetation`, `updateMilestones` rewrite avec classes pulse, `renderLoop` appelle `updateVegetationFromHikerY(leaderY)`.
+  - Version bump `v=281` → `v=282`.
+- `js/app.js`, `js/charts.js` : imports `v=281` → `v=282`.
+- `ARCHITECTURE.md` : cette section.
+
+### Test
+
+- Syntaxe JS validée via `new Function(scriptBlock)` — OK.
+- IDs requis présents (`coupleMarker`, `amineMarker`, `nezhaMarker`, `vegFill`, `climbTrail`, `trailLit`, `summitHalo`, `summitFlag`, `ms500`, `ms750`, `ms1M`) — OK.
+- Vérification live sur GitHub Pages après déploiement.
