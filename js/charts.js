@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=277';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=277';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=277';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=277';
+import { fmt, fmtAxis } from './render.js?v=279';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=279';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=279';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=279';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1856,6 +1856,17 @@ function _lookupFx(fxData, key, date) {
 }
 
 // Called by both buildPortfolioYTDChart and buildEquityHistoryChart.
+// NOTE (v279/BUG-014): ce path calcule les dépôts cumulatifs à partir des
+// annualSummary/flatexCashFlows Degiro + lots ESPP + records IBKR, ce qui
+// est une duplication architecturale de depositHistory côté engine.js.
+// Les deux paths DOIVENT rester d'accord sur l'équation invariante :
+//   NAV − Net Déployé = Realized + Unrealized  (tolérance ±€5K)
+// Côté engine, l'invariant est vérifié explicitement (voir engine.js après
+// l'ajustement de combinedRealizedPL). Ici, absDepsDegiro peut légitimement
+// être NÉGATIF (retraits > dépôts pour un compte clôturé à profit) — ne
+// jamais y remettre un Math.max(0,…) sous peine de recréer BUG-014.
+// TODO: unifier ce path avec depositHistory côté engine pour éliminer la
+// duplication (voir ARCHITECTURE.md §Accounting Model).
 function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal, historicalFxData) {
   // ── 1) DEGIRO: back-compute from annual reports ──
   const dg = PORTFOLIO.amine.degiro || {};
