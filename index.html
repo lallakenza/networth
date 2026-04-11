@@ -1095,45 +1095,143 @@
 
 <div id="authGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f1f33;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;overflow:hidden;">
 
-  <!-- Mountain silhouette with liquid fill — progress toward €1M (v278) -->
-  <div id="mountainContainer" style="position:relative;width:min(460px, 92vw);aspect-ratio:1;margin-bottom:24px;">
-    <svg id="mountainSvg" viewBox="0 0 420 420" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
+  <!-- v280: 3-peak mountain chain + switchback trail + hiker marker.
+       Replace liquid-fill metaphor with a real climb narrative (Option C + C3).
+       Progress is mapped to arc-length along the trail (not height),
+       so the hiker's position is honest relative to effort remaining. -->
+  <div id="mountainContainer" style="position:relative;width:min(480px, 94vw);aspect-ratio:1.15;margin-bottom:20px;" role="img" aria-labelledby="mountainTitle">
+    <svg id="mountainSvg" viewBox="0 0 480 420" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
+      <title id="mountainTitle">Progression vers l'objectif 1 million d'euros</title>
       <defs>
-        <clipPath id="mountainClip">
-          <path d="M 0 410 L 50 345 L 100 275 L 150 190 L 190 115 L 220 60 L 235 40 L 265 95 L 305 160 L 345 230 L 380 300 L 420 410 Z"/>
-        </clipPath>
-        <linearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#6ee7a0" stop-opacity="0.92"/>
-          <stop offset="28%" stop-color="#34c276" stop-opacity="0.9"/>
-          <stop offset="62%" stop-color="#22804e" stop-opacity="0.88"/>
-          <stop offset="100%" stop-color="#1a5c3a" stop-opacity="0.86"/>
+        <linearGradient id="mountainBodyGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1f4a38" stop-opacity="0.95"/>
+          <stop offset="55%" stop-color="#163a2c" stop-opacity="0.92"/>
+          <stop offset="100%" stop-color="#0d2a1e" stop-opacity="0.90"/>
         </linearGradient>
-        <linearGradient id="outlineGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.75)"/>
-          <stop offset="100%" stop-color="rgba(255,255,255,0.28)"/>
+        <linearGradient id="ridgeGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0.18)"/>
         </linearGradient>
       </defs>
-      <!-- Liquid (clipped to mountain interior) -->
-      <g clip-path="url(#mountainClip)">
-        <path id="waterPath" fill="url(#waterGradient)" d="M -40 440 L 460 440 Z"/>
-        <path id="waterHighlight" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.2" stroke-linecap="round" d=""/>
-      </g>
-      <!-- Mountain outline (drawn on top) -->
-      <path id="mountainOutline"
-            d="M 0 410 L 50 345 L 100 275 L 150 190 L 190 115 L 220 60 L 235 40 L 265 95 L 305 160 L 345 230 L 380 300 L 420 410"
-            fill="none"
-            stroke="url(#outlineGradient)"
-            stroke-width="2.2"
+
+      <!-- ── Mountain body: 3-peak chain ──
+           Peak 1 (small, left):  jalon €500K at (130, 250)
+           Peak 2 (medium, mid):  jalon €750K at (215, 180)
+           Peak 3 (main, right):  jalon €1M   at (330,  60)   ← goal
+      -->
+      <path id="mountainBody"
+            fill="url(#mountainBodyGradient)"
+            stroke="url(#ridgeGradient)"
+            stroke-width="1.8"
             stroke-linejoin="round"
-            stroke-linecap="round"/>
+            stroke-linecap="round"
+            d="M 0 410
+               L 35 380
+               L 70 340
+               L 100 300
+               L 130 250
+               L 160 285
+               L 185 240
+               L 215 180
+               L 245 220
+               L 265 200
+               L 285 150
+               L 305 100
+               L 320 75
+               L 330 60
+               L 350 95
+               L 375 150
+               L 405 220
+               L 435 300
+               L 465 360
+               L 480 410 Z"/>
+
+      <!-- ── Switchback trail (dashed) from base to main summit ──
+           Drawn as a separate path so we can query getTotalLength()
+           and place the hiker at arc-length = progress × totalLength. -->
+      <path id="climbTrail"
+            fill="none"
+            stroke="rgba(255,255,255,0.55)"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-dasharray="3 4"
+            d="M 40 405
+               L 75 390
+               L 50 375
+               L 95 360
+               L 70 345
+               L 115 325
+               L 90 305
+               L 130 285
+               L 105 270
+               L 132 252
+               L 115 245
+               L 150 235
+               L 170 220
+               L 195 200
+               L 210 188
+               L 215 180
+               L 195 172
+               L 220 162
+               L 205 152
+               L 235 140
+               L 220 128
+               L 250 118
+               L 235 108
+               L 265 98
+               L 250 88
+               L 278 78
+               L 265 70
+               L 295 66
+               L 315 62
+               L 330 60"/>
+
+      <!-- ── Milestones (peaks with jalon rings) ──
+           Empty ring = not yet reached. Filled ring + check = reached. -->
+      <g id="milestoneGroup">
+        <!-- 500K on peak 1 -->
+        <circle id="milestone500" cx="130" cy="250" r="7"
+                fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
+        <text x="130" y="275" text-anchor="middle"
+              font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
+              fill="rgba(255,255,255,0.68)">500K</text>
+
+        <!-- 750K on peak 2 -->
+        <circle id="milestone750" cx="215" cy="180" r="7"
+                fill="rgba(15,31,51,0.9)" stroke="rgba(255,255,255,0.55)" stroke-width="1.6"/>
+        <text x="215" y="205" text-anchor="middle"
+              font-family="'DM Sans',sans-serif" font-size="9" font-weight="600"
+              fill="rgba(255,255,255,0.68)">750K</text>
+
+        <!-- 1M on main peak -->
+        <circle id="milestone1M" cx="330" cy="60" r="8.5"
+                fill="rgba(15,31,51,0.9)" stroke="rgba(255,225,140,0.9)" stroke-width="2"/>
+        <text x="330" y="44" text-anchor="middle"
+              font-family="'DM Sans',sans-serif" font-size="10.5" font-weight="700"
+              fill="rgba(255,225,140,0.95)">🎯 1M€</text>
+      </g>
+
+      <!-- ── Hiker marker — position set at runtime via getPointAtLength ── -->
+      <g id="hikerMarker" transform="translate(40, 405)" style="opacity:0; transition:opacity 0.8s;">
+        <circle r="7.5" fill="#6ee7a0" stroke="rgba(15,31,51,0.95)" stroke-width="2.2"/>
+        <circle r="3.3" fill="rgba(15,31,51,0.95)"/>
+      </g>
     </svg>
-    <!-- Counter overlay -->
-    <div id="gridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;padding-top:6%;">
-      <div id="gridCounter" style="font-family:'DM Sans',sans-serif;font-size:min(46px,8vw);font-weight:700;color:white;text-shadow:0 2px 20px rgba(0,0,0,0.6);letter-spacing:-1px;opacity:0;transition:opacity 0.8s, transform 0.3s;">€ 0</div>
+
+    <!-- ── Typography overlay (inside the sky area, above the mountain body) ── -->
+    <div id="gridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;pointer-events:none;padding-top:4%;">
+      <div id="gridCounter" style="font-family:'DM Sans',sans-serif;font-size:min(44px,8vw);font-weight:700;color:white;text-shadow:0 2px 22px rgba(0,0,0,0.75);letter-spacing:-1px;opacity:0;transition:opacity 0.8s, transform 0.3s;">€ 0</div>
       <div id="gridLabel" style="font-family:'DM Sans',sans-serif;font-size:min(12px,2.4vw);color:rgba(255,255,255,0.7);margin-top:2px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">sur € 1 000 000</div>
-      <div id="gridPct" style="font-family:'DM Sans',sans-serif;font-size:min(17px,3.3vw);font-weight:600;color:#6ee7a0;margin-top:6px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">0%</div>
-      <div id="gridEta" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(255,255,255,0.88);margin-top:14px;padding:5px 14px;background:rgba(110,231,160,0.14);border:1px solid rgba(110,231,160,0.38);border-radius:14px;text-shadow:0 1px 6px rgba(0,0,0,0.4);opacity:0;transform:translateY(6px);transition:opacity 1s, transform 1s;white-space:nowrap;">🎯 1M€ en <span id="gridEtaDate">—</span></div>
+      <div id="gridRemaining" style="font-family:'DM Sans',sans-serif;font-size:min(13px,2.6vw);font-weight:500;color:rgba(255,255,255,0.82);margin-top:10px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">—</div>
     </div>
+  </div>
+
+  <!-- ── Velocity block (below the mountain, in the auth gate footer) ── -->
+  <div id="velocityBlock" style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-4px;margin-bottom:20px;opacity:0;transition:opacity 1s;max-width:360px;padding:0 20px;">
+    <div id="gridEta" style="font-family:'DM Sans',sans-serif;font-size:min(11.5px,2.3vw);color:rgba(255,255,255,0.92);padding:5px 14px;background:rgba(110,231,160,0.14);border:1px solid rgba(110,231,160,0.38);border-radius:14px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">🎯 1M€ en <span id="gridEtaDate">—</span></div>
+    <div id="gridRhythmRequired" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(255,255,255,0.66);margin-top:6px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">⚡ Rythme requis : —</div>
+    <div id="gridRhythmActual" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(255,255,255,0.66);text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">📈 À ton rythme : —</div>
   </div>
 
   <!-- Auth form -->
@@ -1150,58 +1248,67 @@
     <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
   </div>
 
-  <!-- Mountain liquid-fill animation script (runs immediately, before app.js)
-       v278: Silhouette de montagne + liquide qui monte (ratio hauteur linéaire).
-       Phase 1: Montée lente pendant le chargement (vers ~80% de STATIC_EUR).
-       Phase 2: Déclenchée par window._gridAnimationComplete(realValue), montée rapide vers la vraie valeur.
-       Fin: Affichage "1M€ en <date>" calculé avec les params défaut du simulateur couple
-            (8k€/mois, rendement blended 8%/an). -->
+  <!-- Mountain animation script (v280 — runs immediately, before app.js)
+       v280: 3-peak chain + switchback trail + hiker marker positioned via
+             getPointAtLength() along the trail arc-length. This creates an
+             HONEST progress representation — the narrow main peak and the
+             dense switchbacks near the summit naturally make the remaining
+             climb feel significant (unlike the height-based liquid fill
+             in v278/v280 which visually under-stated the work left).
+
+       Phase 1: Hiker climbs slowly to ~80% of STATIC_EUR during loading.
+       Phase 2: Triggered by window._gridAnimationComplete(realValue, velocityInfo),
+                hiker climbs fast to real progress position.
+       Velocity lines: Required rhythm (always) + ETA at expected pace
+                       (from velocityInfo passed by app.js; fallback to
+                       simulator default 8k€/mois @ 8%/an if unavailable).
+  -->
   <script>
   (function() {
     // ── Config ──
     const TARGET_EUR = 1000000;
+    const TARGET_DATE = new Date(2028, 3, 1);  // April 2028 — locked goal date
     const STATIC_EUR = 665970;
     const PHASE1_RATIO = 0.80;
     const PHASE1_TARGET_EUR = Math.round(STATIC_EUR * PHASE1_RATIO);
     const PHASE1_DURATION_MS = 18000;  // slow — le temps que tout charge
-    const PHASE2_DURATION_MS = 1600;   // fast — on data ready
+    const PHASE2_DURATION_MS = 1800;   // fast — on data ready
 
-    // Mountain geometry (must match the SVG path above)
-    const VB_WIDTH = 420;
-    const VB_HEIGHT = 420;
-    const PEAK_Y = 40;
-    const BASE_Y = 410;
-    const HEIGHT_RANGE = BASE_Y - PEAK_Y;  // 370
-
-    // Wave params (sinusoidal surface)
-    const WAVE_AMP_1 = 3.4;
-    const WAVE_LEN_1 = 70;
-    const WAVE_AMP_2 = 1.6;
-    const WAVE_LEN_2 = 130;
-    const WAVE_SPEED = 0.028;
+    // Milestones (must match the SVG peak coordinates)
+    const MILESTONES = [
+      { amount: 500000, el: 'milestone500' },
+      { amount: 750000, el: 'milestone750' },
+      { amount: 1000000, el: 'milestone1M'  },
+    ];
 
     // ── DOM refs ──
-    const waterEl = document.getElementById('waterPath');
-    const highlightEl = document.getElementById('waterHighlight');
+    const trailEl = document.getElementById('climbTrail');
+    const hikerEl = document.getElementById('hikerMarker');
     const counter = document.getElementById('gridCounter');
     const label = document.getElementById('gridLabel');
-    const pctEl = document.getElementById('gridPct');
-    const etaEl = document.getElementById('gridEta');
+    const remainingEl = document.getElementById('gridRemaining');
+    const velocityBlock = document.getElementById('velocityBlock');
     const etaDateEl = document.getElementById('gridEtaDate');
+    const rhythmReqEl = document.getElementById('gridRhythmRequired');
+    const rhythmActEl = document.getElementById('gridRhythmActual');
+
+    // Pre-compute trail total length (invariant anchor for arc-length mapping)
+    const TRAIL_LENGTH = trailEl.getTotalLength();
 
     setTimeout(function() {
       counter.style.opacity = '1';
       label.style.opacity = '1';
-      pctEl.style.opacity = '1';
+      remainingEl.style.opacity = '1';
+      hikerEl.style.opacity = '1';
     }, 300);
 
     // ── State ──
-    let wavePhase = 0;
     let currentRatio = 0;
     let phase = 0;  // 0=idle, 1=phase1, 2=phase2, 3=done
     let phase1Done = false;
     let dataReady = false;
     let realPortfolioEUR = null;
+    let velocityInfo = null;  // { monthlyPace, source } — optional, from app.js
     let animationFullyDone = false;
 
     let phase1StartTime = null;
@@ -1213,41 +1320,47 @@
     function formatEur(n) {
       return '€ ' + Math.round(n).toLocaleString('fr-FR');
     }
-
-    // ── Build water body path (bottom fill + sinusoidal top) ──
-    function buildWaterPath(waterY, phaseV) {
-      if (waterY >= BASE_Y + 20) return 'M -40 500 Z';  // hidden
-      const left = -40, right = VB_WIDTH + 40;
-      let d = 'M ' + left + ' ' + (VB_HEIGHT + 30);
-      d += ' L ' + left + ' ' + waterY.toFixed(2);
-      for (let x = left; x <= right; x += 4) {
-        const y = waterY
-          + Math.sin((x / WAVE_LEN_1) * Math.PI * 2 + phaseV) * WAVE_AMP_1
-          + Math.sin((x / WAVE_LEN_2) * Math.PI * 2 + phaseV * 0.7) * WAVE_AMP_2;
-        d += ' L ' + x.toFixed(1) + ' ' + y.toFixed(2);
-      }
-      d += ' L ' + right + ' ' + (VB_HEIGHT + 30) + ' Z';
-      return d;
+    function formatEurShort(n) {
+      const abs = Math.abs(n);
+      if (abs >= 1000) return (n >= 0 ? '' : '-') + Math.round(abs / 100) / 10 + 'K';
+      return Math.round(n) + '';
     }
 
-    function buildHighlightPath(waterY, phaseV) {
-      if (waterY >= BASE_Y + 20) return '';
-      const left = -40, right = VB_WIDTH + 40;
-      let d = 'M ' + left + ' ' + waterY.toFixed(2);
-      for (let x = left; x <= right; x += 4) {
-        const y = waterY
-          + Math.sin((x / WAVE_LEN_1) * Math.PI * 2 + phaseV) * WAVE_AMP_1
-          + Math.sin((x / WAVE_LEN_2) * Math.PI * 2 + phaseV * 0.7) * WAVE_AMP_2
-          - 0.5;
-        d += ' L ' + x.toFixed(1) + ' ' + y.toFixed(2);
-      }
-      return d;
+    // ── Place hiker at arc-length position on the trail ──
+    // Takes EUR amount, maps via piecewise function to arc ratio, then to SVG point.
+    function placeHiker(eurVal) {
+      const arcRatio = amountToArcRatio(eurVal);
+      const clamped = Math.max(0, Math.min(1, arcRatio));
+      const s = clamped * TRAIL_LENGTH;
+      const pt = trailEl.getPointAtLength(s);
+      hikerEl.setAttribute('transform', 'translate(' + pt.x.toFixed(2) + ',' + pt.y.toFixed(2) + ')');
+    }
+
+    // ── Update milestone states (filled when reached) ──
+    function updateMilestones(eurVal) {
+      MILESTONES.forEach(function(m) {
+        const el = document.getElementById(m.el);
+        if (!el) return;
+        const reached = eurVal >= m.amount;
+        if (reached) {
+          // 1M goal gets the gold treatment; others get green check
+          if (m.amount === TARGET_EUR) {
+            el.setAttribute('fill', 'rgba(255,225,140,0.95)');
+          } else {
+            el.setAttribute('fill', '#6ee7a0');
+            el.setAttribute('stroke', 'rgba(255,255,255,0.9)');
+          }
+        } else {
+          el.setAttribute('fill', 'rgba(15,31,51,0.9)');
+          el.setAttribute('stroke', m.amount === TARGET_EUR
+            ? 'rgba(255,225,140,0.9)'
+            : 'rgba(255,255,255,0.55)');
+        }
+      });
     }
 
     // ── Render loop ──
     function renderLoop(t) {
-      wavePhase += WAVE_SPEED;
-
       if (phase === 1) {
         if (phase1StartTime == null) phase1StartTime = t;
         const elapsed = t - phase1StartTime;
@@ -1272,13 +1385,14 @@
         }
       }
 
-      const waterY = BASE_Y - currentRatio * HEIGHT_RANGE;
-      waterEl.setAttribute('d', buildWaterPath(waterY, wavePhase));
-      highlightEl.setAttribute('d', buildHighlightPath(waterY, wavePhase));
-
       const eurVal = currentRatio * TARGET_EUR;
+      placeHiker(eurVal);
       counter.textContent = formatEur(eurVal);
-      pctEl.textContent = (eurVal / TARGET_EUR * 100).toFixed(1) + '%';
+      const remaining = Math.max(0, TARGET_EUR - eurVal);
+      remainingEl.textContent = remaining > 0
+        ? formatEur(remaining).replace('€', '€') + ' à gravir'
+        : '🎉 Objectif atteint';
+      updateMilestones(eurVal);
 
       requestAnimationFrame(renderLoop);
     }
@@ -1294,64 +1408,127 @@
       phase2StartTime = null;
       phase2StartRatio = currentRatio;
       phase2TargetRatio = Math.min(realPortfolioEUR / TARGET_EUR, 1);
-      console.log('[mountain] Phase 2 start → ' + realPortfolioEUR + '€');
+      console.log('[mountain] Phase 2 start → ' + realPortfolioEUR + '€ (target ratio: '
+        + (phase2TargetRatio * 100).toFixed(1) + '%)');
     }
 
     function onAnimationComplete() {
       if (animationFullyDone) return;
       animationFullyDone = true;
       counter.textContent = formatEur(realPortfolioEUR);
-      pctEl.textContent = (realPortfolioEUR / TARGET_EUR * 100).toFixed(1) + '%';
       counter.style.transform = 'scale(1.05)';
       setTimeout(function() { counter.style.transform = 'scale(1)'; }, 350);
 
-      // Compute time-to-1M with default simulator params
-      const months = computeMonthsTo1M(realPortfolioEUR);
-      etaDateEl.textContent = formatEtaDate(months);
-      setTimeout(function() {
-        etaEl.style.opacity = '1';
-        etaEl.style.transform = 'translateY(0)';
-      }, 450);
-      console.log('[mountain] Complete: ' + realPortfolioEUR + '€, ' + months + ' months to 1M');
+      // ── Velocity block ──
+      renderVelocityLines(realPortfolioEUR, velocityInfo);
+      setTimeout(function() { velocityBlock.style.opacity = '1'; }, 450);
+
+      // Invariant #1: the animated currentRatio matches real progress
+      // (i.e. phase-2 animation actually reached its target).
+      const finalRatio = realPortfolioEUR / TARGET_EUR;
+      const deviation = Math.abs(finalRatio - currentRatio);
+      if (deviation > 0.005) {
+        console.warn('[mountain] ⚠ Animation drift: currentRatio=' + currentRatio.toFixed(4)
+          + ' vs progress=' + finalRatio.toFixed(4));
+      } else {
+        console.log('[mountain] ✓ Animation parity ok (currentRatio=' + currentRatio.toFixed(4)
+          + ' ≈ progress=' + finalRatio.toFixed(4) + ')');
+      }
+      // Invariant #2: piecewise arc-ratio is monotonic in amount.
+      // Log the hiker's arc position for debugging UI placement.
+      const arc = amountToArcRatio(realPortfolioEUR);
+      console.log('[mountain] Hiker arc-ratio: ' + arc.toFixed(3)
+        + ' (amount: ' + realPortfolioEUR + '€)');
+      console.log('[mountain] Complete: ' + realPortfolioEUR + '€');
     }
 
     // ── Public callback: app.js signals data is ready ──
-    window._gridAnimationComplete = function(realValue) {
+    // Signature: _gridAnimationComplete(realValue, velocityInfo?)
+    //   velocityInfo = { monthlyPace: number, source: 'actuals6m' | 'simulator' }
+    window._gridAnimationComplete = function(realValue, velInfo) {
       realPortfolioEUR = realValue;
+      velocityInfo = velInfo || null;
       dataReady = true;
-      console.log('[mountain] Data ready signal: ' + realValue + '€');
+      console.log('[mountain] Data ready: ' + realValue + '€, velocity:', velInfo);
       if (phase1Done || currentRatio >= PHASE1_TARGET_RATIO * 0.99) {
         startPhase2();
       }
     };
 
-    // ── Time-to-1M (blended 8%/an, 8k€/mois — defaults du simulateur couple) ──
-    function computeMonthsTo1M(currentNW) {
-      const PMT = 8000;
-      const r = 0.08 / 12;
-      if (!currentNW || currentNW >= TARGET_EUR) return 0;
+    // ── Required rhythm: straight line from now to TARGET_DATE ──
+    function computeRequiredMonthlyPace(currentNW) {
+      const now = new Date();
+      const monthsToTarget = Math.max(1,
+        (TARGET_DATE.getFullYear() - now.getFullYear()) * 12
+        + (TARGET_DATE.getMonth() - now.getMonth()));
+      const gap = TARGET_EUR - currentNW;
+      return { pace: gap / monthsToTarget, monthsToTarget: monthsToTarget };
+    }
+
+    // ── ETA at a given monthly pace (with compound growth assumption) ──
+    function computeMonthsToTargetAtPace(currentNW, monthlyPace) {
+      if (currentNW >= TARGET_EUR) return 0;
+      if (monthlyPace <= 0) return null;  // never reached
+      const r = 0.08 / 12;  // assume blended 8%/an — same as simulator couple
       let nw = currentNW;
       let months = 0;
-      while (nw < TARGET_EUR && months < 600) {
-        nw = nw * (1 + r) + PMT;
+      while (nw < TARGET_EUR && months < 720) {
+        nw = nw * (1 + r) + monthlyPace;
         months++;
       }
-      return months < 600 ? months : null;
+      return months < 720 ? months : null;
     }
 
     function formatEtaDate(months) {
-      if (months == null) return '> 50 ans';
+      if (months == null) return 'jamais (au rythme actuel)';
       if (months <= 0) return 'atteint ✓';
       const now = new Date();
       const d = new Date(now.getFullYear(), now.getMonth() + months, 1);
       const mois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-      const years = Math.floor(months / 12);
-      const monRem = months % 12;
-      const dateStr = mois[d.getMonth()] + ' ' + d.getFullYear();
-      const yrStr = years > 0 ? years + ' an' + (years > 1 ? 's' : '') : '';
-      const mnStr = monRem > 0 ? monRem + ' mois' : '';
-      const dur = yrStr && mnStr ? yrStr + ' ' + mnStr : (yrStr || mnStr || '');
-      return dateStr + (dur ? ' · ' + dur : '');
+      return mois[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    function formatEtaDelta(etaMonths, targetMonths) {
+      if (etaMonths == null) return '';
+      const diff = etaMonths - targetMonths;
+      if (diff === 0) return ' (pile à temps)';
+      if (diff < 0) return ' (' + Math.abs(diff) + ' mois d\'avance ✓)';
+      return ' (+' + diff + ' mois ⚠)';
+    }
+
+    // ── Render the 3 velocity lines (🎯 target / ⚡ required / 📈 projected) ──
+    function renderVelocityLines(currentNW, velInfo) {
+      const req = computeRequiredMonthlyPace(currentNW);
+      // Target pill (🎯 1M€ en <target date>)
+      const tMois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+      const yearsLeft = Math.max(0, Math.floor(req.monthsToTarget / 12));
+      const monthsRem = req.monthsToTarget % 12;
+      const tgtDateStr = tMois[TARGET_DATE.getMonth()] + ' ' + TARGET_DATE.getFullYear();
+      const tgtDurStr = (yearsLeft > 0 ? yearsLeft + ' an' + (yearsLeft > 1 ? 's' : '') : '')
+        + (monthsRem > 0 ? (yearsLeft > 0 ? ' ' : '') + monthsRem + ' mois' : '');
+      etaDateEl.textContent = tgtDateStr + (tgtDurStr ? ' · ' + tgtDurStr : '');
+
+      // Rhythm required
+      rhythmReqEl.textContent = '⚡ Rythme requis : ~€' + formatEurShort(req.pace) + '/mois';
+
+      // Rhythm projected — use provided velocity if available, else simulator default
+      const effectivePace = (velInfo && velInfo.monthlyPace != null) ? velInfo.monthlyPace : 8000;
+      const sourceLabel = (velInfo && velInfo.source === 'actuals6m') ? 'rythme réel 6m' : 'plan 8K€/mois';
+      const etaMonths = computeMonthsToTargetAtPace(currentNW, effectivePace);
+      const etaDate = formatEtaDate(etaMonths);
+      const delta = formatEtaDelta(etaMonths, req.monthsToTarget);
+      rhythmActEl.textContent = '📈 ' + sourceLabel + ' → ' + etaDate + delta;
+
+      // Color-code the projected line based on delta
+      if (etaMonths == null) {
+        rhythmActEl.style.color = 'rgba(248,113,113,0.92)'; // red
+      } else if (etaMonths - req.monthsToTarget >= 4) {
+        rhythmActEl.style.color = 'rgba(251,191,36,0.92)'; // amber
+      } else if (etaMonths - req.monthsToTarget <= -1) {
+        rhythmActEl.style.color = 'rgba(110,231,160,0.92)'; // green
+      } else {
+        rhythmActEl.style.color = 'rgba(255,255,255,0.75)'; // neutral
+      }
     }
 
     // ── Boot ──
@@ -1389,7 +1566,7 @@ function setCookie(name, value, days) {
 function checkAuth() {
   const input = document.getElementById('authInput').value;
   if (hashStr(input) === AUTH_HASH) {
-    setCookie(AUTH_COOKIE, AUTH_HASH, 365); // valid for 1 year
+    setCookie(AUTH_COOKIE, AUTH_HASH, 2); // v280: re-prompt every 2 days
     document.getElementById('authGate').style.display = 'none';
   } else {
     document.getElementById('authError').style.display = 'block';
@@ -2355,7 +2532,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=279"></script>
+<script type="module" src="js/app.js?v=280"></script>
 
 </body>
 </html>
