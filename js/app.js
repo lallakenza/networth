@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE } from './data.js?v=279';
-import { compute, getGrandTotal } from './engine.js?v=279';
-import { render } from './render.js?v=279';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=279';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=279';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=279';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=279';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY } from './data.js?v=280';
+import { compute, getGrandTotal } from './engine.js?v=280';
+import { render } from './render.js?v=280';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=280';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=280';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=280';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=280';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -92,7 +92,7 @@ function updateStaticKPIsForScope(scope) {
     setT('kpiActionsUnrealizedLabel', 'P/L Non Réalisé (' + label + ')');
     setT('kpiActionsRealizedLabel', 'P/L Réalisé (' + label + ')');
     setT('kpiActionsDepositsLabel', 'Capital Net Déployé (' + label + ')');
-    // v279 (BUG-014): sub-line breakdown per plateforme (brut / retiré / net)
+    // v280 (BUG-014): sub-line breakdown per plateforme (brut / retiré / net)
     const subEl = document.getElementById('kpiActionsDepositsSub');
     if (subEl) {
       const fmt0 = n => Math.round(n).toLocaleString('fr-FR') + ' €';
@@ -127,7 +127,7 @@ function updateStaticKPIsForScope(scope) {
       setKPI(esppTotal, esppPL, 0, av.esppDeposits || 0, 0, 'ESPP');
       break;
     case 'degiro':
-      // v279 (BUG-014): Degiro NAV=0 (clôturé), Net Déployé = dépôts − retraits ≈ −50,664 €
+      // v280 (BUG-014): Degiro NAV=0 (clôturé), Net Déployé = dépôts − retraits ≈ −50,664 €
       // Invariant : NAV − Net Déployé = 0 − (−50,664) = +50,664 ≈ Realized P&L ✓
       setKPI(0, 0, av.degiroRealizedPL || 0, av.degiroDepositsNet || 0, 0, 'Degiro');
       break;
@@ -1051,12 +1051,45 @@ async function loadStockPrices(forceRefresh) {
         // sometimes leave the portfolioYTD canvas blank. This ensures it's always visible.
         renderPortfolioChart();
 
-        // v277: Signal grid animation that all data (live + historical) is loaded.
-        // Compute the real grand total and tell the login animation to complete.
+        // v280: Signal grid animation with real grand total + velocity info.
+        // Velocity = 6-month rolling delta on EQUITY_HISTORY actions (proxy for
+        // monthly savings/accumulation pace). Honest fallback to simulator
+        // default (8K€/mois) when historique is missing or volatile.
         if (typeof window._gridAnimationComplete === 'function') {
           const realTotal = getGrandTotal(currentState);
-          console.log('[app] Signaling grid animation with real total:', Math.round(realTotal));
-          window._gridAnimationComplete(realTotal);
+
+          // ── Velocity calculation — 6-month rolling on EQUITY_HISTORY.total ──
+          // Rationale: EQUITY_HISTORY is the only time series we maintain
+          // monthly, so it's our best proxy for actual accumulation pace.
+          // It excludes cash/real-estate growth but captures the largest
+          // driver (stock savings + market returns). Falls back gracefully.
+          let velocityInfo = { monthlyPace: 8000, source: 'simulator' };
+          try {
+            if (Array.isArray(EQUITY_HISTORY) && EQUITY_HISTORY.length >= 7) {
+              const latest = EQUITY_HISTORY[EQUITY_HISTORY.length - 1];
+              const sixBack = EQUITY_HISTORY[EQUITY_HISTORY.length - 7]; // 6 months back (inclusive)
+              if (latest && sixBack && typeof latest.total === 'number' && typeof sixBack.total === 'number') {
+                const delta = latest.total - sixBack.total;
+                const monthsElapsed = 6;
+                const rawPace = delta / monthsElapsed;
+                // Sanity bounds: reject clearly absurd rates (market crashes / windfalls).
+                // If equity pace is very negative, keep simulator fallback to avoid
+                // a "never reached" ETA that would be dominated by a short-term dip.
+                if (rawPace >= 500 && rawPace <= 50000) {
+                  velocityInfo = { monthlyPace: Math.round(rawPace), source: 'actuals6m' };
+                } else {
+                  console.log('[app] Velocity: 6m EQUITY pace out of sane bounds ('
+                    + Math.round(rawPace) + '€/mois) → falling back to simulator default');
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[app] Velocity computation failed:', e);
+          }
+
+          console.log('[app] Signaling grid animation:',
+            Math.round(realTotal) + '€', 'velocity:', velocityInfo);
+          window._gridAnimationComplete(realTotal, velocityInfo);
         }
 
         // Track current state for toggles (exposed on window for KPI functions)

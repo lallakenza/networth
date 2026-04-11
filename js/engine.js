@@ -373,7 +373,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   depositHistory.sort((a, b) => a.date.localeCompare(b.date));
 
   // ═══════════════════════════════════════════════════════════════════
-  // v279 (BUG-014 fix): Net Capital Deployed — source unique de vérité
+  // v280 (BUG-014 fix): Net Capital Deployed — source unique de vérité
   // ═══════════════════════════════════════════════════════════════════
   // "Net Déployé" par plateforme = Σ(dépôts) − Σ(retraits), sans floor.
   // Pour un compte clôturé à profit (ex: Degiro), cette valeur est NÉGATIVE
@@ -383,7 +383,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // car le gain réalisé reste dans combinedRealizedPL mais disparaît du total
   // déposé. Voir BUG_TRACKER.md §BUG-014.
   //
-  // Avant v279 : chaque plateforme avait son propre filter+reduce inline, et
+  // Avant v280 : chaque plateforme avait son propre filter+reduce inline, et
   // Degiro avait en plus un cap défensif Math.max(0,…) introduit en v271 pour
   // patcher BUG-002 — mais ce patch a créé BUG-014. Centraliser via ce helper
   // élimine la duplication et empêche une asymétrie future.
@@ -680,7 +680,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
                       + costsAllTime.fttEUR            // negative = cost
                       + costsAllTime.interestEUR;      // negative = cost
 
-  // v279 (BUG-014): Invariant comptable
+  // v280 (BUG-014): Invariant comptable
   //   NAV − Net Déployé ≈ Realized P&L + Unrealized P&L
   // Tolérance ±€10K pour absorber résiduels attendus :
   //   - FX drift multi-année (dépôts convertis au taux historique vs. NAV
@@ -1195,7 +1195,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     ibkrDepositsTotal: ibkrDepositsTotal,
     esppDeposits: esppDeposits,
     sgtmDepositsEUR: sgtmDepositsEUR,
-    // v279 (BUG-014): Degiro net déployé (peut être négatif si compte clôturé à profit)
+    // v280 (BUG-014): Degiro net déployé (peut être négatif si compte clôturé à profit)
     degiroDepositsNet: degiroDepositsNet,
     degiroDepositsGross: degiroDepositsGross,
     degiroWithdrawals: degiroWithdrawals,

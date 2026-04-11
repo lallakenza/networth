@@ -2128,7 +2128,7 @@ function renderActionsView(state) {
 
   // Metrics
   setText('actionsCommissions', fmt(Math.abs(av.commissions)));
-  // v279: le libellé est "Dépôts IBKR", donc on affiche ibkrDepositsTotal
+  // v280: le libellé est "Dépôts IBKR", donc on affiche ibkrDepositsTotal
   // (avant: affichait av.totalDeposits, mismatch avec le label).
   setText('actionsDeposits', fmt(av.ibkrDepositsTotal));
   // Degiro deposits are now exact (back-computed from annual reports)

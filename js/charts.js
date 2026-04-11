@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=279';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=279';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=279';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=279';
+import { fmt, fmtAxis } from './render.js?v=280';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=280';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=280';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=280';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1856,7 +1856,7 @@ function _lookupFx(fxData, key, date) {
 }
 
 // Called by both buildPortfolioYTDChart and buildEquityHistoryChart.
-// NOTE (v279/BUG-014): ce path calcule les dépôts cumulatifs à partir des
+// NOTE (v280/BUG-014): ce path calcule les dépôts cumulatifs à partir des
 // annualSummary/flatexCashFlows Degiro + lots ESPP + records IBKR, ce qui
 // est une duplication architecturale de depositHistory côté engine.js.
 // Les deux paths DOIVENT rester d'accord sur l'équation invariante :
