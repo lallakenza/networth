@@ -1116,7 +1116,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v290';
+export const APP_VERSION = 'v291';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -1913,7 +1913,7 @@ export const VITRY_CONSTRAINTS = {
       dateFin: '2048-02',       // 25 ans
       penalite: 'Rappel immédiat du CRD (40 000€)',
       details: [
-        'Montant : 40 000€ à 1%',
+        'Montant : 40 000€ à 0,5%',
         'Obligation RP pendant toute la durée (25 ans → février 2048)',
         'Sanction si manquement : rappel immédiat du capital restant dû',
         'Le locataire doit respecter les plafonds de ressources PLS',
