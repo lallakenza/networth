@@ -3472,14 +3472,32 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineTva = p.amine.tva;
 
   // Facturation positions (inter-personnes: Augustin/Azarkan, Benoit/Badre)
-  // Source: https://lallakenza.github.io/facturation/
-  // Net amount: positive = receivable (Augustin me doit), negative = payable (je dois Benoit)
+  // Source: https://lallakenza.github.io/facturation/ via shared localStorage
+  // (same origin: lallakenza.github.io). Falls back to data.js hardcoded values.
+  //
+  // localStorage key: 'facturation_positions' (written by facturation/render-amine.js)
+  // Schema: { augustin: { mad }, benoit: { dh }, combined: { mad }, updatedAt }
   let amineFacturationNet = 0;
-  if (p.amine.facturation) {
+  let _factuSrc = 'data.js';
+  try {
+    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
+    if (raw) {
+      const fp = JSON.parse(raw);
+      // Use MAD positions (consistent with user's choice "considère en MAD")
+      const augustinMAD = fp.augustin && fp.augustin.mad != null ? fp.augustin.mad : 0;
+      const benoitDH   = fp.benoit && fp.benoit.dh != null ? fp.benoit.dh : 0;
+      amineFacturationNet = toEUR(augustinMAD, 'MAD', fx) + toEUR(benoitDH, 'MAD', fx);
+      _factuSrc = 'localStorage (' + (fp.updatedAt || '?') + ')';
+    }
+  } catch(e) { /* localStorage unavailable or parse error */ }
+  // Fallback: use hardcoded values from data.js if localStorage was empty
+  if (amineFacturationNet === 0 && p.amine.facturation) {
     Object.values(p.amine.facturation).forEach(pos => {
       amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
     });
+    _factuSrc = 'data.js (fallback)';
   }
+  console.log('[engine] Facturation net:', Math.round(amineFacturationNet), 'EUR — source:', _factuSrc);
 
   const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash;
   const amineTotalAssets = amineIbkr + amineEspp + amineCashTotal + amineSgtm
