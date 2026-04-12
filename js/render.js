@@ -360,7 +360,7 @@ function renderKPIs(state, view) {
   if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
     setDelta('kpiAmNW', s.amine.nwDelta, s.amine.nwDeltaPct, s.amine.nwDeltaTimeframe);
   }
-  setEur('kpiAmPortfolio', s.amine.ibkr + s.amine.espp);
+  setEur('kpiAmPortfolio', s.amine.ibkrForActions + s.amine.esppForActions);
   setEur('kpiAmVitry', s.amine.vitryEquity);
   // TWR dynamic from chart data (fallback to engine computation)
   if (s.actionsView) {
@@ -388,11 +388,11 @@ function renderKPIs(state, view) {
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
   setEur('kpiNzCash', s.nezha.cash);
-  setEur('kpiNzActions', s.nezha.espp + s.nezha.sgtm);
+  setEur('kpiNzActions', s.nezha.esppForActions + s.nezha.sgtm);
 
-  // Amine detail KPIs
-  setEur('kpiAmIBKR', s.amine.ibkr);
-  setEur('kpiAmESPP', s.amine.espp);
+  // Amine detail KPIs (show positions-only, matching Actions category)
+  setEur('kpiAmIBKR', s.amine.ibkrForActions);
+  setEur('kpiAmESPP', s.amine.esppForActions);
   setEur('kpiAmSGTM', s.amine.sgtm);
   setEur('kpiAmCash', s.amine.cashTotal);
 
@@ -456,11 +456,12 @@ function renderCategoryPcts(state, view) {
 function renderExpandSubs(state, view) {
   const s = state;
   // Sub expand card values
-  setEur('subIBKR', s.amine.ibkr);
-  setEur('subESPP', s.amine.espp + s.nezha.espp);
+  setEur('subIBKR', s.amine.ibkrForActions);
+  setEur('subESPP', s.amine.esppForActions + s.nezha.esppForActions);
   setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
   setEur('subUAE', s.amine.uae);
   setEur('subRevolutEUR', s.amine.revolutEUR);
+  setEur('subBrokerCash', s.amine.brokerCash + s.nezha.brokerCash);
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
@@ -950,10 +951,11 @@ function renderCoupleTable(state) {
   const s = state;
   const p = state.portfolio;
   const rows = [
-    ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm],
+    ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkrForActions + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm],
     ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
+    ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash + s.nezha.brokerCash],
     ['Equity Immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['Equity Immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
     ['Equity Immo \u2014 Villejuif VEFA (Nezha) [conditionnel]', s.nezha.villejuifEquity],
@@ -975,12 +977,13 @@ function renderAmineTable(state) {
   const acnPrice = '$' + p.market.acnPriceUSD.toFixed(0);
   const sgtmPrice = p.market.sgtmPriceMAD.toFixed(0) + ' DH';
   const rows = [
-    ['Portefeuille IBKR (actions + ETFs + cash)', s.amine.ibkr],
-    ['ESPP Accenture (' + p.amine.espp.shares + ' ACN @ ' + acnPrice + ')', s.amine.espp],
+    ['Portefeuille IBKR (actions + ETFs)', s.amine.ibkrForActions],
+    ['ESPP Accenture (' + p.amine.espp.shares + ' ACN @ ' + acnPrice + ')', s.amine.esppForActions],
     ['SGTM (' + p.amine.sgtm.shares + ' actions @ ' + sgtmPrice + ')', s.amine.sgtm],
     ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED)', s.amine.uae],
     ['Revolut EUR', s.amine.revolutEUR],
     ['Cash Maroc (' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.amine.moroccoCash],
+    ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash],
     ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', s.amine.recvPro],
