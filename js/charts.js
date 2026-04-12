@@ -2587,7 +2587,27 @@ export function renderPortfolioChart(overrides = {}) {
         html += '<div style="color:' + relColor + ';font-weight:600">P&L période: ' + fmtPL(pl) + '</div>';
         html += '<div style="color:#cbd5e0;font-size:11px">NAV: ' + fmt(nav) + ' | Déposé: ' + fmt(absDep) + ' | P&L total: ' + fmtPL(absPl) + '</div>';
       } else {
-        const startV = startValueRef || nav; // fallback to prevent NaN
+        // v285: startValueRef is couple-level. Compute per-owner start value
+        // by reading the owner-filtered nav at the period start index.
+        let startV = startValueRef || nav;
+        if (owner !== 'both') {
+          const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
+          const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+          const _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
+          const _oIR = owner === 'amine' ? 1 : 0;
+          const _oDR = owner === 'amine' ? 1 : 0;
+          const _ownerESPPNav = owner === 'amine' ? (data.esppValuesAmine || []) : (data.esppValuesNezha || []);
+          switch (scope) {
+            case 'espp':  startV = _ownerESPPNav[startIdx] || 0; break;
+            case 'maroc': startV = Math.round((navSGTM[startIdx] || 0) * _oSR); break;
+            case 'degiro': startV = Math.round((navDegiro[startIdx] || 0) * _oDR); break;
+            case 'all':
+              startV = Math.round((navIBKR[startIdx]||0)*_oIR + (_ownerESPPNav[startIdx]||0) + (navSGTM[startIdx]||0)*_oSR + (navDegiro[startIdx]||0)*_oDR);
+              break;
+            default: startV = Math.round((navIBKR[startIdx] || 0) * _oIR); break;
+          }
+        }
+        if (!startV) startV = nav; // fallback to prevent NaN
         const diff = nav - startV;
         const pct = startV && startV !== 0 ? ((nav / startV - 1) * 100).toFixed(2) : '0.00';
         const diffColor = diff >= 0 ? '#48bb78' : '#fc8181';
