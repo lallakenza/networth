@@ -345,6 +345,47 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-017: Breakdown table et KPI cards désynchronisés — facturationNet et cautionRueil manquants
+- **Version**: v284 (détecté), v285 (corrigé)
+- **Sévérité**: Majeur (les KPIs affichés sont incohérents entre eux)
+- **Détection**: Test utilisateur — "On voit où ici azarkan et badre ? Normalement ce breakdown doit inclure tout ? Or le breakdown inclus un montant différent de ce qu'on a dans les cards. C'est un bug"
+- **Symptôme**: 
+  - Le tableau "Patrimoine Couple — Detail consolidé" ne montrait pas la ligne Facturation (Augustin/Benoit)
+  - Le KPI card "Autres Actifs" était inférieur au vrai montant (manquait ~1,450€ de facturation)
+  - La somme Actions + Cash + Immo + Autres ≠ NW affiché dans la card principale
+  - Même problème pour Amine (breakdown table sans facturation) et Nezha (missing cautionRueil)
+- **Cause racine** (5 emplacements désynchronisés) :
+  1. `couple.autreTotal` (engine.js:3704) : manquait `+ amineFacturationNet`
+  2. `views.couple.other` (engine.js:3822) : manquait `- nezhaCautionRueil`
+  3. `views.nezha.other` (engine.js:3843) : manquait `- nezhaCautionRueil`
+  4. `coupleCategories` treemap (engine.js:3813) : pas de catégorie "Dettes" (TVA + caution)
+  5. `amineCategories` treemap (engine.js:3922) : pas de catégorie TVA
+  6. `nezhaCategories` treemap (engine.js:3962) : pas de caution dans "Créances"
+  7. `renderCoupleTable` (render.js:964) : pas de ligne facturation
+  8. `renderAmineTable` (render.js:985) : pas de ligne facturation
+  9. Insights kpiCoupleAmNW et kpiCoupleAutre : facturation manquante dans les sommes
+- **Correctif** :
+  1. Ajout `+ amineFacturationNet` dans `couple.autreTotal`
+  2. Ajout `- nezhaCautionRueil` dans `views.couple.other` et `views.nezha.other`
+  3. Nouvelle catégorie "Dettes & Obligations" dans `coupleCategories` (TVA + caution)
+  4. Nouvelle catégorie "TVA à payer" dans `amineCategories`
+  5. Ajout `- nezhaCautionRueil` dans `nezhaCategories` "Créances & Autres"
+  6. Ajout ligne "Facturation net" dans `renderCoupleTable` et `renderAmineTable`
+  7. Fix des insights pour inclure facturation dans les sommes
+- **Invariant ajouté** : Pour chaque vue (couple, amine, nezha), `stocks + cash + immo + other = nwRef`
+- **Test de non-régression** :
+  - [ ] Tableau couple : ligne "Facturation net (Augustin − Benoit)" visible avec montant ~-1,450€
+  - [ ] KPI Autres = somme des lignes Véhicules + Créances + Facturation + TVA + Réserv. - Caution
+  - [ ] Actions + Cash + Immo + Autres = Net Worth affiché (à ±1€ près pour arrondis)
+  - [ ] Treemap couple : catégorie "Dettes & Obligations" visible avec TVA + Caution
+  - [ ] Treemap amine : catégorie "TVA à payer" visible (-16K€)
+  - [ ] Treemap nezha : "Caution Rueil" visible dans "Créances & Autres"
+  - [ ] Tooltip insight kpiCoupleAutre mentionne "Facturation"
+  - [ ] Amine breakdown table : ligne facturation visible
+- **Leçon** : Quand on ajoute un nouveau composant au calcul NW (ici `facturationNet`), il faut mettre à jour TOUS les endroits qui décomposent le NW : (1) calcul NW, (2) KPI cards, (3) breakdown tables, (4) treemap categories, (5) insights tooltips, (6) views object. Checklist à suivre systématiquement à chaque ajout.
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -361,7 +402,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
 | **Créances (vue)** | BUG-015, BUG-016 | Actives séparées des recouvrées, dettes visibles, KPIs basés sur actives uniquement |
+| **NW Breakdown / KPI cards** | BUG-017 | Tous les composants NW dans les breakdowns, cards, treemaps et insights. Invariant: stocks+cash+immo+autre = NW |
 
 ---
 
-*Dernière mise à jour: v284 — 12 avril 2026 (BUG-015 créances actives/recouvrées séparées, BUG-016 dettes TVA/Badre visibles)*
+*Dernière mise à jour: v285 — 12 avril 2026 (BUG-017 breakdown/KPI consistency audit — facturationNet + cautionRueil dans tous les composants)*

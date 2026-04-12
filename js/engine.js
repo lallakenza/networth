@@ -1404,6 +1404,7 @@ function computeCashView(portfolio, fx) {
     { label: 'Mashreq NEO+', native: p.amine.uae.mashreq, currency: 'AED', yield: CASH_YIELDS.mashreq, owner: 'Amine' },
     { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
+    { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine' },
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
@@ -3473,14 +3474,16 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   immoView.properties.forEach(prop => { immoCRDs[prop.loanKey] = prop.crd; });
 
   // ---- AMINE ----
-  const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent;
+  const amineWioBusiness = p.amine.uae.wioBusiness || 0;
+  const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent + amineWioBusiness;
   const amineUae = toEUR(amineUaeAED, 'AED', fx);  // UAE = AED accounts only
   const amineRevolutEUR = p.amine.uae.revolutEUR;   // Revolut = French account (EUR)
   // Weighted average yield for Cash UAE bucket (AED accounts only)
   const amineUaeYield = amineUae > 0
     ? (toEUR(p.amine.uae.mashreq, 'AED', fx) * CASH_YIELDS.mashreq
       + toEUR(p.amine.uae.wioSavings, 'AED', fx) * CASH_YIELDS.wioSavings
-      + toEUR(p.amine.uae.wioCurrent, 'AED', fx) * CASH_YIELDS.wioCurrent) / amineUae
+      + toEUR(p.amine.uae.wioCurrent, 'AED', fx) * CASH_YIELDS.wioCurrent
+      + toEUR(amineWioBusiness, 'AED', fx) * 0) / amineUae  // Wio Business: 0% yield
     : 0;
   const amineRevolutYield = CASH_YIELDS.revolutEUR;
   const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.nabd;
@@ -3701,10 +3704,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nbBiens: nbBiens,
     cashTotal: amineCashTotal + nezhaCash,
     actionsTotal: amineIbkr + amineEspp + amineSgtm + nezhaEspp + nezhaSgtm,
-    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
+    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
     autreVehicles: amineVehicles,
     autreCreancesPro: amineRecvPro,
     autreCreancesPerso: amineRecvPersonal + nezhaRecvOmar,
+    autreFacturation: amineFacturationNet,
     autreTva: amineTva,
     autreVillejuifReservation: nezhaVillejuifReservation,
     autreCautionRueil: -nezhaCautionRueil,
@@ -3776,7 +3780,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + amineRevolutEUR + amineMoroccoCash
+      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
         ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nezha)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
@@ -3787,6 +3791,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nezha)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Amine)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
         ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
+        ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: 'Amine — 0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
       ]
     },
@@ -3799,7 +3804,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
-      label: 'Creances', color: '#ec4899',
+      label: 'Creances & Facturation', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation,
       sub: [
         { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'Amine — SAP, Malt, Loyers' },
@@ -3807,6 +3812,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         { label: 'Facturation (net)', val: amineFacturationNet, color: '#f43f5e', owner: 'Amine — Augustin/Benoit' },
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: 'Nezha' },
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Nezha — remboursable' }] : []),
+      ]
+    },
+    {
+      label: 'Dettes & Obligations', color: '#ef4444',
+      total: amineTva - nezhaCautionRueil,
+      sub: [
+        { label: 'TVA à payer', val: amineTva, color: '#ef4444', owner: 'Amine — dette' },
+        ...(nezhaCautionRueil > 0 ? [{ label: 'Caution Rueil', val: -nezhaCautionRueil, color: '#dc2626', owner: 'Nezha — dette' }] : []),
       ]
     },
   ];
@@ -3819,7 +3832,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: amineIbkr + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
       cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
-      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances + Facturation - TVA', title: 'Autres Actifs' },
+      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: 'Vehicules + Creances + Facturation - TVA - Caution', title: 'Autres Actifs' },
       nwRef: coupleNW,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -3839,7 +3852,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: nezhaSgtm + nezhaEspp, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
-      other:     { val: nezhaRecvOmar + nezhaVillejuifReservation, sub: villejuifSigned ? 'Creance Omar (40K MAD)' : 'Creances + Reservation Villejuif', title: 'Creances' },
+      other:     { val: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar - Caution' : 'Creances + Reservation - Caution', title: 'Creances' },
       nwRef: nezhaNW + nezhaVillejuifEquity,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -3894,10 +3907,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + amineRevolutEUR + amineMoroccoCash,
+      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash,
       sub: [
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
         ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
+        ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: '0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: '#f87171', owner: '0%' }] : []),
       ]
     },
@@ -3910,13 +3924,18 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
-      label: 'Creances', color: '#ec4899',
+      label: 'Creances & Facturation', color: '#ec4899',
       total: amineRecvPro + amineRecvPersonal + amineFacturationNet,
       sub: [
         { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'SAP, Malt, Loyers' },
         { label: 'Créances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Kenza, Mehdi, etc.' },
         { label: 'Facturation (net)', val: amineFacturationNet, color: '#f43f5e', owner: 'Augustin/Benoit' },
       ].filter(s => Math.abs(s.val) > 100)
+    },
+    {
+      label: 'TVA à payer', color: '#ef4444',
+      total: amineTva,
+      sub: [{ label: 'TVA', val: amineTva, color: '#ef4444', owner: 'Dette' }]
     },
   ].filter(c => Math.abs(c.total) > 0);
 
@@ -3951,14 +3970,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
-      label: 'Creances', color: '#ec4899',
-      total: nezhaRecvOmar + nezhaVillejuifReservation,
+      label: 'Creances & Autres', color: '#ec4899',
+      total: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
       sub: [
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' },
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Remboursable' }] : []),
+        ...(nezhaCautionRueil > 0 ? [{ label: 'Caution Rueil', val: -nezhaCautionRueil, color: '#ef4444', owner: 'Dette locataire' }] : []),
       ]
     },
-  ].filter(c => c.total > 0);
+  ].filter(c => Math.abs(c.total) > 0);
 
   // ---- ACTIONS TREEMAP CATEGORIES (by geo) ----
   const geoLabels = { france: 'France', crypto: 'Crypto', us: 'US / Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
