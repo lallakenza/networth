@@ -3573,7 +3573,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     }
   } catch(e) { /* localStorage unavailable or parse error */ }
   // Fallback: use hardcoded values from data.js if localStorage was empty
-  if (amineFacturationNet === 0 && p.amine.facturation) {
+  if (_factuSrc === 'data.js' && p.amine.facturation) {
     Object.values(p.amine.facturation).forEach(pos => {
       amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
     });
@@ -3716,8 +3716,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     recvOmar: nezhaRecvOmar,
     // BUG-033: sum all active Nezha creances in MAD for display
     recvOmarMAD: p.nezha.creances && p.nezha.creances.items
-      ? p.nezha.creances.items.filter(c => c.status !== 'recouvré').reduce((s, c) => s + ((c.amount - (c.payments || []).reduce((ps, pay) => ps + pay.amount, 0)) * (c.currency === 'MAD' ? 1 : 0)), 0) || 40000
-      : 40000,
+      ? p.nezha.creances.items.filter(c => c.status !== 'recouvré').reduce((s, c) => {
+          const remaining = c.amount - (c.payments || []).reduce((ps, pay) => ps + pay.amount, 0);
+          const prob = c.probability !== undefined ? c.probability : 1;
+          return s + (remaining * prob * (c.currency === 'MAD' ? 1 : 0));
+        }, 0) || 28000
+      : 28000,
     cash: nezhaCash,
   };
 
@@ -3909,7 +3913,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
     const short = pos.label.replace(/\s*\(.*\)/, '');
     return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'IBKR' };
-  }).filter(s => s.val > 100);
+  });
   const ibkrCashVal = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
   const cryptoSubs = p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
     const colors = ['#f59e0b','#d97706'];

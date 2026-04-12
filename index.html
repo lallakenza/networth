@@ -1987,13 +1987,19 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <!-- EXPANDABLE: Cash -->
   <div class="cat-expand" id="expand-cash">
-    <div class="cat-expand-inner" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="cat-expand-inner" style="grid-template-columns: repeat(3, 1fr);">
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F1E6;&#x1F1EA;</div>
         <div class="sub-title">Cash UAE</div>
         <div class="sub-equity pos" id="subUAE" data-eur="0">--</div>
         <ul class="breakdown-list" id="subUAEBreakdown"></ul>
         <div class="sub-badge" id="subUAEBadge" style="background:#f0fff4;color:#276749">--</div>
+      </div>
+      <div class="sub-card" style="cursor:default;">
+        <div class="sub-icon">&#x1F1EA;&#x1F1FA;</div>
+        <div class="sub-title">Cash EUR</div>
+        <div class="sub-equity pos" id="subRevolutEUR" data-eur="0">--</div>
+        <div class="sub-detail" style="margin-top:6px;font-style:italic">Revolut</div>
       </div>
       <div class="sub-card" style="cursor:default;">
         <div class="sub-icon">&#x1F1F2;&#x1F1E6;</div>
@@ -2779,7 +2785,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=288"></script>
+<script type="module" src="js/app.js?v=291"></script>
 
 </body>
 </html>
