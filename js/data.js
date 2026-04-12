@@ -577,12 +577,20 @@ export const PORTFOLIO = {
         //
         // ── CRÉANCES PERSONNELLES (4 items) ──
         // Sources: emprunts familiaux, avances remboursables
-        { label: 'SAP & Tax (20j x 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-01', payments: [], notes: 'Facture envoyée, paiement sous 45j' },
+        // INVSNT001 — SAP & Tax janv (20j × 910€) — PAYÉ
+        { label: 'SAP & Tax — INVSNT001 (janv, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-04-12', payments: [{ amount: 18200, date: '2026-04-12', currency: 'EUR' }], notes: 'Facture payée' },
+        // INVSNT002 — SAP & Tax fév (20j × 910€) — EN ATTENTE
+        { label: 'SAP & Tax — INVSNT002 (fév, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_retard', dueDate: '2026-04-01', lastContact: '2026-04-12', payments: [], notes: 'Facture du 28/02/2026, échéance dépassée' },
+        // INVSNT003 — SAP & Tax mars (21.5j × 910€) — EN ATTENTE
+        { label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-05-01', lastContact: '2026-04-12', payments: [], notes: 'Facture du 01/04/2026, paiement sous 30j' },
         { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-08', payments: [], notes: 'Note de frais déplacement NZ — Sourcing Desk L\'Oréal, livré 26 fév 2026' },
-        { label: 'Loyers impayés (Fév + Mars)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: false, probability: 0.7, status: 'en_retard', dueDate: '2026-03-01', lastContact: '2026-03-05', payments: [], notes: 'Relance envoyée au locataire' }, // AUD-015: Updated 31/03/2026 — 30j overdue
+        // Loyers impayés janv + fév → PAYÉS le 12/04/2026
+        { label: 'Loyers impayés (Janv + Fév)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-03-01', lastContact: '2026-04-12', payments: [{ amount: 2400, date: '2026-04-12', currency: 'EUR' }], notes: 'Loyers janv+fév payés le 12/04/2026' },
         { label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
         { label: 'Abdelkader', amount: 55000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
-        { label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-09-30', lastContact: '2026-02-20', payments: [], notes: '' },
+        // Mehdi — 30 000 MAD existant + avance 1 000 EUR du 12/04/2026
+        { label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-09-30', lastContact: '2026-04-12', payments: [], notes: '' },
+        { label: 'Mehdi — avance', amount: 1000, currency: 'EUR', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-04-12', payments: [], notes: 'Avance de 1000€ le 12/04/2026' },
         { label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_retard', dueDate: '2026-01-31', lastContact: '2026-02-01', payments: [], notes: 'Pas de nouvelle depuis' },
         // Anas — remboursé le 7 mars 2026 → supprimé
       ],
