@@ -4114,11 +4114,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Add SGTM (merged Amine + Nezha) to Morocco
   if (!geoGroups['morocco']) geoGroups['morocco'] = [];
   geoGroups['morocco'].push({ label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#ca8a04', owner: 'Maroc' });
-  // Add IBKR Cash
-  if (ibkrCashVal > 100) {
-    if (!geoGroups['cash']) geoGroups['cash'] = [];
-    // We'll put cash in its own category
-  }
+  // IBKR cash (EUR/USD) reclassified to Cash category in v292 — no longer in Actions geo treemap
   const actionsCategories = Object.entries(geoGroups)
     .map(([geo, subs]) => ({
       label: geoLabels[geo] || geo,
