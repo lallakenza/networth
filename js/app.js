@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY } from './data.js?v=288';
-import { compute, getGrandTotal } from './engine.js?v=288';
-import { render } from './render.js?v=288';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=288';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=288';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=288';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=288';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=289';
+import { compute, getGrandTotal } from './engine.js?v=289';
+import { render } from './render.js?v=289';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=289';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=289';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=289';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=289';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -366,6 +366,8 @@ window.coupleChartZoomOut = coupleChartZoomOut;
   var label = 'Donnees au ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   var badge = document.getElementById('dateBadge');
   if (badge) badge.textContent = label;
+  var vBadge = document.getElementById('versionBadge');
+  if (vBadge) vBadge.textContent = APP_VERSION;
 })();
 
 // ---- INIT ----

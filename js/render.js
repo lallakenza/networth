@@ -1221,6 +1221,7 @@ const _colConfig = {
   cout:    { label: 'Coût',     on: true },
   pl:      { label: 'P/L',      on: true },
   pctPL:   { label: '% P/L',    on: true },
+  fxPL:    { label: 'FX P/L',   on: true },
   evo:     { label: 'Évolution', on: true },
   weight:  { label: 'Poids',    on: true },
   sector:  { label: 'Secteur',  on: true },
@@ -1276,6 +1277,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     cout:    { sort: 'costEUR', label: 'Co\u00fbt', cls: 'num sortable' },
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
+    fxPL:    { sort: 'fxPL', label: 'FX P/L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
@@ -1288,6 +1290,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     pru:     { sort: 'pruEUR', label: 'PRU', cls: 'num sortable' },
     pl_periode: { sort: 'pl_periode', label: 'P/L p\u00e9riode', cls: 'num sortable' },
     pctPL_periode: { sort: 'pctPL_periode', label: '% p\u00e9riode', cls: 'num sortable' },
+    fxPL:    { sort: 'fxPL', label: 'FX P/L', cls: 'num sortable' },
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
@@ -1295,8 +1298,8 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
 
   // Adjust column order based on period
   let colOrder = _posPeriod === 'all' ?
-    ['shares', 'valeur', 'cout', 'pl', 'pctPL', 'weight', 'sector', 'geo'] :
-    ['shares', 'valeur_debut', 'valeur_actuelle', 'pl_periode', 'pctPL_periode', 'weight', 'sector', 'geo'];
+    ['shares', 'valeur', 'cout', 'pl', 'pctPL', 'fxPL', 'weight', 'sector', 'geo'] :
+    ['shares', 'valeur_debut', 'valeur_actuelle', 'pl_periode', 'pctPL_periode', 'fxPL', 'weight', 'sector', 'geo'];
 
   // Rebuild thead dynamically based on colOrder
   const thead = table.querySelector('thead');
@@ -1306,7 +1309,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     thead.innerHTML = hdr + '</tr>';
   }
 
-  let totalVal = 0, totalCost = 0, totalEvoPL = 0;
+  let totalVal = 0, totalCost = 0, totalEvoPL = 0, totalFxPL = 0;
   let hasStatic = false, staticVal = 0, liveVal = 0;
 
   // First pass: detect if there are any static positions
@@ -1318,10 +1321,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
 
   sorted.forEach(pos => {
     totalVal += pos.valEUR;
-    totalCost += (pos.costEUR || 0);
+    totalCost += (pos.costEUR_hist || pos.costEUR || 0);
+    totalFxPL += (pos.fxPL || 0);
     const periodField = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' }[_posPeriod];
     totalEvoPL += (pos[periodField] || 0);
-    const hasPL = pos.costEUR != null && pos.costEUR > 0;
+    const hasPL = (pos.costEUR_hist || pos.costEUR) != null && (pos.costEUR_hist || pos.costEUR) > 0;
     const pl = hasPL ? pos.unrealizedPL : null;
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
@@ -1368,12 +1372,13 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       valeur:  () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
       valeur_debut: () => '<td class="num">' + (valeurDebut !== null ? fmt(valeurDebut) : '\u2014') + '</td>',
       valeur_actuelle: () => '<td class="num">' + fmt(pos.valEUR) + '</td>',
-      pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + (pos.costEUR / pos.shares).toFixed(2) : '\u2014') + '</td>',
-      cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR) : '\u2014') + '</td>',
+      pru:     () => '<td class="num">' + (hasPL && pos.shares > 0 ? '\u20ac ' + ((pos.costEUR_hist || pos.costEUR) / pos.shares).toFixed(2) : '\u2014') + '</td>',
+      cout:    () => '<td class="num">' + (hasPL ? fmt(pos.costEUR_hist || pos.costEUR) : '\u2014') + '</td>',
       pl:      () => '<td class="num ' + plC + '">' + (pl !== null ? plS + fmt(pl) : '\u2014') + '</td>',
       pl_periode: () => '<td class="num ' + plPeriodeC + '">' + (plPeriode !== null ? plPeriodeS + fmt(Math.round(plPeriode)) : '\u2014') + '</td>',
       pctPL:   () => '<td class="num ' + plC + '">' + (pctPL !== null ? plS + pctPL.toFixed(1) + '%' : '\u2014') + '</td>',
       pctPL_periode: () => '<td class="num ' + plPeriodeC + '">' + (pctPeriode !== null ? plPeriodeS + pctPeriode.toFixed(1) + '%' : '\u2014') + '</td>',
+      fxPL:    () => { const fx = pos.fxPL || 0; const fxC = pos.currency === 'EUR' ? '' : (fx >= 0 ? 'pl-pos' : 'pl-neg'); return '<td class="num ' + fxC + '">' + (pos.currency !== 'EUR' ? (fx >= 0 ? '+' : '') + fmt(Math.round(fx)) : '\u2014') + '</td>'; },
       evo:     () => '<td class="num ' + evoC + '">' + evoTxt + '</td>',
       weight:  () => '<td class="num">' + pos.weight.toFixed(1) + '%</td>',
       sector:  () => '<td>' + (SECTOR_LABELS[pos.sector] || pos.sector || '\u2014') + '</td>',
@@ -1541,6 +1546,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     pl_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
     pctPL_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoPL != null && totalVal ? (totalEvoPL >= 0 ? '+' : '') + (totalEvoPL / (totalVal - totalEvoPL) * 100).toFixed(1) : '\u2014') + '%</strong></td>',
+    fxPL:    () => { const fC = totalFxPL >= 0 ? 'pl-pos' : 'pl-neg'; return '<td class="num ' + fC + '"><strong>' + (totalFxPL >= 0 ? '+' : '') + fmt(Math.round(totalFxPL)) + '</strong></td>'; },
     evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     weight:  () => '<td class="num">100%</td>',
     sector:  () => '<td></td>',

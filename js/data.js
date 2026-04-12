@@ -20,7 +20,7 @@
 // - Tax/fiscal documents (TVA, PTZ, LMNP constraints)
 //
 // Last updated: 12 April 2026
-// Version: v288 (v287 → v288 : audit complet — 16 bugs corrigés)
+// Version: v289 (v288 → v289 : FX P&L decomposition, version badge, simulators fix)
 // All amounts are in their NATIVE currency (AED, MAD, USD, EUR, JPY)
 // Never converted here. Engine does all conversions.
 //
@@ -399,6 +399,9 @@ export const PORTFOLIO = {
       //      → dans le CSV IBKR: "Commission" et "Transaction Fees" sont 2 colonnes séparées
       //   ⑥ costBasis: PRU moyen au moment du trade (du CSV IBKR)
       //   ⑦ currency: devise du trade — CRITIQUE pour la conversion des commissions
+      //   ⑧ fxRate: (non-EUR trades only) taux EUR/XXX à la date du trade (ECB ref)
+      //      → utilisé par engine.js pour décomposer le P&L en Stock P&L + FX P&L
+      //      → source: ECB reference rates via exchange-rates.org
       //
       // RÉCONCILIATION commissions au 19/03/2026:
       //   IBKR "Commissions" (Change in NAV): -€217.31
@@ -412,7 +415,7 @@ export const PORTFOLIO = {
         // ═══════════════════════════════════════════════════
 
         // ─── QQQM (Invesco Nasdaq 100) — achat avr 2025, vendu fév 2026 ───
-        { date: '2025-04-03', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'buy',  qty: 58,   price: 185.80,  currency: 'USD', cost: 10776,  commission: -1.00, costBasis: 185.63 , source: 'ibkr' },
+        { date: '2025-04-03', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'buy',  qty: 58,   price: 185.80,  currency: 'USD', cost: 10776,  commission: -1.00, costBasis: 185.63, fxRate: 1.10607, source: 'ibkr' },
         // ─── MC (LVMH) — position ouverte ───
         { date: '2025-08-18', ticker: 'MC.PA',   label: 'LVMH',              type: 'buy',  qty: 40,   price: 472.40,  currency: 'EUR', cost: 18896,  commission: -9.45, costBasis: 475.85 , source: 'ibkr' },
         // ─── P911 (Porsche) — position ouverte ───
@@ -444,12 +447,12 @@ export const PORTFOLIO = {
         // ─── OR (L'Oréal) — position ouverte ───
         { date: '2025-11-03', ticker: 'OR.PA',   label: "L'Oréal",           type: 'buy',  qty: 30,   price: 361.50,  currency: 'EUR', cost: 10845,  commission: -5.42, costBasis: 361.85 , source: 'ibkr' },
         // ─── 4911.T (Shiseido) — position ouverte (JPY) ───
-        { date: '2025-11-25', ticker: '4911.T',  label: 'Shiseido',          type: 'buy',  qty: 500,  price: 2179,    currency: 'JPY', cost: 1089500, commission: -871.60, costBasis: 2179, source: 'ibkr' },
+        { date: '2025-11-25', ticker: '4911.T',  label: 'Shiseido',          type: 'buy',  qty: 500,  price: 2179,    currency: 'JPY', cost: 1089500, commission: -871.60, costBasis: 2179, fxRate: 180.620, source: 'ibkr' },
         // ─── AIR (Airbus) — 2 lots, position ouverte ───
         { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 196.50,  currency: 'EUR', cost: 19650,  commission: -9.83, costBasis: 192.58 , source: 'ibkr' },
         { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 183.80,  currency: 'EUR', cost: 18380,  commission: -9.19, costBasis: 192.58 , source: 'ibkr' },
         // ─── IBIT (iShares Bitcoin) — position ouverte ───
-        { date: '2025-12-11', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 50.76,   currency: 'USD', cost: 5076,   commission: -1.00, costBasis: 52.10 , source: 'ibkr' },
+        { date: '2025-12-11', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 50.76,   currency: 'USD', cost: 5076,   commission: -1.00, costBasis: 52.10, fxRate: 1.17401, source: 'ibkr' },
         // ─── EDEN rebuy jan 2026 ───
         { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 300,  price: 17.985,  currency: 'EUR', cost: 5396,   commission: -3.00, costBasis: 17.60 , source: 'ibkr' },
         // ─── BN (Danone) — position ouverte ───
@@ -457,18 +460,18 @@ export const PORTFOLIO = {
         // ─── SAP — position ouverte (Xetra EUR, ticker Yahoo = SAP.DE) ───
         { date: '2026-01-21', ticker: 'SAP.DE',  label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
         // ─── IBIT renforcements jan/fév 2026 ───
-        { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60 , source: 'ibkr' },
+        { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60, fxRate: 1.19740, source: 'ibkr' },
         // ─── ETHA (iShares Ethereum) — 3 lots ───
-        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17 , source: 'ibkr' },
-        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50 , source: 'ibkr' },
-        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34 , source: 'ibkr' },
+        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17, fxRate: 1.18537, source: 'ibkr' },
+        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50, fxRate: 1.17960, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34, fxRate: 1.18036, source: 'ibkr' },
         // ─── IBIT renforcements fév 2026 ───
-        { date: '2026-02-03', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 300,  price: 42.50,   currency: 'USD', cost: 12750,  commission: -1.50, costBasis: 43.30 , source: 'ibkr' },
-        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.75,   currency: 'USD', cost: 4175,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
-        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.50,   currency: 'USD', cost: 4150,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
-        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 40.90,   currency: 'USD', cost: 4090,   commission: -1.00, costBasis: 41.57 , source: 'ibkr' },
+        { date: '2026-02-03', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 300,  price: 42.50,   currency: 'USD', cost: 12750,  commission: -1.50, costBasis: 43.30, fxRate: 1.18129, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.75,   currency: 'USD', cost: 4175,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.50,   currency: 'USD', cost: 4150,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 40.90,   currency: 'USD', cost: 4090,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
         // ─── QQQM sell — profit-taking ───
-        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58,   price: 250.49,  currency: 'USD', proceeds: 14528, realizedPL: 3750.01, commission: -1.01, costBasis: 250.31 , source: 'ibkr' },
+        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58,   price: 250.49,  currency: 'USD', proceeds: 14528, realizedPL: 3750.01, commission: -1.01, costBasis: 250.31, fxRate: 1.17745, source: 'ibkr' },
         // ─── GLE sell — vente totale ───
         { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale',  type: 'sell', qty: 200,  price: 75.34,   currency: 'EUR', proceeds: 15068, realizedPL: 4807.34, commission: -7.53, costBasis: 76.24 , source: 'ibkr' },
         // ─── WLN sell — coupure perte ───
@@ -1113,6 +1116,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
+export const APP_VERSION = 'v289';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
