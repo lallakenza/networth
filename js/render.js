@@ -961,6 +961,7 @@ function renderCoupleTable(state) {
     ['Creances SAP & Tax (garanti, 45j)', s.amine.recvPro],
     ['Creances personnelles Amine (recouvrement incertain)', s.amine.recvPersonal],
     ['Creance Omar \u2014 Nezha (40K MAD)', s.nezha.recvOmar],
+    ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
     ['TVA a payer (Amine)', s.amine.tva],
   ];
   buildDetailTableWithPct('#coupleDetailTable', rows, 'Net Worth Couple', s.couple.nw);
@@ -982,6 +983,7 @@ function renderAmineTable(state) {
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', s.amine.recvPro],
     ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
+    ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
     ['TVA a payer', s.amine.tva],
   ];
   buildDetailTable('#amineDetailTable tbody', rows, 'Net Worth Amine');
@@ -6230,10 +6232,10 @@ function attachKPIInsights(state, view) {
   const stocksTotal = s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm;
   const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cash;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%) + Autre \u20ac' + f(s.couple.autreTotal) + ' (' + pct(s.couple.autreTotal, gt) + '%).';
-  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.tva) + '.';
+  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.facturationNet + s.amine.tva) + '.';
   insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE). Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
-  insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + TVA \u20ac' + f(s.couple.autreTva) + (s.couple.autreVillejuifReservation ? ' + R\u00e9serv. Villejuif \u20ac' + f(s.couple.autreVillejuifReservation) : '') + (s.couple.autreCautionRueil ? ' + Caution \u20ac' + f(s.couple.autreCautionRueil) : '') + '.';
+  insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + Facturation \u20ac' + f(s.couple.autreFacturation) + ' + TVA \u20ac' + f(s.couple.autreTva) + (s.couple.autreVillejuifReservation ? ' + R\u00e9serv. Villejuif \u20ac' + f(s.couple.autreVillejuifReservation) : '') + (s.couple.autreCautionRueil ? ' + Caution \u20ac' + f(s.couple.autreCautionRueil) : '') + '.';
 
   // ── Amine view ──
   insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';

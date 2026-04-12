@@ -44,24 +44,25 @@ export const PORTFOLIO = {
   amine: {
     // ──────────────────────────────────────────────────────
     // CASH UAE (en AED) — se connecter à Mashreq/Wio app
-    // ⚠️ Soldes datés du 7 mars 2026 — à rafraîchir manuellement
+    // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 360734,      // Mashreq NEO PLUS — mis à jour 7 Mar 2026
-      wioSavings: 220000,   // Wio Savings (~6% rendement) — mis à jour 7 Mar 2026
-      wioCurrent: 4904,     // Wio Current (compte courant, 0% rendement) — mis à jour 7 Mar 2026
-      revolutEUR: 5967,     // Revolut EUR balance (déjà en EUR) — mis à jour 7 Mar 2026
-      _lastUpdate: '2026-03-07',
+      mashreq: 484046,      // Mashreq NEO PLUS (Saver 483,544.74 + Current 501.49) — mis à jour 12 Avr 2026
+      wioSavings: 195500,   // Wio Personal Savings (~6% rendement) — mis à jour 12 Avr 2026
+      wioCurrent: 371,      // Wio Personal Current (compte courant, 0% rendement) — mis à jour 12 Avr 2026
+      wioBusiness: 47025,   // Wio Business (Bairok Consulting LLC, 0% rendement) — mis à jour 12 Avr 2026
+      revolutEUR: 190,      // Revolut EUR balance (déjà en EUR) — mis à jour 12 Avr 2026
+      _lastUpdate: '2026-04-12',
     },
 
     // ──────────────────────────────────────────────────────
     // CASH MAROC (en MAD) — se connecter à Attijari/Nabd app
-    // ⚠️ Soldes datés du 7 mars 2026 — à rafraîchir manuellement
+    // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 151202,     // Attijariwafa Courant (0% rendement) — mis à jour 7 Mar 2026
-      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — mis à jour 7 Mar 2026
-      _lastUpdate: '2026-03-07',
+      attijari: 6799,       // Attijariwafa Courant (0% rendement) — mis à jour 12 Avr 2026
+      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — mis à jour 7 Mar 2026 (pas de nouveau relevé)
+      _lastUpdate: '2026-04-12',
     },
 
     // ══════════════════════════════════════════════════════════════════
