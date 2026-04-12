@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY } from './data.js?v=287';
-import { compute, getGrandTotal } from './engine.js?v=287';
-import { render } from './render.js?v=287';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=287';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=287';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=287';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=287';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY } from './data.js?v=288';
+import { compute, getGrandTotal } from './engine.js?v=288';
+import { render } from './render.js?v=288';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=288';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=288';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=288';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=288';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -414,7 +414,8 @@ async function refreshFX(force) {
     if (badge) badge.textContent = 'Taux FX ' + fxSource;
   }
 }
-refreshFX(false);
+// BUG-034: wrap standalone refreshFX calls in catch to prevent unhandled rejections
+refreshFX(false).catch(e => console.warn('[app] Initial FX fetch error:', e));
 
 // AUD-006: Module-level interval IDs for cleanup
 let _fxIntervalId = null;
@@ -422,7 +423,7 @@ let _stockIntervalId = null;
 
 // Auto-refresh FX every 5 minutes
 if (_fxIntervalId) clearInterval(_fxIntervalId);
-_fxIntervalId = setInterval(() => refreshFX(true), 5 * 60 * 1000);
+_fxIntervalId = setInterval(() => refreshFX(true).catch(e => console.warn('[app] FX interval error:', e)), 5 * 60 * 1000);
 
 // ---- KPI computation from chart NAV series ----
 // Uses the accurate forward-simulation data from buildPortfolioYTDChart
@@ -1098,6 +1099,15 @@ async function loadStockPrices(forceRefresh) {
         let currentPeriod = 'YTD';
         let historicalDataToUse = historicalDataYTD;
 
+        // BUG-021: Guard against duplicate event listener binding
+        // loadStockPrices() is called on init, manual refresh, and 10-min auto-refresh.
+        // Without this guard, each call adds another set of listeners.
+        if (window._chartTogglesBound) {
+          // Already bound — skip re-binding, just update historicalDataToUse reference
+          console.log('[app] Chart toggles already bound, skipping re-bind');
+        } else {
+        window._chartTogglesBound = true;
+
         // Bind scope toggle buttons
         document.querySelectorAll('#ytdScopeToggle button').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -1280,6 +1290,7 @@ async function loadStockPrices(forceRefresh) {
             }
           });
         });
+        } // end BUG-021 guard (_chartTogglesBound)
       } catch (e) {
         console.warn('[app] YTD chart error:', e);
         const ytdProgress = document.getElementById('ytdChartProgress');

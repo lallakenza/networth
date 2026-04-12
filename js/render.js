@@ -477,21 +477,22 @@ function renderExpandSubs(state, view) {
     return amt / fx[cur];
   };
 
+  // BUG-023: filter out recouvré items (already in cash, not counted in NW)
   let creanceItems = [];
   if (view === 'amine') {
-    creanceItems = (p.amine.creances.items || []).map(c => ({
+    creanceItems = (p.amine.creances.items || []).filter(c => c.status !== 'recouvré').map(c => ({
       label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
     }));
   } else if (view === 'nezha') {
-    creanceItems = (p.nezha.creances && p.nezha.creances.items || []).map(c => ({
+    creanceItems = (p.nezha.creances && p.nezha.creances.items || []).filter(c => c.status !== 'recouvré').map(c => ({
       label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
     }));
   } else {
-    // couple: show all
-    (p.amine.creances.items || []).forEach(c => {
+    // couple: show all active
+    (p.amine.creances.items || []).filter(c => c.status !== 'recouvré').forEach(c => {
       creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Amine' });
     });
-    (p.nezha.creances && p.nezha.creances.items || []).forEach(c => {
+    (p.nezha.creances && p.nezha.creances.items || []).filter(c => c.status !== 'recouvré').forEach(c => {
       creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Nezha' });
     });
   }
@@ -1005,6 +1006,7 @@ function renderNezhaTable(state, view) {
     ['Wio UAE (' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.nezha.cashUAE],
     ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
+    ...(!s.nezha.villejuifSigned && s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
   const tbody = document.querySelector('#nezhaDetailTable tbody');
@@ -1538,7 +1540,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     pl:      () => '<td class="num ' + tPlC + '"><strong>' + tPlS + fmt(totalPL) + '</strong></td>',
     pl_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     pctPL:   () => '<td class="num ' + tPlC + '"><strong>' + tPlS + totalPctPL.toFixed(1) + '%</strong></td>',
-    pctPL_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoPL && totalVal ? (totalEvoPL >= 0 ? '+' : '') + (totalEvoPL / (totalVal - totalEvoPL) * 100).toFixed(1) : '\u2014') + '%</strong></td>',
+    pctPL_periode: () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoPL != null && totalVal ? (totalEvoPL >= 0 ? '+' : '') + (totalEvoPL / (totalVal - totalEvoPL) * 100).toFixed(1) : '\u2014') + '%</strong></td>',
     evo:     () => '<td class="num ' + totalEvoC + '"><strong>' + (totalEvoTxt || '\u2014') + '</strong></td>',
     weight:  () => '<td class="num">100%</td>',
     sector:  () => '<td></td>',
@@ -6239,27 +6241,35 @@ function attachKPIInsights(state, view) {
 
   // ── Amine view ──
   insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
-  insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkr) + ' + ESPP \u20ac' + f(s.amine.espp) + '. Concentration top 3 = 43% du portefeuille. Diversifier vers des ETFs.';
+  // BUG-030: compute top 3 concentration dynamically
+  const _ibkrPosVals = (s.actionsView ? s.actionsView.ibkrPositions : []).map(p => p.currentValue || 0).sort((a, b) => b - a);
+  const _top3Val = _ibkrPosVals.slice(0, 3).reduce((a, b) => a + b, 0);
+  const _ibkrTotalVal = _ibkrPosVals.reduce((a, b) => a + b, 0);
+  const _top3Pct = _ibkrTotalVal > 0 ? Math.round(_top3Val / _ibkrTotalVal * 100) : 0;
+  insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkr) + ' + ESPP \u20ac' + f(s.amine.espp) + '. Concentration top 3 = ' + _top3Pct + '% du portefeuille.';
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
-  insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac1,017/mois.';
+  const _vitryProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'vitry') : null;
+  const _vitryWealth = _vitryProp ? Math.round(_vitryProp.wealthCreation || 0) : '?';
+  insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac' + _vitryWealth + '/mois.';
 
   // ── Nezha view ──
   const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
   insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
-  insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac838/mois de richesse.';
+  const _rueilWealth = rueilProp ? Math.round(rueilProp.wealthCreation || 0) : '?';
+  insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
   insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison Q1 2028. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
   insights['kpiNzCash'] = 'Cash total \u20ac' + f(s.nezha.cash) + ' dont Livret A \u20ac' + f(s.nezha.livretA) + ' (1.5%) + \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA) + ' dormant (0%). Optimiser : assurance-vie ou SCPI.';
 
   // ── Actions view ──
   if (s.actionsView) {
     const av = s.actionsView;
-    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2. Benchmark : S&P 500 +12.5% YTD, Or +21% YTD, BTC -25% YTD.';
+    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2.';
     const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
     const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
-    insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '. Crypto = gros contributeur n\u00e9gatif (BTC -25%, ETH -33% YTD).';
-    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro). Meilleur trade : NVIDIA (+\u20ac41K). Attention : 0% d\'exposition or (meilleur actif 2025-2026).';
+    insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '.';
+    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro).';
     insights['kpiActionsTotalDeposits'] = 'Total inject\u00e9 dans les march\u00e9s. P/L total = ' + (av.combinedUnrealizedPL + av.combinedRealizedPL >= 0 ? '+' : '') + '\u20ac' + f(av.combinedUnrealizedPL + av.combinedRealizedPL) + ' (' + ((av.combinedUnrealizedPL + av.combinedRealizedPL) / av.totalDeposits * 100).toFixed(1) + '% du capital).';
-    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (30% France, 15% US/JP). \u26A0 Prochain ex-date : DG.PA le 21 avr. Vendre avant pour \u00e9viter WHT.';
+    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (25% France, 30% US, 15% JP).';
   }
 
   // ── Cash view ──

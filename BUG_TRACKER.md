@@ -464,4 +464,234 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v287 — 12 avril 2026 (BUG-019 Augustin manquant dans vue créances — facturation receivables non injectées dans activeItems)*
+## BUG-020: ESPP cash (~2,100€) absent du calcul NW
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Majeur (NW sous-estimé de ~2,100€)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Le cash résiduel dans les comptes ESPP UBS (2,000 EUR Amine + $109.56 Nezha) n'est compté nulle part dans le NW. Le commentaire dit "Cash ESPP côté cashView" mais cashView est display-only.
+- **Cause racine**: `engine.js:3529` calcule `amineEspp = shares × price` sans ajouter `cashEUR`. Idem `engine.js:3654` pour `nezhaEspp` qui ignore `cashUSD`.
+- **Correctif**: Ajout du cash ESPP dans les calculs: `amineEspp` inclut `cashEUR`, `nezhaEspp` inclut `toEUR(cashUSD)`. Exposé dans l'objet retourné pour affichage.
+- **Test de non-régression**:
+  - [ ] `amineEspp` = shares × price + 2,000€ (pas juste shares × price)
+  - [ ] `nezhaEspp` = shares × price + toEUR($109.56) (pas juste shares × price)
+  - [ ] NW couple augmenté de ~2,100€ vs v287
+
+---
+
+## BUG-021: Event listeners dupliqués sur les toggles chart
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Majeur (handlers tirés N fois après N refreshes)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Après un hard refresh ou auto-refresh (10 min), cliquer sur scope/period/mode/owner lance le handler N fois (une fois par appel de `loadStockPrices`).
+- **Cause racine**: `app.js:1101-1282` — les `addEventListener` sont à l'intérieur de `loadStockPrices()` qui est appelé au init, au refresh manuel, et toutes les 10 min. Chaque appel ajoute un nouveau listener.
+- **Correctif**: Guard avec flag `_chartTogglesBound`. Les listeners ne sont bindés qu'une seule fois au premier appel.
+- **Test de non-régression**:
+  - [ ] Faire un hard refresh → cliquer sur un bouton scope → un seul rebuild (pas deux)
+  - [ ] Attendre 10 min auto-refresh → cliquer sur un toggle → un seul handler
+
+---
+
+## BUG-022: Table breakdown Nezha manque villejuifReservation
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (total table ≠ KPI card)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: La table détail Nezha ne montre pas la ligne "Réservation Villejuif" (3K€ quand `!villejuifSigned`), mais le KPI card Nezha l'inclut → le total table < NW Nezha affiché.
+- **Cause racine**: `render.js:997-1009` — `renderNezhaTable` construit les rows sans inclure `villejuifReservation`.
+- **Correctif**: Ajout conditionnel de la ligne "Réservation Villejuif" dans les rows quand `!villejuifSigned && reservation > 0`.
+- **Test de non-régression**:
+  - [ ] Table Nezha : total = KPI NW Nezha (à ±1€ près)
+  - [ ] Ligne "Réservation Villejuif" visible quand bail non signé
+
+---
+
+## BUG-023: Expand sub-card créances inclut les items recouvrés
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (total sub-card gonflé)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Le breakdown créances dans les KPI expand cards inclut les items `recouvré` → total plus élevé que la contribution réelle au NW.
+- **Cause racine**: `render.js:480-497` — lit directement `portfolio.*.creances.items` sans filtrer `status === 'recouvré'`.
+- **Correctif**: Ajout du filtre `.filter(c => c.status !== 'recouvré')` avant le mapping.
+- **Test de non-régression**:
+  - [ ] Sub-card créances n'inclut aucun item recouvré
+  - [ ] Total sub-card = somme des créances actives uniquement
+
+---
+
+## BUG-024: WHT_RATES incohérents avec les dividendes réels IBKR
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (projections dividendes faussées)
+- **Détection**: Audit codebase — comparaison costs[] vs WHT_RATES
+- **Symptôme**: `WHT_RATES.france = 0.30` mais les dividendes réels FR dans costs[] montrent 25% WHT. `WHT_RATES.us = 0.15` mais QQQM dividendes montrent 30% WHT.
+- **Cause racine**: Les taux dans WHT_RATES sont les taux statutaires/conventionnels, pas les taux effectifs appliqués par IBKR. UAE résident → pas de convention FR-UAE (30% FR), pas de W-8BEN (30% US).
+- **Correctif**: `WHT_RATES.france = 0.25` (taux effectif IBKR), `WHT_RATES.us = 0.30` (UAE, pas de W-8BEN). Commentaires mis à jour.
+- **Test de non-régression**:
+  - [ ] Projections dividendes FR utilisent 25% (pas 30%)
+  - [ ] Projections dividendes US utilisent 30% (pas 15%)
+
+---
+
+## BUG-025: startValue scope fallthrough dans charts — 'all' et 'degiro' utilisent IBKR
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (label reference line incorrect)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: En scope "Tous", le `startValue` stocké est la NAV IBKR-only au lieu de la NAV totale. Affecte le label de la ligne de référence.
+- **Cause racine**: `charts.js:3998` — le ternaire ne couvre que 'espp' et 'maroc', le reste (dont 'all' et 'degiro') tombe sur `chartValues[0]` (IBKR).
+- **Correctif**: Ajout des cas 'all' → `chartValuesTotal[0]` et 'degiro' → `chartValuesDegiro[0]`.
+- **Test de non-régression**:
+  - [ ] Scope Tous : reference line label = NAV totale au start (pas IBKR seul)
+  - [ ] Scope Degiro : reference line label = NAV Degiro au start
+
+---
+
+## BUG-026: DG.PA dans DIV_CALENDAR et DIV_YIELDS après vente complète
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (projections dividendes incluent position vendue)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: DG.PA (Vinci) a été entièrement vendu le 08/04/2026 mais reste dans DIV_YIELDS et DIV_CALENDAR → projections de dividendes futures sur une position inexistante.
+- **Cause racine**: `data.js` — DG.PA non retiré de DIV_YIELDS et DIV_CALENDAR après la vente.
+- **Correctif**: Suppression de DG.PA des deux objets. Commentaire ajouté pour traçabilité.
+- **Test de non-régression**:
+  - [ ] Projection dividendes ne mentionne plus DG.PA/Vinci
+  - [ ] Aucune alerte ex-date pour DG.PA
+
+---
+
+## BUG-027: DATA_LAST_UPDATE stale (31/03 au lieu de 12/04)
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (affichage trompeur)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Le badge "données du 31/03/2026" alors que les soldes sont à jour au 12/04/2026.
+- **Cause racine**: `data.js:1115` — `DATA_LAST_UPDATE` non mis à jour.
+- **Correctif**: `'31/03/2026'` → `'12/04/2026'`
+- **Test de non-régression**:
+  - [ ] Badge affiche "12/04/2026"
+
+---
+
+## BUG-028: Taux Action Logement incohérent (0.5% vs 1%)
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (EXIT_COSTS informatif, pas utilisé dans le calcul CRD)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Loan definition = 0.5% (`rate: 0.005`) vs EXIT_COSTS = 1% (`taux: 0.01`). L'amortissement est correct (utilise 0.5%), mais EXIT_COSTS affiche le mauvais taux.
+- **Cause racine**: `data.js:1788` — `taux: 0.01` au lieu de `0.005`.
+- **Correctif**: `taux: 0.01` → `taux: 0.005`
+- **Test de non-régression**:
+  - [ ] EXIT_COSTS.vitry.actionLogement.taux = 0.005
+
+---
+
+## BUG-029: Allocation géographique chart hardcodée (53% France, 21% Crypto...)
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Moyen (chart trompeur après achats/ventes)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Le chart géo utilise des ratios statiques (`geoIBKR*0.53` pour France) au lieu de calculer depuis les positions réelles. Les pourcentages deviennent faux après tout trade.
+- **Cause racine**: `charts.js:341` — ratios hardcodés lors de la première implémentation.
+- **Correctif**: Calcul dynamique par agrégation des positions IBKR groupées par `pos.geo`, plus ESPP et SGTM.
+- **Test de non-régression**:
+  - [ ] Chart géo reflète les positions actuelles
+  - [ ] Après un trade, les pourcentages changent
+  - [ ] ESPP et SGTM sont dans les bonnes catégories
+
+---
+
+## BUG-030: Tooltips insight hardcodés (43%, +12.5% YTD, +€41K...)
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (tooltips trompeurs avec le temps)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Plusieurs KPI insights contiennent des valeurs hardcodées qui ne reflètent plus la réalité.
+- **Cause racine**: `render.js:6242-6262` — valeurs écrites en dur lors de la première implémentation.
+- **Correctif**: Remplacement par des valeurs calculées dynamiquement depuis `state`.
+- **Test de non-régression**:
+  - [ ] Tooltip kpiAmPortfolio : concentration top 3 calculée dynamiquement
+  - [ ] Tooltip kpiActionsTotal : pas de benchmarks hardcodés
+
+---
+
+## BUG-031: Période % total affiche "—%" au lieu de "0.0%"
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (cosmétique)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Quand `totalEvoPL` est exactement 0 (falsy en JS), la cellule affiche "—%" au lieu de "0.0%".
+- **Cause racine**: `render.js:1541` — `totalEvoPL && totalVal` est faux quand `totalEvoPL === 0`.
+- **Correctif**: `totalEvoPL != null && totalVal` au lieu de `totalEvoPL && totalVal`.
+- **Test de non-régression**:
+  - [ ] Quand l'évolution période = 0€, le % affiche "0.0%" pas "—%"
+
+---
+
+## BUG-032: Commentaires stale (file header v233, mtdOpen mars 2026)
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (cosmétique)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: File header dit "Version: v233", mtdOpen comment dit "3 mars 2026".
+- **Correctif**: Mise à jour des commentaires.
+- **Test de non-régression**:
+  - [ ] Header dit v288
+  - [ ] Commentaire mtdOpen dit "avril 2026"
+
+---
+
+## BUG-033: nezhaRecvOmar hardcode items[0] — casse si 2e créance Nezha
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (fragile, pas de bug actuel)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: `engine.js:3660` hardcode `items[0]` pour la créance Omar. Si Nezha obtient une 2e créance, les suivantes sont ignorées.
+- **Cause racine**: Code écrit quand Nezha n'avait qu'une seule créance.
+- **Correctif**: Boucle sur tous les items Nezha (même logique que pour Amine), filtrant par `status !== 'recouvré'`.
+- **Test de non-régression**:
+  - [ ] nezhaRecv inclut toutes les créances actives de Nezha
+  - [ ] NW Nezha inchangé (Omar est toujours la seule créance)
+
+---
+
+## BUG-034: refreshFX standalone sans try/catch — unhandled rejection possible
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (erreur silencieuse)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: Si l'API FX lève une exception (vs retourner null), `refreshFX(false)` à la ligne 417 et l'intervalle 5 min propagent une unhandled promise rejection.
+- **Cause racine**: `app.js:417,425` — pas de `.catch()` ou `try/catch`.
+- **Correctif**: Wrapping dans `.catch()`.
+- **Test de non-régression**:
+  - [ ] Pas d'unhandled rejection si API FX échoue
+
+---
+
+## BUG-035: _equityEntries index désaligné dans charts 5Y/MAX
+- **Version**: v287 (détecté), v288 (corrigé)
+- **Sévérité**: Mineur (notes click panel incorrectes)
+- **Détection**: Audit codebase automatisé
+- **Symptôme**: `_equityEntries` est filtré (seulement les entries avec notes) mais indexé par position chart → le click panel montre des notes fausses ou manquantes.
+- **Cause racine**: `charts.js:4469` — `dataPoints.filter(d => d.note)` perd l'alignement d'index avec le chart.
+- **Correctif**: Stocker le tableau complet (non filtré) pour maintenir l'alignement d'index. Les consumers vérifient `entry.note` avant affichage.
+- **Test de non-régression**:
+  - [ ] Click sur un point 5Y/MAX : note correcte affichée si elle existe
+  - [ ] Click sur un point sans note : pas de note affichée (comportement normal)
+
+---
+
+## Matrice de couverture par fonctionnalité
+
+| Fonctionnalité | Bugs liés | Tests critiques |
+|---|---|---|
+| **Boutons période** (MTD/1M/3M/YTD/1Y/5Y/MAX) | BUG-001, BUG-007, BUG-009, BUG-013 | Tous les boutons répondent, données correctes par mode |
+| **Boutons scope** (IBKR/ESPP/Maroc/Degiro/Tous) | BUG-001, BUG-013 | Chaque scope affiche les bonnes séries |
+| **Boutons owner** (Couple/Amine/Nezha) | BUG-001, BUG-005, BUG-006, BUG-013 | Courbes distinctes, tooltips cohérents |
+| **KPI cards** (NAV, Déposé, P&L, %) | BUG-002, BUG-010, BUG-020 | Formule P&L = NAV - Déposé vérifiée, ESPP cash inclus |
+| **Barre de progression** | BUG-003, BUG-004 | Progression dynamique, chart visible après |
+| **Tooltip hover** | BUG-006, BUG-018 | Valeurs per-owner correctes, delta calculé depuis start NAV per-owner |
+| **Click detail panel** | BUG-006, BUG-011, BUG-035 | Breakdown par position exact, notes 5Y/MAX correctes |
+| **Cache/deploy** | BUG-008 | Version cohérente, pas de stale JS |
+| **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
+| **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
+| **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
+| **Créances (vue)** | BUG-015, BUG-016, BUG-019, BUG-023 | Actives séparées des recouvrées, dettes visibles, sub-card filtrée |
+| **NW Breakdown / KPI cards** | BUG-017, BUG-022 | Tous les composants NW dans les breakdowns (incl. villejuifReservation Nezha) |
+| **NW Calcul** | BUG-020, BUG-033 | ESPP cash inclus, Nezha créances dynamiques |
+| **Charts geo** | BUG-029 | Allocation calculée dynamiquement depuis positions |
+| **Event listeners** | BUG-021 | Pas de duplication après refresh |
+| **Dividendes projection** | BUG-024, BUG-026 | WHT rates corrects, positions vendues exclues |
+| **Insights tooltips** | BUG-030 | Valeurs dynamiques, pas hardcodées |
+
+---
+
+*Dernière mise à jour: v288 — 12 avril 2026 (BUG-020→BUG-035 : audit complet codebase, 16 bugs corrigés)*
