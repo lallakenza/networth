@@ -386,6 +386,45 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-018: Tooltip chart affiche le delta couple au lieu du delta per-owner (Nezha)
+- **Version**: v285 (détecté), v286 (corrigé)
+- **Sévérité**: Majeur (information trompeuse — delta de -45K affiché pour un portefeuille de 8K)
+- **Détection**: Test utilisateur — "On a un bug dans la vue nezha, normalement on affiche seulement son delta et non celui du couple"
+- **Symptôme**: En mode Valeur, scope Tous, owner Nezha, le tooltip au survol d'un point du chart affiche "€ -45 895 (-84.62%)" alors que la NAV Nezha est ~8 339€ (début 1Y: 6 288€). Le delta correct serait ~+2 051€. Le header titre affichait correctement -2 927€ (P&L net après dépôts).
+- **Cause racine** (`charts.js`, tooltip handler, ligne 2590) :
+  ```js
+  const startV = startValueRef || nav; // startValueRef = data.startValue
+  const diff = nav - startV;
+  ```
+  `startValueRef` est défini comme `data.startValue` (ligne 2416) qui est la NAV de départ **couple** (~54 234€ en mode 1Y), jamais filtrée par owner. Quand Nezha est sélectionné :
+  - `nav` = 8 339€ (correctement filtré par les arrays per-owner)
+  - `startV` = 54 234€ (couple, NON filtré)
+  - `diff = 8 339 - 54 234 = -45 895` ← le bug
+  
+  Note : le header titre était correct car il utilise `plForTitle` (issu des PL series qui SONT filtrées par owner à la ligne 2153). Le bug était isolé au tooltip hover.
+- **Correctif** :
+  Quand `owner !== 'both'`, recalcul de `startV` à partir des arrays NAV per-owner au `startIdx` :
+  ```js
+  switch (scope) {
+    case 'espp': startV = _ownerESPPNav[startIdx]; break;
+    case 'maroc': startV = navSGTM[startIdx] * sgtmRatio; break;
+    case 'all': startV = navIBKR[startIdx]*ibkrRatio + _ownerESPPNav[startIdx] 
+                        + navSGTM[startIdx]*sgtmRatio + navDegiro[startIdx]*degiroRatio; break;
+    // ...
+  }
+  ```
+  Même logique que le filtre owner existant (lignes 2143-2154), appliqué au point de départ de la période.
+- **Test de non-régression** :
+  - [ ] Owner Nezha, scope Tous, mode Valeur : tooltip au survol montre delta ~+2K (pas -45K)
+  - [ ] Owner Amine, scope Tous : tooltip cohérent (~NAV Amine - startNAV Amine)
+  - [ ] Owner Couple (both) : tooltip inchangé (pas de régression)
+  - [ ] Mode P&L : tooltip inchangé (n'utilise pas `startValueRef`)
+  - [ ] Scope ESPP + owner Nezha : delta calculé depuis la NAV ESPP Nezha au start
+  - [ ] Modes 5Y et MAX : même fix appliqué (même tooltip handler)
+- **Leçon** : Dans le chart system, 3 niveaux de données coexistent : (1) les series brutes (couple), (2) les series filtrées par owner (boucle 2143-2154), (3) les metadata comme `startValue` qui restent couple-level. Chaque nouveau consumer de ces données (tooltip, header, click panel) doit appliquer le filtre owner de manière consistante. Pattern récurrent : BUG-005, BUG-006, BUG-018.
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -395,7 +434,7 @@ Il sert de base pour le plan de tests de non-régression.
 | **Boutons owner** (Couple/Amine/Nezha) | BUG-001, BUG-005, BUG-006, BUG-013 | Courbes distinctes, tooltips cohérents |
 | **KPI cards** (NAV, Déposé, P&L, %) | BUG-002, BUG-010 | Formule P&L = NAV - Déposé vérifiée |
 | **Barre de progression** | BUG-003, BUG-004 | Progression dynamique, chart visible après |
-| **Tooltip hover** | BUG-006 | Valeurs per-owner correctes |
+| **Tooltip hover** | BUG-006, BUG-018 | Valeurs per-owner correctes, delta calculé depuis start NAV per-owner |
 | **Click detail panel** | BUG-006, BUG-011 | Breakdown par position exact |
 | **Cache/deploy** | BUG-008 | Version cohérente, pas de stale JS |
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
@@ -406,4 +445,4 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v285 — 12 avril 2026 (BUG-017 breakdown/KPI consistency audit — facturationNet + cautionRueil dans tous les composants)*
+*Dernière mise à jour: v286 — 12 avril 2026 (BUG-018 tooltip per-owner delta — startValueRef était couple-level, pas filtré par owner)*
