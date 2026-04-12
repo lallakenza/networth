@@ -950,6 +950,17 @@ export const PORTFOLIO = {
     // PASSIF — dettes / obligations
     // ──────────────────────────────────────────────────────
     tva: -16000,             // TVA à payer (négatif = dette)
+
+    // ──────────────────────────────────────────────────────
+    // FACTURATION — Positions inter-personnes
+    // Source: https://lallakenza.github.io/facturation/
+    // Montants en MAD (scénario "si je paye au Maroc")
+    // Positif = on me doit, Négatif = je dois
+    // ──────────────────────────────────────────────────────
+    facturation: {
+      augustin: { amount: 181609, currency: 'MAD', label: 'Augustin (Azarkan) me doit', notes: 'Pos. Entreprise -5958€ converti MAD. 5 catégories: RTL, AZCS, Maroc, Divers, Report. Taux fixe 10.26' },
+      benoit:   { amount: -196915, currency: 'MAD', label: 'Je dois à Benoit (Badre)', notes: 'En cours 2026, 5 councils payés. Paiement cash DH uniquement. Taux fixe 10.6, commission 10%' },
+    },
   },
 
   // ════════════════════════════════════════════════════════

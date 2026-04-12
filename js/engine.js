@@ -3455,21 +3455,36 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
 
   // Creances — split by type: pro (factures clients) vs perso (prêts famille/amis)
+  // Exclude recouvré (fully paid) items to avoid double-counting with cash already in bank.
+  // For partially paid items, use remaining = amount - payments.
   let amineRecvPro = 0, amineRecvPersonal = 0;
   if (p.amine.creances.items) {
     p.amine.creances.items.forEach(c => {
-      // AUD-001: weight by probability
-      const val = toEUR(c.amount * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
+      if (c.status === 'recouvré') return; // already in cash — skip to avoid double-count
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      const val = toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
       if (c.type === 'pro') amineRecvPro += val;
       else amineRecvPersonal += val;
     });
   }
 
   const amineTva = p.amine.tva;
+
+  // Facturation positions (inter-personnes: Augustin/Azarkan, Benoit/Badre)
+  // Source: https://lallakenza.github.io/facturation/
+  // Net amount: positive = receivable (Augustin me doit), negative = payable (je dois Benoit)
+  let amineFacturationNet = 0;
+  if (p.amine.facturation) {
+    Object.values(p.amine.facturation).forEach(pos => {
+      amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
+    });
+  }
+
   const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash;
   const amineTotalAssets = amineIbkr + amineEspp + amineCashTotal + amineSgtm
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
-  const amineNW = amineTotalAssets + amineTva;
+  const amineNW = amineTotalAssets + amineTva + amineFacturationNet;
 
   // Calculate delta from previous NW in history + compute timeframe label
   // NW_HISTORY is empty (v150), so deltas are always null
@@ -3508,6 +3523,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     recvPro: amineRecvPro,
     recvPersonal: amineRecvPersonal,
     tva: amineTva,
+    facturationNet: amineFacturationNet, // net position from facturation site (Augustin - Benoit)
     totalAssets: amineTotalAssets,
     cashTotal: amineCashTotal,
   };
@@ -3721,10 +3737,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Creances', color: '#ec4899',
-      total: amineRecvPro + amineRecvPersonal + nezhaRecvOmar + nezhaVillejuifReservation,
+      total: amineRecvPro + amineRecvPersonal + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation,
       sub: [
         { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'Amine — SAP, Malt, Loyers' },
         { label: 'Créances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Amine — Kenza, Mehdi, etc.' },
+        { label: 'Facturation (net)', val: amineFacturationNet, color: '#f43f5e', owner: 'Amine — Augustin/Benoit' },
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: 'Nezha' },
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Nezha — remboursable' }] : []),
       ]
@@ -3739,7 +3756,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: amineIbkr + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
       cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
-      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
+      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation, sub: 'Vehicules + Creances + Facturation - TVA', title: 'Autres Actifs' },
       nwRef: coupleNW,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -3749,7 +3766,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: amineIbkr + amineEspp + amineSgtm, sub: 'IBKR + ESPP + SGTM' },
       cash:      { val: amineCashTotal, sub: 'UAE + Revolut + Maroc' },
       immo:      { val: amineVitryEquity, sub: '1 bien \u2014 Vitry' },
-      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva, sub: 'Vehicules + Creances - TVA', title: 'Autres Actifs' },
+      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet, sub: 'Vehicules + Creances + Facturation - TVA', title: 'Autres Actifs' },
       nwRef: amineNW,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -3831,13 +3848,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Creances', color: '#ec4899',
-      total: amineRecvPro + amineRecvPersonal,
+      total: amineRecvPro + amineRecvPersonal + amineFacturationNet,
       sub: [
         { label: 'Créances pro', val: amineRecvPro, color: '#ec4899', owner: 'SAP, Malt, Loyers' },
         { label: 'Créances perso', val: amineRecvPersonal, color: '#db2777', owner: 'Kenza, Mehdi, etc.' },
-      ].filter(s => s.val > 100)
+        { label: 'Facturation (net)', val: amineFacturationNet, color: '#f43f5e', owner: 'Augustin/Benoit' },
+      ].filter(s => Math.abs(s.val) > 100)
     },
-  ].filter(c => c.total > 0);
+  ].filter(c => Math.abs(c.total) > 0);
 
   // ---- NEZHA TREEMAP CATEGORIES ----
   const nezhaCategories = [
