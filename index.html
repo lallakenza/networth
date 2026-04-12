@@ -2690,10 +2690,24 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
 
-  <h3>D&eacute;tail des Cr&eacute;ances</h3>
+  <h3>Cr&eacute;ances en cours</h3>
   <table id="creancesTable">
     <thead><tr><th data-sort="label" data-sort-type="string">Cr&eacute;ance</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="amount">Montant natif</th><th class="num" data-sort="amountEUR">Valeur EUR</th><th class="num" data-sort="probability">Probabilit&eacute;</th><th class="num" data-sort="expectedValue">Valeur attendue</th><th class="num" data-sort="monthlyInflationCost">Inflation /mois</th></tr></thead>
     <tbody id="creancesDetailTbody"></tbody>
+  </table>
+
+  <h3 style="margin-top:24px;">&#x1F4B8; Dettes &amp; Obligations</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px;">Montants que je dois payer (TVA, facturation inter-personnes, etc.)</p>
+  <table id="dettesTable">
+    <thead><tr><th>Libell&eacute;</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
+    <tbody id="dettesDetailTbody"></tbody>
+  </table>
+
+  <h3 style="margin-top:24px;">&#x2705; Cr&eacute;ances recouvr&eacute;es</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px;">D&eacute;j&agrave; pay&eacute;es — montants d&eacute;j&agrave; int&eacute;gr&eacute;s dans la tr&eacute;sorerie.</p>
+  <table id="recoveredTable">
+    <thead><tr><th>Cr&eacute;ance</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Recouvr&eacute;</th><th>Date</th></tr></thead>
+    <tbody id="recoveredDetailTbody"></tbody>
   </table>
 
   <h3 style="margin-top:20px;">Garanti vs Incertain</h3>
@@ -2765,7 +2779,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=283"></script>
+<script type="module" src="js/app.js?v=284"></script>
 
 </body>
 </html>

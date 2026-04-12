@@ -305,6 +305,46 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-015: Créances recouvrées mélangées avec les créances actives dans le tableau
+- **Version**: v283 (détecté), v284 (corrigé)
+- **Sévérité**: Moyen (UI / lisibilité)
+- **Détection**: Test utilisateur — "ici il ne faut garder que les créances en cours, les créances déjà recouvrées tu peux les mettre à part"
+- **Symptôme**: Le tableau "Détail des Créances" affiche toutes les créances dans une liste plate : INVSNT001 (RECOUVRÉ), INVSNT002 (EN RETARD), Loyers (RECOUVRÉ), etc. Les items recouvrés polluent la vue et rendent difficile l'identification des créances actives à suivre.
+- **Cause racine**: `renderCreancesView()` dans `render.js` utilisait `crv.items` (tous les items) sans filtrer par statut. `computeCreancesView()` dans `engine.js` retournait un seul array `items` sans distinction active/recouvré.
+- **Correctif**:
+  1. `engine.js` : `computeCreancesView()` sépare `activeItems` (status !== 'recouvré') et `recoveredItems` (status === 'recouvré')
+  2. `engine.js` : KPIs (totalNominal, totalExpected, etc.) calculés uniquement sur `activeItems`
+  3. `render.js` : table principale "Créances en cours" affiche uniquement les items actifs
+  4. `index.html` + `render.js` : nouvelle section "Créances recouvrées" affiche les items réglés avec date de paiement
+  5. `render.js` : barre Garanti/Incertain basée sur `activeItems` uniquement
+- **Test de non-régression**:
+  - [ ] Le tableau "Créances en cours" ne contient aucun item avec badge RECOUVRÉ
+  - [ ] Le tableau "Créances recouvrées" contient INVSNT001 et Loyers Janv+Fév avec date de paiement
+  - [ ] Les KPIs (Total Nominal, Valeur Attendue, etc.) n'incluent PAS les montants recouvrés
+  - [ ] La barre Garanti vs Incertain n'inclut PAS les items recouvrés
+  - [ ] Le total du tableau actif = KPI Total Nominal
+
+---
+
+## BUG-016: Dettes (TVA, facturation Badre) invisibles dans la vue Créances
+- **Version**: v283 (détecté), v284 (corrigé)
+- **Sévérité**: Moyen (fonctionnalité manquante)
+- **Détection**: Demande utilisateur — "tu peux inclure aussi l'argent que je dois payer (badre, TVA...)"
+- **Symptôme**: La vue "Créances & Recouvrements" n'affiche que les créances (argent qu'on me doit). Les dettes (argent que je dois) — TVA à payer (-16 000€), dette Benoit/Badre (-196 915 MAD) — n'apparaissent nulle part dans cette vue, même si elles sont dans le calcul NW.
+- **Cause racine**: `computeCreancesView()` ne calculait que les receivables. Les dettes étaient intégrées dans le NW via `amineTva` et `amineFacturationNet` mais jamais exposées dans la créances view pour affichage.
+- **Correctif**:
+  1. `engine.js` : `computeCreancesView()` construit un array `dettes[]` à partir de TVA (si négatif) + facturation positions (localStorage ou data.js, montants négatifs = dettes)
+  2. `index.html` : nouvelle section "Dettes & Obligations" avec table dédiée
+  3. `render.js` : `renderCreancesView()` peuple la table dettes avec montants en rouge
+- **Test de non-régression**:
+  - [ ] La section "Dettes & Obligations" affiche au minimum TVA (-16 000€) et Benoit/Badre (~-196 915 MAD)
+  - [ ] Les montants sont affichés en rouge avec signe négatif
+  - [ ] Le total dettes correspond à la somme des lignes
+  - [ ] Si localStorage contient des positions facturation, elles sont utilisées (pas les valeurs data.js)
+  - [ ] Les dettes n'apparaissent PAS dans le tableau des créances actives (pas de mélange)
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -320,7 +360,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
+| **Créances (vue)** | BUG-015, BUG-016 | Actives séparées des recouvrées, dettes visibles, KPIs basés sur actives uniquement |
 
 ---
 
-*Dernière mise à jour: v279 — 11 avril 2026 (BUG-014 corrigé — helper netDeposits + invariant comptable + label Capital Net Déployé)*
+*Dernière mise à jour: v284 — 12 avril 2026 (BUG-015 créances actives/recouvrées séparées, BUG-016 dettes TVA/Badre visibles)*
