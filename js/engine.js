@@ -3103,22 +3103,14 @@ function computeCreancesView(portfolio, fx) {
   const activeItems = allItems.filter(i => i.status !== 'recouvré');
   const recoveredItems = allItems.filter(i => i.status === 'recouvré');
 
-  const totalNominal = activeItems.reduce((s, i) => s + i.amountEUR, 0);
-  const totalExpected = activeItems.reduce((s, i) => s + i.expectedValue, 0);
-  const totalGuaranteed = activeItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
-  const totalUncertain = activeItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
-  const monthlyInflationCost = activeItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
-  const totalRecovered = recoveredItems.reduce((s, i) => s + i.paymentsTotal, 0);
-  const totalOverdue = activeItems.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.remainingEUR, 0);
-  const needsFollowUpCount = activeItems.filter(i => i.needsFollowUp).length;
-
-  // ── Dettes (what Amine owes) ──
+  // ── Facturation positions → créances (positive) or dettes (negative) ──
+  const factuCreances = [];  // receivables from facturation (positive amounts = they owe Amine)
   const dettes = [];
   // TVA
   if (portfolio.amine.tva && portfolio.amine.tva < 0) {
     dettes.push({ label: 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(portfolio.amine.tva), owner: 'Amine', type: 'pro' });
   }
-  // Facturation: Benoit/Badre (negative = Amine owes)
+  // Facturation: localStorage bridge or data.js fallback
   let _factuPositions = null;
   try {
     const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
@@ -3128,24 +3120,64 @@ function computeCreancesView(portfolio, fx) {
   if (_factuPositions) {
     const augustinMAD = _factuPositions.augustin && _factuPositions.augustin.mad != null ? _factuPositions.augustin.mad : 0;
     const benoitDH = _factuPositions.benoit && _factuPositions.benoit.dh != null ? _factuPositions.benoit.dh : 0;
-    if (augustinMAD < 0) {
+    // Positive = they owe Amine → créance
+    if (augustinMAD > 0) {
+      const amountEUR = toEUR(augustinMAD, 'MAD', fx);
+      factuCreances.push({
+        label: 'Facturation — Augustin (Azarkan) me doit', amount: augustinMAD, currency: 'MAD',
+        amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+        monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+        recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+        status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
+      });
+    } else if (augustinMAD < 0) {
       dettes.push({ label: 'Augustin (Azarkan)', amount: Math.abs(augustinMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(augustinMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
     }
+    // Negative = Amine owes → dette
     if (benoitDH < 0) {
       dettes.push({ label: 'Benoit (Badre)', amount: Math.abs(benoitDH), currency: 'MAD', amountEUR: toEUR(Math.abs(benoitDH), 'MAD', fx), owner: 'Amine', type: 'pro' });
-    }
-    // Also add receivables as context (positive = they owe Amine)
-    if (augustinMAD > 0) {
-      // Already in créances via facturation — skip here
+    } else if (benoitDH > 0) {
+      const amountEUR = toEUR(benoitDH, 'MAD', fx);
+      factuCreances.push({
+        label: 'Facturation — Benoit (Badre) me doit', amount: benoitDH, currency: 'MAD',
+        amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+        monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+        recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+        status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
+      });
     }
   } else if (portfolio.amine.facturation) {
+    // Fallback to data.js hardcoded values
     Object.entries(portfolio.amine.facturation).forEach(([key, pos]) => {
-      if (pos.amount < 0) {
-        dettes.push({ label: pos.label || key, amount: Math.abs(pos.amount), currency: pos.currency, amountEUR: toEUR(Math.abs(pos.amount), pos.currency, fx), owner: 'Amine', type: 'pro' });
+      const amountEUR = toEUR(Math.abs(pos.amount), pos.currency, fx);
+      if (pos.amount > 0) {
+        // Receivable
+        factuCreances.push({
+          label: pos.label || key, amount: pos.amount, currency: pos.currency,
+          amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+          monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+          recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+          status: 'en_cours', payments: [], notes: pos.notes || 'Position facturation (data.js)',
+        });
+      } else if (pos.amount < 0) {
+        // Debt
+        dettes.push({ label: pos.label || key, amount: Math.abs(pos.amount), currency: pos.currency, amountEUR, owner: 'Amine', type: 'pro' });
       }
     });
-    // TVA fallback already handled above
   }
+
+  // Inject facturation receivables into active items
+  activeItems.push(...factuCreances);
+
+  // ── KPIs (computed AFTER facturation injection so totals include Augustin etc.) ──
+  const totalNominal = activeItems.reduce((s, i) => s + i.amountEUR, 0);
+  const totalExpected = activeItems.reduce((s, i) => s + i.expectedValue, 0);
+  const totalGuaranteed = activeItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const totalUncertain = activeItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const monthlyInflationCost = activeItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
+  const totalRecovered = recoveredItems.reduce((s, i) => s + i.paymentsTotal, 0);
+  const totalOverdue = activeItems.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.remainingEUR, 0);
+  const needsFollowUpCount = activeItems.filter(i => i.needsFollowUp).length;
 
   const totalDettes = dettes.reduce((s, d) => s + d.amountEUR, 0);
 
