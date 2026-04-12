@@ -19,8 +19,8 @@
 // - Market data (Yahoo Finance API, broker statements)
 // - Tax/fiscal documents (TVA, PTZ, LMNP constraints)
 //
-// Last updated: 31 March 2026
-// Version: v233 (v232 → v233 : data refresh — live stock prices, FX, CRD, historical refs)
+// Last updated: 12 April 2026
+// Version: v288 (v287 → v288 : audit complet — 16 bugs corrigés)
 // All amounts are in their NATIVE currency (AED, MAD, USD, EUR, JPY)
 // Never converted here. Engine does all conversions.
 //
@@ -194,8 +194,8 @@ export const PORTFOLIO = {
     //   - sector: secteur d'activité (industrials, luxury, tech, etc.)
     //   - geo: géographie (france, germany, japan, crypto, etc.)
     //   - ytdOpen: clôture 1er jour bourse 2026 (2 janvier) — historique
-    //   - mtdOpen: clôture 1er jour du mois courant (3 mars 2026)
-    //   - oneMonthAgo: clôture ~30 jours avant (27 février 2026)
+    //   - mtdOpen: clôture 1er jour du mois courant (avril 2026)
+    //   - oneMonthAgo: clôture ~30 jours avant (mi-mars 2026)
     //
     // MISE À JOUR DES PRIX :
     //   1. price: est mis à jour par l'API Yahoo Finance (range=1d)
@@ -1112,7 +1112,7 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '31/03/2026';
+export const DATA_LAST_UPDATE = '12/04/2026';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -1785,7 +1785,7 @@ export const EXIT_COSTS = {
     // Pas de pénalité spécifique à la revente, mais le prêt doit être remboursé
     actionLogement: {
       montant: 40000,
-      taux: 0.01,               // 1%/an
+      taux: 0.005,              // 0.50%/an (BUG-028: aligné avec loan definition rate: 0.005)
       duree: 300,               // 300 mois (25 ans)
       dateDebut: '2023-02',
       dateFin: '2048-02',       // obligation RP jusqu'à fin prêt
@@ -2253,9 +2253,9 @@ export const EQUITY_HISTORY = [
 // - Exemple: divid France 100€ → 30€ WHT → net 70€ crédité
 // ════════════════════════════════════════════════════════════
 export const WHT_RATES = {
-  france: 0.30,       // 30% WHT (droit commun, pas convention FR-UAE)
+  france: 0.25,       // 25% WHT effectif IBKR (BUG-024: vérifié vs costs[] réels — 30.50/122, 52.50/210 = 25%)
   germany: 0.26375,   // 26.375% WHT (convention FR-DE, Xetra)
-  us: 0.15,           // 15% WHT (convention FR-USA, W-8BEN)
+  us: 0.30,           // 30% WHT (BUG-024: UAE résident, pas de W-8BEN → taux plein 30%, vérifié QQQM 5.50/18.33)
   japan: 0.15,        // 15% WHT (convention FR-JP)
   crypto: 0,          // ETFs crypto = 0% (pas de distribution)
   morocco: 0.15,      // 15% WHT (convention FR-MA)
@@ -2288,7 +2288,7 @@ export const DIV_YIELDS = {
   // ── Actions CAC 40 / Européennes ──
   'AIR.PA': 0.012,    // Airbus ~1.2% (croissance vs dividendes)
   'BN.PA': 0.034,     // Danone ~3.4%
-  'DG.PA': 0.038,     // Vinci ~3.8% (semi-annuel: mai + nov)
+  // DG.PA (Vinci) removed — fully sold 2026-04-08 (BUG-026)
   'FGR.PA': 0.045,    // Eiffage ~4.5% (parmi les plus hauts rendements)
   'MC.PA': 0.017,     // LVMH ~1.7% (croissance > dividendes)
   'OR.PA': 0.016,     // L'Oréal ~1.6% (croissance > dividendes)
@@ -2326,7 +2326,7 @@ export const DIV_YIELDS = {
 // - Dernière vérification: 8 mars 2026
 // ════════════════════════════════════════════════════════════
 export const DIV_CALENDAR = {
-  'DG.PA':   { dps: 5.00,  exDates: ['2026-04-21'], frequency: 'semi-annual', note: 'Solde 3.95€ en avril + acompte ~1.05€ en nov' },
+  // DG.PA removed — fully sold 2026-04-08 (BUG-026)
   'FGR.PA':  { dps: 4.80,  exDates: ['2026-05-20'], frequency: 'annual' },
   'BN.PA':   { dps: 2.25,  exDates: ['2026-05-04'], frequency: 'annual' },
   'AIR.PA':  { dps: 2.00,  exDates: ['2026-04-22'], frequency: 'annual' },
