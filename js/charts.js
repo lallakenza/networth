@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=283';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=283';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=283';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=283';
+import { fmt, fmtAxis } from './render.js?v=290';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=290';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=290';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=290';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -574,7 +574,7 @@ export function buildCFProjection(state) {
       },
       scales: {
         y: {
-          title: { display: true, text: 'CF mensuel (EUR)', font: { size: 11 } },
+          title: { display: true, text: 'CF mensuel', font: { size: 11 } },
           ticks: { callback: v => (v >= 0 ? '+' : '') + v }
         }
       }
@@ -874,7 +874,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
               if (w < 80 && label.length > 8) return label.substring(0, 7) + '.';
               return label;
             }
-            const valK = v >= 1000 ? '\u20ac' + (v / 1000).toFixed(0) + 'K' : '\u20ac' + Math.round(v);
+            const valK = fmt(v, true);
             let displayLabel = label;
             if (w < 100 && label.length > 12) displayLabel = label.substring(0, 10) + '..';
             return [displayLabel, valK];
@@ -1046,7 +1046,7 @@ function buildAmortChart(state) {
         y: {
           stacked: false,
           ticks: { callback: v => fmtAxis(v) },
-          title: { display: true, text: 'CRD (EUR)', font: { size: 11 } }
+          title: { display: true, text: 'CRD', font: { size: 11 } }
         }
       }
     }
@@ -1577,7 +1577,7 @@ export function buildWealthProjectionChart(state, mode, group) {
             label: function(ctx) {
               const v = ctx.parsed.y;
               const sign = v >= 0 ? '+' : '';
-              return ctx.dataset.label + ': ' + sign + '€' + Math.round(v).toLocaleString('fr-FR') + suffix;
+              return ctx.dataset.label + ': ' + sign + fmt(Math.abs(v)) + suffix;
             }
           }
         },
