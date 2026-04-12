@@ -387,7 +387,7 @@ function renderKPIs(state, view) {
   }
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
-  setEur('kpiNzCash', s.nezha.cash + s.nezha.recvOmar);
+  setEur('kpiNzCash', s.nezha.cash);
   setEur('kpiNzActions', s.nezha.espp + s.nezha.sgtm);
 
   // Amine detail KPIs
@@ -459,7 +459,8 @@ function renderExpandSubs(state, view) {
   setEur('subIBKR', s.amine.ibkr);
   setEur('subESPP', s.amine.espp + s.nezha.espp);
   setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
-  setEur('subUAE', s.amine.uae + s.amine.revolutEUR);
+  setEur('subUAE', s.amine.uae);
+  setEur('subRevolutEUR', s.amine.revolutEUR);
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
