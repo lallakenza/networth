@@ -455,7 +455,7 @@ Il sert de base pour le plan de tests de non-régression.
 | **Barre de progression** | BUG-003, BUG-004 | Progression dynamique, chart visible après |
 | **Tooltip hover** | BUG-006, BUG-018 | Valeurs per-owner correctes, delta calculé depuis start NAV per-owner |
 | **Click detail panel** | BUG-006, BUG-011 | Breakdown par position exact |
-| **Cache/deploy** | BUG-008 | Version cohérente, pas de stale JS |
+| **Cache/deploy** | BUG-008, BUG-036, BUG-038 | Version cohérente, badge version visible, pas de stale JS |
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
@@ -657,6 +657,7 @@ Il sert de base pour le plan de tests de non-régression.
 ---
 
 ## BUG-035: _equityEntries index désaligné dans charts 5Y/MAX
+
 - **Version**: v287 (détecté), v288 (corrigé)
 - **Sévérité**: Mineur (notes click panel incorrectes)
 - **Détection**: Audit codebase automatisé
@@ -666,6 +667,41 @@ Il sert de base pour le plan de tests de non-régression.
 - **Test de non-régression**:
   - [ ] Click sur un point 5Y/MAX : note correcte affichée si elle existe
   - [ ] Click sur un point sans note : pas de note affichée (comportement normal)
+
+## BUG-036: simulators.js imports stale (?v=259 au lieu de ?v=288)
+
+- **Version**: v289 (fix)
+- **Sévérité**: Moyenne
+- **Détection**: Audit code v288
+- **Symptôme**: simulators.js charge des modules render.js et data.js potentiellement obsolètes
+- **Cause racine**: Les imports de simulators.js n'avaient pas été mis à jour lors des bumps de version successifs (restés à v=259)
+- **Correctif**: Mise à jour des imports vers `?v=289`
+- **Test de non-régression**:
+  - [ ] Ouvrir Simulateurs → 3 simulateurs fonctionnent, graphiques visibles
+
+## BUG-037: P&L par action n'inclut pas l'impact FX (EUR/USD, EUR/JPY)
+
+- **Version**: v289 (fix)
+- **Sévérité**: Haute (données financières incorrectes)
+- **Détection**: Audit v288 — question utilisateur
+- **Symptôme**: P&L affiché pour positions USD/JPY = mouvement cours seul, sans impact taux de change
+- **Cause racine**: `costEUR = toEUR(shares * costBasis, currency, fx)` utilise le FX actuel pour le coût. Le P&L annule l'effet FX car les deux côtés utilisent le même taux.
+- **Correctif**: Ajout `fxRate` (ECB historique) par trade non-EUR, décomposition stockPL + fxPL dans engine.js, colonne "FX P/L" dans render.js
+- **Test de non-régression**:
+  - [ ] Positions EUR: FX P/L = "—"
+  - [ ] Positions USD (IBIT, ETHA): FX P/L non nul, signe cohérent avec mouvement EUR/USD
+  - [ ] Position JPY (4911.T): FX P/L non nul
+  - [ ] Total P/L incluant FX ≈ ancien P/L ± impact FX
+
+## BUG-038: Version du code non affichée dans le header
+
+- **Version**: v289 (fix)
+- **Sévérité**: Basse (UX)
+- **Détection**: Demande utilisateur
+- **Symptôme**: Impossible de vérifier si le navigateur utilise le bon code après déploiement
+- **Correctif**: Badge `APP_VERSION` dans le header. Constante dans `data.js`, peuplée par `app.js`.
+- **Test de non-régression**:
+  - [ ] Badge "v289" visible dans le header du site
 
 ---
 
@@ -680,7 +716,7 @@ Il sert de base pour le plan de tests de non-régression.
 | **Barre de progression** | BUG-003, BUG-004 | Progression dynamique, chart visible après |
 | **Tooltip hover** | BUG-006, BUG-018 | Valeurs per-owner correctes, delta calculé depuis start NAV per-owner |
 | **Click detail panel** | BUG-006, BUG-011, BUG-035 | Breakdown par position exact, notes 5Y/MAX correctes |
-| **Cache/deploy** | BUG-008 | Version cohérente, pas de stale JS |
+| **Cache/deploy** | BUG-008, BUG-036, BUG-038 | Version cohérente, badge version visible, pas de stale JS |
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
@@ -694,4 +730,8 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v288 — 12 avril 2026 (BUG-020→BUG-035 : audit complet codebase, 16 bugs corrigés)*
+| **P&L FX decomposition** | BUG-037 | FX P/L colonne visible, positions EUR = "—", positions USD/JPY = valeur non nulle |
+
+---
+
+*Dernière mise à jour: v289 — 12 avril 2026 (BUG-036→BUG-038 : décomposition FX P&L, badge version, fix imports simulators)*

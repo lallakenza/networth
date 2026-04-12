@@ -91,8 +91,6 @@ function computeIBKRPositions(portfolio, fx) {
   const positions = ibkr.positions.map(pos => {
     const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
     const costEUR = toEUR(pos.shares * pos.costBasis, pos.currency, fx);
-    const unrealizedPL = valEUR - costEUR;
-    const pctPL = costEUR > 0 ? (unrealizedPL / costEUR * 100) : 0;
     let priceLabel = '';
     if (pos.currency === 'EUR') priceLabel = '\u20ac ' + pos.price.toFixed(2);
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
@@ -101,6 +99,36 @@ function computeIBKRPositions(portfolio, fx) {
     const prevFxRate = FX_STATIC[pos.currency] || fx[pos.currency];
     const curFxRate = fx[pos.currency] || 1;
     const trades = tradesByTicker[pos.ticker] || [];
+
+    // ── FX P&L decomposition ──
+    // For non-EUR positions, decompose total P&L into stock P&L + FX P&L
+    // using historical FX rates stored on each trade (fxRate field).
+    // Formula:
+    //   totalPL   = valEUR - costEUR_hist        (true gain/loss in EUR since purchase)
+    //   stockPL   = shares*(price - costBasis) / histFX   (price movement at constant FX)
+    //   fxPL      = totalPL - stockPL            (FX impact on current value)
+    let costEUR_hist = costEUR;  // default: same as current FX (EUR positions)
+    let fxPL = 0;
+    let stockPL = valEUR - costEUR;
+    if (pos.currency !== 'EUR' && trades.length > 0) {
+      // Compute weighted average historical FX from buy trades
+      let totalBuyCostNative = 0, totalBuyCostEUR_hist = 0;
+      trades.forEach(t => {
+        if (t.type === 'buy' && t.fxRate) {
+          const tCost = t.cost || t.qty * t.price;
+          totalBuyCostNative += tCost;
+          totalBuyCostEUR_hist += tCost / t.fxRate;
+        }
+      });
+      if (totalBuyCostNative > 0 && totalBuyCostEUR_hist > 0) {
+        const weightedHistFx = totalBuyCostNative / totalBuyCostEUR_hist;
+        costEUR_hist = pos.shares * pos.costBasis / weightedHistFx;
+        stockPL = pos.shares * (pos.price - pos.costBasis) / weightedHistFx;
+        fxPL = (valEUR - costEUR_hist) - stockPL;
+      }
+    }
+    const unrealizedPL = valEUR - costEUR_hist;  // true total P&L (incl. FX)
+    const pctPL = costEUR_hist > 0 ? (unrealizedPL / costEUR_hist * 100) : 0;
 
     // Compute shares held at period start + net cash invested during period
     function tradesDuringPeriod(periodStartDate) {
@@ -159,7 +187,7 @@ function computeIBKRPositions(portfolio, fx) {
     // irrelevant — periodPL() handles this case: P&L = valEUR - netCashInvestedEUR
     const oneYearAgoPrice = portfolio.market?.oneYearAgoPrices?.[pos.ticker] || null;
     const oneYearPL = periodPL(oneYearAgoPrice, false, oneYearStr);
-    return { ...pos, valEUR, costEUR, unrealizedPL, pctPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL, oneYearPL };
+    return { ...pos, valEUR, costEUR, costEUR_hist, unrealizedPL, pctPL, fxPL, stockPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL, oneYearPL };
   }).sort((a, b) => b.valEUR - a.valEUR);
 
   // Compute weights
@@ -215,10 +243,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrCashJPY = ibkr.cashJPY;
   const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx);
 
-  // IBKR positions P/L
+  // IBKR positions P/L (using historical FX for cost basis)
   const totalPositionsVal = ibkrPositions.reduce((s, p) => s + p.valEUR, 0);
-  const totalCostBasis = ibkrPositions.reduce((s, p) => s + p.costEUR, 0);
+  const totalCostBasis = ibkrPositions.reduce((s, p) => s + p.costEUR_hist, 0);
   const totalUnrealizedPL = totalPositionsVal - totalCostBasis;
+  const totalFxPL = ibkrPositions.reduce((s, p) => s + (p.fxPL || 0), 0);
+  const totalStockPL = ibkrPositions.reduce((s, p) => s + (p.stockPL || 0), 0);
 
   // ESPP cost basis & P/L — v246: use contribEUR (actual salary deductions in EUR)
   // NOT totalCostBasisUSD/currentFX, which fluctuates with EUR/USD and diverges from chart deposits
@@ -409,8 +439,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
 
   // Cross-platform combined unrealized P/L (includes SGTM)
-  const sgtmCostEUR = toEUR((portfolio.amine.sgtm.shares + (portfolio.nezha.sgtm?.shares || 0)) * (m.sgtmCostBasisMAD || 420), 'MAD', fx);
-  const sgtmUnrealizedPL = (amineSgtm + nezhaSgtm) - sgtmCostEUR;
+  // SGTM: use historical FX at IPO date (10.8 MAD/EUR) for cost basis
+  const sgtmTotalShares = (portfolio.amine.sgtm.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
+  const sgtmCostMAD = sgtmTotalShares * (m.sgtmCostBasisMAD || 420);
+  const sgtmHistFx = 10.8;  // EUR/MAD at IPO (Dec 2025)
+  const sgtmCostEUR_hist = sgtmCostMAD / sgtmHistFx;
+  const sgtmCostEUR = toEUR(sgtmCostMAD, 'MAD', fx);  // current FX (for reference)
+  const sgtmUnrealizedPL = (amineSgtm + nezhaSgtm) - sgtmCostEUR_hist;
+  const sgtmFxPL = sgtmCostEUR - sgtmCostEUR_hist;  // FX impact on SGTM
+  const sgtmStockPL = sgtmUnrealizedPL - sgtmFxPL;
   const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL + sgtmUnrealizedPL;
 
   // Cross-platform total current value (IBKR + ESPP + SGTM)
@@ -1146,7 +1183,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     ibkrPositions,
     ibkrNAV,
     ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
-    totalPositionsVal, totalCostBasis, totalUnrealizedPL,
+    totalPositionsVal, totalCostBasis, totalUnrealizedPL, totalFxPL, totalStockPL,
     // ESPP detail
     esppVal: amineEspp,
     esppShares: espp.shares,
@@ -1166,9 +1203,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sgtmAmineShares: portfolio.amine.sgtm.shares,
     sgtmNezhaShares: portfolio.nezha.sgtm.shares,
     sgtmPriceMAD: m.sgtmPriceMAD,
-    sgtmCostBasisEUR: m.sgtmCostBasisMAD
-      ? toEUR((portfolio.amine.sgtm.shares + portfolio.nezha.sgtm.shares) * m.sgtmCostBasisMAD, 'MAD', fx)
-      : null,
+    sgtmCostBasisEUR: m.sgtmCostBasisMAD ? sgtmCostEUR_hist : null,
+    sgtmFxPL,
     // ACN reference prices for period change columns
     acnPreviousClose: m.acnPreviousClose || null,
     acnMtdOpen: m.acnMtdOpen || null,
