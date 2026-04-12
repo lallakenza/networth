@@ -3562,6 +3562,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     : 0;
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);
+  // Separate IBKR broker cash (EUR+USD) for reclassification to Cash category
+  // JPY margin (carry trade) stays with IBKR as investment position
+  const amineIbkrCashForCash = p.amine.ibkr.cashEUR + toEUR(p.amine.ibkr.cashUSD || 0, 'USD', fx);
+  const amineIbkrForActions = amineIbkr - amineIbkrCashForCash; // positions + JPY carry
   const amineEsppShares = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx);
   const amineEsppCash = p.amine.espp.cashEUR || 0; // BUG-020: include ESPP account cash in NW
   const amineEspp = amineEsppShares + amineEsppCash;
@@ -3617,8 +3621,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   }
   console.log('[engine] Facturation net:', Math.round(amineFacturationNet), 'EUR — source:', _factuSrc);
 
-  const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash;
-  const amineTotalAssets = amineIbkr + amineEspp + amineCashTotal + amineSgtm
+  // Cash includes brokerage cash (EUR+USD from IBKR + ESPP) for consistency with cash view
+  // Excludes IBKR JPY carry trade (stays with Actions as investment position)
+  const amineBrokerCash = amineIbkrCashForCash + amineEsppCash;
+  const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash + amineBrokerCash;
+  // Actions = positions-only (broker cash reclassified to Cash above)
+  // Math: ibkrForActions + esppShares + cashTotal_new = ibkr + espp + cashTotal_old (identical NW)
+  const amineTotalAssets = amineIbkrForActions + amineEsppShares + amineCashTotal + amineSgtm
     + amineVitryEquity + amineVehicles + amineRecvPro + amineRecvPersonal;
   const amineNW = amineTotalAssets + amineTva + amineFacturationNet;
 
@@ -3642,8 +3651,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDelta: amineNWDelta,
     nwDeltaPct: amineNWDeltaPct,
     nwDeltaTimeframe: nwDeltaTimeframe,
-    ibkr: amineIbkr,
-    espp: amineEspp,
+    ibkr: amineIbkr,           // full IBKR NAV (positions + all cash incl. JPY carry)
+    ibkrForActions: amineIbkrForActions, // positions + JPY carry (excl. EUR/USD cash → moved to Cash)
+    espp: amineEspp,           // full ESPP value (shares + cash)
+    esppForActions: amineEsppShares,     // shares only (cash → moved to Cash)
+    brokerCash: amineBrokerCash,         // IBKR EUR/USD + ESPP cash (in Cash category)
     sgtm: amineSgtm,
     uae: amineUae,
     uaeAED: amineUaeAED,
@@ -3707,8 +3719,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       nezhaRecvOmar += toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
     });
   }
-  const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR;
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
+  // Cash includes ESPP broker cash for consistency with cash view
+  const nezhaBrokerCash = nezhaEsppCash;
+  const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR + nezhaBrokerCash;
+  const nezhaEsppForActions = nezhaEsppSharesVal; // shares only (cash reclassified above)
+  // NW math unchanged: (cash+brokerCash) + esppShares = cash + (esppShares+esppCash) = cash + espp
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
 
   // Calculate delta from previous NW in history
   // NW_HISTORY is empty (v150), so deltas are always null
@@ -3744,7 +3760,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     livretA: nc.lclLivretA,
     lclDepots: nc.lclCompteDepots,
     sgtm: nezhaSgtm,
-    espp: nezhaEspp,
+    espp: nezhaEspp,             // full ESPP (shares + cash)
+    esppForActions: nezhaEsppForActions, // shares only (cash → moved to Cash)
+    brokerCash: nezhaBrokerCash,
     esppShares: nezhaEsppShares,
     esppCostBasisEUR: nezhaEsppCostBasisEUR,
     esppUnrealizedPL: nezhaEsppUnrealizedPL,
@@ -3787,8 +3805,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     immoValue: coupleImmoValue,
     immoCRD: coupleImmoCRD,
     nbBiens: nbBiens,
-    cashTotal: amineCashTotal + nezhaCash,
-    actionsTotal: amineIbkr + amineEspp + amineSgtm + nezhaEspp + nezhaSgtm,
+    cashTotal: amineCashTotal + nezhaCash, // includes broker cash (IBKR EUR/USD + ESPP)
+    actionsTotal: amineIbkrForActions + amineEsppShares + amineSgtm + nezhaEsppForActions + nezhaSgtm,
     autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
     autreVehicles: amineVehicles,
     autreCreancesPro: amineRecvPro,
@@ -3826,8 +3844,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       total: (() => {
         const nonCrypto = p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto');
         const ibkrNonCryptoVal = nonCrypto.reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
-        const ibkrCash = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
-        return ibkrNonCryptoVal + ibkrCash + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
+        // JPY carry trade stays with Actions (investment position), EUR/USD cash → Cash category
+        const ibkrJPY = toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
+        return ibkrNonCryptoVal + ibkrJPY + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm;
       })(),
       sub: [
         ...p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
@@ -3837,8 +3856,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           const short = pos.label.replace(/\s*\(.*\)/, '');
           return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR', ticker: pos.ticker };
         }),
-        { label: 'Cash IBKR', val: toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#1e40af', owner: 'Amine — IBKR' },
-        { label: 'ESPP Accenture', val: amineEspp + nezhaEspp, color: '#6366f1', owner: 'Amine + Nezha — ESPP' },
+        { label: 'ESPP Accenture', val: amineEsppShares + nezhaEsppForActions, color: '#6366f1', owner: 'Amine + Nezha — ESPP' },
         { label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#4f46e5', owner: 'Amine + Nezha — Maroc' },
       ].filter(s => s.val > 100)
     },
@@ -3866,8 +3884,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     {
       label: 'Cash Dormant', color: '#ef4444',
       total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
+        + amineBrokerCash + nezhaBrokerCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
+        ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: 'Amine — 0%' }] : []),
+        ...(nezhaBrokerCash > 0 ? [{ label: 'Cash ESPP (Nezha)', val: nezhaBrokerCash, color: '#8b5cf6', owner: 'Nezha — 0%' }] : []),
         ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nezha)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
         ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: 'Nezha — 0%' }] : []),
         ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: 'Nezha — 1.5%' }] : []),
@@ -3914,8 +3935,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     couple: {
       title: 'Dashboard Patrimonial',
       subtitle: 'Amine (33 ans) & Nezha (34 ans) Koraibi \u2014 Vue consolidee',
-      stocks:    { val: amineIbkr + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
-      cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc' },
+      stocks:    { val: amineIbkrForActions + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
+      cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc + Courtiers' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: 'Vehicules + Creances + Facturation - TVA - Caution', title: 'Autres Actifs' },
       nwRef: coupleNW,
@@ -3924,8 +3945,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     amine: {
       title: 'Dashboard \u2014 Amine Koraibi',
       subtitle: 'Amine Koraibi, 33 ans \u2014 Actions, Crypto, Immobilier, Cash',
-      stocks:    { val: amineIbkr + amineEspp + amineSgtm, sub: 'IBKR + ESPP + SGTM' },
-      cash:      { val: amineCashTotal, sub: 'UAE + Revolut + Maroc' },
+      stocks:    { val: amineIbkrForActions + amineEsppShares + amineSgtm, sub: 'IBKR + ESPP + SGTM' },
+      cash:      { val: amineCashTotal, sub: 'UAE + Revolut + Maroc + Courtiers' },
       immo:      { val: amineVitryEquity, sub: '1 bien \u2014 Vitry' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet, sub: 'Vehicules + Creances + Facturation - TVA', title: 'Autres Actifs' },
       nwRef: amineNW,
@@ -3934,7 +3955,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nezha: {
       title: 'Dashboard \u2014 Nezha Kabbaj',
       subtitle: 'Nezha Kabbaj, 34 ans \u2014 Immobilier',
-      stocks:    { val: nezhaSgtm + nezhaEspp, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
+      stocks:    { val: nezhaSgtm + nezhaEsppForActions, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
       other:     { val: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar - Caution' : 'Creances + Reservation - Caution', title: 'Creances' },
@@ -3950,7 +3971,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     const short = pos.label.replace(/\s*\(.*\)/, '');
     return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'IBKR' };
   });
-  const ibkrCashVal = toEUR(p.amine.ibkr.cashEUR, 'EUR', fx) + toEUR(p.amine.ibkr.cashUSD, 'USD', fx) + toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
+  const ibkrJPYVal = toEUR(p.amine.ibkr.cashJPY, 'JPY', fx); // JPY carry stays with Actions
   const cryptoSubs = p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
     const colors = ['#f59e0b','#d97706'];
     const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
@@ -3961,8 +3982,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineCategories = [
     {
       label: 'Actions IBKR', color: '#2b6cb0',
-      total: ibkrNonCryptoSubs.reduce((s, p) => s + p.val, 0) + ibkrCashVal,
-      sub: [...ibkrNonCryptoSubs, ...(ibkrCashVal > 100 ? [{ label: 'Cash IBKR', val: ibkrCashVal, color: '#1e40af', owner: 'IBKR' }] : [])]
+      total: ibkrNonCryptoSubs.reduce((s, p) => s + p.val, 0) + ibkrJPYVal,
+      sub: ibkrNonCryptoSubs
     },
     {
       label: 'Crypto', color: '#f59e0b',
@@ -3971,9 +3992,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Autres Actions', color: '#6366f1',
-      total: amineEspp + amineSgtm,
+      total: amineEsppShares + amineSgtm,
       sub: [
-        { label: 'ESPP Accenture', val: amineEspp, color: '#6366f1', owner: 'ESPP' },
+        { label: 'ESPP Accenture', val: amineEsppShares, color: '#6366f1', owner: 'ESPP' },
         { label: 'SGTM', val: amineSgtm, color: '#4f46e5', owner: 'Maroc' },
       ].filter(s => s.val > 100)
     },
@@ -3992,8 +4013,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash,
+      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash + amineBrokerCash,
       sub: [
+        ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: '0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
         ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
         ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: '0%' }] : []),
