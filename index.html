@@ -1365,16 +1365,9 @@
   <!-- ── Velocity block (below the mountain, in the auth gate footer) ── -->
   <div id="velocityBlock" style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-4px;margin-bottom:20px;opacity:0;transition:opacity 1s;max-width:360px;padding:0 20px;">
     <div id="gridEta" style="font-family:'DM Sans',sans-serif;font-size:min(11.5px,2.3vw);color:rgba(255,255,255,0.92);padding:5px 14px;background:rgba(110,231,160,0.14);border:1px solid rgba(110,231,160,0.38);border-radius:14px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">🎯 1M€ en <span id="gridEtaDate">—</span></div>
-    <!-- v283.2 — Semantically honest labels:
-         (1) RYTHME CIBLE  = req.pace = linear (TARGET - NW) / months → NW velocity REQUIRED
-         (2) RYTHME ACTUEL = velocityInfo.monthlyPace → either observed 6m NW delta OR
-             simulator plan savings baseline. In both cases, it's what currently drives NW. -->
-    <div id="gridRhythmRequired" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(129,220,255,0.88);margin-top:6px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;display:flex;align-items:center;gap:6px;">
-      <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;font-weight:600;font-size:0.9em;letter-spacing:0.3px;">🎯 RYTHME CIBLE</span>
-      <span id="gridRhythmReqVal">—</span>
-    </div>
-    <div id="gridRhythmActual" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(167,243,208,0.88);margin-top:4px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;display:flex;align-items:center;gap:6px;">
-      <span id="gridRhythmActLabel" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(110,231,160,0.12);border:1px solid rgba(110,231,160,0.35);border-radius:10px;font-weight:600;font-size:0.9em;letter-spacing:0.3px;">📈 RYTHME ACTUEL</span>
+    <!-- v283.4 — Single rhythm line: shows your current pace and where it leads you.
+         The RYTHME CIBLE line was redundant with the ETA pill above (same model, same date). -->
+    <div id="gridRhythmActual" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(167,243,208,0.88);margin-top:6px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">
       <span id="gridRhythmActVal">—</span>
     </div>
   </div>
@@ -1442,9 +1435,7 @@
     const remainingEl = document.getElementById('gridRemaining');
     const velocityBlock = document.getElementById('velocityBlock');
     const etaDateEl   = document.getElementById('gridEtaDate');
-    const rhythmReqEl   = document.getElementById('gridRhythmRequired');
     const rhythmActEl   = document.getElementById('gridRhythmActual');
-    const rhythmReqVal  = document.getElementById('gridRhythmReqVal');
     const rhythmActVal  = document.getElementById('gridRhythmActVal');
 
     // Pre-compute trail total length (invariant anchor for arc-length mapping)
@@ -1697,28 +1688,12 @@
       }
     };
 
-    // ── Required rhythm: monthly savings needed to hit TARGET_DATE at 8%/an compound ──
-    //    Uses the SAME model as computeMonthsToTargetAtPace so the two numbers
-    //    (RYTHME CIBLE and RYTHME ACTUEL) are directly comparable.
-    //
-    //    Solve for P in: FV = PV·(1+r)^n + P · ((1+r)^n − 1)/r
-    //    where r = 0.08/12, n = monthsToTarget, FV = TARGET_EUR, PV = currentNW.
-    //    If compound growth alone already reaches FV, required P = 0.
-    function computeRequiredMonthlyPace(currentNW) {
+    // ── Months from now to TARGET_DATE (simple calendar diff) ──
+    function computeMonthsToTargetDate() {
       const now = new Date();
-      const monthsToTarget = Math.max(1,
+      return Math.max(1,
         (TARGET_DATE.getFullYear() - now.getFullYear()) * 12
         + (TARGET_DATE.getMonth() - now.getMonth()));
-      const r = 0.08 / 12;  // same blended 8%/an as the rest of the pace logic
-      const growthFactor = Math.pow(1 + r, monthsToTarget);
-      const fvOfCurrent = currentNW * growthFactor;
-      const annuityFactor = (growthFactor - 1) / r;
-      const requiredSavings = (TARGET_EUR - fvOfCurrent) / annuityFactor;
-      return {
-        pace: Math.max(0, requiredSavings),
-        monthsToTarget: monthsToTarget,
-        compoundOnlyReaches: fvOfCurrent >= TARGET_EUR,
-      };
     }
 
     // ── ETA at a given monthly pace (with compound growth assumption) ──
@@ -1752,48 +1727,38 @@
       return ' (+' + diff + ' mois ⚠)';
     }
 
-    // ── Render the 3 velocity lines (🎯 target / ⚡ required / 📈 projected) ──
+    // ── Render velocity info: 🎯 ETA pill + single pace line ──
     function renderVelocityLines(currentNW, velInfo) {
-      const req = computeRequiredMonthlyPace(currentNW);
-      // Target pill (🎯 1M€ en <target date>)
+      const monthsToTarget = computeMonthsToTargetDate();
+
+      // 🎯 ETA pill — "1M€ en avril 2028 · 2 ans"
       const tMois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-      const yearsLeft = Math.max(0, Math.floor(req.monthsToTarget / 12));
-      const monthsRem = req.monthsToTarget % 12;
+      const yearsLeft = Math.max(0, Math.floor(monthsToTarget / 12));
+      const monthsRem = monthsToTarget % 12;
       const tgtDateStr = tMois[TARGET_DATE.getMonth()] + ' ' + TARGET_DATE.getFullYear();
       const tgtDurStr = (yearsLeft > 0 ? yearsLeft + ' an' + (yearsLeft > 1 ? 's' : '') : '')
         + (monthsRem > 0 ? (yearsLeft > 0 ? ' ' : '') + monthsRem + ' mois' : '');
       etaDateEl.textContent = tgtDateStr + (tgtDurStr ? ' · ' + tgtDurStr : '');
 
-      // (1) RYTHME CIBLE — monthly SAVINGS needed to hit target, assuming 8%/an compound.
-      //     Same model as computeMonthsToTargetAtPace, so this is directly comparable
-      //     to effectivePace below (apples-to-apples: both are "€/mois à investir").
-      if (req.compoundOnlyReaches) {
-        rhythmReqVal.textContent = '€0/mois (marché à 8%/an suffit ✓) pour avril 2028';
-      } else {
-        rhythmReqVal.textContent = '~€' + formatEurShort(req.pace) + '/mois à investir (marché 8%/an) pour avril 2028';
-      }
-
-      // (2) RYTHME ACTUEL — what's actually driving NW right now
-      //     - actuals6m: observed total NW delta over last 6 months (savings + market + immo)
-      //     - plan simulateur: the simulator's monthly savings baseline (investment only)
+      // Pace line — current rhythm + projected ETA + delta vs target
       const effectivePace = (velInfo && velInfo.monthlyPace != null) ? velInfo.monthlyPace : 8000;
       const isReal = velInfo && velInfo.source === 'actuals6m';
       const etaMonths = computeMonthsToTargetAtPace(currentNW, effectivePace);
       const etaDate = formatEtaDate(etaMonths);
-      const delta = formatEtaDelta(etaMonths, req.monthsToTarget);
-      const sourceTag = isReal ? ' (NW réel 6m)' : ' (invest. plan)';
-      rhythmActVal.textContent = '+€' + formatEurShort(effectivePace) + '/mois'
+      const delta = formatEtaDelta(etaMonths, monthsToTarget);
+      const sourceTag = isReal ? '(NW réel 6m)' : '(invest. plan)';
+      rhythmActVal.textContent = '+€' + formatEurShort(effectivePace) + '/mois '
         + sourceTag + ' → ' + etaDate + delta;
 
-      // Color-code the wealth-creation line based on delta vs target date
+      // Color-code: green = ahead/on-time, amber = behind, red = never reaches
       if (etaMonths == null) {
-        rhythmActEl.style.color = 'rgba(248,113,113,0.92)'; // red — never reaches
-      } else if (etaMonths - req.monthsToTarget >= 4) {
-        rhythmActEl.style.color = 'rgba(251,191,36,0.92)'; // amber — slower than target
-      } else if (etaMonths - req.monthsToTarget <= -1) {
-        rhythmActEl.style.color = 'rgba(110,231,160,0.95)'; // green — ahead of target
+        rhythmActEl.style.color = 'rgba(248,113,113,0.92)';
+      } else if (etaMonths - monthsToTarget >= 4) {
+        rhythmActEl.style.color = 'rgba(251,191,36,0.92)';
+      } else if (etaMonths - monthsToTarget <= -1) {
+        rhythmActEl.style.color = 'rgba(110,231,160,0.95)';
       } else {
-        rhythmActEl.style.color = 'rgba(167,243,208,0.88)'; // default — on-track green tint
+        rhythmActEl.style.color = 'rgba(167,243,208,0.88)';
       }
     }
 
