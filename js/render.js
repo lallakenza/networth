@@ -5597,19 +5597,21 @@ function computeExitCostsSim(loanKey, salePrice, purchasePrice, holdingYears, cr
 
 function renderCreancesView(state) {
   const crv = state.creancesView;
-  // KPIs
+  // KPIs — based on active items only
   setEur('kpiCreancesNominal', crv.totalNominal);
   setEur('kpiCreancesExpected', crv.totalExpected);
   setEur('kpiCreancesGuaranteed', crv.totalGuaranteed);
   setEur('kpiCreancesUncertain', crv.totalUncertain);
   setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
 
-  // Detail table with recouvrement
+  const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
+  const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
+
+  // ── 1. Active créances table ──
   const tbody = document.getElementById('creancesDetailTbody');
   const creancesTable = document.getElementById('creancesTable');
   if (tbody) {
-    const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
-    const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
+    const activeItems = crv.activeItems || crv.items.filter(i => i.status !== 'recouvré');
 
     function renderCreancesRows(items) {
       tbody.innerHTML = '';
@@ -5638,7 +5640,7 @@ function renderCreancesView(state) {
       });
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-      tr.innerHTML = '<td colspan="4"><strong>Total</strong></td>'
+      tr.innerHTML = '<td colspan="4"><strong>Total en cours</strong></td>'
         + '<td class="num"><strong>' + fmt(crv.totalNominal) + '</strong></td>'
         + '<td></td>'
         + '<td class="num"><strong>' + fmt(crv.totalExpected) + '</strong></td>'
@@ -5646,8 +5648,59 @@ function renderCreancesView(state) {
       tbody.appendChild(tr);
     }
 
-    renderCreancesRows(crv.items);
-    makeTableSortable(creancesTable, crv.items, renderCreancesRows);
+    renderCreancesRows(activeItems);
+    makeTableSortable(creancesTable, activeItems, renderCreancesRows);
+  }
+
+  // ── 2. Dettes table ──
+  const dettesTbody = document.getElementById('dettesDetailTbody');
+  if (dettesTbody && crv.dettes && crv.dettes.length > 0) {
+    dettesTbody.innerHTML = '';
+    crv.dettes.forEach(d => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + d.label + '</td>'
+        + '<td>' + d.owner + '</td>'
+        + '<td>' + d.currency + '</td>'
+        + '<td class="num">' + Math.round(d.amount).toLocaleString('fr-FR') + '</td>'
+        + '<td class="num" style="color:var(--red);font-weight:600">-' + fmt(d.amountEUR) + '</td>';
+      dettesTbody.appendChild(tr);
+    });
+    const totalTr = document.createElement('tr');
+    totalTr.style.fontWeight = '700'; totalTr.style.background = '#edf2f7';
+    totalTr.innerHTML = '<td colspan="4"><strong>Total dettes</strong></td>'
+      + '<td class="num" style="color:var(--red)"><strong>-' + fmt(crv.totalDettes) + '</strong></td>';
+    dettesTbody.appendChild(totalTr);
+  } else if (dettesTbody) {
+    dettesTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:12px;">Aucune dette en cours</td></tr>';
+  }
+
+  // ── 3. Recovered créances table ──
+  const recovTbody = document.getElementById('recoveredDetailTbody');
+  if (recovTbody) {
+    const recoveredItems = crv.recoveredItems || crv.items.filter(i => i.status === 'recouvré');
+    recovTbody.innerHTML = '';
+    if (recoveredItems.length > 0) {
+      recoveredItems.forEach(item => {
+        const tr = document.createElement('tr');
+        const lastPayDate = (item.payments && item.payments.length > 0) ? item.payments[item.payments.length - 1].date : '—';
+        tr.innerHTML = '<td>' + item.label + ' <span style="background:#276749;color:white;padding:1px 6px;border-radius:4px;font-size:10px">RECOUVRÉ</span></td>'
+          + '<td>' + item.owner + '</td>'
+          + '<td>' + item.currency + '</td>'
+          + '<td class="num">' + Math.round(item.amount).toLocaleString('fr-FR') + '</td>'
+          + '<td class="num">' + fmt(item.amountEUR) + '</td>'
+          + '<td class="num" style="color:var(--green)">' + fmt(item.paymentsTotal) + '</td>'
+          + '<td>' + lastPayDate + '</td>';
+        recovTbody.appendChild(tr);
+      });
+      const totalTr = document.createElement('tr');
+      totalTr.style.fontWeight = '700'; totalTr.style.background = '#edf2f7';
+      totalTr.innerHTML = '<td colspan="4"><strong>Total recouvré</strong></td>'
+        + '<td class="num"><strong>' + fmt(crv.totalRecovered) + '</strong></td>'
+        + '<td></td><td></td>';
+      recovTbody.appendChild(totalTr);
+    } else {
+      recovTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gray);padding:12px;">Aucune créance recouvrée</td></tr>';
+    }
   }
 
   // Garanti vs Incertain bar — with hover tooltip showing per-créance breakdown
@@ -5663,8 +5716,9 @@ function renderCreancesView(state) {
       + 'border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #1a202c;"></div>';
 
     // Garanti tooltip
+    const _activeForBar = crv.activeItems || crv.items.filter(i => i.status !== 'recouvré');
     let gTip = crTipArr + '<div style="font-weight:700;color:#68d391;margin-bottom:4px;">Cr\u00e9ances garanties</div>';
-    crv.items.filter(c => c.guaranteed).forEach(c => {
+    _activeForBar.filter(c => c.guaranteed).forEach(c => {
       gTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
         + '<span style="color:#a0aec0">' + c.label + '</span>'
         + '<span style="font-weight:600;color:#68d391">' + fmt(c.amountEUR) + ' \u20ac</span></div>';
@@ -5674,7 +5728,7 @@ function renderCreancesView(state) {
 
     // Incertain tooltip
     let uTip = crTipArr + '<div style="font-weight:700;color:#fc8181;margin-bottom:4px;">Cr\u00e9ances incertaines</div>';
-    crv.items.filter(c => !c.guaranteed).forEach(c => {
+    _activeForBar.filter(c => !c.guaranteed).forEach(c => {
       uTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
         + '<span style="color:#a0aec0">' + c.label + ' <span style="font-size:10px">(' + (c.probability * 100).toFixed(0) + '%)</span></span>'
         + '<span style="font-weight:600;color:#fc8181">' + fmt(c.amountEUR) + ' \u20ac</span></div>';

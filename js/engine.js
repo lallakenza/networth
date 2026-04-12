@@ -3098,17 +3098,60 @@ function computeCreancesView(portfolio, fx) {
   // Nezha creances
   (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => allItems.push(processCreance(c, 'Nezha')));
 
-  const totalNominal = allItems.reduce((s, i) => s + i.amountEUR, 0);
-  const totalExpected = allItems.reduce((s, i) => s + i.expectedValue, 0);
-  const totalGuaranteed = allItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
-  const totalUncertain = allItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
-  const monthlyInflationCost = allItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
-  const totalRecovered = allItems.reduce((s, i) => s + i.paymentsTotal, 0);
-  const totalOverdue = allItems.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.remainingEUR, 0);
-  const needsFollowUpCount = allItems.filter(i => i.needsFollowUp).length;
+  // Split active vs recouvré
+  const activeItems = allItems.filter(i => i.status !== 'recouvré');
+  const recoveredItems = allItems.filter(i => i.status === 'recouvré');
+
+  const totalNominal = activeItems.reduce((s, i) => s + i.amountEUR, 0);
+  const totalExpected = activeItems.reduce((s, i) => s + i.expectedValue, 0);
+  const totalGuaranteed = activeItems.filter(i => i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const totalUncertain = activeItems.filter(i => !i.guaranteed).reduce((s, i) => s + i.amountEUR, 0);
+  const monthlyInflationCost = activeItems.reduce((s, i) => s + i.monthlyInflationCost, 0);
+  const totalRecovered = recoveredItems.reduce((s, i) => s + i.paymentsTotal, 0);
+  const totalOverdue = activeItems.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.remainingEUR, 0);
+  const needsFollowUpCount = activeItems.filter(i => i.needsFollowUp).length;
+
+  // ── Dettes (what Amine owes) ──
+  const dettes = [];
+  // TVA
+  if (portfolio.amine.tva && portfolio.amine.tva < 0) {
+    dettes.push({ label: 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(portfolio.amine.tva), owner: 'Amine', type: 'pro' });
+  }
+  // Facturation: Benoit/Badre (negative = Amine owes)
+  let _factuPositions = null;
+  try {
+    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
+    if (raw) _factuPositions = JSON.parse(raw);
+  } catch(e) {}
+
+  if (_factuPositions) {
+    const augustinMAD = _factuPositions.augustin && _factuPositions.augustin.mad != null ? _factuPositions.augustin.mad : 0;
+    const benoitDH = _factuPositions.benoit && _factuPositions.benoit.dh != null ? _factuPositions.benoit.dh : 0;
+    if (augustinMAD < 0) {
+      dettes.push({ label: 'Augustin (Azarkan)', amount: Math.abs(augustinMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(augustinMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
+    }
+    if (benoitDH < 0) {
+      dettes.push({ label: 'Benoit (Badre)', amount: Math.abs(benoitDH), currency: 'MAD', amountEUR: toEUR(Math.abs(benoitDH), 'MAD', fx), owner: 'Amine', type: 'pro' });
+    }
+    // Also add receivables as context (positive = they owe Amine)
+    if (augustinMAD > 0) {
+      // Already in créances via facturation — skip here
+    }
+  } else if (portfolio.amine.facturation) {
+    Object.entries(portfolio.amine.facturation).forEach(([key, pos]) => {
+      if (pos.amount < 0) {
+        dettes.push({ label: pos.label || key, amount: Math.abs(pos.amount), currency: pos.currency, amountEUR: toEUR(Math.abs(pos.amount), pos.currency, fx), owner: 'Amine', type: 'pro' });
+      }
+    });
+    // TVA fallback already handled above
+  }
+
+  const totalDettes = dettes.reduce((s, d) => s + d.amountEUR, 0);
 
   return {
     items: allItems,
+    activeItems,
+    recoveredItems,
     totalNominal,
     totalExpected,
     totalGuaranteed,
@@ -3117,6 +3160,8 @@ function computeCreancesView(portfolio, fx) {
     totalRecovered,
     totalOverdue,
     needsFollowUpCount,
+    dettes,
+    totalDettes,
   };
 }
 
