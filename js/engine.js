@@ -3526,7 +3526,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     : 0;
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);
-  const amineEspp = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx); // Cash ESPP côté cashView, pas ici
+  const amineEsppShares = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx);
+  const amineEsppCash = p.amine.espp.cashEUR || 0; // BUG-020: include ESPP account cash in NW
+  const amineEspp = amineEsppShares + amineEsppCash;
   const amineVitryCRD = immoCRDs.vitry ?? p.amine.immo.vitry.crd;
   const amineVitryEquityBrute = p.amine.immo.vitry.value - amineVitryCRD;
   // Net equity = after exit costs, floored at 0 (if negative → not mature enough to sell)
@@ -3651,16 +3653,24 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Nezha ESPP (Accenture via UBS)
   const nezhaEsppData = p.nezha.espp || {};
   const nezhaEsppShares = nezhaEsppData.shares || 0;
-  const nezhaEspp = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
+  const nezhaEsppSharesVal = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
+  const nezhaEsppCash = toEUR(nezhaEsppData.cashUSD || 0, 'USD', fx); // BUG-020: include ESPP account cash in NW
+  const nezhaEspp = nezhaEsppSharesVal + nezhaEsppCash;
   const nezhaEsppCostBasisUSD = nezhaEsppData.totalCostBasisUSD || 0;
   const nezhaEsppCostBasisEUR = toEUR(nezhaEsppCostBasisUSD, 'USD', fx);
   const nezhaEsppUnrealizedPL = nezhaEspp - nezhaEsppCostBasisEUR;
   // Caution Rueil — dette envers locataire
   const nezhaCautionRueil = p.nezha.cautionRueil || 0;
-  const nezhaRecvOmar = p.nezha.creances && p.nezha.creances.items
-    // AUD-001: weight by probability
-    ? toEUR(p.nezha.creances.items[0].amount * (p.nezha.creances.items[0].probability !== undefined ? p.nezha.creances.items[0].probability : 1), p.nezha.creances.items[0].currency, fx)
-    : 0;
+  // BUG-033: iterate all Nezha créances (not just items[0])
+  let nezhaRecvOmar = 0;
+  if (p.nezha.creances && p.nezha.creances.items) {
+    p.nezha.creances.items.forEach(c => {
+      if (c.status === 'recouvré') return; // same rule as Amine: skip recouvré
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      nezhaRecvOmar += toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
+    });
+  }
   const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR;
   const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEspp + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
 
@@ -3704,7 +3714,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     esppUnrealizedPL: nezhaEsppUnrealizedPL,
     cautionRueil: nezhaCautionRueil,
     recvOmar: nezhaRecvOmar,
-    recvOmarMAD: p.nezha.creances && p.nezha.creances.items ? p.nezha.creances.items[0].amount : 40000,
+    // BUG-033: sum all active Nezha creances in MAD for display
+    recvOmarMAD: p.nezha.creances && p.nezha.creances.items
+      ? p.nezha.creances.items.filter(c => c.status !== 'recouvré').reduce((s, c) => s + ((c.amount - (c.payments || []).reduce((ps, pay) => ps + pay.amount, 0)) * (c.currency === 'MAD' ? 1 : 0)), 0) || 40000
+      : 40000,
     cash: nezhaCash,
   };
 

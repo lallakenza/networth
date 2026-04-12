@@ -331,14 +331,44 @@ function buildNezhaDonut(state) {
 }
 
 // ============ GEO CHART ============
+// BUG-029: Compute geo allocation dynamically from actual IBKR positions
 function buildGeoChart(state) {
   const s = state;
-  const geoIBKR = s.amine.ibkr;
+  const p = state.portfolio;
+  const fx = state.fx;
+  const toEUR = (amt, cur) => cur === 'EUR' ? amt : amt / fx[cur];
+
+  // Aggregate IBKR positions by geo
+  const geoMap = {};
+  if (p && p.amine && p.amine.ibkr && p.amine.ibkr.positions) {
+    p.amine.ibkr.positions.forEach(pos => {
+      const geo = pos.geo || 'other';
+      const val = toEUR(pos.shares * pos.price, pos.currency);
+      // Map geo keys to display categories
+      let cat;
+      if (geo === 'france') cat = 'France';
+      else if (geo === 'crypto') cat = 'Crypto';
+      else if (geo === 'germany') cat = 'Allemagne';
+      else if (geo === 'japan') cat = 'Japon';
+      else cat = 'Autre';
+      geoMap[cat] = (geoMap[cat] || 0) + val;
+    });
+  }
+  // Add ESPP (Accenture = Ireland/US)
+  geoMap['Irlande/US (ACN)'] = (s.amine.espp || 0) + (s.nezha.espp || 0);
+  // Add SGTM (Morocco)
+  geoMap['Maroc (SGTM)'] = (s.amine.sgtm || 0) + (s.nezha.sgtm || 0);
+
+  const colorMap = { 'France': '#2b6cb0', 'Crypto': '#9f7aea', 'Irlande/US (ACN)': '#48bb78', 'Allemagne': '#ed8936', 'Japon': '#e53e3e', 'Maroc (SGTM)': '#d69e2e', 'Autre': '#a0aec0' };
+  const labels = Object.keys(geoMap).filter(k => geoMap[k] > 100);
+  const data = labels.map(k => Math.round(geoMap[k]));
+  const colors = labels.map(k => colorMap[k] || '#a0aec0');
+
   charts.geo = new Chart(document.getElementById('geoChart'), {
     type: 'doughnut',
     data: {
-      labels: ['France','Crypto','Irlande/US (ACN)','Allemagne','Japon','Maroc (SGTM)'],
-      datasets: [{ data: [Math.round(geoIBKR*0.53), Math.round(geoIBKR*0.21), Math.round(s.amine.espp+s.nezha.espp), Math.round(geoIBKR*0.10), Math.round(geoIBKR*0.03), Math.round(s.amine.sgtm+s.nezha.sgtm)], backgroundColor: ['#2b6cb0','#9f7aea','#48bb78','#ed8936','#e53e3e','#d69e2e'], borderWidth: 1 }]
+      labels: labels,
+      datasets: [{ data: data, backgroundColor: colors, borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
@@ -2090,12 +2120,9 @@ export function renderPortfolioChart(overrides = {}) {
       const d = new Date(today);
       d.setMonth(d.getMonth() - 3);
       cutoff = d.toISOString().slice(0, 10);
-    } else if (period === '1Y') {
-      const d = new Date(today);
-      d.setFullYear(d.getFullYear() - 1);
-      cutoff = d.toISOString().slice(0, 10);
     } else {
-      cutoff = '2025-12-31';
+      // Fallback for unknown sub-periods
+      cutoff = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
     }
     for (let i = 0; i < data.labels.length; i++) {
       if (data.labels[i] >= cutoff) { startIdx = i; break; }
@@ -3995,7 +4022,12 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   );
 
   // Store full data for period filtering and mode switching
-  const startValue = scope === 'espp' ? chartValuesESPP[0] : (scope === 'maroc' ? chartValuesSGTM[0] : chartValues[0]);
+  // BUG-025: correct startValue per scope (was falling through to IBKR for 'all' and 'degiro')
+  const startValue = scope === 'espp' ? chartValuesESPP[0]
+    : scope === 'maroc' ? chartValuesSGTM[0]
+    : scope === 'all' ? chartValuesTotal[0]
+    : scope === 'degiro' ? chartValuesDegiro[0]
+    : chartValues[0];
   const _chartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
@@ -4466,7 +4498,7 @@ export function buildEquityHistoryChart(period, options) {
     currentPeriod: period,
     degiroRealizedPL: Math.round(dgTotalPL),
     _isEquityHistory: true,
-    _equityEntries: dataPoints.filter(d => d.note),  // for click-detail notes (EH entries with notes)
+    _equityEntries: dataPoints,  // BUG-035: keep full array for index alignment with chart data (consumers check .note before display)
   };
   // v273: Store in per-mode data store AND set active mode (fixes 5Y/MAX rendering)
   window._chartDataByMode[modeKey] = chartData;
