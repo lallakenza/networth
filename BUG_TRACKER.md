@@ -425,6 +425,25 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-019: Augustin (Azarkan) absent de la vue créances
+- **Version**: v286 (détecté), v287 (corrigé)
+- **Sévérité**: Majeur
+- **Détection**: Test utilisateur — "Ici je vois badre mais pas azarkan ?"
+- **Symptôme**: Dans la page #creances, Benoit (Badre) apparaît dans la section Dettes mais Augustin (Azarkan, +181 609 MAD) n'apparaît nulle part dans la vue. Pourtant il est bien pris en compte dans le calcul NW via `amineFacturationNet`.
+- **Cause racine**: `computeCreancesView()` n'injectait pas les positions facturation positives (receivables) dans `activeItems`. Seules les positions négatives (dettes) étaient traitées. Les facturations positives (= on me doit de l'argent) étaient ignorées côté vue créances, bien qu'elles soient correctement comptées dans le NW via `amineFacturationNet` (calcul séparé dans `compute()`).
+- **Correctif** : Refactoring de `computeCreancesView()` pour créer deux arrays séparés : `factuCreances[]` (positives → receivables à afficher dans les actives) et `dettes[]` (négatives → obligations). Injection de `factuCreances` dans `activeItems` via `activeItems.push(...factuCreances)`. Calcul des KPIs (`totalNominal`, `totalExpected`, etc.) déplacé APRÈS l'injection pour que les totaux incluent Augustin. Support localStorage + fallback data.js pour les deux chemins.
+- **Audit NW** : Vérifié aucun double-comptage. `amineRecvPro`/`amineRecvPersonal` (dans le calcul NW) proviennent uniquement de `p.amine.creances.items`. `amineFacturationNet` est calculé séparément depuis localStorage/data.js facturation. `computeCreancesView()` est display-only et n'alimente pas le calcul NW.
+- **Test de non-régression** :
+  - [ ] Augustin (Azarkan) visible dans la section "Créances en cours" avec +181 609 MAD
+  - [ ] Benoit (Badre) visible dans la section "Dettes & Obligations"
+  - [ ] TVA toujours visible dans Dettes
+  - [ ] KPIs créances (Total Nominal, Garanti, Incertain) incluent Augustin
+  - [ ] Barre Garanti/Incertain inclut Augustin (garanti)
+  - [ ] NW inchangée (pas de double-comptage — créances view est display-only)
+  - [ ] Fallback data.js fonctionne si localStorage vide
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -440,9 +459,9 @@ Il sert de base pour le plan de tests de non-régression.
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
-| **Créances (vue)** | BUG-015, BUG-016 | Actives séparées des recouvrées, dettes visibles, KPIs basés sur actives uniquement |
+| **Créances (vue)** | BUG-015, BUG-016, BUG-019 | Actives séparées des recouvrées, dettes visibles, facturation receivables injectées, KPIs basés sur actives uniquement |
 | **NW Breakdown / KPI cards** | BUG-017 | Tous les composants NW dans les breakdowns, cards, treemaps et insights. Invariant: stocks+cash+immo+autre = NW |
 
 ---
 
-*Dernière mise à jour: v286 — 12 avril 2026 (BUG-018 tooltip per-owner delta — startValueRef était couple-level, pas filtré par owner)*
+*Dernière mise à jour: v287 — 12 avril 2026 (BUG-019 Augustin manquant dans vue créances — facturation receivables non injectées dans activeItems)*
