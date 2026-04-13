@@ -3030,3 +3030,44 @@ Chaque milestone est un `<g id="msXXX">` contenant `<circle>` + `<text>`. Les cl
 - Syntaxe JS validée via `new Function(scriptBlock)` — OK.
 - IDs requis présents (`coupleMarker`, `amineMarker`, `nezhaMarker`, `vegFill`, `climbTrail`, `trailLit`, `summitHalo`, `summitFlag`, `ms500`, `ms750`, `ms1M`) — OK.
 - Vérification live sur GitHub Pages après déploiement.
+
+---
+
+### Audit métier complet + 4 correctifs (BUG-039 à BUG-042)
+
+v295 fix cash page Nezha ESPP manquant, v296 fix créances sub-card (montants + groupement) + immo CRD prorata journalier + immo sub-card CRD détail visible.
+
+**BUG-039 (v295)** — Cash page manquait Nezha ESPP cash (94€). `computeCashView()` avait Amine ESPP mais pas Nezha ESPP. Fix: ajout entrée Nezha ESPP USD dans la liste des comptes.
+
+**BUG-040 (v296)** — Créances sub-card utilisait montants nominaux (`c.amount`) au lieu de `(amount - payments) × probability`. Groupement par `guaranteed` au lieu de `type` → Kenza (perso, guaranteed) classée pro. Fix: même formule que engine.js + groupement par `c.type`.
+
+**BUG-041 (v296)** — `updateAllDataEur()` écrasait le HTML détaillé des sub-cards immo (CRD invisible). Fix: `data-type="html"` sur les éléments + skip dans la boucle bulk.
+
+**BUG-042 (v296)** — CRD immobilier sautait au 1er du mois. Fix: interpolation linéaire journalière `crdBefore - (crdBefore - crdAfter) × (day-1)/daysInMonth` dans `computeImmoView()`.
+
+### Fichiers modifiés
+
+- `js/engine.js` :
+  - `computeCashView()` ~L1458: +1 ligne Nezha ESPP cash
+  - `computeImmoView()` ~L2570: remplacement lecture CRD directe par interpolation journalière (15 lignes)
+- `js/render.js` :
+  - `renderExpandSubs()` ~L485-530: créances items avec `(amount-payments)×probability` + groupement par `type`
+  - `updateAllDataEur()` L1148: skip `data-type="html"` éléments
+- `index.html` :
+  - 3 spans immo sub-cards: ajout `data-type="html"`
+- `js/data.js` : version `v295` → `v296`
+- `js/app.js`, `js/charts.js`, `js/simulators.js` : imports `v=295` → `v=296`
+- `index.html` : script tag `v=295` → `v=296`
+- `BUG_TRACKER.md` : BUG-039 à BUG-042
+- `ARCHITECTURE.md` : cette section.
+
+### Test
+
+- Cash page total = couple cash card (delta = 0) — OK
+- Créances sub-card total = contribution NW (71 919€, delta = 0) — OK
+- Kenza sous "Créances personnelles" (pas "pro") — OK
+- Sub-cards immo affichent valeur + CRD (ex: "€ 302 257 (2%/an)\nCRD € 267 213") — OK
+- Vitry CRD < statique 268 061€ (prorata avril) — OK
+- couple = amine + nezha: delta = 0 — OK
+- catSum = coupleNW: delta = 0 — OK
+- Aucune erreur console — OK

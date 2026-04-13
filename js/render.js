@@ -482,20 +482,28 @@ function renderExpandSubs(state, view) {
   // BUG-023: filter out recouvré items (already in cash, not counted in NW)
   let creanceItems = [];
   if (view === 'amine') {
-    creanceItems = (p.amine.creances.items || []).filter(c => c.status !== 'recouvré').map(c => ({
-      label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
-    }));
+    creanceItems = (p.amine.creances.items || []).filter(c => c.status !== 'recouvré').map(c => {
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      return { label: c.label, eur: toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency), type: c.type || 'perso' };
+    });
   } else if (view === 'nezha') {
-    creanceItems = (p.nezha.creances && p.nezha.creances.items || []).filter(c => c.status !== 'recouvré').map(c => ({
-      label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed
-    }));
+    creanceItems = (p.nezha.creances && p.nezha.creances.items || []).filter(c => c.status !== 'recouvré').map(c => {
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      return { label: c.label, eur: toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency), type: c.type || 'perso' };
+    });
   } else {
     // couple: show all active
     (p.amine.creances.items || []).filter(c => c.status !== 'recouvré').forEach(c => {
-      creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Amine' });
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      creanceItems.push({ label: c.label, eur: toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency), type: c.type || 'perso', owner: 'Amine' });
     });
     (p.nezha.creances && p.nezha.creances.items || []).filter(c => c.status !== 'recouvré').forEach(c => {
-      creanceItems.push({ label: c.label, eur: toEUR(c.amount, c.currency), guaranteed: c.guaranteed, owner: 'Nezha' });
+      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+      const remaining = c.amount - paymentsTotal;
+      creanceItems.push({ label: c.label, eur: toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency), type: c.type || 'perso', owner: 'Nezha' });
     });
   }
 
@@ -505,21 +513,21 @@ function renderExpandSubs(state, view) {
   // Build breakdown HTML
   const bdEl = document.getElementById('subCreancesBreakdown');
   if (bdEl) {
-    const guaranteed = creanceItems.filter(c => c.guaranteed);
-    const personal = creanceItems.filter(c => !c.guaranteed);
+    const pro = creanceItems.filter(c => c.type === 'pro');
+    const perso = creanceItems.filter(c => c.type !== 'pro');
     let html = '<ul class="breakdown-list">';
-    if (guaranteed.length) {
-      const gTotal = guaranteed.reduce((s, c) => s + c.eur, 0);
+    if (pro.length) {
+      const gTotal = pro.reduce((s, c) => s + c.eur, 0);
       html += '<li style="font-weight:600"><span class="bl-label">Cr\u00e9ances pro</span><span class="bl-val">' + fmt(gTotal) + '</span></li>';
-      guaranteed.forEach(c => {
+      pro.forEach(c => {
         const ownerTag = view === 'couple' && c.owner ? ' <span style="color:var(--gray);font-size:10px">(' + c.owner + ')</span>' : '';
         html += '<li><span class="bl-label">&nbsp;&nbsp;' + c.label + ownerTag + '</span><span class="bl-val">' + fmt(c.eur) + '</span></li>';
       });
     }
-    if (personal.length) {
-      const pTotal = personal.reduce((s, c) => s + c.eur, 0);
+    if (perso.length) {
+      const pTotal = perso.reduce((s, c) => s + c.eur, 0);
       html += '<li style="padding-top:4px;border-top:1px solid #cbd5e0;font-weight:600"><span class="bl-label">Cr\u00e9ances personnelles</span><span class="bl-val">' + fmt(pTotal) + '</span></li>';
-      personal.forEach(c => {
+      perso.forEach(c => {
         const ownerTag = view === 'couple' && c.owner ? ' <span style="color:var(--gray);font-size:10px">(' + c.owner + ')</span>' : '';
         html += '<li><span class="bl-label">&nbsp;&nbsp;' + c.label + ownerTag + '</span><span class="bl-val">' + fmt(c.eur) + '</span></li>';
       });
@@ -1137,7 +1145,7 @@ function renderImmoPcts(state) {
 function updateAllDataEur() {
   // Update all elements with data-eur (not handled by specific renderers)
   document.querySelectorAll('[data-eur]').forEach(el => {
-    if (el.dataset.type === 'pct') return; // handled separately
+    if (el.dataset.type === 'pct' || el.dataset.type === 'html') return; // handled separately
     const eurVal = parseFloat(el.dataset.eur);
     if (isNaN(eurVal)) return;
     const sign = el.dataset.sign || '';
