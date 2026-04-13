@@ -4070,9 +4070,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Actions', color: '#2b6cb0',
-      total: nezhaSgtm + nezhaEspp,
+      total: nezhaSgtm + nezhaEsppForActions,
       sub: [
-        ...(nezhaEspp > 100 ? [{ label: 'ESPP Accenture', val: nezhaEspp, color: '#6366f1', owner: 'UBS' }] : []),
+        ...(nezhaEsppForActions > 100 ? [{ label: 'ESPP Accenture', val: nezhaEsppForActions, color: '#6366f1', owner: 'UBS' }] : []),
         { label: 'SGTM', val: nezhaSgtm, color: '#818cf8', owner: 'Maroc' },
       ]
     },

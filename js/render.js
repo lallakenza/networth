@@ -461,7 +461,7 @@ function renderExpandSubs(state, view) {
   setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
   setEur('subUAE', s.amine.uae);
   setEur('subRevolutEUR', s.amine.revolutEUR);
-  setEur('subBrokerCash', s.amine.brokerCash + s.nezha.brokerCash);
+  setEur('subBrokerCash', s.amine.brokerCash); // Amine-only (Nezha broker cash is in kpiNzCash)
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
@@ -1001,13 +1001,14 @@ function renderNezhaTable(state, view) {
   const esppLabel = (p.nezha.espp ? p.nezha.espp.shares : 0) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0);
   const rows = [
     ['Equity Rueil-Malmaison', s.nezha.rueilEquity],
-    ['ESPP Accenture (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.espp],
+    ['ESPP Accenture (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.esppForActions],
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
     ['LCL Compte de dépôts', s.nezha.lclDepots],
     ['Attijariwafa Maroc (' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc],
     ['Wio UAE (' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.nezha.cashUAE],
+    ...(s.nezha.brokerCash > 0 ? [['Cash ESPP (courtier)', s.nezha.brokerCash]] : []),
     ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
     ...(!s.nezha.villejuifSigned && s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : []),
@@ -6241,22 +6242,22 @@ function attachKPIInsights(state, view) {
 
   // ── Couple view ──
   const immoEq = s.couple.immoEquity;
-  const stocksTotal = s.amine.ibkr + s.amine.espp + s.nezha.espp + s.amine.sgtm + s.nezha.sgtm;
-  const cashTotal = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cash;
+  const stocksTotal = s.amine.ibkrForActions + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm;
+  const cashTotal = s.amine.cashTotal + s.nezha.cash;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%) + Autre \u20ac' + f(s.couple.autreTotal) + ' (' + pct(s.couple.autreTotal, gt) + '%).';
-  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkr + s.amine.espp + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.facturationNet + s.amine.tva) + '.';
+  insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.facturationNet + s.amine.tva) + '.';
   insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE). Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
   insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + Facturation \u20ac' + f(s.couple.autreFacturation) + ' + TVA \u20ac' + f(s.couple.autreTva) + (s.couple.autreVillejuifReservation ? ' + R\u00e9serv. Villejuif \u20ac' + f(s.couple.autreVillejuifReservation) : '') + (s.couple.autreCautionRueil ? ' + Caution \u20ac' + f(s.couple.autreCautionRueil) : '') + '.';
 
   // ── Amine view ──
-  insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkr + s.amine.espp + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
+  insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
   // BUG-030: compute top 3 concentration dynamically
   const _ibkrPosVals = (s.actionsView ? s.actionsView.ibkrPositions : []).map(p => p.currentValue || 0).sort((a, b) => b - a);
   const _top3Val = _ibkrPosVals.slice(0, 3).reduce((a, b) => a + b, 0);
   const _ibkrTotalVal = _ibkrPosVals.reduce((a, b) => a + b, 0);
   const _top3Pct = _ibkrTotalVal > 0 ? Math.round(_top3Val / _ibkrTotalVal * 100) : 0;
-  insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkr) + ' + ESPP \u20ac' + f(s.amine.espp) + '. Concentration top 3 = ' + _top3Pct + '% du portefeuille.';
+  insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkrForActions) + ' + ESPP \u20ac' + f(s.amine.esppForActions) + '. Concentration top 3 = ' + _top3Pct + '% du portefeuille.';
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
   const _vitryProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'vitry') : null;
   const _vitryWealth = _vitryProp ? Math.round(_vitryProp.wealthCreation || 0) : '?';
