@@ -703,6 +703,67 @@ Il sert de base pour le plan de tests de non-régression.
 - **Test de non-régression**:
   - [ ] Badge "v289" visible dans le header du site
 
+## BUG-039: Cash page manque Nezha ESPP cash (94€)
+
+- **Version**: v295 (fix)
+- **Sévérité**: Moyenne (données)
+- **Détection**: Audit automatisé — delta cash page total vs couple cash card
+- **Symptôme**: Cash page total (282 202€) ≠ couple cash card (282 296€), delta = 94€ = Nezha ESPP cash USD converti
+- **Cause racine**: `computeCashView()` (engine.js ~L1458) listait Amine ESPP cash mais pas Nezha ESPP cash. Le compte Nezha ESPP (cashUSD=109.56) était comptabilisé dans le NW mais absent de la vue Cash détaillée.
+- **Correctif**: Ajout d'une entrée `{ label: 'ESPP Cash (Nezha)', native: (p.nezha.espp && p.nezha.espp.cashUSD) || 0, currency: 'USD', yield: CASH_YIELDS.esppCash, owner: 'Nezha' }` dans la liste des comptes de `computeCashView()`.
+- **Test de non-régression**:
+  - [ ] Cash page total = couple cash card (delta = 0)
+  - [ ] Cash page liste Nezha ESPP Cash avec montant non-nul (~94€)
+  - [ ] NW couple inchangé (cash breakdown only)
+
+## BUG-040: Créances sub-card — montants nominaux au lieu de pondérés + groupement par champ incorrect
+
+- **Version**: v296 (fix)
+- **Sévérité**: Moyenne (données)
+- **Détection**: Audit métier — comparaison sub-card total (74 989€) vs contribution NW créances (71 919€)
+- **Symptôme**: (1) Sub-card total créances 74 989€ ≠ contribution NW 71 919€ (delta 3 070€). Les montants utilisaient `c.amount` (nominal) au lieu de `(amount - payments) × probability`. (2) Groupement par `c.guaranteed` au lieu de `c.type` — Kenza (type='perso', guaranteed=true) apparaissait sous "Créances pro".
+- **Cause racine**: `renderExpandSubs()` (render.js ~L485-530) mappait `eur: toEUR(c.amount, c.currency)` sans déduire les paiements partiels ni appliquer la probabilité. Le groupement utilisait `c.guaranteed` comme proxy de type pro/perso, mais ce champ indique la certitude, pas la catégorie.
+- **Correctif**: 
+  - L485-507: Chaque item calcule `paymentsTotal`, `remaining = amount - payments`, `eur = toEUR(remaining × probability, currency)` — même formule que engine.js L3587-3589.
+  - L516-517: Groupement `type === 'pro'` / `type !== 'pro'` au lieu de `guaranteed` / `!guaranteed`.
+  - Appliqué pour les 3 vues (amine, nezha, couple).
+- **Test de non-régression**:
+  - [ ] Sub-card total créances = contribution NW créances (71 919€, delta = 0)
+  - [ ] Kenza apparaît sous "Créances personnelles" (pas "pro")
+  - [ ] Abdelkader: montant affiché = 55000 × 0.7 / FX_MAD ≈ 3 539€ (pas 5 056€ nominal)
+  - [ ] Akram: montant affiché = 1500 × 0.7 = 1 050€ (pas 1 500€ nominal)
+  - [ ] Omar (Nezha): montant = 40000 × 0.7 / FX_MAD ≈ 2 574€
+
+## BUG-041: Sub-cards immo CRD détail écrasé par updateAllDataEur()
+
+- **Version**: v296 (fix)
+- **Sévérité**: Moyenne (affichage)
+- **Détection**: Audit automatisé — innerHTML des éléments subVitryCrdDetail/subRueilCrdDetail/subVillejuifCrdDetail
+- **Symptôme**: Les sub-cards immo affichaient seulement "€ 300 000" (valeur) au lieu de "€ 302 257 (2%/an)\nCRD € 267 213" (valeur + CRD). L'information CRD était invisible.
+- **Cause racine**: `renderExpandSubs()` (L629) appelait `setHTML(id, value + CRD)` pour injecter le détail HTML. Mais `updateAllDataEur()` (L1147-1153), exécuté APRÈS (L276), itérait tous les `[data-eur]` et écrasait `textContent` avec juste `fmt(data-eur)`, détruisant le HTML injecté.
+- **Correctif**: 
+  - index.html: ajout `data-type="html"` sur les 3 spans (subVitryCrdDetail, subRueilCrdDetail, subVillejuifCrdDetail)
+  - render.js L1148: `updateAllDataEur()` skip maintenant `data-type="html"` (comme `data-type="pct"`)
+- **Test de non-régression**:
+  - [ ] Sub-card Vitry affiche "€ 302 257 (2%/an)\nCRD € 267 xxx"
+  - [ ] Sub-card Rueil affiche "€ 281 xxx\nCRD € 193 xxx"
+  - [ ] Sub-card Villejuif affiche "€ 374 xxx\nCRD € 325 xxx"
+
+## BUG-042: Immo CRD mensuel au lieu de prorata journalier
+
+- **Version**: v296 (amélioration)
+- **Sévérité**: Basse (précision)
+- **Détection**: Demande utilisateur
+- **Symptôme**: Le CRD (Capital Restant Dû) ne changeait qu'au 1er de chaque mois (saut mensuel). L'équité immobilière restait constante pendant tout le mois, puis sautait au mois suivant.
+- **Cause racine**: `computeImmoView()` (engine.js ~L2570) utilisait `amort.schedule[currentIdx].remainingCRD` qui est le CRD à la fin du mois courant (après mensualité). Pas d'interpolation entre les mois.
+- **Correctif**: Interpolation linéaire journalière entre le CRD début de mois (`schedule[idx-1].remainingCRD`) et fin de mois (`schedule[idx].remainingCRD`) basée sur `(dayOfMonth - 1) / daysInMonth`. Ex: le 14 avril, fraction ≈ 43%, CRD = début − (début−fin) × 0.43.
+- **Test de non-régression**:
+  - [ ] Le 1er du mois : CRD ≈ CRD fin mois précédent
+  - [ ] Le 15 du mois : CRD ≈ moyenne entre début et fin de mois
+  - [ ] Vitry CRD < CRD statique 268 061€ (reflète l'amortissement partiel d'avril)
+  - [ ] invariant couple NW = amine NW + nezha NW respecté (delta = 0)
+  - [ ] invariant catSum = coupleNW respecté (delta = 0)
+
 ---
 
 ## Matrice de couverture par fonctionnalité
@@ -720,9 +781,10 @@ Il sert de base pour le plan de tests de non-régression.
 | **ESPP per-owner** | BUG-005 | Formes différentes, Nezha = 0 avant nov 2023 |
 | **Chart init** | BUG-003, BUG-013 | Chart visible après chargement, pas de canvas vide |
 | **Comptabilité Degiro** (compte clôturé) | BUG-002, BUG-010, BUG-014 | Dépôts nets négatifs autorisés, cohérence NAV−Déposé = P&L Réalisé+Non Réalisé |
-| **Créances (vue)** | BUG-015, BUG-016, BUG-019, BUG-023 | Actives séparées des recouvrées, dettes visibles, sub-card filtrée |
+| **Créances (vue)** | BUG-015, BUG-016, BUG-019, BUG-023, BUG-040 | Actives séparées des recouvrées, dettes visibles, sub-card filtrée, montants pondérés prob |
 | **NW Breakdown / KPI cards** | BUG-017, BUG-022 | Tous les composants NW dans les breakdowns (incl. villejuifReservation Nezha) |
-| **NW Calcul** | BUG-020, BUG-033 | ESPP cash inclus, Nezha créances dynamiques |
+| **NW Calcul** | BUG-020, BUG-033, BUG-039 | ESPP cash inclus, Nezha créances dynamiques, Cash page = Cash card |
+| **Immobilier sub-cards** | BUG-041, BUG-042 | CRD détail visible, prorata journalier, equity lisse |
 | **Charts geo** | BUG-029 | Allocation calculée dynamiquement depuis positions |
 | **Event listeners** | BUG-021 | Pas de duplication après refresh |
 | **Dividendes projection** | BUG-024, BUG-026 | WHT rates corrects, positions vendues exclues |

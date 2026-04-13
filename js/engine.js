@@ -1455,7 +1455,8 @@ function computeCashView(portfolio, fx) {
     { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY',
       yield: ibkrJPYBorrowCost(Math.abs(p.amine.ibkr.cashJPY)),
       owner: 'Amine', isDebt: true },
-    { label: 'ESPP Cash', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
+    { label: 'ESPP Cash (Amine)', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
+    { label: 'ESPP Cash (Nezha)', native: (p.nezha.espp && p.nezha.espp.cashUSD) || 0, currency: 'USD', yield: CASH_YIELDS.esppCash, owner: 'Nezha' },
     // Nezha — comptes détaillés
     { label: 'Revolut EUR (Nezha)', native: p.nezha.cash.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.nezhaRevolutEUR, owner: 'Nezha' },
     { label: 'Crédit Mutuel', native: p.nezha.cash.creditMutuelCC, currency: 'EUR', yield: CASH_YIELDS.nezhaCreditMutuel, owner: 'Nezha' },
@@ -2566,9 +2567,30 @@ function computeImmoView(portfolio, fx) {
     const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;
 
     // Use computed CRD from amort schedule if available (more accurate than static snapshot)
-    const computedCRD = amort
-      ? amort.schedule[amort.currentIdx]?.remainingCRD ?? propData.crd
-      : propData.crd;
+    // Daily proration: interpolate CRD between monthly schedule entries so equity
+    // changes smoothly day-by-day instead of jumping on the 1st of each month.
+    let computedCRD;
+    if (amort && amort.schedule.length > 0) {
+      const idx = amort.currentIdx;
+      const currentRow = amort.schedule[idx];
+      if (currentRow) {
+        // CRD at start of current month (before this month's payment)
+        const crdBefore = idx > 0
+          ? amort.schedule[idx - 1].remainingCRD
+          : currentRow.remainingCRD + currentRow.principal; // reconstruct initial CRD
+        // CRD at end of current month (after payment)
+        const crdAfter = currentRow.remainingCRD;
+        // Interpolate: day 1 → crdBefore, last day → ~crdAfter
+        const now = new Date();
+        const dom = now.getDate();
+        const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        computedCRD = crdBefore - (crdBefore - crdAfter) * ((dom - 1) / dim);
+      } else {
+        computedCRD = propData.crd;
+      }
+    } else {
+      computedCRD = propData.crd;
+    }
 
     // Loan details for detail panel
     /**
