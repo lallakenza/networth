@@ -1159,6 +1159,251 @@
     0%, 100% { filter: brightness(0.75); }
     50%      { filter: brightness(1.05); }
   }
+
+  /* ══════════════════════════════════════════════════════════════════
+     v299 — Casino slot-machine variant
+     ══════════════════════════════════════════════════════════════════
+     Alternative animation shown on page load with 50% probability
+     (see the selector script at the bottom of the auth gate).
+
+     Visual structure:
+       .slot-cabinet        ← outer frame (dark panel, gold border, LED glow)
+         .slot-lights       ← row of LED dots that pulse while reels spin
+         .slot-display      ← reel viewport (€ + 7 digit reels)
+           .slot-currency   ← € symbol
+           .slot-reel (×7)  ← viewport of height = digit height;
+                              inside: .reel-strip translates -Y.
+           .slot-sep        ← thin-space between the millions / thousands
+                              / units groups (French "1 234 567" style)
+         .slot-base-glow    ← gold radial glow strip below reels
+
+     Sizing: every digit is clamp(36px, 8vw, 52px) high. JS measures
+     this at init via getBoundingClientRect() so the animation is DPI-
+     and resolution-agnostic.
+
+     Motion: while 'spinning', strips translate at SPIN_SPEED_PX_PER_MS
+     (wrapping via modulo on stripHeight = 10 × digitHeight). On lock,
+     each reel decelerates with easeOutQuart toward the exact target
+     digit offset, guaranteeing a clean landing regardless of current
+     phase. Reels lock left→right with a stagger so the final value is
+     revealed digit-by-digit (satisfying "cascade" effect).
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* v299 audit: dropped aspect-ratio:1.2 — the cabinet content is only
+     ~140px tall, so a 300px box left 160px of dead space. Now hugs content.
+     `display: none` is toggled to 'flex' by the selector IIFE below. */
+  #slotContainer {
+    position: relative;
+    width: min(360px, 80vw);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  /* v299 audit: removed outer-halo box-shadow layer (too many overlapping
+     glows). Kept ground shadow + inset sheen/depth. Border opacity trimmed. */
+  .slot-cabinet {
+    width: 100%;
+    padding: 14px 14px 18px;
+    background: linear-gradient(180deg, #162338 0%, #0a1322 60%, #050913 100%);
+    border-radius: 18px;
+    border: 2px solid rgba(253, 230, 138, 0.32);
+    box-shadow:
+      0 8px 22px rgba(0, 0, 0, 0.45),               /* ground shadow */
+      inset 0 2px 6px rgba(255, 255, 255, 0.09),    /* top sheen */
+      inset 0 -8px 22px rgba(0, 0, 0, 0.55);        /* inner depth */
+    position: relative;
+    transition: box-shadow 0.45s ease-out;
+  }
+  /* Reveal moment: subtle gold pulse on the whole cabinet when all locked. */
+  .slot-cabinet.is-done {
+    box-shadow:
+      0 8px 22px rgba(0, 0, 0, 0.45),
+      0 0 30px rgba(110, 231, 160, 0.30),             /* green halo post-lock */
+      inset 0 2px 6px rgba(255, 255, 255, 0.12),
+      inset 0 -8px 22px rgba(0, 0, 0, 0.55);
+  }
+  .slot-cabinet.reveal-flash {
+    animation: slotRevealFlash 0.6s ease-out;
+  }
+  @keyframes slotRevealFlash {
+    0%   { filter: brightness(1); }
+    25%  { filter: brightness(1.35); }
+    100% { filter: brightness(1); }
+  }
+
+  /* v299 audit: 3 LEDs (was 5) with slower 1.8s wave — less frantic. */
+  .slot-lights {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 10px;
+  }
+  .slot-light {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #fde68a;
+    box-shadow: 0 0 6px #fde68a, 0 0 12px rgba(253, 230, 138, 0.55);
+    animation: slotLightPulse 1.8s ease-in-out infinite;
+  }
+  .slot-light:nth-child(1) { animation-delay: 0.00s; }
+  .slot-light:nth-child(2) { animation-delay: 0.25s; }
+  .slot-light:nth-child(3) { animation-delay: 0.50s; }
+  @keyframes slotLightPulse {
+    0%, 100% { opacity: 0.45; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.10); }
+  }
+  /* When all reels are locked, freeze the LEDs in "all lit" state. */
+  .slot-cabinet.is-done .slot-light {
+    animation: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* v299 audit: gap & padding trimmed slightly to accommodate 8 reels
+     on mobile (~288px container @ 360px viewport). */
+  .slot-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 12px 8px;
+    background: radial-gradient(ellipse at center, #0a1a2b 0%, #030711 100%);
+    border-radius: 10px;
+    border: 1px solid rgba(253, 230, 138, 0.32);
+    box-shadow:
+      inset 0 2px 10px rgba(0, 0, 0, 0.75),
+      inset 0 0 18px rgba(253, 230, 138, 0.08);
+  }
+
+  .slot-currency {
+    color: #fde68a;
+    font: 700 clamp(22px, 5vw, 32px) 'DM Sans', sans-serif;
+    text-shadow: 0 0 10px rgba(253, 230, 138, 0.6);
+    padding-right: 3px;
+    line-height: 1;
+  }
+
+  /* v299 audit: widened from 6px → 10px so "XX XXX XXX" reads as three
+     groups, not one blob. 10px is ~5× the inter-reel gap. */
+  .slot-sep {
+    width: 10px;
+    flex: 0 0 10px;
+  }
+
+  /* v299 audit: width min 20px (was 22) to fit 8 reels on narrow phones.
+     At iPhone SE 320px viewport, 80vw = 256px container; content is
+     20×8 (reels) + 3×10 (seps) + ~20 (€) + 2×8 (padding) ≈ 226px. Fits. */
+  .slot-reel {
+    width: clamp(20px, 4.4vw, 30px);
+    height: clamp(34px, 7.5vw, 48px);
+    background: linear-gradient(180deg, #020712 0%, #091528 50%, #020712 100%);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      inset 0 2px 5px rgba(0, 0, 0, 0.95),
+      inset 0 0 10px rgba(253, 230, 138, 0.10);
+  }
+  /* Fade masks at top & bottom of the viewport for a "depth" illusion
+     (digits feel like they come out of / disappear into the cabinet). */
+  .slot-reel::before,
+  .slot-reel::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 12px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .slot-reel::before {
+    top: 0;
+    background: linear-gradient(180deg, rgba(2, 7, 18, 0.95), rgba(2, 7, 18, 0));
+  }
+  .slot-reel::after {
+    bottom: 0;
+    background: linear-gradient(0deg, rgba(2, 7, 18, 0.95), rgba(2, 7, 18, 0));
+  }
+  /* Flash feedback: when a reel locks, briefly brighten its inner glow. */
+  .slot-reel.just-locked {
+    animation: reelLockFlash 0.55s ease-out;
+  }
+  @keyframes reelLockFlash {
+    0%   { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.95), inset 0 0 10px rgba(253, 230, 138, 0.10); }
+    30%  { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.95), inset 0 0 22px rgba(253, 230, 138, 0.70); }
+    100% { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.95), inset 0 0 10px rgba(253, 230, 138, 0.10); }
+  }
+
+  .reel-strip {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    flex-direction: column;
+    color: #fde68a;
+    font: 700 clamp(24px, 5.4vw, 36px) 'DM Sans', sans-serif;
+    text-align: center;
+    will-change: transform;          /* GPU-accelerate translateY */
+    text-shadow: 0 0 8px rgba(253, 230, 138, 0.55);
+    /* v299 audit: removed negative letter-spacing — money counters look
+       better with 0 or slightly positive tracking (wider = "valuable"). */
+    letter-spacing: 0;
+    transition: opacity 0.5s ease-out;
+  }
+  .reel-strip > span {
+    height: clamp(34px, 7.5vw, 48px);
+    line-height: clamp(34px, 7.5vw, 48px);
+    display: block;
+  }
+
+  /* Thin strip below the reels — pulses during spin, stays lit on done.
+     v299 audit: desaturated to neutral warm-white during spin so it stops
+     competing with the gold border / LEDs / digits. Turns green only on
+     the "reveal" moment (when cabinet gets .is-done). */
+  .slot-base-glow {
+    margin: 10px auto 0;
+    width: 70%;
+    height: 5px;
+    background: radial-gradient(ellipse at center,
+      rgba(240, 235, 220, 0.40) 0%,
+      rgba(240, 235, 220, 0.10) 50%,
+      rgba(240, 235, 220, 0) 100%);
+    border-radius: 50%;
+    animation: slotBaseGlowPulse 2.4s ease-in-out infinite;
+    transition: background 0.5s ease-out;
+  }
+  @keyframes slotBaseGlowPulse {
+    0%, 100% { opacity: 0.7; transform: scaleX(0.95); }
+    50%      { opacity: 1;   transform: scaleX(1.05); }
+  }
+  .slot-cabinet.is-done .slot-base-glow {
+    animation: none;
+    opacity: 1;
+    transform: scaleX(1);
+    background: radial-gradient(ellipse at center,
+      rgba(110, 231, 160, 0.6) 0%,
+      rgba(110, 231, 160, 0.15) 50%,
+      rgba(110, 231, 160, 0) 100%);
+  }
+
+  /* Initial fade-in (matches gridCounter timing). */
+  #slotContainer.is-visible .slot-cabinet {
+    animation: slotFadeIn 0.8s ease-out both;
+  }
+  @keyframes slotFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Reduced motion: disable all decorative loops.
+     We still animate the lock cascade (it IS the content), but without
+     the ambient wave/pulse. The rAF reel spin is unaffected; JS needs
+     a separate guard for that (see _slotAnim.init). */
+  @media (prefers-reduced-motion: reduce) {
+    .slot-light,
+    .slot-base-glow,
+    #gridCounter.is-loading { animation: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1180,7 +1425,11 @@
     <div id="gridLabel" style="font-family:'DM Sans',sans-serif;font-size:min(11px,2.2vw);color:rgba(255,255,255,0.65);margin-top:3px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">sur € 1 000 000</div>
     <div id="gridRemaining" style="font-family:'DM Sans',sans-serif;font-size:min(12px,2.4vw);font-weight:500;color:rgba(255,255,255,0.82);margin-top:5px;text-shadow:0 1px 8px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.8s;">—</div>
   </div>
-  <div id="mountainContainer" style="position:relative;width:min(360px, 80vw);aspect-ratio:1.2;margin-bottom:10px;" role="img" aria-labelledby="mountainTitle">
+  <!-- v299: display:none by default — the animation selector at the bottom
+       of the script block picks either mountain or slot and reveals the
+       chosen one synchronously. Without this, the mountain flashes for
+       one frame before the selector hides it when slot is chosen. -->
+  <div id="mountainContainer" style="position:relative;width:min(360px, 80vw);aspect-ratio:1.2;margin-bottom:10px;display:none;" role="img" aria-labelledby="mountainTitle">
     <svg id="mountainSvg" viewBox="0 0 480 480" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;overflow:visible;">
       <title id="mountainTitle">Progression vers l'objectif 1 million d'euros</title>
       <defs>
@@ -1373,6 +1622,54 @@
     </svg>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════
+       v299 — Casino slot-machine (alternative to the mountain)
+       ══════════════════════════════════════════════════════════════════
+       Shown/hidden by the boot-time random selector at the end of this
+       script block. When visible, the reels spin continuously until the
+       real net-worth value arrives via `_gridAnimationComplete(value)`,
+       then lock left→right to reveal the final amount.
+
+       Reel strip : digits 0..9 followed by an extra 0 for seamless wrap.
+                    The extra 0 is NOT rendered "visible" as an 11th digit —
+                    the translateY wraps at 10×digitHeight, but the 11th
+                    span prevents an empty pixel row when offset is in
+                    [9*H, 10*H) (viewport would otherwise show half-9 /
+                    half-nothing).
+       Digits count: 7 (up to 9,999,999€ — well above the 1M€ target).
+       Grouping  : reel 0 | sep | reels 1-3 | sep | reels 4-6  → "X XXX XXX"
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="slotContainer" role="img" aria-labelledby="slotTitle">
+    <div class="slot-cabinet" id="slotCabinet">
+      <div class="sr-only" id="slotTitle" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Compteur patrimoine : machine à sous</div>
+      <!-- v299 audit: 3 LEDs (was 5) — 5 read as frantic / tacky; 3 is calmer. -->
+      <div class="slot-lights">
+        <span class="slot-light"></span>
+        <span class="slot-light"></span>
+        <span class="slot-light"></span>
+      </div>
+      <div class="slot-display">
+        <span class="slot-currency">€</span>
+        <!-- v299 audit: 8 reels now (was 7) — covers up to 99 999 999€.
+             Grouping: [0] [sep] [1][2] [sep] [3][4][5] [sep] [6][7] → "XX XXX XXX" -->
+        <!-- Reels 0-1 (tens of millions) -->
+        <div class="slot-reel" data-idx="0"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-reel" data-idx="1"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-sep"></div>
+        <!-- Reels 2-4 (thousands) -->
+        <div class="slot-reel" data-idx="2"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-reel" data-idx="3"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-reel" data-idx="4"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-sep"></div>
+        <!-- Reels 5-7 (hundreds/tens/units) -->
+        <div class="slot-reel" data-idx="5"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-reel" data-idx="6"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+        <div class="slot-reel" data-idx="7"><div class="reel-strip"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+      </div>
+      <div class="slot-base-glow"></div>
+    </div>
+  </div>
+
   <!-- ── Velocity block (below the mountain, in the auth gate footer) ── -->
   <div id="velocityBlock" style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-4px;margin-bottom:20px;opacity:0;transition:opacity 1s;max-width:360px;padding:0 20px;">
     <div id="gridEta" style="font-family:'DM Sans',sans-serif;font-size:min(11.5px,2.3vw);color:rgba(255,255,255,0.92);padding:5px 14px;background:rgba(110,231,160,0.14);border:1px solid rgba(110,231,160,0.38);border-radius:14px;text-shadow:0 1px 6px rgba(0,0,0,0.4);white-space:nowrap;">🎯 1M€ en <span id="gridEtaDate">—</span></div>
@@ -1397,104 +1694,76 @@
     <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
   </div>
 
-  <!-- Mountain animation script (v298 — refonte de l'animation de montée)
-       v280: 3-peak chain + switchback trail + hiker marker positioned via
-             getPointAtLength() along the trail arc-length. This creates an
-             HONEST progress representation — the narrow main peak and the
-             dense switchbacks near the summit naturally make the remaining
-             climb feel significant.
+  <!-- ══════════════════════════════════════════════════════════════════
+       v299 — Animation ENGINE (mountain + slot variants + selector)
+       ══════════════════════════════════════════════════════════════════
 
-       v298 — NEW ANIMATION FLOW (fixes the "slow → stop at 532K → jump" feel):
-         Problem (before v298): Phase 1 animated to STATIC_EUR × 0.80 = 532K
-         over 18s (often overshooting the real NW), then Phase 2 teleported
-         to the real value in 1.8s. If real < 532K, the couple jumped DOWN.
-         Phase boundaries were also visible as velocity discontinuities.
+       DESIGN OVERVIEW
+       ───────────────
+       The auth gate teases progress toward the 1M€ goal with a short
+       animation while app.js fetches FX + prices in the background.
+       From v299 there are TWO visual variants, selected at random on
+       each page load:
 
-         Now — single continuous state machine with 4 phases:
-           'waiting'   : data not ready yet. Couple paused at base, counter
-                         in subtle pulse. Lasts until data arrives or timeout.
-           'ambient'   : optional gentle asymptotic climb while waiting long
-                         (caps at AMBIENT_CAP_RATIO = 8% of TARGET, which is
-                         well below any realistic NW). Never overshoots.
-           'animating' : single smooth ease-in-out cubic from current position
-                         to real target. Duration scales with distance.
-           'done'      : velocity lines appear, milestones finalized.
+         (1) Mountain   — hiking couple climbing a 3-peak ridge. The
+                          counter text counts up as they climb. State
+                          machine: waiting → ambient → animating → done.
 
-         On data ready: transition to 'animating' is velocity-matched (no jerk).
-         On timeout (5s): fall back to STATIC_EUR with the same animation.
+         (2) Slot machine — 7 digit reels spinning until data arrives,
+                            then locking left→right to reveal the final
+                            amount digit-by-digit. State machine:
+                            spinning → locking → done.
 
-       Velocity lines: Required rhythm (always) + ETA at expected pace
-                       (from velocityInfo passed by app.js; fallback to
-                       simulator default 8k€/mois @ 8%/an if unavailable).
-  -->
+       SHARED CONTRACT (both modules expose the same API)
+       ─────────────────────────────────────────────────
+         window._mountainAnim = { init, trigger, hide }
+         window._slotAnim     = { init, trigger, hide }
+
+         init()            — start the animation's waiting/spinning phase
+         trigger(euros, v?) — begin the "animate to real value" transition
+         hide()            — hide the DOM container (selector uses this)
+
+       The boot-time selector (IIFE at the end of this block) picks one
+       variant, calls its init(), hides the other, and routes the
+       `window._gridAnimationComplete` callback from app.js onto the
+       chosen module's `trigger()`.
+
+       URL override for testing: append `?anim=mountain` or `?anim=slot`
+       to force a specific variant (useful when auditing / screenshoting).
+
+       SHARED HELPERS
+       ──────────────
+       All common logic (formatting, ETA math, velocity lines DOM
+       updates, config constants like TARGET_EUR/TARGET_DATE/STATIC_EUR)
+       lives in the `AnimKit` namespace at the top of this block. Both
+       modules delegate to it for the velocity block render — the only
+       DOM they share below the animation proper.
+       ══════════════════════════════════════════════════════════════════ -->
   <script>
+  // v299 audit: the entire block is wrapped in an outer IIFE so none of
+  // the internal consts (AnimKit, modules) leak into the global realm.
+  // Without this wrap, `const AnimKit` lives in top-level lexical scope
+  // and a second script that declared the same name would crash with
+  // "Identifier already declared." Exposing only `window._mountainAnim`
+  // and `window._slotAnim` makes the contract explicit.
   (function() {
-    // ── Config ──
+  'use strict';
+
+  // ══════════════════════════════════════════════════════════════════
+  // AnimKit — shared config + helpers (used by both animation modules)
+  // ══════════════════════════════════════════════════════════════════
+  const AnimKit = (function() {
     const TARGET_EUR = 1000000;
-    const TARGET_DATE = new Date(2028, 3, 1);  // April 2028 — locked goal date
+    const TARGET_DATE = new Date(2028, 3, 1);  // April 2028 — locked goal
     const STATIC_EUR = 665970;                 // fallback si API down
-    // v298: nouveaux paramètres d'animation (remplacent PHASE1_* / PHASE2_*)
-    const AMBIENT_START_DELAY_MS = 1200;       // 1.2s avant de démarrer la montée ambiante
-    const AMBIENT_TAU_MS         = 2800;       // constante de temps de l'asymptote (ease-out exponentiel)
-    const AMBIENT_CAP_RATIO      = 0.08;       // plafond ambiant = 80K (conservateur, sous tout NW réaliste)
-    const ANIM_DURATION_MIN_MS   = 1800;       // durée min de l'animation finale
-    const ANIM_DURATION_MAX_MS   = 2800;       // durée max (sur 100% de distance)
-    const DATA_TIMEOUT_MS        = 5000;       // si pas de data après 5s, fallback sur STATIC_EUR
-
-    // ── v282: Mountain geometry constants (must match SVG) ──
-    const GROUND_Y = 440;           // base Y of the mountain
-    const SUMMIT_Y = 75;            // Y of the 1M peak
-    // Arc offset in SVG units — how far Nezha trails behind Amine along the ridge
-    const NEZHA_TRAIL_OFFSET = 11;
-
-    // ── DOM refs ──
-    const trailEl     = document.getElementById('climbTrail');
-    const trailLit    = document.getElementById('trailLit');
-    const coupleEl    = document.getElementById('coupleMarker');
-    const amineEl     = document.getElementById('amineMarker');
-    const nezhaEl     = document.getElementById('nezhaMarker');
-    const vegFill     = document.getElementById('vegFill');
-    const summitHalo  = document.getElementById('summitHalo');
-    const summitFlag  = document.getElementById('summitFlag');
-    const ms500El     = document.getElementById('ms500');
-    const ms750El     = document.getElementById('ms750');
-    const ms1MEl      = document.getElementById('ms1M');
-    const counter     = document.getElementById('gridCounter');
-    const label       = document.getElementById('gridLabel');
-    const remainingEl = document.getElementById('gridRemaining');
-    const velocityBlock = document.getElementById('velocityBlock');
-    const etaDateEl   = document.getElementById('gridEtaDate');
-    const rhythmActEl   = document.getElementById('gridRhythmActual');
-    const rhythmActVal  = document.getElementById('gridRhythmActVal');
-
-    // Pre-compute trail total length (invariant anchor for arc-length mapping)
-    const TRAIL_LENGTH = trailEl.getTotalLength();
-
-    // Initialize the illuminated trail as fully hidden (will be revealed as couple progresses)
-    trailLit.style.strokeDasharray = TRAIL_LENGTH + ' ' + TRAIL_LENGTH;
-    trailLit.style.strokeDashoffset = TRAIL_LENGTH;
-
-    setTimeout(function() {
-      counter.style.opacity = '1';
-      label.style.opacity = '1';
-      remainingEl.style.opacity = '1';
-      coupleEl.style.opacity = '1';
-    }, 300);
-
-    // ── State (v298 refonte) ──
-    // phase = 'waiting'    : en attente de données (couple à la base, pulse sur le compteur)
-    //       = 'ambient'    : montée lente asymptotique plafonnée (fait patienter)
-    //       = 'animating'  : animation ease-in-out vers la vraie valeur
-    //       = 'done'       : terminé, bloc vélocité visible
-    let phase = 'waiting';
-    let currentRatio = 0;
-    let dataReady = false;
-    let realPortfolioEUR = null;
-    let velocityInfo = null;          // { monthlyPace, source } — optional, from app.js
-    let animationFullyDone = false;
-    let ambientStartTime = null;      // marqueur temporel pour la phase ambient
-    // Animation spec: remplie par startFinalAnim(), lue par le renderLoop
-    let anim = null;                  // { startTime, startRatio, targetRatio, duration }
+    // v299 observation: on cold-cache page loads, app.js' fetch →
+    // chart-build pipeline can take 7-10s before it calls
+    // _gridAnimationComplete. A 5s timeout (pre-v299) fired the fallback
+    // first, locking the slot on STATIC_EUR before the real value
+    // arrived — which then got ignored because the slot's cascade is
+    // single-shot. Raised to 12s so the fallback is only a genuine-API-
+    // dead last resort, not a slow-network artifact.
+    const DATA_TIMEOUT_MS = 12000;
 
     function formatEur(n) {
       return '€ ' + Math.round(n).toLocaleString('fr-FR');
@@ -1505,10 +1774,161 @@
       return Math.round(n) + '';
     }
 
-    // ── Runtime arc-ratio anchors ──
-    // We find the arc-length ratio on the climbTrail that corresponds exactly
-    // to each milestone's (x,y) peak by scanning the path. This keeps the
-    // couple lined up with the jalon circles no matter how the geometry evolves.
+    function computeMonthsToTargetDate() {
+      const now = new Date();
+      return Math.max(1,
+        (TARGET_DATE.getFullYear() - now.getFullYear()) * 12
+        + (TARGET_DATE.getMonth() - now.getMonth()));
+    }
+    function computeMonthsToTargetAtPace(currentNW, monthlyPace) {
+      if (currentNW >= TARGET_EUR) return 0;
+      if (monthlyPace <= 0) return null;            // never reached
+      const r = 0.08 / 12;  // assume blended 8%/an — same as simulator couple
+      let nw = currentNW;
+      let months = 0;
+      while (nw < TARGET_EUR && months < 720) {
+        nw = nw * (1 + r) + monthlyPace;
+        months++;
+      }
+      return months < 720 ? months : null;
+    }
+    function formatEtaDate(months) {
+      if (months == null) return 'jamais (au rythme actuel)';
+      if (months <= 0) return 'atteint ✓';
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth() + months, 1);
+      const mois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+      return mois[d.getMonth()] + ' ' + d.getFullYear();
+    }
+    function formatEtaDelta(etaMonths, targetMonths) {
+      if (etaMonths == null) return '';
+      const diff = etaMonths - targetMonths;
+      if (diff === 0) return ' (pile à temps)';
+      if (diff < 0) return ' (' + Math.abs(diff) + ' mois d\'avance ✓)';
+      return ' (+' + diff + ' mois ⚠)';
+    }
+
+    // Render the ETA pill + rhythm line beneath the animation.
+    // Called by each module's onAnimationComplete() handler.
+    function renderVelocityLines(currentNW, velInfo) {
+      const etaDateEl   = document.getElementById('gridEtaDate');
+      const rhythmActEl = document.getElementById('gridRhythmActual');
+      const rhythmActVal= document.getElementById('gridRhythmActVal');
+      const monthsToTarget = computeMonthsToTargetDate();
+
+      // 🎯 ETA pill — "1M€ en avril 2028 · 2 ans"
+      const tMois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+      const yearsLeft = Math.max(0, Math.floor(monthsToTarget / 12));
+      const monthsRem = monthsToTarget % 12;
+      const tgtDateStr = tMois[TARGET_DATE.getMonth()] + ' ' + TARGET_DATE.getFullYear();
+      const tgtDurStr = (yearsLeft > 0 ? yearsLeft + ' an' + (yearsLeft > 1 ? 's' : '') : '')
+        + (monthsRem > 0 ? (yearsLeft > 0 ? ' ' : '') + monthsRem + ' mois' : '');
+      etaDateEl.textContent = tgtDateStr + (tgtDurStr ? ' · ' + tgtDurStr : '');
+
+      // Pace line — current rhythm + projected ETA + delta vs target
+      const effectivePace = (velInfo && velInfo.monthlyPace != null) ? velInfo.monthlyPace : 8000;
+      const isReal = velInfo && velInfo.source === 'actuals6m';
+      const etaMonths = computeMonthsToTargetAtPace(currentNW, effectivePace);
+      const etaDate = formatEtaDate(etaMonths);
+      const delta = formatEtaDelta(etaMonths, monthsToTarget);
+      const sourceTag = isReal ? '(NW réel 6m)' : '(invest. plan)';
+      rhythmActVal.textContent = '+€' + formatEurShort(effectivePace) + '/mois '
+        + sourceTag + ' → ' + etaDate + delta;
+
+      if (etaMonths == null) {
+        rhythmActEl.style.color = 'rgba(248,113,113,0.92)';
+      } else if (etaMonths - monthsToTarget >= 4) {
+        rhythmActEl.style.color = 'rgba(251,191,36,0.92)';
+      } else if (etaMonths - monthsToTarget <= -1) {
+        rhythmActEl.style.color = 'rgba(110,231,160,0.95)';
+      } else {
+        rhythmActEl.style.color = 'rgba(167,243,208,0.88)';
+      }
+    }
+
+    return {
+      TARGET_EUR, TARGET_DATE, STATIC_EUR, DATA_TIMEOUT_MS,
+      formatEur, formatEurShort, renderVelocityLines,
+    };
+  })();
+
+
+  // ══════════════════════════════════════════════════════════════════
+  // MOUNTAIN variant (v298 state-machine, now wrapped as a module so
+  // the selector can init it or skip it cleanly).
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // State machine:
+  //   'waiting'   : data not ready yet. Couple paused at base, counter
+  //                 in subtle pulse. Lasts until data arrives or timeout.
+  //   'ambient'   : optional gentle asymptotic climb while waiting long
+  //                 (caps at AMBIENT_CAP_RATIO = 8% of TARGET, which is
+  //                 well below any realistic NW). Never overshoots.
+  //   'animating' : single smooth ease-in-out cubic from current position
+  //                 to real target. Duration scales with distance.
+  //   'done'      : velocity lines appear, milestones finalized.
+  //
+  // On data ready: transition to 'animating' is velocity-matched (no jerk).
+  // On timeout (5s): fall back to STATIC_EUR with the same animation.
+  window._mountainAnim = (function() {
+    const { TARGET_EUR, STATIC_EUR, DATA_TIMEOUT_MS,
+            formatEur, renderVelocityLines } = AnimKit;
+
+    // ── Mountain-specific config ──
+    const AMBIENT_START_DELAY_MS = 1200;   // 1.2s avant de démarrer la montée ambiante
+    const AMBIENT_TAU_MS         = 2800;   // asymptote time constant
+    const AMBIENT_CAP_RATIO      = 0.08;   // plafond ambiant (8% = 80K€)
+    const ANIM_DURATION_MIN_MS   = 1800;
+    const ANIM_DURATION_MAX_MS   = 2800;
+
+    // ── v282: Mountain geometry constants (must match SVG) ──
+    const GROUND_Y = 440;           // base Y of the mountain
+    const NEZHA_TRAIL_OFFSET = 11;  // arc units Nezha trails behind Amine
+
+    // State
+    let phase = 'waiting';
+    let currentRatio = 0;
+    let dataReady = false;
+    let realPortfolioEUR = null;
+    let velocityInfo = null;
+    let animationFullyDone = false;
+    let ambientStartTime = null;
+    let anim = null;                // { startTime, startRatio, targetRatio, duration }
+    let rafId = null;               // kept so we could stop the loop (not used yet)
+    let hasInit = false;
+
+    // DOM refs (resolved lazily in init, since the container may be hidden)
+    let trailEl, trailLit, coupleEl, amineEl, nezhaEl, vegFill;
+    let summitHalo, summitFlag, ms500El, ms750El, ms1MEl;
+    let counter, label, remainingEl, velocityBlock, mountainContainer;
+    let TRAIL_LENGTH = 0;
+    let ARC_500K = 0, ARC_750K = 0;
+    let AMOUNT_ARC_ANCHORS = null;
+    let highestYReached = GROUND_Y;
+
+    function resolveDom() {
+      trailEl     = document.getElementById('climbTrail');
+      trailLit    = document.getElementById('trailLit');
+      coupleEl    = document.getElementById('coupleMarker');
+      amineEl     = document.getElementById('amineMarker');
+      nezhaEl     = document.getElementById('nezhaMarker');
+      vegFill     = document.getElementById('vegFill');
+      summitHalo  = document.getElementById('summitHalo');
+      summitFlag  = document.getElementById('summitFlag');
+      ms500El     = document.getElementById('ms500');
+      ms750El     = document.getElementById('ms750');
+      ms1MEl      = document.getElementById('ms1M');
+      counter     = document.getElementById('gridCounter');
+      label       = document.getElementById('gridLabel');
+      remainingEl = document.getElementById('gridRemaining');
+      velocityBlock = document.getElementById('velocityBlock');
+      mountainContainer = document.getElementById('mountainContainer');
+    }
+
+    // ── Arc-ratio anchors ──
+    // Find the arc-length ratio on the climbTrail that matches each
+    // milestone's (x,y). Keeps the couple lined up with the milestone
+    // dots no matter how the SVG geometry evolves.
     function findArcRatioForPoint(tx, ty) {
       let best = Infinity, bestS = 0;
       const STEP = 0.5;
@@ -1519,16 +1939,6 @@
       }
       return bestS / TRAIL_LENGTH;
     }
-    const ARC_500K = findArcRatioForPoint(125, 310);
-    const ARC_750K = findArcRatioForPoint(225, 215);
-    const AMOUNT_ARC_ANCHORS = [
-      [0,        0.0],
-      [500000,   ARC_500K],
-      [750000,   ARC_750K],
-      [1000000,  1.0],
-    ];
-    console.log('[mountain] v282 arc anchors:',
-      { ARC_500K: ARC_500K.toFixed(3), ARC_750K: ARC_750K.toFixed(3) });
 
     function amountToArcRatio(eurVal) {
       if (eurVal <= 0) return 0;
@@ -1546,8 +1956,8 @@
       return 1;
     }
 
-    // ── Place the couple on the ridge (Amine leads, Nezha trails by NEZHA_TRAIL_OFFSET) ──
-    // Returns the leader's Y coordinate so the caller can align vegetation with altitude.
+    // Place the couple on the ridge (Amine leads, Nezha trails).
+    // Returns the leader's Y so the caller can align vegetation with altitude.
     function placeHiker(eurVal) {
       const arcRatio = amountToArcRatio(eurVal);
       const clamped = Math.max(0, Math.min(1, arcRatio));
@@ -1561,14 +1971,9 @@
       nezhaEl.setAttribute('transform', 'translate(' + ptN.x.toFixed(2) + ',' + ptN.y.toFixed(2) + ')');
 
       trailLit.style.strokeDashoffset = (TRAIL_LENGTH - sAmine).toFixed(2);
-
       return ptA.y;
     }
 
-    // ── Vegetation level aligned with the leader's altitude (monotonic max) ──
-    // Track the highest point (lowest y) ever reached so the green fill never
-    // recedes in a col — the mountain "grows" with them, never against them.
-    let highestYReached = GROUND_Y;
     function updateVegetationFromHikerY(leaderY) {
       if (leaderY < highestYReached) highestYReached = leaderY;
       const vegY = highestYReached;
@@ -1581,7 +1986,6 @@
       vegFill.setAttribute('height', (480 - GROUND_Y).toFixed(2));
     }
 
-    // ── Milestone illumination (pulses + summit halo/flag) ──
     function updateMilestones(eurVal) {
       // 500K
       const c500 = ms500El.querySelector('circle');
@@ -1621,38 +2025,25 @@
     }
 
     // ── Easing helpers ──
-    // Ease-in-out cubic : démarre doux, accélère au milieu, décélère à l'arrivée.
-    // Contrairement à ease-out quad (v<v298) qui démarrait vite puis ralentissait,
-    // cette courbe donne une sensation de "respiration" plus naturelle pour une montée
-    // de randonnée et évite la perception de "saccade" en début d'animation.
+    // Ease-in-out cubic: démarre doux, accélère au milieu, décélère à l'arrivée.
     function easeInOutCubic(t) {
       return t < 0.5
         ? 4 * t * t * t
         : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
-
-    // Ease-out exponentiel pour la phase ambient : approche asymptotique
-    // vers AMBIENT_CAP_RATIO sans jamais le dépasser. Garantit qu'on ne survole
-    // pas la vraie valeur (cas du "overshoot 532K" pré-v298).
+    // Ease-out exponentiel : approche asymptotique sans dépasser.
     function easeOutAsymptote(elapsed, tau) {
       return 1 - Math.exp(-elapsed / tau);
     }
 
-    // ── Render loop ──
     function renderLoop(t) {
       if (phase === 'waiting') {
-        // Compteur pulse légèrement (via CSS class), aucun mouvement
         currentRatio = 0;
       } else if (phase === 'ambient') {
-        // Montée ambiante plafonnée : asymptote vers AMBIENT_CAP_RATIO (8% du target = 80K€)
-        // Safe : bien en-dessous de n'importe quel NW réaliste.
         if (ambientStartTime == null) ambientStartTime = t;
         const elapsed = t - ambientStartTime;
         currentRatio = easeOutAsymptote(elapsed, AMBIENT_TAU_MS) * AMBIENT_CAP_RATIO;
       } else if (phase === 'animating') {
-        // Animation unique, continue, vers la vraie valeur.
-        // Si déclenchée pendant 'ambient', la startRatio capture la position
-        // courante (pas de saut), l'easeInOutCubic assure une transition douce.
         if (anim.startTime == null) anim.startTime = t;
         const elapsed = t - anim.startTime;
         const progress = Math.min(elapsed / anim.duration, 1);
@@ -1666,7 +2057,7 @@
 
       const eurVal = currentRatio * TARGET_EUR;
       const leaderY = placeHiker(eurVal);
-      updateVegetationFromHikerY(leaderY); // veg level tracks couple altitude (monotonic max)
+      updateVegetationFromHikerY(leaderY);
       counter.textContent = formatEur(eurVal);
       const remaining = Math.max(0, TARGET_EUR - eurVal);
       remainingEl.textContent = remaining > 0
@@ -1674,12 +2065,9 @@
         : '🎉 Objectif atteint';
       updateMilestones(eurVal);
 
-      requestAnimationFrame(renderLoop);
+      rafId = requestAnimationFrame(renderLoop);
     }
 
-    // Démarre la phase ambient : petite montée asymptotique qui fait patienter
-    // si les données tardent (>AMBIENT_START_DELAY_MS). Non bloquante, peut être
-    // interrompue à tout moment par startFinalAnim() quand les données arrivent.
     function startAmbient() {
       if (phase !== 'waiting') return;
       phase = 'ambient';
@@ -1688,20 +2076,14 @@
       console.log('[mountain] Ambient climb start (cap ' + (AMBIENT_CAP_RATIO * 100).toFixed(0) + '%)');
     }
 
-    // Démarre l'animation finale vers `targetEurVal`. Appelée :
-    //   - dès que les vraies données arrivent (cas nominal)
-    //   - par le timeout fallback si aucune donnée après DATA_TIMEOUT_MS
-    // La durée est adaptative (MIN..MAX) selon la distance à parcourir, ce qui
-    // évite à la fois les micro-animations expéditives et les longues attentes.
     function startFinalAnim(targetEurVal) {
       if (phase === 'done') return;
       const targetRatio = Math.max(0, Math.min(targetEurVal / TARGET_EUR, 1));
       const distance = Math.abs(targetRatio - currentRatio);
-      // Distance 0% → durée MIN ; distance 100% → durée MAX ; linéaire entre les deux.
       const duration = ANIM_DURATION_MIN_MS + distance * (ANIM_DURATION_MAX_MS - ANIM_DURATION_MIN_MS);
       anim = {
-        startTime: null,          // rempli au premier frame
-        startRatio: currentRatio, // continuité : pas de saut depuis la position ambiante
+        startTime: null,
+        startRatio: currentRatio,
         targetRatio,
         duration,
       };
@@ -1718,12 +2100,9 @@
       counter.style.transform = 'scale(1.05)';
       setTimeout(function() { counter.style.transform = 'scale(1)'; }, 350);
 
-      // ── Velocity block ──
       renderVelocityLines(realPortfolioEUR, velocityInfo);
       setTimeout(function() { velocityBlock.style.opacity = '1'; }, 450);
 
-      // Invariant #1: the animated currentRatio matches real progress
-      // (i.e. the final animation actually reached its target).
       const finalRatio = realPortfolioEUR / TARGET_EUR;
       const deviation = Math.abs(finalRatio - currentRatio);
       if (deviation > 0.005) {
@@ -1733,129 +2112,575 @@
         console.log('[mountain] ✓ Animation parity ok (currentRatio=' + currentRatio.toFixed(4)
           + ' ≈ progress=' + finalRatio.toFixed(4) + ')');
       }
-      // Invariant #2: piecewise arc-ratio is monotonic in amount.
-      // Log the hiker's arc position for debugging UI placement.
       const arc = amountToArcRatio(realPortfolioEUR);
       console.log('[mountain] Hiker arc-ratio: ' + arc.toFixed(3)
         + ' (amount: ' + realPortfolioEUR + '€)');
       console.log('[mountain] Complete: ' + realPortfolioEUR + '€');
     }
 
-    // ── Public callback: app.js signals data is ready ──
-    // Signature: _gridAnimationComplete(realValue, velocityInfo?)
-    //   velocityInfo = { monthlyPace: number, source: 'actuals6m' | 'simulator' }
-    //
-    // v298 : appel unique — déclenche TOUJOURS la phase 'animating' (peu importe
-    // qu'on soit en 'waiting' ou 'ambient'). La transition est velocity-matched
-    // car `anim.startRatio = currentRatio` (pas de saut visible).
-    window._gridAnimationComplete = function(realValue, velInfo) {
+    // ── Public API ──
+    function init() {
+      if (hasInit) return;
+      hasInit = true;
+      resolveDom();
+      mountainContainer.style.display = 'block';
+
+      TRAIL_LENGTH = trailEl.getTotalLength();
+      trailLit.style.strokeDasharray = TRAIL_LENGTH + ' ' + TRAIL_LENGTH;
+      trailLit.style.strokeDashoffset = TRAIL_LENGTH;
+
+      ARC_500K = findArcRatioForPoint(125, 310);
+      ARC_750K = findArcRatioForPoint(225, 215);
+      AMOUNT_ARC_ANCHORS = [
+        [0,        0.0],
+        [500000,   ARC_500K],
+        [750000,   ARC_750K],
+        [1000000,  1.0],
+      ];
+      console.log('[mountain] v282 arc anchors:',
+        { ARC_500K: ARC_500K.toFixed(3), ARC_750K: ARC_750K.toFixed(3) });
+
+      // Fade-in HUD
+      setTimeout(function() {
+        counter.style.opacity = '1';
+        label.style.opacity = '1';
+        remainingEl.style.opacity = '1';
+        coupleEl.style.opacity = '1';
+      }, 300);
+
+      resetVegetation();
+      updateMilestones(0);
+      counter.classList.add('is-loading');
+      rafId = requestAnimationFrame(renderLoop);
+
+      setTimeout(function() {
+        if (phase === 'waiting') startAmbient();
+      }, AMBIENT_START_DELAY_MS);
+
+      setTimeout(function() {
+        if ((phase === 'waiting' || phase === 'ambient') && !dataReady) {
+          console.warn('[mountain] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
+          realPortfolioEUR = STATIC_EUR;
+          startFinalAnim(STATIC_EUR);
+        }
+      }, DATA_TIMEOUT_MS);
+    }
+
+    function trigger(realValue, velInfo) {
       realPortfolioEUR = realValue;
       velocityInfo = velInfo || null;
       dataReady = true;
       console.log('[mountain] Data ready: ' + realValue + '€, velocity:', velInfo);
       startFinalAnim(realValue);
-    };
-
-    // ── Months from now to TARGET_DATE (simple calendar diff) ──
-    function computeMonthsToTargetDate() {
-      const now = new Date();
-      return Math.max(1,
-        (TARGET_DATE.getFullYear() - now.getFullYear()) * 12
-        + (TARGET_DATE.getMonth() - now.getMonth()));
     }
 
-    // ── ETA at a given monthly pace (with compound growth assumption) ──
-    function computeMonthsToTargetAtPace(currentNW, monthlyPace) {
-      if (currentNW >= TARGET_EUR) return 0;
-      if (monthlyPace <= 0) return null;  // never reached
-      const r = 0.08 / 12;  // assume blended 8%/an — same as simulator couple
-      let nw = currentNW;
-      let months = 0;
-      while (nw < TARGET_EUR && months < 720) {
-        nw = nw * (1 + r) + monthlyPace;
-        months++;
+    function hide() {
+      const c = document.getElementById('mountainContainer');
+      if (c) c.style.display = 'none';
+    }
+
+    return { init, trigger, hide };
+  })();
+
+
+  // ══════════════════════════════════════════════════════════════════
+  // SLOT variant (v299 NEW — casino-style digit reels)
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // State machine:
+  //   'spinning' : all reels rotate continuously (data not ready).
+  //   'locking'  : reels are scheduled to lock left→right with a
+  //                stagger; each one decelerates via ease-out-quart
+  //                onto its target digit.
+  //   'done'     : all reels locked, HUD updated, velocity block shown.
+  //
+  // Reel physics:
+  //   - Strip has 11 digits (0..9, then 0 again) to avoid an empty
+  //     pixel row during the wrap (offset ∈ [9H, 10H)).
+  //   - Offset is in pixels, wrapped mod 10*digitHeight during spin.
+  //   - On lock: compute lockStartOffset from current position and
+  //     lockTargetOffset = (some k rotations ahead) such that
+  //     lockTargetOffset % stripHeight == targetDigit * digitHeight.
+  //     Guarantees forward-only motion into the final digit (no
+  //     reverse or zero-length lock feel).
+  //   - Rotations added before lock scales with reel index — rightmost
+  //     reels spin longer, so the cascade pace feels like a real slot
+  //     machine settling.
+  //
+  // Value formatting:
+  //   - 7 digits (up to 9,999,999€) grouped as X XXX XXX (French).
+  //   - Leading zeros are dimmed post-lock so "0 665 970" reads
+  //     naturally as "665 970" but the reels themselves stay visually
+  //     full-width (aesthetic consistency).
+  window._slotAnim = (function() {
+    const { TARGET_EUR, STATIC_EUR, DATA_TIMEOUT_MS,
+            formatEur, renderVelocityLines } = AnimKit;
+
+    // ── Slot-specific config ──
+    // v299 audit changes:
+    //  - NUM_DIGITS 7 → 8 (future-proof past 9,999,999€).
+    //  - SPIN_SPEED 0.55 → 0.90 px/ms (faster → more "slot blur" feel, still legible).
+    //  - EXTRA_ROT inverted & reduced : leftmost (locks first) = shorter distance
+    //    → less velocity jerk when lock starts. Rightmost (locks last) = more
+    //    rotations → "big reveal" anticipation. Pre-audit had leftmost = 3.6 rot,
+    //    rightmost = 1.5 rot (inverse of intent stated in the comment).
+    //  - Net effect: initial lock velocity at leftmost ≈ 0.8 × (rot=0.8) × stripH / D
+    //    ≈ 4.4 px/ms (5× spin) vs pre-audit 9.9 px/ms (18× spin). Jerk halved.
+    const NUM_DIGITS            = 8;         // X XXX XXX (up to 99,999,999€)
+    const SPIN_SPEED_PX_PER_MS  = 0.90;      // ~18 digits/sec at 50px digit height
+    const LOCK_DURATION_MS      = 750;       // per-reel deceleration time
+    const LOCK_STAGGER_MS       = 150;       // delay between successive reel locks
+    const EXTRA_ROT_MIN         = 0.8;       // leftmost reel rotations (locks first, short)
+    const EXTRA_ROT_PER_IDX     = 0.30;      // extra rotations per reel toward the right
+    const DT_MAX_MS             = 100;       // clamp dt to avoid catch-up jumps after tab-wake
+
+    // State
+    let phase = 'spinning';         // 'spinning' | 'locking' | 'done'
+    let hasInit = false;
+    let dataReady = false;
+    let realPortfolioEUR = null;
+    let velocityInfo = null;
+    let animationFullyDone = false;
+    let reels = [];                 // Array of reel state objects
+    let lastFrameTime = null;
+    let lockBeganAt = null;
+    let rafId = null;               // v299 audit: track so we can stop rAF when done
+    let reducedMotion = false;      // v299 audit: prefers-reduced-motion snapshot
+
+    // DOM refs (resolved in init)
+    let slotContainer, slotCabinet, counter, label, remainingEl, velocityBlock, srLive;
+
+    /**
+     * Each reel state:
+     *   el, stripEl         : DOM elements (viewport + translating strip)
+     *   digitHeight         : px (measured via getBoundingClientRect)
+     *   offset              : current translateY magnitude (always ≥ 0, mod stripHeight)
+     *   scheduledLockT      : performance-time at which this reel starts locking
+     *   lockStartOffset     : offset snapshot when entering lock (null before)
+     *   lockTargetOffset    : target offset to land exactly on targetDigit
+     *   targetDigit         : the final digit to show (0..9)
+     *   isLocked            : true once interpolation reached progress=1
+     *   flashed             : true once we added the .just-locked class
+     */
+    function buildReels() {
+      const els = slotContainer.querySelectorAll('.slot-reel');
+      return Array.from(els).map((el, i) => {
+        const stripEl = el.querySelector('.reel-strip');
+        const firstSpan = stripEl.querySelector('span');
+        // Measure live — respects CSS clamp() at current viewport size.
+        // Fallback 40px if measurement returns 0 (race with font/CSS load).
+        const measured = firstSpan.getBoundingClientRect().height;
+        const digitHeight = measured > 0 ? Math.round(measured) : 40;
+        return {
+          el, stripEl, digitHeight,
+          // v299 audit: under reduced-motion, start at 0 (no random phase)
+          // so the user sees a static "00 000 000" placeholder, not a
+          // scrambled display. Otherwise randomize so reels don't visually
+          // lock-step on first paint.
+          offset: reducedMotion ? 0 : Math.random() * digitHeight * 10,
+          scheduledLockT:  null,
+          lockStartOffset: null,
+          lockTargetOffset:null,
+          targetDigit:     null,
+          isLocked:        false,
+          flashed:         false,
+        };
+      });
+    }
+
+    function resolveDom() {
+      slotContainer = document.getElementById('slotContainer');
+      slotCabinet   = document.getElementById('slotCabinet');
+      counter       = document.getElementById('gridCounter');
+      label         = document.getElementById('gridLabel');
+      remainingEl   = document.getElementById('gridRemaining');
+      velocityBlock = document.getElementById('velocityBlock');
+      // v299 audit: aria-live polite region so screen readers hear the
+      // final amount. Created once; spinning digits are NOT announced
+      // (would be noise), but the final value IS announced on lock.
+      srLive = document.getElementById('slotSrLive');
+      if (!srLive) {
+        srLive = document.createElement('span');
+        srLive.id = 'slotSrLive';
+        srLive.setAttribute('aria-live', 'polite');
+        srLive.setAttribute('aria-atomic', 'true');
+        srLive.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);';
+        slotContainer.appendChild(srLive);
       }
-      return months < 720 ? months : null;
     }
 
-    function formatEtaDate(months) {
-      if (months == null) return 'jamais (au rythme actuel)';
-      if (months <= 0) return 'atteint ✓';
-      const now = new Date();
-      const d = new Date(now.getFullYear(), now.getMonth() + months, 1);
-      const mois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-      return mois[d.getMonth()] + ' ' + d.getFullYear();
+    function easeOutQuart(t) {
+      return 1 - Math.pow(1 - t, 4);
     }
 
-    function formatEtaDelta(etaMonths, targetMonths) {
-      if (etaMonths == null) return '';
-      const diff = etaMonths - targetMonths;
-      if (diff === 0) return ' (pile à temps)';
-      if (diff < 0) return ' (' + Math.abs(diff) + ' mois d\'avance ✓)';
-      return ' (+' + diff + ' mois ⚠)';
+    // Compute the target offset for a reel, given its current offset
+    // and the target digit. Result ≥ offset + rotations * stripHeight.
+    // Ensures forward-only motion and a predictable lock duration feel.
+    //
+    // v299 audit: rotation formula INVERTED.
+    //   Pre-audit: rotations = BASE + (NUM_DIGITS-1-idx) * PER_IDX
+    //              → leftmost 3.6 rot, rightmost 1.5 rot. This was BACKWARDS —
+    //              leftmost locks FIRST (stagger 0ms) so compressing 3.6
+    //              rotations into 700ms produced a visible 18× velocity kick
+    //              vs the spin speed. Rightmost also had the short "reveal"
+    //              even though it had the most anticipation time.
+    //   v299: rotations = MIN + idx * PER_IDX
+    //              → leftmost 0.8 rot (short lock, matches its "locks first"
+    //              timing → low jerk), rightmost 3.1 rot (long dramatic
+    //              reveal of the units digit). Velocity kick ~5× spin, half.
+    function computeLockTarget(reel, reelIdx) {
+      const stripHeight = reel.digitHeight * 10;
+      const desired = reel.targetDigit * reel.digitHeight;
+      const rotations = EXTRA_ROT_MIN + reelIdx * EXTRA_ROT_PER_IDX;
+      const minAhead = reel.lockStartOffset + rotations * stripHeight;
+      // Find smallest target = k * stripHeight + desired such that target >= minAhead.
+      const k = Math.ceil((minAhead - desired) / stripHeight);
+      return k * stripHeight + desired;
     }
 
-    // ── Render velocity info: 🎯 ETA pill + single pace line ──
-    function renderVelocityLines(currentNW, velInfo) {
-      const monthsToTarget = computeMonthsToTargetDate();
+    function renderLoop(t) {
+      // v299 audit: clamp dt so a backgrounded-then-resumed tab doesn't
+      // jump the spin by multiple seconds (which, during 'locking' before
+      // the reel has snapshot its lockStartOffset, could overshoot
+      // scheduledLockT by a huge margin and cause a visible snap).
+      const rawDt = lastFrameTime == null ? 16 : (t - lastFrameTime);
+      const dt = Math.min(rawDt, DT_MAX_MS);
+      lastFrameTime = t;
 
-      // 🎯 ETA pill — "1M€ en avril 2028 · 2 ans"
-      const tMois = ['janv.','févr.','mars','avril','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-      const yearsLeft = Math.max(0, Math.floor(monthsToTarget / 12));
-      const monthsRem = monthsToTarget % 12;
-      const tgtDateStr = tMois[TARGET_DATE.getMonth()] + ' ' + TARGET_DATE.getFullYear();
-      const tgtDurStr = (yearsLeft > 0 ? yearsLeft + ' an' + (yearsLeft > 1 ? 's' : '') : '')
-        + (monthsRem > 0 ? (yearsLeft > 0 ? ' ' : '') + monthsRem + ' mois' : '');
-      etaDateEl.textContent = tgtDateStr + (tgtDurStr ? ' · ' + tgtDurStr : '');
+      let allLocked = (reels.length > 0);
+      reels.forEach((r, i) => {
+        if (r.isLocked) return;
 
-      // Pace line — current rhythm + projected ETA + delta vs target
-      const effectivePace = (velInfo && velInfo.monthlyPace != null) ? velInfo.monthlyPace : 8000;
-      const isReal = velInfo && velInfo.source === 'actuals6m';
-      const etaMonths = computeMonthsToTargetAtPace(currentNW, effectivePace);
-      const etaDate = formatEtaDate(etaMonths);
-      const delta = formatEtaDelta(etaMonths, monthsToTarget);
-      const sourceTag = isReal ? '(NW réel 6m)' : '(invest. plan)';
-      rhythmActVal.textContent = '+€' + formatEurShort(effectivePace) + '/mois '
-        + sourceTag + ' → ' + etaDate + delta;
+        const stripHeight = r.digitHeight * 10;
 
-      // Color-code: green = ahead/on-time, amber = behind, red = never reaches
-      if (etaMonths == null) {
-        rhythmActEl.style.color = 'rgba(248,113,113,0.92)';
-      } else if (etaMonths - monthsToTarget >= 4) {
-        rhythmActEl.style.color = 'rgba(251,191,36,0.92)';
-      } else if (etaMonths - monthsToTarget <= -1) {
-        rhythmActEl.style.color = 'rgba(110,231,160,0.95)';
-      } else {
-        rhythmActEl.style.color = 'rgba(167,243,208,0.88)';
+        if (phase === 'locking' && r.scheduledLockT != null && t >= r.scheduledLockT) {
+          // First frame in lock phase for this reel → snapshot start offset
+          // and compute target. Deferring until now means we honor whatever
+          // offset the spinning reel organically reached.
+          if (r.lockStartOffset == null) {
+            r.lockStartOffset  = r.offset;
+            r.lockTargetOffset = computeLockTarget(r, i);
+          }
+          const progress = Math.min((t - r.scheduledLockT) / LOCK_DURATION_MS, 1);
+          const eased = easeOutQuart(progress);
+          r.offset = r.lockStartOffset + (r.lockTargetOffset - r.lockStartOffset) * eased;
+          if (progress >= 1) {
+            // Snap to exact target digit (modulo) to avoid sub-pixel drift.
+            r.offset = r.targetDigit * r.digitHeight;
+            r.isLocked = true;
+            if (!r.flashed) {
+              r.flashed = true;
+              r.el.classList.add('just-locked');
+              setTimeout(() => r.el.classList.remove('just-locked'), 600);
+            }
+          } else {
+            allLocked = false;
+          }
+        } else if (!reducedMotion) {
+          // Still spinning — continuous translate with wrap.
+          r.offset = (r.offset + SPIN_SPEED_PX_PER_MS * dt) % stripHeight;
+          allLocked = false;
+        } else {
+          // v299 audit: reducedMotion — stay frozen at offset 0 ("00 000 000")
+          // until data arrives and the cascade begins. No continuous spin.
+          allLocked = false;
+        }
+
+        // Render: translate the strip up by `offset`. Render-mod ensures
+        // we never translate into the empty region beyond the 11th span.
+        const renderOffset = r.offset % stripHeight;
+        r.stripEl.style.transform = 'translateY(' + (-renderOffset).toFixed(2) + 'px)';
+      });
+
+      if (phase === 'locking' && allLocked) {
+        phase = 'done';
+        onAllLocked();
       }
+
+      // v299 audit: stop scheduling next frame once we're done AND the
+      // final-reveal logic (onAllLocked) has finished. Prevents a ~60Hz
+      // no-op loop from wasting CPU/battery indefinitely behind the auth
+      // gate. Set rafId=null so a future re-init could restart cleanly.
+      if (phase === 'done' && animationFullyDone) {
+        rafId = null;
+        return;
+      }
+      rafId = requestAnimationFrame(renderLoop);
     }
 
-    // ── Boot (v298) ──
-    // 1. Reset visuels : végétation à la base, milestones éteints.
-    // 2. Démarrer le render loop (phase='waiting', rien ne bouge, pulse sur le compteur).
-    // 3. Après AMBIENT_START_DELAY_MS : si les données ne sont toujours pas là,
-    //    démarrer une montée ambiante plafonnée (rassure l'utilisateur sans overshoot).
-    //    Le plus souvent, _gridAnimationComplete fire avant → la phase ambient est skippée.
-    // 4. Safety net : après DATA_TIMEOUT_MS, si toujours rien, animer vers STATIC_EUR.
-    resetVegetation();
-    updateMilestones(0);
-    counter.classList.add('is-loading');  // pulse subtile pendant l'attente (cf. CSS)
-    requestAnimationFrame(renderLoop);
+    function beginLockCascade(targetValue) {
+      const maxDisplay = Math.pow(10, NUM_DIGITS) - 1;
+      const rounded = Math.round(targetValue);
+      const clamped = Math.max(0, Math.min(rounded, maxDisplay));
+      if (rounded > maxDisplay) {
+        console.warn('[slot] value ' + rounded + '€ exceeds ' + NUM_DIGITS + '-digit slot capacity, clamped to ' + clamped);
+      }
+      const digitsStr = String(clamped).padStart(NUM_DIGITS, '0');
 
-    setTimeout(function() {
-      if (phase === 'waiting') startAmbient();
-    }, AMBIENT_START_DELAY_MS);
-
-    setTimeout(function() {
-      if (phase === 'waiting' || phase === 'ambient') {
-        if (!dataReady) {
-          console.warn('[mountain] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
-          realPortfolioEUR = STATIC_EUR;
-          startFinalAnim(STATIC_EUR);
+      // v299 audit: if already done (locked-and-settled) AND real data
+      // arrives late (fallback fired first because cold-cache fetch ran
+      // long), we DO re-animate to the correct value. This costs one
+      // extra cascade but prevents displaying a stale fallback forever.
+      if (phase === 'done') {
+        const currentDigits = reels.map(r => r.targetDigit).join('');
+        if (currentDigits === digitsStr) {
+          // Already showing the right value (fallback matched real) — no-op.
+          return;
+        }
+        console.log('[slot] Re-locking from stale ' + currentDigits + ' → ' + digitsStr + ' (late data)');
+        // Reset reel state so the render loop treats them as "spinning
+        // again" until scheduledLockT. Restart rAF if it was stopped.
+        animationFullyDone = false;
+        slotCabinet.classList.remove('is-done');
+        reels.forEach(r => {
+          r.isLocked = false;
+          r.lockStartOffset = null;
+          r.lockTargetOffset = null;
+          r.flashed = false;
+          r.stripEl.style.opacity = '1';
+          // Don't touch r.offset — continue from current visible position.
+        });
+        phase = 'spinning';
+        if (rafId == null) {
+          lastFrameTime = null;
+          rafId = requestAnimationFrame(renderLoop);
         }
       }
-    }, DATA_TIMEOUT_MS);
+      // v299 audit: guard against double-trigger while cascade is still in
+      // flight. If currently locking and the new target matches the
+      // existing digits, ignore. Otherwise, re-target: leave already-
+      // locked reels alone (they'll visually "settle" wrong for a frame
+      // then spin again), reset the rest to re-aim. In practice this is
+      // rare — happens only when trigger fires twice within ~1.8s.
+      if (phase === 'locking') {
+        const pending = reels.map(r => r.targetDigit == null ? '?' : r.targetDigit).join('');
+        if (pending === digitsStr) {
+          return;  // Already locking on this exact value, no-op.
+        }
+        console.warn('[slot] Re-targeting mid-cascade ' + pending + ' → ' + digitsStr);
+        reels.forEach(r => {
+          if (r.isLocked) {
+            // Already locked: unlock and re-aim.
+            r.isLocked = false;
+            r.lockStartOffset = null;
+            r.lockTargetOffset = null;
+            r.flashed = false;
+            r.stripEl.style.opacity = '1';
+          } else if (r.lockStartOffset != null) {
+            // Mid-interpolation: reset so computeLockTarget runs again
+            // from the new offset.
+            r.lockStartOffset = null;
+            r.lockTargetOffset = null;
+          }
+        });
+      }
+
+      phase = 'locking';
+      const now = performance.now();
+      lockBeganAt = now;
+      reels.forEach((r, i) => {
+        r.targetDigit = parseInt(digitsStr[i], 10);
+        r.scheduledLockT = now + i * LOCK_STAGGER_MS;
+      });
+      console.log('[slot] Lock cascade → ' + clamped + '€ (digits: ' + digitsStr + ')');
+    }
+
+    function onAllLocked() {
+      if (animationFullyDone) return;
+      animationFullyDone = true;
+
+      slotCabinet.classList.add('is-done');
+      // v299 audit: brief brightness flash on the cabinet for a satisfying
+      // "reveal" moment (mountain has summit-halo; slot needs something
+      // equivalent). Class removed after animation completes so the
+      // sticky .is-done green halo styling takes over.
+      slotCabinet.classList.add('reveal-flash');
+      setTimeout(() => slotCabinet.classList.remove('reveal-flash'), 650);
+
+      // v299 audit: reset all reel opacities before dimming, so a future
+      // re-run (defensive — guarded elsewhere but cheap here) never
+      // leaves stale 0.32 opacity on a reel that should now be bright.
+      reels.forEach(r => { r.stripEl.style.opacity = '1'; });
+
+      // Dim leading zeros post-lock for readability:
+      // "00 665 970" should emphasize the meaningful digits.
+      let leading = true;
+      reels.forEach((r, i) => {
+        // Don't dim the last digit (always meaningful, even if 0).
+        if (leading && r.targetDigit === 0 && i < NUM_DIGITS - 1) {
+          r.stripEl.style.opacity = '0.32';
+        } else {
+          leading = false;
+          // opacity already reset to '1' above.
+        }
+      });
+
+      // v299 audit: announce the final amount to screen readers once,
+      // via the aria-live polite region. Spinning digits are NOT
+      // announced (would be noisy), but the settled amount IS.
+      if (srLive) {
+        srLive.textContent = 'Patrimoine actuel : ' + formatEur(realPortfolioEUR);
+      }
+
+      // Update HUD: gridRemaining shows "€ X à gravir".
+      const remaining = Math.max(0, TARGET_EUR - realPortfolioEUR);
+      remainingEl.textContent = remaining > 0
+        ? formatEur(remaining).replace('€', '€') + ' à gravir'
+        : '🎉 Objectif atteint';
+
+      renderVelocityLines(realPortfolioEUR, velocityInfo);
+      setTimeout(function() { velocityBlock.style.opacity = '1'; }, 450);
+
+      // Invariant: reels really show the value we locked on.
+      const shown = reels.reduce((n, r) => n * 10 + r.targetDigit, 0);
+      if (shown !== Math.round(realPortfolioEUR) && shown !== Math.max(0, Math.min(Math.round(realPortfolioEUR), Math.pow(10, NUM_DIGITS) - 1))) {
+        console.warn('[slot] ⚠ Display drift: reels show ' + shown + ' vs target ' + Math.round(realPortfolioEUR));
+      } else {
+        console.log('[slot] ✓ Reels locked on ' + shown + '€');
+      }
+      console.log('[slot] Complete: ' + realPortfolioEUR + '€');
+    }
+
+    // ── Public API ──
+    function init() {
+      if (hasInit) return;
+      hasInit = true;
+      resolveDom();
+      // v299 audit: defensive null-guard — if a future refactor renames or
+      // drops #slotContainer, fail loud with a useful console message
+      // rather than crashing on the next line.
+      if (!slotContainer) {
+        console.error('[slot] init aborted: #slotContainer not found in DOM');
+        hasInit = false;
+        return;
+      }
+      slotContainer.style.display = 'flex';
+      slotContainer.classList.add('is-visible');
+
+      // Hide the text counter — reels ARE the counter for this variant.
+      counter.style.display = 'none';
+      counter.classList.remove('is-loading');
+
+      // Fade in the shared HUD parts (label + remaining).
+      // Placeholder "—" for remaining until locked.
+      setTimeout(function() {
+        label.style.opacity = '1';
+        remainingEl.style.opacity = '1';
+      }, 300);
+
+      // v299 audit: snapshot prefers-reduced-motion once at init. Used
+      // below to short-circuit the spinning phase. Live listening would
+      // be nicer but changing mid-animation is a rare case.
+      try {
+        reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      } catch (_e) { reducedMotion = false; }
+
+      // v299 audit: wrap buildReels() in rAF so the browser has had at
+      // least one layout pass after `display:flex` took effect. Without
+      // this, CSS clamp() could still be computing and
+      // getBoundingClientRect().height could return 0 or a pre-clamp size.
+      requestAnimationFrame(function() {
+        reels = buildReels();
+        lastFrameTime = null;
+        rafId = requestAnimationFrame(renderLoop);
+
+        // v299 audit: if the user prefers reduced motion AND we already
+        // have data (app.js already triggered before init), skip the spin
+        // entirely and render the final value. If no data yet, the 5s
+        // timeout will still catch us. This avoids the dizzying continuous
+        // reel rotation for users who requested reduced motion.
+        if (reducedMotion && dataReady && realPortfolioEUR != null) {
+          beginLockCascade(realPortfolioEUR);
+        }
+      });
+
+      setTimeout(function() {
+        if (!dataReady) {
+          console.warn('[slot] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
+          realPortfolioEUR = STATIC_EUR;
+          beginLockCascade(STATIC_EUR);
+        }
+      }, DATA_TIMEOUT_MS);
+    }
+
+    function trigger(realValue, velInfo) {
+      realPortfolioEUR = realValue;
+      velocityInfo = velInfo || null;
+      dataReady = true;
+      // v299 audit: defensive — if trigger is somehow called before init
+      // (e.g. selector reorder in a future refactor), init first so the
+      // reels exist before we try to lock them.
+      if (!hasInit) {
+        console.warn('[slot] trigger called before init — initializing now');
+        init();
+        // beginLockCascade will be called by the rAF inside init() if
+        // reducedMotion, or we need to call it ourselves after reels are
+        // built. Defer by one more rAF to ensure reels are ready.
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() { beginLockCascade(realValue); });
+        });
+        return;
+      }
+      console.log('[slot] Data ready: ' + realValue + '€, velocity:', velInfo);
+      // If reels aren't built yet (first rAF after init hasn't fired),
+      // buffer the lock until they are.
+      if (reels.length === 0) {
+        requestAnimationFrame(function() { beginLockCascade(realValue); });
+      } else {
+        beginLockCascade(realValue);
+      }
+    }
+
+    function hide() {
+      const c = document.getElementById('slotContainer');
+      if (c) c.style.display = 'none';
+    }
+
+    return { init, trigger, hide };
   })();
+
+
+  // ══════════════════════════════════════════════════════════════════
+  // SELECTOR — decides which variant to show on boot
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // Priority:
+  //   1. URL param ?anim=mountain|slot  (dev/testing override)
+  //   2. Otherwise random 50/50
+  //
+  // After picking, the selector:
+  //   - Hides the unchosen container
+  //   - Calls the chosen module's init()
+  //   - Routes window._gridAnimationComplete onto module.trigger()
+  //
+  // Both modules expose the same { init, trigger, hide } contract, so
+  // this selector code is fully variant-agnostic.
+  (function() {
+    function pickVariant() {
+      try {
+        const url = new URLSearchParams(location.search);
+        const forced = url.get('anim');
+        if (forced === 'mountain' || forced === 'slot') return forced;
+      } catch (e) { /* URL API missing → fall through */ }
+      return Math.random() < 0.5 ? 'mountain' : 'slot';
+    }
+
+    const chosen = pickVariant();
+    const modChosen  = chosen === 'slot' ? window._slotAnim : window._mountainAnim;
+    const modOther   = chosen === 'slot' ? window._mountainAnim : window._slotAnim;
+
+    modOther.hide();
+    modChosen.init();
+
+    // Route app.js' data-ready signal to the chosen module.
+    window._gridAnimationComplete = function(realValue, velInfo) {
+      modChosen.trigger(realValue, velInfo);
+    };
+
+    console.log('[animSelector] v299 chosen variant: ' + chosen);
+  })();
+
+  })();  // ← close the outer IIFE wrap (added v299 for scope isolation)
   </script>
 </div>
 
@@ -2880,7 +3705,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=300"></script>
+<script type="module" src="js/app.js?v=301"></script>
 
 </body>
 </html>
