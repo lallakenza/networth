@@ -3390,3 +3390,97 @@ Le check de cohérence (`tableTotalPL` vs `combinedRealizedPL`) comparait la som
 - Graphique YTD : 73 points, scope=all, P&L = -28 115€ (-10.70%) — OK
 - Aucun warning `P/L alignment delta` en console — OK
 - Aucune erreur console — OK
+
+---
+
+## §52 — v301 : Variante slot-machine + sélecteur aléatoire (BUG-052)
+
+v301 introduit une **deuxième variante** d'animation pour le gate (machine à sous casino) et un sélecteur aléatoire entre les deux.
+
+### Objectifs
+1. Offrir un moment de surprise à chaque chargement (deux looks très différents).
+2. Garder v298 (mountain) intacte — le refactor ne casse rien.
+3. Documenter un contrat explicite pour ajouter d'autres variantes à l'avenir.
+
+### Architecture
+
+```
+(outer IIFE — isolation de scope)
+  │
+  ├─ AnimKit (namespace partagé)
+  │     ├─ TARGET_EUR, TARGET_DATE, STATIC_EUR, DATA_TIMEOUT_MS
+  │     ├─ formatEur, formatEurShort
+  │     └─ renderVelocityLines (écrit le bloc ETA + pace)
+  │
+  ├─ window._mountainAnim = { init, trigger, hide }    (v298 refonte en module)
+  ├─ window._slotAnim     = { init, trigger, hide }    (v301 NEW)
+  │
+  └─ Selector IIFE
+        ├─ pickVariant() : URL override → random 50/50
+        ├─ modOther.hide()
+        ├─ modChosen.init()
+        └─ window._gridAnimationComplete = (v, i) => modChosen.trigger(v, i)
+```
+
+Contrat commun à toutes les variantes :
+- `init()` : démarre la phase « en attente » (spin pour slot, pulse + ambient pour mountain). Idempotent (hasInit guard).
+- `trigger(realValueEUR, velocityInfo?)` : lance la transition vers la vraie valeur. Appelé par `_gridAnimationComplete` depuis app.js.
+- `hide()` : cache le container DOM. Utilisé par le sélecteur pour la variante non-retenue.
+
+### Design slot-machine
+
+Reel physics
+- 8 reels (digits 0-9, strip de 11 spans = 0..9+0 pour wrap sans trou visuel)
+- Spin continu à `0.90 px/ms` (≈18 digits/sec, flou façon slot)
+- Lock cascade gauche→droite avec `LOCK_STAGGER_MS=150` et `LOCK_DURATION_MS=750`
+- Rotations adaptatives `EXTRA_ROT_MIN + idx * EXTRA_ROT_PER_IDX = 0.8..2.9` : reel gauche (lock en 1er) fait peu de tours pour minimiser le jerk ; reel droit (lock en dernier = reveal units digit) fait beaucoup de tours pour bâtir l'anticipation
+- `easeOutQuart` pour la décélération
+- `dt` clampé à 100ms pour éviter un snap après réveil d'onglet
+
+Visual
+- Cabinet dark-blue (`#162338 → #050913`) + bordure gold 2px + inset-shadows (plus de halo externe après audit)
+- 3 LEDs gold wave-pulse (1.8s), figées au `done`
+- Base-glow warm-white pendant spin, vert (`rgba(110,231,160)`) au `done` (liaison sémantique avec `#gridEta` pill vert)
+- `.reveal-flash` class ajoutée brièvement au `done` : brightness 1.35 pendant 0.6s
+- `.just-locked` class par reel à la fin de sa lock : inner-glow gold brief
+
+Accessibilité
+- `role="img"` + `aria-labelledby` sur le container
+- `#slotSrLive` aria-live polite créé dynamiquement : annonce la valeur FINALE uniquement (pas le spin continu qui serait du bruit)
+- `prefers-reduced-motion` : JS short-circuit, reels figés à `00 000 000` jusqu'à l'arrivée des données. CSS désactive LED/glow.
+- Contraste gold `#fde68a` sur dark `#030711` ≈ 16.3:1 (WCAG AAA).
+
+### Timeout fallback 5s → 12s
+
+Pourquoi : le pipeline app.js (fetch FX + prix Yahoo + chart build) peut prendre 7-10s sur cold cache. Avec timeout 5s, le fallback `STATIC_EUR` se déclenchait avant l'arrivée des vraies données, et la slot n'avait aucun moyen de rattraper (cascade single-shot). À 12s, le fallback n'est plus qu'un "API vraiment mort" last resort.
+
+Corollaire : `beginLockCascade` a maintenant un **mode re-lock** : si `phase === 'done'` ET la nouvelle cible diffère de l'affichage courant, les reels sont déverrouillés et une nouvelle cascade est lancée depuis leurs positions actuelles. Un log `[slot] Re-locking from stale ...` apparaît dans ce cas. Coût : une cascade supplémentaire de ~1.8s. Gain : on n'affiche jamais une valeur stale définitivement.
+
+### URL override pour tests
+
+`?anim=mountain` et `?anim=slot` forcent la variante. Utile pour screenshots, audit UX reproductible, debugging d'une variante particulière.
+
+### Audit triple-parallèle avant commit
+
+3 sub-agents Claude passés en parallèle :
+1. **Physics** (timing, rotation formula, velocity jerk, edge cases values)
+2. **Visual / UX** (cabinet aesthetics, digit spacing, LED count, aspect-ratio dead-space, reveal moment)
+3. **Code quality** (rAF leak, reduced-motion, double-trigger, scope collision, aria-live, measurement race, color contrast)
+
+13 findings appliqués avant deploy. Voir BUG_TRACKER.md BUG-052 pour la liste complète.
+
+### Fichiers modifiés
+
+- `index.html`
+  - CSS `v299 — Casino slot-machine variant` : ~200 lignes (cabinet, lights, display, reels, strip, seps, base-glow, reveal-flash, reduced-motion guard)
+  - HTML `<div id="slotContainer">` : 8 reels + séparateurs à bonne place pour le grouping `XX XXX XXX`
+  - Mountain container : `display:none` par défaut (le sélecteur révèle la bonne variante)
+  - Script bloc refactoré : outer IIFE + AnimKit + `_mountainAnim` en module + `_slotAnim` + sélecteur
+- `js/data.js` : `APP_VERSION = 'v301'`
+- `js/app.js`, `js/charts.js`, `js/simulators.js`, `index.html` script-tag : bump `?v=300 → ?v=301` partout (7+1 points d'import)
+- `BUG_TRACKER.md` : entrée BUG-052 + ligne dans la matrice de couverture
+- `ARCHITECTURE.md` : cette section
+
+### Commentaires inline
+
+Chaque bloc (CSS, HTML, JS modules, selector) porte des en-têtes explicites en français. Les décisions issues de l'audit sont marquées `v299 audit:` dans les commentaires pour retrouver rapidement les motivations (ex: `v299 audit: rotation formula INVERTED`, `v299 audit: removed outer-halo box-shadow layer`, `v299 audit: stop scheduling next frame once we're done`). Les tags v299 dans le code restent corrects — la fonctionnalité a été renommée v301 uniquement pour le tag de version à cause d'un conflit amont avec un autre v299. Pattern `grep "v299\| v301"` dans `index.html` donne une vue complète.

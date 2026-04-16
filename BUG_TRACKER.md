@@ -985,6 +985,39 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-052: Animation auth-gate — variante "machine à sous" + audit UX complet
+
+- **Version**: v301 (ajout)
+- **Sévérité**: Mineure (nouvelle feature + audit de polish)
+- **Détection**: Demande utilisateur — "make a second animation of a casino machine that loads till the numbers keep turning till it's loaded. Make either the mountain or machine appear randomly on first page."
+- **Symptôme / contexte**: Avant v301, l'animation d'attente du gate était une unique variante (montagne). L'utilisateur voulait une 2e variante casino-style en sélection aléatoire, pour que chaque chargement soit surprenant.
+- **Implémentation**:
+  1. **Module pattern partagé** : les deux animations exposent le même contrat `{ init, trigger, hide }` via `window._mountainAnim` et `window._slotAnim`. Un IIFE externe (wrap de scope) expose UNIQUEMENT ces 2 objets + `window._gridAnimationComplete` au global.
+  2. **AnimKit namespace** : constants (`TARGET_EUR`, `TARGET_DATE`, `STATIC_EUR`, `DATA_TIMEOUT_MS`) + helpers (`formatEur`, `formatEurShort`, `renderVelocityLines`, ETA math) factorés pour éviter la duplication entre modules.
+  3. **Slot machine** : cabinet dark blue + bordure gold, 3 LEDs wave-pulse, 8 reels (jusqu'à 99 999 999€) groupés `XX XXX XXX`, strip de 11 digits (0-9+0) pour wrap sans trou visuel, ease-out-quart decel, cascade gauche→droite avec stagger 150ms. Flash vert de la cabinet au `is-done` + base-glow vert.
+  4. **Sélecteur random 50/50** : `Math.random() < 0.5` avec override URL `?anim=mountain|slot` pour tests. Cache le non-sélectionné (`display:none`), init le choisi, route `_gridAnimationComplete` dessus.
+  5. **Audit triple parallèle** (physics / visual / code-quality) via sub-agents avant commit. 13 findings majeurs → appliqués :
+     - **Physics** : formule de rotations INVERSÉE (avant : leftmost 3.6 rot = kick 18× la vitesse de spin ; après : leftmost 0.8 rot → rightmost 2.9 rot, kick ~5×). Stagger cohérent avec distance (reel qui lock en dernier a plus d'anticipation + plus de rotations = reveal plus satisfaisant).
+     - **Visual** : halo externe retiré, `.slot-sep` 6px→10px (lisibilité des triplets "XX XXX XXX"), letter-spacing -0.5→0 (money counter wider), 5 LEDs→3 (moins frénétique), base-glow désaturé en warm-white pendant spin puis vert au done, flash brightness 0.6s au reveal, aspect-ratio:1.2 retiré (cabinet hugge le contenu, plus d'espace vide).
+     - **Code** : rAF stop une fois `done && animationFullyDone` (CPU leak évité), `dt` clampé à 100ms (anti-snap après réveil d'onglet), IIFE externe pour éviter collision globale `const AnimKit`, guard double-init et double-trigger, guard `!hasInit` défensif dans trigger, null-guard `#slotContainer`, aria-live polite qui annonce la valeur finale aux screen readers, reset opacité avant dim des leading zeros, prefers-reduced-motion (JS+CSS, fige les reels à `00 000 000`), fallback measurement si `getBoundingClientRect().height===0` (race avec CSS clamp).
+  6. **Timeout fallback bumpé 5s→12s** (AnimKit.DATA_TIMEOUT_MS) : sur cold-cache le pipeline app.js peut prendre ~7-10s ; 5s déclenchait le fallback avant l'arrivée des vraies données. Touche aussi la montagne (shared).
+  7. **Re-lock defensive** : si trigger arrive APRÈS le fallback (phase='done') et la valeur diffère, la slot reset les reels et relance une cascade vers la vraie valeur. Corrige le "stale STATIC_EUR forever" qui aurait persisté sinon.
+- **Test de non-régression**:
+  - [ ] Random selector : ~50% mountain, ~50% slot sur 10 reloads
+  - [ ] URL override : `?anim=mountain` force mountain, `?anim=slot` force slot
+  - [ ] Slot cascade : les 8 reels locked gauche→droite avec stagger visible (~1.5-2s total)
+  - [ ] Leading zeros dimmés pour valeurs < 10M€ (ex: "00 699 804" → les deux "0" à opacity 0.32)
+  - [ ] Cabinet reçoit `.is-done` + flash brightness ~0.6s au reveal, base-glow devient vert
+  - [ ] Late data arrival : si app.js prend > 12s, slot lock sur STATIC_EUR, puis re-lock sur vraie valeur dès qu'elle arrive (log `Re-locking from stale ...`)
+  - [ ] prefers-reduced-motion : reels figés à "00 000 000" pendant attente, pas de spin
+  - [ ] Aria : `#slotSrLive` contient `"Patrimoine actuel : € X XXX"` une fois locked
+  - [ ] Pas de log d'erreur JS à aucun moment
+  - [ ] Sur iPhone SE 320px : cabinet rentre dans 256px (80vw), pas de débordement horizontal
+  - [ ] Mountain continue de fonctionner identiquement à v298 (module pattern non-cassant)
+  - [ ] Pas de flash de variant non-sélectionnée (les deux commencent `display:none`, le sélecteur révèle la bonne)
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -1018,7 +1051,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **Simulator compounding** | BUG-049 | Taux mensuel = geometric root, `(1+monthly)^12 = 1+annual` |
 | **Action Logement amort** | BUG-050 | Assurance intégrée retirée du P&I avant amortissement |
 | **Animation montagne** | BUG-051 | Une animation unique monotone, durée adaptative, pas de saut Phase1→Phase2 |
+| **Animation auth-gate (variantes)** | BUG-052 | Slot-machine comme alternative, random selector, module pattern, audit physics/visual/code |
 
 ---
 
-*Dernière mise à jour: v298 — 16 avril 2026 (BUG-051 : refonte animation montagne — state machine waiting/ambient/animating/done, ease-in-out cubic unique, safety net timeout)*
+*Dernière mise à jour: v301 — 16 avril 2026 (BUG-052 : variante slot-machine + sélecteur aléatoire + audit triple parallèle sur physics/visual/code, timeout fallback 5→12s, re-lock defensive pour arrivée tardive des données)*
