@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=299';
-import { compute, getGrandTotal } from './engine.js?v=299';
-import { render } from './render.js?v=299';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=299';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=299';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=299';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=299';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=300';
+import { compute, getGrandTotal } from './engine.js?v=300';
+import { render } from './render.js?v=300';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=300';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=300';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=300';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=300';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };

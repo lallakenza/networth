@@ -3195,33 +3195,54 @@ function computeCreancesView(portfolio, fx) {
   } catch(e) {}
 
   if (_factuPositions) {
-    const augustinMAD = _factuPositions.augustin && _factuPositions.augustin.mad != null ? _factuPositions.augustin.mad : 0;
-    const benoitDH = _factuPositions.benoit && _factuPositions.benoit.dh != null ? _factuPositions.benoit.dh : 0;
-    // Positive = they owe Amine → créance
-    if (augustinMAD > 0) {
-      const amountEUR = toEUR(augustinMAD, 'MAD', fx);
-      factuCreances.push({
-        label: 'Facturation — Augustin (Azarkan) me doit', amount: augustinMAD, currency: 'MAD',
-        amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
-        monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
-        recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-        status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
+    // New schema (multi-counterparts via counterparts[]) — preferred
+    // Fallback to legacy schema (augustin.mad + benoit.dh) for backward compat
+    const cps = _factuPositions.counterparts;
+    if (cps && typeof cps === 'object') {
+      // signedMAD: positif = la contrepartie me doit (créance), négatif = je dois (dette)
+      Object.entries(cps).forEach(([cpId, cp]) => {
+        const signedMAD = cp.signedMAD != null ? cp.signedMAD : 0;
+        if (signedMAD > 0) {
+          const amountEUR = toEUR(signedMAD, 'MAD', fx);
+          factuCreances.push({
+            label: `Facturation — ${cp.label || cpId} me doit`, amount: signedMAD, currency: 'MAD',
+            amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+            monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+            recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+            status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
+          });
+        } else if (signedMAD < 0) {
+          dettes.push({ label: cp.label || cpId, amount: Math.abs(signedMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(signedMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
+        }
       });
-    } else if (augustinMAD < 0) {
-      dettes.push({ label: 'Augustin (Azarkan)', amount: Math.abs(augustinMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(augustinMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
-    }
-    // Negative = Amine owes → dette
-    if (benoitDH < 0) {
-      dettes.push({ label: 'Benoit (Badre)', amount: Math.abs(benoitDH), currency: 'MAD', amountEUR: toEUR(Math.abs(benoitDH), 'MAD', fx), owner: 'Amine', type: 'pro' });
-    } else if (benoitDH > 0) {
-      const amountEUR = toEUR(benoitDH, 'MAD', fx);
-      factuCreances.push({
-        label: 'Facturation — Benoit (Badre) me doit', amount: benoitDH, currency: 'MAD',
-        amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
-        monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
-        recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-        status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
-      });
+    } else {
+      // Legacy schema fallback
+      const augustinMAD = _factuPositions.augustin && _factuPositions.augustin.mad != null ? _factuPositions.augustin.mad : 0;
+      const benoitDH = _factuPositions.benoit && _factuPositions.benoit.dh != null ? _factuPositions.benoit.dh : 0;
+      if (augustinMAD > 0) {
+        const amountEUR = toEUR(augustinMAD, 'MAD', fx);
+        factuCreances.push({
+          label: 'Facturation — Augustin (Azarkan) me doit', amount: augustinMAD, currency: 'MAD',
+          amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+          monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+          recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+          status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage, legacy)',
+        });
+      } else if (augustinMAD < 0) {
+        dettes.push({ label: 'Augustin (Azarkan)', amount: Math.abs(augustinMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(augustinMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
+      }
+      if (benoitDH < 0) {
+        dettes.push({ label: 'Benoit (Badre)', amount: Math.abs(benoitDH), currency: 'MAD', amountEUR: toEUR(Math.abs(benoitDH), 'MAD', fx), owner: 'Amine', type: 'pro' });
+      } else if (benoitDH > 0) {
+        const amountEUR = toEUR(benoitDH, 'MAD', fx);
+        factuCreances.push({
+          label: 'Facturation — Benoit (Badre) me doit', amount: benoitDH, currency: 'MAD',
+          amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
+          monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
+          recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
+          status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage, legacy)',
+        });
+      }
     }
   } else if (portfolio.amine.facturation) {
     // Fallback to data.js hardcoded values
@@ -3634,22 +3655,33 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   const amineTva = p.amine.tva;
 
-  // Facturation positions (inter-personnes: Augustin/Azarkan, Benoit/Badre)
+  // Facturation positions (inter-personnes: Augustin/Azarkan, Benoit/Badre, ...)
   // Source: https://lallakenza.github.io/facturation/ via shared localStorage
   // (same origin: lallakenza.github.io). Falls back to data.js hardcoded values.
   //
   // localStorage key: 'facturation_positions' (written by facturation/render-amine.js)
-  // Schema: { augustin: { mad }, benoit: { dh }, combined: { mad }, updatedAt }
+  // Schema (current):
+  //   { combined: { mad }, counterparts: {...}, augustin: {...}, benoit: {...}, updatedAt }
+  //
+  // CANONICAL: combined.mad = somme des positions des contreparties en MAD natif
+  //   (= scénario "tout payé au Maroc", deal contractuel d'Amine).
+  // Network NW utilise ce total convertible en EUR via Yahoo MAD/EUR pour
+  // homogénéité avec le reste du dashboard (qui est en EUR).
   let amineFacturationNet = 0;
   let _factuSrc = 'data.js';
   try {
     const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
     if (raw) {
       const fp = JSON.parse(raw);
-      // Use MAD positions (consistent with user's choice "considère en MAD")
-      const augustinMAD = fp.augustin && fp.augustin.mad != null ? fp.augustin.mad : 0;
-      const benoitDH   = fp.benoit && fp.benoit.dh != null ? fp.benoit.dh : 0;
-      amineFacturationNet = toEUR(augustinMAD, 'MAD', fx) + toEUR(benoitDH, 'MAD', fx);
+      // Prefer combined.mad (canonical, "tout au Maroc" scenario, B2 fix)
+      if (fp.combined && fp.combined.mad != null) {
+        amineFacturationNet = toEUR(fp.combined.mad, 'MAD', fx);
+      } else {
+        // Legacy schema fallback
+        const augustinMAD = fp.augustin && fp.augustin.mad != null ? fp.augustin.mad : 0;
+        const benoitDH = fp.benoit && fp.benoit.dh != null ? fp.benoit.dh : 0;
+        amineFacturationNet = toEUR(augustinMAD, 'MAD', fx) + toEUR(benoitDH, 'MAD', fx);
+      }
       _factuSrc = 'localStorage (' + (fp.updatedAt || '?') + ')';
     }
   } catch(e) { /* localStorage unavailable or parse error */ }
