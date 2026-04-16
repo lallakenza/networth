@@ -120,6 +120,22 @@ export const PORTFOLIO = {
       // Lots détaillés — costBasis = FMV at Purchase (USD/action) = cost basis fiscal
       // Triés par date décroissante (plus récent en premier)
       // Note: pour le lot 1, costBasis = Discounted Price (pas FMV) — historique, conservé tel quel
+      //
+      // Schéma d'un lot (consommé par `esppLotCostEUR` dans engine.js) :
+      //   date          : string 'YYYY-MM-DD' — date d'achat (pour ESPP) ou d'attribution (FRAC)
+      //   source        : 'ESPP' | 'FRAC' — distingue achat salarial vs dividende réinvesti
+      //   shares        : integer — actions entières (les fractions sont rachetées en cash)
+      //   costBasis     : number USD/action — FMV at purchase ou Discounted Price
+      //   contribEUR    : number EUR — contribution réelle prélevée sur salaire (Amine uniquement).
+      //                   Priorité sur `fxRateAtDate` dans `esppLotCostEUR` : si présent, cost = contribEUR.
+      //                   Pour FRAC : 0 (dividendes réinvestis, aucune contribution).
+      //   fxRateAtDate  : number (optionnel) — EURUSD à la date du lot. Utilisé pour Nezha
+      //                   (elle n'a pas contribEUR fiable) en fallback : cost = shares × costBasis / fxRateAtDate.
+      //                   Si ni contribEUR ni fxRateAtDate → fallback global (1.15 Amine, 1.10 Nezha).
+      //
+      // Invariant audit v297 (BUG-043) : `engine.compute()` ET `computeActionsView()` doivent
+      // utiliser la MÊME fonction `esppLotCostEUR` pour calculer le cost basis — sinon divergence
+      // silencieuse quand FX live ≠ FX historique.
       lots: [
         // Période Nov 2022 → May 2023 | Contrib €3,845.99 | FX 0.911 | Discount $236.88/sh | FMV $278.68/sh
         // 17.8222 shares achetées, 0.7609 vendues pour impôt (€193.18), 0.0613 fractionnaires remboursées
@@ -1048,6 +1064,14 @@ export const PORTFOLIO = {
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
       // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
       // Valeur conservatrice en construction (livraison Q1 2028)
+      //
+      // Flag `signed` (BUG-044, audit v297) — convention de calcul NW :
+      //   signed=false : bien en cours d'acquisition. Seuls `reservationFees` comptent dans le NW.
+      //                  `villejuifEquity = 0`, `futureEquity = valueProjetée − CRDfinal` (projection pour "NW avec Villejuif").
+      //   signed=true  : acte notarié passé. `villejuifEquity = value − CRD` compté dans nezhaNW.
+      //                  `reservationFees = 0` (remboursés à la signature, pas de double comptage).
+      // Règle d'or : `nezhaNW` inclut SOIT `reservationFees` (pré-signature) SOIT `villejuifEquity` (post-signature),
+      // jamais les deux simultanément. Vérifier `engine.js` L3762 + L3775 si tu bascules ce flag.
     },
   },
 
@@ -1116,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v296';
+export const APP_VERSION = 'v297';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API

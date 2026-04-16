@@ -3070,4 +3070,132 @@ v295 fix cash page Nezha ESPP manquant, v296 fix créances sub-card (montants + 
 - Vitry CRD < statique 268 061€ (prorata avril) — OK
 - couple = amine + nezha: delta = 0 — OK
 - catSum = coupleNW: delta = 0 — OK
+
+---
+
+### Audit métier approfondi v297 — 8 correctifs (BUG-043 à BUG-050)
+
+v297 corrige 8 défauts trouvés par un audit "encore plus poussé" après v296. Ils se répartissent en quatre domaines : cohérence de données (ESPP, Villejuif signed), affichage (insights cash, chart label, chart owner-filter, Cash Dormant négatif), et calcul (simulateurs geometric compounding, Action Logement amortissement).
+
+**Pourquoi ces 8 bugs étaient difficiles à détecter** — aucun ne cassait d'invariant courant :
+- BUG-043/044 : formules alternatives qui divergeaient seulement dans des scénarios (FX live éloigné, villejuifSigned=true) rarement atteints.
+- BUG-045 : divergence numérique entre insights et treemap (cashCouple tronqué), mais l'affichage "Cash" du treemap restait correct.
+- BUG-046 : owner-filter incomplet. Le chart YTD+IBKR+Nezha n'est presque jamais consulté en pratique.
+- BUG-047 : latent — ne casse qu'en cas de découvert `wioCurrent < 0`.
+- BUG-048 : purement cosmétique (label).
+- BUG-049 : biais composé, invisible sur une itération mais +47bp/an effectif sur 20 ans.
+- BUG-050 : écart de ~1000€ cumulé sur 25 ans AL, invisible mensuellement.
+
+#### BUG-043 — ESPP cost basis unifié via `esppLotCostEUR`
+
+`engine.compute()` utilisait `toEUR(nezhaEsppData.totalCostBasisUSD, 'USD', fx)` (current FX), pendant que `computeActionsView` utilisait `reduce(esppLotCostEUR)` (per-lot historical FX). Deux vérités pour le même KPI.
+
+**Fix** : hoisting de `esppLotCostEUR(lot, defaultFx)` au niveau module (L33-52), utilisé par les deux consommateurs (L253-255 et L3729-3732). JSDoc détaillée sur la fonction.
+
+#### BUG-044 — `nezhaNW` exclut `villejuifEquity` quand signé (latent)
+
+Historique : `nezhaVillejuifEquity` était ajouté à `coupleNW` et à `views.nezha.nwRef` mais pas à `nezhaNW`. Tant que `villejuifSigned=false`, le delta était 0. Dès signature, `s.nezha.nw` sous-estimait de ~44K€ et tous les consommateurs aval (insights, breakdowns) affichaient un NW Nezha faux.
+
+**Fix** : `nezhaNW` inclut maintenant `+ nezhaVillejuifEquity` (L3762). `coupleNW = amineNW + nezhaNW` propre (L3823). `nwWithVillejuif` recalculée pour éviter double comptage (L3775). `views.nezha.nwRef = nezhaNW` (L3999).
+
+#### BUG-045 — Insights `cashCouple` tronqué
+
+`renderDynamicInsights` utilisait `uae + revolut + maroc + france + marocNz` mais ignorait `brokerCash` (Amine IBKR+ESPP, Nezha ESPP) et Nezha UAE. Insights positifs sous-comptaient le cash, bloc risque sur-estimait `aedPct`.
+
+**Fix** : render.js L761-765 et L782-787 — inclusion de tous les buckets cash avec guards `|| 0`. Commentaires inline qui pointent vers le treemap comme source de vérité.
+
+#### BUG-046 — Chart header %change faux pour owner≠Couple + scope=IBKR/Degiro/SGTM
+
+Le filtrage owner des séries `depSeries` était câblé uniquement pour `scope=espp|all`. Pour IBKR (100% Amine), Degiro (100% Amine), SGTM (50/50), `depSeries` restait couple-level → `plPct = (refValue filtré - depositsCouple)` absurde.
+
+**Fix** : charts.js L2299-2318 — après sélection de `depSeries`, application d'un `ownerRatio` (1/0 pour IBKR/Degiro, shares-ratio pour SGTM lu depuis `PORTFOLIO.*.sgtm.shares` pour rester dynamique).
+
+#### BUG-047 — Cash Dormant guard `wioCurrent>0` casse l'invariant en cas de découvert
+
+`amineCashTotal` sommait `wioCurrent` sans guard (L3655), mais la catégorie "Cash Dormant" le zérait si négatif (L3910 et L4068). Si `wioCurrent<0`, l'invariant `stocks+cash+immo+other = nwRef` cassait.
+
+**Fix** : suppression du guard dans les totaux (non conditionnel), remplacement `>0` par `!==0` dans les sub-arrays (zéro reste masqué, négatif est affiché avec signe).
+
+#### BUG-048 — Label de la ligne de référence hardcodé "NAV 1er jan"
+
+Le label ignorait `period` (MTD/1M/3M) et tombait toujours sur "NAV 1er jan" ou "NAV début 1Y". La valeur était correcte (slicing de `refValue`) mais l'affichage trompeur.
+
+**Fix** : charts.js L2434-2444 — switch sur `period` d'abord (MTD→"NAV début mois", 1M→"NAV il y a 1M", etc.), fallback sur `data.mode` pour 1Y/5Y/MAX.
+
+#### BUG-049 — Simulators monthly rate = `r/12` au lieu de `(1+r)^(1/12)-1`
+
+Approximation APR/12 qui compose à un taux annuel effectif supérieur au taux affiché. 10%/an input → 10.47% effectif/an (+47bp) → sur 20 ans un portefeuille actions grossit ~60K€ de trop.
+
+**Fix** : `simulators.js` L57-61 et L679-681 — `Math.pow(1+r, 1/12) - 1`. Nouvelle variable `monthlySgtmReturn` au lieu de `0.07/12` hard-codé.
+
+#### BUG-050 — Action Logement : assurance intégrée amortit le principal
+
+L'échéance AL de 145.20€ inclut 3.33€ d'assurance intégrée. Le code prenait les 145.20€ comme P&I pur, donc amortissait 3.33€/mois de trop → ~1000€ sur 25 ans, CRD atteignait 0 plusieurs mois avant la fin.
+
+**Fix** : `engine.js` L1836-1854 (branche simple de `computeSubLoanSchedule`) :
+- `effectivePayment = monthlyPayment - insuranceMonthly` pour l'amortissement
+- `schedule[i].payment` garde l'échéance user-facing (affichage fidèle)
+- Aucun impact sur les prêts où `insuranceMonthly=0` (PTZ, BP APRIL)
+
+### Guide pour les prochains audits
+
+**Principes à garder en tête pour ne pas reproduire ces bugs :**
+
+1. **Dé-duplication des calculs** : dès qu'un même KPI est calculé à deux endroits, un des deux peut diverger silencieusement. Toujours hoister la fonction partagée (→ BUG-043). Pattern : cherche les réductions `lots.reduce(...)` ou les conversions `toEUR(...totalCostBasisUSD)` dupliquées.
+
+2. **Flags latents** : un champ comme `villejuifSigned=false` masque un bug tant qu'il n'est pas `true`. Quand tu ajoutes un extra (`+ villejuifEquity`) à une somme mais pas à une autre, tu crées un piège (→ BUG-044). Toujours tester le code path "activé" avant de merger.
+
+3. **Cohérence entre vues** : treemap, insights, breakdowns, risques — tous tapent sur les mêmes inputs mais avec des formules parfois différentes. Source de vérité = treemap/engine.compute. Le reste (render) doit agréger les champs officiels de `s` (→ BUG-045).
+
+4. **Owner filtering complet** : chaque scope a une règle de répartition owner. Ne jamais câbler qu'une partie (→ BUG-046). Pattern : `if (owner !== 'both')` doit couvrir tous les scopes visibles dans la UI. Les ratios owner sont dans `PORTFOLIO.*.sgtm.shares`, `portfolio.*.espp.lots`, etc.
+
+5. **Guards cachés** : un `> 0 ? x : 0` est souvent correct pour un sub-array cosmétique (masquer zéros), mais faux pour un total (perd les négatifs légitimes). Toujours séparer total et display (→ BUG-047).
+
+6. **Labels figés** : `data.mode === '1y' ? 'NAV 1Y' : 'NAV 1er jan'` ignore les sous-modes (period MTD/1M/3M). Quand tu ajoutes une dimension (ex: MTD), inventorie les endroits qui switchent sur une dimension plus grossière (→ BUG-048).
+
+7. **Compounding mensuel** : r/12 est OK pour <1 an et taux <2%, sinon `(1+r)^(1/12) - 1` (→ BUG-049). Le simulateur 20 ans est le cas le pire.
+
+8. **Assurance intégrée vs externe** : pour un prêt, le champ `insuranceMonthly` peut être (a) ajouté à l'échéance (externe, APRIL) ou (b) déjà inclus dans l'échéance (intégrée, AL). Sans précision, la mensualité et l'amortissement divergent (→ BUG-050). Règle v297 : `insuranceMonthly` > 0 signifie "intégrée dans `monthlyPayment`, à soustraire pour obtenir le P&I".
+
+**Commentaires inline** : toutes les fixes v297 portent un commentaire `BUG-XXX (v297): …` dans le code au-dessus de la ligne corrigée, décrivant la cause ET le symptôme. Pour un futur auditeur, `grep "BUG-04" js/` donne une vue complète des corrections.
+
+### Fichiers modifiés
+
+- `js/engine.js` :
+  - L33-52 : hoisting `esppLotCostEUR` au niveau module + JSDoc (BUG-043)
+  - L253-255 : commentaire pointant vers le hoisting (BUG-043)
+  - L1836-1854 : `effectivePayment = monthlyPayment - insuranceMonthly` dans `computeSubLoanSchedule` (BUG-050)
+  - L3729-3732 : `nezhaEsppCostBasisEUR` via `esppLotCostEUR` (BUG-043)
+  - L3762 : `nezhaNW` inclut `nezhaVillejuifEquity` (BUG-044)
+  - L3775 : `nwWithVillejuif` recalculée (BUG-044)
+  - L3823 : `coupleNW = amineNW + nezhaNW` (BUG-044)
+  - L3908-3923, L4062-4076 : Cash Dormant `wioCurrent` sans guard `>0` (BUG-047)
+  - L3999 : `views.nezha.nwRef = nezhaNW` (BUG-044)
+- `js/render.js` :
+  - L761-767 : `cashCouple` dans `renderDynamicInsights` inclut brokerCash + cashUAE (BUG-045)
+  - L782-787 : même fix pour le bloc risque (BUG-045)
+- `js/charts.js` :
+  - L2299-2318 : owner ratio appliqué à `depSeries` pour IBKR/Degiro/SGTM (BUG-046)
+  - L2434-2444 : label de la ligne de référence switch sur `period` (BUG-048)
+- `js/simulators.js` :
+  - L57-61 : `monthlyReturnActions/Cash = Math.pow(1+r, 1/12) - 1` (BUG-049)
+  - L679-681 : même fix pour le simulateur Nezha seul (BUG-049)
+- `js/data.js` : `APP_VERSION = 'v297'`
+- `js/app.js`, `js/charts.js`, `js/simulators.js` : imports `v=296` → `v=297`
+- `index.html` : script tag `v=296` → `v=297`
+- `BUG_TRACKER.md` : entrées BUG-043 à BUG-050
+- `ARCHITECTURE.md` : cette section.
+
+### Tests runtime (preview server, live FX)
+
+- `coupleNW - amineNW - nezhaNW = 0` — OK
+- `views.couple.stocks + cash + immo + other - nwRef ≈ 1.16e-10` (floating point) — OK
+- `views.amine.sum - nwRef = 0` — OK
+- `views.nezha.sum - nwRef ≈ 2.91e-11` — OK
+- Live FX : coupleNW = 700 505€ (match avec l'affichage statique) — OK
+- Chart owner-filter (Scope=Maroc, Owner=Nezha, Period=YTD) : +48.39% cohérent avec `depSeries × 0.5` — OK
+- Chart label (Period=MTD) : "NAV début mois (€ 226 053)" — OK
+- Simulateur 20 ans : croissance composée cohérente avec `(1+annual)^20` pour taux constant — OK
+- AL amortissement : CRD(300) ≈ 0, cumul principal = 30 000€ — OK
+- Action Logement avec `insuranceMonthly=0` (test régression) : amortissement identique à avant v297 — OK
 - Aucune erreur console — OK

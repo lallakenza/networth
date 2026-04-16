@@ -761,9 +761,12 @@ function renderDynamicInsights(state, view) {
   const cplPos = document.getElementById('coupleInsightsPositive');
   if (cplPos && iv) {
     const nw = s.couple.nw;
-    const cashCouple = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + s.nezha.cashFrance + s.nezha.cashMaroc;
-    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
-    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc;
+    // BUG-045 (v297): Include Amine broker cash (IBKR+ESPP), Nezha broker cash (ESPP),
+    // and Nezha UAE cash in the "cash couple total". Previously these three buckets were
+    // dropped, understating cash and inflating aedPct in the risk block below.
+    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + (s.amine.brokerCash || 0);
+    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc + (s.nezha.cashUAE || 0) + (s.nezha.brokerCash || 0);
+    const cashCouple = cashAmine + cashNezha;
     const totalDebt = iv.properties.reduce((sum, pr) => sum + pr.crd, 0);
     const totalImmoVal = iv.properties.reduce((sum, pr) => sum + pr.value, 0);
     cplPos.innerHTML =
@@ -779,8 +782,10 @@ function renderDynamicInsights(state, view) {
     const totalImmoVal = iv.properties.reduce((sum, pr) => sum + pr.value, 0);
     const totalDebt = iv.properties.reduce((sum, pr) => sum + pr.crd, 0);
     const totalEquity = iv.properties.reduce((sum, pr) => sum + pr.equity, 0);
-    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash;
-    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc;
+    // BUG-045 (v297): Match the cash definition from the positive-insights block above
+    // (include broker cash and Nezha UAE cash). aedPct denominator is now the true couple cash total.
+    const cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + (s.amine.brokerCash || 0);
+    const cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc + (s.nezha.cashUAE || 0) + (s.nezha.brokerCash || 0);
     const cashTotal = cashAmine + cashNezha;
     const aedPct = cashTotal > 0 ? Math.round((s.amine.uae / cashTotal) * 100) : 0; // AUD-004: guard div/0
     const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);

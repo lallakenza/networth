@@ -766,6 +766,189 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-043: Nezha ESPP cost basis — NW utilise current FX, stocks view utilise per-lot historical FX
+
+- **Version**: v297 (fix)
+- **Sévérité**: Haute (incohérence de données entre vues)
+- **Détection**: Audit métier plus poussé — comparaison P&L non-réalisé Nezha ESPP entre `s.nezha.esppUnrealizedPL` (depuis `compute()`) et `computeActionsView()` côté engine
+- **Symptôme**: Deux calculs du même KPI divergeaient lorsque l'EURUSD live s'éloignait du FX historique des lots :
+  - `engine.compute()` L3729 : `toEUR(nezhaEsppData.totalCostBasisUSD, 'USD', fx)` — utilise le FX courant
+  - `engine.computeActionsView()` L268 : `lots.reduce((s,l) => s + esppLotCostEUR(l, 1.15), 0)` — utilise le FX historique de chaque lot (ou défaut 1.10 pour Nezha, 1.15 pour Amine)
+  - Exemple : avec EURUSD live = 1.0936 (vs 1.10 défaut), delta ≈ 50-100€ sur `nezhaEsppUnrealizedPL`, qui se propage dans les insights et la ventilation ESPP.
+- **Cause racine**: `esppLotCostEUR` était défini localement dans `computeActionsView` (portée fonction), inaccessible depuis `compute()`. `compute()` utilisait donc la formule courante moins précise.
+- **Correctif**: 
+  - `engine.js` L33-52 : hoisting de `esppLotCostEUR(lot, defaultFx)` au niveau module. JSDoc explicatif.
+  - `engine.js` L253-255 : suppression de la déclaration locale dans `computeActionsView`, commentaire pointant vers le hoisting.
+  - `engine.js` L3729-3732 : `compute()` utilise maintenant `(nezhaEsppData.lots || []).reduce((s,l) => s + esppLotCostEUR(l, 1.10), 0)` — formule identique à `computeActionsView`.
+- **Test de non-régression**:
+  - [ ] `s.nezha.esppUnrealizedPL` = `actionsView.espp.unrealizedPL` (delta = 0)
+  - [ ] Les 4 lots Nezha (nov 2023 → août 2025) utilisent bien leur FX historique via `fxRateAtDate`
+  - [ ] P&L ESPP Nezha identique entre stock source statique et live
+
+---
+
+## BUG-044: nezhaNW ne contient pas nezhaVillejuifEquity quand l'acte est signé
+
+- **Version**: v297 (fix, latent depuis introduction de villejuifSigned)
+- **Sévérité**: Haute (NW owner-level faux quand villejuifSigned=true)
+- **Détection**: Audit métier plus poussé — grep de `+ nezhaVillejuifEquity` dans `engine.js`, puis analyse des consommateurs aval de `s.nezha.nw`
+- **Symptôme**: Tant que `villejuifSigned=false` : aucun effet (nezhaVillejuifEquity=0). Dès signature :
+  - `s.nezha.nw` sous-estimé de ~44K€ (370K valeur − 325K CRD)
+  - `coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity` compensait au niveau couple mais pas au niveau owner
+  - Insights, breakdowns, splits de propriété, et toute vue utilisant `s.nezha.nw` directement affichaient un NW Nezha faux
+  - Test `nezhaNwRefMatchesNezhaNW` aurait cassé à l'activation du signing
+- **Cause racine**: `nezhaVillejuifEquity` était un "extra" ajouté uniquement à `coupleNW` (L3810) et à `views.nezha.nwRef` (L3984), jamais à `nezhaNW` (L3748). Construction historique : on voulait garder `nezhaNW` = "patrimoine net sans le bien en cours d'acquisition", mais ça créait une divergence dès signature.
+- **Correctif**: 
+  - `engine.js` L3762 : `nezhaNW` inclut maintenant `+ nezhaVillejuifEquity`. Quand non signé : 0. Quand signé : valeur complète − CRD.
+  - `engine.js` L3775 : `nwWithVillejuif = nezhaNW - nezhaVillejuifEquity - nezhaVillejuifReservation + nezhaVillejuifFutureEquity` (évite double comptage : on soustrait l'équité actuelle si signée + la réservation si non signée, puis on ajoute l'équité future projetée).
+  - `engine.js` L3823 : `coupleNW = amineNW + nezhaNW` (suppression du `+ nezhaVillejuifEquity` redondant).
+  - `engine.js` L3999 : `views.nezha.nwRef = nezhaNW` (suppression du `+ nezhaVillejuifEquity`).
+- **Test de non-régression**:
+  - [ ] `villejuifSigned=false` (cas actuel) : toutes les invariants inchangés (`coupleNW = amineNW + nezhaNW`, `nezhaViewMatchesNwRef = 0`)
+  - [ ] Basculer `villejuifSigned=true` temporairement : `coupleNW = amineNW + nezhaNW` reste vrai, `s.nezha.nw` augmente de ~44K
+  - [ ] `s.nezha.nwWithVillejuif` ≥ `s.nezha.nw` dans les deux cas (équité future ≥ équité courante)
+  - [ ] Insights Nezha affichent le bon NW après signature
+
+---
+
+## BUG-045: Insights `cashCouple` exclut broker cash (IBKR+ESPP) et Nezha UAE cash
+
+- **Version**: v297 (fix)
+- **Sévérité**: Moyenne (indicateurs d'insights faux)
+- **Détection**: Audit métier — comparaison entre `cashCouple` dans `renderDynamicInsights` et `s.couple.totalCashEUR` (ainsi que la card "Cash" du treemap)
+- **Symptôme**: 
+  - `cashCouple` dans les insights positifs (render.js L761-765) = UAE + Revolut + Maroc Amine + France Nezha + Maroc Nezha. Manquait : Amine broker cash (IBKR+ESPP, ~2K€), Nezha broker cash (ESPP, ~94€), Nezha UAE cash.
+  - Bloc "risque" (L782-785) utilisait la même définition tronquée → `aedPct = s.amine.uae / cashTotalTronqué` avec dénominateur sous-évalué → AED% surestimé.
+  - Les totaux "Tu as X€ en cash" dans les insights affichaient donc un montant inférieur au vrai cash couple.
+- **Cause racine**: Les champs `s.amine.brokerCash`, `s.nezha.brokerCash`, et `s.nezha.cashUAE` ont été ajoutés récemment (reclassification cash courtier, cash Nezha UAE) mais `renderDynamicInsights` n'a pas été mis à jour. Le treemap et le NW étaient cohérents, seuls les insights étaient en retard.
+- **Correctif**: 
+  - `render.js` L761-765 : `cashAmine = s.amine.uae + s.amine.revolutEUR + s.amine.moroccoCash + (s.amine.brokerCash || 0)`, `cashNezha = s.nezha.cashFrance + s.nezha.cashMaroc + (s.nezha.cashUAE || 0) + (s.nezha.brokerCash || 0)`, `cashCouple = cashAmine + cashNezha`.
+  - `render.js` L782-787 : mêmes expressions appliquées au bloc "risque" pour cohérence.
+- **Test de non-régression**:
+  - [ ] Insights positifs : `cashCouple` = couple.totalCashEUR (match exact)
+  - [ ] Insights risque : `aedPct = s.amine.uae / cashTotalVrai` — pourcentage inférieur à avant la correction
+  - [ ] Pas de régression du NW treemap (les insights n'affectent pas le NW)
+
+---
+
+## BUG-046: Chart header %Change faux quand owner=Nezha + scope=IBKR/Degiro/SGTM
+
+- **Version**: v297 (fix)
+- **Sévérité**: Haute (chiffres visibles dans le header du chart)
+- **Détection**: Audit métier poussé — test manuel du header %change en basculant owner/scope
+- **Symptôme**: Le header du chart (plPct, capitalDeployed) utilisait `depSeries` couple-level même quand `refValue` et `mainSeries` étaient filtrés per-owner. Exemples : 
+  - Owner=Nezha + Scope=IBKR : devrait être 0 (Nezha n'a pas d'IBKR) mais le dénominateur utilisait tous les dépôts IBKR (169K€), rendant plPct infiniment négatif.
+  - Owner=Nezha + Scope=Maroc (SGTM) : refValue filtré 50/50 correct, mais deposits = 100% couple → ratio faussé par 2x.
+- **Cause racine**: Le filtrage per-owner des séries était câblé uniquement pour `scope === 'espp'` et `scope === 'all'`. Pour IBKR/Degiro (100% Amine) et Maroc (SGTM 50/50), `depSeries` restait couple-level alors que les autres séries étaient filtrées.
+- **Correctif**: `charts.js` L2299-2318 — après sélection de `depSeries` selon scope, application d'un `ownerRatio` :
+  - IBKR / Degiro : Amine → 1, Nezha → 0
+  - Maroc (SGTM) : ratio basé sur `PORTFOLIO.*.sgtm.shares` (actuellement 32/32 = 50%, dynamique si mis à jour)
+  - ESPP / All : déjà géré en amont par les séries per-owner (chartValuesESPPAmine, etc.)
+- **Test de non-régression**:
+  - [ ] Owner=Nezha + Scope=IBKR : depSeries = [0, 0, …] et plPct finit à 0 (pas de division)
+  - [ ] Owner=Nezha + Scope=Degiro : idem
+  - [ ] Owner=Nezha + Scope=Maroc : depSeries = 50% de la série couple, plPct cohérent avec NAV × 50%
+  - [ ] Owner=Amine + Scope=IBKR : depSeries = série couple intacte (ratio 1)
+  - [ ] Basculer Couple→Amine→Nezha en scope IBKR : plPct et capitalDeployed se mettent à jour instantanément
+
+---
+
+## BUG-047: Cash Dormant exclut wioCurrent si négatif → treemap invariant cassé
+
+- **Version**: v297 (fix)
+- **Sévérité**: Moyenne (risque d'invariance cassée en cas de découvert)
+- **Détection**: Audit métier — recherche de dissymétrie entre `amineCashTotal` et les sub-cards "Cash Dormant"
+- **Symptôme**: Si `p.amine.uae.wioCurrent` devenait négatif (découvert), `amineCashTotal` le prenait avec son signe (L3655), mais :
+  - Catégorie "Cash Dormant" couple (L3908-3923) le zérait via `> 0 ? toEUR(...) : 0`
+  - Même logique appliquée dans la vue amine (L4068)
+  - Conséquence : `views.X.cash < amineCashTotal` → invariant `stocks+cash+immo+other = nwRef` cassé
+  - Aujourd'hui non observé car `wioCurrent = 371 AED > 0`, mais régression latente.
+- **Cause racine**: Check `wioCurrent > 0` conçu pour cacher les montants nuls dans le sub-array, étendu par erreur au total de la catégorie.
+- **Correctif**: 
+  - `engine.js` L3910, L4071 (totaux) : `toEUR(p.amine.uae.wioCurrent, 'AED', fx)` sans guard.
+  - `engine.js` L3953, L4076 (sub-arrays) : remplacement de `> 0` par `!== 0` — un découvert non-nul est affiché, mais zéro reste caché.
+- **Test de non-régression**:
+  - [ ] `wioCurrent > 0` (cas actuel) : aucun changement visuel, treemap invariant OK
+  - [ ] Simuler `wioCurrent = -500` : total Cash Dormant diminue de 500 AED × FX, entrée sub-card affichée avec signe négatif, invariant toujours OK
+  - [ ] Simuler `wioCurrent = 0` : entrée sub-card masquée, total non impacté (0)
+
+---
+
+## BUG-048: Chart label de référence dit "NAV 1er jan" même en période MTD/1M/3M
+
+- **Version**: v297 (fix)
+- **Sévérité**: Basse (affichage trompeur)
+- **Détection**: Audit UX — clic sur les boutons de période
+- **Symptôme**: La ligne pointillée horizontale (référence NAV au début de la période) affichait toujours "NAV 1er jan (€ X)" même quand `period=MTD`, `1M`, ou `3M`. La valeur était correcte (refValue bien slicé à `startIdx`), mais le label ne reflétait pas la période.
+- **Cause racine**: `charts.js` L2416 hard-codé `data.mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan'` — pas de branche pour les sous-filtres de période.
+- **Correctif**: `charts.js` L2434-2444 — label calculé par switch sur `period` (MTD, 1M, 3M, YTD) puis par `data.mode` (1y, 5y, max) :
+  ```javascript
+  period === 'MTD' ? 'NAV début mois' :
+  period === '1M'  ? 'NAV il y a 1M' :
+  period === '3M'  ? 'NAV il y a 3M' :
+  period === 'YTD' ? 'NAV 1er jan' :
+  (data.mode === '1y' ? 'NAV début 1Y' :
+   data.mode === '5y' ? 'NAV début 5Y' :
+   data.mode === 'max' ? 'NAV début' : 'NAV 1er jan')
+  ```
+- **Test de non-régression**:
+  - [ ] Période MTD : label = "NAV début mois (€ X)"
+  - [ ] Période 1M : label = "NAV il y a 1M (€ X)"
+  - [ ] Période 3M : label = "NAV il y a 3M (€ X)"
+  - [ ] Période YTD : label = "NAV 1er jan (€ X)"
+  - [ ] Mode 1Y (via bouton) : label = "NAV début 1Y (€ X)"
+  - [ ] Mode 5Y / MAX : labels "NAV début 5Y" / "NAV début"
+  - [ ] `refValue` affiché dans le label = première valeur des séries filtrées (invariant)
+
+---
+
+## BUG-049: Simulators — taux mensuel = r/12 au lieu de (1+r)^(1/12) − 1
+
+- **Version**: v297 (fix)
+- **Sévérité**: Moyenne (projection 20 ans biaisée à la hausse)
+- **Détection**: Audit métier — code review des simulateurs "20 ans"
+- **Symptôme**: Les simulateurs (Amine+Nezha couple et Nezha seule) utilisaient `monthlyReturn = annualReturn / 12`. Composé 12 fois, ça donne un rendement annuel effectif supérieur à celui affiché :
+  - 10%/an input → 10%/12 = 0.833%/mo → (1.00833)^12 = 1.1047 → 10.47% effectif/an
+  - Overshoot +47bp/an, sur 20 ans sur un portefeuille actions de 150K € : écart final ~60K€ en faveur du simulateur (trop optimiste).
+- **Cause racine**: Approximation "APR/12" classique — acceptable pour des durées courtes ou des taux faibles, mais inadaptée pour un simulateur 20 ans avec rendements 5-10%.
+- **Correctif**: 
+  - `simulators.js` L57-61 (`runSimulatorGeneric`) : `monthlyReturnActions = Math.pow(1 + returnActions, 1 / 12) - 1`, idem pour cash.
+  - `simulators.js` L679-681 (`runNezhaSimulator`) : même fix pour cash, et nouvelle variable `monthlySgtmReturn = Math.pow(1.07, 1/12) - 1` au lieu de `0.07/12` hard-codé.
+- **Test de non-régression**:
+  - [ ] Simulateur 20 ans avec rendements à zéro (cash=0%, actions=0%) : NW final = NW initial + contributions (pas d'intérêts)
+  - [ ] Simulateur avec 10% actions : NW final légèrement inférieur à la version pré-fix (baisse d'environ 5-10%)
+  - [ ] Cohérence : `Math.pow(1 + monthlyReturn, 12) === annualReturn + 1` (±1e-10)
+  - [ ] Simulateur Nezha seul : sgtm pousse exactement à 7% annuel effectif
+
+---
+
+## BUG-050: Action Logement (AL) — principal amorti inclut l'assurance intégrée
+
+- **Version**: v297 (fix)
+- **Sévérité**: Moyenne (CRD AL sous-estimé sur la durée)
+- **Détection**: Audit métier — vérification cohérence échéance AL 145.20€ vs tableau d'amortissement
+- **Symptôme**: L'échéance AL de 145.20€/mois inclut :
+  - 141.87€ de capital+intérêts (P&I)
+  - 3.33€ d'assurance intégrée (payée dans l'échéance, non en plus)
+  
+  Le code `computeSubLoanSchedule` traitait les 145.20€ comme full P&I, donc `principalPart = 145.20 − interest`. Sur 300 mois, cela sur-amortit le principal de ~3.33€×300 = 1000€, aboutissant à CRD=0 plusieurs mois trop tôt.
+- **Cause racine**: Champ `loan.insuranceMonthly` lu pour l'affichage mais pas pour la logique d'amortissement. Pas de distinction entre assurance intégrée (AL) et assurance externe (APRIL pour PTZ/BP).
+- **Correctif**: `engine.js` L1836-1854 (`computeSubLoanSchedule`, branche simple sans périodes) :
+  ```javascript
+  const insuranceInPayment = loan.insuranceMonthly || 0;
+  const effectivePayment = loan.monthlyPayment - insuranceInPayment;
+  const principalPart = Math.min(effectivePayment - interest, crd);
+  ```
+  Le champ `payment` dans le schedule garde l'échéance utilisateur (145.20€) pour l'affichage, mais le calcul d'amortissement utilise 141.87€.
+- **Test de non-régression**:
+  - [ ] AL durée totale = 300 mois (CRD atteint 0 exactement au mois 300)
+  - [ ] Cumul capital amorti = capital initial AL (30 000€)
+  - [ ] Cumul intérêts payés ≈ 2 250€ (taux 0.5% × 300 mois simplifié)
+  - [ ] Prêts avec `insuranceMonthly=0` (PTZ, BP APRIL) : pas de changement d'amortissement (régression baseline)
+  - [ ] CRD mensuel AL au mois M : égal à la formule fermée `P(1+r)^M - (M·P&I)·((1+r)^M - 1)/r`
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -789,11 +972,16 @@ Il sert de base pour le plan de tests de non-régression.
 | **Event listeners** | BUG-021 | Pas de duplication après refresh |
 | **Dividendes projection** | BUG-024, BUG-026 | WHT rates corrects, positions vendues exclues |
 | **Insights tooltips** | BUG-030 | Valeurs dynamiques, pas hardcodées |
-
----
-
 | **P&L FX decomposition** | BUG-037 | FX P/L colonne visible, positions EUR = "—", positions USD/JPY = valeur non nulle |
+| **ESPP cost basis unicité** | BUG-043 | NW et stocks view utilisent `esppLotCostEUR` partagé |
+| **Villejuif signed NW** | BUG-044 | `nezhaNW` inclut `villejuifEquity`, `coupleNW = amineNW + nezhaNW` sans extra |
+| **Insights cash couple** | BUG-045 | Cash couple = uae+revolut+maroc+france+brokerCash (tous buckets) |
+| **Chart header owner-ratio** | BUG-046 | Deposits series filtrées par owner pour IBKR/Degiro (1/0) et SGTM (shares ratio) |
+| **Cash Dormant signé** | BUG-047 | `wioCurrent` sommé sans guard `>0`, treemap invariant protégé |
+| **Chart reference label** | BUG-048 | Label de la ligne de référence reflète la période (MTD/1M/3M/YTD/…) |
+| **Simulator compounding** | BUG-049 | Taux mensuel = geometric root, `(1+monthly)^12 = 1+annual` |
+| **Action Logement amort** | BUG-050 | Assurance intégrée retirée du P&I avant amortissement |
 
 ---
 
-*Dernière mise à jour: v289 — 12 avril 2026 (BUG-036→BUG-038 : décomposition FX P&L, badge version, fix imports simulators)*
+*Dernière mise à jour: v297 — 16 avril 2026 (BUG-043 → BUG-050 : audit métier approfondi — ESPP unicité, Villejuif signed, insights cash, chart owner-ratio, cash dormant sign-safe, chart label dynamique, simulateurs geometric compounding, AL assurance séparée)*
