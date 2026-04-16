@@ -471,7 +471,74 @@ Page load
 
 ---
 
-## 9. Chart Breakdown System (v188-v193)
+## 9. YTD Chart — Forward Simulation Pipeline (v264-v287)
+
+### Vue d'ensemble
+
+Le graphique YTD dans l'onglet Actions est une **simulation forward day-by-day** qui reconstitue la NAV du portefeuille boursier (IBKR + ESPP + SGTM) pour chaque jour calendaire depuis le 1er janvier.
+
+**Important** : Ce graphique simule uniquement le portefeuille boursier. Les soldes bancaires (Mashreq, Wio, Attijari, Revolut) n'y apparaissent PAS — ils sont reflétés dans les KPI cards NW de la page patrimoine.
+
+### Pipeline de données
+
+```
+api.js (fetchHistoricalPrices)
+  → PRICE_SNAPSHOT + Yahoo Finance delta
+  → { tickers: {ticker: {dates[], closes[]}}, fx: {usd/jpy/mad: {dates[], closes[]}} }
+
+charts.js (buildPortfolioYTDChart)
+  1. Reverse trades 2026 → startHoldings au 1er janvier
+  2. Collect all events (trades, FX, deposits, costs) sorted by date
+  3. For each calendar day:
+     a. Apply events up to this date (buy/sell/FX/deposit/cost)
+     b. Price all holdings via getClose(ticker, date)
+     c. Compute cash value (EUR + USD/fxUSD + JPY/fxJPY)
+     d. NAV = positionValue + cashValue
+     e. Compute ESPP value (per-owner lots × ACN price)
+     f. Compute SGTM value (shares × interpolated price)
+     g. Total = IBKR NAV + ESPP + SGTM
+  4. Store _simSnapshots per date for breakdown computation
+```
+
+### Gestion des achats/ventes mid-year
+
+Le chart utilise deux mécanismes selon le mode :
+
+- **Mode YTD** : part des positions actuelles, reverse les trades 2026 chronologiquement pour trouver l'état au 1er janvier. Si tu avais vendu 100 actions en mars, elles sont rajoutées au 1er janvier.
+- **Mode 1Y/alltime** : part de zéro (startHoldings vide), replay tous les trades depuis le début.
+
+Pour chaque jour de la simulation, les transactions sont appliquées dans l'ordre chronologique :
+- **Buy** : `holdings[ticker].shares += qty`, `cash -= cost`
+- **Sell** : `holdings[ticker].shares -= qty`, `cash += proceeds`
+- **FX** : gère EUR↔JPY, USD↔JPY, EUR↔USD, EUR↔AED avec convention de signe jpyAmount
+- **Deposit** : `cashEUR += amount` (sauf dépôts non-EUR, gérés par le trade FX correspondant)
+- **Cost** : intérêts, dividendes, commissions, FTT → ajoutés aux balances cash respectives
+
+### ESPP per-owner (v276+)
+
+Les lots ESPP sont filtrés par date d'acquisition pour chaque owner :
+- `esppSharesAtDateAmine(date)` : lots Amine acquis ≤ date
+- `esppSharesAtDateNezha(date)` : lots Nezha acquis ≤ date (à partir de nov 2023)
+
+Cela produit des courbes genuinely différentes pour Amine vs Nezha (contrairement à l'ancien ratio proportionnel).
+
+### Scopes et séries
+
+| Scope | Séries incluses |
+|---|---|
+| IBKR | NAV IBKR seul (positions + cash broker) |
+| ESPP | Valeur ESPP (ACN × shares + cash UBS) |
+| Maroc (SGTM) | Valeur SGTM (shares × prix interpolé / MAD) |
+| Degiro | NAV Degiro (compte clôturé, NAV=0, 100% Amine) |
+| Tous | IBKR + ESPP + SGTM + Degiro combinés |
+
+### Audit v287 (16 avril 2026)
+
+Audit complet du graphique YTD après mise à jour des soldes bancaires (v285). Résultat : **aucun bug détecté**. Le chart est indépendant des soldes bancaires (Mashreq, Wio, Attijari, Revolut) — il simule uniquement le portefeuille boursier. La simulation forward, les trades mid-year, le pricing ESPP per-owner, et le SGTM interpolé fonctionnent correctement.
+
+---
+
+## 10. Chart Breakdown System (v188-v193)
 
 ### Architecture du breakdown
 
