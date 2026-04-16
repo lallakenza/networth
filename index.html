@@ -1148,6 +1148,17 @@
              letter-spacing: 0.2px; pointer-events: none; }
   .ms-pill-gold { font: 800 9.5px 'DM Sans', sans-serif; fill: #1a1206;
                   letter-spacing: 0.3px; pointer-events: none; }
+
+  /* v298 — Compteur pulse subtile pendant l'attente des données.
+     Activé via counter.classList.add('is-loading') pendant les phases
+     'waiting' et 'ambient', retiré dès que startFinalAnim() commence.
+     On utilise `filter: brightness()` plutôt qu'opacity pour ne pas entrer
+     en conflit avec la transition d'opacité existante (fade-in initial). */
+  #gridCounter.is-loading { animation: counterPulse 1.6s ease-in-out infinite; }
+  @keyframes counterPulse {
+    0%, 100% { filter: brightness(0.75); }
+    50%      { filter: brightness(1.05); }
+  }
 </style>
 </head>
 <body>
@@ -1386,17 +1397,32 @@
     <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
   </div>
 
-  <!-- Mountain animation script (v280 — runs immediately, before app.js)
+  <!-- Mountain animation script (v298 — refonte de l'animation de montée)
        v280: 3-peak chain + switchback trail + hiker marker positioned via
              getPointAtLength() along the trail arc-length. This creates an
              HONEST progress representation — the narrow main peak and the
              dense switchbacks near the summit naturally make the remaining
-             climb feel significant (unlike the height-based liquid fill
-             in v278/v280 which visually under-stated the work left).
+             climb feel significant.
 
-       Phase 1: Hiker climbs slowly to ~80% of STATIC_EUR during loading.
-       Phase 2: Triggered by window._gridAnimationComplete(realValue, velocityInfo),
-                hiker climbs fast to real progress position.
+       v298 — NEW ANIMATION FLOW (fixes the "slow → stop at 532K → jump" feel):
+         Problem (before v298): Phase 1 animated to STATIC_EUR × 0.80 = 532K
+         over 18s (often overshooting the real NW), then Phase 2 teleported
+         to the real value in 1.8s. If real < 532K, the couple jumped DOWN.
+         Phase boundaries were also visible as velocity discontinuities.
+
+         Now — single continuous state machine with 4 phases:
+           'waiting'   : data not ready yet. Couple paused at base, counter
+                         in subtle pulse. Lasts until data arrives or timeout.
+           'ambient'   : optional gentle asymptotic climb while waiting long
+                         (caps at AMBIENT_CAP_RATIO = 8% of TARGET, which is
+                         well below any realistic NW). Never overshoots.
+           'animating' : single smooth ease-in-out cubic from current position
+                         to real target. Duration scales with distance.
+           'done'      : velocity lines appear, milestones finalized.
+
+         On data ready: transition to 'animating' is velocity-matched (no jerk).
+         On timeout (5s): fall back to STATIC_EUR with the same animation.
+
        Velocity lines: Required rhythm (always) + ETA at expected pace
                        (from velocityInfo passed by app.js; fallback to
                        simulator default 8k€/mois @ 8%/an if unavailable).
@@ -1406,11 +1432,14 @@
     // ── Config ──
     const TARGET_EUR = 1000000;
     const TARGET_DATE = new Date(2028, 3, 1);  // April 2028 — locked goal date
-    const STATIC_EUR = 665970;
-    const PHASE1_RATIO = 0.80;
-    const PHASE1_TARGET_EUR = Math.round(STATIC_EUR * PHASE1_RATIO);
-    const PHASE1_DURATION_MS = 18000;  // slow — le temps que tout charge
-    const PHASE2_DURATION_MS = 1800;   // fast — on data ready
+    const STATIC_EUR = 665970;                 // fallback si API down
+    // v298: nouveaux paramètres d'animation (remplacent PHASE1_* / PHASE2_*)
+    const AMBIENT_START_DELAY_MS = 1200;       // 1.2s avant de démarrer la montée ambiante
+    const AMBIENT_TAU_MS         = 2800;       // constante de temps de l'asymptote (ease-out exponentiel)
+    const AMBIENT_CAP_RATIO      = 0.08;       // plafond ambiant = 80K (conservateur, sous tout NW réaliste)
+    const ANIM_DURATION_MIN_MS   = 1800;       // durée min de l'animation finale
+    const ANIM_DURATION_MAX_MS   = 2800;       // durée max (sur 100% de distance)
+    const DATA_TIMEOUT_MS        = 5000;       // si pas de data après 5s, fallback sur STATIC_EUR
 
     // ── v282: Mountain geometry constants (must match SVG) ──
     const GROUND_Y = 440;           // base Y of the mountain
@@ -1452,20 +1481,20 @@
       coupleEl.style.opacity = '1';
     }, 300);
 
-    // ── State ──
+    // ── State (v298 refonte) ──
+    // phase = 'waiting'    : en attente de données (couple à la base, pulse sur le compteur)
+    //       = 'ambient'    : montée lente asymptotique plafonnée (fait patienter)
+    //       = 'animating'  : animation ease-in-out vers la vraie valeur
+    //       = 'done'       : terminé, bloc vélocité visible
+    let phase = 'waiting';
     let currentRatio = 0;
-    let phase = 0;  // 0=idle, 1=phase1, 2=phase2, 3=done
-    let phase1Done = false;
     let dataReady = false;
     let realPortfolioEUR = null;
-    let velocityInfo = null;  // { monthlyPace, source } — optional, from app.js
+    let velocityInfo = null;          // { monthlyPace, source } — optional, from app.js
     let animationFullyDone = false;
-
-    let phase1StartTime = null;
-    let phase2StartTime = null;
-    let phase2StartRatio = 0;
-    let phase2TargetRatio = 0;
-    const PHASE1_TARGET_RATIO = PHASE1_TARGET_EUR / TARGET_EUR;
+    let ambientStartTime = null;      // marqueur temporel pour la phase ambient
+    // Animation spec: remplie par startFinalAnim(), lue par le renderLoop
+    let anim = null;                  // { startTime, startRatio, targetRatio, duration }
 
     function formatEur(n) {
       return '€ ' + Math.round(n).toLocaleString('fr-FR');
@@ -1591,28 +1620,46 @@
       }
     }
 
+    // ── Easing helpers ──
+    // Ease-in-out cubic : démarre doux, accélère au milieu, décélère à l'arrivée.
+    // Contrairement à ease-out quad (v<v298) qui démarrait vite puis ralentissait,
+    // cette courbe donne une sensation de "respiration" plus naturelle pour une montée
+    // de randonnée et évite la perception de "saccade" en début d'animation.
+    function easeInOutCubic(t) {
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // Ease-out exponentiel pour la phase ambient : approche asymptotique
+    // vers AMBIENT_CAP_RATIO sans jamais le dépasser. Garantit qu'on ne survole
+    // pas la vraie valeur (cas du "overshoot 532K" pré-v298).
+    function easeOutAsymptote(elapsed, tau) {
+      return 1 - Math.exp(-elapsed / tau);
+    }
+
     // ── Render loop ──
     function renderLoop(t) {
-      if (phase === 1) {
-        if (phase1StartTime == null) phase1StartTime = t;
-        const elapsed = t - phase1StartTime;
-        const progress = Math.min(elapsed / PHASE1_DURATION_MS, 1);
-        const eased = 1 - Math.pow(1 - progress, 2);  // ease-out quad
-        currentRatio = eased * PHASE1_TARGET_RATIO;
+      if (phase === 'waiting') {
+        // Compteur pulse légèrement (via CSS class), aucun mouvement
+        currentRatio = 0;
+      } else if (phase === 'ambient') {
+        // Montée ambiante plafonnée : asymptote vers AMBIENT_CAP_RATIO (8% du target = 80K€)
+        // Safe : bien en-dessous de n'importe quel NW réaliste.
+        if (ambientStartTime == null) ambientStartTime = t;
+        const elapsed = t - ambientStartTime;
+        currentRatio = easeOutAsymptote(elapsed, AMBIENT_TAU_MS) * AMBIENT_CAP_RATIO;
+      } else if (phase === 'animating') {
+        // Animation unique, continue, vers la vraie valeur.
+        // Si déclenchée pendant 'ambient', la startRatio capture la position
+        // courante (pas de saut), l'easeInOutCubic assure une transition douce.
+        if (anim.startTime == null) anim.startTime = t;
+        const elapsed = t - anim.startTime;
+        const progress = Math.min(elapsed / anim.duration, 1);
+        const eased = easeInOutCubic(progress);
+        currentRatio = anim.startRatio + (anim.targetRatio - anim.startRatio) * eased;
         if (progress >= 1) {
-          phase1Done = true;
-          phase = 0;
-          console.log('[mountain] Phase 1 done at ' + (currentRatio * 100).toFixed(1) + '%');
-          if (dataReady) startPhase2();
-        }
-      } else if (phase === 2) {
-        if (phase2StartTime == null) phase2StartTime = t;
-        const elapsed = t - phase2StartTime;
-        const progress = Math.min(elapsed / PHASE2_DURATION_MS, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);  // ease-out cubic
-        currentRatio = phase2StartRatio + (phase2TargetRatio - phase2StartRatio) * eased;
-        if (progress >= 1) {
-          phase = 3;
+          phase = 'done';
           onAnimationComplete();
         }
       }
@@ -1630,19 +1677,38 @@
       requestAnimationFrame(renderLoop);
     }
 
-    function startPhase1() {
-      phase = 1;
-      phase1StartTime = null;
+    // Démarre la phase ambient : petite montée asymptotique qui fait patienter
+    // si les données tardent (>AMBIENT_START_DELAY_MS). Non bloquante, peut être
+    // interrompue à tout moment par startFinalAnim() quand les données arrivent.
+    function startAmbient() {
+      if (phase !== 'waiting') return;
+      phase = 'ambient';
+      ambientStartTime = null;
+      counter.classList.remove('is-loading');
+      console.log('[mountain] Ambient climb start (cap ' + (AMBIENT_CAP_RATIO * 100).toFixed(0) + '%)');
     }
 
-    function startPhase2() {
-      if (animationFullyDone) return;
-      phase = 2;
-      phase2StartTime = null;
-      phase2StartRatio = currentRatio;
-      phase2TargetRatio = Math.min(realPortfolioEUR / TARGET_EUR, 1);
-      console.log('[mountain] Phase 2 start → ' + realPortfolioEUR + '€ (target ratio: '
-        + (phase2TargetRatio * 100).toFixed(1) + '%)');
+    // Démarre l'animation finale vers `targetEurVal`. Appelée :
+    //   - dès que les vraies données arrivent (cas nominal)
+    //   - par le timeout fallback si aucune donnée après DATA_TIMEOUT_MS
+    // La durée est adaptative (MIN..MAX) selon la distance à parcourir, ce qui
+    // évite à la fois les micro-animations expéditives et les longues attentes.
+    function startFinalAnim(targetEurVal) {
+      if (phase === 'done') return;
+      const targetRatio = Math.max(0, Math.min(targetEurVal / TARGET_EUR, 1));
+      const distance = Math.abs(targetRatio - currentRatio);
+      // Distance 0% → durée MIN ; distance 100% → durée MAX ; linéaire entre les deux.
+      const duration = ANIM_DURATION_MIN_MS + distance * (ANIM_DURATION_MAX_MS - ANIM_DURATION_MIN_MS);
+      anim = {
+        startTime: null,          // rempli au premier frame
+        startRatio: currentRatio, // continuité : pas de saut depuis la position ambiante
+        targetRatio,
+        duration,
+      };
+      phase = 'animating';
+      counter.classList.remove('is-loading');
+      console.log('[mountain] Final animation start → ' + targetEurVal + '€ (ratio '
+        + (targetRatio * 100).toFixed(1) + '%, durée ' + Math.round(duration) + 'ms)');
     }
 
     function onAnimationComplete() {
@@ -1657,7 +1723,7 @@
       setTimeout(function() { velocityBlock.style.opacity = '1'; }, 450);
 
       // Invariant #1: the animated currentRatio matches real progress
-      // (i.e. phase-2 animation actually reached its target).
+      // (i.e. the final animation actually reached its target).
       const finalRatio = realPortfolioEUR / TARGET_EUR;
       const deviation = Math.abs(finalRatio - currentRatio);
       if (deviation > 0.005) {
@@ -1678,14 +1744,16 @@
     // ── Public callback: app.js signals data is ready ──
     // Signature: _gridAnimationComplete(realValue, velocityInfo?)
     //   velocityInfo = { monthlyPace: number, source: 'actuals6m' | 'simulator' }
+    //
+    // v298 : appel unique — déclenche TOUJOURS la phase 'animating' (peu importe
+    // qu'on soit en 'waiting' ou 'ambient'). La transition est velocity-matched
+    // car `anim.startRatio = currentRatio` (pas de saut visible).
     window._gridAnimationComplete = function(realValue, velInfo) {
       realPortfolioEUR = realValue;
       velocityInfo = velInfo || null;
       dataReady = true;
       console.log('[mountain] Data ready: ' + realValue + '€, velocity:', velInfo);
-      if (phase1Done || currentRatio >= PHASE1_TARGET_RATIO * 0.99) {
-        startPhase2();
-      }
+      startFinalAnim(realValue);
     };
 
     // ── Months from now to TARGET_DATE (simple calendar diff) ──
@@ -1762,11 +1830,31 @@
       }
     }
 
-    // ── Boot ──
+    // ── Boot (v298) ──
+    // 1. Reset visuels : végétation à la base, milestones éteints.
+    // 2. Démarrer le render loop (phase='waiting', rien ne bouge, pulse sur le compteur).
+    // 3. Après AMBIENT_START_DELAY_MS : si les données ne sont toujours pas là,
+    //    démarrer une montée ambiante plafonnée (rassure l'utilisateur sans overshoot).
+    //    Le plus souvent, _gridAnimationComplete fire avant → la phase ambient est skippée.
+    // 4. Safety net : après DATA_TIMEOUT_MS, si toujours rien, animer vers STATIC_EUR.
     resetVegetation();
     updateMilestones(0);
+    counter.classList.add('is-loading');  // pulse subtile pendant l'attente (cf. CSS)
     requestAnimationFrame(renderLoop);
-    setTimeout(startPhase1, 600);
+
+    setTimeout(function() {
+      if (phase === 'waiting') startAmbient();
+    }, AMBIENT_START_DELAY_MS);
+
+    setTimeout(function() {
+      if (phase === 'waiting' || phase === 'ambient') {
+        if (!dataReady) {
+          console.warn('[mountain] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
+          realPortfolioEUR = STATIC_EUR;
+          startFinalAnim(STATIC_EUR);
+        }
+      }
+    }, DATA_TIMEOUT_MS);
   })();
   </script>
 </div>
@@ -2792,7 +2880,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=297"></script>
+<script type="module" src="js/app.js?v=298"></script>
 
 </body>
 </html>
