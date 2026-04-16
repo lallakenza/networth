@@ -718,6 +718,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // Only add IBKR+ACN dividends and subtract IBKR costs (commissions, FTT, interest)
   const ibkrDividendsAllTime = costsAllTime.ibkrDivItems.reduce((s, d) => s + d.amount, 0);
   const acnDividendsAllTime  = costsAllTime.acnDivItems.reduce((s, d) => s + d.netEUR, 0);
+  // v298: save trade-only value before adding dividends/costs (used in sanity check below)
+  const tradeOnlyRealizedPL = combinedRealizedPL;
   combinedRealizedPL += ibkrDividendsAllTime + acnDividendsAllTime
                       + costsAllTime.commissionsEUR   // negative = cost
                       + costsAllTime.fttEUR            // negative = cost
@@ -867,13 +869,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
   const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
-  // Sanity check: table P/L should match card combinedRealizedPL
-  const tableTotalPL = allClosed.reduce((s, p) => s + (p.pl || 0), 0);
-  const plDelta = Math.abs(tableTotalPL - combinedRealizedPL);
+  // Sanity check: IBKR per-trade table P/L should match ibkrRealizedPL
+  // - Degiro uses annual-report totals (totalPLAllComponents) which naturally differ from per-trade sum → excluded
+  // - dividends/costs excluded via tradeOnlyRealizedPL snapshot (v298 fix for false-positive since v246)
+  const ibkrTablePL = ibkrOnlyClosed.reduce((s, p) => s + (p.pl || 0), 0);
+  const plDelta = Math.abs(ibkrTablePL - ibkrRealizedPL);
   if (plDelta > 1) {
-    console.warn('[engine] P/L alignment delta:', plDelta.toFixed(2), '| table:', tableTotalPL.toFixed(2), '| card:', combinedRealizedPL.toFixed(2));
+    console.warn('[engine] P/L alignment delta (IBKR):', plDelta.toFixed(2), '| table:', ibkrTablePL.toFixed(2), '| realizedPL:', ibkrRealizedPL.toFixed(2));
   } else {
-    console.log('[engine] P/L aligned ✓ table:', tableTotalPL.toFixed(2), '≈ card:', combinedRealizedPL.toFixed(2));
+    console.log('[engine] P/L aligned ✓ IBKR table:', ibkrTablePL.toFixed(2), '≈ realizedPL:', ibkrRealizedPL.toFixed(2));
   }
   // For Track Record: only count trades with known P/L
   // Include if: (a) has report-based realizedPL, OR (b) has both buy cost and sell proceeds (can compute P/L)

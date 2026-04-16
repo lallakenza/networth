@@ -3348,3 +3348,45 @@ Principes :
 
 Chaque section (state, renderLoop branches, startAmbient, startFinalAnim, boot) porte des commentaires explicites en français décrivant le rôle de la phase, les cas de bord, et les garanties (continuité, safety). Pattern `grep "v298"` dans `index.html` donne une vue complète de la refonte.
 - Aucune erreur console — OK
+
+---
+
+## §51 — v298 : Vérification graphique YTD Actions + fix faux positif P/L alignment
+
+### Contexte
+
+Audit demandé après mise à jour des soldes en v285 (Mashreq, Wio, Revolut, Attijari).
+
+### Résultat de la vérification du graphique YTD
+
+Le graphique YTD de l'onglet Actions est **entièrement fonctionnel**. Points vérifiés :
+
+| Vérification | Résultat |
+|---|---|
+| Rendu sans erreur JS | ✅ 73 points Jan 2 → Avr 16, 2026 |
+| Reconstruction des positions au 1er jan par reverse-trade | ✅ EDEN.PA 1100sh, DG.PA 200sh, QQQM 58sh, NXI.PA 2000sh, etc. |
+| Achats mid-year (BN.PA, SAP.DE, IBIT+ETHA Jan-Fév) | ✅ entrés dans la simulation à leur date |
+| Ventes mid-year (QQQM 24/02, EDEN 26/02, DG.PA 17/03+08/04) | ✅ sortis à leur date |
+| Calcul P&L YTD | ✅ -28 115€ = ΔNav (-27 114) − dépôts après 1/1 (1 000) |
+| Aucune erreur console | ✅ |
+
+Les changements de soldes v285 (Mashreq, Wio, Revolut, Attijari) sont des comptes bancaires, pas des comptes broker — ils n'affectent pas le graphique YTD qui ne suit que IBKR + ESPP + SGTM.
+
+### Correctif v298
+
+**Faux positif `[engine] P/L alignment delta`** (pré-existant depuis v246) :
+
+Le check de cohérence (`tableTotalPL` vs `combinedRealizedPL`) comparait la somme des P/L par trade avec `combinedRealizedPL` **après** ajout des dividendes et coûts (v246). Le delta de ~2 784€ était structurel (= dividendes IBKR + commissions + FTT + intérêts) et non un bug.
+
+**Fix** (`engine.js` l.718) : sauvegarder `tradeOnlyRealizedPL = combinedRealizedPL` avant l'ajout v246, et utiliser ce snapshot dans le sanity check. Le delta est désormais ~0.
+
+### Fichiers modifiés
+
+- `js/engine.js` : `tradeOnlyRealizedPL` snapshot avant ajout dividendes/coûts + update sanity check
+- `js/app.js`, `index.html`, `js/data.js` : imports `v=297` → `v=298`
+
+### Tests runtime
+
+- Graphique YTD : 73 points, scope=all, P&L = -28 115€ (-10.70%) — OK
+- Aucun warning `P/L alignment delta` en console — OK
+- Aucune erreur console — OK
