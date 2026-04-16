@@ -949,6 +949,42 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-051: Animation montagne — 2 phases avec overshoot + saut visible
+
+- **Version**: v298 (refonte)
+- **Sévérité**: Moyenne (UX trompeuse)
+- **Détection**: Retour utilisateur — "ça avance lentement puis s'arrete à 532k puis boom avance encore plus vite à la position finale"
+- **Symptôme**: L'animation de la montagne se déroulait en 2 phases :
+  - **Phase 1** (18s) : montée lente ease-out quad vers `STATIC_EUR × 0.80 = 532 776€`
+  - **Phase 2** (1.8s) : ajustement rapide ease-out cubic vers la vraie valeur
+  
+  Deux défauts visibles :
+  1. Overshoot : quand `realValue < 532K` (cas Amine seul ≈ 412K), le couple montait jusqu'à 532K puis **descendait** en Phase 2 — visuellement incohérent pour une "progression".
+  2. Saut perçu : transition discontinue en vitesse entre les deux phases (accélération/décélération différentes), donnant l'impression d'un "stop-and-go".
+- **Cause racine**: Design en deux phases avec cible intermédiaire basée sur `STATIC_EUR` (estimation obsolète par construction) :
+  - `PHASE1_TARGET_EUR = STATIC_EUR × 0.80` figé à chaque release
+  - Le délai de 18s de Phase 1 était sensé couvrir le chargement API, mais finissait par être overshoot pour les utilisateurs rapides
+  - Pas de garantie que `realValue > PHASE1_TARGET_EUR` (couple/amine-only/nezha-only varient largement)
+- **Correctif**: Refonte complète en state machine à 4 phases + animation unique :
+  - `waiting` : compteur pulse (CSS `counterPulse` 1.6s), aucun mouvement. Dure jusqu'à `_gridAnimationComplete()` ou timeout.
+  - `ambient` (optionnel) : après `AMBIENT_START_DELAY_MS=1200`, si données pas prêtes, montée asymptotique plafonnée à `AMBIENT_CAP_RATIO=0.08` (80K€). Safe par construction : toujours < realValue.
+  - `animating` : **animation unique** ease-in-out cubic de `currentRatio → realValue/TARGET`. Durée **adaptative** `ANIM_DURATION_MIN..MAX = 1800..2800ms` selon la distance. `startRatio = currentRatio` → continuité parfaite depuis `ambient`.
+  - `done` : bloc vélocité apparaît, invariants vérifiés.
+  
+  Safety net : `DATA_TIMEOUT_MS=5000` fallback sur `STATIC_EUR` si les données ne sont pas arrivées.
+  Suppression complète de `PHASE1_RATIO`, `PHASE1_TARGET_EUR`, `PHASE1_DURATION_MS`, `PHASE2_DURATION_MS`, `phase1Done`, `phase2StartTime`, `startPhase1`, `startPhase2`.
+- **Test de non-régression**:
+  - [ ] Animation monotone : pour tout `realValue`, la valeur du compteur est strictement non-décroissante (sauf si déjà > target, cas impossible ici car cap 1M€)
+  - [ ] `realValue < 532K` (ex : Amine-only 412K) : couple monte directement à 412K, pas d'excursion au-dessus
+  - [ ] `realValue > 700K` : transition douce, durée > 1.8s (adaptée)
+  - [ ] Timeout fallback : si `_gridAnimationComplete` n'est jamais appelée, animation vers `STATIC_EUR` après 5s
+  - [ ] Ambient : si données > 1.2s mais < 5s, animation ambient visible puis interrompue sans jerk par l'animation finale
+  - [ ] Log `[mountain] Final animation start` apparaît une seule fois
+  - [ ] Log `Animation parity ok` (drift < 0.5% entre `currentRatio` et `realValue/TARGET`)
+  - [ ] Pas de log `Phase 1 done` ou `Phase 2 start` (confirme suppression)
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -981,7 +1017,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **Chart reference label** | BUG-048 | Label de la ligne de référence reflète la période (MTD/1M/3M/YTD/…) |
 | **Simulator compounding** | BUG-049 | Taux mensuel = geometric root, `(1+monthly)^12 = 1+annual` |
 | **Action Logement amort** | BUG-050 | Assurance intégrée retirée du P&I avant amortissement |
+| **Animation montagne** | BUG-051 | Une animation unique monotone, durée adaptative, pas de saut Phase1→Phase2 |
 
 ---
 
-*Dernière mise à jour: v297 — 16 avril 2026 (BUG-043 → BUG-050 : audit métier approfondi — ESPP unicité, Villejuif signed, insights cash, chart owner-ratio, cash dormant sign-safe, chart label dynamique, simulateurs geometric compounding, AL assurance séparée)*
+*Dernière mise à jour: v298 — 16 avril 2026 (BUG-051 : refonte animation montagne — state machine waiting/ambient/animating/done, ease-in-out cubic unique, safety net timeout)*

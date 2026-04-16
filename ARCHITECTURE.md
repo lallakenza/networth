@@ -3198,4 +3198,86 @@ L'échéance AL de 145.20€ inclut 3.33€ d'assurance intégrée. Le code pren
 - Simulateur 20 ans : croissance composée cohérente avec `(1+annual)^20` pour taux constant — OK
 - AL amortissement : CRD(300) ≈ 0, cumul principal = 30 000€ — OK
 - Action Logement avec `insuranceMonthly=0` (test régression) : amortissement identique à avant v297 — OK
+
+---
+
+### Refonte animation montagne v298 (BUG-051)
+
+v298 corrige le feedback utilisateur sur l'animation de montée (screenshot : « ça avance lentement puis s'arrête à 532K puis boom avance encore plus vite à la position finale »).
+
+#### Ancien design (v280 → v297) — pourquoi ça marchait mal
+
+Deux phases séquentielles :
+- **Phase 1** (18s, ease-out quad) : 0 → `STATIC_EUR × 0.80 = 532 776€`
+- **Phase 2** (1.8s, ease-out cubic) : 532K → `realValue`
+
+Défauts :
+1. **Overshoot garanti** pour les vues où `realValue < 532K` (ex : Amine seul ≈ 412K). Le couple montait jusqu'à 532K puis redescendait — défie la métaphore d'ascension.
+2. **Discontinuité** de vitesse entre les deux phases : Phase 1 décélère vers 532K (ease-out), Phase 2 ré-accélère immédiatement (nouveau cycle ease-out). Perception de « stop-and-go ».
+3. `PHASE1_TARGET_EUR` figé dans le code → obsolescence à chaque évolution du NW.
+4. Pas de robustesse à la latence : si l'API met 2s, on reste bloqué à ~10% pendant 16s supplémentaires avant le saut final.
+
+#### Nouveau design v298 — state machine à 4 états
+
+```
+                    ┌─────────┐   data ready   ┌──────────┐
+                    │ waiting │ ──────────────> │animating │
+                    └────┬────┘                  └────┬─────┘
+                         │                            │
+           1.2s sans data│                            │ anim.duration
+                         ▼                            ▼
+                    ┌─────────┐   data ready     ┌──────┐
+                    │ ambient │ ────────────────>│ done │
+                    └────┬────┘                  └──────┘
+                         │
+                    5s timeout
+                         │
+                         ▼
+                (fallback STATIC_EUR)
+```
+
+Principes :
+- **Une seule animation finale** : `startFinalAnim(targetEur)` est le seul point d'entrée pour la montée "réelle".
+- **Continuité** : `anim.startRatio = currentRatio` capture la position au moment du trigger → pas de saut depuis `waiting` (ratio 0) ou `ambient` (ratio ∈ [0, 0.08]).
+- **Durée adaptative** : `duration = 1800 + distance × (2800 − 1800) = 1800..2800ms`. Petits déplacements courts, grands déplacements généreux.
+- **Easing ease-in-out cubic** : démarre doux (pas de saccade à l'entrée), accélère au milieu (sensation de progression), décélère à l'arrivée (atterrissage doux).
+- **Safety net** : le timeout 5s fallback sur `STATIC_EUR` assure qu'on voit toujours une animation, même en cas d'échec API.
+
+#### Paramètres exposés (index.html L1434-1443)
+
+| Constante | Valeur | Rôle |
+|---|---|---|
+| `AMBIENT_START_DELAY_MS` | 1200 | Délai avant d'activer la phase ambient si pas de data |
+| `AMBIENT_TAU_MS` | 2800 | Constante de temps de l'asymptote `1 − e^(-t/τ)` |
+| `AMBIENT_CAP_RATIO` | 0.08 | Plafond (8% du 1M€ = 80K€) — safe < tout NW réaliste |
+| `ANIM_DURATION_MIN_MS` | 1800 | Durée min de l'animation finale |
+| `ANIM_DURATION_MAX_MS` | 2800 | Durée max (à 100% de distance) |
+| `DATA_TIMEOUT_MS` | 5000 | Fallback STATIC_EUR si aucune donnée |
+
+#### Invariants & tests runtime
+
+- **Monotonie** : le compteur est strictement non-décroissant (vérifié par `nonMonotonicSamples == 0` lors du test de sampling)
+- **Parité finale** : `|currentRatio − realValue/TARGET| < 0.005` (log `Animation parity ok`)
+- **Un seul `Final animation start`** dans les logs (plus de `Phase 1 done` / `Phase 2 start`)
+- **Fallback vérifié** : avec auth désactivé (data non chargée), animation complète vers STATIC_EUR après 5s
+
+#### Fichiers modifiés
+
+- `index.html` :
+  - L1389-1403 : en-tête docs mis à jour (v298 flow décrit)
+  - L1406-1443 : constantes de config — suppression `PHASE1_*`/`PHASE2_*`, ajout `AMBIENT_*`/`ANIM_*`/`DATA_TIMEOUT_MS`
+  - L1455-1467 : state machine (`phase: 'waiting' | 'ambient' | 'animating' | 'done'`)
+  - L1623-1712 : easing helpers (`easeInOutCubic`, `easeOutAsymptote`) + renderLoop state-driven + `startAmbient()` + `startFinalAnim()`
+  - L1755-1766 : `_gridAnimationComplete` délègue directement à `startFinalAnim`
+  - L1833-1857 : boot avec setTimeouts pour ambient + fallback
+  - L1152-1162 (`<style>`) : `@keyframes counterPulse` pour la phase waiting
+- `js/data.js` : `APP_VERSION = 'v298'`
+- `js/app.js`, `js/charts.js`, `js/simulators.js` : imports `v=297` → `v=298`
+- `index.html` script tag : `v=297` → `v=298`
+- `BUG_TRACKER.md` : BUG-051
+- `ARCHITECTURE.md` : cette section
+
+#### Commentaires inline
+
+Chaque section (state, renderLoop branches, startAmbient, startFinalAnim, boot) porte des commentaires explicites en français décrivant le rôle de la phase, les cas de bord, et les garanties (continuité, safety). Pattern `grep "v298"` dans `index.html` donne une vue complète de la refonte.
 - Aucune erreur console — OK
