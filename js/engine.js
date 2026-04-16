@@ -36,6 +36,19 @@ function toEUR(amount, currency, fx) {
 }
 
 /**
+ * ESPP lot cost basis in EUR (shared between computeActionsView and main compute).
+ * - Amine lots have `contribEUR` (exact EUR deducted from salary) → use directly.
+ * - Nezha lots fall back to shares × costBasis / fxRateAtDate (or default FX if missing).
+ * Keeping this at module scope ensures NW (engine.compute) and stocks view (computeActionsView)
+ * use IDENTICAL cost basis — fixes BUG-043 where NW used current FX × totalCostBasisUSD while
+ * actionsView used per-lot historical FX.
+ */
+function esppLotCostEUR(lot, defaultFx) {
+  if (lot.contribEUR !== undefined) return lot.contribEUR;
+  return (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
+}
+
+/**
  * Compute IBKR NAV from individual positions + multi-currency cash
  */
 function computeIBKR(portfolio, fx, stockSource) {
@@ -251,14 +264,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalStockPL = ibkrPositions.reduce((s, p) => s + (p.stockPL || 0), 0);
 
   // ESPP cost basis & P/L — v246: use contribEUR (actual salary deductions in EUR)
-  // NOT totalCostBasisUSD/currentFX, which fluctuates with EUR/USD and diverges from chart deposits
-  // contribEUR = exact EUR deducted from salary each ESPP period (source: EsppPurchaseReport.pdf)
-  // For lots without contribEUR (e.g. FRAC dividends), use 0 (they were free shares)
-  // For Nezha: fallback to costBasis × shares / fxRate (same as depositHistory)
-  function esppLotCostEUR(lot, defaultFx) {
-    if (lot.contribEUR !== undefined) return lot.contribEUR; // Amine lots have exact EUR contributions
-    return (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx);
-  }
+  // v297 (BUG-043): esppLotCostEUR hoisted to module scope to share with engine.compute()
   const esppCostBasisEUR = (espp.lots || []).reduce((s, l) => s + esppLotCostEUR(l, 1.15), 0);
   const esppCurrentVal = toEUR(espp.shares * m.acnPriceUSD, 'USD', fx);
   // v246: include ESPP cash in P&L (it's part of the ESPP account NAV in EQUITY_HISTORY)
@@ -1833,17 +1839,26 @@ function computeSubLoanSchedule(loan) {
     }
   } else {
     // ── Simple constant-payment loan (no periods: Action Logement, standard mortgage) ──
+    // BUG-050 (v297): subtract embedded insurance from the monthly payment before computing
+    // principal. Example: AL échéance 145.20€ = 141.87€ P&I + 3.33€ insurance intégrée. The
+    // previous code treated the full 145.20€ as P&I, over-amortizing the principal by ~3.33€/mo
+    // (~1000€ on AL over 300 échéances) and ending CRD=0 several months early.
+    // Only applies when `insuranceMonthly` is declared inside the payment ("intégrée"); for loans
+    // where the insurance is billed separately (e.g., APRIL for PTZ/BP), `insuranceMonthly` is 0.
     const totalMonths = loan.durationMonths;
+    const insuranceInPayment = loan.insuranceMonthly || 0;
+    const effectivePayment = loan.monthlyPayment - insuranceInPayment;
     for (let i = 0; i < totalMonths && crd > 0.01; i++) {
       const interest = crd * monthlyRate;
-      // Principal = payment - interest (cannot exceed remaining CRD)
-      const principalPart = Math.min(loan.monthlyPayment - interest, crd);
+      // Principal = effective payment (ex-insurance) - interest, capped at remaining CRD
+      const principalPart = Math.min(effectivePayment - interest, crd);
       crd = Math.max(0, crd - principalPart);
       const y = startY + Math.floor((startM - 1 + i) / 12);
       const m = ((startM - 1 + i) % 12) + 1;
       schedule.push({
         month: i + 1,
         date: y + '-' + String(m).padStart(2, '0'),
+        // `payment` still reports the user-facing échéance (including insurance) for display fidelity
         payment: loan.monthlyPayment,
         interest: Math.round(interest * 100) / 100,
         principal: Math.round(principalPart * 100) / 100,
@@ -3726,8 +3741,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaEsppSharesVal = toEUR(nezhaEsppShares * m.acnPriceUSD, 'USD', fx);
   const nezhaEsppCash = toEUR(nezhaEsppData.cashUSD || 0, 'USD', fx); // BUG-020: include ESPP account cash in NW
   const nezhaEspp = nezhaEsppSharesVal + nezhaEsppCash;
-  const nezhaEsppCostBasisUSD = nezhaEsppData.totalCostBasisUSD || 0;
-  const nezhaEsppCostBasisEUR = toEUR(nezhaEsppCostBasisUSD, 'USD', fx);
+  // BUG-043 (v297): Use per-lot historical FX (via esppLotCostEUR) instead of current FX × totalCostBasisUSD
+  // Previously: toEUR(nezhaEsppData.totalCostBasisUSD, 'USD', fx) — drifted vs computeActionsView
+  // Now: identical formula to computeActionsView, so nezha.esppUnrealizedPL is consistent everywhere
+  const nezhaEsppCostBasisEUR = (nezhaEsppData.lots || []).reduce((s, l) => s + esppLotCostEUR(l, 1.10), 0);
   const nezhaEsppUnrealizedPL = nezhaEspp - nezhaEsppCostBasisEUR;
   // Caution Rueil — dette envers locataire
   const nezhaCautionRueil = p.nezha.cautionRueil || 0;
@@ -3745,8 +3762,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaBrokerCash = nezhaEsppCash;
   const nezhaCash = nezhaCashFranceEUR + nezhaCashMarocEUR + nezhaCashUAE_EUR + nezhaBrokerCash;
   const nezhaEsppForActions = nezhaEsppSharesVal; // shares only (cash reclassified above)
-  // NW math unchanged: (cash+brokerCash) + esppShares = cash + (esppShares+esppCash) = cash + espp
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil;
+  // BUG-044 (v297): Include nezhaVillejuifEquity in nezhaNW. Previously `nezhaNW` only had the
+  // `reservationFees` (when !signed) and `coupleNW` added `+ nezhaVillejuifEquity` separately.
+  // That left `s.nezha.nw` (used in insights, renderers, ownership splits) understated as soon as
+  // villejuif is signed. Now NW is correct at owner level; coupleNW = amineNW + nezhaNW cleanly.
+  // When !signed: nezhaVillejuifEquity=0 and reservationFees counts (behavior unchanged).
+  // When signed: nezhaVillejuifEquity counts and reservationFees=0 (no double-count by construction).
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifEquity + nezhaVillejuifReservation - nezhaCautionRueil;
 
   // Calculate delta from previous NW in history
   // NW_HISTORY is empty (v150), so deltas are always null
@@ -3759,7 +3781,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDelta: nezhaNWDelta,
     nwDeltaPct: nezhaNWDeltaPct,
     nwDeltaTimeframe: nwDeltaTimeframe,
-    nwWithVillejuif: nezhaNW + nezhaVillejuifFutureEquity,
+    // BUG-044 (v297): nezhaNW now already includes nezhaVillejuifEquity when signed.
+    // "With Villejuif" = NW with projected equity, stripping out reservation (refunded at signing) and
+    // any current-if-signed equity. When !signed: +futureEquity replaces reservation. When signed:
+    // future == current, so the two terms cancel and this equals nezhaNW (no double-count).
+    nwWithVillejuif: nezhaNW - nezhaVillejuifEquity - nezhaVillejuifReservation + nezhaVillejuifFutureEquity,
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: nezhaRueilCRD,
     rueilEquity: nezhaRueilEquity, // net (after exit costs, floored at 0)
@@ -3807,7 +3833,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const coupleImmoEquityBrute = amineVitryEquityBrute + nezhaRueilEquityBrute + (villejuifSigned ? nezhaVillejuifEquityBrute : 0);
   const coupleImmoValue = amine.vitryValue + nezha.rueilValue + (villejuifSigned ? nezha.villejuifValue : 0);
   const coupleImmoCRD = amine.vitryCRD + nezha.rueilCRD + (villejuifSigned ? nezha.villejuifCRD : 0);
-  const coupleNW = amineNW + nezhaNW + nezhaVillejuifEquity;
+  // BUG-044 (v297): nezhaVillejuifEquity is now already inside nezhaNW (when signed).
+  // Removing the extra `+ nezhaVillejuifEquity` to preserve invariant coupleNW = amineNW + nezhaNW.
+  const coupleNW = amineNW + nezhaNW;
   const nbBiens = villejuifSigned ? 3 : 2;
 
   // Calculate couple delta as SUM of individual deltas (ensures consistency: couple delta = amine delta + nezha delta)
@@ -3905,7 +3933,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
+      // BUG-047 (v297): include wioCurrent unconditionally (was `>0 ? ... : 0`).
+      // The parent `amineUae` / `amineCashTotal` (line 3655) already sums it without guard, so dropping
+      // it here when negative broke the treemap invariant (stocks + cash + immo + other = nwRef).
+      // wioCurrent is 371 AED today (positive), so this is a safety fix for overdraft scenarios.
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
         + amineBrokerCash + nezhaBrokerCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
@@ -3918,7 +3950,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa (Nezha)', val: nezhaCashMarocEUR, color: '#991b1b', owner: 'Nezha — 0%' }] : []),
         ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nezha)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Amine)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
-        ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
+        ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
         ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: 'Amine — 0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
       ]
@@ -3981,7 +4013,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
       other:     { val: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar - Caution' : 'Creances + Reservation - Caution', title: 'Creances' },
-      nwRef: nezhaNW + nezhaVillejuifEquity,
+      // BUG-044 (v297): nezhaNW now includes villejuifEquity (when signed), so nwRef = nezhaNW cleanly.
+      nwRef: nezhaNW,
       showStocks: true, showCash: true, showOther: true,
     },
   };
@@ -4035,11 +4068,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      total: (p.amine.uae.wioCurrent > 0 ? toEUR(p.amine.uae.wioCurrent, 'AED', fx) : 0) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash + amineBrokerCash,
+      // BUG-047 (v297): include wioCurrent unconditionally — same rationale as couple view above
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash + amineBrokerCash,
       sub: [
         ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: '0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
-        ...(p.amine.uae.wioCurrent > 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
+        ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
         ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: '0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: '#f87171', owner: '0%' }] : []),
       ]

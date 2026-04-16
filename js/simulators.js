@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=296';
-import { IMMO_CONSTANTS } from './data.js?v=296';
+import { fmt, fmtAxis } from './render.js?v=297';
+import { IMMO_CONSTANTS } from './data.js?v=297';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -54,8 +54,11 @@ function runSimulatorGeneric(config) {
   let poolActionsNS = startPoolActions;
   let poolCashNS = startPoolCash;
 
-  const monthlyReturnActions = returnActions / 12;
-  const monthlyReturnCash = returnCash / 12;
+  // BUG-049 (v297): use geometric root so the displayed annual rate is actually realised.
+  // Previously `r/12` treated the input as a nominal APR, which compounded to r×(1+r/12)^11/12 > r
+  // e.g. 10%/12 = 0.833%/mo → (1.00833)^12 − 1 = 10.47% effective → 47 bp overshoot per year.
+  const monthlyReturnActions = Math.pow(1 + returnActions, 1 / 12) - 1;
+  const monthlyReturnCash = Math.pow(1 + returnCash, 1 / 12) - 1;
 
   let cumContributions = 0;
   let cumImmoReturns = 0;
@@ -673,7 +676,9 @@ function runNezhaSimulator(state) {
   let cashNz = s.nezha.cash;
   let sgtmNz = s.nezha.sgtm;
 
-  const monthlyCashReturn = cashReturn / 12;
+  // BUG-049 (v297): geometric monthly rate to match the displayed annual rate.
+  const monthlyCashReturn = Math.pow(1 + cashReturn, 1 / 12) - 1;
+  const monthlySgtmReturn = Math.pow(1 + 0.07, 1 / 12) - 1; // SGTM hard-coded 7%/yr target
 
   // Create property equity computers for Rueil and Villejuif
   const ivNz = s.immoView;
@@ -693,9 +698,9 @@ function runNezhaSimulator(state) {
       dataCash.push(Math.round(cashNz + sgtmNz));
       dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
     }
-    // Update cash and sgtm for next month
+    // Update cash and sgtm for next month (BUG-049: use geometric monthly rate)
     cashNz *= (1 + monthlyCashReturn);
-    sgtmNz *= (1 + 0.07 / 12);
+    sgtmNz *= (1 + monthlySgtmReturn);
   }
 
   const finalNW = dataTotal[dataTotal.length - 1];

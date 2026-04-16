@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=296';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=296';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=296';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=296';
+import { fmt, fmtAxis } from './render.js?v=297';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=297';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=297';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=297';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2299,6 +2299,24 @@ export function renderPortfolioChart(overrides = {}) {
         case 'all': depSeries = (data.cumDepositsAtPointTotal || []).slice(startIdx); break;
         case 'ibkr': default: depSeries = (data.cumDepositsAtPoint || []).slice(startIdx); break;
       }
+      // BUG-046 (v297): apply owner ratio for non-ESPP scopes. Previously the per-owner filter
+      // only fired when scope was espp/all, so selecting Nezha + IBKR/SGTM/Degiro fed the header
+      // capitalDeployed the full couple-level deposits while refValue was owner-filtered — plPct
+      // wildly off. IBKR/Degiro are Amine-only; SGTM splits by share ratio.
+      if (owner !== 'both' && depSeries) {
+        let ownerRatio = 1;
+        if (scope === 'ibkr' || scope === 'degiro') {
+          ownerRatio = owner === 'amine' ? 1 : 0;
+        } else if (scope === 'maroc') {
+          const aSh = (PORTFOLIO.amine?.sgtm?.shares || 32);
+          const nSh = (PORTFOLIO.nezha?.sgtm?.shares || 32);
+          const total = aSh + nSh;
+          ownerRatio = total > 0 ? (owner === 'amine' ? aSh / total : nSh / total) : 0;
+        }
+        if (ownerRatio !== 1) {
+          depSeries = depSeries.map(v => (v || 0) * ownerRatio);
+        }
+      }
     }
     return depSeries;
   })() : null;
@@ -2413,7 +2431,18 @@ export function renderPortfolioChart(overrides = {}) {
       tension: 0,
     },
     {
-      label: displayMode === 'pl' ? 'Zéro' : ((data.mode === '1y' ? 'NAV début 1Y' : 'NAV 1er jan') + ' (' + fmt(refValue) + ')'),
+      // BUG-048 (v297): label now reflects the period sub-filter (MTD/1M/3M) instead of always
+      // saying "NAV 1er jan". Matches the refValue that was sliced at startIdx.
+      label: displayMode === 'pl' ? 'Zéro' : ((
+        period === 'MTD' ? 'NAV début mois' :
+        period === '1M'  ? 'NAV il y a 1M' :
+        period === '3M'  ? 'NAV il y a 3M' :
+        period === 'YTD' ? 'NAV 1er jan' :
+        (data.mode === '1y' ? 'NAV début 1Y' :
+         data.mode === '5y' ? 'NAV début 5Y' :
+         data.mode === 'max' ? 'NAV début' :
+         'NAV 1er jan')
+      ) + ' (' + fmt(refValue) + ')'),
       data: mainData.map(() => refValue),
       borderColor: '#a0aec0',
       borderWidth: 1,
