@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=302';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=302';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=302';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=302';
+import { fmt, fmtAxis } from './render.js?v=303';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=303';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=303';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=303';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2346,7 +2346,24 @@ export function renderPortfolioChart(overrides = {}) {
   })() : null;
   const depositsInPeriod = slicedCumDep && slicedCumDep.length > 0
     ? (slicedCumDep[slicedCumDep.length - 1] || 0) - (slicedCumDep[0] || 0) : 0;
-  const capitalDeployed = (refValue || 0) + depositsInPeriod;
+  // BUG-054 (v303) — `capitalDeployed` is the denominator for the "%" shown
+  // in the title (period return ≈ period P&L / capital deployed at start).
+  // Pre-v303: `refValue + depositsInPeriod`. In P&L mode refValue=0 (hardcoded)
+  // → denominator reduced to period deposits only, ignoring pre-existing
+  // portfolio → % grossly overstated. v303: always read starting NAV from
+  // the NAV series at startIdx (same for P&L AND Valeur modes) so the %
+  // denominator is mode-invariant.
+  const startNAV = (function() {
+    switch (scope) {
+      case 'espp':   return (data.esppValues   || [])[startIdx] || 0;
+      case 'maroc':  return (data.sgtmValues   || [])[startIdx] || 0;
+      case 'degiro': return (data.degiroValues || [])[startIdx] || 0;
+      case 'all':    return (data.totalValues  || [])[startIdx] || 0;
+      case 'ibkr':
+      default:       return (data.ibkrValues   || [])[startIdx] || 0;
+    }
+  })();
+  const capitalDeployed = (startNAV || refValue || 0) + depositsInPeriod;
   const plPct = capitalDeployed > 0 ? (plEUR / capitalDeployed * 100).toFixed(2) : '0.00';
   const isPositive = plEUR >= 0;
 
@@ -2382,16 +2399,26 @@ export function renderPortfolioChart(overrides = {}) {
     }
   }
 
-  const ytdStartEl = document.getElementById('ytdStartValue');
-  const ytdEndEl = document.getElementById('ytdEndValue');
+  // BUG-054 (v303) — both labels AND both values are now dynamically set
+  // based on mode + displayMode. Pre-v303 the right label was hardcoded
+  // "NAV actuelle" in HTML and in P&L mode the value was `plChange` (period
+  // delta), giving an absurd "NAV actuelle : -€11 028" on a portfolio worth
+  // €243K. Now in P&L mode the right column shows "P&L actuel : X" where X
+  // is the current lifetime P&L (`endVal` = plValuesTotal[last], unified in
+  // v303 to always equal navTotal[last] − absDepsTotal[last]).
+  const ytdStartEl    = document.getElementById('ytdStartValue');
+  const ytdEndEl      = document.getElementById('ytdEndValue');
   const ytdStartLabel = document.getElementById('ytdStartLabel');
+  const ytdEndLabel   = document.getElementById('ytdEndLabel');
   if (displayMode === 'pl') {
-    if (ytdStartEl) ytdStartEl.textContent = fmt(plStartVal);
-    if (ytdEndEl) ytdEndEl.textContent = (plChange >= 0 ? '+' : '') + fmt(plChange);
+    // Start = lifetime P&L at start of displayed period ; End = lifetime P&L now.
+    if (ytdStartEl)    ytdStartEl.textContent = fmt(plStartVal);
+    if (ytdEndEl)      ytdEndEl.textContent   = (endVal >= 0 ? '+' : '') + fmt(endVal);
     if (ytdStartLabel) ytdStartLabel.textContent = 'P&L départ';
+    if (ytdEndLabel)   ytdEndLabel.textContent   = 'P&L actuel';
   } else {
     if (ytdStartEl) ytdStartEl.textContent = fmt(refValue);
-    if (ytdEndEl) ytdEndEl.textContent = fmt(endVal);
+    if (ytdEndEl)   ytdEndEl.textContent   = fmt(endVal);
     if (ytdStartLabel) {
       const MFL = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
       if (data.mode === '5y' || data.mode === 'max') {
@@ -2406,6 +2433,7 @@ export function renderPortfolioChart(overrides = {}) {
         ytdStartLabel.innerHTML = 'NAV 1<sup>er</sup> jan';
       }
     }
+    if (ytdEndLabel) ytdEndLabel.textContent = 'NAV actuelle';
   }
 
   // ── Build chart ──
@@ -4015,13 +4043,57 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // scope: 'ibkr' | 'espp' | 'maroc' | 'degiro' | 'all'
   const scope = (options && options.scope) || (showAll ? 'all' : 'ibkr');
 
-  // ── Include Degiro in Total P&L ──
-  // Compute as sum of individual P&L arrays to GUARANTEE additivity:
-  //   Tous P&L = IBKR P&L + ESPP P&L + SGTM P&L + Degiro P&L
-  // This avoids any mismatch between NAV and deposit scopes.
-  const plValuesTotalWithDegiro = plValuesIBKR.map((v, i) =>
-    v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
+  // ══════════════════════════════════════════════════════════════════
+  // BUG-054 (v303) — UNIFIED P&L SEMANTIC ACROSS ALL MODES
+  // ══════════════════════════════════════════════════════════════════
+  // Before v303 there were 3 divergent formulas for `plValuesTotal[t]` :
+  //   YTD : chartValuesTotal[t] − chartValuesTotal[0] − cumDepositsAtPointTotal[t]
+  //         (period-relative, shows Δ-P&L since Jan 2 only)
+  //   1Y  : sum(platform plValues) + degiroRealizedPL (from-zero replay +
+  //         Degiro offset constant → double-counted or missed depending on t)
+  //   MAX : totalValues[t] − cumDepositsTotal[t]   (correct lifetime formula)
+  // User-visible symptom : le tooltip "aujourd'hui" affichait 3 chiffres
+  // différents (30 942 / 89 874 / 53 347) pour la MÊME portefeuille à la
+  // MÊME date, selon la période chargée.
+  //
+  // v303 fix : la formule CANONIQUE est
+  //     lifetime_PL[t] = nav_total[t] − lifetime_deposits_cumulated[t]
+  // C'est ce que calcule déjà `computeAbsoluteTooltipArrays` (champ
+  // `absPLTotal`, invoqué plus bas). On la déplace AVANT le early-return
+  // 'alltime' et on écrase TOUS les `plValues*` stockés avec les valeurs
+  // lifetime — y compris par plateforme, y compris per-owner ESPP. Tous les
+  // consommateurs (header, title, KPI cards, tooltip, click detail) lisent
+  // désormais la même série — garantie "1 portefeuille = 1 P&L à date t".
+  //
+  // L'ancien `plValuesTotalWithDegiro` (sum per-platform + degiroRealizedPL
+  // flat) reste documenté dans l'historique mais n'est plus stocké.
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── Compute absolute tooltip data (lifetime deposits & P&L) ──
+  // MOVED before 'alltime' early-return (v303) so alltime mode also stores
+  // lifetime-consistent plValues — fixes C1 from audit.
+  const absTooltip = computeAbsoluteTooltipArrays(
+    chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal, historicalData
   );
+  // v276: Compute per-owner absolute ESPP tooltip data
+  const absTooltipPerOwner = computeAbsoluteTooltipPerOwnerESPP(
+    chartLabels, chartValuesESPPAmine, chartValuesESPPNezha, historicalData
+  );
+
+  // v303 — Build unified lifetime plValues from absTooltip.
+  // Per-platform AND total now follow: plValuesX[t] = navX[t] − absDepsX[t].
+  // All modes (ytd / 1y / alltime) use identical formula → chart Y-axis,
+  // tooltip, KPIs show consistent lifetime P&L across periods.
+  // Note: the original `const plValues{IBKR,ESPP,SGTM}` from ~L3541 are kept
+  // as local period-relative series (used by the chart-breakdown math just
+  // above), but from this point we expose ONLY the unified versions.
+  const plValuesIBKRUnified     = absTooltip.absPLIBKR.slice();
+  const plValuesESPPUnified     = absTooltip.absPLESPP.slice();
+  const plValuesSGTMUnified     = absTooltip.absPLSGTM.slice();
+  const plValuesDegiroUnified   = absTooltip.absPLDegiro.slice();
+  const plValuesTotalUnified    = absTooltip.absPLTotal.slice();
+  const plValuesESPPAmineUnif   = absTooltipPerOwner.absPLESPPAmine.slice();
+  const plValuesESPPNezhaUnif   = absTooltipPerOwner.absPLESPPNezha.slice();
 
   // ── 'alltime' mode: cache and return early (no chart rendering) ──
   if (mode === 'alltime') {
@@ -4037,6 +4109,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     };
     // v269: also store alltime P&L data for cross-mode validation
     // v276: includes per-owner ESPP data
+    // v303: plValues* now unified (lifetime P&L from absTooltip)
     window._chartDataByMode.alltime = {
       labels: chartLabels.slice(),
       ibkrValues: chartValues.slice(),
@@ -4045,34 +4118,28 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       esppValuesAmine: chartValuesESPPAmine.slice(),
       esppValuesNezha: chartValuesESPPNezha.slice(),
       sgtmValues: chartValuesSGTM.slice(),
-      plValuesIBKR,
-      plValuesESPP,
-      plValuesESPPAmine,
-      plValuesESPPNezha,
-      plValuesSGTM,
-      plValuesTotal: plValuesIBKR.map((v, i) =>
-        v + (plValuesESPP[i] || 0) + (plValuesSGTM[i] || 0) + degiroRealizedPL
-      ),
+      degiroValues: chartValuesDegiro.slice(),
+      plValuesIBKR:     plValuesIBKRUnified,
+      plValuesESPP:     plValuesESPPUnified,
+      plValuesESPPAmine: plValuesESPPAmineUnif,
+      plValuesESPPNezha: plValuesESPPNezhaUnif,
+      plValuesSGTM:     plValuesSGTMUnified,
+      plValuesDegiro:   plValuesDegiroUnified,
+      plValuesTotal:    plValuesTotalUnified,
       cumDepositsAtPoint,
       cumDepositsAtPointTotal,
       cumDepositsESPPAmine,
       cumDepositsESPPNezha,
+      _absoluteTooltip: absTooltip,                  // v303: expose for parity checks
+      _absoluteTooltipPerOwner: absTooltipPerOwner,  // v303
       degiroRealizedPL,
       mode: 'alltime',
     };
     console.log('[sim-alltime] Cached all-time simulation: ' + chartLabels.length + ' pts, ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
     console.log('[sim-alltime] IBKR NAV first: €' + chartValues[0] + ', last: €' + chartValues[chartValues.length - 1]);
+    console.log('[sim-alltime] Lifetime P&L Total: €' + Math.round(plValuesTotalUnified[plValuesTotalUnified.length - 1]));
     return { labels: chartLabels, ibkrValues: chartValues, totalValues: chartValuesTotal };
   }
-
-  // ── Compute absolute tooltip data (lifetime deposits & P&L) ──
-  const absTooltip = computeAbsoluteTooltipArrays(
-    chartLabels, chartValues, chartValuesESPP, chartValuesSGTM, chartValuesDegiro, chartValuesTotal, historicalData
-  );
-  // v276: Compute per-owner absolute ESPP tooltip data
-  const absTooltipPerOwner = computeAbsoluteTooltipPerOwnerESPP(
-    chartLabels, chartValuesESPPAmine, chartValuesESPPNezha, historicalData
-  );
 
   // Store full data for period filtering and mode switching
   // BUG-025: correct startValue per scope (was falling through to IBKR for 'all' and 'degiro')
@@ -4081,6 +4148,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     : scope === 'all' ? chartValuesTotal[0]
     : scope === 'degiro' ? chartValuesDegiro[0]
     : chartValues[0];
+  // v303 — plValues* are the UNIFIED lifetime series (navX[t] − absDepsX[t]).
+  // This guarantees cross-mode parity: YTD / 1Y / alltime all expose the same
+  // canonical P&L for any given date t.
   const _chartFullData = {
     labels: chartLabels,
     ibkrValues: chartValues,
@@ -4093,14 +4163,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     degiroValues: chartValuesDegiro,
     _absoluteTooltip: absTooltip,
     _absoluteTooltipPerOwner: absTooltipPerOwner,
-    plValuesIBKR,
-    plValuesESPP,
-    // v276: Per-owner ESPP P&L
-    plValuesESPPAmine,
-    plValuesESPPNezha,
-    plValuesSGTM,
-    plValuesDegiro,
-    plValuesTotal: plValuesTotalWithDegiro,
+    plValuesIBKR:       plValuesIBKRUnified,
+    plValuesESPP:       plValuesESPPUnified,
+    // v276: Per-owner ESPP P&L (v303: unified from absTooltipPerOwner)
+    plValuesESPPAmine:  plValuesESPPAmineUnif,
+    plValuesESPPNezha:  plValuesESPPNezhaUnif,
+    plValuesSGTM:       plValuesSGTMUnified,
+    plValuesDegiro:     plValuesDegiroUnified,
+    plValuesTotal:      plValuesTotalUnified,
     cumDepositsAtPoint,
     cumDepositsESPP,
     // v276: Per-owner ESPP deposits
@@ -4118,6 +4188,36 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     mode,
     currentPeriod: 'YTD',
   };
+
+  // ── v303 regression guards — invariants that MUST hold ──
+  // These console.assert checks fail loudly if a future refactor drifts
+  // the stored plValues* away from the canonical lifetime formula.
+  (function _assertV303Invariants() {
+    const n = chartLabels.length;
+    if (n === 0) return;
+    const lastIdx = n - 1;
+    const TOL = 1; // €1 rounding tolerance (absPL* use Math.round, plValues* slice already rounded)
+    // I1: plValuesTotal[t] == absPLTotal[t] for every t (sample last + mid)
+    const samplesI = [0, Math.floor(lastIdx / 2), lastIdx].filter(i => i >= 0 && i < n);
+    for (const i of samplesI) {
+      const dTot = Math.abs((plValuesTotalUnified[i] || 0) - (absTooltip.absPLTotal[i] || 0));
+      if (dTot > TOL) console.warn('[v303] ⚠ plValuesTotal[' + i + '] drift: ' + dTot + '€ (plValues=' + plValuesTotalUnified[i] + ', absPL=' + absTooltip.absPLTotal[i] + ')');
+    }
+    // I2: plValuesTotal ≈ plValuesIBKR + plValuesESPP + plValuesSGTM + plValuesDegiro (additivity)
+    for (const i of samplesI) {
+      const sum = (plValuesIBKRUnified[i] || 0) + (plValuesESPPUnified[i] || 0)
+                + (plValuesSGTMUnified[i] || 0) + (plValuesDegiroUnified[i] || 0);
+      const d = Math.abs(sum - (plValuesTotalUnified[i] || 0));
+      if (d > 4) console.warn('[v303] ⚠ plValues additivity drift @[' + i + ']: Σ=' + Math.round(sum) + ' vs Total=' + plValuesTotalUnified[i] + ' (Δ=' + Math.round(d) + '€)');
+    }
+    // I3: plValuesESPPAmine + plValuesESPPNezha ≈ plValuesESPP (per-owner additivity)
+    for (const i of samplesI) {
+      const sum = (plValuesESPPAmineUnif[i] || 0) + (plValuesESPPNezhaUnif[i] || 0);
+      const d = Math.abs(sum - (plValuesESPPUnified[i] || 0));
+      if (d > 3) console.warn('[v303] ⚠ per-owner ESPP drift @[' + i + ']: Σ=' + Math.round(sum) + ' vs ESPP=' + plValuesESPPUnified[i] + ' (Δ=' + Math.round(d) + '€)');
+    }
+    console.log('[v303] ✓ plValues* invariants OK (' + mode + ' mode, lifetime PL Total=€' + Math.round(plValuesTotalUnified[lastIdx]) + ')');
+  })();
   // v269: store per-mode — never overwrite another mode's data
   const modeKey = mode === '1y' ? '1y' : (mode === 'alltime' ? 'alltime' : 'ytd');
   window._chartDataByMode[modeKey] = _chartFullData;

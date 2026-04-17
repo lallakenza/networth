@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=259';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=303';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3444,6 +3444,8 @@ function computeDividendAnalysis(ibkrPositions, fx) {
     let projectedWHT = 0;
     let nextExDate = null;
     let daysUntilEx = null;
+    let nextExConfirmed = false;   // v303 — BUG-054 feature: true si dividende confirmé
+    let nextExNote = null;          // v303 — note par-date
     let upcomingPayments = [];
 
     let dpsNative = 0;
@@ -3456,21 +3458,45 @@ function computeDividendAnalysis(ibkrPositions, fx) {
       projectedDivEUR = toEUR(totalDivNative, pos.currency, fx);
       projectedWHT = projectedDivEUR * whtRate;
 
-      // Find next upcoming ex-date
-      const futureExDates = (cal.exDates || [])
-        .map(d => new Date(d + 'T00:00:00'))
-        .filter(d => d > today)
-        .sort((a, b) => a - b);
+      // v303 — support both formats of `exDates`:
+      //   - string 'YYYY-MM-DD' (legacy, inherits top-level `cal.confirmed`)
+      //   - object { date, confirmed?, dps?, note? } (per-date override)
+      // Normalize to objects { date: Date, confirmed: bool, note?: string }.
+      const topConfirmed = cal.confirmed === true;
+      const normalizedExDates = (cal.exDates || []).map(entry => {
+        if (typeof entry === 'string') {
+          return {
+            date: new Date(entry + 'T00:00:00'),
+            confirmed: topConfirmed,
+            note: null,
+          };
+        }
+        // Object form
+        return {
+          date: new Date(entry.date + 'T00:00:00'),
+          confirmed: entry.confirmed === true || (entry.confirmed !== false && topConfirmed),
+          note: entry.note || null,
+        };
+      });
+
+      // Find next upcoming ex-date (sorted, future only)
+      const futureExDates = normalizedExDates
+        .filter(obj => obj.date > today)
+        .sort((a, b) => a.date - b.date);
 
       if (futureExDates.length > 0) {
-        nextExDate = futureExDates[0];
+        nextExDate = futureExDates[0].date;
         daysUntilEx = Math.ceil((nextExDate - today) / (1000 * 60 * 60 * 24));
+        nextExConfirmed = futureExDates[0].confirmed;
+        nextExNote = futureExDates[0].note;
       }
 
-      // Build upcoming payments list
-      upcomingPayments = futureExDates.map(d => ({
-        exDate: d,
-        daysUntil: Math.ceil((d - today) / (1000 * 60 * 60 * 24)),
+      // Build upcoming payments list (carries per-date confirmed status)
+      upcomingPayments = futureExDates.map(obj => ({
+        exDate: obj.date,
+        daysUntil: Math.ceil((obj.date - today) / (1000 * 60 * 60 * 24)),
+        confirmed: obj.confirmed,
+        note: obj.note,
       }));
     }
 
@@ -3509,6 +3535,9 @@ function computeDividendAnalysis(ibkrPositions, fx) {
       projectedWHT,
       nextExDate,
       daysUntilEx,
+      nextExConfirmed,                // v303 — true si dividende annoncé officiellement
+      nextExNote,                      // v303 — note par-date (ex: "acompte 5.50€")
+      divSource: (cal && cal.source) || null,  // v303 — provenance de la confirmation
       upcomingPayments,
       recommendation,
       reason,

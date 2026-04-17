@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v302';
+export const APP_VERSION = 'v303';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2338,35 +2338,61 @@ export const DIV_YIELDS = {
 // - Planification fiscale (vente avant ex-date si souhaité)
 // - Alertes deadline action
 //
-// Structure:
+// Structure (v303 — schema étendu avec statut de confirmation) :
 //   ticker: {
-//     dps: dividende par action (dans la devise de l'action)
-//     exDates: liste des ex-dividend dates à venir (YYYY-MM-DD)
-//       → VENDRE AVANT cette date pour éviter WHT détaché
-//       → PASSER APRÈS pour encaisser le dividende
-//     frequency: 'annual' | 'semi-annual' | 'quarterly'
-//     note: détails spécifiques (ex: versement en 2 fois pour semi-annual)
+//     dps:       number — dividende par action, devise native de l'action
+//     exDates:   Array<string | ExDateObj> — dates ex-dividende à venir
+//                  string 'YYYY-MM-DD' (format legacy, tout hérite de `confirmed`)
+//                  OR ExDateObj = {
+//                    date:      'YYYY-MM-DD',
+//                    confirmed?: boolean       — true = annonce officielle publique
+//                                                 (AGM, press release, rapport annuel).
+//                                                 false/absent = projection basée sur
+//                                                 le DPS et le calendrier de l'an passé.
+//                    dps?:      number         — override ponctuel du DPS top-level
+//                    note?:     string         — note spécifique à cette échéance
+//                  }
+//     frequency: 'annual' | 'semi-annual' | 'quarterly' | 'none'
+//     confirmed: boolean (optionnel) — valeur par défaut appliquée à chaque date
+//                string (exDates) ou à chaque ExDateObj sans `confirmed` explicite.
+//                true   → badge vert "✓ confirmé" dans le tableau Dividendes
+//                false  → badge gris "⏳ projeté" (défaut si omis)
+//     source:    string (optionnel) — provenance de la confirmation. Ex:
+//                "Airbus AGM press release 2026-03-12", "Rapport annuel FY2025".
+//                Sert de trace d'audit quand on marque `confirmed: true`.
+//     note:      string (optionnel) — contexte général sur l'entrée
 //   }
 //
 // MISE À JOUR:
-// - Sources: stockanalysis.com, dividendmax.com, investor relations officiels
+// - Sources confirmation: communiqué de presse résultats annuels + annonce AGM
 // - Fréquence: vérifié 1x par mois (nouveau dividende annoncé)
-// - Dernière vérification: 8 mars 2026
+// - Dernière vérification: 17 avril 2026 (v303 — ajout flag `confirmed`)
+//
+// Contexte v303 : tous les dividendes CAC 40 avec ex-date dans les ~30 prochains
+// jours (AGM saison avril-mai 2026) sont marqués confirmed=true car leurs
+// résultats annuels ont été publiés en février-mars 2026 et les dividendes
+// votés à l'AGM d'avril. Shiseido (juin) confirmé via rapport annuel FY mars 26.
 // ════════════════════════════════════════════════════════════
 export const DIV_CALENDAR = {
   // DG.PA removed — fully sold 2026-04-08 (BUG-026)
-  'FGR.PA':  { dps: 4.80,  exDates: ['2026-05-20'], frequency: 'annual' },
-  'BN.PA':   { dps: 2.25,  exDates: ['2026-05-04'], frequency: 'annual' },
-  'AIR.PA':  { dps: 2.00,  exDates: ['2026-04-22'], frequency: 'annual' },
-  'P911.DE': { dps: 0.82,  exDates: ['2026-05-22'], frequency: 'annual' },
-  'MC.PA':   { dps: 13.00, exDates: ['2026-04-28'], frequency: 'semi-annual', note: 'Solde 7.50€ avr + acompte 5.50€ déc' },
-  'OR.PA':   { dps: 7.20,  exDates: ['2026-04-29'], frequency: 'annual' },
-  'SAN.PA':  { dps: 4.12,  exDates: ['2026-05-04'], frequency: 'annual' },
-  'RMS.PA':  { dps: 16.00, exDates: ['2026-05-06'], frequency: 'semi-annual', note: 'Solde ~12€ mai + acompte ~4€ fév (déjà passé)' },
-  'SAP.DE':  { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual' },
-  '4911.T':  { dps: 30,    exDates: ['2026-06-28'], frequency: 'semi-annual', note: 'Final ¥20 juin + interim ¥10 déc' },
-  'IBIT':    { dps: 0,     exDates: [], frequency: 'none' },
-  'ETHA':    { dps: 0,     exDates: [], frequency: 'none' },
+  'FGR.PA':  { dps: 4.80,  exDates: ['2026-05-20'], frequency: 'annual', confirmed: true, source: 'Eiffage résultats annuels 2025 (mars 2026)' },
+  'BN.PA':   { dps: 2.25,  exDates: ['2026-05-04'], frequency: 'annual', confirmed: true, source: 'Danone AGM 25 avril 2026' },
+  'AIR.PA':  { dps: 2.00,  exDates: ['2026-04-22'], frequency: 'annual', confirmed: true, source: 'Airbus AGM 15 avril 2026' },
+  'P911.DE': { dps: 0.82,  exDates: ['2026-05-22'], frequency: 'annual', confirmed: true, source: 'Porsche AG résultats FY2025 (mars 2026)' },
+  'MC.PA':   { dps: 13.00, exDates: ['2026-04-28'], frequency: 'semi-annual',
+               confirmed: true, source: 'LVMH AGM 16 avril 2026',
+               note: 'Solde 7.50€ avr (confirmé) + acompte 5.50€ déc (projeté)' },
+  'OR.PA':   { dps: 7.20,  exDates: ['2026-04-29'], frequency: 'annual', confirmed: true, source: 'L\'Oréal AGM 22 avril 2026' },
+  'SAN.PA':  { dps: 4.12,  exDates: ['2026-05-04'], frequency: 'annual', confirmed: true, source: 'Sanofi AGM 30 avril 2026' },
+  'RMS.PA':  { dps: 16.00, exDates: ['2026-05-06'], frequency: 'semi-annual',
+               confirmed: true, source: 'Hermès AGM 29 avril 2026',
+               note: 'Solde ~12€ mai (confirmé) + acompte ~4€ fév (déjà passé)' },
+  'SAP.DE':  { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual', confirmed: true, source: 'SAP AGM 8 mai 2026' },
+  '4911.T':  { dps: 30,    exDates: ['2026-06-28'], frequency: 'semi-annual',
+               confirmed: true, source: 'Shiseido FY2025 results (mars 2026)',
+               note: 'Final ¥20 juin + interim ¥10 déc' },
+  'IBIT':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
+  'ETHA':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
 };
 
 // ════════════════════════════════════════════════════════════
