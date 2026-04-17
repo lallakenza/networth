@@ -3484,3 +3484,278 @@ Corollaire : `beginLockCascade` a maintenant un **mode re-lock** : si `phase ===
 ### Commentaires inline
 
 Chaque bloc (CSS, HTML, JS modules, selector) porte des en-têtes explicites en français. Les décisions issues de l'audit sont marquées `v299 audit:` dans les commentaires pour retrouver rapidement les motivations (ex: `v299 audit: rotation formula INVERTED`, `v299 audit: removed outer-halo box-shadow layer`, `v299 audit: stop scheduling next frame once we're done`). Les tags v299 dans le code restent corrects — la fonctionnalité a été renommée v301 uniquement pour le tag de version à cause d'un conflit amont avec un autre v299. Pattern `grep "v299\| v301"` dans `index.html` donne une vue complète.
+
+---
+
+## §53 — v304 : BUG-055 fix 1Y first-point + Data Model Reference complète
+
+### BUG-055 (v304) — Premier point du chart 1Y sous-estimait le P&L de ~€60K
+
+Capture utilisateur : en mode 1Y P&L, le premier point (2025-04-08) affichait +€10 374. En 5Y à la même date, ~€70 000. Écart visible : saut soudain €10K → €65K à la 2e semaine (quand Degiro est "officiellement" clôturé le 14/04/2025).
+
+**Cause racine** : dans `buildPortfolioYTDChart` (modes 1y/alltime), `chartValuesDegiro = chartLabels.map(() => 0)` force la NAV Degiro à 0 pour TOUTES les dates, y compris celles avant la clôture. Or à 2025-04-08, le compte avait encore ~€55 000 de valeur (€4K deposits nets + €50K P&L réalisé bankés en cash). La formule canonique `absPL = navTotal − absDeposits` donnait donc un P&L artificiellement bas pré-clôture, puis sautait brusquement de +€55K au 14/04 quand `absDepsDegiro` bascule en négatif suite au retrait de clôture.
+
+Le chart 5Y/MAX (`buildEquityHistoryChart`) ne souffrait pas du bug car il splice `EQUITY_HISTORY` monthly qui contient la vraie NAV Degiro pré-clôture.
+
+**Fix** : dans `buildPortfolioYTDChart` juste après `computeAbsoluteTooltipArrays`, reconstruire `chartValuesDegiro[i]` pour chaque `labels[i] < '2025-04-14'` :
+
+```js
+chartValuesDegiro[i] = absTooltip.absDepsDegiro[i] + degiroRealizedPL;
+```
+
+Cela donne `absPLDegiro = realizedPL` constant pré-clôture — aligné avec le `plValuesDegiro` flat déjà utilisé ailleurs. Post-clôture, `chartValuesDegiro = 0` (inchangé) et la formule `nav − deps` donne naturellement `+realizedPL` via `absDeps` négatif.
+
+Après ajustement : recalcul de `chartValuesTotal` et des champs `absPLDegiro`/`absPLTotal` dans `absTooltip` → tous les consommateurs (plValues unifiés, tooltip, header) voient les valeurs corrigées.
+
+**Vérification runtime v304** :
+
+| Mode | plTotal[0] (first) | plTotal[last] | Source |
+|---|---|---|---|
+| YTD (Jan 2) | +€73 068 | +€53 094 | démarre post-clôture Degiro, OK pré-fix |
+| 1Y (2025-04-08) | +€65 188 (v304) | +€53 497 | était +€10 374 avant fix |
+| alltime | +€65 188 (v304) | +€53 497 | identique à 1Y ✓ |
+
+Les invariants v303 (I1/I2/I3) continuent de passer dans les 3 modes.
+
+### §11 — Data Model Reference (v304 — modèle de mise à jour compréhensible)
+
+Cette section décrit **toutes les sources de données manuelles** du dashboard. L'objectif : permettre à Amine (ou un futur dev, ou un agent IA) de mettre à jour les données sans casser les invariants.
+
+#### Principe central
+
+```
+js/data.js  →  js/engine.js  →  js/render.js  →  DOM
+  (faits)       (calculs)        (affichage)
+```
+
+- **data.js** contient UNIQUEMENT des faits bruts (soldes, positions, trades, dates, contributions ESPP exactes).
+- Aucune valeur calculée n'est stockée dans data.js (pas de P&L, pas de NAV totale, pas de %).
+- L'engine dérive TOUT (NAV, P&L, taxes, treemap, prévisions) à partir des faits.
+- Modifier data.js → recharger la page → tous les affichages s'adaptent automatiquement.
+
+#### Matrice des objets de données
+
+| Clé `data.js` | Contenu | Cadence | Impact |
+|---|---|---|---|
+| `PORTFOLIO.amine.ibkr.positions` | Array de positions IBKR courantes (ticker, shares) | À chaque achat/vente | NW stocks, treemap, chart |
+| `PORTFOLIO.amine.ibkr.trades` | Historique complet des ordres (achat/vente/FX) | À chaque trade | chart breakdown, P&L réalisé, FX P/L |
+| `PORTFOLIO.amine.ibkr.deposits` | Versements sur le compte IBKR (date, montant, devise, fxRate) | À chaque virement | cumDeposits chart, P&L calculation |
+| `PORTFOLIO.amine.espp` | Lots ESPP Microsoft/Accenture (shares, costBasis, contribEUR, fxRate) | +1 lot/an (avril, novembre) | NW stocks, P&L, per-owner ESPP chart |
+| `PORTFOLIO.amine.degiro` | Historique compte Degiro (clos) : `annualSummary`, `dividends`, `fxCosts`, `flatexCashFlows`, `totalRealizedPL`, `totalPLAllComponents` | Figé (compte clôturé) | P&L historique, 5Y chart |
+| `PORTFOLIO.amine.sgtm` | Actions SGTM Maroc (shares, MAD pricing) | Quand IPO/cours MAD bouge | NW Maroc, treemap |
+| `PORTFOLIO.amine.uae` | Soldes Mashreq/Wio Savings/Current/Business (AED) | Mensuelle | cash view, NW cash |
+| `PORTFOLIO.amine.eur` | Soldes Revolut (EUR) | Mensuelle | cash view |
+| `PORTFOLIO.amine.morocco` | Solde Attijari (MAD) | Mensuelle | cash view |
+| `PORTFOLIO.amine.vehicles` | Cayenne + Mercedes (valeurs) | Annuelle (dépréciation) | NW other |
+| `PORTFOLIO.amine.creances.items` | Prêts émis (SAP, Malt, Sanae, etc.) | À chaque émission/remboursement | créances view, NW (si status≠recouvré) |
+| `PORTFOLIO.amine.creances.dettes` | Obligations (TVA à payer, etc.) | À chaque déclaration | créances view |
+| `PORTFOLIO.amine.facturation` | Fallback statique pour Augustin/Benoit | Sync via localStorage bridge `lallakenza/facturation`, fallback manuel | `amineFacturationNet` → NW Amine |
+| `PORTFOLIO.amine.tva` | TVA à payer (négatif) | Annuelle (déclaration) | NW Amine |
+| `PORTFOLIO.nezha.*` | Mêmes sous-clés pour Nezha (IBKR copart, ESPP, villejuif, rueil, créances, etc.) | Idem Amine | views.nezha |
+| `DIV_CALENDAR` | Calendrier dividendes prévisionnels + flag `confirmed` (v303+) | Trimestrielle à l'annonce AGM | tableau WHT, projections |
+| `DIV_YIELDS` | Yields statiques pour ETF/fonds sans dividendes tracés | Rare (IPO crypto ETF) | dividendes projection |
+| `WHT_RATES` | Taux retenue à la source par juridiction | Rarement (réforme fiscale) | projections WHT |
+| `EQUITY_HISTORY` | Snapshots NAV mensuels (degiro, espp, ibkr, total) | Mensuelle (30 ou 31 du mois) | 5Y/MAX chart, spliced YTD |
+| `NW_HISTORY` | Snapshots NW globaux (optionnel) | Mensuelle (si utilisé) | historical NW chart |
+| `IMMO_CONSTANTS` | Biens immobiliers (valeurs, charges, prêts, taux) | À chaque modif crédit / travaux | immo view, budget, NW |
+| `VITRY_CONSTRAINTS`, `VILLEJUIF_REGIMES` | Règles fiscales par location | À chaque réforme locale | immo calculator |
+| `EXIT_COSTS` | Coûts de sortie (frais notaire/agence) | Rarement | immo exit simulator |
+| `IBKR_CONFIG` | Paramètres IBKR (commissions, FTT, interest rate margin) | Rarement | P&L calculations |
+| `CASH_YIELDS` | Taux d'intérêt des comptes bancaires | Semi-annuelle | cash view, budget |
+| `INFLATION_RATE` | Taux d'inflation pour dépréciation | Annuelle | simulators |
+| `BUDGET_EXPENSES` | Dépenses mensuelles fixes (abonnements, loyer Dubaï) | À chaque modif | budget view |
+| `FX_STATIC` | Taux FX de fallback si Yahoo API down | Mensuelle (sync ECB) | toEUR conversion si API fail |
+| `DEGIRO_STATIC_PRICES` | Prix de clôture Degiro (compte clos) | Figé | chart 5Y/MAX |
+| `PRICE_SNAPSHOT` (price_snapshot.js) | Prix statiques des positions courantes, fallback API | Mensuelle | fallback display |
+
+#### Schémas détaillés par objet
+
+##### Position stock (`PORTFOLIO.amine.ibkr.positions[i]`)
+```js
+{
+  ticker: 'AIR.PA',         // Yahoo ticker (suffixes: .PA=Paris, .DE=Frankfurt, .T=Tokyo)
+  shares: 200,              // Integer, aucune fraction (rachetées en cash)
+  currency: 'EUR',          // EUR | USD | JPY | GBP
+  geo: 'france',            // france | usa | germany | japan | etherland — détermine WHT rate
+  label: 'Airbus (AIR)',    // UI display
+}
+```
+**Règle** : la valeur EUR est calculée dynamiquement via prix Yahoo × shares ÷ fxRate. N'AJOUTE JAMAIS `valEUR` ou `currentPrice` dans la position — ça serait stale.
+
+##### Trade (`PORTFOLIO.amine.ibkr.trades[i]`)
+```js
+{
+  date: '2026-03-15',       // YYYY-MM-DD
+  type: 'buy',              // buy | sell | fx
+  ticker: 'AIR.PA',
+  shares: 50,
+  priceLocal: 170.50,       // prix d'exécution en devise native
+  commissionEUR: 2,         // commission IBKR convertie EUR (fixe, pas un %)
+  fttEUR: 0.68,             // Financial Transaction Tax (0.4% FR, 0.0% autres, computed à l'exécution)
+  currency: 'EUR',          // devise de priceLocal
+  // Pour trades non-EUR :
+  fxRate: 1.1464,           // Taux EURUSD (ou EURJPY, etc.) à la date d'exécution (pour FX P/L)
+}
+```
+**Pièges** :
+- `commissionEUR` est déjà en EUR (pas à reconvertir). Un trade USD avec commission $1 à fxRate 1.15 donne `commissionEUR: 0.87`.
+- `fttEUR` FR = 0.4% × priceLocal × shares (v190+). DE/US = 0.
+- `fxRate` obligatoire pour tous les trades non-EUR (utilisé dans engine.js pour `fxPL` separation — BUG-037).
+
+##### Lot ESPP Amine (`PORTFOLIO.amine.espp.lots[i]`)
+```js
+// Cas normal : contribution salariale connue (EUR prélevé sur salaire)
+{ date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.88, contribEUR: 3845.99 }
+
+// Cas FRAC (dividendes réinvestis) : PAS un dépôt, cost basis 0
+{ date: '2022-08-15', source: 'FRAC', shares: 3, costBasis: 272.36, contribEUR: 0 }
+```
+**Règles** :
+- `contribEUR` = montant exact prélevé sur salaire → utilisé pour P&L calcul.
+- `contribEUR: 0` signifie "zéro explicite" (pas de contribution — dividende réinvesti). Utilisé par `_esppLotDeposit` helper (BUG-053 v302).
+- `contribEUR: undefined` (Nezha) → fallback `shares × costBasis / fxRate`.
+- `source: 'FRAC'` skippe systématiquement dans les séries de dépôts.
+- `totalCostBasisUSD` en regard de `lots` = `Σ (shares × costBasis)` — invariant à maintenir.
+
+##### Dividende prévisionnel (`DIV_CALENDAR['TICKER']`)
+```js
+// Dividende confirmé (AGM voté / press release publié)
+'AIR.PA': {
+  dps: 2.00,
+  exDates: ['2026-04-22'],
+  frequency: 'annual',
+  confirmed: true,
+  source: 'Airbus AGM 15 avril 2026',
+}
+
+// Dividende projeté (extrapolation de l'an passé, pas encore annoncé officiellement)
+'XXX.PA': {
+  dps: 1.80,
+  exDates: ['2026-05-15'],
+  frequency: 'annual',
+  // `confirmed` omis → projeté par défaut (badge gris "⏳ projeté")
+}
+
+// Semi-annuel avec statut per-date (solde confirmé, acompte projeté)
+'MC.PA': {
+  dps: 13.00,
+  exDates: [
+    { date: '2026-04-28', confirmed: true, dps: 7.50 },
+    { date: '2026-12-10', confirmed: false, dps: 5.50 },
+  ],
+  frequency: 'semi-annual',
+}
+```
+**Cadence MAJ** : dès qu'une AGM a voté (fin avril pour CAC40 typiquement) → passer `confirmed: false → true` + remplir `source`.
+
+##### EQUITY_HISTORY (1 entry/mois)
+```js
+{
+  date: '2026-03-31',   // dernier jour du mois
+  degiro: 0,            // NAV Degiro EUR (0 après clôture Apr 2025)
+  espp: 36250,
+  ibkr: 195063,
+  total: 231313,        // doit == degiro + espp + ibkr (invariant, audit en v288)
+}
+```
+**Cadence** : 1er ou 2 du mois suivant, copier les NAV de fin de mois depuis Degiro/IBKR/UBS.
+
+##### Créance (`PORTFOLIO.amine.creances.items[i]`)
+```js
+{
+  id: 'INVSNT005',                   // identifiant unique
+  counterparty: 'Malt',              // nom du débiteur
+  amount: 3500,                      // montant en devise native
+  currency: 'EUR',                   // EUR | USD | MAD
+  status: 'en_cours',                // en_cours | recouvré | perdu
+  dueDate: '2026-05-15',
+  probability: 0.9,                  // 0.0-1.0 — utilisée pour pondération KPI
+  type: 'pro',                       // pro | personal — route vers amineRecvPro ou Personal
+  note: 'Facture F-2026-042',        // contexte (optionnel)
+}
+```
+**Règle NW** : seules les créances avec `status !== 'recouvré'` rentrent dans le NW (les recouvrées sont déjà dans cash, BUG-015).
+
+##### Solde bancaire (`PORTFOLIO.amine.uae.mashreq`, etc.)
+```js
+{ balance: 484000, currency: 'AED' }
+// OU format scalar (legacy) :
+// balance: 484000   // si structure déjà typée
+```
+Conversion EUR via `toEUR(balance, currency, fx)` dans engine.
+
+##### Immo (`IMMO_CONSTANTS.properties[ID]`)
+```js
+'vitry': {
+  purchasePrice: 280000,
+  currentValue: 300000,
+  purchaseDate: '2019-12-15',
+  loan: {
+    initialAmount: 240000,
+    monthlyPayment: 1050,
+    insuranceMonthly: 30,              // INTÉGRÉE (soustraire du P&I avant amortissement, BUG-050)
+    rate: 0.0150,
+    startDate: '2020-02-01',
+    duration: 20,                      // années
+  },
+  rent: { monthly: 1050, parking: 70, charges: 80 },
+  location: { city: 'Vitry-sur-Seine', ... },
+  ownership: { amine: 1.0, nezha: 0 }, // split pour views per-owner
+}
+```
+**Invariant** : `loan.insuranceMonthly > 0` signifie "incluse dans monthlyPayment" ; `= 0` signifie "payée séparément".
+
+#### Workflow type : mettre à jour les soldes bancaires en fin de mois
+
+1. Ouvrir `js/data.js`
+2. Scroll jusqu'à `PORTFOLIO.amine.uae` (~L49) — modifier `mashreq.balance`, `wioSavings.balance`, etc.
+3. `PORTFOLIO.amine.eur.revolut.balance` (~L67)
+4. `PORTFOLIO.amine.morocco.attijari.balance` (~L70)
+5. Mettre à jour `DATA_LAST_UPDATE = 'DD/MM/YYYY'` (~L1142)
+6. Bumper `APP_VERSION = 'vN+1'` (~L1143)
+7. Ajouter 1 ligne dans `EQUITY_HISTORY` si c'est le 1er/2 du mois suivant
+8. Bumper `?v=N → ?v=N+1` partout (cf. "Deployment checklist" dans CLAUDE.md)
+9. `git commit -m "vN+1: update bank balances end-of-month"` + push
+10. Vérifier en production après ~60s : badge version dans footer doit afficher `vN+1`
+
+#### Workflow type : confirmer un dividende après AGM
+
+1. L'entreprise publie son press release / tient son AGM → dividende voté
+2. Ouvrir `js/data.js`, scroll jusqu'à `DIV_CALENDAR` (~L2356)
+3. Sur la ligne du ticker, ajouter `confirmed: true, source: 'COMPANY AGM DD month YYYY'`
+4. Si le `dps` diffère de la projection, mettre à jour
+5. Bump version (`APP_VERSION`, cache-bust `?v=N`)
+6. Vérifier : le badge du ticker passe de "⏳ projeté" (gris) à "✓ confirmé" (vert) avec tooltip source
+
+#### Workflow type : ajouter un trade IBKR
+
+1. Exécuter le trade chez IBKR → récupérer le statement CSV
+2. Ouvrir `js/data.js`, `PORTFOLIO.amine.ibkr.trades` (array)
+3. Ajouter l'entrée avec toutes les clés obligatoires (`date`, `type`, `ticker`, `shares`, `priceLocal`, `currency`, `commissionEUR`, `fttEUR`, `fxRate` si non-EUR)
+4. Si c'est un BUY d'un nouveau ticker : ajouter une entrée dans `PORTFOLIO.amine.ibkr.positions` OU incrémenter `shares` existantes
+5. Si c'est un SELL et que `shares` tombe à 0 : supprimer la position
+6. Ajouter une entrée dans `DIV_CALENDAR` si le ticker verse des dividendes
+7. Bump version + deploy
+8. Vérifier : chart breakdown doit montrer la trade, P&L Réalisé/Non Réalisé doit être cohérent
+
+#### Workflow type : émettre ou recouvrer une créance
+
+1. Ouvrir `js/data.js`, `PORTFOLIO.amine.creances.items` (~L900+)
+2. **Émission** : `{ id, counterparty, amount, currency, status: 'en_cours', dueDate, probability, type }`. Le `id` est local ; préférer `INVSNTnnn`.
+3. **Remboursement** : passer `status: 'recouvré'` + ajouter `receivedDate` + retirer du NW automatiquement (engine exclut les recouvrés)
+4. Bump version + deploy
+5. Vérifier créances view : la ligne apparaît dans "Créances recouvrées" (tableau séparé)
+
+#### Anti-patterns connus
+
+| Anti-pattern | Pourquoi c'est faux | Correction |
+|---|---|---|
+| Hardcoder une NAV dans data.js | Stale à chaque changement de prix | Calculer dynamiquement dans engine |
+| Valeur EUR pour un compte AED | Biaise le calcul multi-devises | Garder AED natif, laisser toEUR convertir |
+| Dupliquer `esppLotCostEUR` | Diverge entre engine et charts (BUG-043) | Importer depuis engine.js |
+| `if (lot.contribEUR)` (truthy check) | Confond `0` et `undefined` (BUG-053) | Utiliser `!= null` |
+| Oublier `fttEUR` sur trade FR | Sous-estime le coût réel | Toujours inclure (même si 0) |
+| Oublier `fxRate` sur trade USD/JPY | Perd la décomposition FX P&L (BUG-037) | Taux ECB à la date |
+| Modifier `EQUITY_HISTORY` rétroactivement | Casse l'invariant de monotonicité | Ajouter seulement de nouvelles lignes en bout |
+| `confirmed: true` sans `source` | Perd la traçabilité | Toujours documenter la source |
+

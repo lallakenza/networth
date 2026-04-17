@@ -1187,7 +1187,58 @@ Il sert de base pour le plan de tests de non-régression.
 | **Tooltip Déposé chart** | BUG-053 | `_esppLotDeposit` helper unique pour les 6 call-sites, skip FRAC + `contribEUR=0`, pas de fallback phantom |
 | **Chart P&L unifié cross-mode** | BUG-054 | `plValues* == absPLTotal == navTotal − absDepsTotal` dans tous les modes ; label dynamique `ytdEndLabel` ; invariants I1/I2/I3 via `console.warn` |
 | **Dividendes confirmées** | feature v303 | Badge `✓ confirmé` / `⏳ projeté` + tooltip source dans calendrier WHT ; schéma `DIV_CALENDAR` étendu avec `confirmed` et `source` |
+| **Chart 1Y première valeur** | BUG-055 | Reconstruction `chartValuesDegiro[t] = absDepsDegiro[t] + degiroRealizedPL` pour `t < 2025-04-14` → `absPLDegiro` constant pré-clôture |
 
 ---
 
-*Dernière mise à jour: v303 — 17 avril 2026 (BUG-054 : refactor P&L chart cross-mode — formule canonique unique `navX − absDepsX`, label header "NAV actuelle" → dynamique "P&L actuel" en mode P&L, capitalDeployed basé sur NAV début période, 3 invariants inline. + Feature dividendes : badge confirmé/projeté + source dans calendrier WHT.)*
+## BUG-055: Chart 1Y/alltime — première valeur sous-estimée (~€60K manquants)
+
+- **Version**: v304 (corrigé)
+- **Sévérité**: Moyenne (incohérence visible entre 1Y premier point et 5Y au même jour)
+- **Détection**: Retour utilisateur — "y a un petit bug sur la première valeur de 1Y (comparé à 5Y) non ?"
+  - 1Y chart premier point (2025-04-08) : +€10 374
+  - 5Y chart à la même date : ~€70 000
+  - Écart : ~€60 000 (≈ `degiroRealizedPL = 50 665€`)
+- **Symptôme visible**: dans le chart 1Y, la courbe démarre à +€10K puis saute brusquement à +€65K dès le 2e point (~mi-mai). Le 5Y (et MAX au même jour) montrait la bonne valeur stable autour de €65-70K.
+- **Cause racine**: dans `buildPortfolioYTDChart` (charts.js:4031), `chartValuesDegiro = chartLabels.map(() => 0)` force la NAV Degiro à 0 pour TOUTES les dates. Ce choix était correct pour le compte post-clôture (14/04/2025) mais incorrect pour les dates pré-clôture où Degiro avait encore un NAV réel (~€55K = €4K deposits nets + €50K P&L réalisé déjà banked en cash dans le compte).
+  
+  La formule v303 `absPLDegiro = navDegiro − absDepsDegiro` donnait :
+  - Pré-clôture : `0 − 4 149 = −4 149€` (faux, devrait être +€50 665)
+  - Post-clôture : `0 − (−50 665) = +50 665€` (correct naturellement car `absDeps` devient négatif suite aux retraits)
+  
+  Différence de +€54 814 qui ressortait brusquement au 14/04/2025 → saut visible dans la courbe.
+  
+  Le chart 5Y (`buildEquityHistoryChart`) n'avait pas le bug car il splice `EQUITY_HISTORY` monthly qui contient la vraie NAV Degiro pré-clôture.
+- **Correctif**: dans `buildPortfolioYTDChart`, juste après `computeAbsoluteTooltipArrays`, reconstruire les NAV Degiro pré-clôture :
+  ```js
+  const DEGIRO_CLOSE_DATE = '2025-04-14';
+  for (let i = 0; i < chartLabels.length; i++) {
+    if (chartLabels[i] < DEGIRO_CLOSE_DATE) {
+      chartValuesDegiro[i] = absTooltip.absDepsDegiro[i] + degiroRealizedPL;
+    }
+    // Else: stays 0 (closed)
+  }
+  // Then recompute chartValuesTotal + absPL{Degiro,Total} to propagate
+  ```
+  Cela garantit `absPLDegiro[t] = degiroRealizedPL` constant pré-clôture, aligné avec le `plValuesDegiro` flat utilisé ailleurs. Post-clôture inchangé (formule naturelle nav−deps → +realizedPL).
+  
+  Ensuite recalcul de `chartValuesTotal = Σ plateformes NAV` et des champs `absPLDegiro` / `absPLTotal` dans `absTooltip` → tous les consommateurs en v303 (plValues unifiés, tooltip, header, KPIs) voient la valeur corrigée.
+- **Vérification runtime** (preview v304, 2025-04-08):
+  | Mode | plTotal[first] | plDegiro[first] | navDegiro[first] | absDepsDegiro[first] |
+  |---|---|---|---|---|
+  | 1y | €65 188 (était €10 374) | +€50 665 | €54 814 (reconstruit) | €4 149 |
+  | alltime | €65 188 (était €10 374) | +€50 665 | €54 814 | €4 149 |
+  | ytd (Jan 2) | €73 068 (inchangé, démarre post-clôture) | +€50 665 | €0 | €−50 665 |
+  
+  Invariants v303 (I1/I2/I3) continuent à passer dans les 3 modes.
+- **Test de non-régression**:
+  - [ ] Preview : chart 1Y mode P&L, premier point >=€50K (pas €10K)
+  - [ ] Cross-mode : `_chartDataByMode['1y'].plValuesTotal[0]` === `_chartDataByMode.alltime.plValuesTotal[0]`
+  - [ ] Console : `[v304] Degiro pre-close NAV reconstructed for N date(s)` apparaît au build (N=1 à 6 selon le mode)
+  - [ ] Invariants `[v303] ✓ plValues*` toujours OK dans les 3 modes
+  - [ ] Chart 5Y/MAX (buildEquityHistoryChart) inchangé — il n'avait pas le bug
+  - [ ] Dernière valeur des 3 modes inchangée (±€1 vs v303, le fix ne touche que les dates < 2025-04-14)
+
+---
+
+*Dernière mise à jour: v304 — 17 avril 2026 (BUG-055 : reconstruction `chartValuesDegiro` pré-clôture dans `buildPortfolioYTDChart` → plus de saut de +€60K au 14/04/2025. Mode 1Y démarre à la bonne valeur, cohérente avec 5Y/MAX. + Data Model Reference complète dans ARCHITECTURE.md §11 pour faciliter les MAJ futures.)*
