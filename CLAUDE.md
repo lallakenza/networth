@@ -96,6 +96,85 @@ Where:
 | Immo simulation | `js/engine.js` | ~2800-3052 |
 | Budget view | `js/engine.js` | ~3233+ |
 
+## Data Update Cheatsheet (v304+)
+
+**Tous les "faits" (soldes, positions, trades, dates) vivent dans `js/data.js`.**
+Le pipeline est 100% dérivé : modifier data.js → engine recalcule → render affiche.
+Aucune valeur calculée ne doit être hardcodée ailleurs. Pour la doc complète avec
+schémas détaillés + exemples, voir `ARCHITECTURE.md §11 "Data Model Reference"`.
+
+### Cadence de mise à jour typique
+
+| Fréquence | Quoi mettre à jour | Où (data.js) | Trigger recompute |
+|---|---|---|---|
+| **Temps réel (auto)** | Prix actions, taux FX | API Yahoo (`js/api.js`) | fetchStockPrices / fetchFXRates |
+| **Quotidienne** | — | — | (pas d'action manuelle) |
+| **Mensuelle** | Soldes bancaires (Mashreq, Wio, Attijari, Revolut) | `PORTFOLIO.amine.{uae,eur,morocco}` | cash view, NW couple |
+| **Mensuelle** | `EQUITY_HISTORY` (1 ligne par mois) | `EQUITY_HISTORY` array | 5Y/MAX chart, YTD spliced pipeline |
+| **Au trade** | Achats/ventes actions IBKR | `PORTFOLIO.amine.ibkr.trades` | chart breakdown, P&L, positions table |
+| **Au trade** | Soldes de positions IBKR | `PORTFOLIO.amine.ibkr.positions` | NW stocks, treemap, chart |
+| **Trimestrielle** | Calendrier dividendes (DPS, exDates, confirmed) | `DIV_CALENDAR` | tableau WHT, `projectedDiv*` |
+| **À la réception AGM** | Flag `confirmed: true` + `source` | `DIV_CALENDAR['TICKER'].confirmed` | badge "✓ confirmé" dans tableau |
+| **Annuelle (janvier)** | `DATA_LAST_UPDATE` + version badge | `DATA_LAST_UPDATE` | footer, header badge |
+| **Événementiel** | Nouvelle créance / remboursement | `PORTFOLIO.amine.creances.items` | créances view, NW (si statut ≠ recouvré) |
+| **Événementiel** | Facturation (Augustin/Benoit) | `PORTFOLIO.amine.facturation` OR localStorage | `amineFacturationNet`, créances view |
+| **Événementiel** | Nouveau prêt immo / modification CRD | `IMMO_CONSTANTS.charges` | immo view, NW, budget |
+| **Annuel** | Lots ESPP (+1 lot par an) + `totalCostBasisUSD` | `PORTFOLIO.amine.espp.lots` | stocks view, NW, chart |
+| **Jamais sans justif** | TVA à payer, taux d'actualisation | `PORTFOLIO.amine.tva`, `INFLATION_RATE` | NW, simulator |
+
+### Schémas rapides (pour détails → ARCHITECTURE.md §11)
+
+**Position stock** :
+```js
+{ ticker: 'AIR.PA', shares: 200, currency: 'EUR', geo: 'france', label: 'Airbus (AIR)' }
+```
+
+**Trade IBKR** :
+```js
+{ date: '2026-03-15', type: 'buy', ticker: 'AIR.PA', shares: 50, priceLocal: 170.50,
+  commissionEUR: 2, fttEUR: 0.68, currency: 'EUR' }
+// Pour non-EUR: ajouter fxRate (taux ECB à la date)
+```
+
+**Dividende confirmé** (v303+) :
+```js
+'AIR.PA': { dps: 2.00, exDates: ['2026-04-22'], frequency: 'annual',
+            confirmed: true, source: 'Airbus AGM 15 avril 2026' }
+```
+
+**EQUITY_HISTORY (1 ligne par mois)** :
+```js
+{ date: '2026-03-31', degiro: 0, espp: 36250, ibkr: 195063, total: 231313 }
+```
+
+**Créance** :
+```js
+{ id: 'INVSNT005', counterparty: 'Malt', amount: 3500, currency: 'EUR',
+  status: 'en_cours', dueDate: '2026-05-15', probability: 0.9, type: 'pro' }
+// status='recouvré' → exclu du NW (déjà dans cash)
+```
+
+**Lot ESPP Amine (cost basis exact)** :
+```js
+{ date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.88, contribEUR: 3845.99 }
+// FRAC (dividendes réinvestis): contribEUR = 0 (PAS absent — explicite)
+```
+
+### Règles d'or (anti-régression)
+
+1. **Ne JAMAIS dupliquer un calcul** : si tu as besoin d'une valeur dérivée, l'importer depuis engine.js (exemple : `esppLotCostEUR`, `getGrandTotal`).
+2. **Toujours bumper `?v=N`** sur TOUS les imports (app.js x7, charts.js x4, simulators.js x2, index.html script tag x1) + `APP_VERSION` dans data.js. Sinon cache = stale JS.
+3. **Invariants engine** (vérifiés au runtime, `[engine] Accounting balanced ✓`) :
+   - `NAV − Net Déployé ≈ Realized + Unrealized` (tolérance ±€5K)
+   - `views.couple.other = views.amine.other + views.nezha.other`
+   - `stocks + cash + immo + other = nwRef` par vue (treemap invariant)
+4. **Invariants chart** (v303+, `[v303] ✓ plValues*` dans la console) :
+   - `plValuesTotal[t] ≈ absPLTotal[t]` (formule canonique : NAV − absDeposits)
+   - `plValuesTotal = Σ plValues{IBKR,ESPP,SGTM,Degiro}` (additivité)
+   - `plValuesESPP = plValuesESPPAmine + plValuesESPPNezha` (per-owner)
+5. **Multi-devises** : TOUS les montants stockés en devise NATIVE. Conversion uniquement via `toEUR(amount, currency, fx)` côté engine. Ne jamais pré-convertir en EUR dans data.js.
+6. **Sémantique `0` vs `undefined`** : pour `contribEUR` (lots ESPP) et similaires, `0` signifie "zéro explicite" (ex: FRAC = dividendes réinvestis, pas de coût). `undefined` signifie "fallback sur le calcul par défaut" (ex: Nezha sans contrib tracée). Utiliser `!= null` pas `if (x)` pour distinguer.
+
 ## Git conventions
 
 ```bash

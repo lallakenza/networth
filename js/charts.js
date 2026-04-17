@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=303';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=303';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=303';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=303';
+import { fmt, fmtAxis } from './render.js?v=304';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=304';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=304';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=304';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4079,6 +4079,55 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   const absTooltipPerOwner = computeAbsoluteTooltipPerOwnerESPP(
     chartLabels, chartValuesESPPAmine, chartValuesESPPNezha, historicalData
   );
+
+  // ══════════════════════════════════════════════════════════════════
+  // v304 (BUG-055) — DEGIRO PRE-CLOSURE NAV RECONSTRUCTION
+  // ══════════════════════════════════════════════════════════════════
+  // Problème : `chartValuesDegiro = [0, 0, ... ]` partout dans les modes
+  // 1y/alltime. Tant que Degiro est CLOS (post-14/04/2025), c'est correct.
+  // Mais pour les dates AVANT la clôture (ex: 2025-04-08 à 2025-04-13
+  // dans le mode 1Y), le compte avait encore un NAV réel (~€55K = €4K
+  // deposits nets + €50K P&L réalisé déjà banked en cash dans le compte).
+  //
+  // Symptôme : la première valeur du chart 1Y montrait P&L ≈ €10K alors
+  // que le chart 5Y/MAX à la même date montrait ~€70K (correct, via
+  // EQUITY_HISTORY mensuelle qui a la vraie NAV Degiro pré-clôture).
+  // Écart visible entre 1Y point[0] et 5Y au même jour → incohérent.
+  //
+  // Fix : pour chaque date t < 2025-04-14, reconstruire :
+  //   chartValuesDegiro[t] = absDepsDegiro[t] + degiroRealizedPL
+  // Cela assure absPLDegiro[t] = degiroRealizedPL (constant) — sémantique
+  // "Degiro avait déjà accumulé son P&L lifetime avant la clôture" qui
+  // matche l'approximation du reste du pipeline (plValuesDegiro flat).
+  //
+  // Post-clôture : chartValuesDegiro[t] = 0 (inchangé). absDepsDegiro
+  // devient négatif (retraits > dépôts) → absPLDegiro = 0 − neg =
+  // +realizedPL, identité préservée naturellement.
+  //
+  // Puis on recalcule chartValuesTotal (= somme des NAV) et on rafraîchit
+  // les champs absPL* dans absTooltip pour que plValues* unifiés
+  // ci-dessous reflètent le fix.
+  // ══════════════════════════════════════════════════════════════════
+  const DEGIRO_CLOSE_DATE = '2025-04-14';
+  let preCloseFixCount = 0;
+  for (let i = 0; i < chartLabels.length; i++) {
+    if (chartLabels[i] < DEGIRO_CLOSE_DATE) {
+      // Reconstruct pre-closure Degiro NAV so absPL = realizedPL constant.
+      chartValuesDegiro[i] = (absTooltip.absDepsDegiro[i] || 0) + degiroRealizedPL;
+      preCloseFixCount++;
+    }
+    // Else: chartValuesDegiro[i] stays 0 (account closed)
+  }
+  if (preCloseFixCount > 0) {
+    // Rebuild chartValuesTotal + absPL* arrays to reflect the adjustment.
+    for (let i = 0; i < chartLabels.length; i++) {
+      chartValuesTotal[i] = (chartValues[i] || 0) + (chartValuesESPP[i] || 0)
+                          + (chartValuesSGTM[i] || 0) + (chartValuesDegiro[i] || 0);
+      absTooltip.absPLDegiro[i] = Math.round((chartValuesDegiro[i] || 0) - (absTooltip.absDepsDegiro[i] || 0));
+      absTooltip.absPLTotal[i]  = Math.round((chartValuesTotal[i]  || 0) - (absTooltip.absDepsTotal[i]  || 0));
+    }
+    console.log('[v304] Degiro pre-close NAV reconstructed for ' + preCloseFixCount + ' date(s) — absPL now flat at +€' + Math.round(degiroRealizedPL) + ' pre-closure');
+  }
 
   // v303 — Build unified lifetime plValues from absTooltip.
   // Per-platform AND total now follow: plValuesX[t] = navX[t] − absDepsX[t].
