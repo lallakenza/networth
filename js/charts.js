@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=301';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=301';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=301';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=301';
+import { fmt, fmtAxis } from './render.js?v=302';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=302';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=302';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=302';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1885,6 +1885,38 @@ function _lookupFx(fxData, key, date) {
   return null;
 }
 
+/**
+ * BUG-053 (v302) — helper unique pour convertir un lot ESPP en dépôt EUR.
+ *
+ * Sémantique de `lot.contribEUR` :
+ *   - `undefined`/absent : contribution inconnue → fallback via `shares × costBasis / fxRate`.
+ *   - `0` (explicite)    : pas de dépôt nouveau (FRAC = dividendes réinvestis, cf. data.js L145).
+ *                           Doit être traité comme "skip" et NON comme fallback.
+ *   - `>0`               : dépôt exact, inclus tel quel.
+ *
+ * Avant v302, les 6 call-sites utilisaient `if (lot.contribEUR)` qui traitait
+ * `0` comme falsy et tombait dans le fallback — générant un "dépôt fantôme" de
+ * ~711€ pour le lot FRAC de Amine (3sh × $272.36 / 1.15). Résultat : divergence
+ * Déposé YTD vs MAX à date identique (cf. BUG-053).
+ *
+ * Ce helper garantit un traitement uniforme. Appeler avec `fallbackFx = 1.15`
+ * pour Amine, `1.10` pour Nezha (les lots Nezha n'ont pas contribEUR).
+ *
+ * @param {object} lot - Lot ESPP avec date, source?, shares, costBasis, contribEUR?, fxRateAtDate?
+ * @param {number} fallbackFx - Taux EURUSD de secours si fxRateAtDate absent
+ * @returns {{ date: string, amountEUR: number } | null} - null si à skip (FRAC ou contribEUR===0)
+ */
+function _esppLotDeposit(lot, fallbackFx) {
+  if (lot.source === 'FRAC') return null;       // dividendes réinvestis, pas d'argent nouveau
+  if (lot.contribEUR != null) {
+    if (lot.contribEUR <= 0) return null;       // 0 explicite → skip
+    return { date: lot.date, amountEUR: lot.contribEUR };
+  }
+  // contribEUR absent → fallback via fxRateAtDate ou fallbackFx
+  const fx = lot.fxRateAtDate || fallbackFx;
+  return { date: lot.date, amountEUR: (lot.shares * lot.costBasis) / fx };
+}
+
 // Called by both buildPortfolioYTDChart and buildEquityHistoryChart.
 // NOTE (v280/BUG-014): ce path calcule les dépôts cumulatifs à partir des
 // annualSummary/flatexCashFlows Degiro + lots ESPP + records IBKR, ce qui
@@ -1933,14 +1965,15 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
   const dgPerDeposit = dgTotalDeposits / dgDepositDates.length;
 
   // ── 2) ESPP: all lots contribEUR ──
+  // BUG-053 (v302) : utilise `_esppLotDeposit()` pour traitement uniforme
+  // (skip FRAC + contribEUR === 0, fallback sur undefined). Avant v302, ce
+  // path traitait `contribEUR = 0` comme falsy → phantom ~711€ sur le lot FRAC
+  // de Amine, causant divergence Déposé YTD vs MAX à date identique.
   const esppDepositEvents = [];
   const esppLotsAmine = PORTFOLIO.amine.espp?.lots || [];
   for (const lot of esppLotsAmine) {
-    if (lot.contribEUR) {
-      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    } else {
-      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
-    }
+    const ev = _esppLotDeposit(lot, 1.15);
+    if (ev) esppDepositEvents.push(ev);
   }
   const esppCash = PORTFOLIO.amine.espp?.cashEUR || 0;
   if (esppCash > 0) {
@@ -1951,11 +1984,8 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
   // Nezha ESPP
   const nezhaLots = PORTFOLIO.nezha?.espp?.lots || [];
   for (const lot of nezhaLots) {
-    if (lot.contribEUR) {
-      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    } else {
-      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
-    }
+    const ev = _esppLotDeposit(lot, 1.10);
+    if (ev) esppDepositEvents.push(ev);
   }
   const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
   if (nezhaCashUSD > 0) {
@@ -2033,15 +2063,12 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
 
 // v276: Compute per-owner absolute ESPP deposits and P&L for click detail panel
 function computeAbsoluteTooltipPerOwnerESPP(chartLabels, navESPPAmine, navESPPNezha, historicalFxData) {
-  // Amine ESPP deposits
+  // Amine ESPP deposits (BUG-053 v302: via _esppLotDeposit helper — skip FRAC)
   const amineDepEvents = [];
   const amineLots = PORTFOLIO.amine?.espp?.lots || [];
   for (const lot of amineLots) {
-    if (lot.contribEUR) {
-      amineDepEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    } else {
-      amineDepEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
-    }
+    const ev = _esppLotDeposit(lot, 1.15);
+    if (ev) amineDepEvents.push(ev);
   }
   const amineCash = PORTFOLIO.amine?.espp?.cashEUR || 0;
   if (amineCash > 0) {
@@ -2051,15 +2078,12 @@ function computeAbsoluteTooltipPerOwnerESPP(chartLabels, navESPPAmine, navESPPNe
   }
   amineDepEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Nezha ESPP deposits
+  // Nezha ESPP deposits (BUG-053 v302: via helper pour cohérence défensive)
   const nezhaDepEvents = [];
   const nezhaLots = PORTFOLIO.nezha?.espp?.lots || [];
   for (const lot of nezhaLots) {
-    if (lot.contribEUR) {
-      nezhaDepEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    } else {
-      nezhaDepEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
-    }
+    const ev = _esppLotDeposit(lot, 1.10);
+    if (ev) nezhaDepEvents.push(ev);
   }
   const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
   if (nezhaCashUSD > 0) {
@@ -4346,12 +4370,15 @@ export function buildEquityHistoryChart(period, options) {
     '| P&L fin=' + Math.round(plValuesDegiro[plValuesDegiro.length - 1]));
 
   // ── 2) ESPP P&L: NAV - contribEUR (contributions salariales exactes) ──
+  // BUG-053 (v302) : via _esppLotDeposit helper. Ce call-site traitait déjà
+  // correctement FRAC (if truthy → skip 0) mais le helper rend l'intention
+  // explicite et tolère `contribEUR = undefined` si un jour on a des lots
+  // Amine sans contribEUR (qui tomberaient alors sur le fallback fxRate).
   const esppDepositEvents = [];
   const esppLots = PORTFOLIO.amine.espp.lots || [];
   for (const lot of esppLots) {
-    if (lot.contribEUR) {
-      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    }
+    const ev = _esppLotDeposit(lot, 1.15);
+    if (ev) esppDepositEvents.push(ev);
   }
   const esppCash = PORTFOLIO.amine.espp.cashEUR || 0;
   if (esppCash > 0) {
@@ -4381,15 +4408,11 @@ export function buildEquityHistoryChart(period, options) {
     sgtmDepositEvents.push({ date: '2025-12-15', amountEUR: sgtmCostEUR });
   }
 
-  // Nezha ESPP deposits (lots without contribEUR)
+  // Nezha ESPP deposits (BUG-053 v302: via _esppLotDeposit helper)
   const nezhaESPPLots = PORTFOLIO.nezha?.espp?.lots || [];
   for (const lot of nezhaESPPLots) {
-    if (lot.contribEUR) {
-      esppDepositEvents.push({ date: lot.date, amountEUR: lot.contribEUR });
-    } else {
-      const defaultFx = 1.10;
-      esppDepositEvents.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || defaultFx) });
-    }
+    const ev = _esppLotDeposit(lot, 1.10);
+    if (ev) esppDepositEvents.push(ev);
   }
   // Nezha cash
   const nezhaCashUSD = PORTFOLIO.nezha?.espp?.cashUSD || 0;
@@ -4399,12 +4422,12 @@ export function buildEquityHistoryChart(period, options) {
   }
   esppDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  // v276: Build per-owner ESPP deposit events for equity history
+  // v276: per-owner ESPP deposit events (BUG-053 v302: via helper)
   const esppDepEventsAmine = [];
   const amineLotsEH = PORTFOLIO.amine?.espp?.lots || [];
   for (const lot of amineLotsEH) {
-    if (lot.contribEUR) esppDepEventsAmine.push({ date: lot.date, amountEUR: lot.contribEUR });
-    else esppDepEventsAmine.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.15) });
+    const ev = _esppLotDeposit(lot, 1.15);
+    if (ev) esppDepEventsAmine.push(ev);
   }
   const amineCashEH = PORTFOLIO.amine?.espp?.cashEUR || 0;
   if (amineCashEH > 0) {
@@ -4416,8 +4439,8 @@ export function buildEquityHistoryChart(period, options) {
   const esppDepEventsNezha = [];
   const nezhaLotsEH = PORTFOLIO.nezha?.espp?.lots || [];
   for (const lot of nezhaLotsEH) {
-    if (lot.contribEUR) esppDepEventsNezha.push({ date: lot.date, amountEUR: lot.contribEUR });
-    else esppDepEventsNezha.push({ date: lot.date, amountEUR: (lot.shares * lot.costBasis) / (lot.fxRateAtDate || 1.10) });
+    const ev = _esppLotDeposit(lot, 1.10);
+    if (ev) esppDepEventsNezha.push(ev);
   }
   const nezhaCashEH = PORTFOLIO.nezha?.espp?.cashUSD || 0;
   if (nezhaCashEH > 0) esppDepEventsNezha.push({ date: '2018-01-01', amountEUR: nezhaCashEH / (FX_STATIC?.USD || 1.15) });
