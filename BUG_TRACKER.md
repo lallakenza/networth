@@ -1018,6 +1018,39 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-053: Déposé ESPP incohérent entre chart modes (FRAC lot `contribEUR=0` falsy)
+
+- **Version**: v302 (corrigé)
+- **Sévérité**: Moyenne (incohérence visible dans les tooltips — P&L réel côté engine n'est PAS affecté)
+- **Détection**: Retour utilisateur — "bug sur le calcul de P&L, la valeur finale est différente selon le graph affiché". Capture d'écran :
+  - Tooltip MAX au 17/04/2026 : NAV €243 701, Déposé €189 615, P&L +€54 086
+  - Tooltip YTD au 17/04/2026 : NAV €243 298, Déposé €190 326, P&L +€52 972
+  - Différence : ΔDéposé = 711€, ΔNAV = 403€ (résiduel non corrigé par v302, voir ci-dessous)
+- **Symptôme**: À date identique (aujourd'hui), le tooltip affiche des Déposé/NAV/P&L différents selon la période visualisée (YTD vs 1Y vs MAX). Mathématiquement cohérent par période (NAV − Déposé = P&L) mais le snapshot "aujourd'hui" devrait être unique.
+- **Cause racine**: `PORTFOLIO.amine.espp.lots` contient 1 lot `source: 'FRAC'` (3 shares reçues via dividendes réinvestis ~août 2022) avec `contribEUR: 0` — "aucune contribution salariale, c'est un réinvestissement de dividende" (data.js L145). Les 6 call-sites ESPP dans `charts.js` utilisaient le pattern `if (lot.contribEUR) { push(contribEUR) } else { push(fallback_via_fxRate) }`. Comme `0` est falsy en JavaScript, le lot FRAC tombait dans le `else` et générait un dépôt fantôme de `(3 × 272.36) / 1.15 ≈ 710.5€`.
+  - `buildEquityHistoryChart` (MAX path, L4376) utilisait `if (lot.contribEUR) { push }` SANS `else` → skippait FRAC correctement par chance
+  - `computeAbsoluteTooltipArrays` (YTD path, L1938) avait un `else` → 710€ phantom
+  - `computeAbsoluteTooltipPerOwnerESPP` (per-owner YTD, L2058) : idem phantom
+  - `buildEquityHistoryChart` (per-owner Amine, L4424) : idem phantom
+  - Les deux call-sites Nezha du même pattern n'étaient pas buggés en pratique (Nezha n'a pas de FRAC) mais étaient fragiles.
+- **Correctif**: Helper `_esppLotDeposit(lot, fallbackFx)` qui centralise la sémantique correcte :
+  - `lot.source === 'FRAC'` → `return null` (skip)
+  - `lot.contribEUR != null && lot.contribEUR > 0` → dépôt exact
+  - `lot.contribEUR === 0` → `return null` (zéro explicite, skip)
+  - `lot.contribEUR == null` → fallback `(shares × costBasis) / (fxRateAtDate || fallbackFx)`
+  Appliqué aux 6 call-sites (charts.js).
+- **Résidu non corrigé**: ΔNAV ~403€ restant entre MAX et YTD vient du replay alltime-from-zero dans MAX (STARTING_NAV=0, cashEUR=0) vs YTD calibré avec `IBKR_EUR_START_OVERRIDE=-17534` (traced depuis CSV IBKR). Commentaire charts.js L2842-2843 : "EUR cash previously derived as residual → accumulated ~1,534€ error due to Yahoo FX rates differing from IBKR's. Using traced value eliminates this drift." Fixer cela requiert un refactor architectural (unifier alltime avec calibration IBKR) et est documenté comme tech debt.
+- **Test de non-régression**:
+  - [ ] Tooltip MAX vs YTD au jour courant : ΔDéposé ≈ 0 (était 711€)
+  - [ ] Tooltip 1Y vs YTD au jour courant : ΔDéposé ≈ 0
+  - [ ] P&L total au jour courant : même valeur quel que soit le mode (MAX/1Y/YTD) modulo le drift NAV résiduel (~400€)
+  - [ ] Grep `lot\.contribEUR` dans `js/charts.js` : aucun call-site ne doit utiliser `if (lot.contribEUR) { ... } else { ... }` — tous passent par `_esppLotDeposit`
+  - [ ] Le lot FRAC de Amine (2022-08-15, contribEUR: 0) n'apparaît dans AUCUNE série de dépôts cumulés
+  - [ ] engine.js `esppLotCostEUR` inchangé (utilise `!== undefined` qui est déjà correct)
+  - [ ] NW total (page patrimoine) inchangé — le helper ne change pas la comptabilité côté engine, juste les séries chart
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -1052,7 +1085,8 @@ Il sert de base pour le plan de tests de non-régression.
 | **Action Logement amort** | BUG-050 | Assurance intégrée retirée du P&I avant amortissement |
 | **Animation montagne** | BUG-051 | Une animation unique monotone, durée adaptative, pas de saut Phase1→Phase2 |
 | **Animation auth-gate (variantes)** | BUG-052 | Slot-machine comme alternative, random selector, module pattern, audit physics/visual/code |
+| **Tooltip Déposé chart** | BUG-053 | `_esppLotDeposit` helper unique pour les 6 call-sites, skip FRAC + `contribEUR=0`, pas de fallback phantom |
 
 ---
 
-*Dernière mise à jour: v301 — 16 avril 2026 (BUG-052 : variante slot-machine + sélecteur aléatoire + audit triple parallèle sur physics/visual/code, timeout fallback 5→12s, re-lock defensive pour arrivée tardive des données)*
+*Dernière mise à jour: v302 — 17 avril 2026 (BUG-053 : fix phantom deposit FRAC lot `contribEUR=0` falsy → 711€ de divergence tooltip YTD vs MAX. Helper `_esppLotDeposit` unique pour les 6 call-sites dans charts.js.)*
