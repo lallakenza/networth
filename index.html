@@ -3210,9 +3210,14 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div style="margin-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <h3 id="ytdChartTitle" style="margin:0"><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>&Eacute;volution Portefeuille — YTD 2026</h3>
+      <!-- v303 (BUG-054) : both labels are now relabeled dynamically by
+           renderPortfolioChart() based on mode + displayMode. In P&L mode
+           the right column is "P&L actuel" (current lifetime P&L), not
+           "NAV actuelle" (which used to display the period delta by mistake).
+           Also fixes a stray </span> from the earlier markup. -->
       <div style="display:flex;gap:16px;font-size:12px;color:var(--gray);">
-        <span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
-        <span>NAV actuelle : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
+        <span><span id="ytdStartLabel">NAV 1<sup>er</sup> jan</span> : <strong id="ytdStartValue" style="color:var(--text)">--</strong></span>
+        <span><span id="ytdEndLabel">NAV actuelle</span> : <strong id="ytdEndValue" style="color:var(--text)">--</strong></span>
       </div>
     </div>
     <!-- Chart container with overlay progress bar -->
@@ -3705,7 +3710,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=302"></script>
+<script type="module" src="js/app.js?v=303"></script>
 
 </body>
 </html>

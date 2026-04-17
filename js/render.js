@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=259';
-import { getGrandTotal } from './engine.js?v=259';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=303';
+import { getGrandTotal } from './engine.js?v=303';
 
 // ---- Generic table sort utility ----
 /**
@@ -6098,7 +6098,24 @@ function renderWHTRows() {
       const months = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
       const dateStr = day + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
       const urgency = p.daysUntilEx <= 30 ? 'color:#c53030;font-weight:700;' : p.daysUntilEx <= 60 ? 'color:#c05621;font-weight:600;' : 'color:var(--gray);';
-      deadlineHtml = '<span style="' + urgency + '">' + dateStr + '</span><br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + '</span>';
+      // v303 (BUG-054 feature) — badge de statut de confirmation.
+      // Green "✓ confirmé" = l'entreprise a officiellement annoncé le dividende
+      // (AGM, résultats annuels). Gray "⏳ projeté" = estimation basée sur
+      // l'historique. Tooltip sur le badge affiche la source (ex: "Airbus
+      // AGM press release 2026-03-12") pour traçabilité.
+      let statusBadge = '';
+      if (p.nextExConfirmed) {
+        const tip = p.divSource ? ' title="Source : ' + p.divSource.replace(/"/g, '&quot;') + '"' : '';
+        statusBadge = '<span' + tip + ' style="display:inline-block;margin-top:2px;background:#c6f6d5;color:#276749;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">✓ confirmé</span>';
+      } else {
+        statusBadge = '<span title="Projection basée sur le DPS et le calendrier de l&#39;an passé — non confirmé officiellement" style="display:inline-block;margin-top:2px;background:#edf2f7;color:#718096;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">⏳ projeté</span>';
+      }
+      const noteHtml = p.nextExNote
+        ? '<br><span style="font-size:9px;color:#a0aec0;font-style:italic">' + p.nextExNote + '</span>'
+        : '';
+      deadlineHtml = '<span style="' + urgency + '">' + dateStr + '</span>'
+        + '<br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + '</span>'
+        + '<br>' + statusBadge + noteHtml;
     }
 
     tr.style.cssText = recBg;

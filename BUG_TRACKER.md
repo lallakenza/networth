@@ -1051,6 +1051,105 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-054: Chart Evolution — 3 formules de P&L divergentes + label "NAV actuelle" hardcodé
+
+- **Version**: v303 (refactor ciblé)
+- **Sévérité**: Haute (valeurs visibles incohérentes entre périodes)
+- **Détection**: Retour utilisateur — "bug sur le calcul de P&L, la valeur finale est différente selon le graph affiché". Capture :
+  - Tooltip MAX au 17/04/2026 → P&L total +€54 086
+  - Tooltip YTD au 17/04/2026 → P&L total +€52 972
+  - Header 1Y → "NAV actuelle : €-11 028" (absurde — c'était le delta P&L, pas la NAV)
+- **Symptôme**: à date identique (aujourd'hui), les trois pipelines du graphique (`mode='ytd'`, `mode='1y'`, `mode='alltime'`) exposaient trois valeurs différentes pour `plValuesTotal[last]` :
+  - YTD : 30 942 € (= navChange + degiroRealizedPL, PÉRIODE-relative)
+  - 1Y/alltime : 89 874 € (= NAV from-zero − deposits_replayed + degiroRealized, FROM-ZERO-REPLAY)
+  - `absPLTotal` (tooltip) : 53 347 € (= navTotal − absDepsTotal, LIFETIME correct)
+  
+  Parallèlement, le label "NAV actuelle" dans le header du chart était HARDCODÉ dans `index.html:3215` et ne changeait jamais. En mode P&L, la valeur injectée était `plChange` (delta période), donc le user lisait "NAV actuelle : -€11 028" pour un portefeuille qui vaut €243 000.
+- **Cause racine**:
+  1. Absence de définition canonique unique de "P&L total au jour t". 4 implémentations coexistaient (YTD period, 1Y/alltime from-zero, `buildEquityHistoryChart`, `computeAbsoluteTooltipArrays.absPLTotal`) avec des formules différentes.
+  2. Le span "NAV actuelle" n'avait pas d'`id` → `renderPortfolioChart` ne pouvait pas le relabeler.
+  3. `capitalDeployed = refValue + depositsInPeriod` utilisait `refValue=0` en mode P&L → le dénominateur du % P&L titre était sous-évalué.
+- **Correctif (v303 — refactor ciblé, pas complet)**:
+  1. **Formule canonique unique** : `plValues*[t] = navValues*[t] − absDepositsValues*[t]` (= `absPLTotal[t]`). Appliquée à TOUS les modes en écrasant `plValues*` stockés avec `absTooltip.abs*` juste après leur calcul. `buildEquityHistoryChart` faisait déjà ça correctement ; `buildPortfolioYTDChart` a été aligné.
+  2. **`absTooltip` déplacé AVANT le early-return 'alltime'** dans `buildPortfolioYTDChart` (auparavant calculé seulement pour ytd/1y, donc alltime n'avait pas accès aux valeurs lifetime).
+  3. **Per-platform & per-owner plValues** également unifiés : `plValuesIBKR/ESPP/SGTM/Degiro/ESPPAmine/ESPPNezha` viennent tous de `absTooltip.absPL*` désormais.
+  4. **Label "NAV actuelle" → dynamique** : ajout `id="ytdEndLabel"` dans `index.html:3214-3216`, `renderPortfolioChart` le relabèle en "P&L actuel" en mode P&L, "NAV actuelle" en mode Valeur.
+  5. **Valeur injectée en mode P&L** : `ytdEndEl.textContent = endVal` (P&L lifetime courant) au lieu de `plChange` (delta période, déjà dans le titre) → plus de duplication.
+  6. **`capitalDeployed` basé sur la NAV de départ de la période** : lecture directe depuis `data.totalValues[startIdx]` etc. (mode-invariant, donne un dénominateur cohérent pour le % P&L affiché dans le titre).
+  7. **Tests de régression inline** (`_assertV303Invariants`) dans chaque build, 3 invariants vérifiés aux points {0, n/2, n-1} avec tolérances €1-4 : (I1) plValuesTotal == absPLTotal, (I2) Total == Σ per-platform, (I3) ESPP == Amine + Nezha. Fail loud via `console.warn` si dérive.
+- **Résidu non corrigé** (tech debt pré-existant) : ΔNAV ~€400 entre YTD (53 347) et 1Y/alltime (53 750) vient du replay alltime-from-zero (STARTING_NAV=0, cashEUR=0) vs YTD calibré avec `IBKR_EUR_START_OVERRIDE=-17534` traced depuis CSV IBKR. Documenté dans `charts.js:2842-2843` comme drift Yahoo FX vs IBKR FX. Fixer cela requiert d'unifier les 4 pipelines (buildPortfolioYTDChart × 3 modes + buildEquityHistoryChart) — estimé 3-4 jours, hors scope v303.
+- **Vérification runtime** (preview worktree v303):
+  ```
+  Mode     plTotalLast   absPLLast    Invariants
+  ytd      53 347 €      53 347 €     I1 ✓  I2 ✓  I3 ✓
+  1y       53 750 €      53 750 €     I1 ✓  I2 ✓  I3 ✓
+  alltime  53 750 €      53 750 €     I1 ✓  I2 ✓  I3 ✓
+  ```
+  Header P&L mode :
+  - YTD : P&L départ €73 068 → P&L actuel +€53 347 (delta YTD = −€19 721 = titre)
+  - 1Y  : P&L départ €10 374 → P&L actuel +€53 750 (delta 1Y = +€43 376 = titre)
+  - MAX : P&L départ €2 487  → P&L actuel +€53 750 (delta MAX = +€51 263 = titre)
+- **Test de non-régression**:
+  - [ ] Preview : ouvrir la console, chercher `[v303] ✓ plValues* invariants OK` — doit apparaître pour chaque mode (ytd, 1y, alltime)
+  - [ ] Pas de `[v303] ⚠` warnings dans la console
+  - [ ] Header en mode Valeur : "NAV 1er jan : X / NAV actuelle : Y" (labels inchangés)
+  - [ ] Header en mode P&L : "P&L départ : X / P&L actuel : Y" (nouveau label)
+  - [ ] En mode P&L : `endVal` (P&L actuel) ≠ `plChange` (delta titre), plus de duplication entre titre et header
+  - [ ] Cross-mode : `_chartDataByMode.ytd.plValuesTotal.at(-1)` ≈ `_chartDataByMode.ytd._absoluteTooltip.absPLTotal.at(-1)` (même pour 1y, alltime)
+  - [ ] `_chartDataByMode['1y'].plValuesTotal.at(-1)` === `_chartDataByMode.alltime.plValuesTotal.at(-1)` (même pipeline from-zero)
+  - [ ] Drift YTD vs 1Y/alltime ≤ €500 (drift documenté, pas critique)
+
+---
+
+## Feature (v303): Badge de confirmation des dividendes dans le calendrier WHT
+
+- **Version**: v303 (nouvelle feature)
+- **Contexte**: Demande utilisateur — "fais une mise à jour de ce tableau et montre le quand une dividende est confirmée" (tableau `whtTbody` affichant le calendrier des ex-dates).
+- **Besoin métier**: Distinguer visuellement les dividendes **officiellement annoncés** (via AGM ou résultats annuels) de ceux simplement **projetés** (estimation DPS × shares basée sur l'an passé, sans confirmation). Utile car entre le 1er trimestre et l'AGM, les dividendes affichés sont hypothétiques — l'utilisateur peut ne pas vouloir planifier des ventes pré-ex-date sur cette base.
+- **Schéma étendu** (`data.js` `DIV_CALENDAR`):
+  ```js
+  {
+    dps: number,                    // DPS natif (devise action)
+    exDates: Array<string|Object>,  // string 'YYYY-MM-DD' OR { date, confirmed?, dps?, note? }
+    frequency: 'annual'|'semi-annual'|'quarterly'|'none',
+    confirmed?: boolean,            // NOUVEAU — défaut pour toutes les exDates strings
+    source?: string,                // NOUVEAU — provenance (ex: "Airbus AGM 15 avril 2026")
+    note?: string,
+  }
+  ```
+  Sémantique `confirmed` :
+  - `true`  → annonce officielle (AGM votée, rapport annuel, press release) → badge vert "✓ confirmé"
+  - `false`/absent → projection basée sur historique → badge gris "⏳ projeté"
+
+  Le support per-date (via objet ExDateObj) permet de marquer confirmed=true pour le solde mai et confirmed=false pour l'acompte décembre (cas semi-annuel LVMH/Hermès).
+- **Propagation** (`engine.js` dans le builder dividendAnalysis):
+  - Normalisation des `exDates` (string OR object → object avec .date, .confirmed, .note)
+  - Exposition de `nextExConfirmed: boolean` et `nextExNote: string|null` sur chaque position
+  - Exposition de `divSource: string|null` (depuis `cal.source`)
+  - `upcomingPayments` carries `{ exDate, daysUntil, confirmed, note }` pour usage futur (tooltip, etc.)
+- **Affichage** (`render.js` `renderWHTRows`):
+  - Dans la cellule "VENDRE AVANT", ajout après la ligne `J-X` d'un badge small pill :
+    - Confirmé : `<span style="background:#c6f6d5;color:#276749">✓ confirmé</span>` + tooltip `title="Source : Airbus AGM 15 avril 2026"`
+    - Projeté : `<span style="background:#edf2f7;color:#718096">⏳ projeté</span>` + tooltip expliquant que c'est une projection
+  - Si `nextExNote` présent (ex: "Solde 7.50€ avr + acompte 5.50€ déc"), rendu en italique gris sous le badge
+- **Données mises à jour**: tous les dividendes CAC 40 avec ex-date avril-mai 2026 marqués `confirmed: true` avec `source` pointant vers l'AGM ou les résultats annuels 2025 (publiés fév-mars 2026). Shiseido (juin) confirmé via rapport FY2025 mars 2026. IBIT/ETHA (DPS=0) marqués confirmed=true par cohérence (pas de dividende à projeter).
+- **Verif preview**:
+  ```
+  Ticker        Badge            Source tooltip
+  Airbus (AIR)  ✓ confirmé       Airbus AGM 15 avril 2026
+  LVMH (MC)     ✓ confirmé       LVMH AGM 16 avril 2026
+  Porsche       ✓ confirmé       Porsche AG résultats FY2025 (mars 2026)
+  ... (10/10 rows)
+  ```
+- **Test de non-régression**:
+  - [ ] Chaque ligne du tableau dividendes affiche un badge "✓ confirmé" ou "⏳ projeté" sous la date
+  - [ ] Hover sur le badge → tooltip avec la source
+  - [ ] Ajouter un faux dividende avec `confirmed: false` dans data.js → badge gris "⏳ projeté" doit apparaître
+  - [ ] Format object pour `exDates` (ex: `[{ date: '2026-05-04', confirmed: false }]`) également supporté
+  - [ ] Aucune régression sur les calculs `projectedDivEUR` / `projectedWHT` / `daysUntilEx`
+
+---
+
 ## Matrice de couverture par fonctionnalité
 
 | Fonctionnalité | Bugs liés | Tests critiques |
@@ -1086,7 +1185,9 @@ Il sert de base pour le plan de tests de non-régression.
 | **Animation montagne** | BUG-051 | Une animation unique monotone, durée adaptative, pas de saut Phase1→Phase2 |
 | **Animation auth-gate (variantes)** | BUG-052 | Slot-machine comme alternative, random selector, module pattern, audit physics/visual/code |
 | **Tooltip Déposé chart** | BUG-053 | `_esppLotDeposit` helper unique pour les 6 call-sites, skip FRAC + `contribEUR=0`, pas de fallback phantom |
+| **Chart P&L unifié cross-mode** | BUG-054 | `plValues* == absPLTotal == navTotal − absDepsTotal` dans tous les modes ; label dynamique `ytdEndLabel` ; invariants I1/I2/I3 via `console.warn` |
+| **Dividendes confirmées** | feature v303 | Badge `✓ confirmé` / `⏳ projeté` + tooltip source dans calendrier WHT ; schéma `DIV_CALENDAR` étendu avec `confirmed` et `source` |
 
 ---
 
-*Dernière mise à jour: v302 — 17 avril 2026 (BUG-053 : fix phantom deposit FRAC lot `contribEUR=0` falsy → 711€ de divergence tooltip YTD vs MAX. Helper `_esppLotDeposit` unique pour les 6 call-sites dans charts.js.)*
+*Dernière mise à jour: v303 — 17 avril 2026 (BUG-054 : refactor P&L chart cross-mode — formule canonique unique `navX − absDepsX`, label header "NAV actuelle" → dynamique "P&L actuel" en mode P&L, capitalDeployed basé sur NAV début période, 3 invariants inline. + Feature dividendes : badge confirmé/projeté + source dans calendrier WHT.)*
