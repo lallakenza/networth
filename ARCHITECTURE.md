@@ -4066,4 +4066,17 @@ Utile aussi pour `computeSensibilite` qui peut recevoir `baseRendement = 0.02` e
 
 **Cache-bust** : `?v=316` → `?v=317` sur 18 imports + `APP_VERSION 'v317'` dans data.js.
 
+---
+
+## §66 — v318 : Fix affichage catNav sur vue Financement Immo (18 avril 2026)
+
+**BUG-060** — Les 4 cards *"Patrimoine par Catégorie"* (Actions/Cash/Immo/Autres) affichaient toutes `€0` et `--` sur la vue Financement Immo, rendant le haut du module incompréhensible.
+
+**Cause** : le bloc `#catNav` (index.html:2849) est affiché sur toutes les vues (pas de `data-view` pour le cacher), mais `renderCategoryCards(state, view)` n'est appelé que si `PERSON_VIEWS.includes(view)` (couple/amine/nezha). Sur `immo-financing`, le DOM reste visible avec ses placeholders initiaux.
+
+**Fix** (render.js:269+) : appel explicite de `renderCategoryCards(state, 'amine')` + `renderCategoryPcts(state, 'amine')` dans la branche `immo-financing`. Le choix `'amine'` est motivé par le fait que le module est centré sur les positions IBKR d'Amine (collateral margin), son patrimoine mobilisable, et son épargne mensuelle.
+
+**Cache-bust** : `?v=317` → `?v=318` sur 18 imports + `APP_VERSION 'v318'` dans data.js.
+
+
 

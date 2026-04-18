@@ -5,6 +5,38 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-060: Bloc "Patrimoine par Catégorie" vide (€0/--) sur la vue Financement Immo
+- **Version**: v306 (détecté v318), v318 (corrigé)
+- **Sévérité**: Moyenne
+- **Détection**: Revue visuelle utilisateur — les 4 cards Actions/Cash/Immo/Autres affichent toutes `€0` et `--` sur la vue `immo-financing`.
+- **Symptôme**: Le bloc `#catNav` ("Patrimoine par Catégorie") reste visible sur la vue Financement Immo mais sans aucune donnée. Rend l'UX incompréhensible (l'utilisateur voit un bloc avec des valeurs à zéro au-dessus des scénarios de financement).
+- **Cause racine** (render.js:250) :
+  ```js
+  if (PERSON_VIEWS.includes(view)) {
+    renderCategoryCards(state, view);
+    renderCategoryPcts(state, view);
+    // ...
+  }
+  ```
+  `PERSON_VIEWS = ['couple', 'amine', 'nezha']` — sur `immo-financing`, `renderCategoryCards` n'est jamais appelé. Mais le HTML `#catNav` (`index.html:2849`) n'a pas d'attribut `data-view` pour être caché → le bloc reste visible avec ses placeholders `--` et `data-eur="0"`.
+- **Correctif** (render.js:269+) :
+  ```js
+  if (view === 'immo-financing') {
+    renderImmoFinancingView(state);
+    // v318 — populer avec vue Amine (module centré Amine)
+    renderCategoryCards(state, 'amine');
+    renderCategoryPcts(state, 'amine');
+  }
+  ```
+  Choix de la vue `amine` : le module Financement Immo est centré sur les positions IBKR d'Amine (collateral margin), son patrimoine mobilisable, et son épargne mensuelle. Afficher les cards Amine donne le contexte patrimonial avant les scénarios de financement.
+- **Test de non-régression**:
+  - [ ] Naviguer vers "Financement Immo" — les 4 cards affichent les valeurs Amine (Actions IBKR+ESPP+SGTM, Cash UAE+Revolut+Maroc, Vitry equity, Véhicules+Créances+Facturation−TVA)
+  - [ ] Les pourcentages (en haut-droite de chaque card) s'affichent correctement (somme = 100%)
+  - [ ] Revenir à la vue Couple puis Financement — pas de rémanence des valeurs Couple
+  - [ ] Les autres vues non-personne (cash, actions, créances, budget, plan-fiscal) gardent le bloc visible avec les dernières valeurs lues (comportement existant, hors scope de ce fix)
+
+---
+
 ## BUG-001: Bouton 1Y ne déclenche pas le rebuild du chart
 - **Version**: v270 (détecté), v275 (corrigé)
 - **Sévérité**: Critique
@@ -1355,7 +1387,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v317 — 18 avril 2026 (alertes enrichies post-audit 3ᵉ passe : C1 règle #5 symétrique moins-values IBKR ≤−20 % severity yellow, C2 nouvelle règle #6 fraîcheur données (DATA_LAST_UPDATE > 45j jaune, > 90j rouge), C5 guards div-by-zero dans `computeObjectifs` et `computeSensibilite` si annualReturn = 0 (limite mathématique `n` au lieu de NaN). + ARCHITECTURE.md §65.)*
+*Dernière mise à jour: v318 — 18 avril 2026 (BUG-060 : cards "Patrimoine par Catégorie" vides sur vue Financement Immo — fix par `renderCategoryCards(state, 'amine')` ajouté au rendu de `immo-financing`. Le module Financement étant centré Amine, ses 4 cards donnent le contexte patrimonial avant les scénarios.)*
+
+*v317 — 18 avril 2026 (alertes enrichies post-audit 3ᵉ passe : C1 règle #5 symétrique moins-values IBKR ≤−20 % severity yellow, C2 nouvelle règle #6 fraîcheur données (DATA_LAST_UPDATE > 45j jaune, > 90j rouge), C5 guards div-by-zero dans `computeObjectifs` et `computeSensibilite` si annualReturn = 0 (limite mathématique `n` au lieu de NaN). + ARCHITECTURE.md §65.)*
 
 *v316 — 18 avril 2026 (plan long-terme post-audit 2ᵉ passe : B1 épargne mensuelle tirée de `computeCashFlow` (plus de hardcode 8000), B2 horizons longs (≥10 ans) affichent target+projected en €réels 2026 (déflatés × inflationFactor), B3 `computeSensibilite(state, obj, opts)` centré sur baseRendement/baseSavings réels avec variations ±2pts / ±20 %. + ARCHITECTURE.md §64.)*
 
