@@ -4370,3 +4370,51 @@ Pas migré en v322 (sera fait en v323+) :
 
 
 
+## §71 — v323 : Repositionnement alertes + rework premium charts Financement Immo (18 avril 2026)
+
+### Contexte
+
+Deux retours utilisateur lors de la revue v322 :
+
+1. **« Les alertes en début de page c'est pas terrible. Faut les faire après »** — le panneau `#alertsPanel` (computeAlerts, 5 règles proactives) occupait le haut de la vue Couple, entre le titre de page et la KPI strip. Sur un écran de premier contact, l'utilisateur voyait donc les alertes AVANT de voir son Net Worth. UX incorrecte : les alertes sont un complément de lecture, pas un headline.
+
+2. **« Tu peux améliorer le rendu de ce graph ? Ça paraît assez basic »** (screenshot du Stress Test Casa) — trois chart issues identifiées :
+   - **Légende cassée** : Chart.js dérive la swatch depuis `backgroundColor[0]` de chaque dataset. Comme l'ancien code utilisait un array stoplight par barre (vert/orange/rouge selon plancher vs besoin), les swatches montraient une couleur arbitraire non corrélée à l'identité du scénario. L'utilisateur voyait « A · Cash intégral » avec une swatch rouge et « B · Prêt banque » avec une swatch verte, sans lien avec le code couleur de la charte.
+   - **Labels clippés** : pas de padding top dans `layout`, les labels de pic + valeurs chiffrées étaient coupés par la bordure du canvas.
+   - **Style basique** : borders 2px pleins, pas de teinte pastel sur les barres, pas de soft pill pour le statut, axes bruts sans typographie DM Sans.
+
+### Résumé des changements
+
+| Fichier | Ligne | Changement |
+|---|---|---|
+| `index.html` | ~2987 (removed), ~3344 (inserted) | Panneau `#alertsPanel` déplacé : retiré du haut de la vue Couple, réinséré après le simulateur Couple (fin de vue). Marge ajustée `24px 0 8px`. |
+| `js/charts.js` | `buildImmoFinStressChart` ~4932-5130 | Refonte complète : fill pastel `hexToRgba(scenCol, 0.22)` + border scénario plein `1.25px` + pills de statut colorés (✓/≈/✗) + layout padding top 38px + error bars fins avec dot terminal + tooltip custom (bg `text` / body `bg`) + ticks compact "X.X M" au lieu de "X.X MDH" + DM Sans partout. |
+| `js/charts.js` | `buildImmoFinPatrimoineChart` ~4737+ | Idem : fill pastel scénario, border 1.25px, tooltip premium, layout padding, grille horizontale seulement (pas de vertical), ticks compact. |
+| `js/charts.js` | `buildImmoFinLtvChart` ~4852+ | Couleur scénario C migrée de `#14b8a6` hardcodé vers `DESIGN_TOKENS.scenC` + seuil margin call migré `#ef4444` → `DESIGN_TOKENS.danger` + tooltip premium + ticks DM Sans + point border `surface` 1.5px. |
+| `js/render.js` | `renderAlertsPanel` ~6987 | Loose end du v322 corrigé : `var(--card-bg, white)` (token inexistant) → `var(--surface)` + titre en `var(--text)` + count en `var(--text-muted)`. |
+| `js/render.js` | `renderCreancesView` ~5754 | `statusColors` migré de 5 hex hardcodés vers `DESIGN_TOKENS.info/warning/danger/success/scenD`. Alignement avec la charte graphique v322. |
+| `js/render.js` | import line ~36-37 | Ajout de `DESIGN_TOKENS` à l'import de `data.js`. |
+| `js/charts.js` | import line ~10 | Ajout de `DESIGN_TOKENS` à l'import de `data.js`. |
+
+### Principes de design appliqués au stress chart
+
+- **Identité scénario = couleur principale** : chaque scénario (A gris, B bleu, C teal, D violet) conserve sa couleur identity sur la bordure de barre + fill pastel du même hue. La légende reflète cette identité.
+- **Statut = encodé en secondaire** : le résultat (OK / tight / insufficient vs besoin Casa) est maintenant montré via une pill colorée au-dessus de chaque barre, pas via le fill. La pill combine icône (✓/≈/✗) + pourcentage du besoin + background `rgba(status, 0.12)`. Lecture visuelle possible en 1 seconde sans saturer la couleur des scénarios.
+- **Error bar discret** : whisker vertical 1.25px + cap horizontal 10px + point terminal (petit disque plein 2.25px) — marque visuellement le plafond sans dominer le graphique.
+- **Typographie unifiée** : DM Sans 600 pour les titres d'axe et ticks X, 10px light pour ticks Y, 10.5px semibold pour les labels de barre. Cohérence avec le reste du dashboard.
+- **Tooltip premium** : fond sombre (`--text` = #1c1917), titre blanc, body #e7e5e4, padding 10px, cornerRadius 6px. Contraste AA sur fond sombre pour les chiffres importants.
+
+### Invariants & tests de régression v323
+
+- Le panneau `#alertsPanel` n'apparaît plus au-dessus du KPI strip Couple (vérifier via DevTools → Elements : le premier enfant de `<div class="container">` doit être la KPI strip Couple, pas l'alertsPanel).
+- Le panneau `#alertsPanel` apparaît après le card `Simulateur — Net Worth Couple` quand des alertes existent (render conditionnel inchangé : si `alerts.length === 0`, le div reste vide).
+- Chart stress : les swatches de légende montrent les couleurs identité des scénarios (A gris, B bleu, C teal) — plus de stoplight inconsistant.
+- Chart stress : les pills de statut colorés apparaissent au-dessus de chaque barre quand `besoinCasa > 0` (sinon juste la valeur MDH).
+- Chart stress : aucun label clippé en haut du canvas (padding top 38px).
+- Tableau créances : couleurs de statut en_cours (info bleu), relancé (warning ambre), en_retard (danger rouge), recouvré (success vert), litige (scenD violet) — cohérence avec charte graphique §70.
+- Le token `var(--card-bg)` n'apparaît plus dans le codebase (remplacé par `var(--surface)`).
+
+**Cache-bust** : `?v=322` → `?v=323` sur 18 imports + `APP_VERSION 'v323'` dans data.js + badge v323 dans CLAUDE.md.
+
+
+

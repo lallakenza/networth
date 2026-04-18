@@ -2981,10 +2981,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 <div class="container">
 
-<!-- v309 — Alertes proactives (affichées uniquement si alertes actives).
-     Panneau dynamique en haut de la vue Couple, avec 3 niveaux de sévérité :
-     rouge (à traiter), jaune (à surveiller), vert (opportunité). -->
-<div id="alertsPanel" data-view="couple" style="margin-bottom:20px;"></div>
+<!-- v323 — Alertes proactives : panneau déplacé EN FIN de vue couple.
+     Les alertes apparaissent après les KPIs, le treemap, les breakdowns, les
+     insights et le simulateur pour ne pas monopoliser le haut de page. -->
 
 <!-- KPIs COUPLE -->
 <div id="kpi-couple" class="kpi-strip" style="grid-template-columns: repeat(7, 1fr);">
@@ -3340,6 +3339,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="chart-container" style="height: 380px;"><canvas id="cplSimChart"></canvas></div>
   <div class="highlight" id="cplSimInsight">--</div>
 </div>
+
+<!-- v323 — Alertes proactives (fin de vue couple).
+     Affichées uniquement si alertes actives, 3 niveaux : rouge (à traiter),
+     jaune (à surveiller), vert (opportunité). -->
+<div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
 
 <!-- SIMULATEUR AMINE -->
 <div class="card" data-view="amine">
@@ -4271,7 +4275,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=322"></script>
+<script type="module" src="js/app.js?v=323"></script>
 
 </body>
 </html>
