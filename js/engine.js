@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=305';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES } from './data.js?v=306';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4322,5 +4322,393 @@ export function compute(portfolio, fx, stockSource = 'statique') {
  */
 export function getGrandTotal(state) {
   return state.coupleCategories.reduce((s, c) => s + c.total, 0);
+}
+
+// ════════════════════════════════════════════════════════════
+// IMMO FINANCING COMPARATOR — v306
+// ════════════════════════════════════════════════════════════
+// Compare 4 stratégies de financement immobilier :
+//   A — Cash intégral
+//   B — Prêt banque (amortissement classique)
+//   C — Cash + margin IBKR (lever sur portefeuille libre)
+//   D — Prêt banque + margin IBKR (double leverage)
+//
+// Inputs normalisés en MAD pour le patrimoine / prix (marché Maroc),
+// épargne mensuelle en EUR (revenus UAE). Conversion via fxEURMAD.
+//
+// Toutes les formules sont pures : pas de side-effect, pas d'I/O.
+// Les reference values des spec (17.31/29.38/67.61 MDH scénario A)
+// sont cibles unit test pour validation manuelle.
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Mensualité d'un prêt amortissable classique (annuité constante).
+ * M = P × (r × (1+r)^n) / ((1+r)^n - 1)
+ * @param {number} P - principal emprunté
+ * @param {number} rAnnual - taux annuel (ex: 0.05 pour 5%)
+ * @param {number} nMonths - durée en mois
+ * @returns {number} mensualité (0 si principal<=0 ou taux<=0)
+ */
+export function mensualiteAmortissement(P, rAnnual, nMonths) {
+  if (P <= 0 || nMonths <= 0) return 0;
+  if (rAnnual <= 0) return P / nMonths;
+  const r = rAnnual / 12;
+  const factor = Math.pow(1 + r, nMonths);
+  return P * (r * factor) / (factor - 1);
+}
+
+/**
+ * Valeur future d'un capital + apports mensuels fixes à intérêts composés.
+ * VF = capital × (1+r)^n + apport × ((1+r)^n − 1) / r
+ * @param {number} capital - valeur initiale
+ * @param {number} apportMonthly - contribution mensuelle
+ * @param {number} rAnnual - taux de rendement annuel
+ * @param {number} nMonths - nombre de mois
+ * @returns {number} valeur future
+ */
+export function valeurFuture(capital, apportMonthly, rAnnual, nMonths) {
+  if (nMonths <= 0) return capital;
+  if (rAnnual <= 0) return capital + apportMonthly * nMonths;
+  const r = rAnnual / 12;
+  const factor = Math.pow(1 + r, nMonths);
+  return capital * factor + apportMonthly * (factor - 1) / r;
+}
+
+/**
+ * Frais d'hypothèque au Maroc — barème progressif ANCFCC.
+ * @param {number} principal - montant emprunté en MAD
+ * @returns {number} frais totaux MAD
+ */
+export function fraisHypothequeMaroc(principal) {
+  if (principal <= 0) return 0;
+  let frais = 0;
+  let resteAbatu = principal;
+  let cursor = 0;
+  for (const bracket of IMMO_MAROC_FEES.hypothequeBrackets) {
+    if (resteAbatu <= 0) break;
+    const trancheMax = bracket.max - cursor;
+    const tranche = Math.min(resteAbatu, trancheMax);
+    frais += tranche * bracket.rate;
+    resteAbatu -= tranche;
+    cursor = bracket.max;
+  }
+  return frais;
+}
+
+/**
+ * Capital restant dû (CRD) d'un prêt amortissable après `elapsedMonths`.
+ * Utile pour calculer la "dette restante" si on arrête l'analyse avant la fin.
+ * @param {number} P - principal initial
+ * @param {number} rAnnual - taux annuel
+ * @param {number} nMonths - durée totale
+ * @param {number} elapsedMonths - mois écoulés
+ * @returns {number} CRD (0 si elapsedMonths >= nMonths)
+ */
+export function crdAfterMonths(P, rAnnual, nMonths, elapsedMonths) {
+  if (elapsedMonths >= nMonths) return 0;
+  if (rAnnual <= 0) return Math.max(0, P - (P / nMonths) * elapsedMonths);
+  const r = rAnnual / 12;
+  const M = mensualiteAmortissement(P, rAnnual, nMonths);
+  const factor = Math.pow(1 + r, elapsedMonths);
+  // CRD = P × (1+r)^k − M × ((1+r)^k − 1) / r
+  return P * factor - M * (factor - 1) / r;
+}
+
+/**
+ * VF avec deux phases de contribution différentes (ex: pendant crédit vs après).
+ * Phase 1 : [0, k1] avec apport `contrib1`, capital initial `capital`.
+ * Phase 2 : [k1, k1+k2] avec apport `contrib2`, capital = VF(phase1).
+ * @returns {number} VF finale
+ */
+function valeurFuture2Phases(capital, contrib1, months1, contrib2, months2, rAnnual) {
+  const vf1 = valeurFuture(capital, contrib1, rAnnual, months1);
+  return valeurFuture(vf1, contrib2, rAnnual, months2);
+}
+
+/**
+ * Compute les 4 scénarios de financement immobilier.
+ * Inputs (tous en MAD sauf épargne en EUR) :
+ * @param {Object} in - Input params
+ * @param {number} in.patrimoineMAD - patrimoine financier mobilisable initial
+ * @param {number} in.prixAppart - prix appart parents
+ * @param {number} in.rendementPct - rendement portefeuille annuel (ex: 6)
+ * @param {number} in.epargneEUR - épargne mensuelle EUR
+ * @param {number} in.fxEURMAD - taux EUR/MAD (ex: 10.80)
+ * @param {number} in.horizonYears - horizon d'analyse principal (10/15/25)
+ * @param {number} in.tauxBanquePct - taux prêt banque (ex: 5)
+ * @param {number} in.dureeBanque - durée prêt en années (ex: 25)
+ * @param {number} in.assuranceDIPct - assurance DI (ex: 0.35)
+ * @param {number} in.marginRatePct - taux margin IBKR pour devise sélectionnée (ex: 3.1)
+ * @param {string} in.marginCurrency - 'EUR' | 'USD' | 'JPY'
+ * @param {number} in.ltvTarget - LTV cible (ex: 30 pour 30%)
+ * @param {number} in.besoinCasa - besoin liquidité projet Casa MAD (ex: 4 000 000)
+ * @param {number} in.horizonCasa - horizon Casa en mois (12/24/36)
+ * @returns {Object} { scenarios: { A, B, C, D }, summary, recommendation }
+ */
+export function computeImmoFinancing(inputs) {
+  const fees = IMMO_MAROC_FEES;
+  const prix = inputs.prixAppart;
+  const rendement = inputs.rendementPct / 100;
+  const fx = inputs.fxEURMAD;
+  const epargneMAD = inputs.epargneEUR * fx;
+  const hMonths = inputs.horizonYears * 12;
+  const tauxBanque = inputs.tauxBanquePct / 100;
+  const nBanque = inputs.dureeBanque * 12;
+  const assuranceDI = inputs.assuranceDIPct / 100;
+  const marginRate = inputs.marginRatePct / 100;
+  const ltvTarget = inputs.ltvTarget / 100;
+  const apportRatio = 0.20;  // standard — 20% d'apport minimum
+
+  // Frais communs ---------------------------------------------------------
+  const fraisCashPct = fees.fraisCashTotal;         // ~6.7%
+  const fraisCashMAD = prix * fraisCashPct;
+
+  // ─── Scénario A : Cash intégral ─────────────────────────────────────
+  const A_sortie = prix + fraisCashMAD;
+  const A_portefeuilleRestant = Math.max(0, inputs.patrimoineMAD - A_sortie);
+  const A_mensualite = 0;
+  const A_epargneNette = epargneMAD;
+  const A_VF = (months) => valeurFuture(A_portefeuilleRestant, A_epargneNette, rendement, months);
+  // Patrimoine final = portefeuille financier UNIQUEMENT. L'appart est pour
+  // les parents (donation de facto), donc non compté comme actif Amine.
+  // Pour comparer les 4 scénarios sur la base "quelle richesse financière
+  // reste-t-il en fin d'horizon ?".
+  const A_patrimoineFinal = (months) => A_VF(months);
+
+  // ─── Scénario B : Prêt banque ───────────────────────────────────────
+  const B_principal = prix * (1 - apportRatio);     // 80% du prix
+  const B_hypotheque = fraisHypothequeMaroc(B_principal);
+  const B_apportCash = prix * apportRatio + fraisCashMAD + B_hypotheque + fees.fraisDossierBanque;
+  const B_portefeuilleRestant = Math.max(0, inputs.patrimoineMAD - B_apportCash);
+  const B_mensualiteCredit = mensualiteAmortissement(B_principal, tauxBanque, nBanque);
+  // Assurance DI moyenne : 0.5 × taux × principal / 12 (moyenne sur amortissement linéaire)
+  const B_assuranceMoyenne = 0.5 * assuranceDI * B_principal / 12;
+  const B_mensualiteTotal = B_mensualiteCredit + B_assuranceMoyenne;
+  const B_epargneNettePendantCredit = epargneMAD - B_mensualiteTotal;
+  const B_epargneNetteApresCredit = epargneMAD;
+  /**
+   * VF scénario B sur `months` mois :
+   *  - Phase 1 (0 → min(months, nBanque)) : épargne réduite (- mensualité)
+   *  - Phase 2 (fin crédit → months) : épargne pleine
+   */
+  const B_VF = (months) => {
+    const m1 = Math.min(months, nBanque);
+    const m2 = Math.max(0, months - nBanque);
+    return valeurFuture2Phases(B_portefeuilleRestant,
+      B_epargneNettePendantCredit, m1,
+      B_epargneNetteApresCredit, m2,
+      rendement);
+  };
+  // Dette restante à `months`
+  const B_detteRestante = (months) => crdAfterMonths(B_principal, tauxBanque, nBanque, months);
+  // Patrimoine final scénario B : portefeuille financier − dette restante.
+  // L'appart n'est pas compté (cf. commentaire scénario A).
+  const B_patrimoineFinal = (months) => B_VF(months) - B_detteRestante(months);
+
+  // ─── Scénario C : Cash + margin IBKR ────────────────────────────────
+  const C_sortie = A_sortie;    // achat cash identique à A
+  const C_portefeuillePropre = Math.max(0, inputs.patrimoineMAD - C_sortie);
+  const C_marginDette = C_portefeuillePropre * ltvTarget;
+  const C_portefeuilleTotal = C_portefeuillePropre + C_marginDette;
+  const C_mensualite = C_marginDette * marginRate / 12;   // intérêts seuls, pas d'amortissement
+  const C_epargneNette = epargneMAD - C_mensualite;
+  const C_VF = (months) => valeurFuture(C_portefeuilleTotal, C_epargneNette, rendement, months);
+  // On soustrait la dette margin (pas amortie, intérêt uniquement)
+  // Patrimoine final scénario C : portefeuille investi (propre + margin)
+  // capitalisé − dette margin. Pas de prix appart (donation parents).
+  const C_patrimoineFinal = (months) => C_VF(months) - C_marginDette;
+
+  // ─── Scénario D : Prêt banque + margin IBKR (double leverage) ───────
+  const D_apportCash = B_apportCash;
+  const D_portefeuillePropre = Math.max(0, inputs.patrimoineMAD - D_apportCash);
+  const D_marginDette = D_portefeuillePropre * ltvTarget;
+  const D_portefeuilleTotal = D_portefeuillePropre + D_marginDette;
+  const D_mensualiteMargin = D_marginDette * marginRate / 12;
+  const D_mensualiteCredit = B_mensualiteTotal;      // identique scénario B
+  const D_mensualiteTotal = D_mensualiteCredit + D_mensualiteMargin;
+  const D_epargneNettePendantCredit = epargneMAD - D_mensualiteTotal;
+  const D_epargneNetteApresCredit = epargneMAD - D_mensualiteMargin;
+  const D_VF = (months) => {
+    const m1 = Math.min(months, nBanque);
+    const m2 = Math.max(0, months - nBanque);
+    return valeurFuture2Phases(D_portefeuilleTotal,
+      D_epargneNettePendantCredit, m1,
+      D_epargneNetteApresCredit, m2,
+      rendement);
+  };
+  // Patrimoine final scénario D : portefeuille investi capitalisé − dette
+  // banque restante − dette margin. Pas de prix appart.
+  const D_patrimoineFinal = (months) => D_VF(months) - B_detteRestante(months) - D_marginDette;
+
+  // ─── LTV dans le temps (scénario C) ─────────────────────────────────
+  const C_ltvAtMonth = (months) => {
+    const portefeuille = C_VF(months);   // nav + contributions capitalisées
+    return portefeuille > 0 ? (C_marginDette / portefeuille) : 0;
+  };
+
+  // ─── Liquidité mobilisable pour projet Casa ─────────────────────────
+  // Définition : portefeuille courant × (1 − seuil sécurité) + capacité margin
+  // additionnelle disponible (on peut emprunter jusqu'à LTV_target sur le
+  // portefeuille non encore utilisé).
+  //
+  // Pour simplifier : liquidité = portefeuille courant × (1 + ltvTarget)
+  // avec ltvTarget = capacité d'emprunt supplémentaire safe (si pas déjà en
+  // margin, sinon = 0 car déjà tiré).
+  const liquiditeAtMonth = (months, scenario) => {
+    if (scenario === 'A') {
+      const port = A_VF(months);
+      // Scénario A : portefeuille × (1 + ltvTarget) car on peut margin dessus
+      return port * (1 + ltvTarget);
+    } else if (scenario === 'B') {
+      const port = B_VF(months);
+      // Scénario B : portefeuille dispo + margin possible dessus
+      return port * (1 + ltvTarget);
+    } else if (scenario === 'C') {
+      const port = C_VF(months);
+      // Scénario C : portefeuille moins dette margin existante, puis remargin
+      // possible sur l'équité nette.
+      const equite = Math.max(0, port - C_marginDette);
+      return equite * (1 + ltvTarget);
+    } else if (scenario === 'D') {
+      const port = D_VF(months);
+      const equite = Math.max(0, port - D_marginDette);
+      return equite * (1 + ltvTarget);
+    }
+    return 0;
+  };
+
+  // ─── Build output pour les 3 horizons + liquidité ──────────────────
+  const horizons = [10, 15, 25];
+  const casaPoints = [12, 24, 36];   // mois
+
+  const scenarioMeta = {
+    A: { label: 'Cash intégral',                color: '#6b7280' },
+    B: { label: 'Prêt banque',                   color: '#3b82f6' },
+    C: { label: 'Cash + margin IBKR',            color: '#14b8a6' },
+    D: { label: 'Prêt banque + margin (double)', color: '#8b5cf6' },
+  };
+
+  const scenarios = {
+    A: {
+      ...scenarioMeta.A,
+      sortieInitiale: A_sortie,
+      portefeuilleRestant: A_portefeuilleRestant,
+      mensualite: A_mensualite,
+      epargneNette: A_epargneNette,
+      detteInitiale: 0,
+      patrimoineFinal: horizons.map(y => A_patrimoineFinal(y * 12)),
+      detteRestante: horizons.map(_ => 0),
+      liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'A')),
+    },
+    B: {
+      ...scenarioMeta.B,
+      sortieInitiale: B_apportCash,
+      portefeuilleRestant: B_portefeuilleRestant,
+      mensualite: B_mensualiteTotal,
+      mensualiteCredit: B_mensualiteCredit,
+      mensualiteAssurance: B_assuranceMoyenne,
+      epargneNette: B_epargneNettePendantCredit,
+      detteInitiale: B_principal,
+      principal: B_principal,
+      fraisHypotheque: B_hypotheque,
+      patrimoineFinal: horizons.map(y => B_patrimoineFinal(y * 12)),
+      detteRestante: horizons.map(y => B_detteRestante(y * 12)),
+      liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'B')),
+    },
+    C: {
+      ...scenarioMeta.C,
+      sortieInitiale: C_sortie,
+      portefeuillePropre: C_portefeuillePropre,
+      portefeuilleTotal: C_portefeuilleTotal,
+      marginDette: C_marginDette,
+      mensualite: C_mensualite,
+      epargneNette: C_epargneNette,
+      detteInitiale: C_marginDette,
+      patrimoineFinal: horizons.map(y => C_patrimoineFinal(y * 12)),
+      detteRestante: horizons.map(_ => C_marginDette),    // margin non-amortie
+      liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'C')),
+      ltvTimeline: [0, 12, 36, 60, 120, 180, 240, 300].map(m => ({
+        month: m,
+        ltv: C_ltvAtMonth(m),
+      })),
+    },
+    D: {
+      ...scenarioMeta.D,
+      sortieInitiale: D_apportCash,
+      portefeuillePropre: D_portefeuillePropre,
+      portefeuilleTotal: D_portefeuilleTotal,
+      marginDette: D_marginDette,
+      mensualiteCredit: D_mensualiteCredit,
+      mensualiteMargin: D_mensualiteMargin,
+      mensualite: D_mensualiteTotal,
+      epargneNette: D_epargneNettePendantCredit,
+      detteInitiale: B_principal + D_marginDette,
+      patrimoineFinal: horizons.map(y => D_patrimoineFinal(y * 12)),
+      detteRestante: horizons.map(y => B_detteRestante(y * 12) + D_marginDette),
+      liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'D')),
+    },
+  };
+
+  // ─── Logique de recommandation ──────────────────────────────────────
+  const besoinCasa = inputs.besoinCasa;
+  const hCasaIdx = casaPoints.indexOf(inputs.horizonCasa);
+  const hCasaSafe = hCasaIdx >= 0 ? hCasaIdx : 1;
+
+  let recommended = 'C';
+  const warnings = [];
+  const reasons = [];
+
+  if (besoinCasa > 0 && inputs.horizonCasa <= 24) {
+    // Projet Casa tendu → privilégier liquidité → Scénario B (apport 20% seul)
+    recommended = 'B';
+    reasons.push('Projet Casa à T+' + inputs.horizonCasa + ' mois (' + (besoinCasa / 1e6).toFixed(1) + ' MDH) → préserver la liquidité.');
+    // Check quels scénarios sont SOUS le besoin à horizon Casa
+    ['A', 'B', 'C', 'D'].forEach(k => {
+      if (scenarios[k].liquidite[hCasaSafe] < besoinCasa * 0.95) {
+        warnings.push({ scenario: k, msg: 'Liquidité ' + k + ' à T+' + inputs.horizonCasa + 'm = ' + (scenarios[k].liquidite[hCasaSafe] / 1e6).toFixed(2) + ' MDH < besoin Casa ' + (besoinCasa / 1e6).toFixed(1) + ' MDH.' });
+      }
+    });
+  } else if (besoinCasa === 0) {
+    recommended = 'C';
+    reasons.push('Pas de projet Casa → maximiser le patrimoine final via margin IBKR (simple & efficace).');
+    reasons.push('Les 4 scénarios convergent avec épargne mensuelle forte (' + inputs.epargneEUR + ' €/mois).');
+  } else if (inputs.horizonCasa >= 36) {
+    recommended = 'C';
+    reasons.push('Horizon Casa ≥ 36 mois → tous les scénarios deviennent viables, choix selon préférence.');
+  }
+
+  if (inputs.marginCurrency === 'JPY') {
+    warnings.push({ scenario: 'C', msg: 'Margin JPY : risque FX élevé. Historiquement le yen peut s\'apprécier de 20-30% sur courte période. Si appréciation, la dette en MAD gonfle proportionnellement.' });
+  }
+
+  // Faisabilité collatéral IBKR
+  const collateralNeeded = inputs.patrimoineMAD * ltvTarget;
+  const portfolioMinSafe = collateralNeeded / ltvTarget;   // = patrimoineMAD (trivial) sauf si LTV différent
+
+  const summary = {
+    patrimoineInitial: inputs.patrimoineMAD,
+    prixAppart: prix,
+    epargneMensuelleEUR: inputs.epargneEUR,
+    epargneMensuelleMAD: epargneMAD,
+    rendement: rendement,
+    horizons,
+    casaPoints,
+    fraisCashMAD,
+    marginCurrency: inputs.marginCurrency,
+    marginRate,
+  };
+
+  return {
+    scenarios,
+    summary,
+    recommendation: {
+      best: recommended,
+      reasons,
+      warnings,
+      bestLabel: scenarioMeta[recommended].label,
+      bestColor: scenarioMeta[recommended].color,
+    },
+    inputs,   // echo back for UI
+  };
 }
 

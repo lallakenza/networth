@@ -2770,6 +2770,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <button class="view-btn asset-view-btn immo-parent-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
   <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
   <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
+  <button class="view-btn asset-view-btn" data-view="immo-financing">Financement</button>
 </div>
 <!-- Sub-navigation immobilier (visible quand immobilier ou apt_* est actif) -->
 <div class="immo-sub-nav" id="immoSubNav" style="display:none;">
@@ -3712,6 +3713,145 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     FINANCEMENT IMMOBILIER — COMPARATEUR DE SCÉNARIOS (v306)
+     ══════════════════════════════════════════════════════════════
+     Module self-contained comparant 4 stratégies (A cash / B banque /
+     C margin / D double leverage) pour financer un achat immobilier au
+     Maroc en tenant compte de la contrainte de liquidité pour d'autres
+     projets (ex: apport Casa non-finançable).
+     Recalcul temps réel sur chaque input change. -->
+<div class="card hidden" data-view="immo-financing">
+  <h2><span class="section-icon" style="background: #8b5cf6;">&#x1F3E6;</span>Financement immobilier &mdash; Comparateur de sc&eacute;narios</h2>
+
+  <!-- Cartes de résumé (4 métriques) -->
+  <div class="kpi-strip" id="kpi-immoFin" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi"><div class="value" id="immoFinKpiPatrimoine">--</div><div class="label">Patrimoine initial</div></div>
+    <div class="kpi"><div class="value" id="immoFinKpiPrix">--</div><div class="label">Prix appart</div></div>
+    <div class="kpi"><div class="value" id="immoFinKpiEpargne">--</div><div class="label">&Eacute;pargne /mois</div></div>
+    <div class="kpi green"><div class="value" id="immoFinKpiRendement">--</div><div class="label">Rendement cible</div></div>
+  </div>
+
+  <!-- Recommandation dynamique (banner) -->
+  <div id="immoFinRecommendation" style="margin:18px 0;padding:14px 18px;border-radius:8px;background:rgba(139,92,246,0.08);border-left:4px solid #8b5cf6;">
+    <strong>Recommandation :</strong> <span id="immoFinRecoText">--</span>
+  </div>
+
+  <!-- Inputs groupés en 3 sections collapsibles -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;">
+    <!-- Section 1 : Ma situation -->
+    <details open style="border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <summary style="cursor:pointer;font-weight:600;color:var(--text);">1. Ma situation</summary>
+      <div style="display:grid;gap:10px;margin-top:12px;font-size:12px;">
+        <label>Patrimoine initial (MAD)
+          <input type="number" id="immoFinInputPatrimoine" value="4400000" step="100000" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>&Eacute;pargne mensuelle (EUR)
+          <input type="number" id="immoFinInputEpargne" value="8000" step="500" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Rendement portefeuille (% /an)
+          <input type="number" id="immoFinInputRendement" value="6" step="0.5" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Taux EUR/MAD
+          <input type="number" id="immoFinInputFx" value="10.80" step="0.05" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+      </div>
+    </details>
+
+    <!-- Section 2 : Projet immobilier -->
+    <details open style="border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <summary style="cursor:pointer;font-weight:600;color:var(--text);">2. Projet immobilier</summary>
+      <div style="display:grid;gap:10px;margin-top:12px;font-size:12px;">
+        <label>Prix appart parents (MAD)
+          <input type="number" id="immoFinInputPrix" value="2500000" step="50000" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Horizon analyse principal
+          <select id="immoFinInputHorizon" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+            <option value="10">10 ans</option>
+            <option value="15">15 ans</option>
+            <option value="25" selected>25 ans</option>
+          </select>
+        </label>
+        <label>Besoin projet Casa (MAD)
+          <input type="number" id="immoFinInputCasa" value="4000000" step="100000" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Horizon Casa (mois)
+          <select id="immoFinInputHorizonCasa" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+            <option value="12">T+12 mois</option>
+            <option value="24" selected>T+24 mois</option>
+            <option value="36">T+36 mois</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
+    <!-- Section 3 : Paramètres avancés -->
+    <details style="border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <summary style="cursor:pointer;font-weight:600;color:var(--text);">3. Param&egrave;tres avanc&eacute;s</summary>
+      <div style="display:grid;gap:10px;margin-top:12px;font-size:12px;">
+        <label>Taux pr&ecirc;t banque Maroc (%)
+          <input type="number" id="immoFinInputTauxBanque" value="5" step="0.25" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Dur&eacute;e pr&ecirc;t (ans)
+          <input type="number" id="immoFinInputDureeBanque" value="25" step="5" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Assurance DI (% capital/an)
+          <input type="number" id="immoFinInputAssurance" value="0.35" step="0.05" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+        <label>Devise margin IBKR
+          <select id="immoFinInputMarginCurrency" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+            <option value="EUR" selected>EUR &mdash; 3.1% (FX safe, MAD pegg&eacute;)</option>
+            <option value="USD">USD &mdash; 4.8% (FX mod&eacute;r&eacute;)</option>
+            <option value="JPY">JPY &mdash; 1.5% (&#x26A0; FX &eacute;lev&eacute;)</option>
+          </select>
+        </label>
+        <label>LTV cible margin (%)
+          <input type="number" id="immoFinInputLtv" value="30" step="5" min="0" max="60" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        </label>
+      </div>
+    </details>
+  </div>
+
+  <!-- Boutons action -->
+  <div style="display:flex;gap:10px;margin-top:12px;">
+    <button id="immoFinResetBtn" type="button" style="padding:8px 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;">R&eacute;initialiser les valeurs par d&eacute;faut</button>
+  </div>
+
+  <!-- Charts + Table -->
+  <div class="grid2" style="margin-top:24px;">
+    <div>
+      <h3>Patrimoine financier final par sc&eacute;nario</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Portefeuille financier net (hors appart parents qui est une donation de facto). Comparaison aux horizons 10 / 15 / 25 ans.</p>
+      <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinPatrimoineChart"></canvas></div>
+    </div>
+    <div>
+      <h3>&Eacute;volution LTV margin (sc&eacute;nario C)</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Ratio dette margin / portefeuille. L'&eacute;pargne mensuelle dilue m&eacute;caniquement le risque. Seuil critique margin call = 50%.</p>
+      <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinLtvChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div>
+      <h3>Test de stress &mdash; Liquidit&eacute; projet Casa</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Liquidit&eacute; mobilisable (portefeuille × 1.30 via margin safe) &agrave; T+12/24/36 mois. Ligne rouge = besoin Casa. Vert = OK, orange = tendu, rouge = insuffisant.</p>
+      <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinStressChart"></canvas></div>
+    </div>
+    <div>
+      <h3>Tableau comparatif</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Synth&egrave;se par sc&eacute;nario. Le sc&eacute;nario recommand&eacute; (fond violet) est calcul&eacute; selon vos inputs (contrainte Casa, horizon).</p>
+      <div id="immoFinComparisonTable"></div>
+    </div>
+  </div>
+
+  <!-- Warnings zone -->
+  <div id="immoFinWarnings" style="margin-top:18px;"></div>
+
+  <div class="info" style="margin-top:18px;font-size:12px;">
+    <strong>M&eacute;thodologie :</strong> patrimoine final = valeur future (VF) du portefeuille financier (capital initial × (1+r)<sup>n</sup> + apport × ((1+r)<sup>n</sup>-1)/r), moins dettes restantes (CRD banque + margin non amorti). L'appart parents n'est pas compt&eacute; comme actif Amine (donation de facto). Frais acquisition Maroc : 4% enregistrement + 1.5% conservation + 1.2% notaire TTC = 6.7% cash. Si cr&eacute;dit : hypoth&egrave;que barre progressif (0.5%/1.5%/2%) + 6 000 MAD dossier + 0.35%/an DI sur CRD. Margin IBKR : int&eacute;r&ecirc;ts seuls, pas d'amortissement.
+  </div>
+</div>
+
 <footer>
   <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
   <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
@@ -3720,7 +3860,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=305"></script>
+<script type="module" src="js/app.js?v=306"></script>
 
 </body>
 </html>

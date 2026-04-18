@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=305';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=305';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=305';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=305';
+import { fmt, fmtAxis } from './render.js?v=306';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=306';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=306';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=306';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4709,4 +4709,220 @@ export function buildEquityHistoryChart(period, options) {
   // Render
   renderPortfolioChart({ period, scope: (options && options.scope) || 'all' });
   console.log('[equity-history] Built ' + period + ' chart with ' + filtered.length + ' monthly points');
+}
+
+// ════════════════════════════════════════════════════════════
+// IMMO FINANCING COMPARATOR CHARTS — v306
+// ════════════════════════════════════════════════════════════
+// 3 Chart.js configurations pour le module "Financement immobilier" :
+//   - Patrimoine final par scénario (bars grouped by horizon 10/15/25)
+//   - Évolution LTV margin scénario C (line with 50% threshold)
+//   - Stress test liquidité Casa (bars at T+12/24/36 with need line)
+//
+// Chart instances stored in module-local `immoFinCharts` object so they
+// can be destroyed on rebuild (Chart.js canvas reuse).
+
+const immoFinCharts = {};
+
+/**
+ * Chart 1 : Patrimoine financier final par scénario, grouped by horizon.
+ * X = horizons (10, 15, 25 ans)
+ * Y = patrimoine en MDH
+ * 4 bars par horizon (A, B, C, D)
+ */
+export function buildImmoFinPatrimoineChart(result) {
+  const canvas = document.getElementById('immoFinPatrimoineChart');
+  if (!canvas) return;
+  if (immoFinCharts.patrimoine) { immoFinCharts.patrimoine.destroy(); }
+  const ctx = canvas.getContext('2d');
+
+  const { scenarios, summary } = result;
+  const horizons = summary.horizons;
+
+  const datasets = ['A', 'B', 'C', 'D'].map(k => ({
+    label: k + ' - ' + scenarios[k].label,
+    data: scenarios[k].patrimoineFinal.map(v => v / 1e6),   // en MDH
+    backgroundColor: scenarios[k].color,
+    borderColor: scenarios[k].color,
+    borderWidth: 1,
+    borderRadius: 4,
+  }));
+
+  immoFinCharts.patrimoine = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: horizons.map(y => y + ' ans'),
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
+          },
+        },
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'Patrimoine financier (MDH)' },
+          ticks: { callback: v => v.toFixed(0) + ' MDH' },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Chart 2 : Évolution LTV margin scénario C.
+ * X = mois (0, 12, 36, 60, 120, 180, 240, 300)
+ * Y = LTV %
+ * Ligne rouge horizontale à 50% = seuil margin call IBKR
+ */
+export function buildImmoFinLtvChart(result) {
+  const canvas = document.getElementById('immoFinLtvChart');
+  if (!canvas) return;
+  if (immoFinCharts.ltv) { immoFinCharts.ltv.destroy(); }
+  const ctx = canvas.getContext('2d');
+
+  const timeline = result.scenarios.C.ltvTimeline;
+  const labels = timeline.map(pt => {
+    if (pt.month === 0) return 'T+0';
+    if (pt.month < 12) return 'T+' + pt.month + 'm';
+    return 'T+' + (pt.month / 12) + ' ans';
+  });
+  const ltvData = timeline.map(pt => pt.ltv * 100);
+
+  // Ligne seuil margin call (50%)
+  const threshold50 = labels.map(_ => 50);
+
+  immoFinCharts.ltv = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'LTV scénario C (%)',
+          data: ltvData,
+          borderColor: '#14b8a6',
+          backgroundColor: 'rgba(20, 184, 166, 0.12)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: '#14b8a6',
+        },
+        {
+          label: 'Seuil margin call (50%)',
+          data: threshold50,
+          borderColor: '#ef4444',
+          borderDash: [6, 4],
+          borderWidth: 2,
+          fill: false,
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(1) + '%',
+          },
+        },
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'LTV (%)' },
+          min: 0,
+          suggestedMax: 60,
+          ticks: { callback: v => v.toFixed(0) + '%' },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Chart 3 : Test de stress liquidité projet Casa.
+ * X = T+12, T+24, T+36 mois
+ * Y = liquidité mobilisable en MDH
+ * 3 bars par horizon (A, B, C) — pas D car moins pertinent (déjà en margin)
+ * Ligne rouge horizontale à hauteur du besoin Casa.
+ * Code couleur : vert si >= besoin, orange si tendu, rouge si insuffisant.
+ */
+export function buildImmoFinStressChart(result) {
+  const canvas = document.getElementById('immoFinStressChart');
+  if (!canvas) return;
+  if (immoFinCharts.stress) { immoFinCharts.stress.destroy(); }
+  const ctx = canvas.getContext('2d');
+
+  const { scenarios, summary, inputs } = result;
+  const casaPoints = summary.casaPoints;
+  const besoinCasa = inputs.besoinCasa;
+
+  // Color per bar based on gap vs besoin
+  const colorForLiq = (liq, besoin) => {
+    if (besoin === 0) return '#14b8a6';   // pas de projet → teal neutre
+    if (liq >= besoin) return '#22c55e';  // vert
+    if (liq >= besoin * 0.80) return '#d97706';  // orange
+    return '#ef4444';                      // rouge
+  };
+
+  const datasets = ['A', 'B', 'C'].map(k => {
+    const data = scenarios[k].liquidite.map(v => v / 1e6);
+    const bgColors = scenarios[k].liquidite.map(liq => colorForLiq(liq, besoinCasa));
+    return {
+      label: k + ' - ' + scenarios[k].label,
+      data,
+      backgroundColor: bgColors,
+      borderColor: scenarios[k].color,
+      borderWidth: 2,
+      borderRadius: 4,
+    };
+  });
+
+  // Ligne horizontale besoin Casa via annotation plugin (fallback: additional dataset)
+  const besoinLine = {
+    label: 'Besoin Casa (' + (besoinCasa / 1e6).toFixed(1) + ' MDH)',
+    data: casaPoints.map(_ => besoinCasa / 1e6),
+    type: 'line',
+    borderColor: '#ef4444',
+    borderDash: [6, 4],
+    borderWidth: 2,
+    fill: false,
+    pointRadius: 0,
+    order: 0,
+  };
+
+  immoFinCharts.stress = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: casaPoints.map(m => 'T+' + m + ' mois'),
+      datasets: besoinCasa > 0 ? [...datasets, besoinLine] : datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
+          },
+        },
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'Liquidité mobilisable (MDH)' },
+          ticks: { callback: v => v.toFixed(1) + ' MDH' },
+        },
+      },
+    },
+  });
 }
