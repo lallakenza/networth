@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=312';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=313';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4811,22 +4811,25 @@ export function computeCashFlow(state, portfolio, fx) {
   }
 
   // 2. Loyers nets immo (depuis immoView)
+  // v313 (BUG-056) : l'ancienne lecture `prop.cashFlow.netMonthly` ne
+  // matchait aucun champ réel — on utilise `prop.cf` (cash-flow mensuel
+  // net, déjà calculé = loyer - charges - prêt - assurance).
   if (state.immoView && state.immoView.properties) {
     for (const prop of state.immoView.properties) {
-      if (prop.cashFlow && prop.cashFlow.netMonthly != null) {
-        const netMo = prop.cashFlow.netMonthly;
-        if (Math.abs(netMo) > 1) {   // ignore near-zero
-          incomeSources.push({
-            label: 'Loyer net ' + (prop.label || prop.loanKey),
-            owner: prop.owner || 'amine',
-            type: 'Loyer',
-            native: netMo,
-            currency: 'EUR',
-            monthlyEUR: netMo,
-            note: 'Loyer - charges - intérêts prêt (après amortissement)',
-          });
-          incomeMonthly += netMo;
-        }
+      // Ignorer les biens conditionnels (VEFA non livrée : pas de loyer)
+      if (prop.conditional) continue;
+      const netMo = prop.cf;
+      if (netMo != null && Math.abs(netMo) > 1) {   // ignore near-zero
+        incomeSources.push({
+          label: 'Loyer net ' + (prop.name || prop.loanKey),
+          owner: (prop.owner || 'Amine').toLowerCase(),
+          type: 'Loyer',
+          native: netMo,
+          currency: 'EUR',
+          monthlyEUR: netMo,
+          note: 'Cash-flow mensuel (loyer − charges − prêt − assurance).',
+        });
+        incomeMonthly += netMo;
       }
     }
   }
@@ -4986,15 +4989,19 @@ export function computeAlerts(state) {
   }
 
   // ── 5. Position IBKR avec fort P&L latent ──
-  if (state.actionsView && state.actionsView.positions) {
-    for (const pos of state.actionsView.positions) {
-      if (pos.platform !== 'IBKR' || !pos.valEUR || !pos.costBasisEUR) continue;
-      const plPct = (pos.valEUR - pos.costBasisEUR) / pos.costBasisEUR;
+  // v313 (BUG-058) : 3 noms de champs incorrects corrigés :
+  //   - state.actionsView.positions → state.actionsView.ibkrPositions
+  //   - pos.platform (absent) → drop le filtre (tout est IBKR ici)
+  //   - pos.costBasisEUR → pos.costEUR_hist (cost basis historique EUR)
+  if (state.actionsView && Array.isArray(state.actionsView.ibkrPositions)) {
+    for (const pos of state.actionsView.ibkrPositions) {
+      if (!pos.valEUR || !pos.costEUR_hist || pos.costEUR_hist <= 0) continue;
+      const plPct = (pos.valEUR - pos.costEUR_hist) / pos.costEUR_hist;
       if (plPct > 0.30 && pos.valEUR > 5000) {
         alerts.push({
           severity: 'green',
           title: 'P&L ' + (pos.label || pos.ticker) + ' : +' + (plPct * 100).toFixed(0) + '%',
-          msg: 'Position à ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €, +' + Math.round(pos.valEUR - pos.costBasisEUR).toLocaleString('fr-FR') + ' € latent. Considérer prise de bénéfices ou rebalancing.',
+          msg: 'Position à ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €, +' + Math.round(pos.valEUR - pos.costEUR_hist).toLocaleString('fr-FR') + ' € latent. Considérer prise de bénéfices ou rebalancing.',
           action: 'Voir Actions',
           view: 'actions',
         });
@@ -5141,11 +5148,18 @@ export function computeFiscaliteMRE(state) {
 
   // ── IR FR sur loyer Vitry ──
   // Trouve le bien Vitry dans immoView
+  // v313 (BUG-057) : l'ancienne lecture `vitry.cashFlow.*` ne matchait aucun
+  // champ réel. On utilise les champs exposés par buildProperty() :
+  //   - loyerDeclareAnnuel : loyer annuel brut déclaré (fiscal)
+  //   - deductibleChargesAnnuel : charges déductibles annuelles (TF, copro, PNO, assurance)
+  //   - loanInterestAnnuel : intérêts d'emprunt annuels
+  // v313 (BUG-059) : IR calculé en barème progressif (20% < 28K, 30% au-delà),
+  // plus en taux flat.
   const vitry = state?.immoView?.properties?.find(p => p.loanKey === 'vitry');
-  if (vitry && vitry.cashFlow) {
-    const loyerAnnuel = (vitry.cashFlow.loyerMensuel || 0) * 12;
-    const chargesAnnuelles = (vitry.cashFlow.chargesMensuelles || 0) * 12;
-    const interetsAnnuels = (vitry.cashFlow.interetsMensuels || 0) * 12;
+  if (vitry) {
+    const loyerAnnuel = vitry.loyerDeclareAnnuel || (vitry.totalRevenue || 0) * 12;
+    const chargesAnnuelles = vitry.deductibleChargesAnnuel || 0;
+    const interetsAnnuels = vitry.loanInterestAnnuel || 0;
 
     // Régime micro-foncier : abattement 30% si loyer < 15K€, sinon réel
     const regimeMicro = loyerAnnuel < 15000;
@@ -5157,10 +5171,13 @@ export function computeFiscaliteMRE(state) {
     }
     revenuImposable = Math.max(0, revenuImposable);
 
-    // Tranches IR France 2026 (par défaut tranche moyenne MRE = 30%)
-    // En pratique pour un MRE non-résident, taux mini 20% sur premier 28K€ puis 30%
-    const tauxIR = revenuImposable > 28000 ? 0.30 : 0.20;
-    const ir = revenuImposable * tauxIR;
+    // Barème IR France MRE 2026 (non-résident) : minimum 20% jusqu'à 28 797€,
+    // 30% au-delà — APPLIQUÉ EN MARGINAL (pas en flat sur toute la base).
+    const SEUIL = 28797;
+    const ir = revenuImposable <= SEUIL
+      ? revenuImposable * 0.20
+      : SEUIL * 0.20 + (revenuImposable - SEUIL) * 0.30;
+    const tauxIREffectif = revenuImposable > 0 ? ir / revenuImposable : 0;
     // PS (CSG-CRDS) — depuis 2018, MRE CEE/EEE exonéré, hors EEE 17.2%
     // UAE n'est pas EEE, donc PS dûs à 17.2%
     const ps = revenuImposable * 0.172;
@@ -5172,7 +5189,7 @@ export function computeFiscaliteMRE(state) {
       interetsAnnuels,
       regimeMicro,
       revenuImposable,
-      tauxIR,
+      tauxIR: tauxIREffectif,   // taux effectif (moyen), pour affichage
       ir,
       ps,
       total: totalImpotLoyer,
@@ -5181,10 +5198,11 @@ export function computeFiscaliteMRE(state) {
   }
 
   // ── PV immo Vitry si vente aujourd'hui ──
+  // v313 : lit les vrais champs de buildProperty() (purchasePrice, propertyMeta.purchaseDate, value)
   if (vitry) {
     const purchasePrice = vitry.purchasePrice || 280000;
-    const purchaseDate = vitry.purchaseDate || '2019-12-15';
-    const currentValue = vitry.value || vitry.currentValue || 300000;
+    const purchaseDate = vitry.propertyMeta?.purchaseDate || vitry.purchaseDate || '2019-12-15';
+    const currentValue = vitry.value || 300000;
     const fraisAcquisition = purchasePrice * 0.075;   // ~7.5% notaire+enregistrement
     const fraisAgence = currentValue * 0.05;          // ~5% si agence
     const pvBrute = currentValue - purchasePrice - fraisAcquisition - fraisAgence;

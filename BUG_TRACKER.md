@@ -1241,4 +1241,118 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v304 — 17 avril 2026 (BUG-055 : reconstruction `chartValuesDegiro` pré-clôture dans `buildPortfolioYTDChart` → plus de saut de +€60K au 14/04/2025. Mode 1Y démarre à la bonne valeur, cohérente avec 5Y/MAX. + Data Model Reference complète dans ARCHITECTURE.md §11 pour faciliter les MAJ futures.)*
+## BUG-056: Cash-flow consolidé — loyers nets jamais agrégés (mauvais chemin de lecture)
+
+- **Version**: v308 (introduit) → v313 (corrigé)
+- **Sévérité**: Haute (revenus mensuels sous-estimés → savings rate, runway, emergency fund tous faussés)
+- **Détection**: audit v312 — `[audit] ligne "Loyer net Vitry" absente du Budget view malgré un bien locatif actif`
+- **Symptôme visible**:
+  - Budget view : table "Revenus" ne contient que Bairok + dividendes, pas de loyer
+  - KPIs Cash-flow sous-estimés d'environ +950 €/mois (loyer Vitry net)
+- **Cause racine**: dans `computeCashFlow` (engine.js:4814), la boucle lisait `prop.cashFlow.netMonthly`. Or aucune propriété retournée par `computeImmoView().properties[i]` ne porte de champ `cashFlow`. Les champs réels sont `cf` (mensuel net), `loyer`, `chargesLoc`, `loanInterestAnnuel`. La condition `if (prop.cashFlow && …)` était donc toujours fausse → skip silencieux.
+- **Correctif** (engine.js:4814-4833) :
+  ```js
+  if (prop.conditional) continue;          // ignorer VEFA non livrée
+  const netMo = prop.cf;                    // cash-flow mensuel net exposé par buildProperty()
+  if (netMo != null && Math.abs(netMo) > 1) {
+    incomeSources.push({
+      label: 'Loyer net ' + (prop.name || prop.loanKey),
+      owner: (prop.owner || 'Amine').toLowerCase(),
+      …
+      monthlyEUR: netMo,
+    });
+    incomeMonthly += netMo;
+  }
+  ```
+- **Test de non-régression**:
+  - [ ] Budget view : ligne "Loyer net Vitry-sur-Seine" apparaît avec ~€950/mois
+  - [ ] KPI "Revenus mensuels" augmente proportionnellement
+  - [ ] Rueil (conditional=false) apparaît aussi
+  - [ ] Villejuif (conditional=true, VEFA) absent comme prévu
+  - [ ] `savingsRate` et `runwayMonths` bougent dans le bon sens
+
+---
+
+## BUG-057: Fiscalité MRE — table "IR Loyer Vitry" vide (mauvais chemin de lecture)
+
+- **Version**: v311 (introduit) → v313 (corrigé)
+- **Sévérité**: Haute (moitié de la vue Plan & Fiscalité non-opérationnelle)
+- **Détection**: audit v312 — preview renvoyait 0 ligne dans la table IR
+- **Symptôme visible**: tableau "IR Loyer Vitry" vide, bloc IR/PS/revenu imposable tous à 0 ou absents
+- **Cause racine**: dans `computeFiscaliteMRE` (engine.js:5145-5148), lecture de `vitry.cashFlow.loyerMensuel`, `vitry.cashFlow.chargesMensuelles`, `vitry.cashFlow.interetsMensuels` — tous inexistants. Même racine que BUG-056 (il n'y a pas de `vitry.cashFlow`).
+- **Correctif** (engine.js:5145-5152) :
+  ```js
+  const loyerAnnuel = vitry.loyerDeclareAnnuel || (vitry.totalRevenue || 0) * 12;
+  const chargesAnnuelles = vitry.deductibleChargesAnnuel || 0;
+  const interetsAnnuels = vitry.loanInterestAnnuel || 0;
+  ```
+  Plus utilisation de `vitry.propertyMeta?.purchaseDate` et `vitry.value` pour la section PV immo.
+- **Test de non-régression**:
+  - [ ] Plan & Fiscalité : table IR affiche loyerAnnuel ≈ 11 400 € (Vitry), chargesAnnuelles, intérêts
+  - [ ] Régime micro-foncier détecté correctement (< 15K€)
+  - [ ] IR, PS, total IR+PS affichés avec valeurs non-nulles
+  - [ ] PV Vitry calculée à partir du vrai purchaseDate (propertyMeta), pas le fallback 2019-12-15
+
+---
+
+## BUG-058: Alerte P&L IBKR — jamais déclenchée (3 noms de champs incorrects)
+
+- **Version**: v309 (introduit) → v313 (corrigé)
+- **Sévérité**: Moyenne (règle #5 des alertes proactives muette)
+- **Détection**: audit v312 — aucune alerte verte "rebalancing" ne s'affichait malgré META/GOOGL à +40/50%
+- **Symptôme visible**: panel Alertes ne propose jamais de prise de bénéfices
+- **Cause racine**: dans `computeAlerts` règle #5 (engine.js:4990), cumul de 3 noms incorrects :
+  1. `state.actionsView.positions` → le champ s'appelle `ibkrPositions`
+  2. `pos.platform !== 'IBKR'` → aucune position n'a de champ `platform` (filtre exclut tout)
+  3. `pos.costBasisEUR` → le champ s'appelle `costEUR_hist`
+- **Correctif** (engine.js:4990-5007) :
+  ```js
+  if (state.actionsView && Array.isArray(state.actionsView.ibkrPositions)) {
+    for (const pos of state.actionsView.ibkrPositions) {
+      if (!pos.valEUR || !pos.costEUR_hist || pos.costEUR_hist <= 0) continue;
+      const plPct = (pos.valEUR - pos.costEUR_hist) / pos.costEUR_hist;
+      if (plPct > 0.30 && pos.valEUR > 5000) { … }
+    }
+  }
+  ```
+- **Test de non-régression**:
+  - [ ] Panel Alertes : au moins 1 alerte verte "P&L X : +Y%" apparaît pour META/GOOGL/MSFT si gain > 30 % & val > €5K
+  - [ ] Pas de crash si `ibkrPositions` absent (Array.isArray guard)
+  - [ ] Aucune alerte pour positions à €0 ou cost=0
+
+---
+
+## BUG-059: Fiscalité MRE — IR France appliqué en flat au lieu de marginal
+
+- **Version**: v311 (introduit) → v313 (corrigé)
+- **Sévérité**: Haute (chiffre fiscal sur-estimé 30-45 % quand revenu > 28 K€)
+- **Détection**: audit v312 — relecture manuelle des tranches IR MRE
+- **Symptôme visible**: impôt affiché ≈ 30 % × revenu imposable (flat), au lieu du barème progressif
+- **Cause racine** (engine.js:5162) :
+  ```js
+  const tauxIR = revenuImposable > 28000 ? 0.30 : 0.20;
+  const ir = revenuImposable * tauxIR;
+  ```
+  Cette formule applique 30 % à **toute** la base dès qu'elle dépasse 28 K€. Pour un revenu imposable de 35 K€, l'IR calculé était 35 000 × 30 % = **10 500 €** alors que le barème correct donne 28 797 × 20 % + 6 203 × 30 % = **7 621 €**. Sur-estimation de 37 %.
+  
+  Le barème MRE non-résident 2026 est bien **progressif** : 20 % marginal sur la tranche 0-28 797 €, 30 % au-delà (loi de finances 2026, art. 197 A du CGI).
+- **Correctif** (engine.js:5163-5167) :
+  ```js
+  const SEUIL = 28797;
+  const ir = revenuImposable <= SEUIL
+    ? revenuImposable * 0.20
+    : SEUIL * 0.20 + (revenuImposable - SEUIL) * 0.30;
+  const tauxIREffectif = revenuImposable > 0 ? ir / revenuImposable : 0;
+  ```
+  Le champ `tauxIR` exposé devient le taux **effectif** (moyen) pour l'affichage.
+- **Test de non-régression**:
+  - [ ] IR(10 000 €) = 2 000 € (marginal 20 %)
+  - [ ] IR(28 797 €) = 5 759 € (limite inférieure)
+  - [ ] IR(30 000 €) ≈ 6 120 € (pas 9 000 €)
+  - [ ] IR(50 000 €) ≈ 12 121 € (pas 15 000 €)
+  - [ ] `tauxIR` affiché croît avec la base (effet marginal)
+  - [ ] Régime micro-foncier (loyer < 15K) : IR = 0.20 × loyer × 0.70 (pas de bascule 30 %)
+
+---
+
+*Dernière mise à jour: v313 — 18 avril 2026 (audit v305-v312 : BUG-056 cash-flow loyers, BUG-057 fiscalité Vitry table vide, BUG-058 alerte P&L IBKR muette, BUG-059 IR marginal au lieu de flat. + apportRatio data-driven par preset (A6). v304/BUG-055 reste : reconstruction `chartValuesDegiro` pré-clôture.)*
