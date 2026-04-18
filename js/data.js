@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v314';
+export const APP_VERSION = 'v315';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2434,8 +2434,11 @@ export const IMMO_MAROC_FEES = {
 // Taux margin IBKR (par devise, mis à jour avril 2026)
 // Source : IBKR Margin Rates page, tier "Blended Rate 0-100K" avec spread ~1-1.5% sur benchmark
 // €STR (EUR), SOFR (USD), TONA (JPY) = benchmark monétaire quotidien
+// v315 (audit) : EUR mis à jour 3.1% → 4.3% (€STR passé à 3.0% en 2025-2026
+// + spread 1.3%). L'ancienne valeur 3.1% supposait un €STR 1.6% (niveau 2024).
+// À vérifier semestriellement contre la courbe €STR BCE.
 export const MARGIN_RATES = {
-  EUR: 0.031,    // 3.1% — €STR ~1.6% + spread 1.5%
+  EUR: 0.043,    // 4.3% — €STR ~3.0% + spread 1.3%
   USD: 0.048,    // 4.8% — SOFR ~3.3% + spread 1.5%
   JPY: 0.015,    // 1.5% — TONA ~0.1% + spread 1.4% — ⚠ risque FX si yen s'apprécie
 };
