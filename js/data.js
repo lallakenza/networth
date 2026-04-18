@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v307';
+export const APP_VERSION = 'v308';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2497,6 +2497,47 @@ export const IMMO_PRESETS = [
 // générés dynamiquement par engine.js depuis IMMO_CONSTANTS.charges
 // (ne pas dupliquer ici pour éviter double-comptage)
 // ════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════
+// REVENUS MENSUELS (v308) — par source, pour vue Cash-flow consolidé
+// ════════════════════════════════════════════════════════════
+// Permet de calculer : revenus nets mensuels, taux d'épargne, emergency
+// fund ratio (dormant / dépenses), runway si perte revenus.
+//
+// Structure identique à BUDGET_EXPENSES pour symétrie :
+//   - label      : description
+//   - amount     : montant
+//   - currency   : EUR, AED, MAD, USD (converti via toEUR côté engine)
+//   - freq       : 'monthly' | 'yearly'
+//   - owner      : 'amine' | 'nezha'
+//   - type       : 'Salaire' | 'Facturation' | 'Loyer' | 'Dividende' | 'Autre'
+//   - note       : optionnel
+//
+// MISE À JOUR: mensuelle, après clôture fiscale annuelle, après nouveau contrat.
+// Dernière MAJ: avril 2026.
+//
+// Important: les loyers ne sont PAS comptés ici (déjà modélisés dans immoView
+// avec cashflow net loyer-charges-prêt). Les dividendes sont tracés par le
+// calendrier WHT dans DIV_CALENDAR (projectedDivEUR dans dividendAnalysis).
+// MONTHLY_INCOMES se concentre sur salaires + facturation + revenus actifs
+// qui ne sont pas déjà comptés ailleurs.
+export const MONTHLY_INCOMES = [
+  // Amine — facturation SAP freelance via Bairok Consulting LLC (UAE)
+  // Montants nets (après charges société), convertis en mensuel moyen
+  { label: 'Facturation SAP (Bairok)',  amount: 85000,  currency: 'AED', freq: 'monthly',
+    owner: 'amine', type: 'Facturation',
+    note: 'Net après charges Bairok. Variable selon mission, moyenne 12m glissants.' },
+
+  // Nezha — salaire ou honoraires si applicable (placeholder à ajuster)
+  // { label: 'Salaire Nezha', amount: 0, currency: 'EUR', freq: 'monthly',
+  //   owner: 'nezha', type: 'Salaire' },
+
+  // Loyers nets (placeholders — engine les calcule via immoView, mais on peut
+  // les surfacer ici pour completude si souhaité)
+  // { label: 'Loyer Vitry net',   amount: 950,  currency: 'EUR', freq: 'monthly',
+  //   owner: 'amine', type: 'Loyer', note: 'Loyer HC - charges - intérêts prêt' },
+];
+
 export const BUDGET_EXPENSES = [
   { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
   { label: 'Électricité',     amount: 840,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },

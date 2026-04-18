@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=307';
-import { getGrandTotal, computeImmoFinancing } from './engine.js?v=307';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=308';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts } from './engine.js?v=308';
 
 // ---- Generic table sort utility ----
 /**
@@ -267,6 +267,9 @@ export function render(state, view, currency) {
   if (view === 'creances') renderCreancesView(state);
   if (view === 'budget') renderBudgetView(state);
   if (view === 'immo-financing') renderImmoFinancingView(state);  // v306
+
+  // v309 — Alertes proactives (affichées uniquement sur vue Couple)
+  if (view === 'couple') renderAlertsPanel(state);
 
   // Per-apartment views
   if (view === 'apt_vitry') renderAptView(state, 'vitry');
@@ -5892,6 +5895,61 @@ function renderBudgetView(state) {
   const grandTotal = bv.personalTotal + Math.max(0, -bv.investCFTotal);
   setEur('kpiBudgetGrandTotal', grandTotal);
 
+  // ── v308 — Cash-flow consolidé ──
+  try {
+    const cf = computeCashFlow(state, state.portfolio, state._fx || state.fx);
+    setEur('kpiCashflowIncome', cf.incomeMonthly);
+    setEur('kpiCashflowExpenses', cf.expensesMonthly);
+    setEur('kpiCashflowSavings', cf.netSavings);
+    const savingsEl = document.getElementById('kpiCashflowSavings');
+    if (savingsEl) {
+      savingsEl.style.color = cf.netSavings >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+    setText('kpiCashflowRate', (cf.savingsRate * 100).toFixed(1) + '%');
+    const rateEl = document.getElementById('kpiCashflowRate');
+    if (rateEl) {
+      rateEl.style.color = cf.savingsRate >= 0.20 ? 'var(--green)' :
+                           cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
+    }
+    setText('kpiCashflowRunway', cf.runwayMonths.toFixed(0) + ' mois');
+
+    // Detail tables
+    const detailEl = document.getElementById('cashflowDetail');
+    if (detailEl) {
+      const fmtMo = v => Math.round(v).toLocaleString('fr-FR');
+      let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px;">';
+      // Revenus
+      html += '<div><h3 style="margin-top:0;color:var(--green)">Revenus (' + fmtMo(cf.incomeMonthly) + ' €/mois)</h3>';
+      html += '<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left">Source</th><th>Type</th><th class="num">Montant EUR/mois</th></tr></thead><tbody>';
+      cf.incomeSources.forEach(src => {
+        html += '<tr><td><strong>' + src.label + '</strong><br><span style="font-size:10px;color:var(--gray)">' + src.owner + ' · ' + src.native.toLocaleString('fr-FR') + ' ' + src.currency + '</span></td><td style="font-size:11px;color:var(--gray)">' + src.type + '</td><td class="num">' + fmtMo(src.monthlyEUR) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      // Santé financière
+      html += '<div><h3 style="margin-top:0">Sant&eacute; financi&egrave;re</h3>';
+      html += '<div style="font-size:13px;line-height:1.9">';
+      const efColor = cf.emergencyFundRatio >= 6 ? 'var(--green)' :
+                      cf.emergencyFundRatio >= 3 ? '#d97706' : 'var(--red)';
+      html += '• Emergency Fund : <strong style="color:' + efColor + '">' + cf.emergencyFundRatio.toFixed(1) + ' mois</strong> de d&eacute;penses en cash dormant (recommand&eacute; ≥ 6)<br>';
+      const rnColor = cf.runwayMonths >= 24 ? 'var(--green)' :
+                       cf.runwayMonths >= 12 ? '#d97706' : 'var(--red)';
+      html += '• Runway si 0 revenu : <strong style="color:' + rnColor + '">' + cf.runwayMonths.toFixed(0) + ' mois</strong> (mobilisable / d&eacute;penses)<br>';
+      const srColor = cf.savingsRate >= 0.30 ? 'var(--green)' :
+                       cf.savingsRate >= 0.20 ? 'var(--green)' :
+                       cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
+      html += '• Taux d\'&eacute;pargne : <strong style="color:' + srColor + '">' + (cf.savingsRate * 100).toFixed(1) + '%</strong> (top d&eacute;cile : ≥30%)<br>';
+      html += '• Cash dormant : ' + fmtMo(cf.cashDormant) + ' € | Mobilisable total : ' + fmtMo(cf.liquid) + ' €<br>';
+      html += '<br><strong>Projection 12 mois</strong> (&agrave; taux d\'&eacute;pargne constant) :<br>';
+      const proj12 = cf.netSavings * 12;
+      html += '+' + fmtMo(proj12) + ' € d\'&eacute;pargne cumul&eacute;e = ' + fmtMo(cf.liquid + proj12) + ' € de mobilisable total.';
+      html += '</div></div>';
+      html += '</div>';
+      detailEl.innerHTML = html;
+    }
+  } catch (e) {
+    console.warn('[cashflow] render failed:', e);
+  }
+
   // ── PERSONAL TABLE ──
   const tbody = document.getElementById('budgetDetailTbody');
   const budgetTable = document.getElementById('budgetTable');
@@ -6470,19 +6528,20 @@ let _immoFinPatrimoineAutoFed = false;   // v307 — track si patrimoine a déj�
  *   - manuellement via bouton "Synchroniser avec patrimoine actuel"
  */
 function syncPatrimoineFromState(state) {
-  const mobEUR = state?.couple?.financialMobilisable;
+  // v308 — AMINE uniquement (pas couple). Le module financement représente
+  // un achat personnel d'Amine pour ses parents, Nezha n'entre pas dans
+  // le financement. Valeur typique ~4.4 MDH vs 5.63 MDH côté couple.
+  const mobEUR = state?.amine?.financialMobilisable;
   if (mobEUR == null || mobEUR <= 0) return null;
-  // Convertir en MAD. Si input FX existe, utiliser cette valeur (cohérent
-  // avec le calcul), sinon 10.80 par défaut.
   const fx = Number(document.getElementById('immoFinInputFx')?.value) || 10.80;
   const mobMAD = Math.round(mobEUR * fx);
   const inp = document.getElementById('immoFinInputPatrimoine');
   if (inp) inp.value = mobMAD;
   const info = document.getElementById('immoFinPatrimoineSyncInfo');
   if (info) {
-    info.textContent = 'Synchronisé depuis patrimoine mobilisable actuel : '
+    info.textContent = 'Synchronisé depuis patrimoine mobilisable Amine : '
       + (mobEUR / 1000).toFixed(0) + 'k € × ' + fx.toFixed(2) + ' = '
-      + (mobMAD / 1e6).toFixed(2) + ' MDH. Inclut cash + IBKR + ESPP + SGTM (hors immo/véhicules/créances/TVA).';
+      + (mobMAD / 1e6).toFixed(2) + ' MDH. Inclut UAE cash + IBKR + ESPP Amine + SGTM Amine (Nezha exclue, hors immo/véhicules/créances/TVA).';
   }
   return mobMAD;
 }
@@ -6610,7 +6669,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=307').then(m => {
+  import('./charts.js?v=308').then(m => {
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
     if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
@@ -6743,4 +6802,69 @@ function renderImmoFinComparisonTable(result) {
       '</tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
     '</table>';
+}
+
+// ════════════════════════════════════════════════════════════
+// ALERTES PROACTIVES — v309
+// ════════════════════════════════════════════════════════════
+// Affiche un panneau d'alertes actionnables en haut de la vue Couple.
+// Règles : voir engine.computeAlerts. Chaque alerte a severity (red/yellow
+// /green), title, msg, optional action + view.
+//
+// Si aucune alerte : panneau masqué (ne pollue pas l'UI).
+function renderAlertsPanel(state) {
+  const el = document.getElementById('alertsPanel');
+  if (!el) return;
+  let alerts = [];
+  try {
+    alerts = computeAlerts(state) || [];
+  } catch (e) {
+    console.warn('[alerts] computeAlerts failed:', e);
+    el.innerHTML = '';
+    return;
+  }
+  if (alerts.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // Group by severity for visual grouping
+  const sevOrder = ['red', 'yellow', 'green'];
+  const sevMeta = {
+    red:    { bg: 'rgba(239,68,68,0.08)', border: 'var(--red)',    label: 'À traiter' },
+    yellow: { bg: 'rgba(217,119,6,0.08)', border: '#d97706',       label: 'À surveiller' },
+    green:  { bg: 'rgba(34,197,94,0.08)', border: 'var(--green)',  label: 'Opportunité' },
+  };
+
+  let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--card-bg,white);">';
+  html += '<h3 style="margin:0 0 10px 0;font-size:15px;">Alertes & insights actionnables <span style="font-size:11px;color:var(--gray);font-weight:400">(' + alerts.length + ')</span></h3>';
+
+  sevOrder.forEach(sev => {
+    const items = alerts.filter(a => a.severity === sev);
+    if (items.length === 0) return;
+    const meta = sevMeta[sev];
+    items.forEach(a => {
+      html += '<div style="display:flex;gap:12px;padding:10px 12px;margin-top:8px;background:' + meta.bg + ';border-left:3px solid ' + meta.border + ';border-radius:6px;align-items:flex-start;">';
+      html += '<div style="flex:1;font-size:13px">';
+      html += '<div style="font-weight:600;color:' + meta.border + ';margin-bottom:2px">' + a.title + '</div>';
+      html += '<div style="color:var(--text-muted);font-size:12px;line-height:1.5">' + a.msg + '</div>';
+      html += '</div>';
+      if (a.action && a.view) {
+        html += '<button data-alert-view="' + a.view + '" type="button" style="padding:6px 12px;background:' + meta.border + ';color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;">' + a.action + '</button>';
+      }
+      html += '</div>';
+    });
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
+
+  // Wire action buttons
+  el.querySelectorAll('button[data-alert-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetView = btn.getAttribute('data-alert-view');
+      const navBtn = document.querySelector('.view-btn[data-view="' + targetView + '"]');
+      if (navBtn) navBtn.click();
+    });
+  });
 }

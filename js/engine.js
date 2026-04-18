@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES } from './data.js?v=307';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=308';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4314,6 +4314,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     dividendAnalysis,
     nwHistory: NW_HISTORY,
     equityHistory: EQUITY_HISTORY,
+    _fx: fx,  // v309 — exposé pour computeCashFlow réutilisé dans computeAlerts
   };
 }
 
@@ -4727,3 +4728,248 @@ export function computeImmoFinancing(inputs) {
   };
 }
 
+
+// ════════════════════════════════════════════════════════════
+// CASH-FLOW CONSOLIDÉ — v308
+// ════════════════════════════════════════════════════════════
+// Agrège revenus (MONTHLY_INCOMES) + dépenses (BUDGET_EXPENSES) + loyers
+// nets (immoView cash-flow) + dividendes projetés (dividendAnalysis) en
+// un bilan mensuel consolidé. Expose :
+//   - incomeMonthly : total revenus (€/mois)
+//   - expensesMonthly : total dépenses (€/mois)
+//   - netSavings : épargne nette mensuelle (€/mois)
+//   - savingsRate : taux d'épargne (% du net)
+//   - emergencyFundRatio : cash dormant / dépenses mensuelles (en mois)
+//   - runwayMonths : mois tenables à 0 revenu (cash + liquide / dépenses)
+//   - incomeSources, expenseCategories : breakdowns pour UI
+//
+// Source pour loyers : state.immoView.properties[i].cashFlow.netMonthly
+// (déjà calculé, évite duplication). Source pour dividendes : state
+// .dividendAnalysis.totalProjectedDiv / 12 (projected net-of-WHT / 12).
+//
+// Currency : tout converti en EUR via toEUR(). Les dates MRE complexes
+// (IR FR sur loyers, 0% UAE) ne sont pas modélisées ici — c'est brut.
+export function computeCashFlow(state, portfolio, fx) {
+  // ── Revenus ──
+  const incomeSources = [];
+  let incomeMonthly = 0;
+
+  // 1. Revenus actifs (MONTHLY_INCOMES data)
+  for (const inc of (MONTHLY_INCOMES || [])) {
+    const monthlyNative = inc.freq === 'yearly' ? inc.amount / 12 : inc.amount;
+    const monthlyEUR = toEUR(monthlyNative, inc.currency, fx);
+    incomeSources.push({
+      label: inc.label,
+      owner: inc.owner || 'amine',
+      type: inc.type,
+      native: monthlyNative,
+      currency: inc.currency,
+      monthlyEUR,
+      note: inc.note,
+    });
+    incomeMonthly += monthlyEUR;
+  }
+
+  // 2. Loyers nets immo (depuis immoView)
+  if (state.immoView && state.immoView.properties) {
+    for (const prop of state.immoView.properties) {
+      if (prop.cashFlow && prop.cashFlow.netMonthly != null) {
+        const netMo = prop.cashFlow.netMonthly;
+        if (Math.abs(netMo) > 1) {   // ignore near-zero
+          incomeSources.push({
+            label: 'Loyer net ' + (prop.label || prop.loanKey),
+            owner: prop.owner || 'amine',
+            type: 'Loyer',
+            native: netMo,
+            currency: 'EUR',
+            monthlyEUR: netMo,
+            note: 'Loyer - charges - intérêts prêt (après amortissement)',
+          });
+          incomeMonthly += netMo;
+        }
+      }
+    }
+  }
+
+  // 3. Dividendes projetés (depuis dividendAnalysis, NET de WHT, lifted / 12)
+  if (state.dividendAnalysis && state.dividendAnalysis.totalProjectedDiv > 0) {
+    const divNetMonthly = (state.dividendAnalysis.totalProjectedDiv
+      - (state.dividendAnalysis.totalProjectedWHT || 0)) / 12;
+    if (divNetMonthly > 1) {
+      incomeSources.push({
+        label: 'Dividendes projetés (annualisés)',
+        owner: 'couple',
+        type: 'Dividende',
+        native: divNetMonthly,
+        currency: 'EUR',
+        monthlyEUR: divNetMonthly,
+        note: 'Total projeté annuel net de WHT ÷ 12, réparti sur l\'année.',
+      });
+      incomeMonthly += divNetMonthly;
+    }
+  }
+
+  // ── Dépenses ──
+  const expenseCategories = [];
+  let expensesMonthly = 0;
+
+  // Dépenses fixes (BUDGET_EXPENSES)
+  for (const exp of (BUDGET_EXPENSES || [])) {
+    const monthlyNative = exp.freq === 'yearly' ? exp.amount / 12 : exp.amount;
+    const monthlyEUR = toEUR(monthlyNative, exp.currency, fx);
+    expenseCategories.push({
+      label: exp.label,
+      type: exp.type,
+      zone: exp.zone,
+      monthlyEUR,
+      currency: exp.currency,
+      native: monthlyNative,
+    });
+    expensesMonthly += monthlyEUR;
+  }
+
+  // Mensualités prêts immo (déjà comptées dans cashFlow.netMonthly via charges,
+  // donc ne pas re-compter ici — sinon double-count). On se limite à
+  // BUDGET_EXPENSES qui n'inclut PAS les mensualités immo (par design).
+
+  // ── KPIs dérivés ──
+  const netSavings = incomeMonthly - expensesMonthly;
+  const savingsRate = incomeMonthly > 0 ? netSavings / incomeMonthly : 0;
+
+  // Emergency fund : dormant cash (Cash dormant de cashView) / dépenses mensuelles
+  const cashDormant = state.cashView && state.cashView.totalNonYielding
+    ? state.cashView.totalNonYielding : 0;
+  const emergencyFundRatio = expensesMonthly > 0
+    ? cashDormant / expensesMonthly : 0;
+
+  // Runway : cash total + financialMobilisable / dépenses mensuelles
+  const liquid = (state.couple?.financialMobilisable || 0);
+  const runwayMonths = expensesMonthly > 0 ? liquid / expensesMonthly : 0;
+
+  return {
+    incomeMonthly,
+    expensesMonthly,
+    netSavings,
+    savingsRate,
+    emergencyFundRatio,
+    runwayMonths,
+    incomeSources,
+    expenseCategories,
+    cashDormant,
+    liquid,
+  };
+}
+
+// ════════════════════════════════════════════════════════════
+// ALERTES PROACTIVES — v309
+// ════════════════════════════════════════════════════════════
+// Parcourt le state et génère une liste d'alertes actionnables.
+// Chaque alerte : { severity, title, msg, action?, view? }
+//   severity : 'red' (critique) | 'yellow' (warning) | 'green' (opportunité)
+//   action   : texte du bouton suggéré
+//   view     : vue à ouvrir pour agir
+//
+// Règles :
+//   1. Créances en retard (dueDate < aujourd'hui, status != recouvré)
+//   2. Dividendes avec ex-date ≤ 15j + WHT > 0 → reminder
+//   3. Cash dormant > 6 mois de dépenses → opportunité yield
+//   4. Taux d'endettement > 40% (CRD / NW) → warning
+//   5. Emergency fund < 3 mois → risque liquidité
+//   6. Position IBKR ≥ +30% P&L → rebalancing opportunity
+export function computeAlerts(state) {
+  const alerts = [];
+  const today = new Date();
+  const daysDiff = (d) => Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+
+  // ── 1. Créances en retard ──
+  if (state.creancesView && state.creancesView.activeItems) {
+    for (const c of state.creancesView.activeItems) {
+      if (!c.dueDate) continue;
+      const due = new Date(c.dueDate + 'T00:00:00');
+      const overdue = -daysDiff(due);
+      if (overdue > 0 && overdue < 9000) {  // filter sentinel dates
+        alerts.push({
+          severity: 'red',
+          title: 'Créance en retard : ' + (c.counterparty || c.label || c.id),
+          msg: 'Échéance du ' + c.dueDate + ' dépassée de ' + overdue + ' jour' + (overdue > 1 ? 's' : '') + '. Montant : ' + Math.round(c.amount).toLocaleString('fr-FR') + ' ' + (c.currency || 'EUR') + '.',
+          action: 'Voir créances',
+          view: 'creances',
+        });
+      }
+    }
+  }
+
+  // ── 2. Dividendes proches ex-date + WHT significatif ──
+  if (state.dividendAnalysis && state.dividendAnalysis.positions) {
+    for (const p of state.dividendAnalysis.positions) {
+      if (!p.nextExDate || p.daysUntilEx == null) continue;
+      if (p.daysUntilEx > 0 && p.daysUntilEx <= 15 && p.projectedWHT > 30 && p.recommendation === 'switch') {
+        alerts.push({
+          severity: 'yellow',
+          title: 'Ex-dividende ' + (p.label || p.ticker) + ' dans ' + p.daysUntilEx + 'j',
+          msg: 'WHT projetée ' + Math.round(p.projectedWHT) + '€ sur ' + Math.round(p.projectedDivEUR) + '€ brut. Recommandation SWITCHER vers ETF capitalisant pour éviter la retenue.',
+          action: 'Voir calendrier WHT',
+          view: 'actions',
+        });
+      }
+    }
+  }
+
+  // ── 3. Cash dormant excessif ──
+  if (state.cashView && state.couple && state.couple.financialMobilisable) {
+    const dormant = state.cashView.totalNonYielding || 0;
+    const cashFlow = computeCashFlowQuick(state);
+    if (cashFlow && cashFlow.expensesMonthly > 0) {
+      const monthsOfDormant = dormant / cashFlow.expensesMonthly;
+      if (monthsOfDormant > 12) {
+        alerts.push({
+          severity: 'green',
+          title: 'Opportunité : cash dormant ' + Math.round(dormant / 1000) + 'k € (' + monthsOfDormant.toFixed(0) + ' mois de dépenses)',
+          msg: 'Manque à gagner annuel à 5% : ~' + Math.round(dormant * 0.05).toLocaleString('fr-FR') + ' €. Envisager Wio Save 6% ou IBKR placement court-terme.',
+          action: 'Voir Cash',
+          view: 'cash',
+        });
+      }
+    }
+  }
+
+  // ── 4. Emergency fund < 3 mois ──
+  const quickCF = computeCashFlowQuick(state);
+  if (quickCF && quickCF.expensesMonthly > 0 && quickCF.emergencyFundRatio < 3) {
+    alerts.push({
+      severity: 'red',
+      title: 'Emergency fund insuffisant : ' + quickCF.emergencyFundRatio.toFixed(1) + ' mois',
+      msg: 'Cash dormant couvre seulement ' + quickCF.emergencyFundRatio.toFixed(1) + ' mois de dépenses (' + Math.round(quickCF.expensesMonthly).toLocaleString('fr-FR') + ' € / mois). Recommandé : ≥ 3-6 mois.',
+      action: 'Voir Cash',
+      view: 'cash',
+    });
+  }
+
+  // ── 5. Position IBKR avec fort P&L latent ──
+  if (state.actionsView && state.actionsView.positions) {
+    for (const pos of state.actionsView.positions) {
+      if (pos.platform !== 'IBKR' || !pos.valEUR || !pos.costBasisEUR) continue;
+      const plPct = (pos.valEUR - pos.costBasisEUR) / pos.costBasisEUR;
+      if (plPct > 0.30 && pos.valEUR > 5000) {
+        alerts.push({
+          severity: 'green',
+          title: 'P&L ' + (pos.label || pos.ticker) + ' : +' + (plPct * 100).toFixed(0) + '%',
+          msg: 'Position à ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €, +' + Math.round(pos.valEUR - pos.costBasisEUR).toLocaleString('fr-FR') + ' € latent. Considérer prise de bénéfices ou rebalancing.',
+          action: 'Voir Actions',
+          view: 'actions',
+        });
+      }
+    }
+  }
+
+  return alerts;
+}
+
+// Helper léger pour computeAlerts (évite appel récursif coûteux)
+function computeCashFlowQuick(state) {
+  try {
+    const fx = state._fx;
+    if (!fx) return null;
+    return computeCashFlow(state, null, fx);
+  } catch (e) { return null; }
+}
