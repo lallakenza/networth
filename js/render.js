@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=315';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=315';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=316';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=316';
 
 // ---- Generic table sort utility ----
 /**
@@ -6714,7 +6714,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=315').then(m => {
+  import('./charts.js?v=316').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -6952,8 +6952,22 @@ function renderAlertsPanel(state) {
 // directement les loyers / valeurs immo depuis state.
 
 function renderPlanFiscalView(state) {
+  // v316 — Base réelle depuis cash-flow consolidé (avant : hardcodé 8000/0.06).
+  // netSavings = revenus mensuels − charges mensuelles (incl. loyer Vitry net).
+  // Rendement base 0.06 = moyenne historique S&P500 après inflation (~6-7%
+  // réel long terme) ; modifiable si l'utilisateur veut tester des scénarios.
+  let baseSavings = 8000;
+  try {
+    const cf = computeCashFlow(state, state.portfolio, state.fx);
+    const realSav = Math.max(0, Math.round(cf.netSavings || 0));
+    if (realSav > 0) baseSavings = realSav;
+  } catch (e) {
+    console.warn('[plan-fiscal] computeCashFlow échoué, fallback 8000 €/mois :', e);
+  }
+  const baseRendement = 0.06;
+
   // ── v312 — Objectifs ──
-  const objectifs = computeObjectifs(state, { monthlySavingsEUR: 8000, annualReturn: 0.06 });
+  const objectifs = computeObjectifs(state, { monthlySavingsEUR: baseSavings, annualReturn: baseRendement });
   const tblObj = document.getElementById('planObjectifsTable');
   if (tblObj) {
     const fmtMoney = v => Math.round(v).toLocaleString('fr-FR') + ' €';
@@ -6968,22 +6982,35 @@ function renderPlanFiscalView(state) {
       + '</tr></thead><tbody>';
     objectifs.forEach(o => {
       const yearsTo = (o.monthsToTarget / 12).toFixed(1);
+      // v316 — Si horizon long (>10 ans), afficher target et projection
+      // en €réels 2026 (déflatés de l'inflation) pour refléter le vrai
+      // pouvoir d'achat.
+      const cibleCell = o.isLongHorizon
+        ? fmtMoney(o.target) + '<br><span style="font-size:10px;color:var(--gray)">≈ ' + fmtMoney(o.targetReal2026) + ' réel 2026</span>'
+        : fmtMoney(o.target);
+      const projCell = o.isLongHorizon
+        ? '<strong>' + fmtMoney(o.projectedValue) + '</strong><br><span style="font-size:10px;color:var(--gray)">≈ ' + fmtMoney(o.projectedReal2026) + ' réel 2026</span>'
+        : '<strong>' + fmtMoney(o.projectedValue) + '</strong>';
       html += '<tr>'
         + '<td><strong>' + o.label + '</strong><br><span style="font-size:10px;color:var(--gray)">base : ' + o.basis + '</span></td>'
         + '<td style="font-size:11px">' + o.dateTarget + '<br><span style="color:var(--gray)">' + yearsTo + ' ans</span></td>'
-        + '<td class="num">' + fmtMoney(o.target) + '</td>'
-        + '<td class="num"><strong>' + fmtMoney(o.projectedValue) + '</strong></td>'
+        + '<td class="num">' + cibleCell + '</td>'
+        + '<td class="num">' + projCell + '</td>'
         + '<td class="num">' + (o.ratio * 100).toFixed(0) + '%</td>'
         + '<td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:' + o.statusColor + ';color:white;font-size:10px;font-weight:600">' + o.statusLabel + '</span></td>'
         + '<td class="num" style="color:var(--red);font-size:11px">' + (o.requiredAdditionalMonthly > 0 ? '+' + Math.round(o.requiredAdditionalMonthly).toLocaleString('fr-FR') + ' €/mois' : '—') + '</td>'
         + '</tr>';
     });
     html += '</tbody></table>';
+    html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">'
+      + 'Hypothèses : épargne mensuelle <strong>' + baseSavings.toLocaleString('fr-FR') + ' €</strong> (depuis cash-flow consolidé) ; rendement <strong>' + (baseRendement * 100).toFixed(0) + ' %/an</strong> (moyenne actions diversifiées long terme) ; inflation <strong>3 %/an</strong> pour la conversion en € réels 2026.'
+      + '</p>';
     tblObj.innerHTML = html;
   }
 
   // ── v312 — Sensibilité ──
-  const sens = computeSensibilite(state, objectifs[0]);
+  // v316 — Variations centrées sur la base réelle (base±2pts, base±20%)
+  const sens = computeSensibilite(state, objectifs[0], { baseRendement, baseSavings });
   const tblSens = document.getElementById('planSensibiliteTable');
   if (tblSens) {
     const fmtRatio = (ratio, target) => {
@@ -6991,16 +7018,20 @@ function renderPlanFiscalView(state) {
       const color = ratio >= 1.0 ? '#22c55e' : ratio >= 0.85 ? '#d97706' : '#ef4444';
       return '<span style="color:' + color + ';font-weight:600">' + pct + '%</span>';
     };
+    // v316 — Headers dynamiques basés sur sens.savingsVariations (plus de hardcode)
+    const [savLow, savBase, savHigh] = sens.savingsVariations;
+    const pctLow = Math.round((savLow / savBase - 1) * 100);
+    const pctHigh = Math.round((savHigh / savBase - 1) * 100);
     let html = '<table style="width:100%;font-size:12px;"><thead><tr>'
       + '<th>Rendement \\ Épargne</th>'
-      + '<th class="num">−20% (6 400 €/m)</th>'
-      + '<th class="num">Base (8 000 €/m)</th>'
-      + '<th class="num">+20% (9 600 €/m)</th>'
+      + '<th class="num">' + (pctLow >= 0 ? '+' : '') + pctLow + '% (' + savLow.toLocaleString('fr-FR') + ' €/m)</th>'
+      + '<th class="num">Base (' + savBase.toLocaleString('fr-FR') + ' €/m)</th>'
+      + '<th class="num">+' + pctHigh + '% (' + savHigh.toLocaleString('fr-FR') + ' €/m)</th>'
       + '</tr></thead><tbody>';
     sens.matrix.forEach(row => {
-      const isBaseRow = row.rendement === sens.baseRendement;
+      const isBaseRow = Math.abs(row.rendement - sens.baseRendement) < 0.001;
       html += '<tr' + (isBaseRow ? ' style="background:rgba(8,145,178,0.05)"' : '') + '>'
-        + '<td><strong>' + (row.rendement * 100).toFixed(0) + '%/an</strong>' + (isBaseRow ? ' <span style="color:var(--gray);font-size:10px">(base)</span>' : '') + '</td>';
+        + '<td><strong>' + (row.rendement * 100).toFixed(1) + '%/an</strong>' + (isBaseRow ? ' <span style="color:var(--gray);font-size:10px">(base)</span>' : '') + '</td>';
       row.cells.forEach(cell => {
         const isBaseCell = cell.savings === sens.baseSavings;
         html += '<td class="num"' + (isBaseCell && isBaseRow ? ' style="background:rgba(8,145,178,0.10);font-weight:600"' : '') + '>'
@@ -7010,8 +7041,9 @@ function renderPlanFiscalView(state) {
     });
     html += '</tbody></table>';
     html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">'
-      + 'Lecture : "1.2M€ (120%)" = projeté à 1.2M€ qui dépasse l\'objectif de 1M€ (120% atteint). '
-      + 'Cellule centrale (fond bleu) = scénario base. Permet de voir l\'impact d\'un marché baissier (4%/an) ou d\'un effort d\'épargne réduit.</p>';
+      + 'Lecture : "1.2M€ (120%)" = projeté à 1.2M€ qui dépasse l\'objectif de ' + Math.round(sens.target / 1000) + 'k€ (120 % atteint). '
+      + 'Cellule centrale (fond bleu) = scénario base (épargne réelle ' + savBase.toLocaleString('fr-FR') + ' €/m × rendement ' + (sens.baseRendement * 100).toFixed(0) + ' %). '
+      + 'Variations : ±2 points de rendement, ±20 % d\'épargne pour cadrer le risque.</p>';
     tblSens.innerHTML = html;
   }
 

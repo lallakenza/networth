@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=315';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=316';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5089,6 +5089,7 @@ export function computeObjectifs(state, opts) {
   const today = new Date();
   const monthlySavingsEUR = (opts && opts.monthlySavingsEUR != null) ? opts.monthlySavingsEUR : 8000;
   const annualReturn = (opts && opts.annualReturn != null) ? opts.annualReturn : 0.06;
+  const inflationRate = (opts && opts.inflationRate != null) ? opts.inflationRate : INFLATION_RATE;
   const r = annualReturn / 12;
 
   return (opts && opts.objectifs ? opts.objectifs : DEFAULT_OBJECTIFS).map(obj => {
@@ -5105,7 +5106,18 @@ export function computeObjectifs(state, opts) {
     const factor = Math.pow(1 + r, monthsToTarget);
     const projectedValue = currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
 
-    // Status
+    // v316 — Pour horizons longs (>10 ans), la cible nominale cache l'érosion
+    // inflation. On expose aussi la cible en pouvoir d'achat 2026 :
+    //   targetReal2026 = target / (1+i)^n
+    // où i = taux inflation annuel, n = années jusqu'à la cible.
+    // Exemple : 3 M€ en 2055 avec i=3% = 1.24 M€ réels 2026 (2.43× déflaté).
+    const yearsToTarget = monthsToTarget / 12;
+    const inflationFactor = Math.pow(1 + inflationRate, yearsToTarget);
+    const targetReal2026 = obj.target / inflationFactor;
+    const projectedReal2026 = projectedValue / inflationFactor;
+    const isLongHorizon = yearsToTarget >= 10;
+
+    // Status — toujours basé sur le nominal (ce qui compte pour la cible affichée)
     const ratio = obj.target > 0 ? projectedValue / obj.target : 0;
     let status, statusLabel, statusColor;
     if (ratio >= 1.0) { status = 'on-track'; statusLabel = 'On-track'; statusColor = '#22c55e'; }
@@ -5123,6 +5135,11 @@ export function computeObjectifs(state, opts) {
       projectedValue,
       ratio,
       monthsToTarget,
+      yearsToTarget,
+      inflationFactor,
+      targetReal2026,
+      projectedReal2026,
+      isLongHorizon,
       status,
       statusLabel,
       statusColor,
@@ -5133,11 +5150,18 @@ export function computeObjectifs(state, opts) {
 }
 
 /**
- * v312 — Sensibilité : pour l'objectif "1M€ couple", varier rendement et
- * épargne et voir l'impact sur l'atteinte.
+ * v312 — Sensibilité : pour un objectif donné, varier rendement et épargne
+ * et voir l'impact sur l'atteinte.
+ *
+ * v316 — variations centrées sur la base réelle passée en opts :
+ *   - baseRendement : rendement de référence (défaut 0.06)
+ *   - baseSavings   : épargne mensuelle de référence (défaut 8000)
+ * Les variations sont [base−2%, base, base+2%] pour rendement et
+ * [base×0.8, base, base×1.2] pour épargne, arrondies pour l'affichage.
+ *
  * Returns matrix : rows = rendement variations, cols = savings variations.
  */
-export function computeSensibilite(state, baseObjectif) {
+export function computeSensibilite(state, baseObjectif, opts) {
   const today = new Date();
   const couple = state?.couple?.nw || 0;
   const target = (baseObjectif && baseObjectif.target) || 1_000_000;
@@ -5145,8 +5169,20 @@ export function computeSensibilite(state, baseObjectif) {
   const tgt = new Date(dateTarget + '-01T00:00:00');
   const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
 
-  const rendementVariations = [0.04, 0.06, 0.08];      // -2%, base, +2%
-  const savingsVariations = [6400, 8000, 9600];         // -20%, base, +20%
+  const baseRendement = (opts && opts.baseRendement != null) ? opts.baseRendement : 0.06;
+  const baseSavings = (opts && opts.baseSavings != null) ? opts.baseSavings : 8000;
+
+  // Variations centrées sur la base : ±2 points de rendement, ±20 % d'épargne
+  const rendementVariations = [
+    Math.max(0, baseRendement - 0.02),
+    baseRendement,
+    baseRendement + 0.02,
+  ];
+  const savingsVariations = [
+    Math.max(0, Math.round(baseSavings * 0.8 / 100) * 100),
+    Math.round(baseSavings),
+    Math.round(baseSavings * 1.2 / 100) * 100,
+  ];
 
   const matrix = rendementVariations.map(rAnnual => {
     const r = rAnnual / 12;
@@ -5165,7 +5201,7 @@ export function computeSensibilite(state, baseObjectif) {
     };
   });
 
-  return { target, dateTarget, monthsToTarget, matrix, baseRendement: 0.06, baseSavings: 8000 };
+  return { target, dateTarget, monthsToTarget, matrix, baseRendement, baseSavings, savingsVariations, rendementVariations };
 }
 
 /**

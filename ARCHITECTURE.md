@@ -3979,3 +3979,45 @@ const liquiditeAtMonth = (months, scenario) => VF(months) * liquiditeMult;
 - [ ] Capacité projet scénario A LTV 0.30 : affichée ≈ NAV × 1.225 (pas × 1.30)
 - [ ] Coût margin scénario D affiche taux EUR 4.3 % (pas 3.1 %)
 
+---
+
+## §64 — v316 : Plan long-terme — épargne réelle + sensibilité centrée + targets réels (18 avril 2026)
+
+**3 upgrades du module Plan & Fiscalité** (vue `plan-fiscal`) :
+
+### B1 — Épargne mensuelle tirée du cash-flow consolidé
+**Avant** : `renderPlanFiscalView` appelait `computeObjectifs(state, { monthlySavingsEUR: 8000, annualReturn: 0.06 })` avec valeur **hardcodée**. Désalignée du cash-flow réel.
+
+**Après** : `computeCashFlow(state, state.portfolio, state.fx).netSavings` → `baseSavings`. Fallback 8 000 si le calcul échoue. Footer sous le tableau Objectifs :
+> *« Hypothèses : épargne mensuelle X € (depuis cash-flow consolidé) ; rendement 6 %/an (moyenne actions diversifiées long terme) ; inflation 3 %/an pour la conversion en € réels 2026. »*
+
+### B2 — Horizons longs : target/projected en € réels 2026
+**Avant** : l'objectif *"3 M€ retraite 2055"* (horizon 29 ans) s'affichait seulement en EUR nominal. L'utilisateur pouvait croire que 3 M€ = pouvoir d'achat actuel, alors qu'après 29 ans × 3 % d'inflation le facteur de déflation est **2.43** → 3 M€ nominal ≈ **1.24 M€ réels 2026**.
+
+**Après** : `computeObjectifs` expose pour chaque objectif :
+- `inflationFactor` = `(1 + i)^yearsToTarget`
+- `targetReal2026` = `target / inflationFactor`
+- `projectedReal2026` = `projected / inflationFactor`
+- `isLongHorizon` = `yearsToTarget >= 10`
+
+Quand `isLongHorizon`, les cellules "Cible" et "Projeté" affichent aussi la version déflatée en gris sous la valeur nominale : `≈ 1 235 000 € réel 2026`.
+
+### B3 — Sensibilité centrée sur la base réelle
+**Avant** : `computeSensibilite` utilisait des variations **hardcodées** `[0.04, 0.06, 0.08]` × `[6400, 8000, 9600]`. Non représentatif si l'épargne réelle ≠ 8 000.
+
+**Après** : signature `computeSensibilite(state, baseObjectif, opts)` où `opts = { baseRendement, baseSavings }`. Variations calculées :
+- Rendement : `[base − 2pts, base, base + 2pts]` (plancher 0)
+- Épargne : `[base × 0.8, base, base × 1.2]` arrondi à la centaine
+
+Render : headers dynamiques `(savLow / savBase / savHigh)` générés depuis `sens.savingsVariations`. Footer : `Variations : ±2 points de rendement, ±20 % d'épargne pour cadrer le risque.`
+
+**Tests non-régression** :
+- [ ] Avec cash-flow 7 200 €/mois : footer Objectifs dit "épargne mensuelle 7 200 €"
+- [ ] Objectif "3M€ retraite 2055" : affiche `3 000 000 €` avec `≈ 1 235 000 € réel 2026` en sous-ligne
+- [ ] Objectif "1M€ couple 2028" (horizon 2 ans) : pas de sous-ligne réel (isLongHorizon = false)
+- [ ] Sensibilité : headers "Base (7 200 €/m)" reflètent la vraie base, pas "8 000"
+- [ ] Matrice rendement montre `4.0%`, `6.0%`, `8.0%` centrés sur base 6
+- [ ] Si baseRendement = 0.08, matrice affiche `6%`, `8%`, `10%`
+
+**Cache-bust** : `?v=315` → `?v=316` sur 18 imports + `APP_VERSION 'v316'` dans data.js.
+

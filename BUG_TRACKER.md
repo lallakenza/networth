@@ -1355,7 +1355,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v315 — 18 avril 2026 (robustesse post-audit : A1 auto-feed épargne mensuelle depuis computeCashFlow au 1er rendu (`syncEpargneFromCashFlow` + guard `_immoFinEpargneAutoFed`), A2 reco multi-projets via `projetsTendus` qui capture Casa+Proj2+Proj3 ≤24 mois, A3 coeff sécurité 0.75 sur capacité collatérale (liquiditeMult = 1 + ltvTarget×0.75), A9 MARGIN_RATES.EUR 3.1%→4.3% aligné €STR 2025-2026. + ARCHITECTURE.md §63.)*
+*Dernière mise à jour: v316 — 18 avril 2026 (plan long-terme post-audit 2ᵉ passe : B1 épargne mensuelle tirée de `computeCashFlow` (plus de hardcode 8000), B2 horizons longs (≥10 ans) affichent target+projected en €réels 2026 (déflatés × inflationFactor), B3 `computeSensibilite(state, obj, opts)` centré sur baseRendement/baseSavings réels avec variations ±2pts / ±20 %. + ARCHITECTURE.md §64.)*
+
+*v315 — 18 avril 2026 (robustesse post-audit : A1 auto-feed épargne mensuelle depuis computeCashFlow au 1er rendu (`syncEpargneFromCashFlow` + guard `_immoFinEpargneAutoFed`), A2 reco multi-projets via `projetsTendus` qui capture Casa+Proj2+Proj3 ≤24 mois, A3 coeff sécurité 0.75 sur capacité collatérale (liquiditeMult = 1 + ltvTarget×0.75), A9 MARGIN_RATES.EUR 3.1%→4.3% aligné €STR 2025-2026. + ARCHITECTURE.md §63.)*
 
 *v314 — 18 avril 2026 (quality fixes post-audit : A5 resync visuel boutons chart mode au premier render, A7 coeff CRD moyen 0.55 sur assurance DI, A8 warn console créances sans dueDate. + ARCHITECTURE.md §54-§62 complétée (v305→v314) + CLAUDE.md mis à jour avec shapes inter-modules en règle d'or #7.)*
 
