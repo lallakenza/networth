@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=322';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=322';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=322';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=322';
+import { fmt, fmtAxis } from './render.js?v=323';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=323';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=323';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=323';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4750,32 +4750,40 @@ export function buildImmoFinPatrimoineChart(result, mode) {
     rawData[k] = scenarios[k].patrimoineFinal.map(v => v / 1e6);
   });
 
+  // v323 — fill pastel = scénario RGBA à 22% alpha, border = scénario plein.
+  const hexToRgba = (hex, a) => {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  };
+
+  const mkBar = (k, data) => ({
+    label: k + ' · ' + scenarios[k].label,
+    data,
+    backgroundColor: hexToRgba(scenarios[k].color, 0.22),
+    borderColor: scenarios[k].color,
+    borderWidth: 1.25,
+    borderRadius: 6,
+    borderSkipped: false,
+    barPercentage: 0.72,
+    categoryPercentage: 0.84,
+    hoverBackgroundColor: hexToRgba(scenarios[k].color, 0.38),
+  });
+
   let datasets, yMin, yMax, yTitle, valueFmt;
   if (displayMode === 'delta') {
     yTitle = 'Delta vs Cash intégral (MDH)';
     valueFmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + ' MDH';
-    datasets = ['A', 'B', 'C', 'D'].map(k => ({
-      label: k + ' - ' + scenarios[k].label,
-      data: rawData[k].map((v, i) => v - rawData.A[i]),
-      backgroundColor: scenarios[k].color,
-      borderColor: scenarios[k].color,
-      borderWidth: 1,
-      borderRadius: 4,
-    }));
+    datasets = ['A', 'B', 'C', 'D'].map(k => mkBar(k, rawData[k].map((v, i) => v - rawData.A[i])));
     const allVals = datasets.flatMap(d => d.data);
     yMin = 0;
     yMax = Math.max(...allVals, 0.1) * 1.18;
   } else {
     yTitle = 'Patrimoine financier (MDH)';
     valueFmt = v => v.toFixed(2) + ' MDH';
-    datasets = ['A', 'B', 'C', 'D'].map(k => ({
-      label: k + ' - ' + scenarios[k].label,
-      data: rawData[k],
-      backgroundColor: scenarios[k].color,
-      borderColor: scenarios[k].color,
-      borderWidth: 1,
-      borderRadius: 4,
-    }));
+    datasets = ['A', 'B', 'C', 'D'].map(k => mkBar(k, rawData[k]));
     if (displayMode === 'zoom') {
       const allVals = datasets.flatMap(d => d.data);
       const minV = Math.min(...allVals);
@@ -4823,18 +4831,55 @@ export function buildImmoFinPatrimoineChart(result, mode) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 24, right: 8, bottom: 4, left: 4 } },
       plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+            color: DESIGN_TOKENS.textSecondary,
+            padding: 14,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            boxWidth: 10,
+            boxHeight: 10,
+          },
+        },
         tooltip: {
+          backgroundColor: DESIGN_TOKENS.text,
+          titleColor: '#ffffff',
+          bodyColor: '#e7e5e4',
+          padding: 10,
+          cornerRadius: 6,
           callbacks: {
             label: (c2) => c2.dataset.label + ' : ' + valueFmt(c2.parsed.y),
           },
         },
       },
       scales: {
+        x: {
+          grid: { display: false },
+          border: { color: DESIGN_TOKENS.border },
+          ticks: {
+            color: DESIGN_TOKENS.textSecondary,
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+          },
+        },
         y: {
-          title: { display: true, text: yTitle },
-          ticks: { callback: v => (displayMode === 'delta' && v > 0 ? '+' : '') + v.toFixed(1) + ' MDH' },
+          title: {
+            display: true,
+            text: yTitle,
+            color: DESIGN_TOKENS.textSecondary,
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+          },
+          grid: { color: DESIGN_TOKENS.border, drawTicks: false },
+          border: { display: false },
+          ticks: {
+            callback: v => (displayMode === 'delta' && v > 0 ? '+' : '') + v.toFixed(v >= 10 ? 0 : 1) + ' M',
+            color: DESIGN_TOKENS.textMuted,
+            font: { size: 10, family: '"DM Sans", sans-serif' },
+            padding: 8,
+          },
           min: yMin,
           max: yMax,
         },
@@ -4866,6 +4911,16 @@ export function buildImmoFinLtvChart(result) {
   // Ligne seuil margin call (50%)
   const threshold50 = labels.map(_ => 50);
 
+  // v323 — couleur scénario C migrée vers DESIGN_TOKENS.scenC (teal premium).
+  const scenCHex = DESIGN_TOKENS.scenC;
+  const scenCRgba = (() => {
+    const h = scenCHex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},0.14)`;
+  })();
+
   immoFinCharts.ltv = new Chart(ctx, {
     type: 'line',
     data: {
@@ -4874,20 +4929,22 @@ export function buildImmoFinLtvChart(result) {
         {
           label: 'LTV scénario C (%)',
           data: ltvData,
-          borderColor: '#14b8a6',
-          backgroundColor: 'rgba(20, 184, 166, 0.12)',
+          borderColor: scenCHex,
+          backgroundColor: scenCRgba,
           borderWidth: 2,
           fill: true,
           tension: 0.3,
           pointRadius: 4,
-          pointBackgroundColor: '#14b8a6',
+          pointBackgroundColor: scenCHex,
+          pointBorderColor: DESIGN_TOKENS.surface,
+          pointBorderWidth: 1.5,
         },
         {
           label: 'Seuil margin call (50%)',
           data: threshold50,
-          borderColor: '#ef4444',
+          borderColor: DESIGN_TOKENS.danger,
           borderDash: [6, 4],
-          borderWidth: 2,
+          borderWidth: 1.5,
           fill: false,
           pointRadius: 0,
         },
@@ -4896,20 +4953,54 @@ export function buildImmoFinLtvChart(result) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8, right: 8, bottom: 4, left: 4 } },
       plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+            color: DESIGN_TOKENS.textSecondary,
+            padding: 14,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            boxWidth: 10,
+            boxHeight: 10,
+          },
+        },
         tooltip: {
+          backgroundColor: DESIGN_TOKENS.text,
+          titleColor: '#ffffff',
+          bodyColor: '#e7e5e4',
+          padding: 10,
+          cornerRadius: 6,
           callbacks: {
             label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(1) + '%',
           },
         },
       },
       scales: {
+        x: {
+          grid: { display: false },
+          border: { color: DESIGN_TOKENS.border },
+          ticks: { color: DESIGN_TOKENS.textSecondary, font: { size: 11, family: '"DM Sans", sans-serif' } },
+        },
         y: {
-          title: { display: true, text: 'LTV (%)' },
+          title: {
+            display: true,
+            text: 'LTV (%)',
+            color: DESIGN_TOKENS.textSecondary,
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+          },
           min: 0,
           suggestedMax: 60,
-          ticks: { callback: v => v.toFixed(0) + '%' },
+          grid: { color: DESIGN_TOKENS.border, drawTicks: false },
+          border: { display: false },
+          ticks: {
+            callback: v => v.toFixed(0) + '%',
+            color: DESIGN_TOKENS.textMuted,
+            font: { size: 10, family: '"DM Sans", sans-serif' },
+            padding: 8,
+          },
         },
       },
     },
@@ -4917,17 +5008,20 @@ export function buildImmoFinLtvChart(result) {
 }
 
 /**
- * Chart 3 : Test de stress liquidité projet Casa. v319 — refactor complet.
+ * Chart 3 : Test de stress liquidité projet Casa. v323 — rework premium.
  * X = T+6, T+12, T+18 mois (horizons actionnables pour décision Casa <2 ans).
  * Y = liquidité mobilisable en MDH.
  * Par scénario (A/B/C) : 1 barre à la valeur PLANCHER (0 % marché, épargne
  *                        cash linéaire) + error bar étendue jusqu'au PLAFOND
  *                        (+20 % marché, épargne DCA à +10 % moyen).
- * Épargne incluse : inputs.epargneEUR × fx, alimenté par computeCashFlow
- * .netSavings côté render. Le coeff sécurité SAFETY_COEFF = 0.75 s'applique
- * déjà via liquiditeMult en engine.
- * Ligne rouge horizontale à hauteur du besoin Casa.
- * Code couleur plancher : vert si ≥ besoin, orange si ≥ 80 %, rouge sinon.
+ *
+ * v323 — refonte visuelle :
+ *   - Fill = couleur IDENTITÉ du scénario (pastel) + border en scénario plein.
+ *     Les swatches de légende reflètent l'identité scénario (pas le feu tricolore).
+ *   - Statut encodé via un PILL coloré à droite du label MDH (✓ / ⚠ / ✗).
+ *   - Padding top pour éviter le clipping des labels de pic.
+ *   - Tick Y compact : "2 M" au lieu de "2.0 MDH" (le titre d'axe porte l'unité).
+ *   - Error bar plus fine avec teeing vertical au lieu de horizontal pour look cleaner.
  */
 export function buildImmoFinStressChart(result) {
   const canvas = document.getElementById('immoFinStressChart');
@@ -4939,12 +5033,23 @@ export function buildImmoFinStressChart(result) {
   const horizons = summary.stressHorizons || [6, 12, 18];
   const besoinCasa = inputs.besoinCasa;
 
-  // Color per bar based on plancher vs besoin
-  const colorForLiq = (liq, besoin) => {
-    if (besoin === 0) return '#14b8a6';   // pas de projet → teal neutre
-    if (liq >= besoin) return '#22c55e';  // vert
-    if (liq >= besoin * 0.80) return '#d97706';  // orange
-    return '#ef4444';                      // rouge
+  // v323 — Statut binaire ternaire pour encoder plancher vs besoin.
+  // Retourne { color: <semantic token>, icon: <symbol> }.
+  const statusForLiq = (liq, besoin) => {
+    if (besoin === 0)           return { color: DESIGN_TOKENS.textMuted, icon: '·' };
+    if (liq >= besoin)          return { color: DESIGN_TOKENS.success,   icon: '✓' };
+    if (liq >= besoin * 0.80)   return { color: DESIGN_TOKENS.warning,   icon: '≈' };
+    return                             { color: DESIGN_TOKENS.danger,    icon: '✗' };
+  };
+
+  // v323 — fill pastel = scénario RGBA à 22% alpha, border = scénario plein.
+  // Convertit hex vers rgba(r,g,b,a).
+  const hexToRgba = (hex, a) => {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
   };
 
   // Un dataset bar par scénario (A/B/C), chaque data point = valeur plancher.
@@ -4953,41 +5058,47 @@ export function buildImmoFinStressChart(result) {
     const sc = scenarios[k];
     const planch = (sc.stress?.plancher || [0, 0, 0]).map(v => v / 1e6);
     const plafd  = (sc.stress?.plafond  || [0, 0, 0]).map(v => v / 1e6);
-    const bgColors = planch.map(v => colorForLiq(v * 1e6, besoinCasa));
+    const statuses = planch.map(v => statusForLiq(v * 1e6, besoinCasa));
     return {
-      label: k + ' - ' + sc.label,
+      label: k + ' · ' + sc.label,
       data: planch,
-      plafondMDH: plafd,          // consommé par plugin error-bar + tooltip
+      plafondMDH: plafd,              // consommé par plugin error-bar + tooltip
       planchMDH: planch,
-      backgroundColor: bgColors,
+      statuses,                        // consommé par stressLabelPlugin
+      backgroundColor: hexToRgba(sc.color, 0.22),
       borderColor: sc.color,
-      borderWidth: 2,
-      borderRadius: 4,
+      borderWidth: 1.25,
+      borderRadius: 6,
+      borderSkipped: false,
+      barPercentage: 0.68,
+      categoryPercentage: 0.82,
+      hoverBackgroundColor: hexToRgba(sc.color, 0.38),
     };
   });
 
-  // Ligne horizontale besoin Casa
+  // Ligne horizontale besoin Casa — plus discrète (pointillé fin, label explicite).
   const besoinLine = {
-    label: 'Besoin Casa (' + (besoinCasa / 1e6).toFixed(1) + ' MDH)',
+    label: 'Besoin Casa · ' + (besoinCasa / 1e6).toFixed(2) + ' MDH',
     data: horizons.map(_ => besoinCasa / 1e6),
     type: 'line',
-    borderColor: '#ef4444',
-    borderDash: [6, 4],
-    borderWidth: 2,
+    borderColor: DESIGN_TOKENS.danger,
+    borderDash: [5, 4],
+    borderWidth: 1.5,
     fill: false,
     pointRadius: 0,
     order: 0,
   };
 
-  // v319 — Plugin error bar : moustache verticale du sommet de la barre
-  // (plancher) jusqu'à la valeur plafond, avec "teeing" horizontal en haut.
+  // v323 — Plugin error bar : moustache fine verticale du sommet de la barre
+  // (plancher) jusqu'à la valeur plafond, avec petits caps verticaux.
   const errorBarPlugin = {
     id: 'immoFinStressErrorBars',
     afterDatasetsDraw(chart) {
       const c = chart.ctx;
       const yScale = chart.scales.y;
       c.save();
-      c.lineWidth = 1.5;
+      c.lineWidth = 1.25;
+      c.lineCap = 'round';
       chart.data.datasets.forEach((ds, dsIdx) => {
         if (ds.type === 'line') return;
         if (!Array.isArray(ds.plafondMDH)) return;
@@ -5000,44 +5111,83 @@ export function buildImmoFinStressChart(result) {
           const xC = bar.x;
           const yTop = yScale.getPixelForValue(plafond);
           const yBot = bar.y;                        // top of plancher bar
-          c.strokeStyle = ds.borderColor || '#64748b';
-          // vertical line
+          c.strokeStyle = ds.borderColor || DESIGN_TOKENS.textSecondary;
+          // vertical line (whisker)
           c.beginPath();
           c.moveTo(xC, yBot);
           c.lineTo(xC, yTop);
           c.stroke();
-          // top tee
+          // top cap (horizontal small tick)
           c.beginPath();
-          c.moveTo(xC - 6, yTop);
-          c.lineTo(xC + 6, yTop);
+          c.moveTo(xC - 5, yTop);
+          c.lineTo(xC + 5, yTop);
           c.stroke();
+          // top dot (small filled circle) — marque le plafond
+          c.beginPath();
+          c.arc(xC, yTop, 2.25, 0, 2 * Math.PI);
+          c.fillStyle = ds.borderColor || DESIGN_TOKENS.textSecondary;
+          c.fill();
         });
       });
       c.restore();
     },
   };
 
-  // v310/v319 — Labels sur barres : plancher MDH + % besoin.
+  // v323 — Labels au-dessus des barres : valeur MDH + pill de statut coloré
+  // avec icône (✓ / ≈ / ✗). Pill dessiné en deux passes pour que le texte
+  // soit bien centré verticalement.
   const stressLabelPlugin = {
     id: 'immoFinStressLabels',
     afterDatasetsDraw(chart) {
       const c = chart.ctx;
+      const yScale = chart.scales.y;
       c.save();
-      c.font = 'bold 9.5px "DM Sans", sans-serif';
-      c.textAlign = 'center';
-      c.textBaseline = 'bottom';
+      const baseFont = '600 10.5px "DM Sans", sans-serif';
+      const pillFont = '700 10px "DM Sans", sans-serif';
       chart.data.datasets.forEach((ds, dsIdx) => {
         if (ds.type === 'line') return;
         const meta = chart.getDatasetMeta(dsIdx);
         meta.data.forEach((bar, idx) => {
           const val = ds.data[idx];
           if (val == null) return;
-          c.fillStyle = '#1e293b';
-          const mdhTxt = val.toFixed(2);
-          const pctTxt = besoinCasa > 0
-            ? ' (' + Math.round((val * 1e6 / besoinCasa) * 100) + '%)'
-            : '';
-          c.fillText(mdhTxt + pctTxt, bar.x, bar.y - 3);
+          const status = (ds.statuses && ds.statuses[idx]) || { color: DESIGN_TOKENS.textSecondary, icon: '·' };
+          // Y position : on s'ancre au plafond s'il existe + petite marge, sinon au sommet de la barre plancher.
+          const plafond = Array.isArray(ds.plafondMDH) ? ds.plafondMDH[idx] : null;
+          const yAnchor = (plafond != null && plafond > val)
+            ? yScale.getPixelForValue(plafond) - 10
+            : bar.y - 6;
+          const mdhTxt = val.toFixed(2) + ' M';
+          const pctNum = besoinCasa > 0 ? Math.round((val * 1e6 / besoinCasa) * 100) : null;
+
+          // Layer 1 : valeur MDH principale (en couleur texte primaire).
+          c.font = baseFont;
+          c.textAlign = 'center';
+          c.textBaseline = 'bottom';
+          c.fillStyle = DESIGN_TOKENS.text;
+          c.fillText(mdhTxt, bar.x, yAnchor);
+
+          // Layer 2 : pill statut en dessous (si besoin défini).
+          if (pctNum != null) {
+            c.font = pillFont;
+            const pillText = status.icon + ' ' + pctNum + '%';
+            const pillW = c.measureText(pillText).width + 10;
+            const pillH = 14;
+            const pillX = bar.x - pillW / 2;
+            const pillY = yAnchor + 2;
+            // pill background (soft tinted from status color)
+            c.fillStyle = hexToRgba(status.color, 0.12);
+            c.beginPath();
+            if (c.roundRect) {
+              c.roundRect(pillX, pillY, pillW, pillH, 7);
+            } else {
+              c.rect(pillX, pillY, pillW, pillH);
+            }
+            c.fill();
+            // pill text
+            c.fillStyle = status.color;
+            c.textBaseline = 'middle';
+            c.fillText(pillText, bar.x, pillY + pillH / 2 + 0.5);
+          }
         });
       });
       c.restore();
@@ -5054,9 +5204,34 @@ export function buildImmoFinStressChart(result) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        // v323 — padding top pour que les labels plafond + pills ne soient pas clippés.
+        padding: { top: 38, right: 8, bottom: 4, left: 4 },
+      },
       plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+            color: DESIGN_TOKENS.textSecondary,
+            padding: 14,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            boxWidth: 10,
+            boxHeight: 10,
+          },
+        },
         tooltip: {
+          backgroundColor: DESIGN_TOKENS.text,
+          titleColor: '#ffffff',
+          bodyColor: '#e7e5e4',
+          titleFont: { size: 12, weight: '700', family: '"DM Sans", sans-serif' },
+          bodyFont: { size: 11, family: '"DM Sans", sans-serif' },
+          padding: 10,
+          cornerRadius: 6,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
           callbacks: {
             label: (tCtx) => {
               const ds = tCtx.dataset;
@@ -5082,9 +5257,29 @@ export function buildImmoFinStressChart(result) {
         },
       },
       scales: {
+        x: {
+          grid: { display: false },
+          border: { color: DESIGN_TOKENS.border },
+          ticks: {
+            color: DESIGN_TOKENS.textSecondary,
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+          },
+        },
         y: {
-          title: { display: true, text: 'Liquidité mobilisable (MDH)' },
-          ticks: { callback: v => v.toFixed(1) + ' MDH' },
+          title: {
+            display: true,
+            text: 'Liquidité mobilisable (MDH)',
+            color: DESIGN_TOKENS.textSecondary,
+            font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
+          },
+          grid: { color: DESIGN_TOKENS.border, drawTicks: false },
+          border: { display: false },
+          ticks: {
+            callback: v => v.toFixed(v >= 10 ? 0 : 1) + ' M',
+            color: DESIGN_TOKENS.textMuted,
+            font: { size: 10, family: '"DM Sans", sans-serif' },
+            padding: 8,
+          },
           beginAtZero: true,
         },
       },

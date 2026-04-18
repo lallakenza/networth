@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=322';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=322';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=323';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=323';
 
 // ---- Generic table sort utility ----
 /**
@@ -5751,7 +5751,15 @@ function renderCreancesView(state) {
   setEur('kpiCreancesUncertain', crv.totalUncertain);
   setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
 
-  const statusColors = { en_cours: '#3182ce', relancé: '#d69e2e', en_retard: '#c53030', recouvré: '#276749', litige: '#9f7aea' };
+  // v323 — statuts créance alignés sur DESIGN_TOKENS (charte graphique §70).
+  // en_cours=info · relancé=warning · en_retard=danger · recouvré=success · litige=scenD (violet).
+  const statusColors = {
+    en_cours:  DESIGN_TOKENS.info,
+    relancé:   DESIGN_TOKENS.warning,
+    en_retard: DESIGN_TOKENS.danger,
+    recouvré:  DESIGN_TOKENS.success,
+    litige:    DESIGN_TOKENS.scenD,
+  };
   const statusLabels = { en_cours: 'EN COURS', relancé: 'RELANCÉ', en_retard: 'EN RETARD', recouvré: 'RECOUVRÉ', litige: 'LITIGE' };
 
   // ── 1. Active créances table ──
@@ -6759,7 +6767,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=322').then(m => {
+  import('./charts.js?v=323').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -6984,8 +6992,9 @@ function renderAlertsPanel(state) {
     green:  { bg: 'rgba(21,128,61,0.08)',  border: 'var(--success)', label: 'Opportunité' },
   };
 
-  let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--card-bg,white);">';
-  html += '<h3 style="margin:0 0 10px 0;font-size:15px;">Alertes & insights actionnables <span style="font-size:11px;color:var(--gray);font-weight:400">(' + alerts.length + ')</span></h3>';
+  // v323 — migré var(--card-bg, white) → var(--surface) (token officiel de la charte).
+  let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--surface);">';
+  html += '<h3 style="margin:0 0 10px 0;font-size:15px;color:var(--text);">Alertes & insights actionnables <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + alerts.length + ')</span></h3>';
 
   sevOrder.forEach(sev => {
     const items = alerts.filter(a => a.severity === sev);
