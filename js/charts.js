@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=306';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=306';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=306';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=306';
+import { fmt, fmtAxis } from './render.js?v=307';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=307';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=307';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=307';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4921,6 +4921,80 @@ export function buildImmoFinStressChart(result) {
         y: {
           title: { display: true, text: 'Liquidité mobilisable (MDH)' },
           ticks: { callback: v => v.toFixed(1) + ' MDH' },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * v307 — Chart 4 : Évolution du cash mobilisable dans le temps.
+ * X = mois (0 à horizon max par pas de 3 mois)
+ * Y = MDH (liquidité mobilisable projetée)
+ * 4 lignes (A/B/C/D) avec leurs couleurs respectives
+ * Ligne rouge pointillée horizontale = besoin Casa
+ * Lecture : point où chaque courbe croise la ligne rouge = date où le 2e
+ * projet devient finançable dans ce scénario.
+ */
+export function buildImmoFinCashProjectionChart(result) {
+  const canvas = document.getElementById('immoFinCashProjectionChart');
+  if (!canvas) return;
+  if (immoFinCharts.cashProjection) { immoFinCharts.cashProjection.destroy(); }
+  const ctx = canvas.getContext('2d');
+
+  const { scenarios, inputs } = result;
+  const months = scenarios.A.cashProjection.map(pt => pt.month);
+  const labels = months.map(m => {
+    if (m === 0) return 'T+0';
+    if (m < 24) return 'T+' + m + 'm';
+    return 'T+' + (m / 12).toFixed(m % 12 === 0 ? 0 : 1) + 'a';
+  });
+
+  const datasets = ['A', 'B', 'C', 'D'].map(k => ({
+    label: k + ' — ' + scenarios[k].label,
+    data: scenarios[k].cashProjection.map(pt => pt.cash / 1e6),
+    borderColor: scenarios[k].color,
+    backgroundColor: scenarios[k].color + '18',  // alpha 0.10
+    borderWidth: 2,
+    fill: false,
+    tension: 0.25,
+    pointRadius: 0,
+    pointHoverRadius: 4,
+  }));
+
+  // Ligne besoin Casa (pointillée rouge)
+  if (inputs.besoinCasa > 0) {
+    datasets.push({
+      label: 'Besoin projet Casa (' + (inputs.besoinCasa / 1e6).toFixed(1) + ' MDH)',
+      data: labels.map(_ => inputs.besoinCasa / 1e6),
+      borderColor: '#ef4444',
+      borderDash: [8, 4],
+      borderWidth: 2,
+      fill: false,
+      pointRadius: 0,
+    });
+  }
+
+  immoFinCharts.cashProjection = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
+          },
+        },
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'Cash mobilisable (MDH)' },
+          ticks: { callback: v => v.toFixed(1) + ' MDH' },
+          beginAtZero: true,
         },
       },
     },

@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES } from './data.js?v=306';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES } from './data.js?v=307';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4457,10 +4457,11 @@ export function computeImmoFinancing(inputs) {
   const assuranceDI = inputs.assuranceDIPct / 100;
   const marginRate = inputs.marginRatePct / 100;
   const ltvTarget = inputs.ltvTarget / 100;
-  const apportRatio = 0.20;  // standard — 20% d'apport minimum
+  // v307 — apport ratio paramétrable (défaut 20%, UAE expat souvent 50%)
+  const apportRatio = inputs.apportRatio != null ? inputs.apportRatio : 0.20;
 
-  // Frais communs ---------------------------------------------------------
-  const fraisCashPct = fees.fraisCashTotal;         // ~6.7%
+  // v307 — frais acquisition paramétrables via preset pays (Maroc 6.7%, UAE 7%)
+  const fraisCashPct = inputs.acquisitionFeesPct != null ? inputs.acquisitionFeesPct : fees.fraisCashTotal;
   const fraisCashMAD = prix * fraisCashPct;
 
   // ─── Scénario A : Cash intégral ─────────────────────────────────────
@@ -4581,6 +4582,15 @@ export function computeImmoFinancing(inputs) {
   const horizons = [10, 15, 25];
   const casaPoints = [12, 24, 36];   // mois
 
+  // v307 — Timeline complète du cash mobilisable (par pas de 3 mois sur l'horizon max).
+  // Permet de voir "à partir de quel mois puis-je faire un 2e projet de X MAD ?".
+  // Par construction, `cashProjection[scenario]` = portefeuille projeté × (1 + ltvTarget),
+  // ce qui est la même formule que `liquidite[casaPoints]` mais sur un axe temps continu.
+  const STEP_MONTHS = 3;
+  const maxMonths = Math.max(hMonths, 60); // au moins 5 ans pour voir les breaks
+  const projectionMonths = [];
+  for (let m = 0; m <= maxMonths; m += STEP_MONTHS) projectionMonths.push(m);
+
   const scenarioMeta = {
     A: { label: 'Cash intégral',                color: '#6b7280' },
     B: { label: 'Prêt banque',                   color: '#3b82f6' },
@@ -4599,6 +4609,8 @@ export function computeImmoFinancing(inputs) {
       patrimoineFinal: horizons.map(y => A_patrimoineFinal(y * 12)),
       detteRestante: horizons.map(_ => 0),
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'A')),
+      // v307 — timeline cash mobilisable (continuous projection for 2nd project)
+      cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'A') })),
     },
     B: {
       ...scenarioMeta.B,
@@ -4614,6 +4626,7 @@ export function computeImmoFinancing(inputs) {
       patrimoineFinal: horizons.map(y => B_patrimoineFinal(y * 12)),
       detteRestante: horizons.map(y => B_detteRestante(y * 12)),
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'B')),
+      cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'B') })),
     },
     C: {
       ...scenarioMeta.C,
@@ -4631,6 +4644,7 @@ export function computeImmoFinancing(inputs) {
         month: m,
         ltv: C_ltvAtMonth(m),
       })),
+      cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'C') })),
     },
     D: {
       ...scenarioMeta.D,
@@ -4646,6 +4660,7 @@ export function computeImmoFinancing(inputs) {
       patrimoineFinal: horizons.map(y => D_patrimoineFinal(y * 12)),
       detteRestante: horizons.map(y => B_detteRestante(y * 12) + D_marginDette),
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'D')),
+      cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'D') })),
     },
   };
 

@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v306';
+export const APP_VERSION = 'v307';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2439,6 +2439,34 @@ export const MARGIN_RATES = {
   USD: 0.048,    // 4.8% — SOFR ~3.3% + spread 1.5%
   JPY: 0.015,    // 1.5% — TONA ~0.1% + spread 1.4% — ⚠ risque FX si yen s'apprécie
 };
+
+// ════════════════════════════════════════════════════════════
+// PRESETS SCÉNARIOS IMMOBILIERS (v307)
+// ════════════════════════════════════════════════════════════
+// Scénarios d'achat pré-configurés pour le module "Financement immobilier".
+// Chaque preset fournit : label, prix natif, devise, pays, frais d'acquisition.
+// Le render convertit automatiquement en MAD pour les calculs internes.
+//
+// Pour ajouter un preset : pousser un objet ici, aucune autre modif requise.
+// ════════════════════════════════════════════════════════════
+export const IMMO_PRESETS = [
+  { id: 'custom', label: 'Personnalisé', price: null, currency: null, country: null, feesPct: null },
+  { id: 'marrakech_appart',
+    label: 'Appartement à Marrakech',
+    price: 2_500_000, currency: 'MAD', country: 'MA',
+    feesPct: 0.067,
+    note: 'Frais Maroc : 4% enregistrement + 1.5% conservation + 1.2% notaire TTC = 6.7%.' },
+  { id: 'casa_studio',
+    label: 'Studio à Casablanca',
+    price: 2_000_000, currency: 'MAD', country: 'MA',
+    feesPct: 0.067,
+    note: 'Même barème Maroc. Prix m² Casa ~15 000-25 000 MAD selon quartier.' },
+  { id: 'uae_appart',
+    label: 'Appartement aux UAE (Dubai)',
+    price: 800_000, currency: 'USD', country: 'AE',
+    feesPct: 0.070,
+    note: 'Frais UAE : DLD 4% + agent 2% + admin 1% ≈ 7%. Crédit expat : apport 50%, taux 4-5%.' },
+];
 
 // ════════════════════════════════════════════════════════════
 // BUDGET — Dépenses mensuelles fixes & abonnements
