@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=308';
-import { compute, getGrandTotal } from './engine.js?v=308';
-import { render } from './render.js?v=308';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=308';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=308';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=308';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=308';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=312';
+import { compute, getGrandTotal } from './engine.js?v=312';
+import { render } from './render.js?v=312';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=312';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=312';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=312';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=312';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -24,7 +24,7 @@ let simulatorsBound = false;
 
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 const IMMO_VIEWS = ['immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
-const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget', 'immo-financing'];
+const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget', 'immo-financing', 'plan-fiscal'];
 const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
 
 // ---- Scope-aware KPI card updater ----
