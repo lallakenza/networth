@@ -1355,4 +1355,6 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v313 — 18 avril 2026 (audit v305-v312 : BUG-056 cash-flow loyers, BUG-057 fiscalité Vitry table vide, BUG-058 alerte P&L IBKR muette, BUG-059 IR marginal au lieu de flat. + apportRatio data-driven par preset (A6). v304/BUG-055 reste : reconstruction `chartValuesDegiro` pré-clôture.)*
+*Dernière mise à jour: v314 — 18 avril 2026 (quality fixes post-audit : A5 resync visuel boutons chart mode au premier render, A7 coeff CRD moyen 0.55 sur assurance DI, A8 warn console créances sans dueDate. + ARCHITECTURE.md §54-§62 complétée (v305→v314) + CLAUDE.md mis à jour avec shapes inter-modules en règle d'or #7.)*
+
+*v313 — 18 avril 2026 (audit v305-v312 : BUG-056 cash-flow loyers, BUG-057 fiscalité Vitry table vide, BUG-058 alerte P&L IBKR muette, BUG-059 IR marginal au lieu de flat. + apportRatio data-driven par preset (A6).)*
