@@ -4021,3 +4021,49 @@ Render : headers dynamiques `(savLow / savBase / savHigh)` générés depuis `se
 
 **Cache-bust** : `?v=315` → `?v=316` sur 18 imports + `APP_VERSION 'v316'` dans data.js.
 
+---
+
+## §65 — v317 : Alertes enrichies + fraîcheur données + guards div-by-zero (18 avril 2026)
+
+**3 upgrades** issus de la passe d'audit 3 :
+
+### C1 — Alert symétrique sur moins-values IBKR
+**Avant** : règle #5 de `computeAlerts` ne déclenchait qu'en cas de **gain** ≥ 30 %. Les positions avec moins-value sévère (−20 %, −30 %) restaient silencieuses.
+
+**Après** : ajout d'une branche `else if` dans la même boucle :
+- Seuil **−20 %** (contre +30 % pour les gains — on est plus vigilant sur la perte)
+- Filtre taille `pos.valEUR > 3000 €` (contre 5 000 pour les gains) pour capturer les positions qui ont fondu
+- Severity `yellow` (surveillance, pas urgence rouge)
+- Message : « Revérifier thèse d'investissement ou envisager stop-loss. »
+
+### C2 — Alert fraîcheur des données
+**Problème** : `DATA_LAST_UPDATE` (data.js) indique la dernière mise à jour manuelle (soldes bancaires, positions non-API, créances). Aucune alerte quand cette date devient ancienne — l'utilisateur peut regarder un dashboard périmé sans s'en rendre compte.
+
+**Après** : règle #6 dans `computeAlerts`, avec import de `DATA_LAST_UPDATE` dans engine.js et exposition via `state._dataLastUpdate` :
+- `> 90 jours` → severity **rouge**, titre "Données hors-API stales depuis X jours"
+- `> 45 jours` → severity **jaune**, titre "Données hors-API vieilles de X jours"
+- Pas d'action cliquable (rappel au user d'aller éditer data.js)
+- Parse date `DD/MM/YYYY` manuellement (format français)
+
+### C5 — Guards div-by-zero si rendement = 0
+**Problème** : `computeObjectifs` et `computeSensibilite` calculent `(factor − 1) / r` où `r = annualReturn / 12`. Si `annualReturn = 0` (testable si user teste scénario marché plat), `r = 0` → NaN.
+
+**Après** : branche `r === 0` qui applique la limite mathématique `lim_{r→0} ((1+r)^n − 1) / r = n` :
+- `computeObjectifs.projectedValue` : `r === 0 ? currentValue + monthlySavingsEUR × n : formule normale`
+- `computeObjectifs.requiredMonthly` : `r === 0 ? (target − current) / n − savings : formule normale`
+- `computeSensibilite.projected` : idem
+
+Utile aussi pour `computeSensibilite` qui peut recevoir `baseRendement = 0.02` et calculer une variation `[0, 0.02, 0.04]` → la cellule `r = 0` ne crashe plus.
+
+**Tests non-régression** :
+- [ ] Position IBKR à −25 % avec valeur 8 000 € → alerte jaune "-25%" affichée
+- [ ] Position IBKR à −15 % → pas d'alerte (seuil non atteint)
+- [ ] DATA_LAST_UPDATE = '01/01/2026' (aujourd'hui 18/04/2026, +107j) → alerte rouge
+- [ ] DATA_LAST_UPDATE = '01/03/2026' (+48j) → alerte jaune
+- [ ] DATA_LAST_UPDATE = '12/04/2026' (+6j) → pas d'alerte
+- [ ] `computeObjectifs(state, { annualReturn: 0 })` retourne valeurs finies (pas NaN)
+- [ ] `computeSensibilite` avec baseRendement 0.02 → matrice première ligne r=0 OK
+
+**Cache-bust** : `?v=316` → `?v=317` sur 18 imports + `APP_VERSION 'v317'` dans data.js.
+
+

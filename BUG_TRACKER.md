@@ -1355,7 +1355,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v316 — 18 avril 2026 (plan long-terme post-audit 2ᵉ passe : B1 épargne mensuelle tirée de `computeCashFlow` (plus de hardcode 8000), B2 horizons longs (≥10 ans) affichent target+projected en €réels 2026 (déflatés × inflationFactor), B3 `computeSensibilite(state, obj, opts)` centré sur baseRendement/baseSavings réels avec variations ±2pts / ±20 %. + ARCHITECTURE.md §64.)*
+*Dernière mise à jour: v317 — 18 avril 2026 (alertes enrichies post-audit 3ᵉ passe : C1 règle #5 symétrique moins-values IBKR ≤−20 % severity yellow, C2 nouvelle règle #6 fraîcheur données (DATA_LAST_UPDATE > 45j jaune, > 90j rouge), C5 guards div-by-zero dans `computeObjectifs` et `computeSensibilite` si annualReturn = 0 (limite mathématique `n` au lieu de NaN). + ARCHITECTURE.md §65.)*
+
+*v316 — 18 avril 2026 (plan long-terme post-audit 2ᵉ passe : B1 épargne mensuelle tirée de `computeCashFlow` (plus de hardcode 8000), B2 horizons longs (≥10 ans) affichent target+projected en €réels 2026 (déflatés × inflationFactor), B3 `computeSensibilite(state, obj, opts)` centré sur baseRendement/baseSavings réels avec variations ±2pts / ±20 %. + ARCHITECTURE.md §64.)*
 
 *v315 — 18 avril 2026 (robustesse post-audit : A1 auto-feed épargne mensuelle depuis computeCashFlow au 1er rendu (`syncEpargneFromCashFlow` + guard `_immoFinEpargneAutoFed`), A2 reco multi-projets via `projetsTendus` qui capture Casa+Proj2+Proj3 ≤24 mois, A3 coeff sécurité 0.75 sur capacité collatérale (liquiditeMult = 1 + ltvTarget×0.75), A9 MARGIN_RATES.EUR 3.1%→4.3% aligné €STR 2025-2026. + ARCHITECTURE.md §63.)*
 

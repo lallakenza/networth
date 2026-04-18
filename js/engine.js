@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=316';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=317';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4315,6 +4315,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwHistory: NW_HISTORY,
     equityHistory: EQUITY_HISTORY,
     _fx: fx,  // v309 — exposé pour computeCashFlow réutilisé dans computeAlerts
+    _dataLastUpdate: DATA_LAST_UPDATE,  // v317 — exposé pour alert C2 (fraîcheur données)
   };
 }
 
@@ -5026,22 +5027,70 @@ export function computeAlerts(state) {
     });
   }
 
-  // ── 5. Position IBKR avec fort P&L latent ──
+  // ── 5. Positions IBKR avec P&L latent extrême (±) ──
   // v313 (BUG-058) : 3 noms de champs incorrects corrigés :
   //   - state.actionsView.positions → state.actionsView.ibkrPositions
   //   - pos.platform (absent) → drop le filtre (tout est IBKR ici)
   //   - pos.costBasisEUR → pos.costEUR_hist (cost basis historique EUR)
+  // v317 (C1) : ajout règle symétrique pour pertes ≥ 20 % — une position
+  // qui a perdu 20 % ou plus mérite autant d'attention qu'un gain de 30 %
+  // (signal pour examiner thèse d'investissement ou stop-loss).
   if (state.actionsView && Array.isArray(state.actionsView.ibkrPositions)) {
     for (const pos of state.actionsView.ibkrPositions) {
       if (!pos.valEUR || !pos.costEUR_hist || pos.costEUR_hist <= 0) continue;
       const plPct = (pos.valEUR - pos.costEUR_hist) / pos.costEUR_hist;
+      const plEUR = pos.valEUR - pos.costEUR_hist;
+      const label = pos.label || pos.ticker;
+      // Gains significatifs (ancien comportement)
       if (plPct > 0.30 && pos.valEUR > 5000) {
         alerts.push({
           severity: 'green',
-          title: 'P&L ' + (pos.label || pos.ticker) + ' : +' + (plPct * 100).toFixed(0) + '%',
-          msg: 'Position à ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €, +' + Math.round(pos.valEUR - pos.costEUR_hist).toLocaleString('fr-FR') + ' € latent. Considérer prise de bénéfices ou rebalancing.',
+          title: 'P&L ' + label + ' : +' + (plPct * 100).toFixed(0) + '%',
+          msg: 'Position à ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €, +' + Math.round(plEUR).toLocaleString('fr-FR') + ' € latent. Considérer prise de bénéfices ou rebalancing.',
           action: 'Voir Actions',
           view: 'actions',
+        });
+      }
+      // v317 (C1) — Pertes significatives (nouveau) :
+      // seuil 20 % pour permettre de capturer les drawdowns sévères avant
+      // qu'ils ne deviennent des "stuck positions". Filtre position > 3K€
+      // pour éviter le bruit sur les mini-positions.
+      else if (plPct < -0.20 && pos.valEUR > 3000) {
+        alerts.push({
+          severity: 'yellow',
+          title: 'Position ' + label + ' : ' + (plPct * 100).toFixed(0) + '%',
+          msg: 'Moins-value latente ' + Math.round(-plEUR).toLocaleString('fr-FR') + ' € (valeur ' + Math.round(pos.valEUR).toLocaleString('fr-FR') + ' €). Revérifier thèse d\'investissement ou envisager stop-loss.',
+          action: 'Voir Actions',
+          view: 'actions',
+        });
+      }
+    }
+  }
+
+  // ── 6. Fraîcheur des données (v317 / C2) ──
+  // DATA_LAST_UPDATE (data.js) est la date de dernière mise à jour MANUELLE
+  // des soldes bancaires, des trades IBKR, des créances, etc. Les prix des
+  // actions sont actualisés via Yahoo API en temps réel, mais les cash
+  // balances et les positions non-IBKR restent statiques.
+  // Si > 45 jours → warn ; > 90 jours → critique.
+  if (state._dataLastUpdate) {
+    const parts = state._dataLastUpdate.split('/');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      const ageDays = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+      if (ageDays > 90) {
+        alerts.push({
+          severity: 'red',
+          title: 'Données hors-API stales depuis ' + ageDays + ' jours',
+          msg: 'Dernière mise à jour manuelle le ' + state._dataLastUpdate + '. Soldes bancaires, créances, facturation risquent d\'être désynchronisés. Mettre à jour data.js (soldes UAE/EUR/Morocco) ou via bridge facturation.',
+          action: null, view: null,
+        });
+      } else if (ageDays > 45) {
+        alerts.push({
+          severity: 'yellow',
+          title: 'Données hors-API vieilles de ' + ageDays + ' jours',
+          msg: 'Dernière mise à jour manuelle le ' + state._dataLastUpdate + '. Prévoir un refresh mensuel des soldes (Mashreq, Wio, Attijari, Revolut).',
+          action: null, view: null,
         });
       }
     }
@@ -5103,8 +5152,13 @@ export function computeObjectifs(state, opts) {
     const tgt = new Date(obj.dateTarget + '-01T00:00:00');
     const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
     // Projected value at target = current × (1+r)^n + savings × ((1+r)^n - 1) / r
+    // v317 (C5) — Si r = 0 (annualReturn = 0 %), la formule dégénère :
+    //   projectedValue = currentValue + monthlySavingsEUR × n (juste cumul)
+    // car lim_{r→0} ((1+r)^n − 1) / r = n (dérivée en 0).
     const factor = Math.pow(1 + r, monthsToTarget);
-    const projectedValue = currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
+    const projectedValue = r === 0
+      ? currentValue + monthlySavingsEUR * monthsToTarget
+      : currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
 
     // v316 — Pour horizons longs (>10 ans), la cible nominale cache l'érosion
     // inflation. On expose aussi la cible en pouvoir d'achat 2026 :
@@ -5125,8 +5179,12 @@ export function computeObjectifs(state, opts) {
     else { status = 'behind'; statusLabel = 'En retard'; statusColor = '#ef4444'; }
 
     // Required monthly to reach target if currently behind (solve for additional savings needed)
+    // v317 (C5) — Si r = 0, solve: target = current + (savings + extra) × n
+    //   → extra = (target − current) / n − savings
     const requiredMonthly = ratio < 1
-      ? ((obj.target - currentValue * factor) * r) / (factor - 1) - monthlySavingsEUR
+      ? (r === 0
+          ? (obj.target - currentValue) / monthsToTarget - monthlySavingsEUR
+          : ((obj.target - currentValue * factor) * r) / (factor - 1) - monthlySavingsEUR)
       : 0;
 
     return {
@@ -5190,7 +5248,10 @@ export function computeSensibilite(state, baseObjectif, opts) {
     return {
       rendement: rAnnual,
       cells: savingsVariations.map(sav => {
-        const projected = couple * factor + sav * (factor - 1) / r;
+        // v317 (C5) — Guard div-by-zero si r = 0
+        const projected = r === 0
+          ? couple + sav * monthsToTarget
+          : couple * factor + sav * (factor - 1) / r;
         return {
           savings: sav,
           projected,
