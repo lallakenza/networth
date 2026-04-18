@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=317';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=317';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=318';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=318';
 
 // ---- Generic table sort utility ----
 /**
@@ -266,7 +266,16 @@ export function render(state, view, currency) {
   if (view === 'immobilier') renderImmoView(state);
   if (view === 'creances') renderCreancesView(state);
   if (view === 'budget') renderBudgetView(state);
-  if (view === 'immo-financing') renderImmoFinancingView(state);  // v306
+  if (view === 'immo-financing') {
+    renderImmoFinancingView(state);  // v306
+    // v318 — Populer les cards "Patrimoine par Catégorie" avec la vue Amine
+    // sur la vue Financement Immo. Avant : le bloc #catNav restait visible
+    // mais vide (€0 / --) car renderCategoryCards n'était appelé que sur
+    // les PERSON_VIEWS. Le module Financement étant centré Amine, on utilise
+    // sa vue pour donner le contexte patrimonial avant les scénarios.
+    renderCategoryCards(state, 'amine');
+    renderCategoryPcts(state, 'amine');
+  }
   if (view === 'plan-fiscal') renderPlanFiscalView(state);          // v311 + v312
 
   // v309 — Alertes proactives (affichées uniquement sur vue Couple)
@@ -6714,7 +6723,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=317').then(m => {
+  import('./charts.js?v=318').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
