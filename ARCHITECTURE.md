@@ -4124,3 +4124,76 @@ Chart supprimé totalement (DOM + render call + `buildImmoFinCashProjectionChart
 
 
 
+## §68 — v320 : Nav dropdown "Analyse" + colonnes ROI/Impact + épargne déclarée + subcards Amine-only (18 avril 2026)
+
+**Objectif** : 4 améliorations groupées. Désencombrer la nav (dropdown), enrichir le tableau comparatif (impact/ROI/gain), aligner toutes les projections sur une épargne déclarée unique (8 k€/mois), et rendre le bloc "Patrimoine par Catégorie" de la vue Financement obvious Amine-only.
+
+### Amélioration A — "Patrimoine par Catégorie — Amine" (subcards filtrées)
+
+Avant v320 : la vue Financement Immo affiche les cartes "Patrimoine par Catégorie" avec les KPIs top-level en mode Amine (v318 BUG-060), mais les **subcards** (ESPP, SGTM, Vitry/Rueil/Villejuif, créances) restaient en mode couple → incohérence ("mode mixte" visuellement confus).
+
+Après v320 : `renderExpandSubs(state, view, options)` accepte un flag `strict: true` qui force le mode Amine-only :
+- **Titre** : `<h2>` du bloc `#catNav` remplacé par "Patrimoine par Catégorie — Amine".
+- **ESPP/SGTM** : `setEur('subESPP', s.amine.esppForActions)` sans ajout Nezha ; idem SGTM. Labels détail adaptés ("(Amine seul)").
+- **Subcards Rueil + VEFA Villejuif** : `.sub-card` ancestor masqué via `.style.display='none'` (appartenance Nezha, non-pertinent sur une page d'Amine).
+- **Créances** : déjà filtrées par `s.amine.receivablesPro/Personal` (pas de changement nécessaire).
+
+Appel depuis branche `immo-financing` de `render()` en plus de `renderCategoryCards(state, 'amine')` et `renderCategoryPcts(state, 'amine')`. Rétro-compat : les vues Couple / Amine / Nezha n'utilisent pas `strict`, rendu inchangé.
+
+### Amélioration B — Menu "Analyse" : dropdown regroupant 4 sous-vues
+
+Avant v320 : 4 boutons view-btn distincts dans la barre de nav (Créances / Budget / Financement / Plan & Fiscalité) → barre saturée, hiérarchie aplatie. Problème exacerbé sur mobile (wrap sur 2 lignes).
+
+Après v320 : boutons remplacés par un `<div class="view-dropdown">` qui contient :
+- Un toggle `.analyse-toggle` "Analyse ▾" (caret qui rotate à l'ouverture).
+- Un menu `.view-dropdown-menu` caché en `display:none`, visible quand parent a `.open`.
+- Les 4 items conservent leur `class="view-btn asset-view-btn"` → réutilisent le click handler `view-btn` existant, aucune duplication de logique de nav.
+
+**JS** (`app.js`) :
+- `setupAnalyseDropdown` : toggle click, fermeture sur clic extérieur (`document.addEventListener('click', ...)`), fermeture sur Escape.
+- `syncNavUI` : si `currentView ∈ ANALYSE_VIEWS = ['creances', 'budget', 'immo-financing', 'plan-fiscal']` → `.analyse-toggle.parent-active` (border-bottom orange, fond léger) pour signaler "une sous-vue est active".
+- Click sur un item déclenche le handler `view-btn` standard puis ferme le dropdown.
+
+**CSS** : item actif dans le menu → border-left orange vertical (3 px) au lieu du border-bottom (réservé aux view-btn top-level). Spécificité `.view-dropdown-menu .view-btn.dropdown-item.active` (4 classes) l'emporte sur `.view-btn.asset-view-btn.active` (3 classes).
+
+### Amélioration C — Tableau comparatif : 3 nouvelles colonnes dérivées
+
+Avant v320 : colonne "Patrimoine 25 ans" dominée par la croissance du portefeuille (~67 MDH tous scénarios), masquant l'impact réel de l'achat d'appart (≤ 5 MDH d'écart). Utilisateur doit soustraire mentalement.
+
+Après v320 : `computeImmoFinancing` expose par scénario + horizon :
+- `baseline` (dans `summary`) : `valeurFuture(patrimoineMAD, epargneMAD, rendement, horizonMonths)` = patrimoine si on **n'achète pas** cet appart.
+- `impactNet[h] = patrimoineFinal[h] − baseline[h]` (MDH signé). Attendu négatif pour tous scénarios car donation parents (pas d'actif + pas de loyer).
+- `roiAnnualized[h] = (patrimoineFinal[h] / patrimoineInitial)^(12/months) − 1`. CAGR du patrimoine total sur l'horizon, dénominateur commun = comparaison apple-to-apple des 4 scénarios.
+- `totalInjected[h]` : capital total dépensé dans ce projet (sortie initiale + mensualités cumulées sur `min(h, duréeBanque)` + intérêts margin sur `h` pour C/D).
+- `gainHorizon[h] = patrimoineFinal[h] − totalInjected[h]`. Mesure "après avoir mis X MAD dans ce projet, combien reste-t-il de patrimoine".
+
+Tableau passe de 6 à 9 colonnes (`overflow-x:auto` + `min-width:880px` pour scroll mobile). Tooltips sur les 3 nouveaux headers expliquent chaque métrique.
+
+### Amélioration D — DECLARED_MONTHLY_SAVINGS_EUR (= 8 000 €)
+
+Avant v320 : toutes les projections long-terme (Plan & Fiscalité `renderPlanFiscalView`, Financement Immo `syncEpargneFromCashFlow`) tiraient `computeCashFlow().netSavings`. Or `BUDGET_EXPENSES` ne liste QUE les dépenses fixes (logement, utilities, abonnements, assurances) → pas de courses, loisirs, voyages, restos. Conséquence : `netSavings` ~16 670 €/mois, très éloigné du ~8 000 €/mois réel.
+
+Après v320 : nouvelle constante `export const DECLARED_MONTHLY_SAVINGS_EUR = 8000` dans `data.js`. Utilisation :
+- `syncEpargneFromCashFlow(state)` : input `immoFinInputEpargne` initialisé à 8 000 (plus de dérivation `netSavings`).
+- `renderPlanFiscalView` : `baseSavings = DECLARED_MONTHLY_SAVINGS_EUR`.
+- `renderBudgetView` → détail cash-flow : "Projection 12 mois" = `DECLARED × 12`.
+- Budget KPI-strip passe de 5 à 6 KPIs : ancien `kpiCashflowSavings` renommé **"Surplus structurel"** (ℹ️ tooltip "Revenus − dépenses fixes trackées. Ne reflète pas l'épargne réelle car les dépenses variables ne sont pas trackées."), nouveau `kpiCashflowDeclared` **"Épargne déclarée"** (vert, valeur constante 8 k€). `kpiCashflowRate` passe du taux basé sur netSavings au taux basé sur déclaré (`DECLARED / incomeMonthly`).
+
+Le champ reste toujours éditable manuellement dans le module Financement (pour tester "et si j'épargnais 10 k ?"). Le "Surplus structurel" reste affiché comme diagnostic "marge théorique" mais n'alimente plus aucune projection.
+
+### Invariants & tests de régression v320
+
+- Cliquer sur un onglet couple/amine/nezha/actions/cash/immobilier FERME le dropdown Analyse s'il est ouvert.
+- Cliquer **en dehors** du dropdown (n'importe où sur la page) → dropdown se ferme.
+- Escape key ferme le dropdown et remet le focus sur le toggle.
+- Sur une sous-vue d'Analyse, le toggle affiche `.parent-active` (fond léger + border-bottom orange) ET l'item actif dans le menu porte un bandeau vertical orange à gauche.
+- `scenarios.X.impactNet[i]`, `roiAnnualized[i]`, `gainHorizon[i]`, `totalInjected[i]` existent pour X ∈ {A,B,C,D} et i ∈ [0,1,2] (horizons 10/15/25 ans).
+- `impactNet[i] = patrimoineFinal[i] − summary.baseline[i]` (identité, tolérance 0).
+- `roiAnnualized = null` si `patrimoineFinal ≤ 0` (edge case over-leverage extrême).
+- Vue Financement Immo : titre bloc catNav = "Patrimoine par Catégorie — Amine" ; subcards Rueil + Villejuif cachées ; ESPP/SGTM montrent les shares d'Amine uniquement.
+- KPI Budget "Épargne déclarée" = 8 000 €. KPI "Surplus structurel" reste `cf.netSavings` (non ciblé par l'update).
+
+**Cache-bust** : `?v=319` → `?v=320` sur 18 imports (`app.js` ×7, `charts.js` ×4, `render.js` ×2, `engine.js` ×1, `simulators.js` ×2, `index.html` ×1) + `APP_VERSION 'v320'` dans data.js.
+
+
+

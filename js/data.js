@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v319';
+export const APP_VERSION = 'v320';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2526,6 +2526,20 @@ export const IMMO_PRESETS = [
 // calendrier WHT dans DIV_CALENDAR (projectedDivEUR dans dividendAnalysis).
 // MONTHLY_INCOMES se concentre sur salaires + facturation + revenus actifs
 // qui ne sont pas déjà comptés ailleurs.
+// v320 — Épargne mensuelle déclarée (EUR).
+//
+// Pourquoi cette constante ? Les dépenses trackées dans `BUDGET_EXPENSES` sont
+// STRICTEMENT les dépenses fixes (logement, utilities, abonnements, assurances).
+// Les dépenses variables (courses, loisirs, voyages, restos...) ne sont pas
+// trackées. Par conséquent `computeCashFlow().netSavings` surestime largement
+// l'épargne réelle (ex: 16 670 €/mois calculés vs 8 000 €/mois réels).
+//
+// Règle : toute projection long-terme (Financement Immo, Plan & Fiscalité,
+// projections 20-25 ans) doit utiliser cette valeur déclarée, pas netSavings.
+// La KPI "Surplus structurel" reste affichée dans le Budget comme indicateur
+// théorique (revenus − dépenses fixes) mais n'alimente plus les projections.
+export const DECLARED_MONTHLY_SAVINGS_EUR = 8000;
+
 export const MONTHLY_INCOMES = [
   // Amine — facturation SAP freelance via Bairok Consulting LLC (UAE)
   // Montants nets (après charges société), convertis en mensuel moyen

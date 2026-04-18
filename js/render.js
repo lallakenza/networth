@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=319';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=319';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=320';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=320';
 
 // ---- Generic table sort utility ----
 /**
@@ -268,13 +268,13 @@ export function render(state, view, currency) {
   if (view === 'budget') renderBudgetView(state);
   if (view === 'immo-financing') {
     renderImmoFinancingView(state);  // v306
-    // v318 — Populer les cards "Patrimoine par Catégorie" avec la vue Amine
-    // sur la vue Financement Immo. Avant : le bloc #catNav restait visible
-    // mais vide (€0 / --) car renderCategoryCards n'était appelé que sur
-    // les PERSON_VIEWS. Le module Financement étant centré Amine, on utilise
-    // sa vue pour donner le contexte patrimonial avant les scénarios.
+    // v318 — Populer les cards "Patrimoine par Catégorie" avec la vue Amine.
+    // v320 — Étendu : subcards en mode strict Amine-only (ESPP/SGTM filtrés,
+    // Rueil + Villejuif cachés, créances Amine uniquement) + titre explicite
+    // "Patrimoine par Catégorie — Amine" pour lever l'ambiguïté.
     renderCategoryCards(state, 'amine');
     renderCategoryPcts(state, 'amine');
+    renderExpandSubs(state, 'amine', { strict: true });
   }
   if (view === 'plan-fiscal') renderPlanFiscalView(state);          // v311 + v312
 
@@ -467,12 +467,21 @@ function renderCategoryPcts(state, view) {
   });
 }
 
-function renderExpandSubs(state, view) {
+function renderExpandSubs(state, view, options = {}) {
   const s = state;
+  // v320 — Mode strict Amine-only (utilisé par la vue Financement Immo).
+  // Filtre ESPP/SGTM agrégés → Amine uniquement, cache les subcards Nezha
+  // (Rueil + Villejuif), restaure le titre dynamique.
+  const strict = options.strict === true && view === 'amine';
+
+  // ── Titre dynamique du bloc #catNav ──
+  const catH2 = document.querySelector('#catNav > h2');
+  if (catH2) catH2.textContent = strict ? 'Patrimoine par Catégorie — Amine' : 'Patrimoine par Categorie';
+
   // Sub expand card values
   setEur('subIBKR', s.amine.ibkrForActions);
-  setEur('subESPP', s.amine.esppForActions + s.nezha.esppForActions);
-  setEur('subSGTM', s.amine.sgtm + s.nezha.sgtm);
+  setEur('subESPP', strict ? s.amine.esppForActions : (s.amine.esppForActions + s.nezha.esppForActions));
+  setEur('subSGTM', strict ? s.amine.sgtm : (s.amine.sgtm + s.nezha.sgtm));
   setEur('subUAE', s.amine.uae);
   setEur('subRevolutEUR', s.amine.revolutEUR);
   setEur('subBrokerCash', s.amine.brokerCash); // Amine-only (Nezha broker cash is in kpiNzCash)
@@ -480,6 +489,16 @@ function renderExpandSubs(state, view) {
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
   setEur('subVillejuifEq', s.nezha.villejuifEquity);
+
+  // v320 — Cacher les 2 subcards Nezha (Rueil + VEFA Villejuif) en mode strict.
+  // Elles ont un id interne (#subRueilEq / #subVillejuifEq) — on remonte au
+  // <a class="sub-card"> parent (ancêtre direct) pour toggler display.
+  ['subRueilEq', 'subVillejuifEq'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const card = el.closest('.sub-card');
+    if (card) card.style.display = strict ? 'none' : '';
+  });
 
   // ── Dynamic créances breakdown by view ──
   const p = state.portfolio;
@@ -553,10 +572,17 @@ function renderExpandSubs(state, view) {
     bdEl.innerHTML = html;
   }
 
-  // ESPP detail label
+  // ESPP detail label — v320 strict: Amine shares only, pas de mention Nezha
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
-  setHTML('subESPPDetail', (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine ' + p.amine.espp.shares + ' + Nezha ' + (p.nezha.espp ? p.nezha.espp.shares : 0) + ')');
-  setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
+  const amineESPPShares = p.amine.espp.shares;
+  const nezhaESPPShares = p.nezha.espp ? p.nezha.espp.shares : 0;
+  if (strict) {
+    setHTML('subESPPDetail', amineESPPShares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine seul)');
+    setHTML('subSGTMDetail', p.amine.sgtm.shares + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine seul)<br>Bourse de Casablanca');
+  } else {
+    setHTML('subESPPDetail', (amineESPPShares + nezhaESPPShares) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine ' + amineESPPShares + ' + Nezha ' + nezhaESPPShares + ')');
+    setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
+  }
 
   // SGTM performance badge (vs IPO cost basis)
   const sgtmPerf = p.market.sgtmCostBasisMAD
@@ -5910,16 +5936,23 @@ function renderBudgetView(state) {
     const cf = computeCashFlow(state, state.portfolio, state._fx || state.fx);
     setEur('kpiCashflowIncome', cf.incomeMonthly);
     setEur('kpiCashflowExpenses', cf.expensesMonthly);
+    // v320 — "Surplus structurel" (ex-"Épargne nette") : revenus − dépenses fixes trackées.
+    // Ne reflète pas l'épargne réelle (dépenses variables non trackées). Gris par défaut,
+    // coloré uniquement si négatif pour signaler un problème structurel.
     setEur('kpiCashflowSavings', cf.netSavings);
     const savingsEl = document.getElementById('kpiCashflowSavings');
     if (savingsEl) {
-      savingsEl.style.color = cf.netSavings >= 0 ? 'var(--green)' : 'var(--red)';
+      savingsEl.style.color = cf.netSavings >= 0 ? 'var(--text)' : 'var(--red)';
     }
-    setText('kpiCashflowRate', (cf.savingsRate * 100).toFixed(1) + '%');
+    // v320 — "Épargne déclarée" : valeur utilisée dans toutes les projections long-terme.
+    setEur('kpiCashflowDeclared', DECLARED_MONTHLY_SAVINGS_EUR);
+    // Taux d'épargne RÉEL = épargne déclarée / revenus (pas le netSavings surestimé).
+    const realSavingsRate = cf.incomeMonthly > 0 ? DECLARED_MONTHLY_SAVINGS_EUR / cf.incomeMonthly : 0;
+    setText('kpiCashflowRate', (realSavingsRate * 100).toFixed(1) + '%');
     const rateEl = document.getElementById('kpiCashflowRate');
     if (rateEl) {
-      rateEl.style.color = cf.savingsRate >= 0.20 ? 'var(--green)' :
-                           cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
+      rateEl.style.color = realSavingsRate >= 0.20 ? 'var(--green)' :
+                           realSavingsRate >= 0.10 ? '#d97706' : 'var(--red)';
     }
     setText('kpiCashflowRunway', cf.runwayMonths.toFixed(0) + ' mois');
 
@@ -5949,8 +5982,11 @@ function renderBudgetView(state) {
                        cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
       html += '• Taux d\'&eacute;pargne : <strong style="color:' + srColor + '">' + (cf.savingsRate * 100).toFixed(1) + '%</strong> (top d&eacute;cile : ≥30%)<br>';
       html += '• Cash dormant : ' + fmtMo(cf.cashDormant) + ' € | Mobilisable total : ' + fmtMo(cf.liquid) + ' €<br>';
-      html += '<br><strong>Projection 12 mois</strong> (&agrave; taux d\'&eacute;pargne constant) :<br>';
-      const proj12 = cf.netSavings * 12;
+      // v320 — Projection 12 mois basée sur l'épargne déclarée (8 k€/mois), pas sur netSavings.
+      // Le surplus structurel sert juste de diagnostic "combien de marge théorique" ; la projection
+      // long-terme doit utiliser la valeur effectivement mise de côté.
+      html += '<br><strong>Projection 12 mois</strong> (&agrave; &eacute;pargne d&eacute;clar&eacute;e constante, ' + fmtMo(DECLARED_MONTHLY_SAVINGS_EUR) + ' €/mois) :<br>';
+      const proj12 = DECLARED_MONTHLY_SAVINGS_EUR * 12;
       html += '+' + fmtMo(proj12) + ' € d\'&eacute;pargne cumul&eacute;e = ' + fmtMo(cf.liquid + proj12) + ' € de mobilisable total.';
       html += '</div></div>';
       html += '</div>';
@@ -6534,27 +6570,26 @@ let _immoFinEpargneAutoFed = false;      // v315 — track si épargne a déjà 
 let _immoFinChartMode = 'delta';         // v310 | v319 — absolu | zoom | delta. Défaut = delta : c'est la vue la plus actionnable (montre combien chaque scénario rapporte VS le baseline cash intégral).
 
 /**
- * v315 — Sync le champ "épargne mensuelle" (input EUR) depuis le cash-flow
- * consolidé réel (netSavings) calculé par engine. Remplace le 8 000 €/mois
- * hardcodé qui était stale dès que revenus ou dépenses changeaient.
- * Appelé au premier render de la vue (auto-fed une seule fois).
+ * v320 — Sync le champ "épargne mensuelle" depuis la constante DECLARED_MONTHLY_SAVINGS_EUR.
+ *
+ * Historique :
+ *   - v315 : auto-feed depuis computeCashFlow().netSavings pour remplacer un hardcode 7000.
+ *   - v320 : netSavings surestime (dépenses variables non trackées : courses, loisirs,
+ *            voyages…). Retour à une valeur déclarée (8 000 €/mois) qui est la référence
+ *            partout (Plan & Fiscalité, Financement Immo, projections long-terme).
+ *
+ * Appelé au premier render de la vue (auto-fed une seule fois), l'utilisateur peut override.
  */
 function syncEpargneFromCashFlow(state) {
   try {
-    const fx = state?._fx || state?.fx;
-    if (!fx) return null;
-    const cf = computeCashFlow(state, state?.portfolio, fx);
-    // Plancher 0 (négatif = erreur data plutôt que vraie épargne négative)
-    const epargne = Math.max(0, Math.round(cf.netSavings || 0));
     const inp = document.getElementById('immoFinInputEpargne');
-    if (inp && epargne > 0) inp.value = epargne;
+    if (inp) inp.value = DECLARED_MONTHLY_SAVINGS_EUR;
     const info = document.getElementById('immoFinEpargneSyncInfo');
     if (info) {
-      info.textContent = 'Dérivé du cash-flow : ' + Math.round(cf.incomeMonthly).toLocaleString('fr-FR')
-        + ' € revenus − ' + Math.round(cf.expensesMonthly).toLocaleString('fr-FR') + ' € dépenses = '
-        + epargne.toLocaleString('fr-FR') + ' €/mois.';
+      info.textContent = 'Épargne déclarée : ' + DECLARED_MONTHLY_SAVINGS_EUR.toLocaleString('fr-FR')
+        + ' €/mois (constante de référence, utilisée partout dans les projections). Modifiable à la main.';
     }
-    return epargne;
+    return DECLARED_MONTHLY_SAVINGS_EUR;
   } catch (e) {
     console.warn('[immoFin] syncEpargne échoué :', e);
     return null;
@@ -6723,7 +6758,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=319').then(m => {
+  import('./charts.js?v=320').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -6840,8 +6875,13 @@ function renderImmoFinancingView(state) {
 
 /**
  * Build the comparison table with all 4 scenarios.
- * Columns: Scénario | Mensualité | Épargne nette | Patrimoine 25ans | Liquidité T+24m | Dette restante 25ans
- * The recommended scenario row gets a violet highlight.
+ *
+ * v320 — Ajout de 3 colonnes dérivées axées sur l'impact du projet appart :
+ *   - Impact net vs baseline "sans appart"  (MDH signé)
+ *   - ROI annualisé du patrimoine total   (%/an sur P_initial)
+ *   - Gain horizon = patrimoine − capital injecté dans ce projet
+ * L'ancienne colonne "Patrimoine horizon ans" est conservée.
+ * Scroll horizontal activé car 9 colonnes (> largeur mobile).
  */
 function renderImmoFinComparisonTable(result) {
   const el = document.getElementById('immoFinComparisonTable');
@@ -6851,9 +6891,12 @@ function renderImmoFinComparisonTable(result) {
   const hIdx = summary.horizons.indexOf(result.inputs.horizonYears);
   const hSafe = hIdx >= 0 ? hIdx : summary.horizons.length - 1;
   const casaSafe = hCasaIdx >= 0 ? hCasaIdx : 1;
+  const horizonY = summary.horizons[hSafe];
 
   const fmtMAD = v => Math.round(v).toLocaleString('fr-FR');
   const fmtMDH = v => (v / 1e6).toFixed(2);
+  const fmtMDHsigned = v => (v >= 0 ? '+' : '') + (v / 1e6).toFixed(2);
+  const fmtPct = v => v == null ? '—' : ((v * 100).toFixed(2) + '%');
 
   const rows = ['A', 'B', 'C', 'D'].map(key => {
     const s = scenarios[key];
@@ -6865,28 +6908,44 @@ function renderImmoFinComparisonTable(result) {
     const liqColor = result.inputs.besoinCasa === 0
       ? 'var(--text)'
       : (casaOk ? 'var(--green)' : (liquidite >= result.inputs.besoinCasa * 0.75 ? '#d97706' : 'var(--red)'));
+
+    // v320 — Colonnes dérivées (Impact / ROI / Gain)
+    const impact = s.impactNet ? s.impactNet[hSafe] : null;
+    const roi = s.roiAnnualized ? s.roiAnnualized[hSafe] : null;
+    const gain = s.gainHorizon ? s.gainHorizon[hSafe] : null;
+    const impactColor = impact == null ? 'var(--text)' : (impact >= 0 ? 'var(--green)' : 'var(--red)');
+    const gainColor = gain == null ? 'var(--text)' : (gain >= 0 ? 'var(--green)' : 'var(--red)');
+
     return '<tr style="' + highlight + '">' +
       '<td><strong style="color:' + s.color + '">' + key + '</strong> <span style="font-size:11px;color:var(--gray)">' + s.label + '</span></td>' +
       '<td class="num">' + fmtMAD(s.mensualite) + ' MAD</td>' +
       '<td class="num">' + fmtMAD(s.epargneNette) + ' MAD</td>' +
       '<td class="num"><strong>' + fmtMDH(s.patrimoineFinal[hSafe]) + '</strong> MDH</td>' +
+      '<td class="num" style="color:' + impactColor + '">' + (impact == null ? '—' : fmtMDHsigned(impact) + ' MDH') + '</td>' +
+      '<td class="num">' + fmtPct(roi) + '</td>' +
+      '<td class="num" style="color:' + gainColor + '">' + (gain == null ? '—' : fmtMDHsigned(gain) + ' MDH') + '</td>' +
       '<td class="num" style="color:' + liqColor + '">' + fmtMDH(liquidite) + ' MDH</td>' +
       '<td class="num">' + fmtMAD(s.detteRestante[hSafe]) + ' MAD</td>' +
     '</tr>';
   }).join('');
 
   el.innerHTML =
-    '<table style="width:100%;font-size:12px;">' +
-      '<thead><tr>' +
-        '<th style="text-align:left">Sc&eacute;nario</th>' +
-        '<th class="num">Mensualit&eacute;</th>' +
-        '<th class="num">&Eacute;pargne nette</th>' +
-        '<th class="num">Patrimoine ' + result.inputs.horizonYears + ' ans</th>' +
-        '<th class="num">Liquidit&eacute; T+' + result.inputs.horizonCasa + 'm</th>' +
-        '<th class="num">Dette restante</th>' +
-      '</tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-    '</table>';
+    '<div style="overflow-x:auto;">' +
+      '<table style="width:100%;font-size:12px;min-width:880px;">' +
+        '<thead><tr>' +
+          '<th style="text-align:left">Sc&eacute;nario</th>' +
+          '<th class="num">Mensualit&eacute;</th>' +
+          '<th class="num">&Eacute;pargne nette</th>' +
+          '<th class="num" title="Patrimoine financier net à l\'horizon sélectionné (appart non compté car donation parents).">Patrimoine ' + horizonY + ' ans</th>' +
+          '<th class="num" title="Impact sur le patrimoine vs baseline « on n\'achète pas l\'appart ». Négatif = richesse sacrifiée pour la donation.">Impact net</th>' +
+          '<th class="num" title="CAGR du patrimoine total sur l\'horizon (dénominateur = patrimoine initial). Permet de comparer les 4 scénarios sur la même base.">ROI annualis&eacute;</th>' +
+          '<th class="num" title="Patrimoine final moins capital total injecté dans ce projet (sortie cash + mensualités cumulées).">Gain ' + horizonY + ' ans</th>' +
+          '<th class="num">Liquidit&eacute; T+' + result.inputs.horizonCasa + 'm</th>' +
+          '<th class="num">Dette restante</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
 }
 
 // ════════════════════════════════════════════════════════════
@@ -6962,18 +7021,15 @@ function renderAlertsPanel(state) {
 // directement les loyers / valeurs immo depuis state.
 
 function renderPlanFiscalView(state) {
-  // v316 — Base réelle depuis cash-flow consolidé (avant : hardcodé 8000/0.06).
-  // netSavings = revenus mensuels − charges mensuelles (incl. loyer Vitry net).
-  // Rendement base 0.06 = moyenne historique S&P500 après inflation (~6-7%
-  // réel long terme) ; modifiable si l'utilisateur veut tester des scénarios.
-  let baseSavings = 8000;
-  try {
-    const cf = computeCashFlow(state, state.portfolio, state.fx);
-    const realSav = Math.max(0, Math.round(cf.netSavings || 0));
-    if (realSav > 0) baseSavings = realSav;
-  } catch (e) {
-    console.warn('[plan-fiscal] computeCashFlow échoué, fallback 8000 €/mois :', e);
-  }
+  // v320 — Base = DECLARED_MONTHLY_SAVINGS_EUR (8 000 €/mois), valeur de référence
+  // cross-app. Historique :
+  //   - v316 : tirait netSavings (revenus − dépenses) ce qui donnait ~16 670 €/mois,
+  //            irréaliste car les dépenses variables (courses, loisirs, voyages...)
+  //            ne sont pas trackées dans BUDGET_EXPENSES.
+  //   - v320 : retour à une valeur déclarée, alignée avec le champ "Épargne mensuelle"
+  //            du module Financement Immo et la KPI "Épargne déclarée" du Budget.
+  // Rendement base 0.06 = moyenne historique S&P500 après inflation (~6-7% réel long terme).
+  const baseSavings = DECLARED_MONTHLY_SAVINGS_EUR;
   const baseRendement = 0.06;
 
   // ── v312 — Objectifs ──

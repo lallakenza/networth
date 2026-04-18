@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=319';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=320';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4636,6 +4636,40 @@ export function computeImmoFinancing(inputs) {
   const horizons = [10, 15, 25];
   const casaPoints = [12, 24, 36];   // mois (tableau comparatif, inchangé)
 
+  // v320 — Baseline "no apartment" : patrimoine si on n'achetait PAS cet appart
+  // (portefeuille initial + épargne pleine capitalisée au rendement).
+  // Sert à mesurer l'impact net de chaque scénario sur la richesse financière.
+  const baseline = horizons.map(y => valeurFuture(inputs.patrimoineMAD, epargneMAD, rendement, y * 12));
+
+  // v320 — Capital total injecté dans le projet appart (par scénario).
+  // Sortie cash initiale + mensualités cumulées sur l'horizon.
+  // Utilisé pour "Gain horizon" (= patrimoine final − injecté) et pour
+  // annualiser le ROI sur l'équité totale déployée (P_initial = dénominateur).
+  const totalInjectedAt = (scenario, months) => {
+    if (scenario === 'A') {
+      // Full cash upfront, pas de mensualité
+      return A_sortie;
+    } else if (scenario === 'B') {
+      const m1 = Math.min(months, nBanque);
+      return B_apportCash + B_mensualiteTotal * m1;
+    } else if (scenario === 'C') {
+      // Cash intégral + intérêts margin cumulés sur l'horizon
+      return C_sortie + C_mensualite * months;
+    } else if (scenario === 'D') {
+      const m1 = Math.min(months, nBanque);
+      return D_apportCash + B_mensualiteTotal * m1 + D_mensualiteMargin * months;
+    }
+    return 0;
+  };
+
+  // ROI annualisé : CAGR du patrimoine total sur l'horizon, dénominateur = patrimoine initial.
+  // Permet de comparer les 4 scénarios sur la même base "de combien mon capital
+  // a-t-il crû au global ?". Renvoie null si patrimoineInitial ≤ 0 (edge case).
+  const roiAnnualized = (patrimoineFinal, months) => {
+    if (inputs.patrimoineMAD <= 0 || patrimoineFinal <= 0 || months <= 0) return null;
+    return Math.pow(patrimoineFinal / inputs.patrimoineMAD, 12 / months) - 1;
+  };
+
   // v307 — Timeline complète du cash mobilisable (par pas de 3 mois sur l'horizon max).
   // Permet de voir "à partir de quel mois puis-je faire un 2e projet de X MAD ?".
   // Par construction, `cashProjection[scenario]` = portefeuille projeté × (1 + ltvTarget),
@@ -4666,6 +4700,11 @@ export function computeImmoFinancing(inputs) {
       // v307 — timeline cash mobilisable (continuous projection for 2nd project)
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'A') })),
       stress: stressFor('A'),   // v319 — T+6/12/18 plancher/plafond
+      // v320 — Impact net / ROI / Gain par horizon (tableau comparatif)
+      totalInjected: horizons.map(y => totalInjectedAt('A', y * 12)),
+      impactNet: horizons.map((y, i) => A_patrimoineFinal(y * 12) - baseline[i]),
+      roiAnnualized: horizons.map(y => roiAnnualized(A_patrimoineFinal(y * 12), y * 12)),
+      gainHorizon: horizons.map(y => A_patrimoineFinal(y * 12) - totalInjectedAt('A', y * 12)),
     },
     B: {
       ...scenarioMeta.B,
@@ -4683,6 +4722,11 @@ export function computeImmoFinancing(inputs) {
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'B')),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'B') })),
       stress: stressFor('B'),   // v319 — T+6/12/18 plancher/plafond
+      // v320 — Impact net / ROI / Gain par horizon
+      totalInjected: horizons.map(y => totalInjectedAt('B', y * 12)),
+      impactNet: horizons.map((y, i) => B_patrimoineFinal(y * 12) - baseline[i]),
+      roiAnnualized: horizons.map(y => roiAnnualized(B_patrimoineFinal(y * 12), y * 12)),
+      gainHorizon: horizons.map(y => B_patrimoineFinal(y * 12) - totalInjectedAt('B', y * 12)),
     },
     C: {
       ...scenarioMeta.C,
@@ -4702,6 +4746,11 @@ export function computeImmoFinancing(inputs) {
       })),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'C') })),
       stress: stressFor('C'),   // v319 — T+6/12/18 plancher/plafond
+      // v320 — Impact net / ROI / Gain par horizon
+      totalInjected: horizons.map(y => totalInjectedAt('C', y * 12)),
+      impactNet: horizons.map((y, i) => C_patrimoineFinal(y * 12) - baseline[i]),
+      roiAnnualized: horizons.map(y => roiAnnualized(C_patrimoineFinal(y * 12), y * 12)),
+      gainHorizon: horizons.map(y => C_patrimoineFinal(y * 12) - totalInjectedAt('C', y * 12)),
     },
     D: {
       ...scenarioMeta.D,
@@ -4719,6 +4768,11 @@ export function computeImmoFinancing(inputs) {
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'D')),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'D') })),
       stress: stressFor('D'),   // v319 — T+6/12/18 plancher/plafond
+      // v320 — Impact net / ROI / Gain par horizon
+      totalInjected: horizons.map(y => totalInjectedAt('D', y * 12)),
+      impactNet: horizons.map((y, i) => D_patrimoineFinal(y * 12) - baseline[i]),
+      roiAnnualized: horizons.map(y => roiAnnualized(D_patrimoineFinal(y * 12), y * 12)),
+      gainHorizon: horizons.map(y => D_patrimoineFinal(y * 12) - totalInjectedAt('D', y * 12)),
     },
   };
 
@@ -4796,6 +4850,8 @@ export function computeImmoFinancing(inputs) {
     fraisCashMAD,
     marginCurrency: inputs.marginCurrency,
     marginRate,
+    // v320 — Baseline "no apartment" par horizon (pour tableau comparatif)
+    baseline,
   };
 
   // v310 — Pipeline multi-projets : Casa + jusqu'à 2 projets supplémentaires.
