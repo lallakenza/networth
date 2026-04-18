@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=314';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=314';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=315';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=315';
 
 // ---- Generic table sort utility ----
 /**
@@ -6521,7 +6521,36 @@ function attachKPIInsights(state, view) {
 
 let _immoFinBound = false;  // guard to avoid double event listener binding
 let _immoFinPatrimoineAutoFed = false;   // v307 — track si patrimoine a déjà été auto-fed
+let _immoFinEpargneAutoFed = false;      // v315 — track si épargne a déjà été auto-fed
 let _immoFinChartMode = 'absolu';        // v310 — absolu | zoom | delta
+
+/**
+ * v315 — Sync le champ "épargne mensuelle" (input EUR) depuis le cash-flow
+ * consolidé réel (netSavings) calculé par engine. Remplace le 8 000 €/mois
+ * hardcodé qui était stale dès que revenus ou dépenses changeaient.
+ * Appelé au premier render de la vue (auto-fed une seule fois).
+ */
+function syncEpargneFromCashFlow(state) {
+  try {
+    const fx = state?._fx || state?.fx;
+    if (!fx) return null;
+    const cf = computeCashFlow(state, state?.portfolio, fx);
+    // Plancher 0 (négatif = erreur data plutôt que vraie épargne négative)
+    const epargne = Math.max(0, Math.round(cf.netSavings || 0));
+    const inp = document.getElementById('immoFinInputEpargne');
+    if (inp && epargne > 0) inp.value = epargne;
+    const info = document.getElementById('immoFinEpargneSyncInfo');
+    if (info) {
+      info.textContent = 'Dérivé du cash-flow : ' + Math.round(cf.incomeMonthly).toLocaleString('fr-FR')
+        + ' € revenus − ' + Math.round(cf.expensesMonthly).toLocaleString('fr-FR') + ' € dépenses = '
+        + epargne.toLocaleString('fr-FR') + ' €/mois.';
+    }
+    return epargne;
+  } catch (e) {
+    console.warn('[immoFin] syncEpargne échoué :', e);
+    return null;
+  }
+}
 
 /**
  * v307 — Sync le patrimoine initial (input MAD) depuis le state.couple.financialMobilisable
@@ -6599,6 +6628,11 @@ function renderImmoFinancingView(state) {
   if (!_immoFinPatrimoineAutoFed) {
     _immoFinPatrimoineAutoFed = true;
     syncPatrimoineFromState(state);
+  }
+  // v315 — premier render : auto-feed épargne depuis cash-flow réel
+  if (!_immoFinEpargneAutoFed) {
+    _immoFinEpargneAutoFed = true;
+    syncEpargneFromCashFlow(state);
   }
 
   // Lecture inputs DOM
@@ -6680,7 +6714,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=314').then(m => {
+  import('./charts.js?v=315').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

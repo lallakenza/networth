@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=314';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=315';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4555,32 +4555,31 @@ export function computeImmoFinancing(inputs) {
   };
 
   // ─── Liquidité mobilisable pour projet Casa ─────────────────────────
-  // Définition : portefeuille courant × (1 − seuil sécurité) + capacité margin
-  // additionnelle disponible (on peut emprunter jusqu'à LTV_target sur le
-  // portefeuille non encore utilisé).
+  // Définition : portefeuille dispo × (1 + LTV_target × SAFETY_COEFF).
   //
-  // Pour simplifier : liquidité = portefeuille courant × (1 + ltvTarget)
-  // avec ltvTarget = capacité d'emprunt supplémentaire safe (si pas déjà en
-  // margin, sinon = 0 car déjà tiré).
+  // v315 — On applique un coeff SAFETY_COEFF = 0.75 sur la capacité margin
+  // additionnelle pour se prémunir d'un call margin lors d'un drawdown :
+  //   - sans coeff : un portefeuille à 1 M€ avec LTV 30% = 1.3 M€ "mobilisable"
+  //   - avec coeff : 1 M€ × (1 + 0.30 × 0.75) = 1.225 M€ (marge de ~7.5%)
+  // Cela modélise l'hypothèse prudente : on ne tire pas 100% de la LTV
+  // autorisée, on garde 25% de tampon en cas de correction marché.
+  // Pour Scénarios C/D (déjà en margin), on calcule l'équité nette puis
+  // même coeff appliqué.
+  const SAFETY_COEFF = 0.75;
+  const liquiditeMult = 1 + ltvTarget * SAFETY_COEFF;
   const liquiditeAtMonth = (months, scenario) => {
     if (scenario === 'A') {
-      const port = A_VF(months);
-      // Scénario A : portefeuille × (1 + ltvTarget) car on peut margin dessus
-      return port * (1 + ltvTarget);
+      return A_VF(months) * liquiditeMult;
     } else if (scenario === 'B') {
-      const port = B_VF(months);
-      // Scénario B : portefeuille dispo + margin possible dessus
-      return port * (1 + ltvTarget);
+      return B_VF(months) * liquiditeMult;
     } else if (scenario === 'C') {
       const port = C_VF(months);
-      // Scénario C : portefeuille moins dette margin existante, puis remargin
-      // possible sur l'équité nette.
       const equite = Math.max(0, port - C_marginDette);
-      return equite * (1 + ltvTarget);
+      return equite * liquiditeMult;
     } else if (scenario === 'D') {
       const port = D_VF(months);
       const equite = Math.max(0, port - D_marginDette);
-      return equite * (1 + ltvTarget);
+      return equite * liquiditeMult;
     }
     return 0;
   };
@@ -4680,23 +4679,49 @@ export function computeImmoFinancing(inputs) {
   const warnings = [];
   const reasons = [];
 
+  // v315 — Reco multi-projets (plus seulement Casa).
+  // On agrège tous les projets actifs avec un mois cible ≤ 24 ("tendus") :
+  //  - Casa si besoinCasa > 0 et horizonCasa ≤ 24
+  //  - Proj2 si amount > 0 et month ≤ 24
+  //  - Proj3 si amount > 0 et month ≤ 24
+  // Si ≥1 projet est tendu, on recommande B (préserver liquidité).
+  // Sinon si tous les projets sont ≥ 36 mois → C (double leverage OK).
+  // Sinon C par défaut.
+  const projetsTendus = [];
   if (besoinCasa > 0 && inputs.horizonCasa <= 24) {
-    // Projet Casa tendu → privilégier liquidité → Scénario B (apport 20% seul)
+    projetsTendus.push({ label: 'Casa', amount: besoinCasa, month: inputs.horizonCasa });
+  }
+  if (inputs.proj2Amount > 0 && (inputs.proj2Month || 18) <= 24) {
+    projetsTendus.push({ label: inputs.proj2Label || 'Projet 2', amount: inputs.proj2Amount, month: inputs.proj2Month || 18 });
+  }
+  if (inputs.proj3Amount > 0 && (inputs.proj3Month || 36) <= 24) {
+    projetsTendus.push({ label: inputs.proj3Label || 'Projet 3', amount: inputs.proj3Amount, month: inputs.proj3Month || 36 });
+  }
+
+  if (projetsTendus.length > 0) {
     recommended = 'B';
-    reasons.push('Projet Casa à T+' + inputs.horizonCasa + ' mois (' + (besoinCasa / 1e6).toFixed(1) + ' MDH) → préserver la liquidité.');
-    // Check quels scénarios sont SOUS le besoin à horizon Casa
+    const sumTendu = projetsTendus.reduce((s, p) => s + p.amount, 0);
+    reasons.push(projetsTendus.length === 1
+      ? projetsTendus[0].label + ' à T+' + projetsTendus[0].month + ' mois (' + (projetsTendus[0].amount / 1e6).toFixed(1) + ' MDH) → préserver la liquidité.'
+      : projetsTendus.length + ' projets tendus ≤ 24 mois (' + (sumTendu / 1e6).toFixed(1) + ' MDH cumulés) → préserver la liquidité.');
+    // Warnings par scénario si la liquidité T+24m ne couvre PAS le cumul des
+    // projets tendus (pire cas : tous doivent être payés vers la même date).
+    const hTendu = projetsTendus[0].month;  // on prend le plus proche
+    const hIdx = casaPoints.indexOf(hTendu);
+    const hIdxSafe = hIdx >= 0 ? hIdx : 1;
     ['A', 'B', 'C', 'D'].forEach(k => {
-      if (scenarios[k].liquidite[hCasaSafe] < besoinCasa * 0.95) {
-        warnings.push({ scenario: k, msg: 'Liquidité ' + k + ' à T+' + inputs.horizonCasa + 'm = ' + (scenarios[k].liquidite[hCasaSafe] / 1e6).toFixed(2) + ' MDH < besoin Casa ' + (besoinCasa / 1e6).toFixed(1) + ' MDH.' });
+      if (scenarios[k].liquidite[hIdxSafe] < sumTendu * 0.95) {
+        warnings.push({ scenario: k, msg: 'Liquidité ' + k + ' à T+' + hTendu + 'm = ' + (scenarios[k].liquidite[hIdxSafe] / 1e6).toFixed(2) + ' MDH < projets tendus cumulés ' + (sumTendu / 1e6).toFixed(1) + ' MDH.' });
       }
     });
-  } else if (besoinCasa === 0) {
+  } else if (besoinCasa === 0 && !(inputs.proj2Amount > 0) && !(inputs.proj3Amount > 0)) {
     recommended = 'C';
-    reasons.push('Pas de projet Casa → maximiser le patrimoine final via margin IBKR (simple & efficace).');
+    reasons.push('Aucun projet immo additionnel → maximiser le patrimoine final via margin IBKR (simple & efficace).');
     reasons.push('Les 4 scénarios convergent avec épargne mensuelle forte (' + inputs.epargneEUR + ' €/mois).');
-  } else if (inputs.horizonCasa >= 36) {
+  } else {
+    // Projets présents mais tous ≥ 36 mois (= lointains)
     recommended = 'C';
-    reasons.push('Horizon Casa ≥ 36 mois → tous les scénarios deviennent viables, choix selon préférence.');
+    reasons.push('Projets lointains (≥ 36 mois) → tous les scénarios deviennent viables, choix selon préférence.');
   }
 
   if (inputs.marginCurrency === 'JPY') {

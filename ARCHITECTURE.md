@@ -3924,3 +3924,58 @@ Module `computeFiscaliteMRE` (engine.js §"PLAN LONG-TERME + FISCALITÉ MRE") ex
 - CLAUDE.md Data Update Cheatsheet enrichi (MONTHLY_INCOMES, MARGIN_RATES, IMMO_PRESETS, IMMO_MAROC_FEES)
 - Anti-patterns ajoutés : `prop.cashFlow.*`, `pos.platform` filter, IR flat
 
+---
+
+## §63 — v315 : Robustesse — auto-feed épargne + multi-projets + coeff sécurité + €STR actualisé (18 avril 2026)
+
+**4 upgrades de robustesse** suite à l'audit A1/A2/A3/A9 :
+
+### A1 — Auto-feed épargne depuis cash-flow consolidé
+**Avant** : champ "Épargne mensuelle" de Financement Immo saisi à la main (7 000 € hardcodés au montage du DOM). Incohérence possible avec `computeCashFlow(state).netSavings` calculé ailleurs.
+
+**Après** : au **premier rendu** de `renderImmoFinancingView`, le champ est auto-alimenté depuis `computeCashFlow(state, state.portfolio, fx).netSavings` (arrondi, plancher 0).
+- Fonction `syncEpargneFromCashFlow(state)` dans render.js (~6524).
+- Guard `_immoFinEpargneAutoFed` (module-level) : **une seule fois** par session, pour ne pas écraser une saisie manuelle volontaire.
+- Affichage sous l'input : breakdown "Source : revenus nets − charges (X k€/mois − Y k€/mois)".
+
+### A2 — Reco multi-projets courts
+**Avant** : `computeImmoFinancing` ne regardait que `besoinCasa` + `horizonCasa` pour déclencher le scénario B (conservation liquidité). Les inputs `proj2Amount/Month` et `proj3Amount/Month` saisis dans l'UI étaient ignorés dans la reco.
+
+**Après** : construction d'une liste `projetsTendus = [...]` en filtrant tous les projets ≤ 24 mois (Casa + Proj2 + Proj3). Si **au moins un** projet tendu existe :
+- Reco → scénario **B** (100 % épargne, préservation liquidité)
+- Justification listée dans `reasons[]` avec cumul (ex : "2 projets tendus ≤ 24 mois (0.8 MDH cumulés) → préserver la liquidité").
+- `hTendu` prend le **projet le plus proche** (Casa si présent, sinon le premier défini).
+
+### A3 — Coeff sécurité collatéral 0.75
+**Avant** : `liquiditeAtMonth(months, scenario) = VF(months) × (1 + ltvTarget)` supposait qu'on pouvait tirer 100 % de la capacité margin IBKR en cash pour un projet. Irréaliste — IBKR applique un haircut variable selon la volatilité du collateral, et un margin call peut forcer une liquidation forcée en bas de cycle.
+
+**Après** :
+```js
+const SAFETY_COEFF = 0.75;  // buffer 25 % pour haircut + margin call
+const liquiditeMult = 1 + ltvTarget * SAFETY_COEFF;
+const liquiditeAtMonth = (months, scenario) => VF(months) * liquiditeMult;
+```
+- À LTV 0.30 : `1 + 0.30 × 0.75 = 1.225` (contre 1.30 auparavant) → −5.75 % de capacité projet affichée.
+- Reflète le comportement réel : on ne doit JAMAIS utiliser le dernier euro de capacité margin, sous peine de forced liquidation si marchés baissent de 10-15 %.
+- Rend le comparateur plus conservateur (prudence en tête, pas en bas).
+
+### A9 — MARGIN_RATES.EUR 3.1 % → 4.3 %
+**Avant** : `MARGIN_RATES.EUR = 0.031` (supposait €STR ~1.6 % niveau 2024 + spread 1.5 %).
+
+**Après** : `MARGIN_RATES.EUR = 0.043` (€STR ~3.0 % en 2025-2026 + spread 1.3 %).
+- Impacte le calcul du coût margin dans le scénario D (100 % margin) et la simulation hybride scénario C.
+- Note data.js : "À vérifier semestriellement contre la courbe €STR BCE".
+- Idéalement : fetch temps réel via API ECB — mais hors scope static GitHub Pages (nécessiterait proxy CORS).
+
+**Bump cache** : `?v=314` → `?v=315` sur 13 imports (app.js×7, charts.js×4, simulators.js×2, index.html×1) + `APP_VERSION` dans data.js.
+
+**Tests non-régression** :
+- [ ] Au montage du module Financement Immo : "Épargne mensuelle" pré-rempli depuis cash-flow (pas 7 000 hardcodé)
+- [ ] Input sous le champ affiche "Source : revenus nets − charges (X k€ − Y k€)"
+- [ ] Modifier manuellement le champ ne le fait pas regénérer automatiquement au refresh (sticky après override)
+- [ ] Avec Casa 500 K MAD à T+12 → reco B avec raison "Casa à T+12 mois"
+- [ ] Avec Casa + Proj2 300 K à T+18 → reco B avec raison "2 projets tendus ≤ 24 mois (0.8 MDH cumulés)"
+- [ ] Avec seulement Proj2 à T+36 (> 24) → reco retombe sur A (100 % margin)
+- [ ] Capacité projet scénario A LTV 0.30 : affichée ≈ NAV × 1.225 (pas × 1.30)
+- [ ] Coût margin scénario D affiche taux EUR 4.3 % (pas 3.1 %)
+
