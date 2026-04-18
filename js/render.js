@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=312';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=312';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=313';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=313';
 
 // ---- Generic table sort utility ----
 /**
@@ -6585,10 +6585,12 @@ function applyImmoFinPreset(presetId, state) {
     noteEl.textContent = text;
   }
   // Store preset meta pour que le render les passe au compute
+  // v313 (A6) : apportRatio lu depuis preset.apportRatio (data-driven)
+  //             plutôt que hardcodé sur preset.country.
   if (prixEl) {
     prixEl.dataset.feesPct = preset.feesPct;
     prixEl.dataset.country = preset.country;
-    prixEl.dataset.apportRatio = preset.country === 'AE' ? 0.50 : 0.20;
+    prixEl.dataset.apportRatio = preset.apportRatio != null ? preset.apportRatio : 0.20;
   }
 }
 
@@ -6678,7 +6680,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=312').then(m => {
+  import('./charts.js?v=313').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
