@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=324';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=324';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=324';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=324';
+import { fmt, fmtAxis } from './render.js?v=325';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=325';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=325';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=325';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -5008,20 +5008,32 @@ export function buildImmoFinLtvChart(result) {
 }
 
 /**
- * Chart 3 : Test de stress liquidité projet Casa. v323 — rework premium.
+ * Chart 3 : Test de stress liquidité projet Casa. v325 — redesign UX senior.
  * X = T+6, T+12, T+18 mois (horizons actionnables pour décision Casa <2 ans).
  * Y = liquidité mobilisable en MDH.
  * Par scénario (A/B/C) : 1 barre à la valeur PLANCHER (0 % marché, épargne
  *                        cash linéaire) + error bar étendue jusqu'au PLAFOND
  *                        (+20 % marché, épargne DCA à +10 % moyen).
  *
- * v323 — refonte visuelle :
- *   - Fill = couleur IDENTITÉ du scénario (pastel) + border en scénario plein.
- *     Les swatches de légende reflètent l'identité scénario (pas le feu tricolore).
- *   - Statut encodé via un PILL coloré à droite du label MDH (✓ / ⚠ / ✗).
- *   - Padding top pour éviter le clipping des labels de pic.
- *   - Tick Y compact : "2 M" au lieu de "2.0 MDH" (le titre d'axe porte l'unité).
- *   - Error bar plus fine avec teeing vertical au lieu de horizontal pour look cleaner.
+ * v325 — principes de design :
+ *   1. Hiérarchie visuelle : STATUT (stoplight) = signal primaire, SCÉNARIO
+ *      = identifiant secondaire (lettre sous la barre). Les couleurs portent
+ *      l'information critique (« puis-je financer Casa ? »).
+ *   2. Fills stoplight pastel rgba(color, 0.28) + borders solides (1.5px) en
+ *      mêmes hues — signal clair at-a-glance.
+ *   3. Label inline au-dessus de chaque barre, SINGLE LINE, typo mixte :
+ *      `2.58 M  ✗ 65%` avec MDH en text primary 11px bold et statut en
+ *      status color 10.5px bold — pas de pill/background (moins de chart junk,
+ *      plus Bloomberg / FT-style).
+ *   4. Scénarios identifiés par lettre "A"/"B"/"C" drawn juste sous la barre
+ *      entre la bar et le tick X-axis ("T+6 mois"). Caption en bas du chart
+ *      explicite "A · Cash intégral · B · Prêt banque · C · Cash + margin IBKR".
+ *   5. Légende réduite à l'essentiel : 3 items statut (✓/≈/✗) + 1 item besoin
+ *      dashed line. Pas de redondance scénario (la caption + letter-ticks gèrent).
+ *   6. Error bars : whisker muté textSecondary + cap + terminal dot — discret,
+ *      ne concurrence pas les fills stoplight.
+ *   7. yMax calculé avec 12 % de headroom pour garantir aucun clipping.
+ *   8. Axes DM Sans, grille horizontale uniquement, tooltip sombre premium.
  */
 export function buildImmoFinStressChart(result) {
   const canvas = document.getElementById('immoFinStressChart');
@@ -5052,8 +5064,10 @@ export function buildImmoFinStressChart(result) {
     return `rgba(${r},${g},${b},${a})`;
   };
 
-  // Un dataset bar par scénario (A/B/C), chaque data point = valeur plancher.
-  // On attache aussi `plafondMDH` pour draw error bars + tooltip.
+  // v325 — Un dataset bar par scénario (A/B/C), chaque data point = valeur
+  // plancher. Fills et borders sont des ARRAYS per-bar stoplight : la couleur
+  // primaire encode le STATUT (✓/≈/✗), pas l'identité du scénario. L'identité
+  // du scénario est portée par la lettre sous la barre + caption en bas.
   const datasets = ['A', 'B', 'C'].map(k => {
     const sc = scenarios[k];
     const planch = (sc.stress?.plancher || [0, 0, 0]).map(v => v / 1e6);
@@ -5065,14 +5079,17 @@ export function buildImmoFinStressChart(result) {
       plafondMDH: plafd,              // consommé par plugin error-bar + tooltip
       planchMDH: planch,
       statuses,                        // consommé par stressLabelPlugin
-      backgroundColor: hexToRgba(sc.color, 0.22),
-      borderColor: sc.color,
-      borderWidth: 1.25,
+      scenarioKey: k,                  // consommé par scenLetterPlugin
+      scenarioColor: sc.color,         // couleur d'identité (conservée pour ref tooltip)
+      // Stoplight fills + borders per-bar (pas scénario).
+      backgroundColor: statuses.map(s => hexToRgba(s.color, 0.26)),
+      borderColor: statuses.map(s => s.color),
+      borderWidth: 1.5,
       borderRadius: 6,
       borderSkipped: false,
-      barPercentage: 0.68,
-      categoryPercentage: 0.82,
-      hoverBackgroundColor: hexToRgba(sc.color, 0.38),
+      barPercentage: 0.62,
+      categoryPercentage: 0.80,
+      hoverBackgroundColor: statuses.map(s => hexToRgba(s.color, 0.40)),
     };
   });
 
@@ -5101,16 +5118,21 @@ export function buildImmoFinStressChart(result) {
   );
   const computedYMax = Math.ceil(maxData * 1.12 * 2) / 2;
 
-  // v323 — Plugin error bar : moustache fine verticale du sommet de la barre
-  // (plancher) jusqu'à la valeur plafond, avec petits caps verticaux.
+  // v325 — Plugin error bar : moustache NEUTRE (textSecondary) + cap + terminal
+  // dot. Le muted = « upside marché » est un contexte secondaire, pas la signal
+  // primaire (= stoplight statut). Concurrencer visuellement la barre serait
+  // du chart-junk. Couleur neutre = lecture claire, barre qui parle d'abord.
+  const whiskerColor = DESIGN_TOKENS.textSecondary;
   const errorBarPlugin = {
     id: 'immoFinStressErrorBars',
     afterDatasetsDraw(chart) {
       const c = chart.ctx;
       const yScale = chart.scales.y;
       c.save();
-      c.lineWidth = 1.25;
+      c.lineWidth = 1.1;
       c.lineCap = 'round';
+      c.strokeStyle = whiskerColor;
+      c.fillStyle = whiskerColor;
       chart.data.datasets.forEach((ds, dsIdx) => {
         if (ds.type === 'line') return;
         if (!Array.isArray(ds.plafondMDH)) return;
@@ -5123,7 +5145,6 @@ export function buildImmoFinStressChart(result) {
           const xC = bar.x;
           const yTop = yScale.getPixelForValue(plafond);
           const yBot = bar.y;                        // top of plancher bar
-          c.strokeStyle = ds.borderColor || DESIGN_TOKENS.textSecondary;
           // vertical line (whisker)
           c.beginPath();
           c.moveTo(xC, yBot);
@@ -5136,8 +5157,7 @@ export function buildImmoFinStressChart(result) {
           c.stroke();
           // top dot (small filled circle) — marque le plafond
           c.beginPath();
-          c.arc(xC, yTop, 2.25, 0, 2 * Math.PI);
-          c.fillStyle = ds.borderColor || DESIGN_TOKENS.textSecondary;
+          c.arc(xC, yTop, 2, 0, 2 * Math.PI);
           c.fill();
         });
       });
@@ -5145,19 +5165,21 @@ export function buildImmoFinStressChart(result) {
     },
   };
 
-  // v324 — Labels inline horizontaux : "2.58 M  [✗ 65%]" sur une seule ligne.
-  // Corrige le bug v323 où MDH text et pill se superposaient verticalement avec
-  // seulement 2px de gap. Horizontal = pas de risque de superposition + tient
-  // sur 14px de hauteur (au lieu de 28px en stack vertical), donc besoin de
-  // padding top plus modeste.
+  // v325 — Labels inline multi-couleur, single line, PAS de pill/background :
+  //   `2.58 M  ✓ 65%`
+  // MDH en text primary 11px bold, statut en status.color 10.5px bold, gap 6px.
+  // Pas de background = moins de chart junk, style FT/Bloomberg où chaque
+  // pixel encre compte. Les deux segments partagent la même baseline alphabétique
+  // pour un alignement typographique propre.
   const stressLabelPlugin = {
     id: 'immoFinStressLabels',
     afterDatasetsDraw(chart) {
       const c = chart.ctx;
       const yScale = chart.scales.y;
       c.save();
-      const mdhFont = '600 10.5px "DM Sans", sans-serif';
-      const pillFont = '700 10px "DM Sans", sans-serif';
+      const mdhFont = '700 11px "DM Sans", sans-serif';
+      const statusFont = '700 10.5px "DM Sans", sans-serif';
+      const gapPx = 6;
       chart.data.datasets.forEach((ds, dsIdx) => {
         if (ds.type === 'line') return;
         const meta = chart.getDatasetMeta(dsIdx);
@@ -5167,64 +5189,102 @@ export function buildImmoFinStressChart(result) {
           const status = (ds.statuses && ds.statuses[idx]) || null;
           const plafond = Array.isArray(ds.plafondMDH) ? ds.plafondMDH[idx] : null;
 
-          // Ancre verticale : 9px au-dessus du plafond (ou de la barre plancher).
-          // C'est la BASELINE du texte (textBaseline='alphabetic'), donc le texte
-          // s'étend ~8px au-dessus et 2px au-dessous de cette ligne.
+          // Ancre verticale : 10px au-dessus du plafond (ou du sommet de la barre
+          // plancher si pas de plafond distinct). C'est la BASELINE du texte.
           const yAnchor = (plafond != null && plafond > val)
-            ? yScale.getPixelForValue(plafond) - 9
-            : bar.y - 9;
+            ? yScale.getPixelForValue(plafond) - 10
+            : bar.y - 10;
 
           const mdhTxt = val.toFixed(2) + ' M';
-          const hasPill = (status != null && besoinCasa > 0);
-          const pctNum = hasPill ? Math.round((val * 1e6 / besoinCasa) * 100) : null;
+          const hasStatus = (status != null && besoinCasa > 0);
+          const pctNum = hasStatus ? Math.round((val * 1e6 / besoinCasa) * 100) : null;
 
           // Mesure MDH
           c.font = mdhFont;
           const mdhW = c.measureText(mdhTxt).width;
 
-          // Mesure pill (si applicable)
-          let pillW = 0, pillText = '';
-          const pillPadX = 6, pillH = 14;
-          if (hasPill) {
-            c.font = pillFont;
-            pillText = status.icon + ' ' + pctNum + '%';
-            pillW = c.measureText(pillText).width + pillPadX * 2;
+          // Mesure status (si applicable)
+          let statusW = 0, statusText = '';
+          if (hasStatus) {
+            c.font = statusFont;
+            statusText = status.icon + ' ' + pctNum + '%';
+            statusW = c.measureText(statusText).width;
           }
 
-          const gap = hasPill ? 5 : 0;
-          const totalW = mdhW + gap + pillW;
+          const gap = hasStatus ? gapPx : 0;
+          const totalW = mdhW + gap + statusW;
           const startX = bar.x - totalW / 2;
 
-          // Layer 1 : MDH text à gauche, baseline alphabétique pour alignement propre avec pill.
+          // Layer 1 : MDH text à gauche, text primary.
           c.font = mdhFont;
           c.textAlign = 'left';
           c.textBaseline = 'alphabetic';
           c.fillStyle = DESIGN_TOKENS.text;
           c.fillText(mdhTxt, startX, yAnchor);
 
-          // Layer 2 : pill inline à droite du MDH, vertically centered sur la x-height du MDH.
-          if (hasPill) {
-            const pillX = startX + mdhW + gap;
-            // Centre vertical du MDH (alphabetic) ≈ yAnchor - 4 (pour 10.5px font).
-            const pillY = yAnchor - pillH + 3;
-            // Background tinted
-            c.fillStyle = hexToRgba(status.color, 0.14);
-            c.beginPath();
-            if (c.roundRect) {
-              c.roundRect(pillX, pillY, pillW, pillH, 7);
-            } else {
-              c.rect(pillX, pillY, pillW, pillH);
-            }
-            c.fill();
-            // Text
-            c.font = pillFont;
+          // Layer 2 : status text à droite du MDH, même baseline, status color.
+          if (hasStatus) {
+            c.font = statusFont;
             c.fillStyle = status.color;
-            c.textAlign = 'center';
-            c.textBaseline = 'middle';
-            c.fillText(pillText, pillX + pillW / 2, pillY + pillH / 2 + 0.5);
+            c.fillText(statusText, startX + mdhW + gap, yAnchor);
           }
         });
       });
+      c.restore();
+    },
+  };
+
+  // v325 — Sub-tick identifiant le scénario (lettre "A"/"B"/"C") DESSOUS chaque
+  // barre, entre la barre et le tick X-axis "T+6 mois". Typo DM Sans 10px bold
+  // en textMuted : discret mais lisible. Permet de désambiguïser les 3 barres
+  // d'un même horizon sans recourir à une légende lourde.
+  const scenLetterPlugin = {
+    id: 'immoFinStressScenLetters',
+    afterDatasetsDraw(chart) {
+      const c = chart.ctx;
+      const yScale = chart.scales.y;
+      c.save();
+      c.font = '700 10px "DM Sans", sans-serif';
+      c.fillStyle = DESIGN_TOKENS.textMuted;
+      c.textAlign = 'center';
+      c.textBaseline = 'top';
+      const yBase = yScale.getPixelForValue(0) + 5;
+      chart.data.datasets.forEach((ds, dsIdx) => {
+        if (ds.type === 'line') return;
+        if (!ds.scenarioKey) return;
+        const meta = chart.getDatasetMeta(dsIdx);
+        meta.data.forEach((bar) => {
+          c.fillText(ds.scenarioKey, bar.x, yBase);
+        });
+      });
+      c.restore();
+    },
+  };
+
+  // v325 — Caption en bas du chart : liste les scénarios avec leur identité
+  // compacte ("A · Cash intégral · B · Prêt banque · C · Cash + margin IBKR").
+  // Évite la légende surchargée tout en expliquant A/B/C pour lecteurs first-time.
+  const scenCaptionPlugin = {
+    id: 'immoFinStressScenCaption',
+    afterDraw(chart) {
+      const c = chart.ctx;
+      const { chartArea, width } = chart;
+      if (!chartArea) return;
+      c.save();
+      c.font = '400 10px "DM Sans", sans-serif';
+      c.fillStyle = DESIGN_TOKENS.textMuted;
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      // labels courts — on évite les libellés verbeux scenarios[k].label
+      // qui sont longs ("Cash intégral (Vitry à clore)" etc.).
+      const parts = [
+        { k: 'A', t: 'Cash intégral' },
+        { k: 'B', t: 'Prêt banque Maroc' },
+        { k: 'C', t: 'Cash + margin IBKR' },
+      ];
+      const sep = '    ';
+      const txt = parts.map(p => p.k + ' · ' + p.t).join(sep);
+      c.fillText(txt, width / 2, chart.height - 4);
       c.restore();
     },
   };
@@ -5235,27 +5295,66 @@ export function buildImmoFinStressChart(result) {
       labels: horizons.map(m => 'T+' + m + ' mois'),
       datasets: besoinCasa > 0 ? [...datasets, besoinLine] : datasets,
     },
-    plugins: [errorBarPlugin, stressLabelPlugin],
+    plugins: [errorBarPlugin, stressLabelPlugin, scenLetterPlugin, scenCaptionPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       layout: {
-        // v324 — padding top réduit grâce au layout inline (pills + MDH sur une
-        // seule ligne = 14px) + yMax explicite calculé pour garder le plafond
-        // en-dessous du haut du chart avec 12 % de marge.
-        padding: { top: 20, right: 8, bottom: 4, left: 4 },
+        // v325 — top: headroom pour labels inline + error bar caps.
+        // bottom: 40px pour accueillir (1) lettre scénario A/B/C, (2) tick X
+        // "T+6 mois", (3) caption scénarios. Right: padding modeste pour le
+        // dernier label inline qui dépasse un peu la barre.
+        padding: { top: 22, right: 12, bottom: 40, left: 4 },
       },
       plugins: {
         legend: {
-          position: 'bottom',
+          position: 'top',
+          align: 'end',
           labels: {
             font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
             color: DESIGN_TOKENS.textSecondary,
             padding: 14,
             usePointStyle: true,
-            pointStyle: 'rectRounded',
             boxWidth: 10,
             boxHeight: 10,
+            // v325 — Légende custom : 3 items statut + 1 item besoin. Remplace
+            // la dérivation Chart.js par-dataset (qui aurait affiché A/B/C avec
+            // la couleur du premier bar stoplight — signal dilué et incohérent).
+            generateLabels: () => [
+              {
+                text: '✓ Suffisant (≥ 100 % besoin)',
+                fillStyle: hexToRgba(DESIGN_TOKENS.success, 0.26),
+                strokeStyle: DESIGN_TOKENS.success,
+                lineWidth: 1.5,
+                pointStyle: 'rectRounded',
+                hidden: false,
+              },
+              {
+                text: '≈ Serré (80–99 %)',
+                fillStyle: hexToRgba(DESIGN_TOKENS.warning, 0.26),
+                strokeStyle: DESIGN_TOKENS.warning,
+                lineWidth: 1.5,
+                pointStyle: 'rectRounded',
+                hidden: false,
+              },
+              {
+                text: '✗ Insuffisant (< 80 %)',
+                fillStyle: hexToRgba(DESIGN_TOKENS.danger, 0.26),
+                strokeStyle: DESIGN_TOKENS.danger,
+                lineWidth: 1.5,
+                pointStyle: 'rectRounded',
+                hidden: false,
+              },
+              {
+                text: 'Besoin Casa · ' + (besoinCasa / 1e6).toFixed(2) + ' MDH',
+                fillStyle: 'transparent',
+                strokeStyle: DESIGN_TOKENS.danger,
+                lineWidth: 1.5,
+                lineDash: [5, 4],
+                pointStyle: 'line',
+                hidden: false,
+              },
+            ],
           },
         },
         tooltip: {
@@ -5298,6 +5397,9 @@ export function buildImmoFinStressChart(result) {
           grid: { display: false },
           border: { color: DESIGN_TOKENS.border },
           ticks: {
+            // v325 — padding généreux pour laisser la place au letter sub-tick
+            // (A/B/C) drawn par scenLetterPlugin juste sous la barre.
+            padding: 18,
             color: DESIGN_TOKENS.textSecondary,
             font: { size: 11, family: '"DM Sans", sans-serif', weight: '600' },
           },
