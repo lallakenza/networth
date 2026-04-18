@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=304';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY } from './data.js?v=305';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3776,6 +3776,21 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     facturationNet: amineFacturationNet, // net position from facturation site (Augustin - Benoit)
     totalAssets: amineTotalAssets,
     cashTotal: amineCashTotal,
+    // v305 — Patrimoine financier mobilisable = cash (UAE + EUR + Maroc +
+    // broker) + positions liquides (IBKR actions + ESPP shares + SGTM).
+    // Exclut : immo (vitryEquity), véhicules, créances/facturation (timing
+    // incertain), TVA (dette). Utilisé pour calibrage "cash war chest" +
+    // liquidité mobilisable rapidement si besoin.
+    financialMobilisable: amineCashTotal + amineIbkrForActions + amineEsppShares + amineSgtm,
+    financialMobilisableBreakdown: {
+      uae: amineUae,                          // Mashreq + Wio × 3
+      revolutEUR: amineRevolutEUR,            // Revolut UAE (EUR)
+      moroccoCash: amineMoroccoCash,          // Attijari
+      brokerCash: amineBrokerCash,            // IBKR EUR/USD + ESPP cash
+      ibkrPositions: amineIbkrForActions,     // IBKR positions (hors broker cash ré-classé)
+      esppShares: amineEsppShares,            // ESPP shares (hors cash UBS)
+      sgtm: amineSgtm,                        // SGTM Casablanca
+    },
   };
 
   // ---- NEZHA ----
@@ -3890,6 +3905,19 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         }, 0) || 28000
       : 28000,
     cash: nezhaCash,
+    // v305 — Patrimoine financier mobilisable côté Nezha.
+    // Même définition que pour Amine : cash (tous comptes) + positions
+    // liquides (ESPP actions + SGTM). Nezha n'a pas d'IBKR direct propre
+    // (compte Amine avec ownership ratio), donc ESPP + SGTM uniquement.
+    financialMobilisable: nezhaCash + nezhaEsppForActions + nezhaSgtm,
+    financialMobilisableBreakdown: {
+      cashFrance: nezhaCashFranceEUR,         // Revolut + CM + LivretA + LCL
+      cashMaroc:  nezhaCashMarocEUR,          // Attijari MAD
+      cashUAE:    nezhaCashUAE_EUR,           // Wio AED
+      brokerCash: nezhaBrokerCash,            // ESPP cash UBS
+      esppShares: nezhaEsppForActions,        // ESPP Nezha (shares only)
+      sgtm:       nezhaSgtm,                  // SGTM Casablanca (Nezha shares)
+    },
   };
 
   // ---- COUPLE ----
@@ -3922,6 +3950,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nbBiens: nbBiens,
     cashTotal: amineCashTotal + nezhaCash, // includes broker cash (IBKR EUR/USD + ESPP)
     actionsTotal: amineIbkrForActions + amineEsppShares + amineSgtm + nezhaEsppForActions + nezhaSgtm,
+    // v305 — Mobilisable couple = Amine mobilisable + Nezha mobilisable.
+    // Identité : cashTotal + actionsTotal (par définition).
+    financialMobilisable: amine.financialMobilisable + nezha.financialMobilisable,
     autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
     autreVehicles: amineVehicles,
     autreCreancesPro: amineRecvPro,

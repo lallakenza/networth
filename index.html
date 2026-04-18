@@ -3394,6 +3394,16 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement Moyen</div></div>
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label">Co&ucirc;t Inflation /mois</div></div>
     <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash Productif</div></div>
+    <!-- v305 — Patrimoine Financier Mobilisable : cash + positions liquides
+         (IBKR + ESPP + SGTM), hors immo/véhicules/créances/TVA. Per-owner
+         breakdown visible dans l'insight ci-dessous. Réponse aux questionnaires
+         "combien de liquidité as-tu mobilisable aujourd'hui ?" -->
+    <div class="kpi" style="border-top-color:#805ad5"
+         title="Cash (UAE + EUR + Maroc + brokerage) + IBKR positions + ESPP + SGTM. Amine seul par défaut ; voir insight pour détail Amine/Nezha/Couple.">
+      <div class="value" id="kpiFinancialMobilisable" data-eur="0">--</div>
+      <div class="label">Mobilisable (Amine)</div>
+      <div class="sub" id="kpiFinancialMobilisableSub" style="font-size:10px;color:var(--gray);margin-top:4px">--</div>
+    </div>
   </div>
   <div class="kpi-insight-bar" id="insight-cash"></div>
 
@@ -3710,7 +3720,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=304"></script>
+<script type="module" src="js/app.js?v=305"></script>
 
 </body>
 </html>

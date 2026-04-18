@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=304';
-import { getGrandTotal } from './engine.js?v=304';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=305';
+import { getGrandTotal } from './engine.js?v=305';
 
 // ---- Generic table sort utility ----
 /**
@@ -732,12 +732,74 @@ function renderDynamicInsights(state, view) {
     const posAccounts = cv.accounts.filter(a => !a.isDebt && a.valEUR > 50);
     const bestAcct = posAccounts.reduce((best, a) => (a.yield || 0) > (best.yield || 0) ? a : best, { yield: 0 });
     const worstBig = posAccounts.filter(a => a.valEUR > 1000).reduce((w, a) => (a.yield || 0) < (w.yield || Infinity) ? a : w, { yield: Infinity });
+    // v305 — Patrimoine Financier Mobilisable detailed breakdown
+    // (Amine / Nezha / Couple) pour répondre directement aux questionnaires
+    // "quel est ton patrimoine financier mobilisable ?" sans avoir à
+    // faire le calcul mental. Détail par bucket (cash par zone + positions
+    // liquides) + tranches en MAD.
+    const mobA = state.amine.financialMobilisable || 0;
+    const mobN = state.nezha.financialMobilisable || 0;
+    const mobC = state.couple.financialMobilisable || 0;
+    const bA = state.amine.financialMobilisableBreakdown || {};
+    const bN = state.nezha.financialMobilisableBreakdown || {};
+    const MAD_RATE = 10.85;
+    const mobBlock =
+      '<div style="margin-top:14px;padding:12px;background:rgba(128,90,213,0.08);border-left:3px solid #805ad5;border-radius:6px">' +
+      '<strong>💼 Patrimoine Financier Mobilisable</strong> <span style="font-size:11px;color:var(--gray)">(cash + positions liquides, hors immo/véhicules/créances/TVA)</span><br>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px;font-size:12px">' +
+        // Amine column
+        '<div>' +
+          '<div style="font-weight:700;color:var(--accent);margin-bottom:6px">Amine : <span style="color:var(--text)">' + fmt(mobA) + '</span> <span style="color:var(--gray)">(' + (mobA * MAD_RATE / 1_000_000).toFixed(2) + ' MDH)</span></div>' +
+          '<div style="color:var(--gray);line-height:1.7">' +
+            '• Cash UAE : ' + fmt(bA.uae || 0) + '<br>' +
+            '• Cash EUR (Revolut) : ' + fmt(bA.revolutEUR || 0) + '<br>' +
+            '• Cash Maroc (Attijari) : ' + fmt(bA.moroccoCash || 0) + '<br>' +
+            '• Broker cash (IBKR+ESPP) : ' + fmt(bA.brokerCash || 0) + '<br>' +
+            '• IBKR positions : ' + fmt(bA.ibkrPositions || 0) + '<br>' +
+            '• ESPP (' + Math.round((bA.esppShares || 0)) + ') : ' + fmt(bA.esppShares || 0) + '<br>' +
+            '• SGTM : ' + fmt(bA.sgtm || 0) +
+          '</div>' +
+        '</div>' +
+        // Nezha column
+        '<div>' +
+          '<div style="font-weight:700;color:var(--gold);margin-bottom:6px">Nezha : <span style="color:var(--text)">' + fmt(mobN) + '</span> <span style="color:var(--gray)">(' + (mobN * MAD_RATE / 1_000_000).toFixed(2) + ' MDH)</span></div>' +
+          '<div style="color:var(--gray);line-height:1.7">' +
+            '• Cash France : ' + fmt(bN.cashFrance || 0) + '<br>' +
+            '• Cash Maroc : ' + fmt(bN.cashMaroc || 0) + '<br>' +
+            '• Cash UAE (Wio) : ' + fmt(bN.cashUAE || 0) + '<br>' +
+            '• Broker cash (ESPP) : ' + fmt(bN.brokerCash || 0) + '<br>' +
+            '• ESPP : ' + fmt(bN.esppShares || 0) + '<br>' +
+            '• SGTM : ' + fmt(bN.sgtm || 0) +
+          '</div>' +
+        '</div>' +
+        // Couple column
+        '<div>' +
+          '<div style="font-weight:700;color:#805ad5;margin-bottom:6px">Couple : <span style="color:var(--text)">' + fmt(mobC) + '</span> <span style="color:var(--gray)">(' + (mobC * MAD_RATE / 1_000_000).toFixed(2) + ' MDH)</span></div>' +
+          '<div style="color:var(--gray);line-height:1.7;font-style:italic">' +
+            'Tranche : ' +
+            (mobC * MAD_RATE < 4_000_000 ? '<span style="color:var(--red)">&lt; 4 MDH</span>' :
+             mobC * MAD_RATE < 6_000_000 ? '<span style="color:#dd6b20">4-6 MDH</span>' :
+             mobC * MAD_RATE < 9_000_000 ? '<span style="color:var(--green)">6-9 MDH</span>' :
+                                            '<span style="color:var(--green);font-weight:700">&gt; 9 MDH</span>') +
+            '<br><span style="font-size:10.5px">Amine seul : ' +
+            (mobA * MAD_RATE < 4_000_000 ? '<span style="color:var(--red)">&lt; 4 MDH</span>' :
+             mobA * MAD_RATE < 6_000_000 ? '<span style="color:#dd6b20">4-6 MDH</span>' :
+             mobA * MAD_RATE < 9_000_000 ? '<span style="color:var(--green)">6-9 MDH</span>' :
+                                            '<span style="color:var(--green);font-weight:700">&gt; 9 MDH</span>') +
+            '</span><br><br>' +
+            '<span style="font-size:10px">Exclu : immo, véhicules, créances, TVA (patrimoine non-mobilisable)</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '</div>';
+
     cashIns.innerHTML =
       '<strong>Insights Cash :</strong><br>' +
       '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
       '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : ' + fmt(cv.totalNonYielding * 0.05) + '.<br>' +
       (bestAcct.label ? '- Meilleur rendement : ' + bestAcct.label + ' (' + ((bestAcct.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
-      (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '');
+      (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '') +
+      mobBlock;
   }
 
   // ── Other insights (expand-other) ──
@@ -2913,6 +2975,22 @@ function renderCashView(state) {
   setText('kpiCashInflation', '-' + fmt(cv.monthlyInflationCost));
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
   setText('kpiCashProductive', fmt(cv.totalYielding));
+
+  // v305 — Patrimoine Financier Mobilisable (KPI + sub-line)
+  // Amine seul par défaut (le questionnaire "combien as-tu de mobilisable ?"
+  // concerne typiquement la personne, pas le couple). Sub-line affiche le
+  // total couple pour contexte.
+  const mobAmine  = state.amine.financialMobilisable || 0;
+  const mobNezha  = state.nezha.financialMobilisable || 0;
+  const mobCouple = state.couple.financialMobilisable || 0;
+  setEur('kpiFinancialMobilisable', mobAmine);
+  // Sub-line: couple total + conversion MAD pour les questionnaires en MDH
+  const mobAmineMAD = mobAmine * 10.85;   // ~taux MAD/EUR moyen
+  const mobCoupleMAD = mobCouple * 10.85;
+  const mdhAmine = (mobAmineMAD / 1_000_000).toFixed(2);
+  const mdhCouple = (mobCoupleMAD / 1_000_000).toFixed(2);
+  setText('kpiFinancialMobilisableSub',
+    '≈ ' + mdhAmine + ' MDH · couple ' + fmt(mobCouple) + ' (' + mdhCouple + ' MDH)');
 
   // Accounts table — grouped by owner with subtotals
   const tbody = document.getElementById('cashAccountsTbody');
