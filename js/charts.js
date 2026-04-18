@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=323';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=323';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=323';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=323';
+import { fmt, fmtAxis } from './render.js?v=324';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=324';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=324';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=324';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -5089,6 +5089,18 @@ export function buildImmoFinStressChart(result) {
     order: 0,
   };
 
+  // v324 — Calcul explicite du yMax avec headroom pour éviter clipping des
+  // labels au-dessus du plafond. On part du max(plafond, besoin, plancher) et
+  // on ajoute 12% de marge. Ceiling au 0.5 M le plus proche pour ticks propres.
+  const allPlafondMDH = datasets.flatMap(d => d.plafondMDH || []);
+  const allPlancherMDH = datasets.flatMap(d => d.planchMDH || []);
+  const maxData = Math.max(
+    besoinCasa / 1e6,
+    ...(allPlafondMDH.length ? allPlafondMDH : [0]),
+    ...(allPlancherMDH.length ? allPlancherMDH : [0]),
+  );
+  const computedYMax = Math.ceil(maxData * 1.12 * 2) / 2;
+
   // v323 — Plugin error bar : moustache fine verticale du sommet de la barre
   // (plancher) jusqu'à la valeur plafond, avec petits caps verticaux.
   const errorBarPlugin = {
@@ -5133,16 +5145,18 @@ export function buildImmoFinStressChart(result) {
     },
   };
 
-  // v323 — Labels au-dessus des barres : valeur MDH + pill de statut coloré
-  // avec icône (✓ / ≈ / ✗). Pill dessiné en deux passes pour que le texte
-  // soit bien centré verticalement.
+  // v324 — Labels inline horizontaux : "2.58 M  [✗ 65%]" sur une seule ligne.
+  // Corrige le bug v323 où MDH text et pill se superposaient verticalement avec
+  // seulement 2px de gap. Horizontal = pas de risque de superposition + tient
+  // sur 14px de hauteur (au lieu de 28px en stack vertical), donc besoin de
+  // padding top plus modeste.
   const stressLabelPlugin = {
     id: 'immoFinStressLabels',
     afterDatasetsDraw(chart) {
       const c = chart.ctx;
       const yScale = chart.scales.y;
       c.save();
-      const baseFont = '600 10.5px "DM Sans", sans-serif';
+      const mdhFont = '600 10.5px "DM Sans", sans-serif';
       const pillFont = '700 10px "DM Sans", sans-serif';
       chart.data.datasets.forEach((ds, dsIdx) => {
         if (ds.type === 'line') return;
@@ -5150,32 +5164,51 @@ export function buildImmoFinStressChart(result) {
         meta.data.forEach((bar, idx) => {
           const val = ds.data[idx];
           if (val == null) return;
-          const status = (ds.statuses && ds.statuses[idx]) || { color: DESIGN_TOKENS.textSecondary, icon: '·' };
-          // Y position : on s'ancre au plafond s'il existe + petite marge, sinon au sommet de la barre plancher.
+          const status = (ds.statuses && ds.statuses[idx]) || null;
           const plafond = Array.isArray(ds.plafondMDH) ? ds.plafondMDH[idx] : null;
+
+          // Ancre verticale : 9px au-dessus du plafond (ou de la barre plancher).
+          // C'est la BASELINE du texte (textBaseline='alphabetic'), donc le texte
+          // s'étend ~8px au-dessus et 2px au-dessous de cette ligne.
           const yAnchor = (plafond != null && plafond > val)
-            ? yScale.getPixelForValue(plafond) - 10
-            : bar.y - 6;
+            ? yScale.getPixelForValue(plafond) - 9
+            : bar.y - 9;
+
           const mdhTxt = val.toFixed(2) + ' M';
-          const pctNum = besoinCasa > 0 ? Math.round((val * 1e6 / besoinCasa) * 100) : null;
+          const hasPill = (status != null && besoinCasa > 0);
+          const pctNum = hasPill ? Math.round((val * 1e6 / besoinCasa) * 100) : null;
 
-          // Layer 1 : valeur MDH principale (en couleur texte primaire).
-          c.font = baseFont;
-          c.textAlign = 'center';
-          c.textBaseline = 'bottom';
-          c.fillStyle = DESIGN_TOKENS.text;
-          c.fillText(mdhTxt, bar.x, yAnchor);
+          // Mesure MDH
+          c.font = mdhFont;
+          const mdhW = c.measureText(mdhTxt).width;
 
-          // Layer 2 : pill statut en dessous (si besoin défini).
-          if (pctNum != null) {
+          // Mesure pill (si applicable)
+          let pillW = 0, pillText = '';
+          const pillPadX = 6, pillH = 14;
+          if (hasPill) {
             c.font = pillFont;
-            const pillText = status.icon + ' ' + pctNum + '%';
-            const pillW = c.measureText(pillText).width + 10;
-            const pillH = 14;
-            const pillX = bar.x - pillW / 2;
-            const pillY = yAnchor + 2;
-            // pill background (soft tinted from status color)
-            c.fillStyle = hexToRgba(status.color, 0.12);
+            pillText = status.icon + ' ' + pctNum + '%';
+            pillW = c.measureText(pillText).width + pillPadX * 2;
+          }
+
+          const gap = hasPill ? 5 : 0;
+          const totalW = mdhW + gap + pillW;
+          const startX = bar.x - totalW / 2;
+
+          // Layer 1 : MDH text à gauche, baseline alphabétique pour alignement propre avec pill.
+          c.font = mdhFont;
+          c.textAlign = 'left';
+          c.textBaseline = 'alphabetic';
+          c.fillStyle = DESIGN_TOKENS.text;
+          c.fillText(mdhTxt, startX, yAnchor);
+
+          // Layer 2 : pill inline à droite du MDH, vertically centered sur la x-height du MDH.
+          if (hasPill) {
+            const pillX = startX + mdhW + gap;
+            // Centre vertical du MDH (alphabetic) ≈ yAnchor - 4 (pour 10.5px font).
+            const pillY = yAnchor - pillH + 3;
+            // Background tinted
+            c.fillStyle = hexToRgba(status.color, 0.14);
             c.beginPath();
             if (c.roundRect) {
               c.roundRect(pillX, pillY, pillW, pillH, 7);
@@ -5183,10 +5216,12 @@ export function buildImmoFinStressChart(result) {
               c.rect(pillX, pillY, pillW, pillH);
             }
             c.fill();
-            // pill text
+            // Text
+            c.font = pillFont;
             c.fillStyle = status.color;
+            c.textAlign = 'center';
             c.textBaseline = 'middle';
-            c.fillText(pillText, bar.x, pillY + pillH / 2 + 0.5);
+            c.fillText(pillText, pillX + pillW / 2, pillY + pillH / 2 + 0.5);
           }
         });
       });
@@ -5205,8 +5240,10 @@ export function buildImmoFinStressChart(result) {
       responsive: true,
       maintainAspectRatio: false,
       layout: {
-        // v323 — padding top pour que les labels plafond + pills ne soient pas clippés.
-        padding: { top: 38, right: 8, bottom: 4, left: 4 },
+        // v324 — padding top réduit grâce au layout inline (pills + MDH sur une
+        // seule ligne = 14px) + yMax explicite calculé pour garder le plafond
+        // en-dessous du haut du chart avec 12 % de marge.
+        padding: { top: 20, right: 8, bottom: 4, left: 4 },
       },
       plugins: {
         legend: {
@@ -5281,6 +5318,7 @@ export function buildImmoFinStressChart(result) {
             padding: 8,
           },
           beginAtZero: true,
+          max: computedYMax,
         },
       },
     },
