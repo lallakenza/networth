@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=318';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=318';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=319';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=319';
 
 // ---- Generic table sort utility ----
 /**
@@ -6531,7 +6531,7 @@ function attachKPIInsights(state, view) {
 let _immoFinBound = false;  // guard to avoid double event listener binding
 let _immoFinPatrimoineAutoFed = false;   // v307 — track si patrimoine a déjà été auto-fed
 let _immoFinEpargneAutoFed = false;      // v315 — track si épargne a déjà été auto-fed
-let _immoFinChartMode = 'absolu';        // v310 — absolu | zoom | delta
+let _immoFinChartMode = 'delta';         // v310 | v319 — absolu | zoom | delta. Défaut = delta : c'est la vue la plus actionnable (montre combien chaque scénario rapporte VS le baseline cash intégral).
 
 /**
  * v315 — Sync le champ "épargne mensuelle" (input EUR) depuis le cash-flow
@@ -6723,12 +6723,13 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=318').then(m => {
+  import('./charts.js?v=319').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
     if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
-    if (typeof m.buildImmoFinCashProjectionChart === 'function') m.buildImmoFinCashProjectionChart(result);
+    // v319 — buildImmoFinCashProjectionChart supprimé (chart "Évolution du
+    // cash mobilisable" retiré du DOM car illisible à 25 ans d'horizon).
   });
 
   // v314 (A5) — resync visual state des boutons chart mode au premier rendu.

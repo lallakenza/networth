@@ -3879,7 +3879,73 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <button id="immoFinResetBtn" type="button" style="padding:8px 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;">R&eacute;initialiser les valeurs par d&eacute;faut</button>
   </div>
 
-  <!-- Charts + Table -->
+  <!-- v319 — Bandeau explicatif 4 scénarios. Placé AVANT le tableau et les
+       charts pour que l'utilisateur comprenne A/B/C/D avant de lire les chiffres.
+       4 cards accordéon : titre + résumé visible, détails au clic. -->
+  <div style="margin-top:24px;">
+    <h3 style="margin:0 0 8px 0;">Les 4 sc&eacute;narios de financement</h3>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Cliquez sur une carte pour voir le m&eacute;canisme d&eacute;taill&eacute;. Chaque sc&eacute;nario r&eacute;pond diff&eacute;remment au trade-off <strong>liquidit&eacute;</strong> (garder du cash mobilisable) vs <strong>rendement</strong> (maximiser le patrimoine final).</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+      <details style="border:1px solid var(--border);border-left:4px solid #6b7280;border-radius:8px;padding:12px;background:#fff;">
+        <summary style="cursor:pointer;list-style:none;">
+          <div style="font-weight:700;color:#6b7280;font-size:13px;">A &middot; Cash int&eacute;gral</div>
+          <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Je paie l'appart 100 % cash. Pas de dette, pas de mensualit&eacute;.</div>
+        </summary>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
+          <div><strong>M&eacute;canisme :</strong> sortie imm&eacute;diate = prix + frais (~6,7 % MAD). Le reste du patrimoine reste invest&iacute; au rendement cible.</div>
+          <div style="margin-top:6px;"><strong>Avantages :</strong> simple, zéro risque de taux, libert&eacute; totale.</div>
+          <div style="margin-top:6px;"><strong>Inconv&eacute;nients :</strong> co&ucirc;t d'opportunit&eacute; (l'argent sorti du portefeuille ne compose plus), liquidit&eacute; fortement entam&eacute;e &agrave; T+0.</div>
+          <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Aucun autre projet &agrave; court terme, aversion dette forte.</div>
+        </div>
+      </details>
+      <details style="border:1px solid var(--border);border-left:4px solid #3b82f6;border-radius:8px;padding:12px;background:#fff;">
+        <summary style="cursor:pointer;list-style:none;">
+          <div style="font-weight:700;color:#3b82f6;font-size:13px;">B &middot; Pr&ecirc;t banque</div>
+          <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Apport 20 %, cr&eacute;dit banque classique Maroc 80 % sur 25 ans.</div>
+        </summary>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
+          <div><strong>M&eacute;canisme :</strong> apport + frais + hypoth&egrave;que (0,5 %-2 %) sortis cash. Mensualit&eacute; cr&eacute;dit + assurance DI r&eacute;duisent l'&eacute;pargne pendant la dur&eacute;e du pr&ecirc;t.</div>
+          <div style="margin-top:6px;"><strong>Avantages :</strong> liquidit&eacute; maximale pr&eacute;serv&eacute;e &agrave; T+0, effet de levier bancaire classique.</div>
+          <div style="margin-top:6px;"><strong>Inconv&eacute;nients :</strong> taux banque Maroc &eacute;lev&eacute; (~5 %), engagement long, assurance DI non-n&eacute;gociable.</div>
+          <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Projets additionnels &agrave; court terme (Casa &lt; 24 mois), profil classique MRE.</div>
+        </div>
+      </details>
+      <details style="border:1px solid var(--border);border-left:4px solid #14b8a6;border-radius:8px;padding:12px;background:#fff;">
+        <summary style="cursor:pointer;list-style:none;">
+          <div style="font-weight:700;color:#14b8a6;font-size:13px;">C &middot; Cash + margin IBKR</div>
+          <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Paie cash, puis emprunte sur IBKR (margin LTV 30 %) pour r&eacute;investir.</div>
+        </summary>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
+          <div><strong>M&eacute;canisme :</strong> achat cash (comme A), puis tire 30 % LTV sur portefeuille r&eacute;siduel pour amplifier l'exposition march&eacute;. Int&eacute;r&ecirc;ts seuls, pas d'amortissement.</div>
+          <div style="margin-top:6px;"><strong>Avantages :</strong> taux margin bas (EUR ~3,1 %), flexibilit&eacute; totale (rembours&eacute; quand je veux), pas d'assurance.</div>
+          <div style="margin-top:6px;"><strong>Inconv&eacute;nients :</strong> risque de margin call en cas de drawdown &gt;40 %, dette r&eacute;valu&eacute;e tous les jours.</div>
+          <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Horizon long (&gt;10 ans), tol&eacute;rance drawdown, pas de projet court terme concurrent.</div>
+        </div>
+      </details>
+      <details style="border:1px solid var(--border);border-left:4px solid #8b5cf6;border-radius:8px;padding:12px;background:#fff;">
+        <summary style="cursor:pointer;list-style:none;">
+          <div style="font-weight:700;color:#8b5cf6;font-size:13px;">D &middot; Pr&ecirc;t + margin (double)</div>
+          <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Cr&eacute;dit banque 80 % ET margin IBKR 30 % simultan&eacute;ment.</div>
+        </summary>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
+          <div><strong>M&eacute;canisme :</strong> apport+cr&eacute;dit (comme B) + tirage margin 30 % (comme C). Double levier : banque pour l'immo, margin pour gonfler le portefeuille.</div>
+          <div style="margin-top:6px;"><strong>Avantages :</strong> patrimoine final maximal th&eacute;orique, exposition march&eacute; la plus &eacute;lev&eacute;e.</div>
+          <div style="margin-top:6px;"><strong>Inconv&eacute;nients :</strong> double dette (banque fixe 5 % + margin variable ~3 %), mensualit&eacute;s cumul&eacute;es plus fortes, deux risques distincts.</div>
+          <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Profil tr&egrave;s offensif, horizon tr&egrave;s long (&gt;20 ans), acc&egrave;s dette bancaire disponible + confort avec margin.</div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- v319 — Tableau comparatif d&eacute;plac&eacute; AVANT les charts (lecture des chiffres
+       avant d'attaquer les visualisations). -->
+  <div style="margin-top:24px;">
+    <h3>Tableau comparatif</h3>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Synth&egrave;se par sc&eacute;nario. Le sc&eacute;nario recommand&eacute; (fond violet) est calcul&eacute; selon vos inputs (contrainte Casa, horizon).</p>
+    <div id="immoFinComparisonTable"></div>
+  </div>
+
+  <!-- Charts -->
   <div class="grid2" style="margin-top:24px;">
     <div>
       <h3>Patrimoine financier final par sc&eacute;nario</h3>
@@ -3888,9 +3954,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
            entre scénarios, en mode 0-max les bars paraissent identiques. -->
       <div style="display:flex;gap:6px;font-size:11px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
         <span style="color:var(--gray);">Affichage :</span>
-        <button type="button" class="immo-fin-chart-mode active" data-mode="absolu" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:#8b5cf6;color:white;cursor:pointer;font-size:11px;">Absolu (0-max)</button>
+        <button type="button" class="immo-fin-chart-mode" data-mode="absolu" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:white;color:var(--text);cursor:pointer;font-size:11px;">Absolu (0-max)</button>
         <button type="button" class="immo-fin-chart-mode" data-mode="zoom" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:white;color:var(--text);cursor:pointer;font-size:11px;">Zoom (diff visibles)</button>
-        <button type="button" class="immo-fin-chart-mode" data-mode="delta" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:white;color:var(--text);cursor:pointer;font-size:11px;">Delta vs Cash (A)</button>
+        <button type="button" class="immo-fin-chart-mode active" data-mode="delta" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:#8b5cf6;color:white;cursor:pointer;font-size:11px;">Delta vs Cash (A)</button>
       </div>
       <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinPatrimoineChart"></canvas></div>
     </div>
@@ -3901,25 +3967,19 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     </div>
   </div>
 
-  <div class="grid2" style="margin-top:20px;">
-    <div>
-      <h3>Test de stress &mdash; Liquidit&eacute; projet Casa</h3>
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Liquidit&eacute; mobilisable (portefeuille × 1.30 via margin safe) &agrave; T+12/24/36 mois. Ligne rouge = besoin Casa. Vert = OK, orange = tendu, rouge = insuffisant.</p>
-      <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinStressChart"></canvas></div>
-    </div>
-    <div>
-      <h3>Tableau comparatif</h3>
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Synth&egrave;se par sc&eacute;nario. Le sc&eacute;nario recommand&eacute; (fond violet) est calcul&eacute; selon vos inputs (contrainte Casa, horizon).</p>
-      <div id="immoFinComparisonTable"></div>
-    </div>
+  <!-- v319 — Stress Casa : horizons T+6/12/18 (actionnables), une barre plancher
+       + error bar jusqu'au plafond. Full-width car tableau comparatif d&eacute;plac&eacute;
+       en haut du module. -->
+  <div style="margin-top:20px;">
+    <h3>Test de stress &mdash; Liquidit&eacute; projet Casa</h3>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Liquidit&eacute; mobilisable (portefeuille &times; 1,225 via margin safe, SAFETY_COEFF&nbsp;0,75) aux horizons T+6 / T+12 / T+18 mois. La barre = <strong>plancher prudent</strong> (march&eacute; 0 %, &eacute;pargne cash lin&eacute;aire). L'error bar monte jusqu'au <strong>plafond</strong> (march&eacute; +20 %, &eacute;pargne DCA &agrave; +10 %). Ligne rouge = besoin Casa. Vert = plancher couvre, orange = tendu, rouge = insuffisant m&ecirc;me avec upside.</p>
+    <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinStressChart"></canvas></div>
   </div>
 
-  <!-- v307 — Timeline compl&egrave;te du cash mobilisable pour 2e projet -->
-  <div style="margin-top:20px;">
-    <h3>&Eacute;volution du cash mobilisable dans le temps</h3>
-    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Projection par pas de 3 mois : combien de liquidit&eacute; puis-je mobiliser pour un <strong>2e projet</strong> &agrave; chaque date, <em>apr&egrave;s</em> avoir d&eacute;j&agrave; engag&eacute; l'apport + mensualit&eacute;s du 1er ? Ligne rouge pointill&eacute;e = besoin projet Casa. Le point o&ugrave; chaque courbe croise la ligne rouge = date &agrave; partir de laquelle le 2e projet devient finan&ccedil;able.</p>
-    <div class="chart-container" style="height:380px;position:relative"><canvas id="immoFinCashProjectionChart"></canvas></div>
-  </div>
+  <!-- v319 — Chart "Évolution du cash mobilisable dans le temps" supprimé
+       (courbes superposées, échelle écrase les seuils projet, 50+ labels X,
+       info noyée dans 25 ans de linéaire). L'info utile est déjà dans le
+       tableau comparatif (liquidité T+24M) et le chart Stress Casa. -->
 
   <!-- Warnings zone -->
   <div id="immoFinWarnings" style="margin-top:18px;"></div>
@@ -4008,7 +4068,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=318"></script>
+<script type="module" src="js/app.js?v=319"></script>
 
 </body>
 </html>

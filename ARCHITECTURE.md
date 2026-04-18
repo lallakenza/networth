@@ -4079,4 +4079,48 @@ Utile aussi pour `computeSensibilite` qui peut recevoir `baseRendement = 0.02` e
 **Cache-bust** : `?v=317` → `?v=318` sur 18 imports + `APP_VERSION 'v318'` dans data.js.
 
 
+## §67 — v319 : Refonte Financement Immo — 4 cartes scénarios + Stress T+6/12/18 + defaults (18 avril 2026)
+
+**Objectif** : rendre le module Financement Immo lisible et actionnable au premier coup d'œil. 4 améliorations groupées en un seul déploiement.
+
+### Amélioration #1 — Refonte chart "Stress Casa"
+
+Avant v319 : 3 barres par scénario aux horizons **T+12/24/36 mois**, valeur nominale unique (NAV capitalisé × liquiditeMult). Problème : horizons trop lointains pour décider Casa (<2 ans), pas de sensibilité marché.
+
+Après v319 : horizons réduits à **T+6 / T+12 / T+18 mois** avec une barre plancher + error bar plafond par scénario (A/B/C) :
+- **Plancher** (prudent) : positions stagnent (marché 0 %), épargne accumulée cash linéaire (pas investie) → `positions × 1.00 + netSavings × n × 1.00`.
+- **Plafond** (optimiste) : positions +20 %, épargne DCA à +10 % moyen → `positions × 1.20 + netSavings × n × 1.10`.
+- Coeff sécurité `SAFETY_COEFF = 0.75` appliqué via `liquiditeMult` (identique à `liquiditeAtMonth`).
+
+L'épargne mensuelle est investie **progressivement** (dollar-cost averaging), reflétant la réalité opérationnelle. Source : `inputs.epargneEUR × fx`, alimenté par `computeCashFlow().netSavings` côté render.
+
+**Engine** (`computeImmoFinancing`) : nouveau helper `stressLiquiditeAtMonth(months, scenario, marketMult, savingsMult)` + helper `stressFor(scenario)` qui produit `{ horizons, plancher, plafond }`. Attaché à chaque scénario via `stress: stressFor('X')`. `summary.stressHorizons = [6, 12, 18]` exposé pour le chart.
+
+**Charts** (`buildImmoFinStressChart`) : un dataset bar par scénario (data = plancher MDH, `plafondMDH` annoté). Nouveau plugin `errorBarPlugin` dessine une moustache verticale + teeing horizontal du sommet de la barre jusqu'au plafond. Tooltip multi-ligne affiche plancher + plafond + % besoin.
+
+### Amélioration #2 — Default chart mode absolu → delta
+
+`_immoFinChartMode` passe de `'absolu'` à `'delta'`. La vue delta (vs Cash A) est la plus actionnable : elle montre combien chaque scénario **rapporte vs le baseline cash intégral**, alors que la vue absolue écrase les différences (<5 %) entre scénarios dans une échelle 0-max. HTML : `class="active"` + styles inline déplacés sur le bouton `data-mode="delta"` (cohérence avec `_immoFinChartMode = 'delta'` init state).
+
+### Amélioration #3 — Bandeau 4 scénarios + réorganisation du module
+
+**Avant** : inputs → charts + tableau comparatif en grille → utilisateur lit des chiffres sans comprendre A/B/C/D.
+
+**Après** : inputs → **bandeau 4 cartes accordéon (A/B/C/D)** → tableau comparatif full-width → charts. Les 4 cartes ont une bordure gauche colorée (scénario color match), un résumé visible (label + one-liner), et les détails (mécanisme / avantages / inconvénients / pour qui ?) au clic.
+
+### Amélioration #4 — Suppression du chart "Évolution cash mobilisable"
+
+Chart supprimé totalement (DOM + render call + `buildImmoFinCashProjectionChart` function). Raison : illisible à 25 ans d'horizon (courbes superposées, échelle écrase seuils projet, 50+ labels X). L'info utile (liquidité à date de projet) est déjà couverte par le tableau comparatif (colonne Liquidité T+24M) et le nouveau chart Stress Casa (T+6/12/18 avec variance marché).
+
+### Invariants & tests de régression v319
+
+- `result.scenarios.X.stress = { horizons: [6,12,18], plancher: [...], plafond: [...] }` pour X ∈ {A,B,C,D}.
+- `plafond[i] ≥ plancher[i]` pour tout i (marché +20 % ≥ 0 %, DCA +10 % ≥ 0 %).
+- Stress chart : 3 barres par horizon (A/B/C), D non affiché (déjà en margin). Plugin error bar dessine moustache seulement si `plafond > plancher + 1e-6`.
+- `summary.stressHorizons` exposé pour permettre aux charts de lire sans recouvrement sémantique avec `casaPoints = [12,24,36]` (tableau comparatif inchangé).
+- Tableau comparatif rendu full-width AVANT les charts.
+
+**Cache-bust** : `?v=318` → `?v=319` sur 18 imports + `APP_VERSION 'v319'` dans data.js.
+
+
 
