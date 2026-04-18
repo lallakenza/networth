@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=320';
-import { compute, getGrandTotal } from './engine.js?v=320';
-import { render } from './render.js?v=320';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=320';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=320';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=320';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=320';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=321';
+import { compute, getGrandTotal } from './engine.js?v=321';
+import { render } from './render.js?v=321';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=321';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=321';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=321';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=321';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -296,16 +296,42 @@ document.querySelectorAll('.view-btn').forEach(btn => {
   });
 });
 
-// v320 — Dropdown "Analyse" : toggle + fermeture sur clic extérieur + Esc.
+// v320/v321 — Dropdown "Analyse" : toggle + fermeture sur clic extérieur + Esc.
+// v321 — Sur mobile (≤600px), le menu est en `position: fixed` pour éviter le
+// clipping par `.view-switcher { overflow-x: auto }` (breakpoint ≤480px). On
+// calcule dynamiquement la valeur `top` depuis le bord bas de la view-switcher
+// à chaque ouverture pour suivre le layout réel (header peut changer de hauteur,
+// orientation, etc.).
 (function setupAnalyseDropdown() {
   const dropdown = document.getElementById('analyseDropdown');
   const toggle = document.getElementById('analyseToggle');
-  if (!dropdown || !toggle) return;
+  const menu = document.getElementById('analyseMenu');
+  if (!dropdown || !toggle || !menu) return;
+
+  const mobileMQ = window.matchMedia('(max-width: 600px)');
+
+  function positionMenuMobile() {
+    if (!mobileMQ.matches) {
+      menu.style.top = '';
+      return;
+    }
+    const sw = document.querySelector('.view-switcher');
+    if (!sw) return;
+    const rect = sw.getBoundingClientRect();
+    // +1 pour masquer la bordure basse de la view-switcher sous le menu.
+    menu.style.top = Math.max(0, Math.round(rect.bottom + 1)) + 'px';
+  }
 
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
     const isOpen = dropdown.classList.toggle('open');
     toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (isOpen) positionMenuMobile();
+  });
+
+  // Recalcul de position sur resize / orientation change si le menu est ouvert.
+  window.addEventListener('resize', () => {
+    if (dropdown.classList.contains('open')) positionMenuMobile();
   });
 
   // Clic extérieur : ferme le menu.
