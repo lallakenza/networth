@@ -2782,6 +2782,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 <div class="container">
 
+<!-- v309 — Alertes proactives (affichées uniquement si alertes actives).
+     Panneau dynamique en haut de la vue Couple, avec 3 niveaux de sévérité :
+     rouge (à traiter), jaune (à surveiller), vert (opportunité). -->
+<div id="alertsPanel" data-view="couple" style="margin-bottom:20px;"></div>
+
 <!-- KPIs COUPLE -->
 <div id="kpi-couple" class="kpi-strip" style="grid-template-columns: repeat(7, 1fr);">
   <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
@@ -3711,6 +3716,23 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="info" style="margin-top:14px;">
     <strong>Note :</strong> Les charges immo sont couvertes par les loyers. Le cash-flow net repr&eacute;sente ce qui reste apr&egrave;s d&eacute;duction des loyers. Si un bien se retrouve vacant, les charges compl&egrave;tes s'ajoutent &agrave; vos d&eacute;penses.
   </div>
+
+  <!-- v308 — Cash-flow consolidé (revenus vs dépenses) -->
+  <h2 style="margin-top:32px;"><span class="section-icon" style="background: #14b8a6;">&#x1F4CA;</span>Cash-flow consolid&eacute; mensuel</h2>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Synth&egrave;se des flux : revenus (salaires + facturation + loyers + dividendes) vs d&eacute;penses mensuelles. Permet de calculer le taux d'&eacute;pargne, l'emergency fund ratio, et le runway si perte de revenu.</p>
+  <div class="kpi-strip" id="kpi-cashflow" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi green"><div class="value" id="kpiCashflowIncome" data-eur="0">--</div><div class="label">Revenus /mois</div></div>
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiCashflowExpenses" data-eur="0">--</div><div class="label">D&eacute;penses /mois</div></div>
+    <div class="kpi green"><div class="value" id="kpiCashflowSavings" data-eur="0">--</div><div class="label">&Eacute;pargne nette</div></div>
+    <div class="kpi"><div class="value" id="kpiCashflowRate">--</div><div class="label">Taux d'&eacute;pargne</div></div>
+    <div class="kpi"><div class="value" id="kpiCashflowRunway">--</div><div class="label">Runway (mois)</div></div>
+  </div>
+
+  <div id="cashflowDetail" style="margin-top:18px;"></div>
+
+  <div class="info" style="margin-top:14px;">
+    <strong>Sources incluses :</strong> facturation SAP (Bairok AED→EUR), loyers nets (depuis module immo), dividendes projet&eacute;s annualis&eacute;s / 12. <strong>Exclut :</strong> plus-values latentes, gains stocks (non-mensuels), revenus exceptionnels.
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -3880,7 +3902,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=307"></script>
+<script type="module" src="js/app.js?v=308"></script>
 
 </body>
 </html>
