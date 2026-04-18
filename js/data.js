@@ -1140,7 +1140,67 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v321';
+export const APP_VERSION = 'v322';
+
+// ════════════════════════════════════════════════════════════
+// DESIGN TOKENS — v322
+// ════════════════════════════════════════════════════════════
+// Miroir JS de la charte graphique (:root dans index.html).
+// Utilisé par tout ce qui dessine sur <canvas> (Chart.js, treemap)
+// car les contextes canvas ne lisent pas les var(--xxx).
+//
+// ⚠️ Single source of truth : changer ici ET dans :root simultanément.
+// Voir ARCHITECTURE.md §70 pour la charte complète.
+// ════════════════════════════════════════════════════════════
+export const DESIGN_TOKENS = {
+  // Surfaces & neutrals
+  bg: '#fafaf9',
+  surface: '#ffffff',
+  surfaceSubtle: '#f5f5f4',
+  border: '#e7e5e4',
+  borderStrong: '#d6d3d1',
+  text: '#1c1917',
+  textSecondary: '#57534e',
+  textMuted: '#a8a29e',
+
+  // Brand
+  primary: '#1e3a5f',
+  primarySoft: '#e7edf5',
+  gold: '#b45309',
+  goldSoft: '#fef3c7',
+
+  // Semantic
+  success: '#15803d',
+  successSoft: '#dcfce7',
+  warning: '#b45309',
+  warningSoft: '#fef3c7',
+  danger: '#b91c1c',
+  dangerSoft: '#fee2e2',
+  info: '#0369a1',
+  infoSoft: '#e0f2fe',
+
+  // Scenarios Financement Immo
+  scenA: '#64748b',
+  scenB: '#2563eb',
+  scenC: '#0d9488',
+  scenD: '#7c3aed',
+
+  // Asset classes
+  assetActions: '#1e40af',
+  assetImmo: '#b45309',
+  assetCashActive: '#15803d',
+  assetCashDormant: '#9f1239',
+  assetVehicle: '#57534e',
+  assetCreance: '#be185d',
+
+  // Geo
+  geoFR: '#2563eb',
+  geoUS: '#15803d',
+  geoJP: '#be123c',
+  geoMA: '#b45309',
+  geoAE: '#0e7490',
+  geoDE: '#7c3aed',
+};
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API

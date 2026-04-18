@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=321';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=322';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4679,11 +4679,13 @@ export function computeImmoFinancing(inputs) {
   const projectionMonths = [];
   for (let m = 0; m <= maxMonths; m += STEP_MONTHS) projectionMonths.push(m);
 
+  // v322 — couleurs alignées sur la charte graphique (DESIGN_TOKENS).
+  // Voir ARCHITECTURE.md §70 pour la sémantique des scénarios.
   const scenarioMeta = {
-    A: { label: 'Cash intégral',                color: '#6b7280' },
-    B: { label: 'Prêt banque',                   color: '#3b82f6' },
-    C: { label: 'Cash + margin IBKR',            color: '#14b8a6' },
-    D: { label: 'Prêt banque + margin (double)', color: '#8b5cf6' },
+    A: { label: 'Cash intégral',                color: DESIGN_TOKENS.scenA },
+    B: { label: 'Prêt banque',                   color: DESIGN_TOKENS.scenB },
+    C: { label: 'Cash + margin IBKR',            color: DESIGN_TOKENS.scenC },
+    D: { label: 'Prêt banque + margin (double)', color: DESIGN_TOKENS.scenD },
   };
 
   const scenarios = {
@@ -5281,10 +5283,12 @@ export function computeObjectifs(state, opts) {
 
     // Status — toujours basé sur le nominal (ce qui compte pour la cible affichée)
     const ratio = obj.target > 0 ? projectedValue / obj.target : 0;
+    // v322 — statusColor tiré de DESIGN_TOKENS pour uniformité cross-app
+    // (alertes, objectifs, budget partagent la même sémantique success/warning/danger).
     let status, statusLabel, statusColor;
-    if (ratio >= 1.0) { status = 'on-track'; statusLabel = 'On-track'; statusColor = '#22c55e'; }
-    else if (ratio >= 0.85) { status = 'at-risk'; statusLabel = 'Tendu'; statusColor = '#d97706'; }
-    else { status = 'behind'; statusLabel = 'En retard'; statusColor = '#ef4444'; }
+    if (ratio >= 1.0) { status = 'on-track'; statusLabel = 'On-track'; statusColor = DESIGN_TOKENS.success; }
+    else if (ratio >= 0.85) { status = 'at-risk'; statusLabel = 'Tendu'; statusColor = DESIGN_TOKENS.warning; }
+    else { status = 'behind'; statusLabel = 'En retard'; statusColor = DESIGN_TOKENS.danger; }
 
     // Required monthly to reach target if currently behind (solve for additional savings needed)
     // v317 (C5) — Si r = 0, solve: target = current + (savings + extra) × n

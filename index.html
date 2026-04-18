@@ -10,20 +10,85 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.0/dist/chartjs-chart-treemap.min.js"></script>
 <style>
+  /* ══════════════════════════════════════════════════════════════
+     CHARTE GRAPHIQUE NETWORTH — v322
+     ══════════════════════════════════════════════════════════════
+     Voir ARCHITECTURE.md §70 pour la doc complète (principes,
+     usages, contrastes WCAG, règles d'extension).
+
+     Principe : palette warm-stone + navy + or sobre. Inspirée des
+     marques premium (Hermès, Patagonia, Apple) — pas de couleurs
+     saturées criardes, saturation contenue, contraste AA garanti.
+
+     ⚠️ Single source of truth = ce bloc + DESIGN_TOKENS dans data.js
+     (miroir JS pour les colors Chart.js / treemap qui ne peuvent pas
+     lire les var(--xxx) côté canvas).
+
+     Principales catégories :
+       1. Surfaces & neutres (stone warm)
+       2. Brand (navy + gold)
+       3. Semantic (success / warning / danger / info)
+       4. Scenarios Financement Immo (A/B/C/D)
+       5. Asset classes (treemap catégories)
+       6. Geo (répartition géographique)
+     ══════════════════════════════════════════════════════════════ */
   :root {
+    /* ── 1. Surfaces & neutrals (stone warm) ── */
     --bg: #fafaf9;
     --surface: #ffffff;
+    --surface-subtle: #f5f5f4;
     --border: #e7e5e4;
+    --border-strong: #d6d3d1;
     --text: #1c1917;
-    --text-secondary: #78716c;
+    --text-secondary: #57534e;
+    --text-muted: #a8a29e;
+    --hover-overlay: rgba(28, 25, 23, 0.04);
+
+    /* ── 2. Brand ── */
     --primary: #1e3a5f;
+    --primary-soft: #e7edf5;
     --accent: #1e3a5f;
-    --red: #dc2626;
-    --green: #16a34a;
     --gold: #b45309;
-    --blue: #1d4ed8;
-    --gray: #78716c;
-    --card: #ffffff;
+    --gold-soft: #fef3c7;
+
+    /* ── 3. Semantic (contraste AA ≥ 4.5:1 sur --bg) ── */
+    --success: #15803d;
+    --success-soft: #dcfce7;
+    --warning: #b45309;
+    --warning-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --info: #0369a1;
+    --info-soft: #e0f2fe;
+
+    /* ── 4. Scenarios Financement Immo ── */
+    --scen-a: #64748b;     /* Cash intégral          — neutre slate  */
+    --scen-b: #2563eb;     /* Prêt banque            — bleu royal   */
+    --scen-c: #0d9488;     /* Cash + margin IBKR     — teal modéré  */
+    --scen-d: #7c3aed;     /* Prêt + margin (double) — plum offensif */
+
+    /* ── 5. Asset classes (treemap / breakdown cards) ── */
+    --asset-actions: #1e40af;
+    --asset-immo: #b45309;
+    --asset-cash-active: #15803d;
+    --asset-cash-dormant: #9f1239;
+    --asset-vehicle: #57534e;
+    --asset-creance: #be185d;
+
+    /* ── 6. Geo ── */
+    --geo-fr: #2563eb;
+    --geo-us: #15803d;
+    --geo-jp: #be123c;
+    --geo-ma: #b45309;
+    --geo-ae: #0e7490;
+    --geo-de: #7c3aed;
+
+    /* ── Legacy aliases (rétro-compat avant migration complète) ── */
+    --red: var(--danger);
+    --green: var(--success);
+    --blue: var(--info);
+    --gray: var(--text-secondary);
+    --card: var(--surface);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -105,37 +170,37 @@
   }
   td {
     padding: 8px 12px;
-    border-bottom: 1px solid #f5f5f4;
+    border-bottom: 1px solid var(--surface-subtle);
     font-family: 'DM Sans', sans-serif;
   }
-  tr:hover td { background: #fafaf9; }
+  tr:hover td { background: var(--bg); }
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-family: 'DM Sans', sans-serif;
     font-weight: 500;
   }
-  .pos { color: var(--green); font-weight: 600; }
-  .neg { color: var(--red); font-weight: 600; }
+  .pos { color: var(--success); font-weight: 600; }
+  .neg { color: var(--danger); font-weight: 600; }
   .highlight {
-    background: #fffbeb;
-    border-left: 2px solid #d97706;
+    background: var(--warning-soft);
+    border-left: 2px solid var(--warning);
     padding: 16px;
     margin: 16px 0;
     border-radius: 0 6px 6px 0;
     font-family: 'DM Sans', sans-serif;
   }
   .success {
-    background: #f0fdf4;
-    border-left: 2px solid var(--green);
+    background: var(--success-soft);
+    border-left: 2px solid var(--success);
     padding: 16px;
     margin: 16px 0;
     border-radius: 0 6px 6px 0;
     font-family: 'DM Sans', sans-serif;
   }
   .info {
-    background: #eff6ff;
-    border-left: 2px solid #3b82f6;
+    background: var(--info-soft);
+    border-left: 2px solid var(--info);
     padding: 16px;
     margin: 16px 0;
     border-radius: 0 6px 6px 0;
@@ -3894,7 +3959,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 
   <!-- Recommandation dynamique (banner) -->
-  <div id="immoFinRecommendation" style="margin:18px 0;padding:14px 18px;border-radius:8px;background:rgba(139,92,246,0.08);border-left:4px solid #8b5cf6;">
+  <div id="immoFinRecommendation" style="margin:18px 0;padding:14px 18px;border-radius:8px;background:rgba(124,58,237,0.08);border-left:4px solid var(--scen-d);">
     <strong>Recommandation :</strong> <span id="immoFinRecoText">--</span>
   </div>
 
@@ -4024,9 +4089,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <h3 style="margin:0 0 8px 0;">Les 4 sc&eacute;narios de financement</h3>
     <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Cliquez sur une carte pour voir le m&eacute;canisme d&eacute;taill&eacute;. Chaque sc&eacute;nario r&eacute;pond diff&eacute;remment au trade-off <strong>liquidit&eacute;</strong> (garder du cash mobilisable) vs <strong>rendement</strong> (maximiser le patrimoine final).</p>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-      <details style="border:1px solid var(--border);border-left:4px solid #6b7280;border-radius:8px;padding:12px;background:#fff;">
+      <details style="border:1px solid var(--border);border-left:4px solid var(--scen-a);border-radius:8px;padding:12px;background:var(--surface);">
         <summary style="cursor:pointer;list-style:none;">
-          <div style="font-weight:700;color:#6b7280;font-size:13px;">A &middot; Cash int&eacute;gral</div>
+          <div style="font-weight:700;color:var(--scen-a);font-size:13px;">A &middot; Cash int&eacute;gral</div>
           <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Je paie l'appart 100 % cash. Pas de dette, pas de mensualit&eacute;.</div>
         </summary>
         <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
@@ -4036,9 +4101,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
           <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Aucun autre projet &agrave; court terme, aversion dette forte.</div>
         </div>
       </details>
-      <details style="border:1px solid var(--border);border-left:4px solid #3b82f6;border-radius:8px;padding:12px;background:#fff;">
+      <details style="border:1px solid var(--border);border-left:4px solid var(--scen-b);border-radius:8px;padding:12px;background:var(--surface);">
         <summary style="cursor:pointer;list-style:none;">
-          <div style="font-weight:700;color:#3b82f6;font-size:13px;">B &middot; Pr&ecirc;t banque</div>
+          <div style="font-weight:700;color:var(--scen-b);font-size:13px;">B &middot; Pr&ecirc;t banque</div>
           <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Apport 20 %, cr&eacute;dit banque classique Maroc 80 % sur 25 ans.</div>
         </summary>
         <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
@@ -4048,9 +4113,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
           <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Projets additionnels &agrave; court terme (Casa &lt; 24 mois), profil classique MRE.</div>
         </div>
       </details>
-      <details style="border:1px solid var(--border);border-left:4px solid #14b8a6;border-radius:8px;padding:12px;background:#fff;">
+      <details style="border:1px solid var(--border);border-left:4px solid var(--scen-c);border-radius:8px;padding:12px;background:var(--surface);">
         <summary style="cursor:pointer;list-style:none;">
-          <div style="font-weight:700;color:#14b8a6;font-size:13px;">C &middot; Cash + margin IBKR</div>
+          <div style="font-weight:700;color:var(--scen-c);font-size:13px;">C &middot; Cash + margin IBKR</div>
           <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Paie cash, puis emprunte sur IBKR (margin LTV 30 %) pour r&eacute;investir.</div>
         </summary>
         <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
@@ -4060,9 +4125,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
           <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Horizon long (&gt;10 ans), tol&eacute;rance drawdown, pas de projet court terme concurrent.</div>
         </div>
       </details>
-      <details style="border:1px solid var(--border);border-left:4px solid #8b5cf6;border-radius:8px;padding:12px;background:#fff;">
+      <details style="border:1px solid var(--border);border-left:4px solid var(--scen-d);border-radius:8px;padding:12px;background:var(--surface);">
         <summary style="cursor:pointer;list-style:none;">
-          <div style="font-weight:700;color:#8b5cf6;font-size:13px;">D &middot; Pr&ecirc;t + margin (double)</div>
+          <div style="font-weight:700;color:var(--scen-d);font-size:13px;">D &middot; Pr&ecirc;t + margin (double)</div>
           <div style="font-size:11.5px;color:var(--text);margin-top:3px;">Cr&eacute;dit banque 80 % ET margin IBKR 30 % simultan&eacute;ment.</div>
         </summary>
         <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
@@ -4206,7 +4271,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=321"></script>
+<script type="module" src="js/app.js?v=322"></script>
 
 </body>
 </html>

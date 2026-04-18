@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=321';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=321';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=322';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=322';
 
 // ---- Generic table sort utility ----
 /**
@@ -2469,12 +2469,13 @@ function renderActionsView(state) {
       }
 
       else if (ins.type === 'macro-risks') {
+        // v322 — severity colors alignées sur DESIGN_TOKENS (danger/warning/muted).
         ins.risks.forEach(function(risk) {
-          var sColor = risk.severity === 'high' ? '#e53e3e' : risk.severity === 'medium' ? '#dd6b20' : '#718096';
+          var sColor = risk.severity === 'high' ? 'var(--danger)' : risk.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
           var sIcon = risk.severity === 'high' ? '\uD83D\uDD34' : risk.severity === 'medium' ? '\uD83D\uDFE0' : '\u26AA';
-          html += '<div style="padding:8px 0;border-bottom:1px solid #edf2f7;">';
+          html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);">';
           html += '<div style="font-size:13px;font-weight:600;color:' + sColor + ';">' + sIcon + ' ' + risk.label + '</div>';
-          html += '<div style="font-size:12px;color:#4a5568;margin-top:3px;">' + risk.detail + '</div>';
+          html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">' + risk.detail + '</div>';
           html += '</div>';
         });
       }
@@ -6758,7 +6759,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=321').then(m => {
+  import('./charts.js?v=322').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -6773,7 +6774,7 @@ function renderImmoFinancingView(state) {
   document.querySelectorAll('.immo-fin-chart-mode').forEach(b => {
     const isActive = b.dataset.mode === _immoFinChartMode;
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? '#8b5cf6' : 'white';
+    b.style.background = isActive ? 'var(--scen-d)' : 'white';
     b.style.color = isActive ? 'white' : 'var(--text)';
   });
 
@@ -6826,7 +6827,7 @@ function renderImmoFinancingView(state) {
         document.querySelectorAll('.immo-fin-chart-mode').forEach(b => {
           const isActive = b.dataset.mode === mode;
           b.classList.toggle('active', isActive);
-          b.style.background = isActive ? '#8b5cf6' : 'white';
+          b.style.background = isActive ? 'var(--scen-d)' : 'white';
           b.style.color = isActive ? 'white' : 'var(--text)';
         });
         renderImmoFinancingView(state);
@@ -6901,13 +6902,14 @@ function renderImmoFinComparisonTable(result) {
   const rows = ['A', 'B', 'C', 'D'].map(key => {
     const s = scenarios[key];
     const highlight = key === recommendation.best
-      ? 'background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;'
+      ? 'background:rgba(124,58,237,0.08);border-left:3px solid var(--scen-d);'
       : '';
     const liquidite = s.liquidite[casaSafe];
     const casaOk = liquidite >= result.inputs.besoinCasa * 0.95;
+    // v322 — couleurs statut liquidité alignées sur DESIGN_TOKENS (success/warning/danger).
     const liqColor = result.inputs.besoinCasa === 0
       ? 'var(--text)'
-      : (casaOk ? 'var(--green)' : (liquidite >= result.inputs.besoinCasa * 0.75 ? '#d97706' : 'var(--red)'));
+      : (casaOk ? 'var(--success)' : (liquidite >= result.inputs.besoinCasa * 0.75 ? 'var(--warning)' : 'var(--danger)'));
 
     // v320 — Colonnes dérivées (Impact / ROI / Gain)
     const impact = s.impactNet ? s.impactNet[hSafe] : null;
@@ -6972,12 +6974,14 @@ function renderAlertsPanel(state) {
     return;
   }
 
-  // Group by severity for visual grouping
+  // v322 — severity mapping aligné sur DESIGN_TOKENS. Les couleurs border
+  // utilisent les CSS vars (--danger/--warning/--success) ; les backgrounds
+  // restent en rgba(hex, 0.08) pour une teinte douce de remplissage.
   const sevOrder = ['red', 'yellow', 'green'];
   const sevMeta = {
-    red:    { bg: 'rgba(239,68,68,0.08)', border: 'var(--red)',    label: 'À traiter' },
-    yellow: { bg: 'rgba(217,119,6,0.08)', border: '#d97706',       label: 'À surveiller' },
-    green:  { bg: 'rgba(34,197,94,0.08)', border: 'var(--green)',  label: 'Opportunité' },
+    red:    { bg: 'rgba(185,28,28,0.08)',  border: 'var(--danger)',  label: 'À traiter' },
+    yellow: { bg: 'rgba(180,83,9,0.08)',   border: 'var(--warning)', label: 'À surveiller' },
+    green:  { bg: 'rgba(21,128,61,0.08)',  border: 'var(--success)', label: 'Opportunité' },
   };
 
   let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--card-bg,white);">';
