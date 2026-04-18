@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=306';
-import { getGrandTotal, computeImmoFinancing } from './engine.js?v=306';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=307';
+import { getGrandTotal, computeImmoFinancing } from './engine.js?v=307';
 
 // ---- Generic table sort utility ----
 /**
@@ -6461,11 +6461,90 @@ function attachKPIInsights(state, view) {
 // Charts are destroyed + rebuilt on each call (Chart.js default).
 
 let _immoFinBound = false;  // guard to avoid double event listener binding
+let _immoFinPatrimoineAutoFed = false;   // v307 — track si patrimoine a déjà été auto-fed
+
+/**
+ * v307 — Sync le patrimoine initial (input MAD) depuis le state.couple.financialMobilisable
+ * calculé dynamiquement ailleurs dans l'app (v305). Appelé :
+ *   - automatiquement au premier render de la vue
+ *   - manuellement via bouton "Synchroniser avec patrimoine actuel"
+ */
+function syncPatrimoineFromState(state) {
+  const mobEUR = state?.couple?.financialMobilisable;
+  if (mobEUR == null || mobEUR <= 0) return null;
+  // Convertir en MAD. Si input FX existe, utiliser cette valeur (cohérent
+  // avec le calcul), sinon 10.80 par défaut.
+  const fx = Number(document.getElementById('immoFinInputFx')?.value) || 10.80;
+  const mobMAD = Math.round(mobEUR * fx);
+  const inp = document.getElementById('immoFinInputPatrimoine');
+  if (inp) inp.value = mobMAD;
+  const info = document.getElementById('immoFinPatrimoineSyncInfo');
+  if (info) {
+    info.textContent = 'Synchronisé depuis patrimoine mobilisable actuel : '
+      + (mobEUR / 1000).toFixed(0) + 'k € × ' + fx.toFixed(2) + ' = '
+      + (mobMAD / 1e6).toFixed(2) + ' MDH. Inclut cash + IBKR + ESPP + SGTM (hors immo/véhicules/créances/TVA).';
+  }
+  return mobMAD;
+}
+
+/**
+ * v307 — Appliquer un preset de scénario immobilier.
+ * Met à jour `immoFinInputPrix` (converti en MAD si devise preset différente),
+ * affiche la note, et pré-remplit `acquisitionFeesPct` + `apportRatio` via
+ * attributs data-* sur le form. Ces attributs sont relus au compute.
+ */
+function applyImmoFinPreset(presetId, state) {
+  const preset = IMMO_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+  const noteEl = document.getElementById('immoFinPresetNote');
+  const prixEl = document.getElementById('immoFinInputPrix');
+
+  if (preset.id === 'custom' || preset.price == null) {
+    if (noteEl) noteEl.textContent = '';
+    return;
+  }
+  // Conversion devise natif → MAD
+  const fx = Number(document.getElementById('immoFinInputFx')?.value) || 10.80;
+  const fxUSDtoEUR = FX_STATIC?.USD || 1.15;   // USD → EUR rate
+  let prixMAD = preset.price;
+  if (preset.currency === 'EUR') {
+    prixMAD = preset.price * fx;
+  } else if (preset.currency === 'USD') {
+    // USD → EUR → MAD
+    prixMAD = preset.price / fxUSDtoEUR * fx;
+  } else if (preset.currency === 'MAD') {
+    prixMAD = preset.price;
+  }
+  if (prixEl) prixEl.value = Math.round(prixMAD);
+  if (noteEl) {
+    let text = 'Preset ' + preset.label + ' · prix natif ' + preset.price.toLocaleString('fr-FR')
+      + ' ' + preset.currency + ' → ' + Math.round(prixMAD).toLocaleString('fr-FR') + ' MAD';
+    if (preset.note) text += '. ' + preset.note;
+    if (preset.country === 'AE') text += ' Apport min 50% (expat), taux 4-5%.';
+    noteEl.textContent = text;
+  }
+  // Store preset meta pour que le render les passe au compute
+  if (prixEl) {
+    prixEl.dataset.feesPct = preset.feesPct;
+    prixEl.dataset.country = preset.country;
+    prixEl.dataset.apportRatio = preset.country === 'AE' ? 0.50 : 0.20;
+  }
+}
 
 function renderImmoFinancingView(state) {
+  // v307 — premier render : auto-feed patrimoine depuis state si pas encore modifié manuellement
+  if (!_immoFinPatrimoineAutoFed) {
+    _immoFinPatrimoineAutoFed = true;
+    syncPatrimoineFromState(state);
+  }
+
   // Lecture inputs DOM
   const getNum = id => Number(document.getElementById(id)?.value) || 0;
   const getStr = id => document.getElementById(id)?.value || '';
+
+  const prixEl = document.getElementById('immoFinInputPrix');
+  const presetFeesPct = prixEl?.dataset.feesPct ? Number(prixEl.dataset.feesPct) : null;
+  const presetApportRatio = prixEl?.dataset.apportRatio ? Number(prixEl.dataset.apportRatio) : null;
 
   const inputs = {
     patrimoineMAD: getNum('immoFinInputPatrimoine'),
@@ -6481,6 +6560,9 @@ function renderImmoFinancingView(state) {
     ltvTarget:     getNum('immoFinInputLtv'),
     besoinCasa:    getNum('immoFinInputCasa'),
     horizonCasa:   Number(getStr('immoFinInputHorizonCasa')) || 24,
+    // v307 — preset-driven overrides (si preset sélectionné)
+    acquisitionFeesPct: presetFeesPct,     // null → fallback 6.7% Maroc
+    apportRatio:        presetApportRatio, // null → fallback 20%
   };
 
   // Margin rate selon devise choisie (taux par défaut depuis MARGIN_RATES)
@@ -6528,10 +6610,12 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=306').then(m => {
+  import('./charts.js?v=307').then(m => {
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
     if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
+    // v307 — nouveau chart : timeline complète du cash mobilisable
+    if (typeof m.buildImmoFinCashProjectionChart === 'function') m.buildImmoFinCashProjectionChart(result);
   });
 
   // ── Bind inputs (once) ──
@@ -6552,6 +6636,24 @@ function renderImmoFinancingView(state) {
       }
     });
 
+    // v307 — preset selector : remplit prix + frais + apport ratio
+    const presetEl = document.getElementById('immoFinInputPreset');
+    if (presetEl) {
+      presetEl.addEventListener('change', (e) => {
+        applyImmoFinPreset(e.target.value, state);
+        renderImmoFinancingView(state);
+      });
+    }
+
+    // v307 — bouton sync patrimoine actuel
+    const syncBtn = document.getElementById('immoFinSyncPatrimoineBtn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', () => {
+        syncPatrimoineFromState(state);
+        renderImmoFinancingView(state);
+      });
+    }
+
     // Reset button
     const resetBtn = document.getElementById('immoFinResetBtn');
     if (resetBtn) {
@@ -6570,11 +6672,22 @@ function renderImmoFinancingView(state) {
           immoFinInputLtv: 30,
           immoFinInputCasa: 4000000,
           immoFinInputHorizonCasa: 24,
+          immoFinInputPreset: 'custom',
         };
         Object.entries(defaults).forEach(([id, val]) => {
           const el = document.getElementById(id);
           if (el) el.value = val;
         });
+        // Clear preset data attrs
+        const prixEl = document.getElementById('immoFinInputPrix');
+        if (prixEl) {
+          delete prixEl.dataset.feesPct;
+          delete prixEl.dataset.country;
+          delete prixEl.dataset.apportRatio;
+        }
+        const noteEl = document.getElementById('immoFinPresetNote');
+        if (noteEl) noteEl.textContent = '';
+        syncPatrimoineFromState(state);   // re-sync patrimoine auto
         renderImmoFinancingView(state);
       });
     }

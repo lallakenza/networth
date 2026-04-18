@@ -3743,9 +3743,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <details open style="border:1px solid var(--border);border-radius:8px;padding:12px;">
       <summary style="cursor:pointer;font-weight:600;color:var(--text);">1. Ma situation</summary>
       <div style="display:grid;gap:10px;margin-top:12px;font-size:12px;">
-        <label>Patrimoine initial (MAD)
+        <label>Patrimoine mobilisable initial (MAD)
           <input type="number" id="immoFinInputPatrimoine" value="4400000" step="100000" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
         </label>
+        <!-- v307 — Sync button : recharge depuis state.couple.financialMobilisable calculé en live -->
+        <button type="button" id="immoFinSyncPatrimoineBtn" style="padding:5px 10px;background:rgba(139,92,246,0.08);color:#8b5cf6;border:1px solid #8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">Synchroniser avec patrimoine actuel</button>
+        <div id="immoFinPatrimoineSyncInfo" style="font-size:10.5px;color:var(--gray);"></div>
         <label>&Eacute;pargne mensuelle (EUR)
           <input type="number" id="immoFinInputEpargne" value="8000" step="500" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
         </label>
@@ -3762,9 +3765,19 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <details open style="border:1px solid var(--border);border-radius:8px;padding:12px;">
       <summary style="cursor:pointer;font-weight:600;color:var(--text);">2. Projet immobilier</summary>
       <div style="display:grid;gap:10px;margin-top:12px;font-size:12px;">
-        <label>Prix appart parents (MAD)
+        <!-- v307 — Presets -->
+        <label>Sc&eacute;nario pr&eacute;d&eacute;fini
+          <select id="immoFinInputPreset" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+            <option value="custom" selected>Personnalis&eacute;</option>
+            <option value="marrakech_appart">Appartement &agrave; Marrakech &mdash; 2.5 MDH</option>
+            <option value="casa_studio">Studio &agrave; Casablanca &mdash; 2.0 MDH</option>
+            <option value="uae_appart">Appartement aux UAE &mdash; 800k USD</option>
+          </select>
+        </label>
+        <label>Prix appart (MAD, converti si devise preset diff&eacute;rente)
           <input type="number" id="immoFinInputPrix" value="2500000" step="50000" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
         </label>
+        <div id="immoFinPresetNote" style="font-size:11px;color:var(--gray);font-style:italic;min-height:15px;"></div>
         <label>Horizon analyse principal
           <select id="immoFinInputHorizon" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
             <option value="10">10 ans</option>
@@ -3844,6 +3857,13 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     </div>
   </div>
 
+  <!-- v307 — Timeline compl&egrave;te du cash mobilisable pour 2e projet -->
+  <div style="margin-top:20px;">
+    <h3>&Eacute;volution du cash mobilisable dans le temps</h3>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Projection par pas de 3 mois : combien de liquidit&eacute; puis-je mobiliser pour un <strong>2e projet</strong> &agrave; chaque date, <em>apr&egrave;s</em> avoir d&eacute;j&agrave; engag&eacute; l'apport + mensualit&eacute;s du 1er ? Ligne rouge pointill&eacute;e = besoin projet Casa. Le point o&ugrave; chaque courbe croise la ligne rouge = date &agrave; partir de laquelle le 2e projet devient finan&ccedil;able.</p>
+    <div class="chart-container" style="height:380px;position:relative"><canvas id="immoFinCashProjectionChart"></canvas></div>
+  </div>
+
   <!-- Warnings zone -->
   <div id="immoFinWarnings" style="margin-top:18px;"></div>
 
@@ -3860,7 +3880,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=306"></script>
+<script type="module" src="js/app.js?v=307"></script>
 
 </body>
 </html>
