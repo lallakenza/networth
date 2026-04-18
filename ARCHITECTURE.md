@@ -3758,4 +3758,169 @@ Conversion EUR via `toEUR(balance, currency, fx)` dans engine.
 | Oublier `fxRate` sur trade USD/JPY | Perd la décomposition FX P&L (BUG-037) | Taux ECB à la date |
 | Modifier `EQUITY_HISTORY` rétroactivement | Casse l'invariant de monotonicité | Ajouter seulement de nouvelles lignes en bout |
 | `confirmed: true` sans `source` | Perd la traçabilité | Toujours documenter la source |
+| Lire `prop.cashFlow.netMonthly` (inexistant) | Loyers muets (BUG-056, BUG-057) | Utiliser `prop.cf` (mensuel net), `prop.loyerDeclareAnnuel`, `prop.loanInterestAnnuel` |
+| Filtre `pos.platform === 'IBKR'` | Le champ n'existe pas — filtre exclut tout (BUG-058) | `state.actionsView.ibkrPositions` est déjà IBKR uniquement |
+| Appliquer IR France en taux flat | Sur-estime 30-45% si > 28K€ (BUG-059) | Barème progressif 20%/30% par tranches marginales |
+
+---
+
+## §54 — v305 : KPI "Patrimoine Financier Mobilisable" (17 avril 2026)
+
+**Objectif** : répondre aux questionnaires de solvabilité (banques, notaires, compagnies aériennes premium) qui demandent systématiquement "quel est votre patrimoine financier mobilisable ?". Synonyme : cash + liquide rapidement sans décote majeure.
+
+**Définition utilisée** (engine.js `compute()`) :
+```
+financialMobilisable = IBKR (stocks+cash) + ESPP + SGTM + cash bancaire (UAE+EUR+Morocco)
+```
+Exclut explicitement : immobilier (illiquide), véhicules, créances (probabilité), facturation en cours (pas encaissé).
+
+**Vues** : exposé sur les 3 axes (`state.couple`, `state.amine`, `state.nezha`).
+
+**Rendu** : card KPI "Patrimoine mobilisable" dans la vue Couple + section insight avec breakdown Amine/Nezha.
+
+**Lecture en aval** : consommé par le module Financement immobilier (v306+) pour pré-remplir le champ patrimoine, et par `computeObjectifs` (v312) pour le basis `mobilisable-amine`.
+
+---
+
+## §55 — v306 : Module "Financement immobilier — Comparateur de scénarios" (17 avril 2026)
+
+**Objectif** : décider entre 4 façons de financer un achat immo (cash, prêt banque, margin IBKR, double leverage) pour un couple MRE avec patrimoine financier solide.
+
+**Scénarios** :
+| Scénario | Description | Sortie initiale | Dette générée |
+|---|---|---|---|
+| **A** Cash intégral | Paye tout cash + frais | prix + 6.7% frais | 0 |
+| **B** Prêt banque | Apport 20% + frais + hypothèque + dossier | apport + ~7% frais totaux | principal = 80% × prix amorti sur 25 ans |
+| **C** Cash + margin IBKR | Paye cash, collatéralise le portefeuille restant | A_sortie | `portefeuilleRestant × LTV_target` (non-amortie, intérêts seuls) |
+| **D** Prêt + margin (double) | Combine B et C | apport B | principal B + margin D |
+
+**Formules pures** (engine.js §"REAL ESTATE FINANCING MATH") :
+- `mensualiteAmortissement(P, r, n)` — annuité constante
+- `valeurFuture(capital, apport, r, n)` — VF intérêts composés mensuels
+- `fraisHypothequeMaroc(principal)` — barème ANCFCC progressif
+- `crdAfterMonths(P, r, n, k)` — CRD restant après k mois
+
+**Inputs** (render.js `renderImmoFinancingView`) lus depuis 15 champs DOM + presets optionnels (Maroc/UAE). La `fxEURMAD` pilote la conversion des épargnes EUR → MAD.
+
+**Outputs** :
+- `scenarios.{A,B,C,D}.patrimoineFinal` pour horizons 10/15/25 ans
+- `.liquidite` pour T+12/24/36 mois (pour projet Casa)
+- `.cashProjection` (pas de 3 mois, v307)
+- `.recommendation.best` selon règle : Casa tendu < 24m → B, sinon → C
+
+**Invariant** : patrimoineFinal[i] n'inclut PAS le prix de l'appart (c'est une donation aux parents, pas un actif Amine). On compare "quelle richesse financière reste-t-il" en fin d'horizon.
+
+**Hypothèses explicites** : rendement 6 %, margin 3.1 % EUR / 4.8 % USD / 1.5 % JPY (MARGIN_RATES data.js, à actualiser semestriellement), assurance DI 0.35 %, coeff CRD moyen 0.55 (v314 A7).
+
+---
+
+## §56 — v307 : Auto-feed patrimoine + presets + timeline cash (17 avril 2026)
+
+**3 améliorations du module v306** :
+
+1. **Auto-feed** : au premier render, le champ patrimoine se remplit automatiquement depuis `state.amine.financialMobilisable` × fxEURMAD. Flag `_immoFinPatrimoineAutoFed` évite l'écrasement si l'utilisateur a déjà tapé une valeur.
+
+2. **Presets** : `IMMO_PRESETS` dans data.js (Marrakech 2.5 M MAD, Casa 2 M MAD, UAE 800 K USD) avec conversion devise native → MAD automatique. v313 (A6) : chaque preset porte explicitement son `apportRatio` (20 % Maroc, 50 % UAE expat) au lieu d'une règle hardcodée.
+
+3. **cashProjection** : pour chaque scénario, série `{month, cash}` tous les 3 mois sur l'horizon max. Cash = `portefeuilleProjeté × (1 + LTV_target)` = capacité totale (collatéralisable). Consommée par `buildImmoFinCashProjectionChart` pour répondre "à partir de quel mois puis-je faire un 2e projet de X MAD ?".
+
+---
+
+## §57 — v308 : Cash-flow consolidé + Alertes proactives + Fix Amine-only (17 avril 2026)
+
+**Cash-flow consolidé** (engine.js `computeCashFlow`) :
+- Agrège : `MONTHLY_INCOMES` (Bairok 85K AED/mois) + loyers nets (`prop.cf`, v313 BUG-056) + dividendes projetés / 12
+- Dépenses : `BUDGET_EXPENSES` (fixes, SaaS, utilities)
+- KPIs : `incomeMonthly`, `expensesMonthly`, `netSavings`, `savingsRate`, `emergencyFundRatio` (dormant/expenses), `runwayMonths` (liquid/expenses)
+- Consommé par Budget view (strip KPI) + `computeAlerts` (règles #3, #4)
+
+**Alertes proactives** (engine.js `computeAlerts`) — 5 règles :
+1. **Red** — Créances en retard (dueDate < today, status ≠ recouvré) ; v314 (A8) warn console si dueDate absente
+2. **Yellow** — Ex-dividende ≤ 15 j + WHT > 30 € + recommendation='switch'
+3. **Green** — Cash dormant > 12 mois de dépenses (opportunité yield 5 %)
+4. **Red** — Emergency fund < 3 mois
+5. **Green** — Position IBKR +30 % et > 5 K€ (rebalancing) ; v313 (BUG-058) 3 champs corrigés
+
+**Fix Amine-only** : le module Financement est purement Amine (pas Nezha). `syncPatrimoineFromState` lit `state.amine.financialMobilisable` au lieu de `state.couple.*`.
+
+---
+
+## §58 — v310 : Multi-projets pipeline + chart modes absolu/zoom/delta
+
+**Multi-projets** : jusqu'à 3 projets configurables (`besoinCasa` par défaut + Proj2 + Proj3). Chaque projet : label, amountMAD, monthsTarget. `projetsCompat[scenario][projet]` = `{liquideAtTarget, feasible, tight, ratio}` avec seuils 95 % (feasible) et 75 % (tight).
+
+**Chart modes** (v310) — 3 modes d'affichage du chart Patrimoine :
+- **absolu** — échelle 0-max, différences absolues
+- **zoom** — échelle ajustée au range min-max (pour discriminer scénarios proches)
+- **delta** — différence vs scénario le plus bas (lisible quand les 4 convergent)
+
+Toggle géré par `_immoFinChartMode` (module-level state). v314 (A5) : sync visuel des boutons au premier rendu (avant, état neutre tant qu'on cliquait pas).
+
+Plugin `afterDatasetsDraw` ajoute les labels "MDH (X %)" sur les barres stress-test.
+
+---
+
+## §59 — v311 : Fiscalité MRE consolidée (17 avril 2026)
+
+Module `computeFiscaliteMRE` (engine.js §"PLAN LONG-TERME + FISCALITÉ MRE") expose 4 blocs :
+
+1. **IR Loyer Vitry** (v313 BUG-057 + BUG-059 corrigés) :
+   - Lit `vitry.loyerDeclareAnnuel`, `deductibleChargesAnnuel`, `loanInterestAnnuel`
+   - Régime micro-foncier si loyer < 15 K€ (abattement 30 %), sinon réel (charges + intérêts)
+   - IR en **barème progressif** 20 % < 28 797 € marginal, 30 % au-delà
+   - PS 17.2 % (UAE hors EEE, pas d'exonération)
+   - Expose `tauxIR` effectif (= IR/revenuImposable) pour affichage
+
+2. **PV immo Vitry** (si vente aujourd'hui) :
+   - Abattement IR : 6 %/an de 6→21 ans, 4 % à 22 ans, exo à 22 ans
+   - Abattement PS : 1.65 %/an de 6→21 ans, 1.6 % à 22 ans, 9 %/an de 23→30 ans
+   - IR taux fixe 19 % + PS 17.2 % après abattements
+   - `propertyMeta.purchaseDate` (v313) pour éviter fallback hardcodé
+
+3. **Calendrier déclaratif** : FR 2042+2044 (mai-juin), MA si rapatriement, UAE license Bairok, TRC annuel
+
+4. **Coût rapatriement** : 0.5 % spread Wise/Revolut + 10 € wire (à nuancer pour > 250 K€)
+
+---
+
+## §60 — v312 : Plan long-terme + Sensibilité (17 avril 2026)
+
+**`computeObjectifs`** — liste des objectifs avec statut dynamique :
+- Basis : `couple-NW`, `amine-NW`, `mobilisable-amine`, `custom`
+- Formule : `projected = current × (1+r)^n + savings × ((1+r)^n−1)/r`
+- Status : on-track (≥1.0), at-risk (≥0.85), behind (<0.85)
+- `requiredAdditionalMonthly` = épargne supplémentaire nécessaire si en retard
+
+**`computeSensibilite`** — matrice 3 × 3 :
+- Rows : rendement {4 %, 6 %, 8 %}
+- Cols : savings {6 400, 8 000, 9 600 €/mois}
+- Cells : projected, ratio/target, delta
+
+**4 objectifs par défaut** (DEFAULT_OBJECTIFS) : 1 M€ couple 2028, appart parents 250 K€ 2027, studio Casa 400 K€ 2029, retraite 3 M€ 2055.
+
+---
+
+## §61 — v313 : Audit v305-v312 — 4 bugs critiques (18 avril 2026)
+
+**Fixes déployés** — voir BUG_TRACKER.md BUG-056 à BUG-059 :
+- **BUG-056** — `computeCashFlow` lisait `prop.cashFlow.netMonthly` (inexistant) → loyers muets. Fix `prop.cf`.
+- **BUG-057** — `computeFiscaliteMRE` lisait `vitry.cashFlow.loyerMensuel/...` → table IR vide. Fix champs réels.
+- **BUG-058** — `computeAlerts` règle P&L IBKR : 3 noms de champs incorrects → alerte muette. Fix `ibkrPositions` + drop `platform` + `costEUR_hist`.
+- **BUG-059** — IR France calculé en **flat** 30 % au-dessus 28 K€ → sur-estimation 30-45 %. Fix barème **marginal** 20 %/30 %.
+
+**Évolution A6** : `IMMO_PRESETS[i].apportRatio` explicite (data-driven) au lieu de hardcodé `preset.country === 'AE' ? 0.50 : 0.20` dans render.
+
+---
+
+## §62 — v314 : Qualité — visual sync + coeff CRD moyen + warn créances + docs (18 avril 2026)
+
+**3 quality fixes** (suite audit) :
+- **A5** — `renderImmoFinancingView` re-synchronise visuellement les boutons chart mode au premier rendu (avant : tous neutres tant qu'on n'avait pas cliqué).
+- **A7** — Coeff CRD moyen 0.5 → **0.55** sur calcul assurance DI (prêt à annuité constante, CRD moyen temporel ≈ 0.55 × principal pour taux 3-6% / 20-25 ans, pas 0.5 qui suppose un amortissement linéaire).
+- **A8** — Créance sans `dueDate` : warn console `[alerts]` pour que le propriétaire aille compléter data.js (avant : silencieux → échappait à la règle "en retard").
+
+**Documentation** :
+- ARCHITECTURE.md §54-§62 ajoutées (v305 → v314 complet)
+- CLAUDE.md Data Update Cheatsheet enrichi (MONTHLY_INCOMES, MARGIN_RATES, IMMO_PRESETS, IMMO_MAROC_FEES)
+- Anti-patterns ajoutés : `prop.cashFlow.*`, `pos.platform` filter, IR flat
 

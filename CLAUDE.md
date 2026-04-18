@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v289 (12 avril 2026)
+- **Current version**: v314 (18 avril 2026)
 
 ## Architecture
 
@@ -95,6 +95,14 @@ Where:
 | Chart tooltip handler | `js/charts.js` | ~2500+ |
 | Immo simulation | `js/engine.js` | ~2800-3052 |
 | Budget view | `js/engine.js` | ~3233+ |
+| Financement immo (4 scénarios) | `js/engine.js` | `computeImmoFinancing` ~4449 |
+| Cash-flow consolidé | `js/engine.js` | `computeCashFlow` ~4792 |
+| Alertes proactives (5 règles) | `js/engine.js` | `computeAlerts` ~4919 |
+| Plan long-terme + Sensibilité | `js/engine.js` | `computeObjectifs` ~5048, `computeSensibilite` ~5100 |
+| Fiscalité MRE (IR/PV/calendrier) | `js/engine.js` | `computeFiscaliteMRE` ~5138 |
+| Presets immo Maroc/UAE | `js/data.js` | `IMMO_PRESETS` ~2452 |
+| Module Financement render | `js/render.js` | `renderImmoFinancingView` ~6595 |
+| Plan & Fiscalité render | `js/render.js` | `renderPlanFiscalView` ~6908 |
 
 ## Data Update Cheatsheet (v304+)
 
@@ -119,6 +127,10 @@ schémas détaillés + exemples, voir `ARCHITECTURE.md §11 "Data Model Referenc
 | **Événementiel** | Nouvelle créance / remboursement | `PORTFOLIO.amine.creances.items` | créances view, NW (si statut ≠ recouvré) |
 | **Événementiel** | Facturation (Augustin/Benoit) | `PORTFOLIO.amine.facturation` OR localStorage | `amineFacturationNet`, créances view |
 | **Événementiel** | Nouveau prêt immo / modification CRD | `IMMO_CONSTANTS.charges` | immo view, NW, budget |
+| **Événementiel** | Nouveau projet immo (preset) | `IMMO_PRESETS` (prix, devise, feesPct, apportRatio) | Module Financement (v306+) |
+| **Mensuelle** | Facturation / salaires (cash-flow) | `MONTHLY_INCOMES` | Budget view, Alertes (v308+) |
+| **Semestrielle** | Taux margin IBKR (suivi BCE/Fed) | `MARGIN_RATES` (EUR/USD/JPY) | Module Financement scénarios C/D |
+| **Annuelle** | Barèmes notaire/hypothèque Maroc | `IMMO_MAROC_FEES` | Module Financement scénarios B/D |
 | **Annuel** | Lots ESPP (+1 lot par an) + `totalCostBasisUSD` | `PORTFOLIO.amine.espp.lots` | stocks view, NW, chart |
 | **Jamais sans justif** | TVA à payer, taux d'actualisation | `PORTFOLIO.amine.tva`, `INFLATION_RATE` | NW, simulator |
 
@@ -174,6 +186,10 @@ schémas détaillés + exemples, voir `ARCHITECTURE.md §11 "Data Model Referenc
    - `plValuesESPP = plValuesESPPAmine + plValuesESPPNezha` (per-owner)
 5. **Multi-devises** : TOUS les montants stockés en devise NATIVE. Conversion uniquement via `toEUR(amount, currency, fx)` côté engine. Ne jamais pré-convertir en EUR dans data.js.
 6. **Sémantique `0` vs `undefined`** : pour `contribEUR` (lots ESPP) et similaires, `0` signifie "zéro explicite" (ex: FRAC = dividendes réinvestis, pas de coût). `undefined` signifie "fallback sur le calcul par défaut" (ex: Nezha sans contrib tracée). Utiliser `!= null` pas `if (x)` pour distinguer.
+7. **Shapes de données inter-modules (v313+ BUG-056/057/058)** : avant de lire une sous-propriété d'un objet `state.xxx`, vérifier le shape réel dans engine.js (les `return {…}`). Anti-pattern : inventer des noms de champs. Exemples :
+   - `immoView.properties[i]` expose `cf` (mensuel net), `loyer`, `loyerDeclareAnnuel`, `deductibleChargesAnnuel`, `loanInterestAnnuel`, `purchasePrice`, `propertyMeta` — **PAS** de `cashFlow.netMonthly` / `loyerMensuel` / etc.
+   - `actionsView.ibkrPositions[i]` expose `ticker`, `valEUR`, `costEUR_hist`, `unrealizedPL` — **PAS** de `platform` ni `costBasisEUR`.
+   - Si un champ calculé est absent, soit l'ajouter à la source (engine), soit dériver à partir des champs existants — **jamais** inventer un chemin.
 
 ## Git conventions
 

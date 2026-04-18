@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=313';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=313';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=314';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=314';
 
 // ---- Generic table sort utility ----
 /**
@@ -6680,12 +6680,22 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=313').then(m => {
+  import('./charts.js?v=314').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
     if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
     if (typeof m.buildImmoFinCashProjectionChart === 'function') m.buildImmoFinCashProjectionChart(result);
+  });
+
+  // v314 (A5) — resync visual state des boutons chart mode au premier rendu.
+  // Sans ça, tous les boutons partent neutres et l'utilisateur ne sait pas
+  // lequel est actif tant qu'il n'a pas cliqué.
+  document.querySelectorAll('.immo-fin-chart-mode').forEach(b => {
+    const isActive = b.dataset.mode === _immoFinChartMode;
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#8b5cf6' : 'white';
+    b.style.color = isActive ? 'white' : 'var(--text)';
   });
 
   // ── Bind inputs (once) ──

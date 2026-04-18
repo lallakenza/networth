@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=313';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=314';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4483,8 +4483,14 @@ export function computeImmoFinancing(inputs) {
   const B_apportCash = prix * apportRatio + fraisCashMAD + B_hypotheque + fees.fraisDossierBanque;
   const B_portefeuilleRestant = Math.max(0, inputs.patrimoineMAD - B_apportCash);
   const B_mensualiteCredit = mensualiteAmortissement(B_principal, tauxBanque, nBanque);
-  // Assurance DI moyenne : 0.5 × taux × principal / 12 (moyenne sur amortissement linéaire)
-  const B_assuranceMoyenne = 0.5 * assuranceDI * B_principal / 12;
+  // Assurance DI moyenne : coeff CRD-moyen × taux × principal / 12
+  // v314 (A7) : sur un prêt à annuité constante 5% / 25 ans, le CRD moyen
+  // est ~0.55 × principal (pas 0.5). Le capital s'amortit lentement au début
+  // (la part "intérêts" dans la mensualité est grosse tant que CRD est haut),
+  // donc la moyenne temporelle du CRD est >0.5. Coeff 0.55 = compromis
+  // raisonnable tous taux 3-6% confondus sur 20-25 ans.
+  const CRD_MOYEN_COEFF = 0.55;
+  const B_assuranceMoyenne = CRD_MOYEN_COEFF * assuranceDI * B_principal / 12;
   const B_mensualiteTotal = B_mensualiteCredit + B_assuranceMoyenne;
   const B_epargneNettePendantCredit = epargneMAD - B_mensualiteTotal;
   const B_epargneNetteApresCredit = epargneMAD;
@@ -4927,7 +4933,14 @@ export function computeAlerts(state) {
   // ── 1. Créances en retard ──
   if (state.creancesView && state.creancesView.activeItems) {
     for (const c of state.creancesView.activeItems) {
-      if (!c.dueDate) continue;
+      if (!c.dueDate) {
+        // v314 (A8) : ne pas masquer silencieusement les créances sans
+        // dueDate — elles échappent à la règle "en retard". Warn console
+        // pour que l'auteur aille compléter data.js.
+        console.warn('[alerts] Créance sans dueDate — ne sera pas surveillée :',
+          c.counterparty || c.label || c.id, `(${c.amount} ${c.currency || 'EUR'})`);
+        continue;
+      }
       const due = new Date(c.dueDate + 'T00:00:00');
       const overdue = -daysDiff(due);
       if (overdue > 0 && overdue < 9000) {  // filter sentinel dates
