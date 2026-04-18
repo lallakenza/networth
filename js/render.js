@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=305';
-import { getGrandTotal } from './engine.js?v=305';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES } from './data.js?v=306';
+import { getGrandTotal, computeImmoFinancing } from './engine.js?v=306';
 
 // ---- Generic table sort utility ----
 /**
@@ -266,6 +266,7 @@ export function render(state, view, currency) {
   if (view === 'immobilier') renderImmoView(state);
   if (view === 'creances') renderCreancesView(state);
   if (view === 'budget') renderBudgetView(state);
+  if (view === 'immo-financing') renderImmoFinancingView(state);  // v306
 
   // Per-apartment views
   if (view === 'apt_vitry') renderAptView(state, 'vitry');
@@ -6447,3 +6448,186 @@ function attachKPIInsights(state, view) {
   });
 }
 
+
+// ════════════════════════════════════════════════════════════
+// IMMO FINANCING COMPARATOR — v306
+// ════════════════════════════════════════════════════════════
+// Render function for the new view data-view="immo-financing".
+// Reads inputs from DOM, calls computeImmoFinancing(), writes KPI cards,
+// recommendation banner, warnings, comparison table, and triggers the
+// 3 Chart.js charts (patrimoine bars / LTV line / stress Casa bars).
+//
+// All inputs are debounced via `oninput` event — recalc runs each time.
+// Charts are destroyed + rebuilt on each call (Chart.js default).
+
+let _immoFinBound = false;  // guard to avoid double event listener binding
+
+function renderImmoFinancingView(state) {
+  // Lecture inputs DOM
+  const getNum = id => Number(document.getElementById(id)?.value) || 0;
+  const getStr = id => document.getElementById(id)?.value || '';
+
+  const inputs = {
+    patrimoineMAD: getNum('immoFinInputPatrimoine'),
+    prixAppart:    getNum('immoFinInputPrix'),
+    rendementPct:  getNum('immoFinInputRendement'),
+    epargneEUR:    getNum('immoFinInputEpargne'),
+    fxEURMAD:      getNum('immoFinInputFx'),
+    horizonYears:  Number(getStr('immoFinInputHorizon')) || 25,
+    tauxBanquePct: getNum('immoFinInputTauxBanque'),
+    dureeBanque:   getNum('immoFinInputDureeBanque'),
+    assuranceDIPct:getNum('immoFinInputAssurance'),
+    marginCurrency:getStr('immoFinInputMarginCurrency') || 'EUR',
+    ltvTarget:     getNum('immoFinInputLtv'),
+    besoinCasa:    getNum('immoFinInputCasa'),
+    horizonCasa:   Number(getStr('immoFinInputHorizonCasa')) || 24,
+  };
+
+  // Margin rate selon devise choisie (taux par défaut depuis MARGIN_RATES)
+  const marginRates = { EUR: 3.1, USD: 4.8, JPY: 1.5 };
+  inputs.marginRatePct = marginRates[inputs.marginCurrency] || 3.1;
+
+  // Compute
+  const result = computeImmoFinancing(inputs);
+
+  // ── KPI cards ──
+  const fmtMAD = v => fmt(v);   // MAD formatted like EUR, just numbers
+  const fmtMDH = v => (v / 1e6).toFixed(2) + ' MDH';
+  setText('immoFinKpiPatrimoine', fmtMDH(inputs.patrimoineMAD));
+  setText('immoFinKpiPrix',        fmtMDH(inputs.prixAppart));
+  setText('immoFinKpiEpargne',     inputs.epargneEUR.toLocaleString('fr-FR') + ' €/mois');
+  setText('immoFinKpiRendement',   inputs.rendementPct.toFixed(1) + '%');
+
+  // ── Recommendation banner ──
+  const reco = result.recommendation;
+  const recoEl = document.getElementById('immoFinRecoText');
+  if (recoEl) {
+    let html = '<strong style="color:' + reco.bestColor + '">Sc&eacute;nario ' + reco.best + ' &mdash; ' + reco.bestLabel + '</strong>';
+    if (reco.reasons.length) {
+      html += '<ul style="margin:6px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-muted);">';
+      reco.reasons.forEach(r => { html += '<li>' + r + '</li>'; });
+      html += '</ul>';
+    }
+    recoEl.innerHTML = html;
+  }
+
+  // ── Warnings zone ──
+  const warnEl = document.getElementById('immoFinWarnings');
+  if (warnEl) {
+    if (reco.warnings.length === 0) {
+      warnEl.innerHTML = '';
+    } else {
+      warnEl.innerHTML = reco.warnings.map(w =>
+        '<div style="padding:10px 14px;background:rgba(239,68,68,0.08);border-left:4px solid var(--red);border-radius:6px;margin-bottom:8px;font-size:13px;">' +
+        '<strong style="color:var(--red)">&#x26A0; Warning sc&eacute;nario ' + w.scenario + ' :</strong> ' + w.msg +
+        '</div>').join('');
+    }
+  }
+
+  // ── Comparison table ──
+  renderImmoFinComparisonTable(result);
+
+  // ── Charts (lazy import to avoid circular dep) ──
+  import('./charts.js?v=306').then(m => {
+    if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result);
+    if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
+    if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
+  });
+
+  // ── Bind inputs (once) ──
+  if (!_immoFinBound) {
+    _immoFinBound = true;
+    const ids = [
+      'immoFinInputPatrimoine', 'immoFinInputPrix', 'immoFinInputRendement',
+      'immoFinInputEpargne', 'immoFinInputFx', 'immoFinInputHorizon',
+      'immoFinInputTauxBanque', 'immoFinInputDureeBanque', 'immoFinInputAssurance',
+      'immoFinInputMarginCurrency', 'immoFinInputLtv',
+      'immoFinInputCasa', 'immoFinInputHorizonCasa',
+    ];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', () => renderImmoFinancingView(state));
+        el.addEventListener('change', () => renderImmoFinancingView(state));
+      }
+    });
+
+    // Reset button
+    const resetBtn = document.getElementById('immoFinResetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const defaults = {
+          immoFinInputPatrimoine: 4400000,
+          immoFinInputPrix: 2500000,
+          immoFinInputRendement: 6,
+          immoFinInputEpargne: 8000,
+          immoFinInputFx: 10.80,
+          immoFinInputHorizon: 25,
+          immoFinInputTauxBanque: 5,
+          immoFinInputDureeBanque: 25,
+          immoFinInputAssurance: 0.35,
+          immoFinInputMarginCurrency: 'EUR',
+          immoFinInputLtv: 30,
+          immoFinInputCasa: 4000000,
+          immoFinInputHorizonCasa: 24,
+        };
+        Object.entries(defaults).forEach(([id, val]) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        });
+        renderImmoFinancingView(state);
+      });
+    }
+  }
+}
+
+/**
+ * Build the comparison table with all 4 scenarios.
+ * Columns: Scénario | Mensualité | Épargne nette | Patrimoine 25ans | Liquidité T+24m | Dette restante 25ans
+ * The recommended scenario row gets a violet highlight.
+ */
+function renderImmoFinComparisonTable(result) {
+  const el = document.getElementById('immoFinComparisonTable');
+  if (!el) return;
+  const { scenarios, recommendation, summary } = result;
+  const hCasaIdx = summary.casaPoints.indexOf(result.inputs.horizonCasa);
+  const hIdx = summary.horizons.indexOf(result.inputs.horizonYears);
+  const hSafe = hIdx >= 0 ? hIdx : summary.horizons.length - 1;
+  const casaSafe = hCasaIdx >= 0 ? hCasaIdx : 1;
+
+  const fmtMAD = v => Math.round(v).toLocaleString('fr-FR');
+  const fmtMDH = v => (v / 1e6).toFixed(2);
+
+  const rows = ['A', 'B', 'C', 'D'].map(key => {
+    const s = scenarios[key];
+    const highlight = key === recommendation.best
+      ? 'background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;'
+      : '';
+    const liquidite = s.liquidite[casaSafe];
+    const casaOk = liquidite >= result.inputs.besoinCasa * 0.95;
+    const liqColor = result.inputs.besoinCasa === 0
+      ? 'var(--text)'
+      : (casaOk ? 'var(--green)' : (liquidite >= result.inputs.besoinCasa * 0.75 ? '#d97706' : 'var(--red)'));
+    return '<tr style="' + highlight + '">' +
+      '<td><strong style="color:' + s.color + '">' + key + '</strong> <span style="font-size:11px;color:var(--gray)">' + s.label + '</span></td>' +
+      '<td class="num">' + fmtMAD(s.mensualite) + ' MAD</td>' +
+      '<td class="num">' + fmtMAD(s.epargneNette) + ' MAD</td>' +
+      '<td class="num"><strong>' + fmtMDH(s.patrimoineFinal[hSafe]) + '</strong> MDH</td>' +
+      '<td class="num" style="color:' + liqColor + '">' + fmtMDH(liquidite) + ' MDH</td>' +
+      '<td class="num">' + fmtMAD(s.detteRestante[hSafe]) + ' MAD</td>' +
+    '</tr>';
+  }).join('');
+
+  el.innerHTML =
+    '<table style="width:100%;font-size:12px;">' +
+      '<thead><tr>' +
+        '<th style="text-align:left">Sc&eacute;nario</th>' +
+        '<th class="num">Mensualit&eacute;</th>' +
+        '<th class="num">&Eacute;pargne nette</th>' +
+        '<th class="num">Patrimoine ' + result.inputs.horizonYears + ' ans</th>' +
+        '<th class="num">Liquidit&eacute; T+' + result.inputs.horizonCasa + 'm</th>' +
+        '<th class="num">Dette restante</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}

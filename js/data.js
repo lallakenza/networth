@@ -1140,7 +1140,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v305';
+export const APP_VERSION = 'v306';
 
 // ════════════════════════════════════════════════════════════
 // PRIX STATIQUES — fallback "Si gardé auj." avant fetch API
@@ -2393,6 +2393,51 @@ export const DIV_CALENDAR = {
                note: 'Final ¥20 juin + interim ¥10 déc' },
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
   'ETHA':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
+};
+
+// ════════════════════════════════════════════════════════════
+// IMMO MAROC — Frais d'acquisition & constantes de financement (v306)
+// ════════════════════════════════════════════════════════════
+// Utilisé par le module "Financement immobilier — Comparateur de scénarios"
+// pour modéliser les coûts réels d'achat au Maroc (résidence principale ou
+// appart pour la famille).
+//
+// Sources :
+// - ANCFCC (Agence Nationale de la Conservation Foncière) : barèmes officiels
+// - Banque Centrale du Maroc : taux crédit immobilier moyens 2025-2026
+// - Ordre des Notaires du Maroc : honoraires TTC (TVA 10% sur honoraires HT)
+//
+// Mise à jour : avril 2026 (v306)
+// ════════════════════════════════════════════════════════════
+export const IMMO_MAROC_FEES = {
+  // Frais d'acquisition cash (tout scénario d'achat) — en % du prix
+  droitsEnregistrement: 0.04,          // 4% — "droits de mutation"
+  conservationFonciereVente: 0.015,    // 1.5% — enregistrement au titre foncier
+  notaireHonoraires: 0.012,            // ~1.2% TTC (honoraires HT × 1.10 TVA, barème dégressif ~1-1.5%)
+  // Total "frais cash" ≈ 6.7% du prix
+  get fraisCashTotal() {
+    return this.droitsEnregistrement + this.conservationFonciereVente + this.notaireHonoraires;
+  },
+
+  // Frais spécifiques si crédit bancaire
+  fraisDossierBanque: 6000,             // MAD — forfait moyen (plage 3 000-8 000)
+  assuranceDIAnnuelle: 0.0035,          // 0.35%/an sur capital restant dû (obligatoire Maroc)
+
+  // Hypothèque — barème progressif ANCFCC
+  hypothequeBrackets: [
+    { max: 250000,    rate: 0.005 },    // 0.5% sur tranche 0-250K
+    { max: 5000000,   rate: 0.015 },    // 1.5% sur tranche 250K-5M
+    { max: Infinity,  rate: 0.020 },    // 2% au-delà
+  ],
+};
+
+// Taux margin IBKR (par devise, mis à jour avril 2026)
+// Source : IBKR Margin Rates page, tier "Blended Rate 0-100K" avec spread ~1-1.5% sur benchmark
+// €STR (EUR), SOFR (USD), TONA (JPY) = benchmark monétaire quotidien
+export const MARGIN_RATES = {
+  EUR: 0.031,    // 3.1% — €STR ~1.6% + spread 1.5%
+  USD: 0.048,    // 4.8% — SOFR ~3.3% + spread 1.5%
+  JPY: 0.015,    // 1.5% — TONA ~0.1% + spread 1.4% — ⚠ risque FX si yen s'apprécie
 };
 
 // ════════════════════════════════════════════════════════════
