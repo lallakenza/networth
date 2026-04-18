@@ -1387,7 +1387,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v318 — 18 avril 2026 (BUG-060 : cards "Patrimoine par Catégorie" vides sur vue Financement Immo — fix par `renderCategoryCards(state, 'amine')` ajouté au rendu de `immo-financing`. Le module Financement étant centré Amine, ses 4 cards donnent le contexte patrimonial avant les scénarios.)*
+*Dernière mise à jour: v319 — 18 avril 2026 (refonte UX Financement Immo : #1 Stress Casa passe à T+6/12/18 avec plancher 0 % marché + error bar plafond +20 % et épargne DCA — formule `positions × marketMult + netSavings × n × savingsMult`, SAFETY_COEFF 0,75. #2 default chart mode `absolu` → `delta` (vue la plus actionnable). #3 bandeau 4 cartes accordéon A/B/C/D + tableau comparatif remonté full-width avant les charts. #4 suppression chart "Évolution cash mobilisable" illisible à 25 ans. Voir ARCHITECTURE.md §67.)*
+
+*v318 — 18 avril 2026 (BUG-060 : cards "Patrimoine par Catégorie" vides sur vue Financement Immo — fix par `renderCategoryCards(state, 'amine')` ajouté au rendu de `immo-financing`. Le module Financement étant centré Amine, ses 4 cards donnent le contexte patrimonial avant les scénarios.)*
 
 *v317 — 18 avril 2026 (alertes enrichies post-audit 3ᵉ passe : C1 règle #5 symétrique moins-values IBKR ≤−20 % severity yellow, C2 nouvelle règle #6 fraîcheur données (DATA_LAST_UPDATE > 45j jaune, > 90j rouge), C5 guards div-by-zero dans `computeObjectifs` et `computeSensibilite` si annualReturn = 0 (limite mathématique `n` au lieu de NaN). + ARCHITECTURE.md §65.)*
 

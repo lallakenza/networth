@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=318';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE } from './data.js?v=319';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4585,9 +4585,56 @@ export function computeImmoFinancing(inputs) {
     return 0;
   };
 
+  // ─── v319 — Stress test liquidité projet Casa (refactor) ────────────
+  // Horizons : T+6/12/18 mois (vs T+12/24/36 avant). Plus actionnable
+  // car un projet Casa se décide à <2 ans, pas à 3 ans.
+  //
+  // On expose DEUX valeurs par horizon :
+  //  - Plancher (conservatif, 0% marché) : positions stagnent, épargne
+  //    s'accumule linéairement (cash, pas investie).
+  //  - Plafond (optimiste, +20% marché) : positions +20%, épargne DCA
+  //    à +10% moyen (dollar-cost averaging sur la période).
+  //
+  // L'épargne mensuelle = inputs.epargneEUR × fx, qui est déjà alimentée
+  // par computeCashFlow().netSavings côté render (épargne réelle consolidée).
+  // Le coeff SAFETY_COEFF = 0.75 s'applique via liquiditeMult (identique
+  // à liquiditeAtMonth ci-dessus).
+  const stressHorizons = [6, 12, 18];
+  const stressLiquiditeAtMonth = (months, scenario, marketMult, savingsMult) => {
+    if (scenario === 'A') {
+      const port = A_portefeuilleRestant * marketMult
+                 + A_epargneNette * months * savingsMult;
+      return Math.max(0, port) * liquiditeMult;
+    } else if (scenario === 'B') {
+      const m1 = Math.min(months, nBanque);
+      const m2 = Math.max(0, months - nBanque);
+      const savingsCum = m1 * B_epargneNettePendantCredit + m2 * B_epargneNetteApresCredit;
+      const port = B_portefeuilleRestant * marketMult + savingsCum * savingsMult;
+      return Math.max(0, port) * liquiditeMult;
+    } else if (scenario === 'C') {
+      const port = C_portefeuilleTotal * marketMult
+                 + C_epargneNette * months * savingsMult;
+      const equite = Math.max(0, port - C_marginDette);
+      return equite * liquiditeMult;
+    } else if (scenario === 'D') {
+      const m1 = Math.min(months, nBanque);
+      const m2 = Math.max(0, months - nBanque);
+      const savingsCum = m1 * D_epargneNettePendantCredit + m2 * D_epargneNetteApresCredit;
+      const port = D_portefeuilleTotal * marketMult + savingsCum * savingsMult;
+      const equite = Math.max(0, port - D_marginDette);
+      return equite * liquiditeMult;
+    }
+    return 0;
+  };
+  const stressFor = (scenario) => ({
+    horizons: stressHorizons,
+    plancher: stressHorizons.map(m => stressLiquiditeAtMonth(m, scenario, 1.00, 1.00)),
+    plafond:  stressHorizons.map(m => stressLiquiditeAtMonth(m, scenario, 1.20, 1.10)),
+  });
+
   // ─── Build output pour les 3 horizons + liquidité ──────────────────
   const horizons = [10, 15, 25];
-  const casaPoints = [12, 24, 36];   // mois
+  const casaPoints = [12, 24, 36];   // mois (tableau comparatif, inchangé)
 
   // v307 — Timeline complète du cash mobilisable (par pas de 3 mois sur l'horizon max).
   // Permet de voir "à partir de quel mois puis-je faire un 2e projet de X MAD ?".
@@ -4618,6 +4665,7 @@ export function computeImmoFinancing(inputs) {
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'A')),
       // v307 — timeline cash mobilisable (continuous projection for 2nd project)
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'A') })),
+      stress: stressFor('A'),   // v319 — T+6/12/18 plancher/plafond
     },
     B: {
       ...scenarioMeta.B,
@@ -4634,6 +4682,7 @@ export function computeImmoFinancing(inputs) {
       detteRestante: horizons.map(y => B_detteRestante(y * 12)),
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'B')),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'B') })),
+      stress: stressFor('B'),   // v319 — T+6/12/18 plancher/plafond
     },
     C: {
       ...scenarioMeta.C,
@@ -4652,6 +4701,7 @@ export function computeImmoFinancing(inputs) {
         ltv: C_ltvAtMonth(m),
       })),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'C') })),
+      stress: stressFor('C'),   // v319 — T+6/12/18 plancher/plafond
     },
     D: {
       ...scenarioMeta.D,
@@ -4668,6 +4718,7 @@ export function computeImmoFinancing(inputs) {
       detteRestante: horizons.map(y => B_detteRestante(y * 12) + D_marginDette),
       liquidite: casaPoints.map(m => liquiditeAtMonth(m, 'D')),
       cashProjection: projectionMonths.map(m => ({ month: m, cash: liquiditeAtMonth(m, 'D') })),
+      stress: stressFor('D'),   // v319 — T+6/12/18 plancher/plafond
     },
   };
 
@@ -4741,6 +4792,7 @@ export function computeImmoFinancing(inputs) {
     rendement: rendement,
     horizons,
     casaPoints,
+    stressHorizons,   // v319 — [6,12,18] pour chart Stress Casa
     fraisCashMAD,
     marginCurrency: inputs.marginCurrency,
     marginRate,

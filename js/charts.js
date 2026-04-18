@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=318';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=318';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=318';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=318';
+import { fmt, fmtAxis } from './render.js?v=319';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=319';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=319';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=319';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4917,12 +4917,17 @@ export function buildImmoFinLtvChart(result) {
 }
 
 /**
- * Chart 3 : Test de stress liquidité projet Casa.
- * X = T+12, T+24, T+36 mois
- * Y = liquidité mobilisable en MDH
- * 3 bars par horizon (A, B, C) — pas D car moins pertinent (déjà en margin)
+ * Chart 3 : Test de stress liquidité projet Casa. v319 — refactor complet.
+ * X = T+6, T+12, T+18 mois (horizons actionnables pour décision Casa <2 ans).
+ * Y = liquidité mobilisable en MDH.
+ * Par scénario (A/B/C) : 1 barre à la valeur PLANCHER (0 % marché, épargne
+ *                        cash linéaire) + error bar étendue jusqu'au PLAFOND
+ *                        (+20 % marché, épargne DCA à +10 % moyen).
+ * Épargne incluse : inputs.epargneEUR × fx, alimenté par computeCashFlow
+ * .netSavings côté render. Le coeff sécurité SAFETY_COEFF = 0.75 s'applique
+ * déjà via liquiditeMult en engine.
  * Ligne rouge horizontale à hauteur du besoin Casa.
- * Code couleur : vert si >= besoin, orange si tendu, rouge si insuffisant.
+ * Code couleur plancher : vert si ≥ besoin, orange si ≥ 80 %, rouge sinon.
  */
 export function buildImmoFinStressChart(result) {
   const canvas = document.getElementById('immoFinStressChart');
@@ -4931,10 +4936,10 @@ export function buildImmoFinStressChart(result) {
   const ctx = canvas.getContext('2d');
 
   const { scenarios, summary, inputs } = result;
-  const casaPoints = summary.casaPoints;
+  const horizons = summary.stressHorizons || [6, 12, 18];
   const besoinCasa = inputs.besoinCasa;
 
-  // Color per bar based on gap vs besoin
+  // Color per bar based on plancher vs besoin
   const colorForLiq = (liq, besoin) => {
     if (besoin === 0) return '#14b8a6';   // pas de projet → teal neutre
     if (liq >= besoin) return '#22c55e';  // vert
@@ -4942,23 +4947,29 @@ export function buildImmoFinStressChart(result) {
     return '#ef4444';                      // rouge
   };
 
+  // Un dataset bar par scénario (A/B/C), chaque data point = valeur plancher.
+  // On attache aussi `plafondMDH` pour draw error bars + tooltip.
   const datasets = ['A', 'B', 'C'].map(k => {
-    const data = scenarios[k].liquidite.map(v => v / 1e6);
-    const bgColors = scenarios[k].liquidite.map(liq => colorForLiq(liq, besoinCasa));
+    const sc = scenarios[k];
+    const planch = (sc.stress?.plancher || [0, 0, 0]).map(v => v / 1e6);
+    const plafd  = (sc.stress?.plafond  || [0, 0, 0]).map(v => v / 1e6);
+    const bgColors = planch.map(v => colorForLiq(v * 1e6, besoinCasa));
     return {
-      label: k + ' - ' + scenarios[k].label,
-      data,
+      label: k + ' - ' + sc.label,
+      data: planch,
+      plafondMDH: plafd,          // consommé par plugin error-bar + tooltip
+      planchMDH: planch,
       backgroundColor: bgColors,
-      borderColor: scenarios[k].color,
+      borderColor: sc.color,
       borderWidth: 2,
       borderRadius: 4,
     };
   });
 
-  // Ligne horizontale besoin Casa via annotation plugin (fallback: additional dataset)
+  // Ligne horizontale besoin Casa
   const besoinLine = {
     label: 'Besoin Casa (' + (besoinCasa / 1e6).toFixed(1) + ' MDH)',
-    data: casaPoints.map(_ => besoinCasa / 1e6),
+    data: horizons.map(_ => besoinCasa / 1e6),
     type: 'line',
     borderColor: '#ef4444',
     borderDash: [6, 4],
@@ -4968,7 +4979,45 @@ export function buildImmoFinStressChart(result) {
     order: 0,
   };
 
-  // v310 — Labels sur barres : montant MDH + % du besoin Casa
+  // v319 — Plugin error bar : moustache verticale du sommet de la barre
+  // (plancher) jusqu'à la valeur plafond, avec "teeing" horizontal en haut.
+  const errorBarPlugin = {
+    id: 'immoFinStressErrorBars',
+    afterDatasetsDraw(chart) {
+      const c = chart.ctx;
+      const yScale = chart.scales.y;
+      c.save();
+      c.lineWidth = 1.5;
+      chart.data.datasets.forEach((ds, dsIdx) => {
+        if (ds.type === 'line') return;
+        if (!Array.isArray(ds.plafondMDH)) return;
+        const meta = chart.getDatasetMeta(dsIdx);
+        meta.data.forEach((bar, idx) => {
+          const plafond  = ds.plafondMDH[idx];
+          const plancher = ds.planchMDH ? ds.planchMDH[idx] : ds.data[idx];
+          if (plafond == null || plancher == null) return;
+          if (plafond <= plancher + 1e-6) return;    // no upside → skip
+          const xC = bar.x;
+          const yTop = yScale.getPixelForValue(plafond);
+          const yBot = bar.y;                        // top of plancher bar
+          c.strokeStyle = ds.borderColor || '#64748b';
+          // vertical line
+          c.beginPath();
+          c.moveTo(xC, yBot);
+          c.lineTo(xC, yTop);
+          c.stroke();
+          // top tee
+          c.beginPath();
+          c.moveTo(xC - 6, yTop);
+          c.lineTo(xC + 6, yTop);
+          c.stroke();
+        });
+      });
+      c.restore();
+    },
+  };
+
+  // v310/v319 — Labels sur barres : plancher MDH + % besoin.
   const stressLabelPlugin = {
     id: 'immoFinStressLabels',
     afterDatasetsDraw(chart) {
@@ -4978,7 +5027,7 @@ export function buildImmoFinStressChart(result) {
       c.textAlign = 'center';
       c.textBaseline = 'bottom';
       chart.data.datasets.forEach((ds, dsIdx) => {
-        if (ds.type === 'line') return;   // skip the besoin-line
+        if (ds.type === 'line') return;
         const meta = chart.getDatasetMeta(dsIdx);
         meta.data.forEach((bar, idx) => {
           const val = ds.data[idx];
@@ -4998,10 +5047,10 @@ export function buildImmoFinStressChart(result) {
   immoFinCharts.stress = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: casaPoints.map(m => 'T+' + m + ' mois'),
+      labels: horizons.map(m => 'T+' + m + ' mois'),
       datasets: besoinCasa > 0 ? [...datasets, besoinLine] : datasets,
     },
-    plugins: [stressLabelPlugin],
+    plugins: [errorBarPlugin, stressLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -5009,13 +5058,25 @@ export function buildImmoFinStressChart(result) {
         legend: { position: 'bottom', labels: { font: { size: 11 } } },
         tooltip: {
           callbacks: {
-            label: (ctx) => {
-              const mdh = ctx.parsed.y.toFixed(2);
-              if (besoinCasa > 0 && ctx.dataset.type !== 'line') {
-                const pct = Math.round((ctx.parsed.y * 1e6 / besoinCasa) * 100);
-                return ctx.dataset.label + ' : ' + mdh + ' MDH (' + pct + '% du besoin)';
+            label: (tCtx) => {
+              const ds = tCtx.dataset;
+              const mdh = tCtx.parsed.y.toFixed(2);
+              if (ds.type === 'line') return ds.label + ' : ' + mdh + ' MDH';
+              const plafond = Array.isArray(ds.plafondMDH) ? ds.plafondMDH[tCtx.dataIndex] : null;
+              const pctStr = besoinCasa > 0
+                ? ' (' + Math.round((tCtx.parsed.y * 1e6 / besoinCasa) * 100) + '% du besoin)'
+                : '';
+              const lines = [
+                ds.label,
+                '  Plancher (0 % marché) : ' + mdh + ' MDH' + pctStr,
+              ];
+              if (plafond != null) {
+                const plafPct = besoinCasa > 0
+                  ? ' (' + Math.round((plafond * 1e6 / besoinCasa) * 100) + '%)'
+                  : '';
+                lines.push('  Plafond (+20 % marché, DCA) : ' + plafond.toFixed(2) + ' MDH' + plafPct);
               }
-              return ctx.dataset.label + ' : ' + mdh + ' MDH';
+              return lines;
             },
           },
         },
@@ -5024,89 +5085,15 @@ export function buildImmoFinStressChart(result) {
         y: {
           title: { display: true, text: 'Liquidité mobilisable (MDH)' },
           ticks: { callback: v => v.toFixed(1) + ' MDH' },
-        },
-      },
-    },
-  });
-}
-
-/**
- * v307 — Chart 4 : Évolution du cash mobilisable dans le temps.
- * X = mois (0 à horizon max par pas de 3 mois)
- * Y = MDH (liquidité mobilisable projetée)
- * 4 lignes (A/B/C/D) avec leurs couleurs respectives
- * Ligne rouge pointillée horizontale = besoin Casa
- * Lecture : point où chaque courbe croise la ligne rouge = date où le 2e
- * projet devient finançable dans ce scénario.
- */
-export function buildImmoFinCashProjectionChart(result) {
-  const canvas = document.getElementById('immoFinCashProjectionChart');
-  if (!canvas) return;
-  if (immoFinCharts.cashProjection) { immoFinCharts.cashProjection.destroy(); }
-  const ctx = canvas.getContext('2d');
-
-  const { scenarios, inputs } = result;
-  const months = scenarios.A.cashProjection.map(pt => pt.month);
-  const labels = months.map(m => {
-    if (m === 0) return 'T+0';
-    if (m < 24) return 'T+' + m + 'm';
-    return 'T+' + (m / 12).toFixed(m % 12 === 0 ? 0 : 1) + 'a';
-  });
-
-  const datasets = ['A', 'B', 'C', 'D'].map(k => ({
-    label: k + ' — ' + scenarios[k].label,
-    data: scenarios[k].cashProjection.map(pt => pt.cash / 1e6),
-    borderColor: scenarios[k].color,
-    backgroundColor: scenarios[k].color + '18',  // alpha 0.10
-    borderWidth: 2,
-    fill: false,
-    tension: 0.25,
-    pointRadius: 0,
-    pointHoverRadius: 4,
-  }));
-
-  // v310 — Lignes de projets multiples (jusqu'à 3) avec marker au mois cible
-  // Chaque projet = besoin (ligne horizontale) + marker au mois cible.
-  // Couleurs distinctes : Casa rouge, Projet 2 orange, Projet 3 violet.
-  const projectColors = ['#ef4444', '#d97706', '#a855f7'];
-  const projets = result.projets || [];
-  projets.forEach((p, idx) => {
-    if (!p.amountMAD || p.amountMAD <= 0) return;
-    const color = projectColors[idx] || '#ef4444';
-    // Ligne horizontale = besoin
-    datasets.push({
-      label: p.label + ' (' + (p.amountMAD / 1e6).toFixed(2) + ' MDH @ T+' + p.monthsTarget + 'm)',
-      data: labels.map(_ => p.amountMAD / 1e6),
-      borderColor: color,
-      borderDash: [8, 4],
-      borderWidth: 1.5,
-      fill: false,
-      pointRadius: 0,
-    });
-  });
-
-  immoFinCharts.cashProjection = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
-          },
-        },
-      },
-      scales: {
-        y: {
-          title: { display: true, text: 'Cash mobilisable (MDH)' },
-          ticks: { callback: v => v.toFixed(1) + ' MDH' },
           beginAtZero: true,
         },
       },
     },
   });
 }
+
+// v319 — buildImmoFinCashProjectionChart supprimé : chart "Évolution du cash
+// mobilisable dans le temps" illisible (courbes superposées à 25 ans, échelle
+// écrasait les seuils projet, 50+ labels X). L'info utile est déjà couverte
+// par le tableau comparatif (colonne Liquidité T+24M) et le chart Stress Casa
+// (horizons T+6/12/18 avec variance marché).
