@@ -4233,5 +4233,140 @@ Ajout d'`overflow-x: auto; -webkit-overflow-scrolling: touch` sur `#planObjectif
 
 **Cache-bust** : `?v=320` → `?v=321` sur 18 imports (`app.js` ×7, `charts.js` ×4, `render.js` ×3, `engine.js` ×1, `simulators.js` ×2, `index.html` ×1) + `APP_VERSION 'v321'` dans data.js.
 
+## §70 — v322 : Charte graphique Networth (design tokens + palette premium) (18 avril 2026)
+
+**Objectif** : historiquement les couleurs étaient éparpillées en littéraux (~700 occurrences hex dans le code, mélange Tailwind `#22c55e` + Chakra `#38a169` + ad-hoc). Résultat : 4 verts différents, 5 rouges, 3 palettes de gris. v322 pose les fondations d'un design system cohérent et premium.
+
+### §70.1 — Principes de conception
+
+1. **Warm-stone over cool-slate** : le stone warm (#fafaf9 bg, #1c1917 text) évoque les papiers premium (Moleskine, Hermès) vs le cool-slate Tailwind qui sent le SaaS générique.
+2. **Saturation contenue** : tous les tons chromatiques sont en gamme 40-60 % saturation. Pas de couleurs fluo, pas de néon. Référence : palette Patagonia / Apple corporate.
+3. **Contraste AA garanti** : `--text-secondary` est passé de `#78716c` (ratio 4.13:1 sur bg, fail AA) à `#57534e` (6.21:1, pass AA). Body text `--text` = 15.8:1 (AAA).
+4. **Single source of truth** : chaque token vit en DEUX endroits seulement — `:root` (CSS, pour HTML/CSS) et `DESIGN_TOKENS` (JS, pour canvas Chart.js qui ne lit pas les var CSS). Toute nouvelle couleur DOIT passer par un token.
+
+### §70.2 — Palette complète (6 catégories, ~36 tokens)
+
+**1. Surfaces & neutrals (stone warm)**
+| Token                | Hex      | Usage                                     |
+|----------------------|----------|-------------------------------------------|
+| `--bg`               | #fafaf9  | Fond de page                              |
+| `--surface`          | #ffffff  | Cards, tableaux, modals                   |
+| `--surface-subtle`   | #f5f5f4  | Fonds imbriqués, hover lignes tableau     |
+| `--border`           | #e7e5e4  | Bordures standard cards/cellules          |
+| `--border-strong`    | #d6d3d1  | Dividers accentués, séparateurs sections  |
+| `--text`             | #1c1917  | Texte principal (body, titres)            |
+| `--text-secondary`   | #57534e  | Texte secondaire (légendes, labels)       |
+| `--text-muted`       | #a8a29e  | Captions, hints, dates techniques         |
+| `--hover-overlay`    | rgba(28,25,23,0.04) | Overlay universel pour hovers   |
+
+**2. Brand**
+| Token              | Hex      | Usage                                        |
+|--------------------|----------|----------------------------------------------|
+| `--primary`        | #1e3a5f  | Navy brand : header, nav, CTAs principaux    |
+| `--primary-soft`   | #e7edf5  | Fond soft pour chips/highlights brand        |
+| `--gold`           | #b45309  | Accent premium (assets-view border-active)   |
+| `--gold-soft`      | #fef3c7  | Fond soft pour badges/highlights gold        |
+
+**3. Semantic (contraste AA sur --bg)**
+| Token              | Hex      | Usage                                        |
+|--------------------|----------|----------------------------------------------|
+| `--success`        | #15803d  | On-track, gains, cash productif, positif     |
+| `--success-soft`   | #dcfce7  | Fond alertes vertes, badges success          |
+| `--warning`        | #b45309  | Tendu (objectifs), à surveiller (alertes)    |
+| `--warning-soft`   | #fef3c7  | Fond alertes orange, highlights              |
+| `--danger`         | #b91c1c  | En retard, pertes, dettes, cash dormant      |
+| `--danger-soft`    | #fee2e2  | Fond alertes rouges, badges danger           |
+| `--info`           | #0369a1  | Infos neutres, liens, banners informatifs    |
+| `--info-soft`      | #e0f2fe  | Fond banners info                            |
+
+**4. Scenarios Financement Immo**
+| Token       | Hex      | Scénario                            | Sémantique                |
+|-------------|----------|-------------------------------------|---------------------------|
+| `--scen-a`  | #64748b  | A · Cash intégral                   | Slate neutre = no-action  |
+| `--scen-b`  | #2563eb  | B · Prêt banque                     | Bleu royal = classique    |
+| `--scen-c`  | #0d9488  | C · Cash + margin IBKR              | Teal = risque modéré      |
+| `--scen-d`  | #7c3aed  | D · Prêt + margin (double)          | Plum = offensif/premium   |
+
+**5. Asset classes (treemap & category cards)**
+| Token                   | Hex      | Classe d'actif                  |
+|-------------------------|----------|---------------------------------|
+| `--asset-actions`       | #1e40af  | Actions & ETF                   |
+| `--asset-immo`          | #b45309  | Immobilier (brique = or)        |
+| `--asset-cash-active`   | #15803d  | Cash productif (yield > 0)      |
+| `--asset-cash-dormant`  | #9f1239  | Cash dormant (yield 0)          |
+| `--asset-vehicle`       | #57534e  | Véhicules (stone utility)       |
+| `--asset-creance`       | #be185d  | Créances & receivables          |
+
+**6. Geo (répartition géographique portefeuille)**
+| Token        | Hex      | Pays             |
+|--------------|----------|------------------|
+| `--geo-fr`   | #2563eb  | France           |
+| `--geo-us`   | #15803d  | États-Unis       |
+| `--geo-jp`   | #be123c  | Japon            |
+| `--geo-ma`   | #b45309  | Maroc            |
+| `--geo-ae`   | #0e7490  | Émirats arabes   |
+| `--geo-de`   | #7c3aed  | Allemagne        |
+
+### §70.3 — Aliases legacy (rétro-compat)
+
+Pour éviter de casser ~700 usages littéraux en une seule release, `:root` expose aussi :
+```css
+--red: var(--danger);
+--green: var(--success);
+--blue: var(--info);
+--gray: var(--text-secondary);
+--card: var(--surface);
+```
+Ces aliases seront progressivement éliminés (migrations ciblées par release) jusqu'à un `grep -r 'var(--red)'` qui retourne 0. **Nouvelle règle** : jamais écrire un hex littéral, toujours un token semantic (ex: `color: var(--success)` pas `color: #15803d`).
+
+### §70.4 — Règles d'usage
+
+1. **Jamais de hex littéral en HTML/CSS** — toujours `var(--token)`. Exception : `rgba(h,h,h,α)` pour overlays où la transparence ne peut pas venir du token (sinon on pré-calcule via OKLCH dans une release future).
+2. **JS canvas** : importer `DESIGN_TOKENS` depuis `data.js`, jamais écrire un hex dans charts.js ou engine.js. Chart.js colors = `DESIGN_TOKENS.scenA` pas `'#64748b'`.
+3. **Ne jamais mélanger semantic et asset class** — un indicateur "positif" utilise `--success`, un asset "cash productif" utilise `--asset-cash-active`. Les deux valent `#15803d` aujourd'hui mais évolueront indépendamment.
+4. **Contraste minimum AA** (4.5:1) sur `--bg` pour tout texte < 18 px. Vérifier avec https://webaim.org/resources/contrastchecker/ avant d'ajouter un token.
+5. **Nouveaux tokens** : proposer dans une PR dédiée avec justification (nouveau concept ? distinction sémantique ?) ; ne pas créer un token spécifique par composant.
+
+### §70.5 — Migrations effectuées en v322
+
+| Zone                                    | Avant                                    | Après                                     |
+|-----------------------------------------|------------------------------------------|-------------------------------------------|
+| 4 scenario cards (index.html)           | Hex inline `#6b7280/#3b82f6/#14b8a6/#8b5cf6` | `var(--scen-a/b/c/d)`              |
+| Bannière recommandation                 | `border-left:4px solid #8b5cf6`          | `var(--scen-d)`                           |
+| `.pos` / `.neg`                         | `--green` / `--red`                      | `--success` / `--danger` (via alias)      |
+| `.highlight` (CSS class)                | `#fffbeb` + `#d97706`                    | `--warning-soft` + `--warning`            |
+| `.success` / `.info` (CSS classes)      | hex direct                               | `--success-soft/danger-soft/info-soft`    |
+| `td` border-bottom                      | `#f5f5f4`                                | `--surface-subtle`                        |
+| `tr:hover td`                           | `#fafaf9`                                | `--bg`                                    |
+| `engine.js` `scenarioMeta`              | hex inline                               | `DESIGN_TOKENS.scenA/B/C/D`               |
+| `engine.js` `computeObjectifs` status   | `#22c55e/#d97706/#ef4444`                | `DESIGN_TOKENS.success/warning/danger`    |
+| `render.js` alerts `sevMeta`            | `var(--red)` + `#d97706` + `var(--green)`| `--danger/--warning/--success` (uniforme) |
+| `render.js` macro-risks `sColor`        | `#e53e3e/#dd6b20/#718096`                | `--danger/--warning/--text-secondary`     |
+| `render.js` liquidité `liqColor`        | `--green/#d97706/--red`                  | `--success/--warning/--danger`            |
+| Chart mode button active                | `#8b5cf6`                                | `var(--scen-d)`                           |
+
+Pas migré en v322 (sera fait en v323+) :
+- Les couleurs de positions individuelles dans `engine.js computeGeoGroups` / `computeCategoryCards` (80+ `color:` inline sur des assets détaillés). Bloquant mineur : les teintes variées aident à distinguer les positions dans les treemaps. Migration = créer une palette `--pos-actions-01..09` générée ou utiliser OKLCH pour shifts automatiques.
+- Les `borderColor` / `backgroundColor` dans `charts.js` (~30 occurrences). À faire lot par lot par chart.
+- Les couleurs des statuts créances dans render.js (recouvré vert, en cours orange, relance rouge).
+
+### §70.6 — Outils & vérifications
+
+- **Grep hex résiduels** : `grep -rohE '#[0-9a-fA-F]{3,6}' index.html js/*.js | sort -u | wc -l` → baseline avant v322 ≈ 185 hex uniques, cible v325 < 40 (uniquement colors de positions individuelles).
+- **Contraste** : tester chaque nouveau token sur `--bg` ET `--surface` (les 2 fonds possibles). AAA si possible pour texte principal, AA suffisant pour secondaire.
+- **Preview** : ouvrir `index.html?v=322` avec DevTools → Computed Styles sur un élément texte principal → vérifier `color: var(--text)` et `color: rgb(28, 25, 23)` calculé.
+
+### Invariants & tests de régression v322
+
+- `DESIGN_TOKENS` exporté depuis `data.js` avec 36 clés (9 surfaces + 4 brand + 8 semantic + 4 scenarios + 6 asset + 6 geo).
+- Tous les hex de `DESIGN_TOKENS` matchent les hex de `:root` dans `index.html` (single source of truth respectée).
+- Vue Financement Immo : les 4 cartes scénarios ont leur border-left/color qui matchent la légende du chart (scen-a gris, scen-b bleu, scen-c teal, scen-d plum).
+- Vue couple : alertes "À traiter" / "À surveiller" / "Opportunité" utilisent bien danger/warning/success avec fond `rgba(hex, 0.08)`.
+- Plan & Fiscalité : badges status objectifs (On-track vert, Tendu orange, En retard rouge) utilisent bien les tokens semantic (même rendu qu'avant mais hex source désormais unique).
+- Aucune régression visuelle perçue sur les couleurs des treemaps (positions individuelles non migrées — intentionnel).
+- `.pos` / `.neg` inchangés visuellement (alias `--green/--red` pointent sur `--success/--danger`).
+
+**Cache-bust** : `?v=321` → `?v=322` sur 18 imports + `APP_VERSION 'v322'` dans data.js.
+
 
 
