@@ -4416,5 +4416,67 @@ Deux retours utilisateur lors de la revue v322 :
 
 **Cache-bust** : `?v=322` → `?v=323` sur 18 imports + `APP_VERSION 'v323'` dans data.js + badge v323 dans CLAUDE.md.
 
+---
+
+## §72 — v324/v325 : Stress chart « UX senior redesign » (18 avril 2026)
+
+### Contexte
+
+Deux itérations rapprochées sur `buildImmoFinStressChart` suite à des retours utilisateur successifs :
+
+1. **v324** — screenshot montrant le texte MDH qui se superposait sur la pill de statut (MDH en `textBaseline='bottom'` à `yAnchor`, pill à `yAnchor+2`, le descender des chiffres 10.5px atteignait le haut de la pill). Fix v324 : layout inline horizontal `2.58 M  [✗ 65%]` sur une seule ligne 14px au lieu de stack vertical, + `yMax` calculé explicitement avec 12 % de headroom (`Math.ceil(max * 1.12 * 2) / 2`) pour éliminer le clipping du T+18 quand Chart.js auto-scalait pile sur le plafond.
+
+2. **v325** — retour « les couleurs genre red green orange au final c'était bien, mais les graphs étaient très basiques et pas UX friendly » + « améliore ce graph tel un UX graph designer senior ». L'approche v323 avait réassigné les couleurs stoplight au mauvais endroit (légende Chart.js cassée) ; v324 avait gardé les fills scénario identity pour réparer la légende. L'utilisateur préfère les **stoplight fills** (signal métier primaire) mais avec un traitement de senior UX designer.
+
+### Principes du redesign v325
+
+| Principe | Implémentation |
+|---|---|
+| **Stoplight primaire** | Fill = `rgba(status, 0.26)`, border = `status` plein 1.5px. La couleur porte la réponse à « puis-je financer Casa ? » at-a-glance. |
+| **Identité scénario secondaire** | Lettre A/B/C dessinée sous chaque barre en `textMuted` 10px bold (plugin `scenLetterPlugin`), + caption bas du chart `A · Cash intégral    B · Prêt banque Maroc    C · Cash + margin IBKR` (plugin `scenCaptionPlugin`). |
+| **Labels sans chart junk** | Inline multi-couleur single-line : `2.58 M` en `text` 11px bold + gap 6px + `✓ 65%` en `status.color` 10.5px bold. Pas de pill/background — style FT/Bloomberg où chaque pixel d'encre compte. |
+| **Légende custom** | `generateLabels` hard-codé à 4 items : 3 statuts (✓ Suffisant / ≈ Serré / ✗ Insuffisant) en rectRounded + 1 besoin Casa en dashed line. Remplace la dérivation Chart.js qui pioche dans `backgroundColor[0]` (array stoplight → swatch aléatoire). |
+| **Error bars mutés** | Whisker + cap + dot en `textSecondary` (neutre) — 0 concurrence visuelle avec les fills stoplight qui portent le signal primaire. |
+| **Headroom yMax** | `Math.ceil(max(besoin, plafonds, planchers) * 1.12 * 2) / 2` — 12 % de marge au-dessus du plafond le plus haut, ceilé au 0.5 M pour ticks Y propres. |
+| **Layout symétrique** | `padding: { top: 22, right: 12, bottom: 40, left: 4 }` — top pour headroom labels + error caps, bottom pour accueillir (1) lettre A/B/C, (2) tick X `T+6 mois`, (3) caption scénarios. |
+| **Tick scenario letter room** | `scales.x.ticks.padding: 18` donne 18px de cushion entre la barre et le tick « T+X mois », le plugin letter dessine dans cet espace. |
+
+### Résumé des changements
+
+| Fichier | Fonction | Changement |
+|---|---|---|
+| `js/charts.js` | `buildImmoFinStressChart` datasets | `backgroundColor`/`borderColor` → arrays per-bar `statuses.map(s => hexToRgba(s.color, 0.26))` / `s.color`. Ajout champ `scenarioKey` consommé par le letter plugin. |
+| `js/charts.js` | `errorBarPlugin` | `strokeStyle`/`fillStyle` → `DESIGN_TOKENS.textSecondary` (neutre) au lieu de `ds.borderColor`. Whisker et cap 1.1px, dot 2px. |
+| `js/charts.js` | `stressLabelPlugin` | Refonte : inline multi-couleur 2-segment single line, baseline alphabétique partagée, pas de pill/background. Font MDH 11px bold, font status 10.5px bold. |
+| `js/charts.js` | `scenLetterPlugin` (nouveau) | Dessine la lettre `A`/`B`/`C` à `yScale.getPixelForValue(0) + 5`, `textMuted` 10px DM Sans bold, `textAlign='center' textBaseline='top'`. |
+| `js/charts.js` | `scenCaptionPlugin` (nouveau) | Dessine `A · Cash intégral    B · Prêt banque Maroc    C · Cash + margin IBKR` à `chart.height - 4`, `textMuted` 10px DM Sans 400. |
+| `js/charts.js` | `options.plugins.legend.labels.generateLabels` | Retourne 4 items hard-codés (3 statuts + 1 besoin), `pointStyle` `rectRounded`/`line`, `lineDash: [5, 4]` pour le besoin. |
+| `js/charts.js` | `options.layout.padding` | `{ top: 22, right: 12, bottom: 40, left: 4 }` (v324 était `{ top: 20, right: 8, bottom: 4, left: 4 }`). |
+| `js/charts.js` | `options.scales.x.ticks.padding` | 18 (nouveau) pour laisser la place au letter sub-tick. |
+| `index.html`, `js/*.js` | imports | `?v=324` → `?v=325` sur 18 occurrences. |
+| `js/data.js` | `APP_VERSION` | `'v324'` → `'v325'`. |
+
+### Invariants & tests de régression v325
+
+- Chart stress : les fills sont stoplight pastel (vert pour ≥100%, orange pour 80–99%, rouge pour <80%), pas scenario identity.
+- Chart stress : chaque barre est accompagnée d'un label inline `X.XX M  ✓ YY%` au-dessus, MDH en gris foncé et statut dans la couleur du stoplight.
+- Chart stress : une lettre `A`/`B`/`C` apparaît en gris muted juste sous chaque barre, avant le tick d'horizon.
+- Chart stress : une caption `A · Cash intégral    B · Prêt banque Maroc    C · Cash + margin IBKR` apparaît en bas du canvas.
+- Chart stress : la légende (en haut à droite) montre 4 items statut + besoin, AUCUN item par scénario (plus de swatch cassée).
+- Chart stress : les error bars (whisker + cap + dot) sont en gris neutre, ne reprennent plus la couleur du scénario.
+- Chart stress : le T+18 scénario B (si proche du plafond) n'est JAMAIS clippé en haut (yMax = ceil(max * 1.12 * 2) / 2).
+
+### Design rationale (pourquoi ce mix stoplight+identity)
+
+Un chart de stress financier répond à deux questions en lecture progressive :
+
+1. **L1 / 1-second read** — « Puis-je financer Casa avec un horizon donné ? » → réponse binaire/ternaire (oui/serré/non). Cette info DOIT être encodée dans l'attribut visuel le plus fort du chart, soit la **couleur de remplissage des barres**. D'où les stoplight fills.
+
+2. **L2 / 10-second read** — « OK, mais via quel scénario ? A, B ou C ? » → info d'identification secondaire, qui peut se contenter d'un signal discret. D'où la **lettre en sub-tick + caption en bas**. Aucun risque de confusion en pratique : l'ordre A/B/C est le même qu'en caption, et les 3 barres d'un horizon sont visuellement groupées.
+
+Cette séparation L1/L2 est un pattern classique des dashboards financiers senior (FT, Bloomberg terminal, Two Sigma research notes) : la couleur sert le signal métier, pas la catégorisation. La catégorisation passe par la typographie ou le layout.
+
+**Cache-bust** : `?v=324` → `?v=325` sur 18 imports + `APP_VERSION 'v325'` dans data.js + badge v325 dans CLAUDE.md.
+
 
 
