@@ -2771,6 +2771,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
   <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
   <button class="view-btn asset-view-btn" data-view="immo-financing">Financement</button>
+  <button class="view-btn asset-view-btn" data-view="plan-fiscal">Plan &amp; Fiscalit&eacute;</button>
 </div>
 <!-- Sub-navigation immobilier (visible quand immobilier ou apt_* est actif) -->
 <div class="immo-sub-nav" id="immoSubNav" style="display:none;">
@@ -3817,6 +3818,32 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
             <option value="36">T+36 mois</option>
           </select>
         </label>
+
+        <!-- v310 — Pipeline multi-projets (jusqu'à 3 projets supplémentaires) -->
+        <hr style="border:none;border-top:1px dashed var(--border);margin:6px 0 0;">
+        <div style="font-weight:600;font-size:11px;color:var(--gray);">Projets suppl&eacute;mentaires &agrave; planifier</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px;align-items:end;font-size:11px;">
+          <label>Projet 2 - libell&eacute;
+            <input type="text" id="immoFinProj2Label" value="Voiture Cayenne" placeholder="Voiture, travaux, etc." style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+          <label>Montant (MAD)
+            <input type="number" id="immoFinProj2Amount" value="800000" step="50000" style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+          <label>Mois
+            <input type="number" id="immoFinProj2Month" value="18" step="3" style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px;align-items:end;font-size:11px;">
+          <label>Projet 3 - libell&eacute;
+            <input type="text" id="immoFinProj3Label" value="" placeholder="Optionnel" style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+          <label>Montant (MAD)
+            <input type="number" id="immoFinProj3Amount" value="0" step="50000" style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+          <label>Mois
+            <input type="number" id="immoFinProj3Month" value="36" step="3" style="width:100%;padding:5px 7px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+          </label>
+        </div>
       </div>
     </details>
 
@@ -3856,7 +3883,15 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="grid2" style="margin-top:24px;">
     <div>
       <h3>Patrimoine financier final par sc&eacute;nario</h3>
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Portefeuille financier net (hors appart parents qui est une donation de facto). Comparaison aux horizons 10 / 15 / 25 ans.</p>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 6px 0;">Portefeuille financier net (hors appart parents qui est une donation de facto). Comparaison aux horizons 10 / 15 / 25 ans.</p>
+      <!-- v310 — Toggle mode d'affichage. Les écarts absolus peuvent être <5%
+           entre scénarios, en mode 0-max les bars paraissent identiques. -->
+      <div style="display:flex;gap:6px;font-size:11px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
+        <span style="color:var(--gray);">Affichage :</span>
+        <button type="button" class="immo-fin-chart-mode active" data-mode="absolu" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:#8b5cf6;color:white;cursor:pointer;font-size:11px;">Absolu (0-max)</button>
+        <button type="button" class="immo-fin-chart-mode" data-mode="zoom" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:white;color:var(--text);cursor:pointer;font-size:11px;">Zoom (diff visibles)</button>
+        <button type="button" class="immo-fin-chart-mode" data-mode="delta" style="padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:white;color:var(--text);cursor:pointer;font-size:11px;">Delta vs Cash (A)</button>
+      </div>
       <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinPatrimoineChart"></canvas></div>
     </div>
     <div>
@@ -3894,6 +3929,77 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     PLAN & FISCALITÉ — v311 + v312
+     ══════════════════════════════════════════════════════════════
+     Vue qui combine :
+       - v311 : fiscalité MRE consolidée (IR FR sur loyers, PV immo,
+                                          calendrier déclaratif)
+       - v312 : plan long-terme (objectifs avec status on-track/at-risk,
+                                  sensibilité paramètres clés) -->
+<div class="card hidden" data-view="plan-fiscal">
+  <h2><span class="section-icon" style="background:#0891b2;">&#x1F4CD;</span>Plan financier &amp; fiscalit&eacute; MRE</h2>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 18px 0;">
+    Vue strat&eacute;gique consolidant les objectifs patrimoniaux long-terme
+    et la fiscalit&eacute; MRE (UAE 0% IR + revenus FR taxables).
+  </p>
+
+  <!-- ── PLAN OBJECTIFS (v312) ── -->
+  <h3 style="margin-top:0;">Objectifs patrimoniaux</h3>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">
+    Pour chaque objectif, status calcul&eacute; vs trajectoire actuelle (NW × (1+r)^n + &eacute;pargne mensuelle). Vert = on-track, orange = tendu, rouge = en retard.
+  </p>
+  <div id="planObjectifsTable"></div>
+
+  <h3 style="margin-top:24px;">Sensibilit&eacute; aux param&egrave;tres cl&eacute;s</h3>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">
+    Atteinte de l'objectif "1M&euro; couple" selon variations de rendement (±2%) et &eacute;pargne mensuelle (±20%).
+  </p>
+  <div id="planSensibiliteTable"></div>
+
+  <!-- ── FISCALITÉ MRE (v311) ── -->
+  <h2 style="margin-top:32px;"><span class="section-icon" style="background:#0891b2;">&#x1F4CB;</span>Fiscalit&eacute; consolid&eacute;e</h2>
+
+  <!-- Status MRE -->
+  <div class="info" style="margin-top:0;background:rgba(8,145,178,0.06);border-left:3px solid #0891b2;font-size:13px;">
+    <strong>Statut :</strong> R&eacute;sident fiscal UAE (libre de l'IR sur revenus mondiaux). <strong>Imposable en France uniquement</strong> sur revenus de source fran&ccedil;aise (loyers Vitry, plus-values immo si vente). Au Maroc : aucune imposition sur revenus mondiaux non rapatri&eacute;s, mais IR si rapatriement de salaire/dividendes.
+  </div>
+
+  <div class="grid2" style="margin-top:18px;">
+    <!-- IR FR sur loyers Vitry -->
+    <div>
+      <h3>IR France sur loyer Vitry</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">
+        Loyer brut annuel × abattement (micro-foncier 30% si &lt;15k&euro;/an, sinon r&eacute;el) - charges - int&eacute;r&ecirc;ts pr&ecirc;t. R&eacute;sultat × tranche IR (par d&eacute;faut 30%, MRE non-r&eacute;sident).
+      </p>
+      <div id="fiscalLoyerVitry"></div>
+    </div>
+
+    <!-- Plus-value immo si vente Vitry -->
+    <div>
+      <h3>Plus-value immo si vente Vitry</h3>
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">
+        PV brute = prix vente − prix achat − frais. Abattement dur&eacute;e d&eacute;tention : 6%/an de 6 &agrave; 21 ans, 4% &agrave; 22 ans, exo IR &agrave; 22 ans, exo PS &agrave; 30 ans.
+      </p>
+      <div id="fiscalPVVitry"></div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;">Calendrier d&eacute;claratif</h3>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">&Eacute;ch&eacute;ances fiscales annuelles &agrave; ne pas rater.</p>
+  <div id="fiscalCalendrier"></div>
+
+  <h3 style="margin-top:24px;">Co&ucirc;t de rapatriement vers FR</h3>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">
+    Estimation du co&ucirc;t total pour transf&eacute;rer X EUR depuis UAE/UBS vers compte FR : commission FX + spread + frais wire.
+  </p>
+  <div id="fiscalRapatriement"></div>
+
+  <div class="info" style="margin-top:18px;font-size:12px;">
+    <strong>Disclaimer :</strong> Ces calculs sont des estimations &agrave; titre indicatif. La fiscalit&eacute; MRE comporte des subtilit&eacute;s (conventions FR-MA, FR-UAE, statut fiscal effectif annuel) qui n&eacute;cessitent un conseil professionnel pour les d&eacute;cisions importantes (vente immo, rapatriement &gt;100k&euro;).
+  </div>
+</div>
+
 <footer>
   <p>Dashboard Patrimonial — Amine & Nezha Koraibi</p>
   <p>Sources : IBKR, ESPP Accenture, Wio, Mashreq, Revolut, Attijari, BMCE, SGTM, tableaux d'amortissement</p>
@@ -3902,7 +4008,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=308"></script>
+<script type="module" src="js/app.js?v=312"></script>
 
 </body>
 </html>

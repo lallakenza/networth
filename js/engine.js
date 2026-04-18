@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=308';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES } from './data.js?v=312';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4714,9 +4714,49 @@ export function computeImmoFinancing(inputs) {
     marginRate,
   };
 
+  // v310 — Pipeline multi-projets : Casa + jusqu'à 2 projets supplémentaires.
+  // Chaque projet : { label, amountMAD, monthsTarget, color }.
+  // Pour chaque scénario, calcul "feasible" = liquidité projetée ≥ besoin
+  // au mois cible (avec marge sécurité 5%).
+  const projets = [
+    { label: 'Projet Casa', amountMAD: besoinCasa, monthsTarget: inputs.horizonCasa, color: '#ef4444' },
+  ];
+  if (inputs.proj2Amount > 0) {
+    projets.push({ label: inputs.proj2Label || 'Projet 2', amountMAD: inputs.proj2Amount, monthsTarget: inputs.proj2Month || 18, color: '#d97706' });
+  }
+  if (inputs.proj3Amount > 0) {
+    projets.push({ label: inputs.proj3Label || 'Projet 3', amountMAD: inputs.proj3Amount, monthsTarget: inputs.proj3Month || 36, color: '#a855f7' });
+  }
+
+  // Compute feasibility par scénario × projet
+  // Pour chaque scénario, on cherche la liquidité au mois cible du projet
+  const projetsCompat = ['A', 'B', 'C', 'D'].map(scKey => {
+    const sc = scenarios[scKey];
+    const projetsStatus = projets.map(p => {
+      // Trouve le point projection le plus proche du mois cible
+      const proj = sc.cashProjection.find(pt => pt.month >= p.monthsTarget) || sc.cashProjection[sc.cashProjection.length - 1];
+      const liq = proj ? proj.cash : 0;
+      const feasible = liq >= p.amountMAD * 0.95;
+      const tight = liq >= p.amountMAD * 0.75 && !feasible;
+      return {
+        label: p.label,
+        amountMAD: p.amountMAD,
+        monthsTarget: p.monthsTarget,
+        liquideAtTarget: liq,
+        ratio: p.amountMAD > 0 ? liq / p.amountMAD : 0,
+        feasible,
+        tight,
+        color: p.color,
+      };
+    });
+    return { scenario: scKey, projets: projetsStatus };
+  });
+
   return {
     scenarios,
     summary,
+    projets,            // v310 — array of {label, amountMAD, monthsTarget, color}
+    projetsCompat,     // v310 — feasibility per scenario × project
     recommendation: {
       best: recommended,
       reasons,
@@ -4972,4 +5012,249 @@ function computeCashFlowQuick(state) {
     if (!fx) return null;
     return computeCashFlow(state, null, fx);
   } catch (e) { return null; }
+}
+
+// ════════════════════════════════════════════════════════════
+// PLAN LONG-TERME + FISCALITÉ MRE — v311 + v312
+// ════════════════════════════════════════════════════════════
+//
+// v312 — computeObjectifs : pour chaque objectif, calcule status (on-track,
+// at-risk, derrière) basé sur projection NW × (1+r)^n + épargne mensuelle.
+//
+// v311 — computeFiscalite : agrège IR FR sur loyers Vitry (régime selon
+// montant), PV immo si vente Vitry (avec abattement durée), calendrier
+// déclaratif annuel, coût rapatriement vers FR.
+
+/**
+ * v312 — Liste des objectifs patrimoniaux (data-driven, simple à étendre).
+ * Pour chaque objectif :
+ *   - label   : description
+ *   - target  : montant cible EUR
+ *   - dateTarget : 'YYYY-MM' string
+ *   - basis   : quoi compter (couple-NW | amine-NW | mobilisable | custom)
+ */
+const DEFAULT_OBJECTIFS = [
+  { label: '1M€ patrimoine couple',     target: 1_000_000, dateTarget: '2028-04', basis: 'couple-NW' },
+  { label: 'Appart parents Maroc',      target: 250_000,   dateTarget: '2027-06', basis: 'mobilisable-amine' },
+  { label: 'Studio Casa (apport)',      target: 400_000,   dateTarget: '2029-01', basis: 'mobilisable-amine' },
+  { label: 'Retraite couple confortable', target: 3_000_000, dateTarget: '2055-01', basis: 'couple-NW' },
+];
+
+export function computeObjectifs(state, opts) {
+  const today = new Date();
+  const monthlySavingsEUR = (opts && opts.monthlySavingsEUR != null) ? opts.monthlySavingsEUR : 8000;
+  const annualReturn = (opts && opts.annualReturn != null) ? opts.annualReturn : 0.06;
+  const r = annualReturn / 12;
+
+  return (opts && opts.objectifs ? opts.objectifs : DEFAULT_OBJECTIFS).map(obj => {
+    let currentValue = 0;
+    if (obj.basis === 'couple-NW') currentValue = state?.couple?.nw || 0;
+    else if (obj.basis === 'amine-NW') currentValue = state?.amine?.nw || 0;
+    else if (obj.basis === 'mobilisable-amine') currentValue = state?.amine?.financialMobilisable || 0;
+    else currentValue = obj.currentValue || 0;
+
+    // Months until target date
+    const tgt = new Date(obj.dateTarget + '-01T00:00:00');
+    const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
+    // Projected value at target = current × (1+r)^n + savings × ((1+r)^n - 1) / r
+    const factor = Math.pow(1 + r, monthsToTarget);
+    const projectedValue = currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
+
+    // Status
+    const ratio = obj.target > 0 ? projectedValue / obj.target : 0;
+    let status, statusLabel, statusColor;
+    if (ratio >= 1.0) { status = 'on-track'; statusLabel = 'On-track'; statusColor = '#22c55e'; }
+    else if (ratio >= 0.85) { status = 'at-risk'; statusLabel = 'Tendu'; statusColor = '#d97706'; }
+    else { status = 'behind'; statusLabel = 'En retard'; statusColor = '#ef4444'; }
+
+    // Required monthly to reach target if currently behind (solve for additional savings needed)
+    const requiredMonthly = ratio < 1
+      ? ((obj.target - currentValue * factor) * r) / (factor - 1) - monthlySavingsEUR
+      : 0;
+
+    return {
+      ...obj,
+      currentValue,
+      projectedValue,
+      ratio,
+      monthsToTarget,
+      status,
+      statusLabel,
+      statusColor,
+      gap: obj.target - projectedValue,
+      requiredAdditionalMonthly: Math.max(0, requiredMonthly),
+    };
+  });
+}
+
+/**
+ * v312 — Sensibilité : pour l'objectif "1M€ couple", varier rendement et
+ * épargne et voir l'impact sur l'atteinte.
+ * Returns matrix : rows = rendement variations, cols = savings variations.
+ */
+export function computeSensibilite(state, baseObjectif) {
+  const today = new Date();
+  const couple = state?.couple?.nw || 0;
+  const target = (baseObjectif && baseObjectif.target) || 1_000_000;
+  const dateTarget = (baseObjectif && baseObjectif.dateTarget) || '2028-04';
+  const tgt = new Date(dateTarget + '-01T00:00:00');
+  const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
+
+  const rendementVariations = [0.04, 0.06, 0.08];      // -2%, base, +2%
+  const savingsVariations = [6400, 8000, 9600];         // -20%, base, +20%
+
+  const matrix = rendementVariations.map(rAnnual => {
+    const r = rAnnual / 12;
+    const factor = Math.pow(1 + r, monthsToTarget);
+    return {
+      rendement: rAnnual,
+      cells: savingsVariations.map(sav => {
+        const projected = couple * factor + sav * (factor - 1) / r;
+        return {
+          savings: sav,
+          projected,
+          ratio: target > 0 ? projected / target : 0,
+          delta: projected - target,
+        };
+      }),
+    };
+  });
+
+  return { target, dateTarget, monthsToTarget, matrix, baseRendement: 0.06, baseSavings: 8000 };
+}
+
+/**
+ * v311 — Fiscalité MRE consolidée.
+ * Calcule :
+ *   - IR FR sur loyer Vitry (régime micro-foncier ou réel selon montant)
+ *   - Plus-value latente Vitry si vente aujourd'hui (avec abattement durée)
+ *   - Calendrier déclaratif (FR formulaire 2042/2044, MA, UAE)
+ *   - Coût rapatriement EUR vers FR (estimation FX spread + wire)
+ */
+export function computeFiscaliteMRE(state) {
+  const result = {
+    loyerVitry: null,
+    pvVitry: null,
+    calendrier: null,
+    rapatriement: null,
+  };
+
+  // ── IR FR sur loyer Vitry ──
+  // Trouve le bien Vitry dans immoView
+  const vitry = state?.immoView?.properties?.find(p => p.loanKey === 'vitry');
+  if (vitry && vitry.cashFlow) {
+    const loyerAnnuel = (vitry.cashFlow.loyerMensuel || 0) * 12;
+    const chargesAnnuelles = (vitry.cashFlow.chargesMensuelles || 0) * 12;
+    const interetsAnnuels = (vitry.cashFlow.interetsMensuels || 0) * 12;
+
+    // Régime micro-foncier : abattement 30% si loyer < 15K€, sinon réel
+    const regimeMicro = loyerAnnuel < 15000;
+    let revenuImposable;
+    if (regimeMicro) {
+      revenuImposable = loyerAnnuel * (1 - 0.30);   // abattement 30%
+    } else {
+      revenuImposable = loyerAnnuel - chargesAnnuelles - interetsAnnuels;
+    }
+    revenuImposable = Math.max(0, revenuImposable);
+
+    // Tranches IR France 2026 (par défaut tranche moyenne MRE = 30%)
+    // En pratique pour un MRE non-résident, taux mini 20% sur premier 28K€ puis 30%
+    const tauxIR = revenuImposable > 28000 ? 0.30 : 0.20;
+    const ir = revenuImposable * tauxIR;
+    // PS (CSG-CRDS) — depuis 2018, MRE CEE/EEE exonéré, hors EEE 17.2%
+    // UAE n'est pas EEE, donc PS dûs à 17.2%
+    const ps = revenuImposable * 0.172;
+    const totalImpotLoyer = ir + ps;
+
+    result.loyerVitry = {
+      loyerAnnuel,
+      chargesAnnuelles,
+      interetsAnnuels,
+      regimeMicro,
+      revenuImposable,
+      tauxIR,
+      ir,
+      ps,
+      total: totalImpotLoyer,
+      netApresImpot: loyerAnnuel - chargesAnnuelles - totalImpotLoyer,
+    };
+  }
+
+  // ── PV immo Vitry si vente aujourd'hui ──
+  if (vitry) {
+    const purchasePrice = vitry.purchasePrice || 280000;
+    const purchaseDate = vitry.purchaseDate || '2019-12-15';
+    const currentValue = vitry.value || vitry.currentValue || 300000;
+    const fraisAcquisition = purchasePrice * 0.075;   // ~7.5% notaire+enregistrement
+    const fraisAgence = currentValue * 0.05;          // ~5% si agence
+    const pvBrute = currentValue - purchasePrice - fraisAcquisition - fraisAgence;
+
+    const today = new Date();
+    const purDate = new Date(purchaseDate + 'T00:00:00');
+    const yearsHeld = (today - purDate) / (365.25 * 86400000);
+
+    // Abattement IR : 6%/an de 6 à 21 ans, 4% à 22 ans, exo à 22 ans
+    let abattIR = 0;
+    if (yearsHeld <= 5) abattIR = 0;
+    else if (yearsHeld <= 21) abattIR = (yearsHeld - 5) * 0.06;
+    else if (yearsHeld <= 22) abattIR = 16 * 0.06 + 0.04;
+    else abattIR = 1.0;
+    abattIR = Math.min(1.0, abattIR);
+
+    // Abattement PS : 1.65%/an de 6 à 21 ans, 1.6% à 22 ans, 9% de 23 à 30
+    let abattPS = 0;
+    if (yearsHeld <= 5) abattPS = 0;
+    else if (yearsHeld <= 21) abattPS = (yearsHeld - 5) * 0.0165;
+    else if (yearsHeld <= 22) abattPS = 16 * 0.0165 + 0.016;
+    else if (yearsHeld <= 30) abattPS = 16 * 0.0165 + 0.016 + (yearsHeld - 22) * 0.09;
+    else abattPS = 1.0;
+    abattPS = Math.min(1.0, abattPS);
+
+    const pvImposableIR = pvBrute > 0 ? pvBrute * (1 - abattIR) : 0;
+    const pvImposablePS = pvBrute > 0 ? pvBrute * (1 - abattPS) : 0;
+
+    const irPV = pvImposableIR * 0.19;       // taux fixe IR sur PV immo
+    const psPV = pvImposablePS * 0.172;
+    const totalImpotPV = irPV + psPV;
+
+    result.pvVitry = {
+      purchasePrice,
+      currentValue,
+      pvBrute,
+      yearsHeld,
+      abattIR,
+      abattPS,
+      pvImposableIR,
+      pvImposablePS,
+      irPV,
+      psPV,
+      total: totalImpotPV,
+      netApresImpot: pvBrute - totalImpotPV,
+    };
+  }
+
+  // ── Calendrier déclaratif ──
+  result.calendrier = [
+    { date: 'Mai-Juin', label: 'D&eacute;claration revenus FR', formulaire: '2042 + 2044 (revenus fonciers Vitry)', country: 'FR' },
+    { date: 'Avril', label: 'D&eacute;claration revenus MA si rapatriement', formulaire: 'D&eacute;claration MRE', country: 'MA' },
+    { date: 'Toute l\'ann&eacute;e', label: 'Renouvellement license Bairok Consulting', formulaire: 'Free zone authority', country: 'UAE' },
+    { date: 'Janvier', label: 'Attestation r&eacute;sidence fiscale UAE', formulaire: 'TRC (Tax Residency Cert.) FTA', country: 'UAE' },
+    { date: 'Sept-Dec', label: 'Acomptes IR FR (loyers Vitry)', formulaire: 'Pr&eacute;l&egrave;vement &agrave; la source / acomptes', country: 'FR' },
+  ];
+
+  // ── Coût rapatriement EUR depuis UAE ──
+  // Hypothèses : Wise/Revolut spread 0.4-0.7%, IBAN-IBAN gratuit ou ~10€ wire
+  const exemple100k = 100000;
+  const spreadPct = 0.005;
+  const wireFee = 10;
+  result.rapatriement = {
+    exempleAmount: exemple100k,
+    spreadPct,
+    spreadCost: exemple100k * spreadPct,
+    wireFee,
+    totalCost: exemple100k * spreadPct + wireFee,
+    note: 'Coût ~0.5% spread FX (Wise/Revolut) + 10€ wire. Pour gros transferts (>250k€), négocier directement avec banque (spread 0.2-0.3%).',
+  };
+
+  return result;
 }

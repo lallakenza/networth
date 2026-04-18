@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=308';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts } from './engine.js?v=308';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC } from './data.js?v=312';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=312';
 
 // ---- Generic table sort utility ----
 /**
@@ -267,6 +267,7 @@ export function render(state, view, currency) {
   if (view === 'creances') renderCreancesView(state);
   if (view === 'budget') renderBudgetView(state);
   if (view === 'immo-financing') renderImmoFinancingView(state);  // v306
+  if (view === 'plan-fiscal') renderPlanFiscalView(state);          // v311 + v312
 
   // v309 — Alertes proactives (affichées uniquement sur vue Couple)
   if (view === 'couple') renderAlertsPanel(state);
@@ -6520,6 +6521,7 @@ function attachKPIInsights(state, view) {
 
 let _immoFinBound = false;  // guard to avoid double event listener binding
 let _immoFinPatrimoineAutoFed = false;   // v307 — track si patrimoine a déjà été auto-fed
+let _immoFinChartMode = 'absolu';        // v310 — absolu | zoom | delta
 
 /**
  * v307 — Sync le patrimoine initial (input MAD) depuis le state.couple.financialMobilisable
@@ -6619,9 +6621,16 @@ function renderImmoFinancingView(state) {
     ltvTarget:     getNum('immoFinInputLtv'),
     besoinCasa:    getNum('immoFinInputCasa'),
     horizonCasa:   Number(getStr('immoFinInputHorizonCasa')) || 24,
-    // v307 — preset-driven overrides (si preset sélectionné)
+    // v307 — preset-driven overrides
     acquisitionFeesPct: presetFeesPct,     // null → fallback 6.7% Maroc
     apportRatio:        presetApportRatio, // null → fallback 20%
+    // v310 — multi-projets
+    proj2Label:  getStr('immoFinProj2Label'),
+    proj2Amount: getNum('immoFinProj2Amount'),
+    proj2Month:  getNum('immoFinProj2Month'),
+    proj3Label:  getStr('immoFinProj3Label'),
+    proj3Amount: getNum('immoFinProj3Amount'),
+    proj3Month:  getNum('immoFinProj3Month'),
   };
 
   // Margin rate selon devise choisie (taux par défaut depuis MARGIN_RATES)
@@ -6669,11 +6678,11 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=308').then(m => {
-    if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result);
+  import('./charts.js?v=312').then(m => {
+    // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
+    if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
     if (typeof m.buildImmoFinStressChart === 'function') m.buildImmoFinStressChart(result);
-    // v307 — nouveau chart : timeline complète du cash mobilisable
     if (typeof m.buildImmoFinCashProjectionChart === 'function') m.buildImmoFinCashProjectionChart(result);
   });
 
@@ -6686,6 +6695,9 @@ function renderImmoFinancingView(state) {
       'immoFinInputTauxBanque', 'immoFinInputDureeBanque', 'immoFinInputAssurance',
       'immoFinInputMarginCurrency', 'immoFinInputLtv',
       'immoFinInputCasa', 'immoFinInputHorizonCasa',
+      // v310 — multi-projets
+      'immoFinProj2Label', 'immoFinProj2Amount', 'immoFinProj2Month',
+      'immoFinProj3Label', 'immoFinProj3Amount', 'immoFinProj3Month',
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
@@ -6712,6 +6724,23 @@ function renderImmoFinancingView(state) {
         renderImmoFinancingView(state);
       });
     }
+
+    // v310 — Chart mode toggle (absolu / zoom / delta)
+    document.querySelectorAll('.immo-fin-chart-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        if (!mode) return;
+        _immoFinChartMode = mode;
+        // Update visual active state
+        document.querySelectorAll('.immo-fin-chart-mode').forEach(b => {
+          const isActive = b.dataset.mode === mode;
+          b.classList.toggle('active', isActive);
+          b.style.background = isActive ? '#8b5cf6' : 'white';
+          b.style.color = isActive ? 'white' : 'var(--text)';
+        });
+        renderImmoFinancingView(state);
+      });
+    });
 
     // Reset button
     const resetBtn = document.getElementById('immoFinResetBtn');
@@ -6867,4 +6896,155 @@ function renderAlertsPanel(state) {
       if (navBtn) navBtn.click();
     });
   });
+}
+
+// ════════════════════════════════════════════════════════════
+// PLAN & FISCALITÉ — v311 + v312
+// ════════════════════════════════════════════════════════════
+// Vue qui combine objectifs long-terme (v312) et fiscalité MRE (v311).
+// Pas d'inputs ajustables pour MVP : utilise DEFAULT_OBJECTIFS et lit
+// directement les loyers / valeurs immo depuis state.
+
+function renderPlanFiscalView(state) {
+  // ── v312 — Objectifs ──
+  const objectifs = computeObjectifs(state, { monthlySavingsEUR: 8000, annualReturn: 0.06 });
+  const tblObj = document.getElementById('planObjectifsTable');
+  if (tblObj) {
+    const fmtMoney = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+    let html = '<table style="width:100%;font-size:12px;"><thead><tr>'
+      + '<th style="text-align:left">Objectif</th>'
+      + '<th>Date</th>'
+      + '<th class="num">Cible</th>'
+      + '<th class="num">Projeté</th>'
+      + '<th class="num">Ratio</th>'
+      + '<th>Status</th>'
+      + '<th class="num">Effort additionnel</th>'
+      + '</tr></thead><tbody>';
+    objectifs.forEach(o => {
+      const yearsTo = (o.monthsToTarget / 12).toFixed(1);
+      html += '<tr>'
+        + '<td><strong>' + o.label + '</strong><br><span style="font-size:10px;color:var(--gray)">base : ' + o.basis + '</span></td>'
+        + '<td style="font-size:11px">' + o.dateTarget + '<br><span style="color:var(--gray)">' + yearsTo + ' ans</span></td>'
+        + '<td class="num">' + fmtMoney(o.target) + '</td>'
+        + '<td class="num"><strong>' + fmtMoney(o.projectedValue) + '</strong></td>'
+        + '<td class="num">' + (o.ratio * 100).toFixed(0) + '%</td>'
+        + '<td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:' + o.statusColor + ';color:white;font-size:10px;font-weight:600">' + o.statusLabel + '</span></td>'
+        + '<td class="num" style="color:var(--red);font-size:11px">' + (o.requiredAdditionalMonthly > 0 ? '+' + Math.round(o.requiredAdditionalMonthly).toLocaleString('fr-FR') + ' €/mois' : '—') + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    tblObj.innerHTML = html;
+  }
+
+  // ── v312 — Sensibilité ──
+  const sens = computeSensibilite(state, objectifs[0]);
+  const tblSens = document.getElementById('planSensibiliteTable');
+  if (tblSens) {
+    const fmtRatio = (ratio, target) => {
+      const pct = (ratio * 100).toFixed(0);
+      const color = ratio >= 1.0 ? '#22c55e' : ratio >= 0.85 ? '#d97706' : '#ef4444';
+      return '<span style="color:' + color + ';font-weight:600">' + pct + '%</span>';
+    };
+    let html = '<table style="width:100%;font-size:12px;"><thead><tr>'
+      + '<th>Rendement \\ Épargne</th>'
+      + '<th class="num">−20% (6 400 €/m)</th>'
+      + '<th class="num">Base (8 000 €/m)</th>'
+      + '<th class="num">+20% (9 600 €/m)</th>'
+      + '</tr></thead><tbody>';
+    sens.matrix.forEach(row => {
+      const isBaseRow = row.rendement === sens.baseRendement;
+      html += '<tr' + (isBaseRow ? ' style="background:rgba(8,145,178,0.05)"' : '') + '>'
+        + '<td><strong>' + (row.rendement * 100).toFixed(0) + '%/an</strong>' + (isBaseRow ? ' <span style="color:var(--gray);font-size:10px">(base)</span>' : '') + '</td>';
+      row.cells.forEach(cell => {
+        const isBaseCell = cell.savings === sens.baseSavings;
+        html += '<td class="num"' + (isBaseCell && isBaseRow ? ' style="background:rgba(8,145,178,0.10);font-weight:600"' : '') + '>'
+          + Math.round(cell.projected / 1000) + 'k € (' + fmtRatio(cell.ratio) + ')</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">'
+      + 'Lecture : "1.2M€ (120%)" = projeté à 1.2M€ qui dépasse l\'objectif de 1M€ (120% atteint). '
+      + 'Cellule centrale (fond bleu) = scénario base. Permet de voir l\'impact d\'un marché baissier (4%/an) ou d\'un effort d\'épargne réduit.</p>';
+    tblSens.innerHTML = html;
+  }
+
+  // ── v311 — Fiscalité ──
+  const fiscal = computeFiscaliteMRE(state);
+
+  // IR loyer Vitry
+  const lvEl = document.getElementById('fiscalLoyerVitry');
+  if (lvEl && fiscal.loyerVitry) {
+    const f = fiscal.loyerVitry;
+    const fmtE = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+    let html = '<table style="width:100%;font-size:12px;"><tbody>';
+    html += '<tr><td>Loyer brut annuel</td><td class="num">' + fmtE(f.loyerAnnuel) + '</td></tr>';
+    html += '<tr><td>Charges déductibles</td><td class="num">−' + fmtE(f.chargesAnnuelles) + '</td></tr>';
+    html += '<tr><td>Intérêts prêt déductibles</td><td class="num">−' + fmtE(f.interetsAnnuels) + '</td></tr>';
+    html += '<tr><td>Régime appliqué</td><td>' + (f.regimeMicro ? 'Micro-foncier (abattement 30%)' : 'Réel') + '</td></tr>';
+    html += '<tr><td><strong>Revenu imposable</strong></td><td class="num"><strong>' + fmtE(f.revenuImposable) + '</strong></td></tr>';
+    html += '<tr style="color:var(--red)"><td>IR (' + (f.tauxIR * 100).toFixed(0) + '%)</td><td class="num">−' + fmtE(f.ir) + '</td></tr>';
+    html += '<tr style="color:var(--red)"><td>PS (CSG-CRDS 17.2% MRE hors EEE)</td><td class="num">−' + fmtE(f.ps) + '</td></tr>';
+    html += '<tr style="background:rgba(239,68,68,0.06);font-weight:600"><td>Total impôt loyer</td><td class="num">' + fmtE(f.total) + '</td></tr>';
+    html += '<tr style="background:rgba(34,197,94,0.06);font-weight:600"><td>Loyer net après tout</td><td class="num">' + fmtE(f.netApresImpot) + '</td></tr>';
+    html += '</tbody></table>';
+    lvEl.innerHTML = html;
+  }
+
+  // PV Vitry si vente
+  const pvEl = document.getElementById('fiscalPVVitry');
+  if (pvEl && fiscal.pvVitry) {
+    const p = fiscal.pvVitry;
+    const fmtE = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+    let html = '<table style="width:100%;font-size:12px;"><tbody>';
+    html += '<tr><td>Prix achat (' + (p.purchasePrice / 1000).toFixed(0) + 'k€)</td><td class="num">' + fmtE(p.purchasePrice) + '</td></tr>';
+    html += '<tr><td>Valeur estimée actuelle</td><td class="num">' + fmtE(p.currentValue) + '</td></tr>';
+    html += '<tr><td>Plus-value brute (après frais)</td><td class="num"><strong>' + fmtE(p.pvBrute) + '</strong></td></tr>';
+    html += '<tr><td>Détention</td><td>' + p.yearsHeld.toFixed(1) + ' ans</td></tr>';
+    html += '<tr><td>Abattement IR (' + (p.abattIR * 100).toFixed(0) + '%)</td><td class="num">' + fmtE(p.pvBrute - p.pvImposableIR) + '</td></tr>';
+    html += '<tr><td>Abattement PS (' + (p.abattPS * 100).toFixed(0) + '%)</td><td class="num">' + fmtE(p.pvBrute - p.pvImposablePS) + '</td></tr>';
+    html += '<tr style="color:var(--red)"><td>IR PV (19% × imposable)</td><td class="num">−' + fmtE(p.irPV) + '</td></tr>';
+    html += '<tr style="color:var(--red)"><td>PS (17.2% × imposable)</td><td class="num">−' + fmtE(p.psPV) + '</td></tr>';
+    html += '<tr style="background:rgba(239,68,68,0.06);font-weight:600"><td>Total impôt si vente</td><td class="num">' + fmtE(p.total) + '</td></tr>';
+    html += '<tr style="background:rgba(34,197,94,0.06);font-weight:600"><td>PV nette après impôt</td><td class="num">' + fmtE(p.netApresImpot) + '</td></tr>';
+    html += '</tbody></table>';
+    pvEl.innerHTML = html;
+  }
+
+  // Calendrier déclaratif
+  const calEl = document.getElementById('fiscalCalendrier');
+  if (calEl && fiscal.calendrier) {
+    let html = '<table style="width:100%;font-size:12px;"><thead><tr>'
+      + '<th style="text-align:left">Date</th>'
+      + '<th>Pays</th>'
+      + '<th>Démarche</th>'
+      + '<th>Formulaire</th>'
+      + '</tr></thead><tbody>';
+    fiscal.calendrier.forEach(c => {
+      const flagColor = c.country === 'FR' ? '#1e40af' : c.country === 'MA' ? '#b91c1c' : '#0e7490';
+      html += '<tr>'
+        + '<td>' + c.date + '</td>'
+        + '<td><span style="display:inline-block;padding:2px 6px;background:' + flagColor + ';color:white;border-radius:3px;font-size:10px;font-weight:600">' + c.country + '</span></td>'
+        + '<td>' + c.label + '</td>'
+        + '<td style="font-size:11px;color:var(--gray)">' + c.formulaire + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    calEl.innerHTML = html;
+  }
+
+  // Coût rapatriement
+  const rapatEl = document.getElementById('fiscalRapatriement');
+  if (rapatEl && fiscal.rapatriement) {
+    const r = fiscal.rapatriement;
+    const fmtE = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+    let html = '<table style="width:100%;font-size:12px;"><tbody>';
+    html += '<tr><td>Exemple : transférer ' + fmtE(r.exempleAmount) + ' depuis UAE vers FR</td><td></td></tr>';
+    html += '<tr><td>Spread FX (' + (r.spreadPct * 100).toFixed(2) + '%)</td><td class="num">' + fmtE(r.spreadCost) + '</td></tr>';
+    html += '<tr><td>Frais wire bancaire</td><td class="num">' + fmtE(r.wireFee) + '</td></tr>';
+    html += '<tr style="background:rgba(239,68,68,0.06);font-weight:600"><td>Coût total</td><td class="num">' + fmtE(r.totalCost) + ' (' + ((r.totalCost / r.exempleAmount) * 100).toFixed(2) + '%)</td></tr>';
+    html += '</tbody></table>';
+    html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">' + r.note + '</p>';
+    rapatEl.innerHTML = html;
+  }
 }

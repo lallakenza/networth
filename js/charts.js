@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=308';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=308';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=308';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=308';
+import { fmt, fmtAxis } from './render.js?v=312';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=312';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC } from './data.js?v=312';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=312';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4726,27 +4726,92 @@ const immoFinCharts = {};
 
 /**
  * Chart 1 : Patrimoine financier final par scénario, grouped by horizon.
- * X = horizons (10, 15, 25 ans)
- * Y = patrimoine en MDH
- * 4 bars par horizon (A, B, C, D)
+ * X = horizons (10, 15, 25 ans) · Y = MDH (ou delta selon mode)
+ *
+ * v310 — 3 modes d'affichage + labels numériques sur barres pour améliorer
+ * discriminabilité quand les écarts entre scénarios sont <5% :
+ *   absolu : axe 0 → max (défaut, rendu "officiel")
+ *   zoom   : axe min×0.95 → max×1.02 (les petits écarts deviennent visibles)
+ *   delta  : ΔMDH vs scénario A, A=0 baseline, montre le gain net
  */
-export function buildImmoFinPatrimoineChart(result) {
+export function buildImmoFinPatrimoineChart(result, mode) {
   const canvas = document.getElementById('immoFinPatrimoineChart');
   if (!canvas) return;
   if (immoFinCharts.patrimoine) { immoFinCharts.patrimoine.destroy(); }
   const ctx = canvas.getContext('2d');
 
+  const displayMode = mode || 'absolu';
   const { scenarios, summary } = result;
   const horizons = summary.horizons;
 
-  const datasets = ['A', 'B', 'C', 'D'].map(k => ({
-    label: k + ' - ' + scenarios[k].label,
-    data: scenarios[k].patrimoineFinal.map(v => v / 1e6),   // en MDH
-    backgroundColor: scenarios[k].color,
-    borderColor: scenarios[k].color,
-    borderWidth: 1,
-    borderRadius: 4,
-  }));
+  // Raw MDH data per scenario
+  const rawData = {};
+  ['A', 'B', 'C', 'D'].forEach(k => {
+    rawData[k] = scenarios[k].patrimoineFinal.map(v => v / 1e6);
+  });
+
+  let datasets, yMin, yMax, yTitle, valueFmt;
+  if (displayMode === 'delta') {
+    yTitle = 'Delta vs Cash intégral (MDH)';
+    valueFmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + ' MDH';
+    datasets = ['A', 'B', 'C', 'D'].map(k => ({
+      label: k + ' - ' + scenarios[k].label,
+      data: rawData[k].map((v, i) => v - rawData.A[i]),
+      backgroundColor: scenarios[k].color,
+      borderColor: scenarios[k].color,
+      borderWidth: 1,
+      borderRadius: 4,
+    }));
+    const allVals = datasets.flatMap(d => d.data);
+    yMin = 0;
+    yMax = Math.max(...allVals, 0.1) * 1.18;
+  } else {
+    yTitle = 'Patrimoine financier (MDH)';
+    valueFmt = v => v.toFixed(2) + ' MDH';
+    datasets = ['A', 'B', 'C', 'D'].map(k => ({
+      label: k + ' - ' + scenarios[k].label,
+      data: rawData[k],
+      backgroundColor: scenarios[k].color,
+      borderColor: scenarios[k].color,
+      borderWidth: 1,
+      borderRadius: 4,
+    }));
+    if (displayMode === 'zoom') {
+      const allVals = datasets.flatMap(d => d.data);
+      const minV = Math.min(...allVals);
+      const maxV = Math.max(...allVals);
+      yMin = minV * 0.95;
+      yMax = maxV * 1.05;
+    } else {
+      yMin = 0;
+      yMax = undefined;
+    }
+  }
+
+  // v310 — Plugin : labels numériques au-dessus de chaque barre.
+  const dataLabelPlugin = {
+    id: 'immoFinBarLabels',
+    afterDatasetsDraw(chart) {
+      const c = chart.ctx;
+      c.save();
+      c.font = 'bold 10px "DM Sans", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      chart.data.datasets.forEach((ds, dsIdx) => {
+        const meta = chart.getDatasetMeta(dsIdx);
+        meta.data.forEach((bar, idx) => {
+          const val = ds.data[idx];
+          if (val == null) return;
+          c.fillStyle = ds.borderColor || '#333';
+          const txt = displayMode === 'delta'
+            ? (Math.abs(val) < 0.005 ? 'base' : (val >= 0 ? '+' : '') + val.toFixed(2))
+            : val.toFixed(1);
+          c.fillText(txt, bar.x, bar.y - 3);
+        });
+      });
+      c.restore();
+    },
+  };
 
   immoFinCharts.patrimoine = new Chart(ctx, {
     type: 'bar',
@@ -4754,6 +4819,7 @@ export function buildImmoFinPatrimoineChart(result) {
       labels: horizons.map(y => y + ' ans'),
       datasets,
     },
+    plugins: [dataLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -4761,14 +4827,16 @@ export function buildImmoFinPatrimoineChart(result) {
         legend: { position: 'bottom', labels: { font: { size: 11 } } },
         tooltip: {
           callbacks: {
-            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
+            label: (c2) => c2.dataset.label + ' : ' + valueFmt(c2.parsed.y),
           },
         },
       },
       scales: {
         y: {
-          title: { display: true, text: 'Patrimoine financier (MDH)' },
-          ticks: { callback: v => v.toFixed(0) + ' MDH' },
+          title: { display: true, text: yTitle },
+          ticks: { callback: v => (displayMode === 'delta' && v > 0 ? '+' : '') + v.toFixed(1) + ' MDH' },
+          min: yMin,
+          max: yMax,
         },
       },
     },
@@ -4900,12 +4968,40 @@ export function buildImmoFinStressChart(result) {
     order: 0,
   };
 
+  // v310 — Labels sur barres : montant MDH + % du besoin Casa
+  const stressLabelPlugin = {
+    id: 'immoFinStressLabels',
+    afterDatasetsDraw(chart) {
+      const c = chart.ctx;
+      c.save();
+      c.font = 'bold 9.5px "DM Sans", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      chart.data.datasets.forEach((ds, dsIdx) => {
+        if (ds.type === 'line') return;   // skip the besoin-line
+        const meta = chart.getDatasetMeta(dsIdx);
+        meta.data.forEach((bar, idx) => {
+          const val = ds.data[idx];
+          if (val == null) return;
+          c.fillStyle = '#1e293b';
+          const mdhTxt = val.toFixed(2);
+          const pctTxt = besoinCasa > 0
+            ? ' (' + Math.round((val * 1e6 / besoinCasa) * 100) + '%)'
+            : '';
+          c.fillText(mdhTxt + pctTxt, bar.x, bar.y - 3);
+        });
+      });
+      c.restore();
+    },
+  };
+
   immoFinCharts.stress = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: casaPoints.map(m => 'T+' + m + ' mois'),
       datasets: besoinCasa > 0 ? [...datasets, besoinLine] : datasets,
     },
+    plugins: [stressLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -4913,7 +5009,14 @@ export function buildImmoFinStressChart(result) {
         legend: { position: 'bottom', labels: { font: { size: 11 } } },
         tooltip: {
           callbacks: {
-            label: (ctx) => ctx.dataset.label + ' : ' + ctx.parsed.y.toFixed(2) + ' MDH',
+            label: (ctx) => {
+              const mdh = ctx.parsed.y.toFixed(2);
+              if (besoinCasa > 0 && ctx.dataset.type !== 'line') {
+                const pct = Math.round((ctx.parsed.y * 1e6 / besoinCasa) * 100);
+                return ctx.dataset.label + ' : ' + mdh + ' MDH (' + pct + '% du besoin)';
+              }
+              return ctx.dataset.label + ' : ' + mdh + ' MDH';
+            },
           },
         },
       },
@@ -4962,18 +5065,25 @@ export function buildImmoFinCashProjectionChart(result) {
     pointHoverRadius: 4,
   }));
 
-  // Ligne besoin Casa (pointillée rouge)
-  if (inputs.besoinCasa > 0) {
+  // v310 — Lignes de projets multiples (jusqu'à 3) avec marker au mois cible
+  // Chaque projet = besoin (ligne horizontale) + marker au mois cible.
+  // Couleurs distinctes : Casa rouge, Projet 2 orange, Projet 3 violet.
+  const projectColors = ['#ef4444', '#d97706', '#a855f7'];
+  const projets = result.projets || [];
+  projets.forEach((p, idx) => {
+    if (!p.amountMAD || p.amountMAD <= 0) return;
+    const color = projectColors[idx] || '#ef4444';
+    // Ligne horizontale = besoin
     datasets.push({
-      label: 'Besoin projet Casa (' + (inputs.besoinCasa / 1e6).toFixed(1) + ' MDH)',
-      data: labels.map(_ => inputs.besoinCasa / 1e6),
-      borderColor: '#ef4444',
+      label: p.label + ' (' + (p.amountMAD / 1e6).toFixed(2) + ' MDH @ T+' + p.monthsTarget + 'm)',
+      data: labels.map(_ => p.amountMAD / 1e6),
+      borderColor: color,
       borderDash: [8, 4],
-      borderWidth: 2,
+      borderWidth: 1.5,
       fill: false,
       pointRadius: 0,
     });
-  }
+  });
 
   immoFinCharts.cashProjection = new Chart(ctx, {
     type: 'line',
