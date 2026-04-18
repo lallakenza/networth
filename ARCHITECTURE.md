@@ -4195,5 +4195,43 @@ Le champ reste toujours éditable manuellement dans le module Financement (pour 
 
 **Cache-bust** : `?v=319` → `?v=320` sur 18 imports (`app.js` ×7, `charts.js` ×4, `render.js` ×2, `engine.js` ×1, `simulators.js` ×2, `index.html` ×1) + `APP_VERSION 'v320'` dans data.js.
 
+## §69 — v321 : Mobile — dropdown Analyse en position:fixed + audit largeurs iPhone (18 avril 2026)
+
+**Problème (iPhone 390 px)** :
+1. Le dropdown "Analyse" (v320) s'ouvrait en `position: absolute; left:0; top:100%` ancré sur `.view-dropdown`. Quand le toggle, poussé par flex-wrap ou horizontal-scroll, se retrouvait près du bord droit, le menu débordait hors écran. Pire, à ≤ 480 px, `.view-switcher { overflow-x: auto }` **clippe** les enfants absolument positionnés dont le `right < 0` ou `left > containerWidth` → menu partiellement invisible.
+2. Les cartes pleine-largeur 4-col inline (`<div style="...repeat(4,1fr)...">` = les 4 scénarios A/B/C/D du module Financement) restaient à 4 colonnes sur iPhone → chaque carte ≤ 85 px, texte tronqué.
+3. Les tableaux de Plan & Fiscalité (Objectifs 7 cols, Sensibilité 4 cols, Calendrier 4 cols) ne scrollaient pas horizontalement → débordement.
+
+**Fix 1 — Dropdown `position: fixed` + JS positioning**
+
+`@media (max-width: 600px)` : le menu passe en `position: fixed; left:8px; right:8px; top:auto` → **plein-viewport − 8 px de gouttière**, impossible de déborder. `position: fixed` échappe à TOUS les overflow ancestors, donc plus de clipping par `.view-switcher`.
+
+Comme `top` ne peut pas être exprimé en CSS (dépend de la hauteur dynamique du header / barre de nav scrollée), une fonction JS `positionMenuMobile()` dans `app.js` :
+- S'exécute à chaque ouverture du menu (`toggle.click` → après `.toggle('open')`).
+- Mesure `getBoundingClientRect().bottom` de `.view-switcher`, écrit `menu.style.top = rect.bottom + 1 + 'px'`.
+- Se ré-exécute sur `window.resize` si le menu est ouvert (orientation change).
+- Sur desktop (`> 600px`), reset `menu.style.top = ''` pour laisser le CSS anchored-absolute reprendre.
+
+Détection via `window.matchMedia('(max-width: 600px)')` pour rester en sync avec le breakpoint CSS.
+
+**Fix 2 — Grids inline `repeat(N,1fr)` stackés sur iPhone**
+
+Les règles existantes `div[style*="grid-template-columns:1fr 1fr"]` (v229) matchent uniquement les formes littérales. Elles ne touchent PAS les `repeat(4,1fr)` utilisés par les 4 cartes scénarios. Ajout d'un nouveau sélecteur @480px qui couvre N = 2, 3, 4, 5, 6 (avec et sans espaces) → stack en `1fr` unique. `.kpi-strip` et `.sim-result-strip` restent class-based et gardent leur propre grille 2-col dédiée.
+
+**Fix 3 — Plan & Fiscalité : overflow-x:auto**
+
+Ajout d'`overflow-x: auto; -webkit-overflow-scrolling: touch` sur `#planObjectifsTable`, `#planSensibiliteTable`, `#fiscalCalendrier`, `#fiscalLoyerVitry`, `#fiscalPVVitry`, `#fiscalRapatriement` + `min-width` sur les 3 tableaux larges (620 px / 480 px / 460 px) pour forcer le scroll horizontal plutôt que le wrap cassé. Sécurité redondante sur `#immoFinComparisonTable` (v320 l'enveloppait déjà dans un div overflow-x:auto).
+
+### Invariants & tests de régression v321
+
+- iPhone 375–390 px : ouvrir "Analyse ▾" → le menu couvre quasi-toute la largeur (viewport − 16 px), impossible de déborder à droite ou à gauche.
+- Scroll horizontal de la nav → le toggle peut être à n'importe quelle position, le menu reste centré sur le viewport (pas ancré au toggle).
+- Orientation change (portrait ↔ paysage) avec menu ouvert → position recalculée (écoute `resize`).
+- Desktop (> 600 px) : le menu garde son comportement v320 (ancré au toggle, `position: absolute; top:100%`). Aucune régression.
+- Module Financement Immo, section "Les 4 scénarios de financement" : sur iPhone, 4 cartes empilées verticalement (1 par ligne), titre et description lisibles sans tronquage.
+- Vue Plan & Fiscalité iPhone : les 3 tableaux (Objectifs / Sensibilité / Calendrier) scrollent horizontalement sans déborder de la carte parente.
+
+**Cache-bust** : `?v=320` → `?v=321` sur 18 imports (`app.js` ×7, `charts.js` ×4, `render.js` ×3, `engine.js` ×1, `simulators.js` ×2, `index.html` ×1) + `APP_VERSION 'v321'` dans data.js.
+
 
 

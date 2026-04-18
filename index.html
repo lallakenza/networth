@@ -160,6 +160,9 @@
     align-items: stretch;
     flex-wrap: wrap;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    /* v321 — position:relative pour que le dropdown "Analyse" puisse s'ancrer
+       sur la nav complète en mobile (full-width, pas sur le toggle). */
+    position: relative;
   }
   .view-btn {
     padding: 14px 18px;
@@ -869,7 +872,22 @@
     .view-btn { padding: 10px 16px; font-size: 13px; }
     /* v320 — Harmoniser le toggle "Analyse" avec les autres view-btn en mobile. */
     .analyse-toggle { padding: 10px 14px; font-size: 13px; }
-    .view-dropdown-menu { min-width: 180px; }
+    /* v321 — Sur mobile, le toggle peut être n'importe où sur la nav wrappée (601-900px)
+       ou scrollée horizontalement (≤480px). On neutralise son ancrage et on positionne le
+       menu en `position: fixed` : JS calcule la valeur `top` depuis le bord bas de la
+       view-switcher au click (voir app.js). Largeur full-viewport moins 8px de gouttière
+       de chaque côté → aucun risque de débordement. */
+    .view-dropdown { position: static; }
+    .view-dropdown-menu {
+      position: fixed;
+      left: 8px;
+      right: 8px;
+      top: auto;
+      min-width: 0;
+      max-width: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .view-dropdown-menu .view-btn.dropdown-item { padding: 14px 16px; font-size: 13px; }
     .sim-controls { grid-template-columns: 1fr !important; }
     .sim-result-strip { grid-template-columns: 1fr !important; }
   }
@@ -1115,6 +1133,44 @@
     div[style*="grid-template-columns: 1fr 1fr 1fr"] {
       grid-template-columns: 1fr 1fr !important;
     }
+    /* v321 — Inline `repeat(N,1fr)` grids (N=2..6) : stack en 1 colonne sur iPhone.
+       Les classes .kpi-strip / .sim-result-strip / .cat-grid / .prop-grid ont
+       déjà leurs overrides — celui-ci cible les cartes inline (ex: les 4
+       scénarios du module Financement Immo au-dessus du tableau comparatif). */
+    div[style*="grid-template-columns:repeat(2,1fr)"],
+    div[style*="grid-template-columns: repeat(2, 1fr)"],
+    div[style*="grid-template-columns:repeat(3,1fr)"],
+    div[style*="grid-template-columns: repeat(3, 1fr)"],
+    div[style*="grid-template-columns:repeat(4,1fr)"],
+    div[style*="grid-template-columns: repeat(4, 1fr)"],
+    div[style*="grid-template-columns:repeat(5,1fr)"],
+    div[style*="grid-template-columns: repeat(5, 1fr)"],
+    div[style*="grid-template-columns:repeat(6,1fr)"],
+    div[style*="grid-template-columns: repeat(6, 1fr)"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* v321 — Plan & Fiscalité : tableau objectifs a 7 colonnes, sensibilité 4
+       colonnes, calendrier 4 colonnes. Sur iPhone (~375px) ça ne rentre pas →
+       scroll horizontal avec indication visuelle. */
+    #planObjectifsTable,
+    #planSensibiliteTable,
+    #fiscalCalendrier,
+    #fiscalLoyerVitry,
+    #fiscalPVVitry,
+    #fiscalRapatriement {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #planObjectifsTable table { min-width: 620px; }
+    #planSensibiliteTable table { min-width: 480px; }
+    #fiscalCalendrier table { min-width: 460px; }
+
+    /* v321 — Tableau comparatif 9-col du module Financement : déjà enveloppé
+       d'un overflow-x:auto en HTML (render.js), mais on assure ici que le
+       container #immoFinComparisonTable lui-même scroll si jamais la structure
+       change. */
+    #immoFinComparisonTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
     /* Inline flex containers: allow wrapping on mobile */
     div[style*="display:flex"][style*="gap:12px"],
@@ -4150,7 +4206,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=320"></script>
+<script type="module" src="js/app.js?v=321"></script>
 
 </body>
 </html>
