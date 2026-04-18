@@ -185,6 +185,71 @@
   }
   .view-sep { width: 1px; background: rgba(255,255,255,0.15); margin: 4px 12px 8px; }
   .view-btn.asset-view-btn.active { border-bottom-color: var(--gold); }
+
+  /* v320 — Dropdown "Analyse" (Créances / Budget / Financement / Plan & Fiscalité) */
+  .view-dropdown { position: relative; display: inline-flex; align-items: stretch; }
+  .analyse-toggle {
+    padding: 14px 18px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: transparent;
+    color: rgba(255,255,255,0.7);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .analyse-toggle:hover { color: white; background: rgba(255,255,255,0.08); }
+  .analyse-toggle .caret { opacity: 0.75; font-size: 11px; transition: transform 0.2s; }
+  .view-dropdown.open .analyse-toggle .caret { transform: rotate(180deg); }
+  .view-dropdown.open .analyse-toggle { background: rgba(255,255,255,0.1); color: white; }
+  /* Surligne orange quand une sous-vue (creances/budget/immo-financing/plan-fiscal) est active. */
+  .analyse-toggle.parent-active {
+    color: white;
+    font-weight: 700;
+    border-bottom-color: var(--gold);
+    background: rgba(255,255,255,0.08);
+  }
+  .view-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    background: var(--primary);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.28);
+    z-index: 50;
+    flex-direction: column;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-top: none;
+  }
+  .view-dropdown.open .view-dropdown-menu { display: flex; }
+  .view-dropdown-menu .view-btn.dropdown-item {
+    padding: 12px 16px;
+    text-align: left;
+    border-left: 3px solid transparent;
+    border-bottom: none;
+    font-size: 12px;
+  }
+  .view-dropdown-menu .view-btn.dropdown-item:hover {
+    background: rgba(255,255,255,0.08);
+    color: white;
+  }
+  /* Override la règle .view-btn.asset-view-btn.active générique : dans le dropdown,
+     l'indicateur actif est un bandeau orange vertical à gauche, pas un trait du bas. */
+  .view-dropdown-menu .view-btn.dropdown-item.active {
+    color: var(--gold);
+    border-left-color: var(--gold);
+    border-bottom-color: transparent;
+    background: rgba(255,255,255,0.06);
+    font-weight: 700;
+  }
   .immo-sub-nav {
     display: flex;
     gap: 0;
@@ -802,6 +867,9 @@
     .kpi-strip { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
     .link-grid { grid-template-columns: 1fr !important; }
     .view-btn { padding: 10px 16px; font-size: 13px; }
+    /* v320 — Harmoniser le toggle "Analyse" avec les autres view-btn en mobile. */
+    .analyse-toggle { padding: 10px 14px; font-size: 13px; }
+    .view-dropdown-menu { min-width: 180px; }
     .sim-controls { grid-template-columns: 1fr !important; }
     .sim-result-strip { grid-template-columns: 1fr !important; }
   }
@@ -2768,10 +2836,19 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <button class="view-btn asset-view-btn" data-view="actions">&#x1F4C8; Actions</button>
   <button class="view-btn asset-view-btn" data-view="cash">&#x1F4B0; Cash</button>
   <button class="view-btn asset-view-btn immo-parent-btn" data-view="immobilier">&#x1F3E0; Immobilier</button>
-  <button class="view-btn asset-view-btn" data-view="creances">&#x1F4CB; Cr&eacute;ances</button>
-  <button class="view-btn asset-view-btn" data-view="budget">&#x1F4B8; Budget</button>
-  <button class="view-btn asset-view-btn" data-view="immo-financing">Financement</button>
-  <button class="view-btn asset-view-btn" data-view="plan-fiscal">Plan &amp; Fiscalit&eacute;</button>
+  <!-- v320 — Menu "Analyse" : regroupe Créances / Budget / Financement / Plan & Fiscalité
+       dans un dropdown pour désencombrer la barre de navigation. Le toggle reste
+       surligné (parent-active) tant qu'une sous-vue est active ; l'item courant porte
+       un bandeau orange vertical (border-left gold). -->
+  <div class="view-dropdown" id="analyseDropdown">
+    <button type="button" class="analyse-toggle" id="analyseToggle" aria-haspopup="true" aria-expanded="false">Analyse <span class="caret">&#x25BE;</span></button>
+    <div class="view-dropdown-menu" id="analyseMenu" role="menu">
+      <button class="view-btn asset-view-btn dropdown-item" data-view="creances" role="menuitem">&#x1F4CB; Cr&eacute;ances</button>
+      <button class="view-btn asset-view-btn dropdown-item" data-view="budget" role="menuitem">&#x1F4B8; Budget</button>
+      <button class="view-btn asset-view-btn dropdown-item" data-view="immo-financing" role="menuitem">Financement</button>
+      <button class="view-btn asset-view-btn dropdown-item" data-view="plan-fiscal" role="menuitem">Plan &amp; Fiscalit&eacute;</button>
+    </div>
+  </div>
 </div>
 <!-- Sub-navigation immobilier (visible quand immobilier ou apt_* est actif) -->
 <div class="immo-sub-nav" id="immoSubNav" style="display:none;">
@@ -3721,10 +3798,15 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <!-- v308 — Cash-flow consolidé (revenus vs dépenses) -->
   <h2 style="margin-top:32px;"><span class="section-icon" style="background: #14b8a6;">&#x1F4CA;</span>Cash-flow consolid&eacute; mensuel</h2>
   <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Synth&egrave;se des flux : revenus (salaires + facturation + loyers + dividendes) vs d&eacute;penses mensuelles. Permet de calculer le taux d'&eacute;pargne, l'emergency fund ratio, et le runway si perte de revenu.</p>
-  <div class="kpi-strip" id="kpi-cashflow" style="grid-template-columns: repeat(5, 1fr);">
+  <!-- v320 — Décomposition épargne : surplus structurel (revenus − dépenses fixes trackées,
+       pédago mais ne reflète pas la réalité) vs épargne déclarée (8 000 €/mois, valeur utilisée
+       partout dans les projections). Le surplus reste affiché pour diagnostic "combien de marge
+       théorique" mais n'est plus alimenté dans les projections long-terme. -->
+  <div class="kpi-strip" id="kpi-cashflow" style="grid-template-columns: repeat(6, 1fr);">
     <div class="kpi green"><div class="value" id="kpiCashflowIncome" data-eur="0">--</div><div class="label">Revenus /mois</div></div>
-    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiCashflowExpenses" data-eur="0">--</div><div class="label">D&eacute;penses /mois</div></div>
-    <div class="kpi green"><div class="value" id="kpiCashflowSavings" data-eur="0">--</div><div class="label">&Eacute;pargne nette</div></div>
+    <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiCashflowExpenses" data-eur="0">--</div><div class="label">D&eacute;penses fixes /mois</div></div>
+    <div class="kpi" title="Revenus − dépenses fixes trackées. Ne reflète pas l'épargne réelle car les dépenses variables (courses, loisirs, voyages…) ne sont pas trackées."><div class="value" id="kpiCashflowSavings" data-eur="0">--</div><div class="label">Surplus structurel <span style="color:var(--gray);font-weight:normal;" title="Revenus − dépenses fixes. Indicateur théorique, inclut les dépenses variables non trackées.">&#9432;</span></div></div>
+    <div class="kpi green" title="Épargne mensuelle effective (DECLARED_MONTHLY_SAVINGS_EUR). Valeur déclarée, utilisée dans toutes les projections long-terme (Plan & Fiscalité, Financement Immo)."><div class="value" id="kpiCashflowDeclared" data-eur="0">--</div><div class="label">&Eacute;pargne d&eacute;clar&eacute;e</div></div>
     <div class="kpi"><div class="value" id="kpiCashflowRate">--</div><div class="label">Taux d'&eacute;pargne</div></div>
     <div class="kpi"><div class="value" id="kpiCashflowRunway">--</div><div class="label">Runway (mois)</div></div>
   </div>
@@ -4068,7 +4150,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=319"></script>
+<script type="module" src="js/app.js?v=320"></script>
 
 </body>
 </html>

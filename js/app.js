@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=319';
-import { compute, getGrandTotal } from './engine.js?v=319';
-import { render } from './render.js?v=319';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=319';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=319';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=319';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=319';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=320';
+import { compute, getGrandTotal } from './engine.js?v=320';
+import { render } from './render.js?v=320';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=320';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=320';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=320';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=320';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -189,6 +189,9 @@ function restoreFromHash() {
  *   - Adds .active to selected immo sub-view button (if in immobilier view)
  *   - Removes .active from all other buttons
  */
+// v320 — Vues groupées dans le dropdown "Analyse" (barre de nav).
+const ANALYSE_VIEWS = ['creances', 'budget', 'immo-financing', 'plan-fiscal'];
+
 function syncNavUI() {
   // Sync main view buttons
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
@@ -201,6 +204,11 @@ function syncNavUI() {
     const subview = currentSubView || 'immobilier';
     const subBtn = document.querySelector('.immo-sub-btn[data-subview="' + subview + '"]');
     if (subBtn) subBtn.classList.add('active');
+  }
+  // v320 — Highlight "Analyse" toggle quand une sous-vue du dropdown est active.
+  const analyseToggle = document.getElementById('analyseToggle');
+  if (analyseToggle) {
+    analyseToggle.classList.toggle('parent-active', ANALYSE_VIEWS.includes(currentView));
   }
 }
 
@@ -277,10 +285,46 @@ document.querySelectorAll('.view-btn').forEach(btn => {
     const defaultSubBtn = document.querySelector('.immo-sub-btn[data-subview="immobilier"]');
     if (defaultSubBtn) defaultSubBtn.classList.add('active');
 
+    // v320 — Ferme le dropdown "Analyse" quand un item est cliqué (ou un autre onglet).
+    const analyseDropdown = document.getElementById('analyseDropdown');
+    if (analyseDropdown) analyseDropdown.classList.remove('open');
+    const analyseToggle = document.getElementById('analyseToggle');
+    if (analyseToggle) analyseToggle.setAttribute('aria-expanded', 'false');
+
     updateHash();
     refresh();
   });
 });
+
+// v320 — Dropdown "Analyse" : toggle + fermeture sur clic extérieur + Esc.
+(function setupAnalyseDropdown() {
+  const dropdown = document.getElementById('analyseDropdown');
+  const toggle = document.getElementById('analyseToggle');
+  if (!dropdown || !toggle) return;
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = dropdown.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  // Clic extérieur : ferme le menu.
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target)) {
+      dropdown.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Esc : ferme le menu et remet le focus sur le toggle.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dropdown.classList.contains('open')) {
+      dropdown.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.focus();
+    }
+  });
+})();
 
 // Immo sub-view switching
 document.querySelectorAll('.immo-sub-btn').forEach(btn => {
