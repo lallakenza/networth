@@ -94,50 +94,78 @@ def scrape_casablanca_bourse_http() -> dict | None:
     """
     url = "https://www.casablanca-bourse.com/fr/live-market/instruments/GTM"
     print(f"[casablanca-bourse] HTTP GET {url} ...")
+    debug_dir = Path(os.environ.get("DEBUG_DIR", "/tmp/scrape_debug"))
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    html = ""
+    status = None
+    headers_dump = ""
     try:
         req = urllib.request.Request(
             url,
             headers={
+                # UA de Chrome récent + headers "browser-like" complets pour
+                # éviter les blocages côté CDN (certains runners GitHub Actions
+                # ont une IP US datacenter que des firewalls WAF peuvent filtrer
+                # quand les headers paraissent trop "bot").
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml",
-                "Accept-Language": "fr-FR,fr;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+                "Accept-Encoding": "identity",  # éviter gzip/br compression (urllib ne les décode pas)
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Upgrade-Insecure-Requests": "1",
             },
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status != 200:
-                print(f"[casablanca-bourse] HTTP {resp.status}")
-                return None
-            html = resp.read().decode("utf-8", errors="replace")
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            status = resp.status
+            headers_dump = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
+            raw = resp.read()
+            html = raw.decode("utf-8", errors="replace")
+            print(f"[casablanca-bourse] HTTP {status}, {len(raw)} bytes reçus")
+    except urllib.error.HTTPError as e:
+        status = e.code
+        try:
+            headers_dump = "\n".join(f"{k}: {v}" for k, v in e.headers.items())
+            html = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        print(f"[casablanca-bourse] HTTPError {status}: {e.reason}")
+    except (urllib.error.URLError, TimeoutError) as e:
         print(f"[casablanca-bourse] erreur réseau: {e}")
+        (debug_dir / "casablanca_bourse_http_error.txt").write_text(f"{type(e).__name__}: {e}", encoding="utf-8")
         return None
 
-    # Chercher : <th>Cours (MAD)</th><td ...><span dir="ltr">826,00</span></td>
-    m = re.search(
-        r'Cours \(MAD\)</th>\s*<td[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>([^<]+)</span>',
-        html,
-        re.IGNORECASE,
+    # Si l'HTML a bien été récupéré, tenter l'extraction
+    if html and status == 200:
+        # Chercher : <th>Cours (MAD)</th><td ...><span dir="ltr">826,00</span></td>
+        m = re.search(
+            r'Cours \(MAD\)</th>\s*<td[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>([^<]+)</span>',
+            html,
+            re.IGNORECASE,
+        )
+        if not m:
+            # Fallback : span avec classe "text-right" après "Cours (MAD)"
+            m = re.search(r'Cours \(MAD\)</th>.{0,500}?>(\d[\d\s.,]{0,15}\d)<', html, re.DOTALL | re.IGNORECASE)
+        if m:
+            raw_val = m.group(1).strip()
+            val = parse_french_number(raw_val)
+            if val is not None:
+                print(f"[casablanca-bourse] ✓ prix={val} MAD (raw='{raw_val}')")
+                return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw_val}
+            print(f"[casablanca-bourse] raw='{raw_val}' hors bornes [{MIN_PRICE}, {MAX_PRICE}]")
+
+    # Échec : dump des infos HTTP pour debugging via artifact CI
+    print(f"[casablanca-bourse] ✗ échec (status={status}, html_len={len(html)})")
+    (debug_dir / "casablanca_bourse_status.txt").write_text(
+        f"Status: {status}\nHTML length: {len(html)}\n\n=== Headers ===\n{headers_dump}", encoding="utf-8"
     )
-    if not m:
-        # Fallback : span avec classe "text-right" après "Cours (MAD)"
-        m = re.search(r'Cours \(MAD\)</th>.{0,500}?>(\d[\d\s.,]{0,15}\d)<', html, re.DOTALL | re.IGNORECASE)
-    if not m:
-        print("[casablanca-bourse] selecteur Cours (MAD) introuvable")
-        # Debug: afficher les 500 premiers caractères autour du mot "Cours"
-        idx = html.lower().find("cours (mad)")
-        if idx > 0:
-            print(f"[casablanca-bourse] contexte: {html[idx:idx+400]!r}")
-        return None
-
-    raw = m.group(1).strip()
-    val = parse_french_number(raw)
-    if val is None:
-        print(f"[casablanca-bourse] raw='{raw}' hors bornes [{MIN_PRICE}, {MAX_PRICE}]")
-        return None
-
-    print(f"[casablanca-bourse] ✓ prix={val} MAD (raw='{raw}')")
-    return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw}
+    if html:
+        (debug_dir / "casablanca_bourse.html").write_text(html, encoding="utf-8")
+    return None
 
 
 def scrape_idbourse(page: Page) -> dict | None:
