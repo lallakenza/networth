@@ -5,6 +5,73 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-061: Dropdown « Analyse » invisible sur iPhone (iOS Safari containing-block bug)
+- **Version**: v320 (dropdown introduit), v321 (refonte mobile `position: fixed`), v326 (corrigé)
+- **Sévérité**: Haute (fonctionnalité complète inaccessible sur mobile — 4 vues « Créances / Budget / Financement / Plan & Fiscalité » inatteignables depuis iPhone)
+- **Détection**: Retour utilisateur « liste analyse s'affiche pas » avec screenshot iPhone en 01:46. Le caret tournait bien (▼ → ▲) et `aria-expanded` passait à `true`, mais les 4 items du menu n'étaient jamais affichés.
+- **Symptôme**: Sur iPhone (Safari, iOS 16+), taper sur le toggle « Analyse » dans la barre de nav mettait bien à jour l'état visuel du toggle (caret retourné, surligné) mais le dropdown-menu restait invisible. Les 4 sous-vues devenaient donc totalement inaccessibles depuis mobile. Fonctionnement correct sur Chrome DevTools émulation mobile (fausse assurance).
+- **Cause racine** (index.html:1010, @media max-width 480px) :
+  ```css
+  .view-switcher {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;  /* ← source du bug */
+    ...
+  }
+  ```
+  **Quirk iOS Safari** : depuis iOS 5, `-webkit-overflow-scrolling: touch` active le momentum scrolling hardware-accelerated. Effet de bord non documenté dans la spec CSS : le navigateur WebKit crée un nouveau **containing block** pour tous les descendants en `position: fixed`. Donc l'élément `<div class="view-dropdown-menu">` positionné en `position: fixed` (via `@media max-width: 600px`, ligne 947) ne s'ancre PLUS au viewport — il s'ancre à `.view-switcher`. Combiné avec `overflow-x: auto` sur ce même `.view-switcher`, le menu est clippé hors de la zone visible.
+
+  Chaîne complète :
+  1. `.view-switcher { overflow-x: auto; -webkit-overflow-scrolling: touch }` sur ≤480px.
+  2. `.view-dropdown-menu { position: fixed; left: 8px; right: 8px }` sur ≤600px.
+  3. JS `positionMenuMobile()` calcule `menu.style.top = swRect.bottom + 1` (~150px).
+  4. iOS Safari comporte le menu comme `position: absolute` avec containing block = `.view-switcher`.
+  5. `top: 150px` dans un scroll container de hauteur ~40px → menu entièrement clippé par `overflow: auto`.
+
+  Chrome/Firefox respectent strictement la spec CSS : `position: fixed` s'ancre TOUJOURS au viewport, même dans un ancêtre scrollable avec `-webkit-overflow-scrolling`. D'où la détection tardive (émulation DevTools ≠ iOS Safari réel).
+- **Correctif** (index.html:1010) : suppression pure et simple de `-webkit-overflow-scrolling: touch`. Depuis **iOS 13 (2019)** le momentum scrolling est natif sur tous les éléments scrollables, la propriété est un no-op positif mais garde son effet secondaire de casser le containing block `fixed`. Cleanup legacy. Même suppression appliquée à `.immo-sub-nav` (ligne 1026) par cohérence.
+- **Alternatives rejetées**:
+  - DOM restructure : déplacer `<div id="analyseMenu">` hors de `.view-switcher`. Fonctionnel mais invasif, sépare le toggle de son menu dans le markup.
+  - JS append to body : appendre le menu à `document.body` au click et restaurer au close. Rajoute z-index/scroll management, fragile.
+- **Test de non-régression**:
+  - [ ] iPhone Safari réel (pas émulation) : tap sur « Analyse » → les 4 items (Créances / Budget / Financement / Plan & Fiscalité) s'affichent en dropdown plein-largeur sous la nav
+  - [ ] Tap sur un item ferme le dropdown ET navigue vers la vue
+  - [ ] Tap extérieur ferme le dropdown sans naviguer
+  - [ ] Esc ferme le dropdown
+  - [ ] Orientation change (portrait ↔ paysage) : dropdown se repositionne correctement si ouvert
+  - [ ] Scroll horizontal de la nav (si onglets ne tiennent pas) : fonctionne toujours avec momentum natif iOS 13+
+  - [ ] Desktop ≥ 600px : dropdown reste en `position: absolute` ancré au toggle (comportement inchangé)
+  - [ ] Tablette 600-900px : pas de scroll horizontal (flex-wrap actif), dropdown absolute classique
+
+---
+
+## BUG-062: Tableau « Toutes les Positions » illisible sur mobile (10 colonnes wrappent verticalement)
+- **Version**: v229 (refonte mobile responsive), v326 (corrigé)
+- **Sévérité**: Moyenne (tableau reste techniquement lisible mais chaque ligne fait 3× sa hauteur normale — UX dégradée)
+- **Détection**: Retour utilisateur « tableau trop long » avec screenshot iPhone : chaque valeur (« € 44 737 », « -18.1% ») wrappe sur 2-3 lignes, tableau de ~600px de haut au lieu de ~200px.
+- **Symptôme**: Sur iPhone 375-430px, le tableau `#allPositionsTable` (10 colonnes : Position, Qte, Valeur, Coût, P/L, %, FX P/L, Poids, Secteur, Géo) compresse chaque cellule à ~38px de large. Les valeurs financières (« € 44 737 » = 7 chars × 6-8px = 42-56px) ne tiennent pas → browser wrap automatique de la cellule. Chaque position occupe 2-3 lignes verticales de hauteur, rendant la comparaison visuelle entre positions quasi impossible.
+- **Cause racine** (index.html:3520) :
+  ```html
+  <table id="allPositionsTable" style="width:100%;">
+    ...
+  </table>
+  ```
+  Pas de wrapper `overflow-x: auto` ni `min-width` sur le tableau. Les autres tableaux larges du dashboard (Plan Objectifs, Sensibilité, Calendrier Fiscal, Financement comparatif, Créances, Budget) ont tous reçu leur wrapper en v229 / v321. Le tableau positions avait été oublié (probablement parce que `body { overflow-x: hidden }` masquait visuellement le problème en production, sans le faire scroller).
+- **Correctif** (index.html) :
+  1. HTML (~3520) : wrap dans `<div class="positions-table-wrap" style="overflow-x: auto; max-width: 100%;">`.
+  2. CSS ≤480px (~1240) : règle `.positions-table-wrap #allPositionsTable { min-width: 720px; }` force le tableau à sa taille naturelle. 720px = ~80px par colonne × 9 cols de données (POSITION prend plus).
+  3. Pattern cohérent avec les autres tableaux larges du dashboard.
+- **Test de non-régression**:
+  - [ ] iPhone (≤480px) : le tableau positions fait 1 ligne par position (pas de wrap vertical des valeurs)
+  - [ ] iPhone : swipe horizontal sur le tableau révèle progressivement Coût, P/L, %, FX P/L, Poids, Secteur, Géo
+  - [ ] iPhone : la ligne « Total (14 positions) » reste visible et alignée
+  - [ ] Desktop ≥ 900px : aucun scroll horizontal visible (tableau fait < 100% du container `.card`)
+  - [ ] Tablette 600-900px : pas de scroll horizontal (tableau fit naturellement en landscape)
+  - [ ] Toggle de période (All / Daily / MTD / 1M / YTD) : scroll position horizontale conservée ou reset propre
+  - [ ] Sort par colonne : fonctionne via tap sur header même pendant un scroll horizontal en cours
+
+---
+
 ## BUG-060: Bloc "Patrimoine par Catégorie" vide (€0/--) sur la vue Financement Immo
 - **Version**: v306 (détecté v318), v318 (corrigé)
 - **Sévérité**: Moyenne
@@ -1387,7 +1454,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v325 — 18 avril 2026 (UX senior redesign du chart Stress Casa suite à retour « les couleurs red/green/orange c'était bien, mais les graphs étaient basiques et pas UX friendly » + « améliore ce graph tel un UX graph designer senior ». Réconciliation stoplight + identity : fills/borders per-bar stoplight (signal métier primaire « puis-je financer Casa ? » en L1 lecture 1-sec), identité scénario A/B/C portée par lettre `textMuted` 10px sous la barre + caption bas `A · Cash intégral    B · Prêt banque    C · Cash + margin IBKR` (L2 lecture 10-sec). Labels inline multi-couleur `2.58 M  ✓ 65%` sans pill/background style FT/Bloomberg — moins de chart junk. Légende custom hard-codée via `generateLabels` (3 statuts + 1 besoin) qui élimine la dérivation Chart.js cassée par les arrays de backgroundColor. Error bars neutralisés en `textSecondary` pour ne pas concurrencer les fills stoplight. Layout `{ top: 22, right: 12, bottom: 40, left: 4 }` pour accueillir lettres + caption, `scales.x.ticks.padding: 18` pour cushion lettre/tick horizon. 2 nouveaux plugins Chart.js : `scenLetterPlugin` + `scenCaptionPlugin`. Voir ARCHITECTURE.md §72.)*
+*Dernière mise à jour: v326 — 19 avril 2026 (deux bugs mobile iPhone — BUG-061 dropdown « Analyse » totalement invisible sur iOS Safari : `-webkit-overflow-scrolling: touch` sur `.view-switcher` (≤480px) créait un nouveau containing block pour les descendants `position: fixed`, donc notre dropdown-menu `fixed` se comportait comme `absolute` et se faisait clipper par `overflow-x: auto`. Spec CSS violée par WebKit depuis iOS 5, non reproductible sur Chrome/Firefox mobile émulé — d'où détection tardive. Fix : suppression de la propriété (legacy, no-op depuis iOS 13 où le momentum scrolling est natif). BUG-062 tableau « Toutes les Positions » illisible sur iPhone : 10 colonnes dans 375px = ~38px/colonne, valeurs « € 44 737 » wrappaient sur 2-3 lignes, chaque ligne du tableau faisait 3× sa hauteur normale. Fix : wrapper `.positions-table-wrap { overflow-x: auto }` + `#allPositionsTable { min-width: 720px }` en ≤480px. Pattern cohérent avec les autres tableaux larges (Plan/Fiscalité/Créances/Budget/Financement) wrappés en v229/v321. Voir ARCHITECTURE.md §73.)*
+
+*v325 — 18 avril 2026 (UX senior redesign du chart Stress Casa suite à retour « les couleurs red/green/orange c'était bien, mais les graphs étaient basiques et pas UX friendly » + « améliore ce graph tel un UX graph designer senior ». Réconciliation stoplight + identity : fills/borders per-bar stoplight (signal métier primaire « puis-je financer Casa ? » en L1 lecture 1-sec), identité scénario A/B/C portée par lettre `textMuted` 10px sous la barre + caption bas `A · Cash intégral    B · Prêt banque    C · Cash + margin IBKR` (L2 lecture 10-sec). Labels inline multi-couleur `2.58 M  ✓ 65%` sans pill/background style FT/Bloomberg — moins de chart junk. Légende custom hard-codée via `generateLabels` (3 statuts + 1 besoin) qui élimine la dérivation Chart.js cassée par les arrays de backgroundColor. Error bars neutralisés en `textSecondary` pour ne pas concurrencer les fills stoplight. Layout `{ top: 22, right: 12, bottom: 40, left: 4 }` pour accueillir lettres + caption, `scales.x.ticks.padding: 18` pour cushion lettre/tick horizon. 2 nouveaux plugins Chart.js : `scenLetterPlugin` + `scenCaptionPlugin`. Voir ARCHITECTURE.md §72.)*
 
 *v324 — 18 avril 2026 (fix micro post-v323 : bug de superposition MDH text + pill statut sur le chart Stress Casa — les labels étaient stackés verticalement avec seulement 2 px de gap (MDH baseline bottom à yAnchor, pill top à yAnchor+2), donc sur ~10.5 px le descender du texte chevauchait le top du pill. Refonte en layout INLINE horizontal : `2.58 M  [✗ 65%]` sur une seule ligne avec baseline alphabétique partagée (text align left + center pour pill), total 14 px de hauteur. Plus de padding top excessif (38→20) et ajout d'un `yMax` calculé explicitement (`Math.ceil(maxData × 1.12 × 2) / 2`) basé sur max(besoin, plafonds, planchers) pour garantir que le plafond le plus haut + label restent dans le viewport — résout aussi le clipping T+18 scénario B qui mordait le haut du canvas.)*
 

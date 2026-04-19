@@ -4478,5 +4478,104 @@ Cette séparation L1/L2 est un pattern classique des dashboards financiers senio
 
 **Cache-bust** : `?v=324` → `?v=325` sur 18 imports + `APP_VERSION 'v325'` dans data.js + badge v325 dans CLAUDE.md.
 
+---
+
+## §73 — v326 : Fix mobile iPhone — dropdown Analyse invisible + tableau positions illisible (19 avril 2026)
+
+### Contexte
+
+Retour utilisateur avec 4 screenshots iPhone :
+
+1. **« liste analyse s'affiche pas »** — en tapant sur le toggle « Analyse » dans la barre de nav, le caret tourne (▼ → ▲, état visuel « open »), le `aria-expanded` passe à `true`, mais les 4 items du dropdown (Créances / Budget / Financement / Plan & Fiscalité) ne sont jamais affichés.
+
+2. **« tableau trop long »** — le tableau « Toutes les Positions — IBKR + ESPP + SGTM » (10 colonnes : Position, Qte, Valeur, Coût, P/L, %, FX P/L, Poids, Secteur, Géo) sur iPhone 375-430px rend chaque cellule wrappée sur 2-3 lignes. Par ex. « € 44 737 » devient « € » / « 44 » / « 737 ». Une ligne de position fait 3× sa hauteur normale, le tableau devient kilométrique et illisible.
+
+### Bug #1 — Dropdown Analyse invisible : root cause
+
+**`-webkit-overflow-scrolling: touch` sur `.view-switcher` (ligne 1010) crée un nouveau containing block pour les enfants `position: fixed` sur iOS Safari.**
+
+Contexte de ce bug iOS Safari : depuis iOS 5, la propriété `-webkit-overflow-scrolling: touch` active l'accélération hardware du momentum scrolling. Effet de bord documenté : le navigateur crée un nouveau stacking context ET un nouveau containing block pour tous les descendants, y compris ceux en `position: fixed`. Autrement dit, un enfant `position: fixed` NE s'ancre PAS au viewport, il s'ancre au parent scrollable — donc ici à `.view-switcher` qui fait `overflow-x: auto`.
+
+Chaîne de causalité :
+1. `.view-switcher { overflow-x: auto; -webkit-overflow-scrolling: touch }` dans `@media (max-width: 480px)`.
+2. `.view-dropdown-menu { position: fixed; left: 8px; right: 8px; top: <calcul JS> }` dans `@media (max-width: 600px)`.
+3. JS `positionMenuMobile()` calcule `menu.style.top = sw.getBoundingClientRect().bottom + 1 + 'px'` au click.
+4. iOS Safari ignore le `position: fixed`, comporte le menu comme `position: absolute` avec containing block = `.view-switcher`.
+5. `overflow-x: auto` (pas `visible`) + le `top` calculé (≈ 150px) placent le menu en dehors de la zone visible du scroll container → clipping total.
+
+La chaîne est invisible sur Chrome/Firefox (qui respectent strictement la spec CSS : `position: fixed` s'ancre toujours au viewport, même dans un ancêtre scrollable), ce qui explique pourquoi le bug n'a été détecté qu'en production sur iPhone.
+
+Depuis **iOS 13 (septembre 2019)**, iOS Safari a le momentum scrolling natif sur tous les éléments scrollables SANS besoin de `-webkit-overflow-scrolling: touch`. La propriété est donc legacy : elle ne fait plus rien de positif, mais continue de casser le containing block fixed.
+
+### Bug #2 — Tableau positions trop long : root cause
+
+**`<table id="allPositionsTable" style="width:100%">` sans wrapper `overflow-x: auto` ni `min-width` sur mobile.**
+
+10 colonnes dans 375px = chaque colonne ~38px. Les valeurs financières multi-segments (« € 44 737 », « +€ 3 089 », « -18.1% ») ne tiennent pas sur 38px → wrap automatique. Chaque cellule fait 2-3 lignes, donc chaque ligne du tableau fait 3× sa hauteur normale. Sur 14 positions, ça donne un tableau de ~500-600px de haut au lieu de ~200px.
+
+Les autres tableaux larges du dashboard (Plan & Fiscalité, Financement Immo, Créances) ont TOUS déjà leur wrapper `overflow-x: auto` + `min-width` (voir §69 v321). Le tableau positions avait été oublié parce qu'il pré-existait la refonte mobile v229 et personne n'avait reporté le wrap avant.
+
+### Résumé des changements
+
+| Fichier | Ligne | Changement |
+|---|---|---|
+| `index.html` | ~1007 (≤480px `.view-switcher`) | Suppression de `-webkit-overflow-scrolling: touch;` + commentaire explicatif. |
+| `index.html` | ~1023 (≤480px `.immo-sub-nav`) | Idem par cohérence (même mécanisme de scroll horizontal, même legacy). |
+| `index.html` | ~1238 (≤480px `#immoFinComparisonTable`) | Idem (nettoyage cohérent, pas de dropdown `fixed` à l'intérieur mais mieux d'être systématique). |
+| `index.html` | ~3520 (asset-actions card) | Ajout du wrapper `<div class="positions-table-wrap" style="overflow-x: auto; max-width: 100%;">` autour du `<table id="allPositionsTable">`. |
+| `index.html` | ~1240 (≤480px CSS) | Ajout des règles `.positions-table-wrap { overflow-x: auto; max-width: 100%; }` + `.positions-table-wrap #allPositionsTable { min-width: 720px; }`. |
+
+### Principe du fix #1 (containing-block iOS)
+
+`-webkit-overflow-scrolling: touch` est une propriété **WebKit-spécifique** introduite en iOS 5 pour opt-in l'accélération GPU sur les containers scrollables. Depuis iOS 13 le momentum scrolling est natif et universel, la propriété est un no-op positif mais **conserve son effet secondaire de créer un nouveau containing block pour les fixed descendants**. C'est un cas classique de « legacy CSS property with undocumented side effects ».
+
+Alternatives envisagées (rejetées) :
+- **Déplacer le `<div id="analyseMenu">` hors de `.view-switcher`** (DOM restructure) : fonctionnel mais invasif, sépare le toggle de son menu dans le HTML ce qui casse la lisibilité du markup.
+- **Appendre le menu à `document.body` au click via JS** : pire, rajoute de la complexité et des edge cases (z-index, scroll restauration au close).
+- **Enlever `-webkit-overflow-scrolling: touch`** (retenu) : one-liner CSS, zéro impact fonctionnel (iOS 13+ = momentum natif), fix la root cause.
+
+### Principe du fix #2 (table mobile scroll)
+
+Pattern standard de tableau financier mobile :
+```html
+<div style="overflow-x: auto; max-width: 100%;">
+  <table style="min-width: 720px;">...</table>
+</div>
+```
+- Le wrapper contient le scroll horizontal.
+- `min-width: 720px` force le tableau à sa taille naturelle (10 colonnes × ~72px moyen).
+- Les utilisateurs mobile swipent horizontalement pour voir Secteur/Géo.
+- Chaque ligne reste 1 ligne (pas de wrap vertical), donc hauteur totale /3.
+
+La valeur 720px a été choisie pour :
+- Laisser ~50-80px par colonne (suffisant pour « € 44 737 » sans wrap).
+- Être inférieure à la plupart des tablettes (≥ 768px) → scroll invisible en portrait iPad.
+- Éviter un overshoot excessif : 720 = 9 cols × 80px (POSITION prend plus).
+
+### Invariants & tests de régression v326
+
+- **iPhone (≤480px)** : taper sur le toggle « Analyse » → les 4 items (Créances / Budget / Financement / Plan & Fiscalité) s'affichent en dropdown plein-largeur sous la nav, cliquables, avec bandeau vertical orange sur l'item actif.
+- **iPhone (≤480px)** : fermer le dropdown par clic extérieur, Esc, ou clic sur un item fonctionne toujours.
+- **Scroll horizontal de la nav (≤480px)** : tap-swipe pour voir tous les onglets fonctionne avec momentum natif iOS 13+.
+- **Scroll horizontal immo sub-nav (≤480px)** : idem, fonctionne sans `-webkit-overflow-scrolling`.
+- **Tableau positions (≤480px)** : chaque ligne fait 1 seule ligne de texte (pas de wrap vertical). Swipe horizontal pour voir Secteur/Géo. Total row reste visible même en scroll.
+- **Desktop ≥ 600px** : le dropdown Analyse reste en `position: absolute` ancré au toggle, comportement inchangé.
+- **Tablette / iPad (600-900px)** : pas de scroll horizontal de la nav (flex-wrap activé), dropdown en position absolute classique.
+
+### Design rationale
+
+**Pourquoi ne pas avoir détecté le bug iOS plus tôt ?**
+- Chrome DevTools émule parfaitement le viewport mobile mais PAS les quirks iOS Safari : `position: fixed` y reste ancré au viewport même avec `-webkit-overflow-scrolling: touch` (Chromium respecte la spec).
+- Firefox mobile idem.
+- Seul iOS Safari réel (ou Xcode simulator) reproduit le containing-block bug.
+- v321 avait testé le fix mobile sur un device iPhone mais probablement pas cliqué le toggle Analyse, ou avait regardé le dropdown Immobilier (pas le même mécanisme).
+
+**Pourquoi le wrapper table n'avait-il pas été ajouté en v229 ?**
+- v229 (refonte mobile responsive initiale) avait wrappé les tableaux Plan/Fiscalité/Créances/Budget.
+- Le tableau positions a probablement été oublié parce que son parent `.card` avait déjà un `overflow-x: hidden` (via `body { overflow-x: hidden }`), ce qui masque le overflow sans le faire scroller. L'utilisateur voyait donc seulement le tableau compressé qui se « débrouillait » en wrappant les cellules.
+- Le fix v326 ajoute un wrapper explicite qui force l'overflow en scroll plutôt qu'en hidden.
+
+**Cache-bust** : `?v=325` → `?v=326` sur 18 imports + `APP_VERSION 'v326'` dans data.js + badge v326 dans CLAUDE.md.
+
 
 
