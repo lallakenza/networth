@@ -1003,11 +1003,17 @@
     /* ── Status bar (FX, actions, refresh) ── */
     .status-bar, .api-status { font-size: 10px !important; flex-wrap: wrap; gap: 4px; }
 
-    /* ── Main navigation: horizontal scroll, no wrap ── */
+    /* ── Main navigation: horizontal scroll, no wrap ──
+       v326 — SUPPRESSION de `-webkit-overflow-scrolling: touch` :
+       iOS Safari crée un nouveau containing block pour les descendants
+       `position: fixed` quand ce flag est présent. Conséquence v325 : le
+       dropdown Analyse en `position: fixed` se comportait comme `absolute`
+       et se faisait clipper par `overflow-x: auto` → menu invisible sur
+       iPhone. La propriété est legacy (iOS 13+ a le momentum scrolling natif
+       par défaut), donc on la retire sans perte de smooth-scroll. */
     .view-switcher {
       flex-wrap: nowrap !important;
       overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
       justify-content: flex-start;
       scrollbar-width: none;
     }
@@ -1020,10 +1026,10 @@
     }
     .view-sep { margin: 4px 6px 8px; }
 
-    /* ── Immo sub-navigation: horizontal scroll ── */
+    /* ── Immo sub-navigation: horizontal scroll ──
+       v326 — idem : pas de `-webkit-overflow-scrolling: touch`. */
     .immo-sub-nav {
       overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
       justify-content: flex-start;
       margin-bottom: 16px;
       scrollbar-width: none;
@@ -1234,8 +1240,18 @@
     /* v321 — Tableau comparatif 9-col du module Financement : déjà enveloppé
        d'un overflow-x:auto en HTML (render.js), mais on assure ici que le
        container #immoFinComparisonTable lui-même scroll si jamais la structure
-       change. */
-    #immoFinComparisonTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+       change. v326 — `-webkit-overflow-scrolling: touch` retiré (legacy iOS). */
+    #immoFinComparisonTable { overflow-x: auto; }
+
+    /* v326 — Tableau « Toutes les Positions » (10 colonnes : Position, Qte,
+       Valeur, Coût, P/L, %, FX P/L, Poids, Secteur, Géo). Sur iPhone 375-430px,
+       chaque colonne n'aurait que ~38px → valeurs « € 44 737 » wrappaient sur
+       2-3 lignes, rendant chaque ligne 3× trop haute. Fix : le wrapper
+       `.positions-table-wrap` (HTML) fait `overflow-x: auto` et on force le
+       tableau à sa taille naturelle minimale 720px → 1 ligne par position,
+       swipe horizontal pour voir Secteur/Géo. */
+    .positions-table-wrap { overflow-x: auto; max-width: 100%; }
+    .positions-table-wrap #allPositionsTable { min-width: 720px; }
 
     /* Inline flex containers: allow wrapping on mobile */
     div[style*="display:flex"][style*="gap:12px"],
@@ -3517,10 +3533,16 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
       </div>
     </div>
   </div>
-  <table id="allPositionsTable" style="width:100%;">
-    <thead><tr></tr></thead>
-    <tbody id="allPositionsTbody"></tbody>
-  </table>
+  <!-- v326 — Wrap scroll horizontal pour mobile : 10 colonnes dans 375px
+       compressaient les valeurs « € 44 737 » sur 2-3 lignes. Le wrapper
+       `.positions-table-wrap` laisse le tableau reprendre sa taille naturelle
+       (min-width 720px sur mobile via @media) et permet le swipe horizontal. -->
+  <div class="positions-table-wrap" style="overflow-x: auto; max-width: 100%;">
+    <table id="allPositionsTable" style="width:100%;">
+      <thead><tr></tr></thead>
+      <tbody id="allPositionsTbody"></tbody>
+    </table>
+  </div>
   <p id="actionsStaticFootnote" style="font-size:11px;color:#a0aec0;margin:4px 0 0 0;"></p>
 
   <div style="margin-top:20px;">
@@ -4275,7 +4297,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=325"></script>
+<script type="module" src="js/app.js?v=326"></script>
 
 </body>
 </html>
