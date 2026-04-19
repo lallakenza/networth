@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=327';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=327';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=328';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=328';
 
 // ---- Generic table sort utility ----
 /**
@@ -1077,6 +1077,7 @@ function renderCoupleTable(state) {
     ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
+    ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (Nezha)', s.nezha.rolexDatejust]] : []),
     ['Creances SAP & Tax (garanti, 45j)', s.amine.recvPro],
     ['Creances personnelles Amine (recouvrement incertain)', s.amine.recvPersonal],
     ['Creance Omar \u2014 Nezha (40K MAD)', s.nezha.recvOmar],
@@ -1120,12 +1121,14 @@ function renderNezhaTable(state, view) {
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
-    ['LCL Compte de dépôts', s.nezha.lclDepots],
+    ['LCL Compte principal', s.nezha.lclDepots],
+    ...((s.nezha.ibkrEUR || 0) > 0 ? [['IBKR Nezha (à investir)', s.nezha.ibkrEUR]] : []),
     ['Attijariwafa Maroc (' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc],
     ['Wio UAE (' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.nezha.cashUAE],
     ...(s.nezha.brokerCash > 0 ? [['Cash ESPP (courtier)', s.nezha.brokerCash]] : []),
     ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
+    ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (réf. 278271-0004)', s.nezha.rolexDatejust]] : []),
     ...(!s.nezha.villejuifSigned && s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
@@ -6477,9 +6480,9 @@ function attachKPIInsights(state, view) {
   const cashTotal = s.amine.cashTotal + s.nezha.cash;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%) + Autre \u20ac' + f(s.couple.autreTotal) + ' (' + pct(s.couple.autreTotal, gt) + '%).';
   insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.facturationNet + s.amine.tva) + '.';
-  insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE). Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
+  insights['kpiCoupleNzNW'] = 'Nezha : Immo \u20ac' + f(s.nezha.rueilEquity) + ' (Rueil) + Cash \u20ac' + f(s.nezha.cash) + ' (FR+MA+UAE)' + (s.nezha.watches ? ' + Montres \u20ac' + f(s.nezha.watches) : '') + '. Patrimoine diversifi\u00e9 3 devises.' + (s.nezha.villejuifSigned ? '' : ' Villejuif non compt\u00e9 (bail non sign\u00e9).');
   insights['kpiCoupleImmo'] = 'Vitry \u20ac' + f(s.amine.vitryEquity) + ' + Rueil \u20ac' + f(s.nezha.rueilEquity) + ' + Villejuif \u20ac' + f(s.nezha.villejuifEquity) + '. Levier immo : \u20ac' + f(s.couple.immoValue) + ' de valeur pour \u20ac' + f(immoEq) + ' d\'equity.';
-  insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + Facturation \u20ac' + f(s.couple.autreFacturation) + ' + TVA \u20ac' + f(s.couple.autreTva) + (s.couple.autreVillejuifReservation ? ' + R\u00e9serv. Villejuif \u20ac' + f(s.couple.autreVillejuifReservation) : '') + (s.couple.autreCautionRueil ? ' + Caution \u20ac' + f(s.couple.autreCautionRueil) : '') + '.';
+  insights['kpiCoupleAutre'] = 'V\u00e9hicules \u20ac' + f(s.couple.autreVehicles) + (s.couple.autreWatches ? ' + Montres \u20ac' + f(s.couple.autreWatches) : '') + ' + Cr\u00e9ances pro \u20ac' + f(s.couple.autreCreancesPro) + ' + Cr\u00e9ances perso \u20ac' + f(s.couple.autreCreancesPerso) + ' + Facturation \u20ac' + f(s.couple.autreFacturation) + ' + TVA \u20ac' + f(s.couple.autreTva) + (s.couple.autreVillejuifReservation ? ' + R\u00e9serv. Villejuif \u20ac' + f(s.couple.autreVillejuifReservation) : '') + (s.couple.autreCautionRueil ? ' + Caution \u20ac' + f(s.couple.autreCautionRueil) : '') + '.';
 
   // ── Amine view ──
   insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
@@ -6776,7 +6779,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=327').then(m => {
+  import('./charts.js?v=328').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
