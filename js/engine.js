@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=327';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=328';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1471,7 +1471,8 @@ function computeCashView(portfolio, fx) {
     { label: 'Revolut EUR (Nezha)', native: p.nezha.cash.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.nezhaRevolutEUR, owner: 'Nezha' },
     { label: 'Crédit Mutuel', native: p.nezha.cash.creditMutuelCC, currency: 'EUR', yield: CASH_YIELDS.nezhaCreditMutuel, owner: 'Nezha' },
     { label: 'Livret A (LCL)', native: p.nezha.cash.lclLivretA, currency: 'EUR', yield: CASH_YIELDS.nezhaLivretA, owner: 'Nezha' },
-    { label: 'LCL Dépôts', native: p.nezha.cash.lclCompteDepots, currency: 'EUR', yield: CASH_YIELDS.nezhaLclDepots, owner: 'Nezha' },
+    { label: 'LCL Compte principal', native: p.nezha.cash.lclCompteDepots, currency: 'EUR', yield: CASH_YIELDS.nezhaLclDepots, owner: 'Nezha' },
+    { label: 'IBKR (Nezha)', native: p.nezha.cash.ibkrEUR || 0, currency: 'EUR', yield: CASH_YIELDS.nezhaIbkrEUR, owner: 'Nezha' },
     { label: 'Attijariwafa (Nezha)', native: p.nezha.cash.attijariwafarMAD, currency: 'MAD', yield: CASH_YIELDS.nezhaAttijariMAD, owner: 'Nezha' },
     { label: 'Wio UAE (Nezha)', native: p.nezha.cash.wioAED, currency: 'AED', yield: CASH_YIELDS.nezhaWioAED, owner: 'Nezha' },
   ];
@@ -3810,8 +3811,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaVillejuifFutureEquity = Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute);
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   // Nezha cash — detailed accounts
+  // v328: ajout IBKR Nezha (EUR) — traité comme cash France (broker balance, pas de positions détaillées)
   const nc = p.nezha.cash;
-  const nezhaCashFranceEUR = nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots;
+  const nezhaCashFranceEUR = nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0);
   const nezhaCashMarocEUR = toEUR(nc.attijariwafarMAD, 'MAD', fx);
   const nezhaCashUAE_EUR = toEUR(nc.wioAED, 'AED', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
@@ -3828,6 +3830,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaEsppUnrealizedPL = nezhaEspp - nezhaEsppCostBasisEUR;
   // Caution Rueil — dette envers locataire
   const nezhaCautionRueil = p.nezha.cautionRueil || 0;
+  // v328 — Montres / objets de valeur (actifs physiques Nezha)
+  // Somme les valeurs pre-owned estimées de tous les objets dans nezha.watches
+  // Actuellement : Rolex Datejust 31 Rolesor Everose (278271-0004)
+  const nezhaWatches = Object.values(p.nezha.watches || {}).reduce((s, v) => s + (v || 0), 0);
   // BUG-033: iterate all Nezha créances (not just items[0])
   let nezhaRecvOmar = 0;
   if (p.nezha.creances && p.nezha.creances.items) {
@@ -3848,7 +3854,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // villejuif is signed. Now NW is correct at owner level; coupleNW = amineNW + nezhaNW cleanly.
   // When !signed: nezhaVillejuifEquity=0 and reservationFees counts (behavior unchanged).
   // When signed: nezhaVillejuifEquity counts and reservationFees=0 (no double-count by construction).
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifEquity + nezhaVillejuifReservation - nezhaCautionRueil;
+  // v328 — nezhaWatches ajouté au NW Nezha (actif physique, classé "Autres actifs")
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifEquity + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil;
 
   // Calculate delta from previous NW in history
   // NW_HISTORY is empty (v150), so deltas are always null
@@ -3887,6 +3894,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     creditMutuel: nc.creditMutuelCC,
     livretA: nc.lclLivretA,
     lclDepots: nc.lclCompteDepots,
+    ibkrEUR: nc.ibkrEUR || 0,  // v328 — IBKR Nezha (broker cash/NAV en EUR)
     sgtm: nezhaSgtm,
     espp: nezhaEspp,             // full ESPP (shares + cash)
     esppForActions: nezhaEsppForActions, // shares only (cash → moved to Cash)
@@ -3895,6 +3903,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     esppCostBasisEUR: nezhaEsppCostBasisEUR,
     esppUnrealizedPL: nezhaEsppUnrealizedPL,
     cautionRueil: nezhaCautionRueil,
+    watches: nezhaWatches,                 // v328 — somme des montres (EUR)
+    rolexDatejust: p.nezha.watches?.rolexDatejust || 0, // v328 — détail Datejust 31 Rolesor Everose
     recvOmar: nezhaRecvOmar,
     // BUG-033: sum all active Nezha creances in MAD for display
     recvOmarMAD: p.nezha.creances && p.nezha.creances.items
@@ -3953,8 +3963,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     // v305 — Mobilisable couple = Amine mobilisable + Nezha mobilisable.
     // Identité : cashTotal + actionsTotal (par définition).
     financialMobilisable: amine.financialMobilisable + nezha.financialMobilisable,
-    autreTotal: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
+    // v328 — autreTotal inclut nezhaWatches (Rolex Datejust)
+    autreTotal: amineVehicles + nezhaWatches + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
     autreVehicles: amineVehicles,
+    autreWatches: nezhaWatches,           // v328 — Rolex Datejust Nezha (EUR)
     autreCreancesPro: amineRecvPro,
     autreCreancesPerso: amineRecvPersonal + nezhaRecvOmar,
     autreFacturation: amineFacturationNet,
@@ -4035,14 +4047,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       // wioCurrent is 371 AED today (positive), so this is a safety fix for overdraft scenarios.
       total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
         + amineBrokerCash + nezhaBrokerCash
-        + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaCashMarocEUR + nezhaCashUAE_EUR,
+        + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0) + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
         ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: 'Amine — 0%' }] : []),
         ...(nezhaBrokerCash > 0 ? [{ label: 'Cash ESPP (Nezha)', val: nezhaBrokerCash, color: '#8b5cf6', owner: 'Nezha — 0%' }] : []),
+        ...((nc.ibkrEUR || 0) > 0 ? [{ label: 'IBKR (Nezha)', val: nc.ibkrEUR, color: '#7c2d12', owner: 'Nezha — à investir' }] : []),
         ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nezha)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
         ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: 'Nezha — 0%' }] : []),
         ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: 'Nezha — 1.5%' }] : []),
-        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Dépôts', val: nc.lclCompteDepots, color: '#b91c1c', owner: 'Nezha — 0%' }] : []),
+        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Compte principal', val: nc.lclCompteDepots, color: '#b91c1c', owner: 'Nezha — 0%' }] : []),
         ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa (Nezha)', val: nezhaCashMarocEUR, color: '#991b1b', owner: 'Nezha — 0%' }] : []),
         ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nezha)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Amine)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
@@ -4052,11 +4065,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
-      label: 'Vehicules', color: '#64748b',
-      total: amineVehicles,
+      // v328 — renommé "Véhicules & Montres" : inclut voitures Amine + montres Nezha
+      label: 'Véhicules & Montres', color: '#64748b',
+      total: amineVehicles + nezhaWatches,
       sub: [
         { label: 'Cayenne', val: p.amine.vehicles.cayenne, color: '#64748b', owner: 'Amine' },
         { label: 'Mercedes A', val: p.amine.vehicles.mercedes, color: '#475569', owner: 'Amine' },
+        ...(nezhaWatches > 0 ? [{ label: 'Rolex Datejust 31', val: nezhaWatches, color: '#a8a29e', owner: 'Nezha — Rolesor Everose' }] : []),
       ]
     },
     {
@@ -4088,7 +4103,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: amineIbkrForActions + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
       cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc + Courtiers' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
-      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: 'Vehicules + Creances + Facturation - TVA - Caution', title: 'Autres Actifs' },
+      other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil, sub: 'Vehicules + Montres + Creances + Facturation - TVA - Caution', title: 'Autres Actifs' },
       nwRef: coupleNW,
       showStocks: true, showCash: true, showOther: true,
     },
@@ -4108,7 +4123,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       stocks:    { val: nezhaSgtm + nezhaEsppForActions, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
-      other:     { val: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar - Caution' : 'Creances + Reservation - Caution', title: 'Creances' },
+      other:     { val: nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar + Rolex - Caution' : 'Creances + Reservation + Rolex - Caution', title: 'Autres Actifs' },
       // BUG-044 (v297): nezhaNW now includes villejuifEquity (when signed), so nwRef = nezhaNW cleanly.
       nwRef: nezhaNW,
       showStocks: true, showCash: true, showOther: true,
@@ -4215,7 +4230,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(nc.revolutEUR > 0 ? [{ label: 'Revolut EUR', val: nc.revolutEUR, color: '#ef4444', owner: '0%' }] : []),
         ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: '0%' }] : []),
         ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: '1.5%' }] : []),
-        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Dépôts', val: nc.lclCompteDepots, color: '#b91c1c', owner: '0%' }] : []),
+        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Compte principal', val: nc.lclCompteDepots, color: '#b91c1c', owner: '0%' }] : []),
+        ...((nc.ibkrEUR || 0) > 0 ? [{ label: 'IBKR (Nezha)', val: nc.ibkrEUR, color: '#7c2d12', owner: 'à investir' }] : []),
         ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa', val: nezhaCashMarocEUR, color: '#991b1b', owner: Math.round(nc.attijariwafarMAD).toLocaleString("fr-FR") + ' MAD' }] : []),
         ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: Math.round(nc.wioAED).toLocaleString("fr-FR") + ' AED' }] : []),
       ]
@@ -4229,11 +4245,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       ]
     },
     {
+      // v328 — ajout Rolex Datejust dans les "Autres actifs" de Nezha
       label: 'Creances & Autres', color: '#ec4899',
-      total: nezhaRecvOmar + nezhaVillejuifReservation - nezhaCautionRueil,
+      total: nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil,
       sub: [
         { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' },
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Remboursable' }] : []),
+        ...(nezhaWatches > 0 ? [{ label: 'Rolex Datejust 31', val: nezhaWatches, color: '#a8a29e', owner: 'Rolesor Everose' }] : []),
         ...(nezhaCautionRueil > 0 ? [{ label: 'Caution Rueil', val: -nezhaCautionRueil, color: '#ef4444', owner: 'Dette locataire' }] : []),
       ]
     },

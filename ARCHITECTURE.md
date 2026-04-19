@@ -4641,4 +4641,58 @@ La valeur 720px a été choisie pour :
 **Régression** : BUG-063 ajouté dans BUG_TRACKER.md avec checklist 10 points (vérifier qu'aucun tableau ≥ 5 cols ne déborde sur iPhone 375px/12 Pro 390px/14 Pro Max 430px ; vérifier que les tableaux 2-3 cols ne scrollent pas inutilement ; vérifier tri data-sort préservé ; vérifier desktop inchangé).
 
 
+### §75 — v328 (19 avril 2026) — Refresh Nezha : comptes cash + IBKR + Rolex Datejust
+
+**Contexte** : mise à jour mensuelle du patrimoine Nezha après relevés du 19 avril 2026, ouverture d'un compte IBKR (cash uniquement, pour investissement futur), et achat d'une Rolex Datejust 31 Rolesor Everose.
+
+**1. Mise à jour des soldes cash Nezha** (data.js L989-998) :
+
+| Compte | Ancien (mars 2026) | Nouveau (19/04/2026) | Δ |
+|---|---|---|---|
+| Revolut EUR | 27 140 | 5 679 | −21 461 |
+| Crédit Mutuel CC | 10 221 | 8 174 | −2 047 |
+| LCL Livret A | 23 015 | 23 015 | = |
+| LCL Compte principal (ex "dépôts") | 31 145 | 20 412 | −10 733 |
+| **IBKR (Nezha)** | — | **16 260** | **+16 260 (nouveau)** |
+| Attijariwafa MAD | 115 528 | 11 900 | −103 628 |
+| Wio UAE AED | 20 106 | 20 106 | = |
+
+Le label "LCL Compte de dépôts" est renommé **"LCL Compte principal"** partout (data.js comment, engine.js cashAccounts, treemap couple+nezha, render.js nezhaDetailTable).
+
+**2. IBKR Nezha — nouveau compte broker traité comme cash France** :
+- Compte ouvert en avril 2026, cash uniquement (pas de positions ouvertes pour l'instant).
+- Traité comme un compte EUR classe France : `nezha.cash.ibkrEUR: 16260` dans data.js.
+- Intégré dans `nezhaCashFranceEUR` (engine.js L3816) — rend cohérent cash view, treemap, breakdown, et NW Nezha.
+- Label affiché : "IBKR (Nezha)" avec owner "à investir" dans le treemap pour signaler l'intention.
+- Pas de structure `positions/trades` créée (YAGNI — sera ajoutée quand Nezha commencera à investir).
+
+**3. Rolex Datejust 31 Rolesor Everose (réf. 278271-0004)** — nouveau actif physique Nezha :
+- Structure ajoutée : `nezha.watches = { rolexDatejust: 12000 }` (EUR).
+- Pattern similaire à `amine.vehicles` (L571). Scalable pour de futures montres/objets.
+- Estimation **résale 12 000€** (conservative) :
+  - Retail boutique France 2026 ≈ 14-15K€ TTC (config avec diamants selon modèle).
+  - Pre-owned Rolex Rolesor femme (Datejust 31, full set, presque neuve) fetche typiquement 80-85% du retail.
+  - Comparables marketplace Chrono24 avril 2026 : Datejust 278271 Rolesor Everose avec diamants → 11.5-13.5K€ selon config/année.
+  - Porté occasionnellement = état "full set near-new" → haut de la fourchette, mais estimation prudente à 12K€.
+- Intégré dans :
+  - `nezhaNW` (engine.js L3858)
+  - `views.couple.other` et `views.nezha.other` (engine.js L4106/L4126)
+  - `coupleCategories` — catégorie renommée **"Véhicules & Montres"** (L4068)
+  - `nezhaCategories` — ligne "Rolex Datejust 31" dans "Creances & Autres" (L4254)
+  - `nezha.watches` et `nezha.rolexDatejust` exposés dans le return object (L3906-3907)
+  - `couple.autreWatches` exposé pour insights (L3969)
+  - `render.js` : coupleDetailTable + nezhaDetailTable ajoutent une ligne dédiée
+  - `insights['kpiCoupleAutre']` et `insights['kpiCoupleNzNW']` mentionnent "+ Montres" si > 0
+
+**4. Invariants vérifiés** :
+- `coupleNW = amineNW + nezhaNW` ✓ (nezhaWatches passe par nezhaNW, puis par autreTotal couple)
+- `stocks + cash + immo + other = nwRef` pour chaque vue ✓ (nezhaWatches ajouté à `views.nezha.other` ET à `views.couple.other`, pas à stocks/cash/immo)
+- `nezhaCashFranceEUR` reste cohérent : Revolut + CM + LivretA + LCL principal + **IBKR** (incluses dans cash, pas dans other)
+- Treemap couple "Cash Dormant" inclut IBKR Nezha dans le `total` ET dans `sub[]` → invariant preservé
+
+**Cache-bust** : `?v=327` → `?v=328` sur 14 imports (app.js x7, charts.js x4, simulators.js x2, index.html x1) + `APP_VERSION 'v328'` + `DATA_LAST_UPDATE '19/04/2026'` dans data.js + badge v328 dans CLAUDE.md.
+
+**Règle d'or (v328)** : tout nouvel objet de valeur non-financier (montres, bijoux, art, voitures) s'ajoute dans un objet dédié par owner (`amine.vehicles`, `nezha.watches`, …) + sommé via `Object.values(...).reduce(...)` côté engine + exposé à la fois dans owner.nw ET dans `views.*.other` (pas dans stocks/cash/immo). Une nouvelle catégorie treemap doit s'aligner dans les 3 vues (couple treemap, nezha treemap, breakdown tables render.js).
+
+
 

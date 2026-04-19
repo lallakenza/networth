@@ -987,14 +987,15 @@ export const PORTFOLIO = {
   // NEZHA
   // ════════════════════════════════════════════════════════
   nezha: {
-    // ── Cash détaillé Nezha (relevés mars 2026) ──
+    // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
     cash: {
-      revolutEUR: 27140,       // EUR — Revolut France (0%)
-      creditMutuelCC: 10221,   // EUR — Crédit Mutuel compte courant (0%)
-      lclLivretA: 23015,       // EUR — LCL Livret A (1.5% défiscalisé)
-      lclCompteDepots: 31145,  // EUR — LCL Compte de dépôts (0%)
-      attijariwafarMAD: 115528,// MAD — Attijariwafa Compte chèque MRE (0%)
-      wioAED: 20106,           // AED — Wio Savings UAE (0%)
+      revolutEUR: 5679,        // EUR — Revolut France (0%) — MAJ 19/04/2026
+      creditMutuelCC: 8174,    // EUR — Crédit Mutuel compte courant (0%) — MAJ 19/04/2026
+      lclLivretA: 23015,       // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 19/04/2026
+      lclCompteDepots: 20412,  // EUR — LCL Compte principal (0%) — MAJ 19/04/2026
+      ibkrEUR: 16260,          // EUR — IBKR Nezha (broker, cash/NAV) — MAJ 19/04/2026
+      attijariwafarMAD: 11900, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 19/04/2026
+      wioAED: 20106,           // AED — Wio Savings UAE (0%) — MAJ non disponible, valeur inchangée
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
@@ -1049,6 +1050,16 @@ export const PORTFOLIO = {
     },
     // Caution locative Rueil — dépôt de garantie reçu du locataire, à rembourser au départ
     cautionRueil: 2600, // EUR — à déduire du patrimoine net (dette envers locataire)
+    // ── Montres / objets de valeur (actifs physiques patrimoniaux) ──
+    // Estimation conservatrice à la revente (2nde main, marché pre-owned) — pas de valeur d'assurance.
+    // Référence: Datejust 31 Rolesor Everose ref. 278271-0004 (acier 904L + or rose 18ct),
+    // boîte + papiers + garantie Rolex 5 ans — brochure Rolex France m278271-0004.
+    // Retail boutique 2026 (TTC France, avec diamants cadran/lunette selon config) ≈ 14-15K€.
+    // Portée occasionnellement, full set : pre-owned premium typique 80-85% du neuf
+    // (les Datejust Rolesor femme conservent bien mais < sport-models). 12 000€ prudent.
+    watches: {
+      rolexDatejust: 12000, // EUR — Datejust 31 Rolesor Everose (278271-0004), acheté avr 2026
+    },
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
@@ -1139,8 +1150,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '12/04/2026';
-export const APP_VERSION = 'v327';
+export const DATA_LAST_UPDATE = '19/04/2026';
+export const APP_VERSION = 'v328';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1287,7 +1298,8 @@ export const CASH_YIELDS = {
   nezhaRevolutEUR: 0,       // Revolut EUR — pas de rendement
   nezhaCreditMutuel: 0,     // Crédit Mutuel CC — pas de rendement
   nezhaLivretA: 0.015,      // LCL Livret A — 1.5% (depuis fév 2026, défiscalisé)
-  nezhaLclDepots: 0,        // LCL Compte dépôts — pas de rendement
+  nezhaLclDepots: 0,        // LCL Compte principal — pas de rendement
+  nezhaIbkrEUR: 0,          // IBKR Nezha — cash broker (positions non détaillées), 0% rendement cash
   nezhaAttijariMAD: 0,      // Attijariwafa Maroc — pas de rendement
   nezhaWioAED: 0,           // Wio UAE — pas de rendement (0% sur screenshot)
   esppCash: 0,         // Cash résiduel ESPP, pas de rendement
