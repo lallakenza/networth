@@ -168,6 +168,62 @@ def scrape_casablanca_bourse_http() -> dict | None:
     return None
 
 
+def scrape_casablanca_bourse_playwright(page: Page) -> dict | None:
+    """Fallback Playwright pour casablanca-bourse.com quand le HTTP direct échoue.
+    Certains runners GitHub Actions se font filtrer par le WAF du site officiel
+    (IP US datacenter + headers "browser-like" insuffisants). Playwright avec un
+    vrai Chromium + timezone Africa/Casablanca + locale fr-FR passe en général.
+    """
+    url = "https://www.casablanca-bourse.com/fr/live-market/instruments/GTM"
+    print(f"[casablanca-bourse-pw] Navigation vers {url} ...")
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    except PlaywrightTimeoutError:
+        print("[casablanca-bourse-pw] Timeout domcontentloaded — on continue")
+
+    # Attendre que "Cours (MAD)" apparaisse dans le DOM
+    try:
+        page.wait_for_function(
+            "() => (document.body.innerText || '').includes('Cours (MAD)')",
+            timeout=15000,
+        )
+    except PlaywrightTimeoutError:
+        print("[casablanca-bourse-pw] 'Cours (MAD)' introuvable dans le DOM")
+
+    # Extraire la valeur du td qui suit le th "Cours (MAD)"
+    raw = page.evaluate(
+        """() => {
+      const ths = Array.from(document.querySelectorAll('th'));
+      const th = ths.find(t => /Cours \\(MAD\\)/i.test(t.textContent || ''));
+      if (!th) return null;
+      // Le td peut être le suivant en DOM, ou dans la même row
+      const row = th.closest('tr');
+      if (!row) return null;
+      const td = row.querySelector('td');
+      if (!td) return null;
+      return td.textContent.trim();
+    }"""
+    )
+    if raw:
+        val = parse_french_number(raw)
+        if val is not None:
+            print(f"[casablanca-bourse-pw] ✓ prix={val} MAD (raw='{raw}')")
+            return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw}
+        print(f"[casablanca-bourse-pw] raw='{raw}' hors bornes")
+
+    # Fallback texte complet
+    text = page.evaluate("() => document.body.innerText || ''")
+    m = re.search(r"Cours\s*\(MAD\)[\s:]*([\d\s.,\u00a0]+)", text)
+    if m:
+        val = parse_french_number(m.group(1))
+        if val is not None:
+            print(f"[casablanca-bourse-pw] ✓ prix={val} MAD (fallback texte, raw='{m.group(1).strip()}')")
+            return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": m.group(1).strip()}
+
+    print("[casablanca-bourse-pw] Aucun prix extrait")
+    return None
+
+
 def scrape_idbourse(page: Page) -> dict | None:
     """Cherche le prix SGTM sur idbourse.com. La page hydrate via Supabase client-side."""
     print("[idbourse] Navigation vers https://www.idbourse.com/stocks/SGTM ...")
@@ -313,10 +369,12 @@ def scrape() -> dict | None:
     """Tente chaque source dans l'ordre. Retourne le premier résultat valide.
 
     Stratégie :
-      1. casablanca-bourse.com (HTTP direct, pas de Playwright) — source officielle BVC,
-         HTML rendu server-side, ~1s, 99 % de fiabilité. Primaire.
-      2. idbourse.com (Playwright, SPA Next.js) — 2ème opinion.
-      3. investing.com (Playwright passe Cloudflare) — dernier recours.
+      1. casablanca-bourse.com via HTTP direct (~1s, pas de Playwright) — source
+         officielle BVC, HTML rendu server-side. Path rapide quand il marche.
+      2. casablanca-bourse.com via Playwright — même URL, mais vrai Chromium
+         pour contourner un éventuel WAF qui filtrerait les IPs GitHub Actions.
+      3. idbourse.com (Playwright, SPA Next.js) — 2ème opinion.
+      4. investing.com (Playwright passe Cloudflare) — dernier recours.
 
     leboursier.ma volontairement retiré : domaine mort (DNS SERVFAIL) au 19/04/2026.
     Peut être réintroduit si le DNS revient.
@@ -327,8 +385,8 @@ def scrape() -> dict | None:
     if result is not None:
         return result
 
-    # Tentative 2 + 3 : Playwright pour idbourse + investing
-    print("[scrape] casablanca-bourse.com KO → fallback Playwright (idbourse + investing)")
+    # Tentatives 2, 3, 4 : Playwright (casablanca-bourse.com, puis idbourse, puis investing)
+    print("[scrape] HTTP casablanca-bourse.com KO → fallback Playwright (casablanca-bourse-pw, idbourse, investing)")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -340,7 +398,7 @@ def scrape() -> dict | None:
         )
         page = context.new_page()
 
-        for scraper in (scrape_idbourse, scrape_investing):
+        for scraper in (scrape_casablanca_bourse_playwright, scrape_idbourse, scrape_investing):
             try:
                 result = scraper(page)
                 if result is not None:
