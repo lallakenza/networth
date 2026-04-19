@@ -120,6 +120,47 @@ def scrape_idbourse(page: Page) -> dict | None:
     return {"priceMAD": closest[1], "source": "idbourse.com", "raw": closest[2]}
 
 
+def scrape_leboursier(page: Page) -> dict | None:
+    """Cherche le prix SGTM sur leboursier.ma. Site marocain sans Cloudflare typique."""
+    url = "https://www.leboursier.ma/cours/SGTM"
+    print(f"[leboursier] Navigation vers {url} ...")
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    except PlaywrightTimeoutError:
+        print("[leboursier] Timeout — on continue")
+
+    # Attendre hydratation minimale
+    try:
+        page.wait_for_function(
+            "() => (document.body.innerText || '').match(/\\b[3-9]\\d{2}[.,]\\d{1,2}\\b/)",
+            timeout=15000,
+        )
+    except PlaywrightTimeoutError:
+        print("[leboursier] Timeout sur hydratation — on tente quand même")
+
+    # Scan du texte pour un prix plausible
+    text = page.evaluate("() => document.body.innerText || ''")
+    candidates = []
+    for m in re.finditer(r"([3-9]\d{2}(?:[ \u00a0]?\d{3})*[.,]\d{1,4})", text):
+        val = parse_french_number(m.group(1))
+        if val is None:
+            continue
+        start = m.start()
+        sgtm_dist = min((abs(start - sm.start()) for sm in re.finditer(r"SGTM", text, re.I)), default=999999)
+        cours_dist = min((abs(start - cm.start()) for cm in re.finditer(r"cours|dernier", text, re.I)), default=999999)
+        candidates.append((min(sgtm_dist, cours_dist), val, m.group(1)))
+
+    if not candidates:
+        print("[leboursier] Aucun prix plausible trouvé")
+        print(f"[leboursier] Debug text excerpt: {text[:400]!r}")
+        return None
+
+    candidates.sort()
+    closest = candidates[0]
+    print(f"[leboursier] ✓ prix={closest[1]} MAD (raw='{closest[2]}', distance={closest[0]})")
+    return {"priceMAD": closest[1], "source": "leboursier.ma", "raw": closest[2]}
+
+
 def scrape_investing(page: Page) -> dict | None:
     """Cherche le prix SGTM sur investing.com. Playwright passe Cloudflare."""
     url = "https://fr.investing.com/equities/ste-generale-des-travaux-du-maroc"
@@ -164,6 +205,20 @@ def scrape_investing(page: Page) -> dict | None:
     return None
 
 
+def _dump_debug(page: Page, tag: str) -> None:
+    """Écrit un screenshot + HTML dans le répertoire /tmp/scrape_debug pour
+    upload comme artifact CI en cas d'échec. Permet de voir ce que Playwright
+    a réellement vu (Cloudflare challenge, captcha, page vide, selecteur changé, etc.)."""
+    try:
+        debug_dir = Path(os.environ.get("DEBUG_DIR", "/tmp/scrape_debug"))
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(debug_dir / f"{tag}.png"), full_page=True)
+        (debug_dir / f"{tag}.html").write_text(page.content(), encoding="utf-8")
+        print(f"[debug] dumped {tag}.png + {tag}.html → {debug_dir}")
+    except Exception as e:
+        print(f"[debug] dump failed for {tag}: {e}")
+
+
 def scrape() -> dict | None:
     """Tente chaque source dans l'ordre. Retourne le premier résultat valide."""
     with sync_playwright() as p:
@@ -177,14 +232,18 @@ def scrape() -> dict | None:
         )
         page = context.new_page()
 
-        for scraper in (scrape_idbourse, scrape_investing):
+        # Ordre : leboursier (simple, pas de Cloudflare) → idbourse (SPA Next.js) → investing (Cloudflare)
+        for scraper in (scrape_leboursier, scrape_idbourse, scrape_investing):
             try:
                 result = scraper(page)
                 if result is not None:
                     browser.close()
                     return result
+                # Échec "propre" (aucun prix trouvé mais pas d'exception) → dump debug
+                _dump_debug(page, scraper.__name__)
             except Exception as e:
                 print(f"[{scraper.__name__}] exception: {e}")
+                _dump_debug(page, f"{scraper.__name__}_exception")
                 continue
 
         browser.close()

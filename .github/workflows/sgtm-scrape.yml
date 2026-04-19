@@ -52,9 +52,20 @@ jobs:
 
       - name: Scrape SGTM
         id: scrape
+        env:
+          DEBUG_DIR: ${{ runner.temp }}/scrape_debug
         run: |
           python scripts/scrape_sgtm.py
         continue-on-error: true
+
+      - name: Upload debug artifacts on failure
+        if: steps.scrape.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-debug-${{ github.run_id }}
+          path: ${{ runner.temp }}/scrape_debug
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Commit updated price
         if: steps.scrape.outcome == 'success'
