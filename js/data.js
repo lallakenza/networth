@@ -1090,7 +1090,7 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 717,       // Cours SGTM en MAD (séance 11 Mar 2026) — casablanca-bourse.com
+    sgtmPriceMAD: 826,       // Cours SGTM en MAD (clôture vendredi 17 avril 2026, +6.44% séance) — investing.com / leboursier.ma
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 197.55,     // Cours Accenture en USD — live 31/03/2026 (Yahoo Finance)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
@@ -1151,7 +1151,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/04/2026';
-export const APP_VERSION = 'v328';
+export const APP_VERSION = 'v329';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
