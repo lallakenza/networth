@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=329';
-import { compute, getGrandTotal } from './engine.js?v=329';
-import { render } from './render.js?v=329';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=329';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=329';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=329';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=329';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=331';
+import { compute, getGrandTotal } from './engine.js?v=331';
+import { render } from './render.js?v=331';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=331';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=331';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=331';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=331';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -874,6 +874,22 @@ async function loadStockPrices(forceRefresh) {
     }, 800);
   }
 
+  // Formate le suffixe SGTM (et futures actions marocaines) pour le badge.
+  // Chaîne de fallback — cf. ARCHITECTURE §v330 "Moroccan stocks live pipeline" :
+  // - repo:static-bootstrap → "statique"  (JSON initial, CI n'a pas encore tourné)
+  // - repo:* (autres)       → "live ✓"    (CI < 24h, prix frais)
+  // - google/leboursier/investing → "live (scraping)"  (fallback runtime)
+  // - repo-stale:*          → "dernier relevé (Xh)"    (JSON > 24h + scraping KO)
+  // - null / isLive=false   → "statique"  (fallback ultime = valeur hardcodée data.js)
+  function sgtmSuffix(source, isLive) {
+    if (!isLive) return 'statique';
+    if (!source) return 'live';
+    if (source === 'static-bootstrap' || source === 'repo:static-bootstrap') return 'statique';
+    if (source.startsWith('repo-stale:')) return 'dernier relevé';
+    if (source.startsWith('repo:')) return 'live ✓';
+    return 'live (scraping)';
+  }
+
   function updateBadge(result) {
     if (!sBadge) return;
     const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
@@ -883,9 +899,8 @@ async function loadStockPrices(forceRefresh) {
     const statusLabel = yahooLive > 0
       ? yahooLive + '/' + yahooTotal + ' live'
       : 'statique (données du ' + DATA_LAST_UPDATE + ')';
-    const sgtmLabel = result.sgtmLive
-      ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
-      : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+    const sgtmLabel = PORTFOLIO.market.sgtmPriceMAD + ' DH ('
+      + sgtmSuffix(result.sgtmSource || PORTFOLIO.market._sgtmSource, result.sgtmLive) + ')';
     sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
     sBadge.style.color = allYahooLive ? 'var(--green)' : 'var(--red)';
   }
@@ -923,9 +938,8 @@ async function loadStockPrices(forceRefresh) {
           const yahooLive = liveCount - (PORTFOLIO.market._sgtmLive ? 1 : 0);
           const yahooTotal = totalTickers - 1;
           const allYahooLive = yahooLive >= yahooTotal;
-          const sgtmLabel = PORTFOLIO.market._sgtmLive
-            ? PORTFOLIO.market.sgtmPriceMAD + ' DH (live)'
-            : PORTFOLIO.market.sgtmPriceMAD + ' DH (statique)';
+          const sgtmLabel = PORTFOLIO.market.sgtmPriceMAD + ' DH ('
+            + sgtmSuffix(PORTFOLIO.market._sgtmSource, PORTFOLIO.market._sgtmLive) + ')';
           if (sBadge) {
             sBadge.textContent = 'Actions: ' + yahooLive + '/' + yahooTotal + ' live | SGTM: ' + sgtmLabel;
             if (!allYahooLive) sBadge.textContent += ' (retry ' + retryNum + '...)';

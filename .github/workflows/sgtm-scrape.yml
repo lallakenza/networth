@@ -1,0 +1,57 @@
+name: SGTM live price scrape
+
+on:
+  # Séance Bourse de Casablanca: ~9h30 → 15h30 heure Casablanca (UTC+0 l'hiver, UTC+1 l'été).
+  # On scrape toutes les heures entre 9h et 16h UTC lundi-vendredi pour couvrir les 2 fuseaux.
+  schedule:
+    - cron: '0 9-16 * * 1-5'
+  # Manuel (test, debug) + sur push du script
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/scrape_sgtm.py'
+      - '.github/workflows/sgtm-scrape.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright==1.48.0
+          python -m playwright install chromium --with-deps
+
+      - name: Scrape SGTM
+        id: scrape
+        run: |
+          python scripts/scrape_sgtm.py
+        continue-on-error: true
+
+      - name: Commit updated price
+        if: steps.scrape.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/sgtm_live.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            PRICE=$(python -c "import json; print(json.load(open('data/sgtm_live.json'))['priceMAD'])")
+            SOURCE=$(python -c "import json; print(json.load(open('data/sgtm_live.json'))['source'])")
+            git commit -m "chore(sgtm): live price ${PRICE} MAD (source: ${SOURCE})"
+            git push
+          fi

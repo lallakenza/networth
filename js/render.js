@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=329';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=329';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=331';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=331';
 
 // ---- Generic table sort utility ----
 /**
@@ -1436,10 +1436,32 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   let hasStatic = false, staticVal = 0, liveVal = 0;
 
   // First pass: detect if there are any static positions
+  // Une position est "statique" si son flag _live est faux OU si sa source
+  // indique un bootstrap (JSON initial non encore rafraîchi par le CI). Les
+  // actions marocaines (SGTM et futures) passent par le pipeline GitHub Action
+  // → data/<ticker>_live.json : tant que la CI ne l'a pas mis à jour, le prix
+  // est effectivement la valeur hardcodée de data.js, donc traité comme static.
+  function isPositionStatic(pos) {
+    if (pos._live !== true) return true;
+    const src = pos._source || '';
+    if (src === 'static-bootstrap' || src === 'repo:static-bootstrap') return true;
+    return false;
+  }
+  // `hasStatic` sert à déclencher le badge "LIVE" sur les lignes live pour
+  // les distinguer — on l'active UNIQUEMENT si au moins une position
+  // Yahoo-fed est statique (ex: ticker qui devrait être live mais Yahoo a
+  // échoué). Les actions marocaines statiques en fallback bootstrap ne
+  // doivent PAS enclencher la mise en évidence "LIVE" des autres lignes
+  // parce que leur caractère statique est normal dans l'attente du CI.
   sorted.forEach(pos => {
-    const isStatic = pos._live !== true;
-    const noAPI = pos.ticker === 'SGTM';
-    if (isStatic && !noAPI) { hasStatic = true; staticVal += pos.valEUR; } else { liveVal += pos.valEUR; }
+    const isStatic = isPositionStatic(pos);
+    const isMoroccanNoYahoo = pos.ticker === 'SGTM' || pos.broker === 'Attijari';
+    if (isStatic) {
+      staticVal += pos.valEUR;
+      if (!isMoroccanNoYahoo) hasStatic = true;
+    } else {
+      liveVal += pos.valEUR;
+    }
   });
 
   sorted.forEach(pos => {
@@ -1453,13 +1475,24 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const plC = pl !== null ? (pl >= 0 ? 'pl-pos' : 'pl-neg') : '';
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
-    const isStatic = pos._live !== true;
-    const noAPI = pos.ticker === 'SGTM';
-    const liveBadge = isStatic
-      ? (noAPI
+    const isStatic = isPositionStatic(pos);
+    // Marchés sans API Yahoo directe (actions marocaines via pipeline CI) :
+    // on utilise un badge gris neutre plutôt que rouge, car c'est "normal"
+    // qu'ils passent par le pipeline repo-JSON. À étendre pour tout ticker
+    // futur sur Casablanca (CSR, LHM, IAM, ATW, etc.) — cf. ARCHITECTURE §v330.
+    const isMoroccanNoYahoo = pos.ticker === 'SGTM' || pos.broker === 'Attijari';
+    const src = pos._source || '';
+    let liveBadge = '';
+    if (isStatic) {
+      liveBadge = isMoroccanNoYahoo
         ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>'
-        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>')
-      : (hasStatic ? ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>' : '');
+        : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>';
+    } else if (src.startsWith('repo-stale:')) {
+      // Dernier relevé connu > 24h (CI down ou weekend prolongé) — info subtile
+      liveBadge = ' <span style="display:inline-block;background:#fefcbf;color:#975a16;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Dernier relevé repo stale">DATED</span>';
+    } else if (hasStatic) {
+      liveBadge = ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
+    }
 
     const periodMap = { daily: 'dailyPL', mtd: 'mtdPL', oneMonth: 'oneMonthPL', ytd: 'ytdPL' };
     const periodPctMap = { daily: 'dailyPct', mtd: 'mtdPct', oneMonth: 'oneMonthPct', ytd: 'ytdPct' };
@@ -1998,6 +2031,7 @@ function renderActionsView(state) {
     sector: 'materials',
     geo: 'morocco',
     _live: av._sgtmLive,
+    _source: av._sgtmSource || null,
     _trades: [
       ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Amine' }] : []),
       ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
@@ -6779,7 +6813,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=329').then(m => {
+  import('./charts.js?v=331').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
