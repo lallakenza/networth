@@ -188,9 +188,17 @@ async function fetchStockPrice(symbol) {
 // ============================================================
 // SGTM — Casablanca Bourse (multiple sources)
 // ============================================================
+// Aucune API "propre" n'existe : Yahoo Finance ne couvre pas la Bourse de
+// Casablanca (404 sur SGTM.CA/BV/MA), TradingView utilise un WebSocket
+// authentifié, et le SPA de casablanca-bourse.com nécessite une session.
+// On scrape donc 3 sources HTML en parallèle, chacune derrière chaque proxy
+// CORS — la première qui répond gagne (Promise.any). Belt-and-suspenders :
+// si Google Finance retire le listing, leboursier.ma ou investing.com prend
+// le relais.
 async function fetchSGTMPrice() {
   const gUrl = 'https://www.google.com/finance/quote/GTM:CAS';
   const lUrl = 'https://www.leboursier.ma/cours/SGTM';
+  const iUrl = 'https://fr.investing.com/equities/ste-generale-des-travaux-du-maroc';
 
   function extractGooglePrice(html) {
     const m = html.match(/data-last-price="([\d.]+)"/);
@@ -209,7 +217,28 @@ async function fetchSGTMPrice() {
     throw new Error('no price');
   }
 
-  // Try all proxies for both Google Finance and leboursier
+  // investing.com — page HTML FR (ex: "Le cours de l'action ... aujourd'hui est de 826,00")
+  // Plusieurs sélecteurs possibles : data-test="instrument-price-last" (SPA live) et
+  // le snippet texte "aujourd'hui est de X,XX" (rendu SSR, plus robuste au changement
+  // du front-end). La règle MIN_PRICE/MAX_PRICE évite les faux positifs (logos, IDs).
+  function extractInvestingPrice(html) {
+    const MIN_PRICE = 300, MAX_PRICE = 2000; // fourchette SGTM historique (461–989 sur 52s)
+    // Priorité 1 : attribut data-test (SPA)
+    let m = html.match(/data-test="instrument-price-last"[^>]*>([^<]+)</i);
+    if (m) {
+      const p = parseFloat(m[1].replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+      if (p >= MIN_PRICE && p <= MAX_PRICE) return p;
+    }
+    // Priorité 2 : snippet FR "aujourd'hui est de 826,00"
+    m = html.match(/aujourd['\u2019]hui est de[\s]*([\d\s.,]+)/i);
+    if (m) {
+      const p = parseFloat(m[1].trim().replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+      if (p >= MIN_PRICE && p <= MAX_PRICE) return p;
+    }
+    throw new Error('no price');
+  }
+
+  // Try all proxies for all three sources
   const attempts = [];
   for (const proxy of PROXIES.slice(1)) { // skip direct (HTML pages always need proxy)
     attempts.push(
@@ -221,6 +250,11 @@ async function fetchSGTMPrice() {
       fetchWithTimeout(proxy(lUrl), 10000)
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(extractBoursierPrice)
+    );
+    attempts.push(
+      fetchWithTimeout(proxy(iUrl), 10000)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(extractInvestingPrice)
     );
   }
 

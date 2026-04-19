@@ -4695,4 +4695,35 @@ Le label "LCL Compte de dépôts" est renommé **"LCL Compte principal"** partou
 **Règle d'or (v328)** : tout nouvel objet de valeur non-financier (montres, bijoux, art, voitures) s'ajoute dans un objet dédié par owner (`amine.vehicles`, `nezha.watches`, …) + sommé via `Object.values(...).reduce(...)` côté engine + exposé à la fois dans owner.nw ET dans `views.*.other` (pas dans stocks/cash/immo). Une nouvelle catégorie treemap doit s'aligner dans les 3 vues (couple treemap, nezha treemap, breakdown tables render.js).
 
 
+### §76 — v329 (19 avril 2026) — SGTM : 3ème fallback investing.com + refresh prix 717 → 826 MAD
+
+**Contexte** : audit des options d'automatisation du cours SGTM (Bourse de Casablanca, ticker BVC:GTM / CSE:GTM). Le prix statique `sgtmPriceMAD` n'avait pas été rafraîchi depuis le 11 mars 2026 (717 MAD), soit 5 semaines de retard alors que SGTM avait gagné +15% sur la période.
+
+**Options d'API automatiques étudiées** :
+
+| Source | Verdict | Raison |
+|---|---|---|
+| **Yahoo Finance** | ❌ Non viable | Pas de listing BVC : `SGTM.CA/BV/MA` → HTTP 404 "symbol may be delisted" sur `query1.finance.yahoo.com/v8/finance/chart/`. Search API renvoie seulement le ticker OTC US "Sustainable Green Team" (sans rapport). La Bourse de Casablanca n'est pas couverte. |
+| **casablanca-bourse.com (API SPA)** | ❌ Non viable | API interne `/api/proxy/fr/api/...` non documentée, requiert session cookies + CSRF. Redesign 2024-2025 a cassé les URLs stables par instrument. |
+| **TradingView** | ❌ Non viable | Données chart via WebSocket authentifié `data.tradingview.com` (non scrapable depuis page statique). |
+| **wafabourse.com** | ❌ Non viable | Requiert authentification, pas d'endpoint JSON public. |
+| **Google Finance** (`GTM:CAS`) | ✅ **Primaire** (déjà en place) | Attribut `data-last-price` stable. HTML CORS-bloqué → scrape via proxy rotation. |
+| **leboursier.ma** (`/cours/SGTM`) | ✅ **Secondaire** (déjà en place) | HTML régional (IP-MA preferred), regex sur prix formaté. |
+| **investing.com** (`/equities/ste-generale-des-travaux-du-maroc`) | ✅ **Tertiaire NOUVEAU** | Snippet SSR `"aujourd'hui est de X,XX"` + attribut `data-test="instrument-price-last"` (SPA). Complémentaire aux 2 autres : routable US/EU si leboursier.ma geo-bloque. |
+
+**Changement technique** (`js/api.js` `fetchSGTMPrice`) :
+- Ajout d'un 3ème extractor `extractInvestingPrice(html)` avec 2 stratégies regex (priorité 1 : `data-test="instrument-price-last"` / priorité 2 : snippet texte FR `"aujourd'hui est de ..."`)
+- Garde-fou `MIN_PRICE=300 / MAX_PRICE=2000` (fourchette 52s : 461-989 MAD) pour éviter les faux positifs (logos, IDs numériques dans le HTML)
+- Toutes les sources tentées en parallèle sous Promise.any via chaque proxy → première réponse valide gagne, même gain de latence qu'avant
+- Commentaire d'intention ajouté expliquant pourquoi aucune API "propre" n'existe
+
+**Refresh prix statique** :
+- `market.sgtmPriceMAD: 717 → 826` (clôture vendredi 17 avril 2026, +6.44% séance, volume élevé sur IPO SGTM)
+- Impact NW : 64 actions (Amine 32 + Nezha 32) × 109 MAD gagnés × ~10.7 EUR/MAD ≈ **+650 € sur le patrimoine couple**
+- Dataset investing.com vérifié : plage 700-826 sur mars-avril 2026, breakout à 826 le 17/04 (+6.44% séance)
+
+**Cache-bust** `?v=328 → ?v=329` sur 18 imports + `APP_VERSION 'v329'` + badge v329 dans CLAUDE.md. Pas de changement `DATA_LAST_UPDATE` (reste 19/04/2026, même date de refresh que la mise à jour cash Nezha v328).
+
+**Règle d'or (SGTM & Bourse de Casablanca)** : tant qu'aucune API JSON officielle de la BVC ne voit le jour, le scraping multi-sources HTML derrière CORS proxies reste la seule solution viable en static-JS. Ajouter davantage de sources diversifie le risque (geo-blocage, changement de markup, rate-limit proxy). Si un jour `query1.finance.yahoo.com` ajoute le listing Casablanca (`.CA`), le remplacer en priorité absolue (cleaner, JSON natif, CORS-friendly).
+
 
