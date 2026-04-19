@@ -1151,7 +1151,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/04/2026';
-export const APP_VERSION = 'v331';
+export const APP_VERSION = 'v332';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

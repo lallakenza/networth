@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=331';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=331';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=332';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=332';
 
 // ---- Generic table sort utility ----
 /**
@@ -1482,14 +1482,41 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     // futur sur Casablanca (CSR, LHM, IAM, ATW, etc.) — cf. ARCHITECTURE §v330.
     const isMoroccanNoYahoo = pos.ticker === 'SGTM' || pos.broker === 'Attijari';
     const src = pos._source || '';
+    // Format tooltip "lastUpdate" pour badges live/DATED (fuseau Europe/Paris affiché
+    // comme date locale lisible) — n'affiche rien si pas d'horodatage (ex: scraping
+    // runtime google/leboursier qui ne renvoie pas de timestamp).
+    function _fmtLastUpdate(iso) {
+      if (!iso) return null;
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return null;
+      const pad = n => String(n).padStart(2, '0');
+      // Affichage local du navigateur (l'utilisateur voit l'heure à laquelle le CI a scrapé)
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear()
+        + ' à ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    function _fmtAge(ms) {
+      if (ms == null || !isFinite(ms)) return null;
+      const h = ms / 3600000;
+      if (h < 1) return Math.round(ms / 60000) + ' min';
+      if (h < 24) return Math.round(h) + ' h';
+      return Math.round(h / 24) + ' j';
+    }
+    const _lastUpdateTxt = _fmtLastUpdate(pos._lastUpdate);
+    const _ageMs = pos._lastUpdate ? (Date.now() - Date.parse(pos._lastUpdate)) : null;
+    const _ageTxt = _fmtAge(_ageMs);
     let liveBadge = '';
     if (isStatic) {
       liveBadge = isMoroccanNoYahoo
-        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>'
+        ? ' <span style="display:inline-block;background:#e2e8f0;color:#718096;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Prix bootstrap (CI pas encore exécuté)">STATIC</span>'
         : ' <span style="display:inline-block;background:#fed7d7;color:#c53030;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">STATIC</span>';
     } else if (src.startsWith('repo-stale:')) {
-      // Dernier relevé connu > 24h (CI down ou weekend prolongé) — info subtile
-      liveBadge = ' <span style="display:inline-block;background:#fefcbf;color:#975a16;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px" title="Dernier relevé repo stale">DATED</span>';
+      // Dernier relevé connu > 24h (CI down ou weekend prolongé) — tooltip = date/heure + âge
+      const _label = _lastUpdateTxt ? ('Dernier relevé le ' + _lastUpdateTxt + (_ageTxt ? ' (il y a ' + _ageTxt + ')' : '')) : 'Dernier relevé repo stale';
+      const _ageBadge = _ageTxt ? ' · ' + _ageTxt : '';
+      liveBadge = ' <span style="display:inline-block;background:#fefcbf;color:#975a16;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px;cursor:help" title="' + _label + '">DATED' + _ageBadge + '</span>';
+    } else if (src.startsWith('repo:') && _lastUpdateTxt) {
+      // Live via CI scraping — afficher date/heure du dernier snapshot au survol
+      liveBadge = ' <span style="display:inline-block;background:#c6f6d5;color:#22543d;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px;cursor:help" title="CI scraping · dernier snapshot : ' + _lastUpdateTxt + (_ageTxt ? ' (il y a ' + _ageTxt + ')' : '') + '">LIVE ✓</span>';
     } else if (hasStatic) {
       liveBadge = ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
     }
@@ -2032,6 +2059,7 @@ function renderActionsView(state) {
     geo: 'morocco',
     _live: av._sgtmLive,
     _source: av._sgtmSource || null,
+    _lastUpdate: av._sgtmLastUpdate || null,
     _trades: [
       ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Amine' }] : []),
       ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
@@ -6813,7 +6841,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=331').then(m => {
+  import('./charts.js?v=332').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
