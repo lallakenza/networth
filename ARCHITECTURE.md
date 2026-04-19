@@ -4578,4 +4578,67 @@ La valeur 720px a été choisie pour :
 **Cache-bust** : `?v=325` → `?v=326` sur 18 imports + `APP_VERSION 'v326'` dans data.js + badge v326 dans CLAUDE.md.
 
 
+### §74 — v327 (19 avril 2026) — Mobile overflow systématique : 13 tableaux wrappés + dynamic tables render.js
+
+**Contexte** : Après v326 (qui avait corrigé le tableau « Toutes les Positions » via `.positions-table-wrap`), l'utilisateur a signalé que **beaucoup d'autres tableaux** à travers toutes les vues (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget, Plan-Fiscal, Property Detail) débordaient aussi sur iPhone et faisaient globalement déborder la page.
+
+**Audit systématique** (via Explore agent) : 15+ tableaux et éléments inline identifiés, classés par priorité :
+- **HIGH (> 50 px overflow)** : WHT Dividendes (9 cols), #allClosedTable (8 cols), fiscalTable (9 cols), propDetailLoans (6 cols avec width:100%), #immoFinComparisonTable (déjà min-width 880px OK).
+- **MEDIUM (20-50 px)** : immoLoansTable (7 cols), #cfProjectionTable (5 cols), Detail metrics 5×120 px flex-wrap, #creancesTable (8 cols), #budgetTable (7 cols), immoCFTable dynamique render.js (10 cols !).
+- **LOW (10-20 px)** : #dettesTable, #recoveredTable, #cashTable, amortSummaryTable, anonymous Cash IBKR (3 cols — OK, fit natif).
+
+**Pattern universel adopté** : wrapper `.table-wrap` + CSS variable `--tbl-min` paramétrable par instance.
+
+```css
+/* index.html */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.table-wrap > table { min-width: var(--tbl-min, 600px); }
+```
+
+```html
+<!-- Chaque tableau concerné -->
+<div class="table-wrap" style="--tbl-min: 900px">
+  <table id="whtTable">...</table>
+</div>
+```
+
+**Avantage vs approche « blanket `display:block` sur tous les tableaux »** : conserve le `table-layout` natif (alignement thead/tbody parfait, tri data-sort intact, scroll-shadow conservé), ajoute uniquement un conteneur scrollable sur mobile. Zéro impact desktop (`min-width` est inférieur à la largeur naturelle de la card).
+
+**Valeurs de `--tbl-min` choisies** (équilibre lisibilité / compacité) :
+| Tableau | Cols | `--tbl-min` | Rationale |
+|---|---|---|---|
+| #whtTable | 9 | 900 px | Long labels « Alternative ETF » |
+| #fiscalTable | 9 | 900 px | Labels régimes + pourcentages |
+| #creancesTable | 8 | 860 px | « Inflation /mois » colonne large |
+| #cashTable | 8 | 820 px | « Manque à gagner » + yields |
+| #amortSummaryTable | 8 | 820 px | Montants € cumulés |
+| #allClosedTable | 8 | 740 px | P/L réalisé + % |
+| #budgetTable | 7 | 760 px | Fréquences + pourcentages |
+| #immoLoansTable | 7 | 720 px | 7 colonnes numériques |
+| #recoveredTable | 7 | 700 px | Dates + montants |
+| #immoTable | 7 | 680 px | Cols courtes |
+| #dettesTable | 5 | 560 px | Cols courtes |
+| #cfProjectionTable | 5 | 520 px | Cols très courtes (années) |
+
+**Dynamic tables (render.js)** : cinq tableaux générés dynamiquement avaient `<div overflow-x:auto><table width:100%>` — le `width:100%` empêche l'overflow de se déclencher (la table se rétrécit au lieu de déborder). Fix : ajouter `min-width:Xpx` sur la table elle-même, `max-width:100%` sur le wrapper :
+
+- `propDetailLoans` (ligne 4884) — `min-width:620px` (6 cols)
+- `pdFiscalTable` (ligne 5164) — `min-width:880px` (9 cols, loyers comparatifs)
+- Autre propDetailLoans (ligne 5356) — `min-width:620px` (duplicate, 6 cols)
+- Jeanbrun comparison (ligne 5610) — `min-width:780px` (8 cols, Δ LMNP-JB)
+- Exit projection (ligne 5649) — `min-width:720px` (7-8 cols, abattements PV)
+
+**immoCFTable dynamique** (render.js ~4475) — 10 colonnes (charges détaillées + revenus + CF), sans wrapper du tout → scrollait jamais sur mobile, chaque ligne wrappait sur 3-4 lignes. Fix : wrapper `.table-wrap` généré dans le `innerHTML` avec `--tbl-min: 960px`.
+
+**Règle d'or pour l'avenir** : tout nouveau tableau ≥ 5 colonnes **DOIT** être wrappé dans `.table-wrap` (HTML statique) ou `<div class="table-wrap" style="--tbl-min:Xpx">` (HTML dynamique). Pattern documenté comme réutilisable.
+
+**Petits tableaux 2-3 cols laissés intacts** : coupleDetailTable, amineDetailTable, nezhaDetailTable (2 cols Poste/Montant), ibkrSimpleTable (3 cols), anonyme Cash IBKR (3 cols Devise/Natif/EUR) — tiennent naturellement dans 375px.
+
+**Detail metrics 5 × 120px** (render.js 4996, 5465) : faux positif de l'audit. Le CSS mobile `.detail-metric { min-width: 0 !important }` override déjà le inline `min-width:120px`. Combiné à `flex-wrap:wrap`, les items wrappent correctement.
+
+**Cache-bust** : `?v=326` → `?v=327` sur 18 imports + `APP_VERSION 'v327'` dans data.js + badge v327 dans CLAUDE.md.
+
+**Régression** : BUG-063 ajouté dans BUG_TRACKER.md avec checklist 10 points (vérifier qu'aucun tableau ≥ 5 cols ne déborde sur iPhone 375px/12 Pro 390px/14 Pro Max 430px ; vérifier que les tableaux 2-3 cols ne scrollent pas inutilement ; vérifier tri data-sort préservé ; vérifier desktop inchangé).
+
+
 

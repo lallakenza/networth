@@ -1253,6 +1253,10 @@
     .positions-table-wrap { overflow-x: auto; max-width: 100%; }
     .positions-table-wrap #allPositionsTable { min-width: 720px; }
 
+    /* v327 — voir règle globale `.table-wrap` hors @media (ci-dessous, après
+       la fermeture du block 480px). Placée en global pour couvrir aussi tablet
+       portrait (600-900px) où les tableaux ≥ 8 cols peuvent encore déborder. */
+
     /* Inline flex containers: allow wrapping on mobile */
     div[style*="display:flex"][style*="gap:12px"],
     div[style*="display:flex"][style*="gap:16px"] {
@@ -1275,6 +1279,15 @@
     /* Prop card: stack info/metrics vertically */
     .prop-card .prop-header { flex-direction: column; align-items: flex-start; }
   }
+
+  /* v327 — Règle globale .table-wrap (pas de media query) : active à tous
+     viewports. Sur desktop (card > min-width), `overflow-x: auto` est
+     no-op car le contenu rentre. Sur tablet/mobile (card < min-width),
+     le wrapper scroll horizontalement. CSS var `--tbl-min` set par
+     instance via inline style sur le wrapper (inherit vers la table).
+     Défaut 600px si pas de `--tbl-min` spécifié. */
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+  .table-wrap > table { min-width: var(--tbl-min, 600px); }
 
   /* Loading overlay */
   .loading-overlay {
@@ -3241,12 +3254,14 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">--</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4"></div></div>
   </div>
 
+  <div class="table-wrap" style="--tbl-min: 680px">
   <table id="immoTable">
     <thead>
       <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">EQ. NETTE</th><th class="num">CF /mois</th><th>Statut</th></tr>
     </thead>
     <tbody id="immoSummaryTbody"></tbody>
   </table>
+  </div>
   <p style="font-size:12px;color:var(--gray);margin-top:6px" id="immoLoanFootnote"></p>
 
   <div class="info" style="margin-top:14px;font-size:13px;text-align:center;">
@@ -3567,10 +3582,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <div style="margin-top:16px;">
     <h3 style="margin-top:20px;">Positions Ferm&eacute;es (IBKR + Degiro)</h3>
+    <div class="table-wrap" style="--tbl-min: 740px">
     <table id="allClosedTable">
       <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th data-sort="source" data-sort-type="string">Source</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
       <tbody id="allClosedTbody"></tbody>
     </table>
+    </div>
   </div>
 
   <div class="success" style="margin-top:14px;">
@@ -3609,10 +3626,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
       <div class="kpi green"><div class="value" id="kpiWhtSavings">--</div><div class="label">&Eacute;conomie si 100% Capitalisant</div></div>
       <div class="kpi"><div class="value" id="kpiWhtPositions">--</div><div class="label">Positions &agrave; Switcher</div></div>
     </div>
-    <table>
+    <div class="table-wrap" style="--tbl-min: 900px">
+    <table id="whtTable">
       <thead><tr><th>Position</th><th class="num">Valeur</th><th class="num">DPS</th><th class="num">Div Projet&eacute;</th><th class="num">WHT Rate</th><th class="num">WHT Projet&eacute;</th><th class="num">&#x23F0; Vendre avant</th><th>Reco</th><th>Alternative ETF</th></tr></thead>
       <tbody id="whtTbody"></tbody>
     </table>
+    </div>
   </div>
 </div>
 
@@ -3656,10 +3675,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 
   <h3 style="margin-top:24px;">D&eacute;tail par Compte</h3>
+  <div class="table-wrap" style="--tbl-min: 820px">
   <table id="cashTable">
     <thead><tr><th data-sort="label" data-sort-type="string">Compte</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="native">Montant natif</th><th class="num" data-sort="valEUR">Valeur EUR</th><th class="num" data-sort="yield">Rendement</th><th class="num" data-sort="yieldAnn">Yield ann.</th><th class="num" data-sort="missed" style="color:#e53e3e;">Manque &agrave; gagner</th></tr></thead>
     <tbody id="cashAccountsTbody"></tbody>
   </table>
+  </div>
 
   <div class="highlight" style="margin-top:14px;" id="cashJPYNote"></div>
 
@@ -3763,10 +3784,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 
   <h3 style="margin-top:24px;">Synth&egrave;se Pr&ecirc;ts</h3>
-  <table>
+  <div class="table-wrap" style="--tbl-min: 720px">
+  <table id="immoLoansTable">
     <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Yield brut</th><th class="num">Yield net</th></tr></thead>
     <tbody id="immoLoansTbody"></tbody>
   </table>
+  </div>
 
   <!-- TABLEAU D'AMORTISSEMENT -->
   <h3 style="margin-top:24px;">&#x1F4CA; Tableau d'Amortissement</h3>
@@ -3776,10 +3799,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div class="kpi green"><div class="value" id="kpiAmortMilestone1">--</div><div class="label">Crossover Int&eacute;r&ecirc;t/Capital</div></div>
     <div class="kpi"><div class="value" id="kpiAmortMilestone2">--</div><div class="label">50% CRD Rembours&eacute;</div></div>
   </div>
-  <table>
+  <div class="table-wrap" style="--tbl-min: 820px">
+  <table id="amortSummaryTable">
     <thead><tr><th>Bien</th><th class="num">Capital emprunt&eacute;</th><th class="num">Taux</th><th class="num">Dur&eacute;e</th><th class="num">Mensualit&eacute;</th><th class="num">CRD actuel</th><th class="num">Int. pay&eacute;s</th><th class="num">Int. restants</th></tr></thead>
     <tbody id="amortSummaryTbody"></tbody>
   </table>
+  </div>
   <div class="grid2" style="margin-top:16px;">
     <div class="chart-container" style="height: 300px;"><canvas id="amortChart"></canvas></div>
     <div></div>
@@ -3791,10 +3816,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <strong>R&eacute;sidents fiscaux UAE</strong> — Revenus fonciers de source fran&ccedil;aise : taux minimum 20% (non-r&eacute;sident) + PS 17.2%.<br>
     Vitry : location nue (micro-foncier, abattement 30%). Rueil + Villejuif : LMNP (micro-BIC, abattement 50%).
   </div>
-  <table>
+  <div class="table-wrap" style="--tbl-min: 900px">
+  <table id="fiscalTable">
     <thead><tr><th>Bien</th><th>R&eacute;gime</th><th class="num">Loyer d&eacute;clar&eacute;</th><th class="num">Abattement</th><th class="num">Rev. imposable</th><th class="num">IR (20%)</th><th class="num">PS (17.2%)</th><th class="num">Total imp&ocirc;t/an</th><th class="num">Yield net fiscal</th></tr></thead>
     <tbody id="fiscalTbody"></tbody>
   </table>
+  </div>
   <div id="fiscalSummary" class="highlight" style="margin-top:12px;"></div>
 </div>
 
@@ -3821,12 +3848,14 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="chart-container" style="height: 380px;">
     <canvas id="cfProjectionChart"></canvas>
   </div>
+  <div class="table-wrap" style="--tbl-min: 520px">
   <table id="cfProjectionTable" style="margin-top:14px;font-size:12px;">
     <thead>
       <tr><th>Annee</th><th class="num">Vitry</th><th class="num">Rueil</th><th class="num">Villejuif</th><th class="num" style="background:#f0fff4;color:var(--green)">Total</th></tr>
     </thead>
     <tbody id="cfProjectionBody"></tbody>
   </table>
+  </div>
 </div>
 
 <!-- ============ VUES APPARTEMENTS ============ -->
@@ -3863,24 +3892,30 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
 
   <h3>Cr&eacute;ances en cours</h3>
+  <div class="table-wrap" style="--tbl-min: 860px">
   <table id="creancesTable">
     <thead><tr><th data-sort="label" data-sort-type="string">Cr&eacute;ance</th><th data-sort="owner" data-sort-type="string">Propri&eacute;taire</th><th data-sort="currency" data-sort-type="string">Devise</th><th class="num" data-sort="amount">Montant natif</th><th class="num" data-sort="amountEUR">Valeur EUR</th><th class="num" data-sort="probability">Probabilit&eacute;</th><th class="num" data-sort="expectedValue">Valeur attendue</th><th class="num" data-sort="monthlyInflationCost">Inflation /mois</th></tr></thead>
     <tbody id="creancesDetailTbody"></tbody>
   </table>
+  </div>
 
   <h3 style="margin-top:24px;">&#x1F4B8; Dettes &amp; Obligations</h3>
   <p style="font-size:12px;color:var(--gray);margin-bottom:8px;">Montants que je dois payer (TVA, facturation inter-personnes, etc.)</p>
+  <div class="table-wrap" style="--tbl-min: 560px">
   <table id="dettesTable">
     <thead><tr><th>Libell&eacute;</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th></tr></thead>
     <tbody id="dettesDetailTbody"></tbody>
   </table>
+  </div>
 
   <h3 style="margin-top:24px;">&#x2705; Cr&eacute;ances recouvr&eacute;es</h3>
   <p style="font-size:12px;color:var(--gray);margin-bottom:8px;">D&eacute;j&agrave; pay&eacute;es — montants d&eacute;j&agrave; int&eacute;gr&eacute;s dans la tr&eacute;sorerie.</p>
+  <div class="table-wrap" style="--tbl-min: 700px">
   <table id="recoveredTable">
     <thead><tr><th>Cr&eacute;ance</th><th>Propri&eacute;taire</th><th>Devise</th><th class="num">Montant natif</th><th class="num">Valeur EUR</th><th class="num">Recouvr&eacute;</th><th>Date</th></tr></thead>
     <tbody id="recoveredDetailTbody"></tbody>
   </table>
+  </div>
 
   <h3 style="margin-top:20px;">Garanti vs Incertain</h3>
   <div id="creancesBar" class="meter-bar" style="height:32px;"></div>
@@ -3916,10 +3951,12 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 
   <h3>D&eacute;tail des D&eacute;penses Personnelles</h3>
+  <div class="table-wrap" style="--tbl-min: 760px">
   <table id="budgetTable">
     <thead><tr><th data-sort="label" data-sort-type="string">D&eacute;pense</th><th data-sort="zone" data-sort-type="string">Zone</th><th data-sort="type" data-sort-type="string">Type</th><th class="num">Montant natif</th><th data-sort="freq" data-sort-type="string">Fr&eacute;quence</th><th class="num" data-sort="monthlyEUR">EUR /mois</th><th class="num" data-sort="pct">% du total</th></tr></thead>
     <tbody id="budgetDetailTbody"></tbody>
   </table>
+  </div>
 
   <div class="highlight" style="margin-top:14px;">
     <strong>Analyse :</strong> Ce budget repr&eacute;sente vos d&eacute;penses personnelles fixes. En cas de perte de revenu, c'est le montant minimum &agrave; couvrir chaque mois (hors investissements immo).
@@ -4297,7 +4334,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=326"></script>
+<script type="module" src="js/app.js?v=327"></script>
 
 </body>
 </html>
