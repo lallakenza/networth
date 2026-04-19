@@ -191,11 +191,68 @@ async function fetchStockPrice(symbol) {
 // Aucune API "propre" n'existe : Yahoo Finance ne couvre pas la Bourse de
 // Casablanca (404 sur SGTM.CA/BV/MA), TradingView utilise un WebSocket
 // authentifié, et le SPA de casablanca-bourse.com nécessite une session.
-// On scrape donc 3 sources HTML en parallèle, chacune derrière chaque proxy
-// CORS — la première qui répond gagne (Promise.any). Belt-and-suspenders :
-// si Google Finance retire le listing, leboursier.ma ou investing.com prend
-// le relais.
+//
+// Stratégie en 2 temps (v330+) :
+//   1. Source primaire : `data/sgtm_live.json` — scraped horairement via
+//      GitHub Action (.github/workflows/sgtm-scrape.yml) qui utilise
+//      Playwright côté CI pour passer Cloudflare + hydrater idbourse.com.
+//      Fetch same-origin → zéro CORS, zéro proxy tiers.
+//   2. Fallback runtime : scraping direct depuis le navigateur via proxies
+//      CORS (Google Finance + leboursier.ma + investing.com) — conservé pour
+//      le cas où le JSON devient obsolète (> 24h) et qu'une séance a eu lieu
+//      depuis le dernier commit du CI.
+
+const SGTM_LIVE_JSON_URL = './data/sgtm_live.json';
+const SGTM_LIVE_MAX_AGE_MS = 24 * 3600 * 1000; // au-delà de 24h, le JSON est "stale" mais reste utilisable en dernier recours
+
+/**
+ * Tente de lire `data/sgtm_live.json` écrit par le GitHub Action.
+ * Retourne TOUJOURS le snapshot s'il est lisible (même > 24h), avec un flag `stale`.
+ * Ainsi, même si le CI n'a pas tourné depuis un week-end prolongé, on garde le
+ * "dernier relevé connu" comme fallback ultime avant de retomber sur data.js.
+ */
+async function fetchSGTMFromRepo() {
+  try {
+    const bust = Math.floor(Date.now() / 3600000); // cache-bust horaire (1 req/h max)
+    const res = await fetchWithTimeout(`${SGTM_LIVE_JSON_URL}?h=${bust}`, 5000);
+    if (!res.ok) return null;
+    const snap = await res.json();
+    if (!snap || typeof snap.priceMAD !== 'number' || snap.priceMAD <= 0) return null;
+    const ts = Date.parse(snap.lastUpdate);
+    if (!isFinite(ts)) return null;
+    const ageMs = Date.now() - ts;
+    const stale = ageMs > SGTM_LIVE_MAX_AGE_MS;
+    const sourcePrefix = stale ? 'repo-stale:' : 'repo:';
+    console.log('[api] SGTM sgtm_live.json: ' + snap.priceMAD + ' MAD (source: ' + snap.source
+      + ', age: ' + Math.round(ageMs / 60000) + 'min' + (stale ? ', STALE' : '') + ')');
+    return {
+      price: snap.priceMAD,
+      source: sourcePrefix + (snap.source || 'unknown'),
+      ageMs,
+      stale,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Retourne { price, source, ageMs? } ou null. Ordre de priorité :
+//   1. 'repo:...'        — JSON frais < 24h (CI a tourné récemment) → badge "live ✓"
+//   2. 'google'/'leboursier'/'investing' — scraping runtime via proxy CORS → "live (scraping)"
+//   3. 'repo-stale:...'  — JSON > 24h (week-end prolongé, CI down) → "dernier relevé (Xh)"
+//   (fallback final = valeur hardcodée data.js, géré côté appelant avec source=null → "statique")
 async function fetchSGTMPrice() {
+  // On lance la lecture du JSON en parallèle dès le départ pour pouvoir l'utiliser
+  // soit en source primaire (si frais) soit en fallback final (si stale + scraping KO).
+  const repoPromise = fetchSGTMFromRepo();
+
+  // Tentative 1 : JSON frais < 24h
+  const fromRepo = await repoPromise;
+  if (fromRepo && !fromRepo.stale) {
+    return { price: fromRepo.price, source: fromRepo.source, ageMs: fromRepo.ageMs };
+  }
+
+  // Tentative 2 : scraping runtime via proxies CORS
   const gUrl = 'https://www.google.com/finance/quote/GTM:CAS';
   const lUrl = 'https://www.leboursier.ma/cours/SGTM';
   const iUrl = 'https://fr.investing.com/equities/ste-generale-des-travaux-du-maroc';
@@ -238,29 +295,40 @@ async function fetchSGTMPrice() {
     throw new Error('no price');
   }
 
-  // Try all proxies for all three sources
+  // Try all proxies for all three sources — tag chaque promesse avec sa source
   const attempts = [];
   for (const proxy of PROXIES.slice(1)) { // skip direct (HTML pages always need proxy)
     attempts.push(
       fetchWithTimeout(proxy(gUrl), 10000)
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(extractGooglePrice)
+        .then(price => ({ price, source: 'google' }))
     );
     attempts.push(
       fetchWithTimeout(proxy(lUrl), 10000)
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(extractBoursierPrice)
+        .then(price => ({ price, source: 'leboursier' }))
     );
     attempts.push(
       fetchWithTimeout(proxy(iUrl), 10000)
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(extractInvestingPrice)
+        .then(price => ({ price, source: 'investing' }))
     );
   }
 
   try {
     return await Promise.any(attempts);
   } catch (e) {
+    // Tentative 3 : fallback ultime = JSON stale (> 24h) s'il existe
+    // Mieux vaut afficher "dernier relevé connu (il y a Xh)" que retomber sur la
+    // valeur hardcodée de data.js qui n'a plus aucune garantie d'être à jour.
+    if (fromRepo && fromRepo.stale) {
+      console.log('[api] SGTM : scraping échoué, fallback sur dernier relevé stale ('
+        + Math.round(fromRepo.ageMs / 3600000) + 'h)');
+      return { price: fromRepo.price, source: fromRepo.source, ageMs: fromRepo.ageMs };
+    }
     return null;
   }
 }
@@ -337,6 +405,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
       cachedSGTM = cache.sgtm.price;
       portfolio.market.sgtmPriceMAD = cachedSGTM;
       portfolio.market._sgtmLive = true;
+      portfolio.market._sgtmSource = cache.sgtm.source || 'cache';
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
       // Also re-fetch SGTM if stale
@@ -359,7 +428,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
     if (!prices[pos.ticker]) pos._live = false;
   });
   if (!prices['ACN']) portfolio.market._acnLive = false;
-  if (!cachedSGTM) portfolio.market._sgtmLive = false;
+  if (!cachedSGTM) { portfolio.market._sgtmLive = false; portfolio.market._sgtmSource = null; }
 
   // ---- Fetch all missing tickers in parallel (no batching!) ----
   // Each ticker applies immediately and triggers a progressive UI refresh
@@ -389,11 +458,12 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
       ? fetchSGTMPrice().then(r => {
           loaded++;
           if (onProgress) onProgress(loaded, totalTickers, 'SGTM' + (r ? ' ✓' : ' ✗'));
-          if (r) {
-            cachedSGTM = r;
-            portfolio.market.sgtmPriceMAD = r;
+          if (r && r.price) {
+            cachedSGTM = r.price;
+            portfolio.market.sgtmPriceMAD = r.price;
             portfolio.market._sgtmLive = true;
-            cache.sgtm = { price: r, _ts: Date.now() };
+            portfolio.market._sgtmSource = r.source || 'unknown';
+            cache.sgtm = { price: r.price, source: r.source, _ts: Date.now() };
             cacheUpdated = true;
             if (onTickerLoaded) onTickerLoaded();
           }
@@ -420,6 +490,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
     liveCount: Object.keys(prices).length + (sgtmLive ? 1 : 0),
     totalTickers: allTickers.length + 1,
     sgtmLive,
+    sgtmSource: portfolio.market._sgtmSource || null,
     failedTickers,
   };
 }

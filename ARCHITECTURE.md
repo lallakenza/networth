@@ -4726,4 +4726,150 @@ Le label "LCL Compte de dépôts" est renommé **"LCL Compte principal"** partou
 
 **Règle d'or (SGTM & Bourse de Casablanca)** : tant qu'aucune API JSON officielle de la BVC ne voit le jour, le scraping multi-sources HTML derrière CORS proxies reste la seule solution viable en static-JS. Ajouter davantage de sources diversifie le risque (geo-blocage, changement de markup, rate-limit proxy). Si un jour `query1.finance.yahoo.com` ajoute le listing Casablanca (`.CA`), le remplacer en priorité absolue (cleaner, JSON natif, CORS-friendly).
 
+---
+
+### v330 — SGTM live via GitHub Action (19 avril 2026)
+
+**Contexte** : l'approche v329 (scraping runtime côté navigateur via CORS proxies publics) s'est avérée peu fiable — les proxies tombent souvent (`api.allorigins.win` → HTTP 522, `corsproxy.io` → 103B vides), investing.com bloque Cloudflare contre `curl`/fetch simple (challenge JS), et idbourse.com hydrate côté client via Supabase avec RLS (anonymous sign-ins désactivés, tables cachées). Objectif v330 : **rendre SGTM vraiment live sans ajouter d'infrastructure externe**.
+
+**Solution architecturale : scrape côté CI, JSON versionné, fetch same-origin**
+
+Le pipeline exploite GitHub Actions comme "backend léger" :
+
+```
+.github/workflows/sgtm-scrape.yml   ← cron toutes les heures 9h-16h UTC, lun-ven
+         │
+         ▼
+scripts/scrape_sgtm.py              ← Playwright Chromium headless
+  ├─ Tentative 1 : idbourse.com/stocks/SGTM (attend hydratation, lit DOM rendu)
+  └─ Tentative 2 : fr.investing.com (Playwright passe Cloudflare transparent)
+         │
+         ▼ (commit si prix change)
+data/sgtm_live.json                 ← { ticker, priceMAD, currency, lastUpdate, source, raw }
+         │
+         ▼ auto-deploy GitHub Pages
+js/api.js :: fetchSGTMFromRepo()    ← fetch('./data/sgtm_live.json?h=<hour>')
+         │                             same-origin → zéro CORS, zéro proxy tiers
+         ▼ (si < 24h)
+portfolio.market.sgtmPriceMAD + _sgtmSource='repo:idbourse.com'
+```
+
+**Avantages vs scraping runtime** :
+- Zéro dépendance à des proxies CORS publics (allorigins, corsproxy.io, etc.)
+- Zéro infrastructure hébergée (100 % GitHub, gratuit)
+- Prix mis à jour toutes les heures en séance (Casablanca = UTC+0/+1)
+- Historique git gratuit : chaque commit = un snapshot horodaté du prix
+- Playwright côté CI passe Cloudflare et hydrate les SPA, ce que le browser statique ne peut pas faire en CORS
+- Fallback double : si le JSON est vieux > 24h, on retombe sur le scraping runtime de v329 (non supprimé, juste rétrogradé en Tentative 2)
+
+**Nouveau pipeline `fetchSGTMPrice()`** :
+1. **Tentative 1** : `fetch('./data/sgtm_live.json?h=<hour>')` — cache-bust horaire (1 req/h max même avec force-refresh utilisateur). Si `priceMAD` valide ET `lastUpdate` < 24h → utilisé.
+2. **Tentative 2** (fallback) : scraping runtime via proxies (Google Finance + leboursier + investing) comme en v329, inchangé.
+
+**Exposition UI** :
+- Nouveau champ `portfolio.market._sgtmSource` : `'repo:idbourse.com'` / `'google'` / `'leboursier'` / `'investing'` / `'static-bootstrap'`
+- Badge en-tête distingue maintenant 3 états :
+  - `SGTM: 826 DH (live ✓)` — source `repo:*`, scrapé via CI, max 1h de latence
+  - `SGTM: 826 DH (live (scraping))` — fallback runtime via proxy
+  - `SGTM: 826 DH (statique)` — aucun fetch n'a réussi, fallback sur `data.js`
+- `fetchStockPrices()` retourne désormais `{ ..., sgtmSource }` en plus de `sgtmLive`
+
+**Fichiers créés** :
+| Fichier | Rôle |
+|---|---|
+| `scripts/scrape_sgtm.py` | Playwright multi-source avec parse_french_number + sanity bounds 300-2000 MAD |
+| `.github/workflows/sgtm-scrape.yml` | Cron `0 9-16 * * 1-5` + manual dispatch + trigger on script change |
+| `data/sgtm_live.json` | Snapshot initial (bootstrap à 826 MAD, source='static-bootstrap' pour forcer le fallback runtime à la 1ère exécution) |
+
+**Fichiers modifiés** :
+| Fichier | Changement |
+|---|---|
+| `js/api.js` | Nouvelle fonction `fetchSGTMFromRepo()` + `fetchSGTMPrice()` retourne `{price, source}` au lieu d'un number + cache inclut la source |
+| `js/app.js` | Helper `sgtmSuffix(source, isLive)` + badge en-tête distingue `live ✓` / `live (scraping)` / `statique` |
+| `js/data.js` | Commentaire `sgtmPriceMAD` expliquant que c'est un bootstrap surchargé par `data/sgtm_live.json` |
+
+**Cache-bust** `?v=329 → ?v=330` sur 18 imports + `APP_VERSION 'v330'` + badge v330 dans CLAUDE.md. `DATA_LAST_UPDATE` reste `19/04/2026` (pas de changement de données statiques, juste d'infrastructure live).
+
+**Sanity check** : Playwright dans GitHub Actions prend ~45s par run (install + boot chromium + page load + parse). Budget cron 24 runs/jour × 5 jours/semaine = 120 runs/semaine × 45s ≈ 90 minutes/mois, bien sous la limite gratuite de 2000 min/mois. Skip automatique si prix identique au précédent + snapshot < 1h pour éviter des commits inutiles.
+
+**Règle d'or (ajoutée v330)** : pour tout nouvel asset illiquide ou exchange non-couvert par Yahoo (BVC, futures Casablanca, actions régionales MENA, crypto peu commune), dupliquer ce pattern : `scripts/scrape_<asset>.py` + workflow cron + `data/<asset>_live.json`. Privilégier toujours l'approche CI-scrape/JSON-commit plutôt qu'une dépendance à un proxy CORS tiers. L'historique git devient alors la time-series "gratuite" du prix.
+
+
+### v331 — Fix badge STATIC + pattern generic pour actions marocaines (19 avril 2026)
+
+**Contexte** : en v330, la colonne "Position" affichait un badge rouge/gris `STATIC` à côté de `SGTM (64 actions)` même après que le pipeline CI a rendu le prix live. Deux causes :
+1. Le flag `_sgtmSource` n'était pas propagé depuis `portfolio.market` jusqu'à la ligne position dans `render.js` — seul `_sgtmLive` passait par `engine.js:1225`.
+2. La logique de badge (`render.js:1456-1462`) ne distinguait que deux états (`STATIC` vs `LIVE`), donc le cas `source='repo:static-bootstrap'` (JSON initial, CI pas encore exécuté) tombait dans "live" sans badge STATIC alors que la valeur est toujours la valeur bootstrap de `data.js`.
+
+**Fix** :
+- `engine.js` : ajout `_sgtmSource: m._sgtmSource || null` dans le retour de `compute()` à côté de `_sgtmLive`.
+- `render.js` : le champ `_source: av._sgtmSource` est maintenant propagé à la ligne position SGTM (`allPositions.push({...})` L2001). Nouvelle fonction `isPositionStatic(pos)` qui teste `_live !== true` OU `_source IN ('static-bootstrap', 'repo:static-bootstrap')`. Le badge a désormais 4 états :
+  - `STATIC` (gris) : actions marocaines (SGTM ou `broker: 'Attijari'`) en fallback statique
+  - `STATIC` (rouge) : autres brokers en fallback statique (Yahoo KO)
+  - `DATED` (jaune) : source commence par `repo-stale:` (JSON > 24h, scraping KO)
+  - `LIVE` (bleu) : au moins une autre position de la table est statique, pour discriminer visuellement
+- `app.js` : `sgtmSuffix()` ajoute le cas `repo-stale:*` → `'dernier relevé'`.
+
+**Règle d'or généralisée (v331) — toutes actions marocaines, pas que SGTM** :
+
+Le pipeline CI-scrape + repo JSON + fallback runtime est le pattern canonique pour **toute action de la Bourse de Casablanca** (et par extension tout exchange illiquide non-Yahoo). Lorsqu'Amine ajoute une nouvelle action marocaine (CSR, LHM, IAM, ATW, BCP, CIH, TQM, MNG, WAA, etc.), suivre cette checklist :
+
+**Checklist pour ajouter une action marocaine en live**
+
+1. **Ajouter la position dans `data.js`** :
+   - Dans `PORTFOLIO.amine` (ou `PORTFOLIO.nezha`), créer une clé du même style que `sgtm` :
+     ```js
+     csr: { shares: 50, costBasisMAD: 320 }  // ex: Cosumar
+     ```
+   - Dans `PORTFOLIO.market`, ajouter :
+     ```js
+     csrPriceMAD: 380,        // bootstrap, surchargé par data/csr_live.json
+     csrCostBasisMAD: 320,
+     _csrLive: false,
+     _csrSource: null,
+     ```
+   - Flag `currency: 'MAD'`, `broker: 'Attijari'` (la règle render.js traite tout `broker==='Attijari'` comme "marché sans API Yahoo" et applique le badge gris/neutre).
+
+2. **Créer le scraper `scripts/scrape_<ticker>.py`** — cloner `scrape_sgtm.py` et changer :
+   - `TICKER = 'CSR'` (ou autre)
+   - URL idbourse : `https://www.idbourse.com/stocks/CSR`
+   - URL investing.com : adapter le slug (ex: `/equities/cosumar` pour CSR)
+   - Sanity bounds (`MIN_PRICE`, `MAX_PRICE`) selon l'historique 52 semaines du titre
+   - Chemin JSON : `data/csr_live.json`
+
+3. **Créer le workflow `.github/workflows/<ticker>-scrape.yml`** — cloner `sgtm-scrape.yml` et remplacer les trois occurrences `sgtm` → `<ticker>`. Garder le même cron (`0 9-16 * * 1-5`) : budget 90 min/mois par ticker, largement dans les 2000 min/mois gratuits même avec 10-15 tickers.
+
+4. **Créer `data/<ticker>_live.json`** (bootstrap) :
+   ```json
+   {
+     "ticker": "CSR",
+     "priceMAD": 380,
+     "currency": "MAD",
+     "lastUpdate": "2026-04-19T12:00:00Z",
+     "source": "static-bootstrap",
+     "raw": "380"
+   }
+   ```
+   Le flag `source: "static-bootstrap"` déclenche volontairement le badge `STATIC` jusqu'au premier succès CI → évite d'afficher "live ✓" sur une valeur encore hardcodée.
+
+5. **Factoriser `fetchSGTMPrice` → `fetchMoroccanStockPrice(ticker)` dans `api.js`** (refactor recommandé dès le 2ème ticker pour ne pas dupliquer le code) :
+   - Fonction générique `fetchMoroccanStockFromRepo(ticker)` qui lit `./data/<ticker>_live.json`
+   - Fonction générique `fetchMoroccanStockPrice(ticker)` qui applique la chaîne de fallback (repo fresh → scraping → repo stale)
+   - Sanity bounds passés en paramètre ou stockés dans une table `MOROCCAN_TICKERS_BOUNDS = { SGTM: [300, 2000], CSR: [200, 700], ... }`
+   - `fetchStockPrices()` itère sur tous les tickers marocains au lieu d'appeler spécifiquement `fetchSGTMPrice()`
+
+6. **Propager dans `engine.js` et `render.js`** :
+   - `engine.js` : exposer `_<ticker>Live` + `_<ticker>Source` dans le retour de `compute()`, même pattern que SGTM.
+   - `render.js` : injecter la position dans `allPositions.push({...})` avec `_live` + `_source`. La logique `isPositionStatic()` et `isMoroccanNoYahoo` (via `broker: 'Attijari'`) est déjà prête — rien à modifier côté badge.
+
+7. **Test de régression** :
+   - Avec JSON frais (< 24h) : badge "live ✓" en en-tête, pas de badge STATIC sur la ligne.
+   - Avec JSON stale (> 24h) + scraping OK : badge "live (scraping)".
+   - Avec JSON stale + scraping KO : badge "dernier relevé" + `DATED` jaune sur la ligne.
+   - Avec JSON absent/corrompu + scraping KO : fallback `data.js`, badge "statique" + `STATIC` gris (cas bootstrap initial).
+
+**Invariant ajouté** : `portfolio.market._<ticker>Source` doit toujours être l'une des valeurs `{'repo:<source>', 'repo-stale:<source>', 'repo:static-bootstrap', 'google', 'leboursier', 'investing', 'cache', null}`. Toute nouvelle source doit être ajoutée à `sgtmSuffix()` (à renommer en `moroccanStockSuffix()` lors du refactor du point 5) ET à `isPositionStatic()` si elle doit être traitée comme statique.
+
+**Cache-bust** `?v=330 → ?v=331` sur 18 imports + `APP_VERSION 'v331'`. `DATA_LAST_UPDATE` reste `19/04/2026`.
+
 

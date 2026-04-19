@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v329 (19 avril 2026)
+- **Current version**: v331 (19 avril 2026)
 
 ## Architecture
 
@@ -68,6 +68,34 @@ Where:
 - **Every consumer** (tooltip, header, click panel) must apply owner filter consistently
 - Tooltip computes per-owner `startV` from filtered NAV arrays at `startIdx`
 - Chart breakdown uses `window._simSnapshots` for per-position P&L decomposition
+
+### Moroccan stocks live pipeline (v330+, generalized in v331)
+Yahoo Finance ne couvre AUCUNE action de la Bourse de Casablanca (BVC). Pour rendre une action marocaine "live" (SGTM aujourd'hui, CSR/LHM/IAM/ATW/BCP/CIH/TQM/MNG/WAA dans le futur), on utilise un pipeline dédié via GitHub Actions :
+
+```
+.github/workflows/<ticker>-scrape.yml  ← cron '0 9-16 * * 1-5' (hourly, Mon-Fri)
+         │
+         ▼
+scripts/scrape_<ticker>.py             ← Playwright Chromium headless, multi-source
+  ├─ idbourse.com/stocks/<TICKER>      (hydratation SPA, DOM text scan)
+  └─ fr.investing.com/equities/<slug>  (bypass Cloudflare grâce à Playwright)
+         │
+         ▼ (commit only if price changed OR snapshot > 1h)
+data/<ticker>_live.json                ← { ticker, priceMAD, currency, lastUpdate, source, raw }
+         │
+         ▼ auto-deploy GitHub Pages (~60s)
+js/api.js :: fetchSGTMFromRepo()       ← fetch('./data/<ticker>_live.json?h=<hour>')
+         │                                same-origin → zéro CORS, zéro proxy tiers
+         ▼ (chaîne de fallback)
+1. repo JSON < 24h                → source='repo:<provider>'        → badge "live ✓"
+2. scraping runtime (Google/leboursier/investing via CORS proxy)    → badge "live (scraping)"
+3. repo JSON > 24h                → source='repo-stale:<provider>'  → badge "dernier relevé"
+4. data.js bootstrap              → source=null                     → badge "statique"
+```
+
+**Pour ajouter une nouvelle action marocaine, suivre la checklist dans `ARCHITECTURE.md §v331`** (7 étapes : position data.js, scraper, workflow, JSON bootstrap, factoriser api.js → `fetchMoroccanStockPrice(ticker)`, propagation engine/render, tests régression). Règle-clé : tout ticker avec `broker: 'Attijari'` est automatiquement traité comme "marché sans API Yahoo" par le badge UI (gris neutre, pas rouge alarmiste).
+
+**Invariant source** : `portfolio.market._<ticker>Source` doit toujours ∈ `{'repo:<src>', 'repo-stale:<src>', 'repo:static-bootstrap', 'google', 'leboursier', 'investing', 'cache', null}`. Toute nouvelle source ajoute une branche dans `sgtmSuffix()` (app.js) ET dans `isPositionStatic()` (render.js).
 
 ## Common pitfalls (from 19 past bugs)
 
