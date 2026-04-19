@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=333';
-import { IMMO_CONSTANTS } from './data.js?v=333';
+import { fmt, fmtAxis } from './render.js?v=334';
+import { IMMO_CONSTANTS } from './data.js?v=334';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -66,8 +66,16 @@ function runSimulatorGeneric(config) {
   // Per-property immo tracking
   const props = immoBreakdown || [];
   const propCumGrowth = props.map(() => 0);
+  // v334 — baseline (equity + CRD) captured le 1er mois où la propriété est active.
+  // Utilisé pour splitter l'equity en "invested" (= baseline + principal amorti)
+  //                                  et  "gains"    (= appréciation + résiduel).
+  const propBaselines = props.map(() => ({ captured: false, baseEquity: 0, baseCRD: 0 }));
 
   const dataLabels = [], dataNW = [], dataImmo = [], dataBase = [], dataGains = [], dataNWNoStop = [];
+  // v334 — nouvelles séries pour le chart 4 bandes (Capital / Immo Invested / Immo Gains / Intérêts)
+  const dataCapital = [];       // liquide investi : startLiquidBase + cumContributions
+  const dataImmoInvested = [];  // somme par property : baseEquity + (baseCRD - CRD(m)), clampé
+  const dataImmoGains = [];     // equity totale − invested (plus-value brute)
   const immoBreakdownData = props.map(() => []); // per-property equity arrays
   let month1M = -1;
   let stopChartIdx = -1;
@@ -87,6 +95,8 @@ function runSimulatorGeneric(config) {
 
       // Compute immo from property sum (ensures consistency with per-property breakdown)
       let immoFromProps = 0;
+      let immoInvestedSum = 0;
+      let immoGainsSum = 0;
       props.forEach((p, pi) => {
         let propVal;
         if (p._computedEquity) {
@@ -96,15 +106,48 @@ function runSimulatorGeneric(config) {
         }
         immoBreakdownData[pi].push(propVal);
         immoFromProps += propVal;
+
+        // v334 — capture baseline dès que la propriété devient active (equity > 0 ou m=0)
+        const pb = propBaselines[pi];
+        if (!pb.captured && (propVal > 0 || m === 0)) {
+          pb.captured = true;
+          pb.baseEquity = propVal;
+          pb.baseCRD = (typeof p.crdFn === 'function') ? p.crdFn(m) : 0;
+        }
+        // Split equity(m) en invested + gains
+        let invested = 0;
+        if (pb.captured) {
+          if (typeof p.crdFn === 'function') {
+            const crdNow = p.crdFn(m);
+            invested = pb.baseEquity + (pb.baseCRD - crdNow);
+          } else {
+            // Pas de crdFn → fallback : invested reste fixé au baseline (plus-value = croissance)
+            invested = pb.baseEquity;
+          }
+          // Clamp pour garantir invested + gains = equity(m) et rester dans [0, equity]
+          invested = Math.max(0, Math.min(invested, propVal));
+        }
+        immoInvestedSum += invested;
+        immoGainsSum += Math.max(0, propVal - invested);
       });
       // If no breakdown props, fall back to delta-based immo
       const immoVal = props.length > 0 ? immoFromProps : Math.round(immoNow);
+      // Si pas de breakdown du tout, rendre l'intégralité de l'equity comme "Immo Investi"
+      // (faute de mieux) pour que la somme des 4 bandes reste égale à NW.
+      if (props.length === 0) {
+        immoInvestedSum = immoVal;
+        immoGainsSum = 0;
+      }
 
       dataNW.push(Math.round(immoVal + liquidNow));
       dataImmo.push(immoVal);
       dataBase.push(Math.round(immoVal + startLiquidBase + cumContributions));
       dataGains.push(Math.round(immoVal + startLiquidBase + cumContributions + gainsNow));
       dataNWNoStop.push(Math.round(immoVal + liquidNS));
+      // v334 — arrays pour le nouveau stacking
+      dataCapital.push(Math.round(startLiquidBase + cumContributions));
+      dataImmoInvested.push(Math.round(immoInvestedSum));
+      dataImmoGains.push(Math.round(immoGainsSum));
       if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
     }
 
@@ -258,24 +301,45 @@ function runSimulatorGeneric(config) {
   // Build immo breakdown labels + data for chart tooltip
   const immoBreakdownResult = props.length > 0 ? props.map((p, pi) => ({ label: p.label, data: immoBreakdownData[pi] })) : null;
 
-  return { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears, immoBreakdownResult };
+  return {
+    dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop,
+    dataCapital, dataImmoInvested, dataImmoGains, // v334
+    stopChartIdx, stopYears, immoBreakdownResult
+  };
 }
 
 function buildSimChart(canvasId, chartKey, result) {
-  const { dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop, stopChartIdx, stopYears, immoBreakdownResult } = result;
+  const {
+    dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop,
+    dataCapital, dataImmoInvested, dataImmoGains, // v334
+    stopChartIdx, stopYears, immoBreakdownResult
+  } = result;
 
-  // Compute actual (non-cumulative) values for each band
-  const actualImmo = dataImmo.map(v => v);
-  const actualCapital = dataBase.map((v, i) => v - dataImmo[i]);
-  const actualGains = dataGains.map((v, i) => v - dataBase[i]);
+  // v334 — Nouvel ordre bas→haut : Capital Investi, Immo Investi, Immo Gains, Intérêts.
+  // Pour Chart.js avec fill: '-1', chaque dataset stocke la valeur CUMULÉE (= bord supérieur
+  // de la bande). Le tooltip et le legend-click utilisent _actual = taille réelle de la bande.
+  const len = dataLabels.length;
+  const actualCapital = dataCapital.map(v => v);
+  const actualImmoInvested = dataImmoInvested.map(v => v);
+  const actualImmoGains = dataImmoGains.map(v => v);
+  // Intérêts marché = NW - (Capital + Immo Invested + Immo Gains). Garanti ≥ 0 par construction
+  // sauf arrondis ponctuels (clamp à 0).
+  const actualMarketGains = dataNW.map((nw, i) => Math.max(0, nw - dataCapital[i] - dataImmoInvested[i] - dataImmoGains[i]));
+
+  // Cumulatifs (bord supérieur de chaque bande) pour Chart.js
+  const cumCapital = dataCapital.map(v => v);
+  const cumPlusImmoInv = cumCapital.map((v, i) => v + actualImmoInvested[i]);
+  const cumPlusImmoGains = cumPlusImmoInv.map((v, i) => v + actualImmoGains[i]);
+  const cumPlusMarket = cumPlusImmoGains.map((v, i) => v + actualMarketGains[i]); // = dataNW (modulo arrondi)
 
   // Datasets ordered bottom-to-top for proper stacking with fill: '-1'
-  const coreCount = 4; // Immo, Capital, Gains, NW Total (before optional NW sans arret)
+  // Indices stackables : 0..3. Index 4 = NW Total (ligne overlay), 5+ = NW sans arret, sub-bands.
   const datasets = [
-    { label: 'Immobilier (equity)', data: [...dataImmo], borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.5)', fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo },
-    { label: 'Capital Investi + Contributions', data: [...dataBase], borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
-    { label: 'Gains Marche (cumul)', data: [...dataGains], borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)', fill: '-1', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualGains },
-    { label: 'Net Worth Total', data: [...dataNW], borderColor: '#1a202c', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
+    { label: 'Capital Investi',    data: [...cumCapital],       borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)',  fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
+    { label: 'Immobilier Investi', data: [...cumPlusImmoInv],   borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.50)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoInvested },
+    { label: 'Immobilier Gains',   data: [...cumPlusImmoGains], borderColor: '#d69e2e', backgroundColor: 'rgba(214,158,46,0.40)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoGains },
+    { label: 'Intérêts Marché',    data: [...cumPlusMarket],    borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)',   fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualMarketGains },
+    { label: 'Net Worth Total',    data: [...dataNW],           borderColor: '#1a202c', backgroundColor: 'transparent',            fill: false,    tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
   ];
 
   if (stopYears > 0) {
@@ -352,9 +416,9 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.hidden = false;
               });
             } else {
-              // Indices 0-2 are stackable bands (Immo, Capital, Gains)
-              // Indices 3+ are overlay lines (NW Total, NW sans arret) — never stacked
-              const stackable = new Set([...selected].filter(i => i < 3));
+              // v334 — Indices 0-3 sont les bandes empilables (Capital, Immo Inv, Immo Gains, Intérêts).
+              //        Indices 4+ sont les lignes overlay (NW Total, NW sans arret) — jamais empilées.
+              const stackable = new Set([...selected].filter(i => i < 4));
               const sortedStack = [...stackable].sort((a, b) => a - b);
               const len = dataLabels.length;
               let cumulative = new Array(len).fill(0);
@@ -370,7 +434,7 @@ function buildSimChart(canvasId, chartKey, result) {
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
                   ds.borderWidth = 1.5;
                   ds.hidden = false;
-                } else if (selected.has(i) && i >= 3) {
+                } else if (selected.has(i) && i >= 4) {
                   // Overlay line (NW Total, NW sans arret): show as-is, no stacking
                   ds.data = [...ds._actual];
                   ds.fill = false;
@@ -382,8 +446,11 @@ function buildSimChart(canvasId, chartKey, result) {
                 }
               });
 
-              // If only Immo selected and breakdown available → add stacked filled bands per apartment
-              if (selected.size === 1 && selected.has(0) && immoBreakdownResult) {
+              // v334 — Si Immo Investi + Immo Gains sont sélectionnés ensemble (et uniquement
+              // ces deux), on affiche le breakdown par propriété à la place des 2 bandes immo.
+              // Chaque sub-band représente l'equity TOTALE d'une propriété (invested + gains).
+              const onlyImmoBandsSelected = selected.size === 2 && selected.has(1) && selected.has(2);
+              if (onlyImmoBandsSelected && immoBreakdownResult) {
                 const subBorders = ['#c05621', '#b7791f', '#d69e2e'];
                 const subBgs = ['rgba(192,86,33,0.45)', 'rgba(183,121,31,0.35)', 'rgba(214,158,46,0.25)'];
                 let cumSub = new Array(len).fill(0);
@@ -404,8 +471,9 @@ function buildSimChart(canvasId, chartKey, result) {
                     _subLabel: b.label,
                   });
                 });
-                // Hide the main Immo area fill (sub-bands replace it)
-                chart.data.datasets[0].backgroundColor = 'transparent';
+                // Masquer les 2 bandes immo principales (les sub-bands prennent leur place)
+                chart.data.datasets[1].backgroundColor = 'transparent';
+                chart.data.datasets[2].backgroundColor = 'transparent';
               }
             }
             chart.update();
@@ -465,6 +533,32 @@ function buildSimChart(canvasId, chartKey, result) {
       }
     ]
   });
+}
+
+// ============ GENERIC PROPERTY CRD COMPUTER ============
+// Returns the remaining loan principal (CRD) for a property at simulator month m.
+// Used by the 4-band chart stacking to split immo equity into:
+//   - "Immo Investi" (capital apporté + capital amorti) = startEquity + (CRD(0) - CRD(m))
+//   - "Immo Gains" (plus-value brute)                  = equity(m) - "Immo Investi"
+// Plafonné pour que la somme des bandes reste strictement égale à equity(m).
+function makeComputePropertyCRD(iv, loanKey) {
+  return (m) => {
+    if (!iv || !iv.amortSchedules || !iv.amortSchedules[loanKey]) return 0;
+    const sched = iv.amortSchedules[loanKey].schedule;
+    if (!sched || sched.length === 0) return 0;
+    const simBaseDate = new Date(2026, 2, 1); // aligné avec simBaseDate ailleurs
+    const targetDate = new Date(simBaseDate);
+    targetDate.setMonth(targetDate.getMonth() + m);
+    const dateStr = targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0');
+    let crd = 0;
+    for (let i = 0; i < sched.length; i++) {
+      if (sched[i].date === dateStr) { crd = sched[i].remainingCRD; break; }
+      if (sched[i].date < dateStr) crd = sched[i].remainingCRD;
+      else break;
+    }
+    if (sched.length > 0 && dateStr > sched[sched.length - 1].date) crd = 0;
+    return crd;
+  };
 }
 
 // ============ GENERIC PROPERTY EQUITY COMPUTER ============
@@ -567,6 +661,11 @@ function runCoupleSimulator(state) {
   const computeRueilEquity = makeComputePropertyEquity(iv, 'rueil', iv?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
   const computeVillejuifEquity = makeComputePropertyEquity(iv, 'villejuif', iv?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
 
+  // CRD par property pour le split "Immo Investi" vs "Immo Gains" (v334)
+  const computeVitryCRD = makeComputePropertyCRD(iv, 'vitry');
+  const computeRueilCRD = makeComputePropertyCRD(iv, 'rueil');
+  const computeVillejuifCRD = makeComputePropertyCRD(iv, 'villejuif');
+
   // Compute initial equity at m=0 to align startEquity with computePropertyEquity(0)
   const vitryEq0 = computeVitryEquity(0);
   const rueilEq0 = computeRueilEquity(0);
@@ -604,18 +703,21 @@ function runCoupleSimulator(state) {
         label: 'Vitry',
         startEquity: vitryEq0,
         growthFn: computeVitryEquity,
+        crdFn: computeVitryCRD,
         _computedEquity: true
       },
       {
         label: 'Rueil',
         startEquity: rueilEq0,
         growthFn: computeRueilEquity,
+        crdFn: computeRueilCRD,
         _computedEquity: true
       },
       {
         label: 'Villejuif',
         startEquity: 0,
         growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0,
+        crdFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifCRD(m) : 0,
         _computedEquity: true
       },
     ]
@@ -635,9 +737,10 @@ function runAmineSimulator(state) {
   const aminePoolCash = s.pools.cash + s.amine.recvPro + s.amine.recvPersonal;
   const amineStatic = s.amine.vehicles + s.amine.tva;
 
-  // Create property equity computer for Vitry
+  // Create property equity + CRD computer for Vitry
   const iv = s.immoView;
   const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
+  const computeVitryCRD = makeComputePropertyCRD(iv, 'vitry'); // v334 — split invested/gains
 
   // Align starting equity with what computeVitryEquity(0) returns
   const vitryEq0 = computeVitryEquity(0);
@@ -656,7 +759,17 @@ function runAmineSimulator(state) {
       const delta = totalEquity - prevImmoTotal;
       prevImmoTotal = totalEquity;
       return delta;
-    }
+    },
+    // v334 — single property Vitry pour bénéficier du split 4 bandes
+    immoBreakdown: [
+      {
+        label: 'Vitry',
+        startEquity: vitryEq0,
+        growthFn: computeVitryEquity,
+        crdFn: computeVitryCRD,
+        _computedEquity: true
+      }
+    ]
   });
   buildSimChart('amSimChart', 'amSim', result);
 }
