@@ -5,6 +5,46 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## BUG-063: Débordement mobile systémique — 13 tableaux non wrappés (audit post-v326)
+- **Version**: Cumulatif (chaque tableau introduit depuis v1), v327 (corrigé en masse)
+- **Sévérité**: Moyenne/Haute (page entière déborde horizontalement sur iPhone → toutes les vues affectées)
+- **Détection**: Retour utilisateur post-v326 : « y a plein d'autres tableaux/documents sur toutes les pages qui ont une largeur supérieure et par conséquent qui font que la page est plus large et n'est pas bien affichée ». Après que v326 ait corrigé le tableau « Toutes les Positions », l'utilisateur a fait le tour des autres vues et constaté que le débordement affectait en cascade Couple, Actions, Cash, Immobilier, Créances, Budget, Plan-Fiscal, Property Detail.
+- **Symptôme**: Sur iPhone 375-430px, chaque tableau ≥ 5 colonnes faisait déborder son parent. Le `body { overflow-x: hidden }` (ligne ~888) masquait visuellement le débordement mais les cellules wrappaient sur 2-3 lignes (comme BUG-062 mais multiplié par 13 tableaux). La conséquence visible : page globalement « trop large », layout cassé, zoom automatique inconsistant.
+- **Cause racine**: Pattern historique inconsistant. Les tableaux ajoutés successivement (v1 → v325) n'ont pas tous reçu le wrapper responsive. Seuls 6 tableaux avaient été wrappés en v229 (Plan Objectifs, Sensibilité, Calendrier Fiscal, Loyer Vitry, PV Vitry, Rapatriement) + 1 en v321 (Financement) + 1 en v326 (Positions). Les 13 autres tableaux étaient encore bare :
+  - HIGH : #whtTable (9 cols), #fiscalTable (9 cols), #allClosedTable (8 cols), propDetailLoans dynamique, pdFiscalTable dynamique
+  - MEDIUM : #immoLoansTable (7), #amortSummaryTable (8), #creancesTable (8), #cashTable (8), #cfProjectionTable (5), #budgetTable (7), immoCFTable dynamique (10 !)
+  - LOW : #immoTable (7), #dettesTable (5), #recoveredTable (7)
+
+  Plus : 4 tableaux dynamiques render.js (`overflow-x:auto` + `width:100%`) où le `width:100%` empêche le scroll de se déclencher — la table se rétrécit au lieu de déborder. Le scroll ne s'active jamais.
+- **Correctif** (index.html + render.js) :
+  1. **Pattern universel** : classe `.table-wrap` avec CSS variable `--tbl-min` paramétrable.
+     ```css
+     .table-wrap { overflow-x: auto; max-width: 100%; }
+     .table-wrap > table { min-width: var(--tbl-min, 600px); }
+     ```
+  2. **13 tableaux statiques HTML** wrappés dans `<div class="table-wrap" style="--tbl-min:Xpx">` avec valeur calibrée par nombre de colonnes (520px pour 5 cols, 680-740px pour 7 cols, 820-900px pour 8-9 cols).
+  3. **5 tableaux dynamiques render.js** : ajout de `min-width:Xpx` sur le `<table>` (préserve le comportement desktop via `width:100%`, force le scroll mobile). Locations : lignes 4884 (propDetailLoans), 5164 (pdFiscalTable), 5356 (propDetailLoans #2), 5610 (Jeanbrun comparison), 5649 (Exit projection).
+  4. **immoCFTable** (10 cols dynamique, ~4475) : wrappé dans `.table-wrap` généré inline dans l'innerHTML avec `--tbl-min:960px`.
+  5. 3 IDs ajoutés à des tableaux anonymes pour le CSS ciblé (`#whtTable`, `#fiscalTable`, `#immoLoansTable`, `#amortSummaryTable`).
+- **Alternatives rejetées**:
+  - **Blanket CSS `display:block` sur toutes les tables mobile** : casse `table-layout`, désaligne thead/tbody, casse le scroll-shadow, impacte le tri data-sort. Rejeté au profit du wrapper qui conserve le comportement natif.
+  - **Wrap via selector générique `.card table`** : risque de wrapper des tableaux 2-3 cols qui n'en ont pas besoin et d'ajouter un scroll horizontal inutile. Rejeté au profit d'un wrap explicite table-par-table.
+- **Test de non-régression** (iPhone 375px + 390px + 430px) :
+  - [ ] Vue Couple : #immoTable scroll horizontal ok, pas de wrap vertical dans les cellules
+  - [ ] Vue Actions : #allClosedTable + #whtTable scroll ok, KPI strip WHT (4 cols) responsive
+  - [ ] Vue Cash : #cashTable 8 cols scroll ok, valeurs natives « 5000 USD » et yields « 4.5% » sur une ligne
+  - [ ] Vue Immobilier (sous-vues Synthèse) : #immoLoansTable + #amortSummaryTable + #fiscalTable scroll ok
+  - [ ] Vue Immobilier (Cash Flow) : immoCFTable 10 cols scroll ok (v327 wrapped inline dans render.js)
+  - [ ] Vue Immobilier (CF Projection) : #cfProjectionTable scroll ok (même si 5 cols, années peuvent être longues)
+  - [ ] Vue Créances : #creancesTable + #dettesTable + #recoveredTable tous scrollent individuellement
+  - [ ] Vue Budget : #budgetTable 7 cols scroll ok, fréquences affichées sur 1 ligne
+  - [ ] Property Detail (Vitry/Rueil/Villejuif) : propDetailLoans + pdFiscalTable + Jeanbrun + Exit projection tous scrollent
+  - [ ] Desktop ≥ 1024px : aucun changement visuel, pas de scrollbar horizontale parasite (min-width < card width)
+  - [ ] Tablette 600-900px : comportement natif correct, wrappers n'activent leur scroll que si min-width > parent
+  - [ ] Tri data-sort sur toutes les colonnes toujours fonctionnel après wrap (vérifier que le clic sur `<th>` est intercepté correctement dans le wrapper)
+
+---
+
 ## BUG-061: Dropdown « Analyse » invisible sur iPhone (iOS Safari containing-block bug)
 - **Version**: v320 (dropdown introduit), v321 (refonte mobile `position: fixed`), v326 (corrigé)
 - **Sévérité**: Haute (fonctionnalité complète inaccessible sur mobile — 4 vues « Créances / Budget / Financement / Plan & Fiscalité » inatteignables depuis iPhone)
@@ -1454,7 +1494,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v326 — 19 avril 2026 (deux bugs mobile iPhone — BUG-061 dropdown « Analyse » totalement invisible sur iOS Safari : `-webkit-overflow-scrolling: touch` sur `.view-switcher` (≤480px) créait un nouveau containing block pour les descendants `position: fixed`, donc notre dropdown-menu `fixed` se comportait comme `absolute` et se faisait clipper par `overflow-x: auto`. Spec CSS violée par WebKit depuis iOS 5, non reproductible sur Chrome/Firefox mobile émulé — d'où détection tardive. Fix : suppression de la propriété (legacy, no-op depuis iOS 13 où le momentum scrolling est natif). BUG-062 tableau « Toutes les Positions » illisible sur iPhone : 10 colonnes dans 375px = ~38px/colonne, valeurs « € 44 737 » wrappaient sur 2-3 lignes, chaque ligne du tableau faisait 3× sa hauteur normale. Fix : wrapper `.positions-table-wrap { overflow-x: auto }` + `#allPositionsTable { min-width: 720px }` en ≤480px. Pattern cohérent avec les autres tableaux larges (Plan/Fiscalité/Créances/Budget/Financement) wrappés en v229/v321. Voir ARCHITECTURE.md §73.)*
+*Dernière mise à jour: v327 — 19 avril 2026 (BUG-063 — débordement mobile systémique suite à retour utilisateur post-v326 « y a plein d'autres tableaux qui ont une largeur supérieure ». Audit des 9 vues (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget, Plan-Fiscal, Property Detail) a identifié 13 tableaux ≥ 5 colonnes sans wrapper `overflow-x: auto` + 5 tableaux dynamiques render.js avec `width:100%` qui empêchait le scroll de se déclencher + 1 tableau 10 colonnes (immoCFTable) sans wrapper du tout. Fix généralisé via pattern `.table-wrap` + CSS var `--tbl-min` paramétrable : 13 wraps HTML + 5 min-width dynamiques + 1 wrap inline dans render.js. `--tbl-min` calibré par nombre de colonnes (520 px pour 5 cols, 680-740 px pour 7 cols, 820-900 px pour 8-9 cols). Règle d'or documentée : tout nouveau tableau ≥ 5 colonnes DOIT être wrappé. Voir ARCHITECTURE.md §74.)*
+
+*v326 — 19 avril 2026 (deux bugs mobile iPhone — BUG-061 dropdown « Analyse » totalement invisible sur iOS Safari : `-webkit-overflow-scrolling: touch` sur `.view-switcher` (≤480px) créait un nouveau containing block pour les descendants `position: fixed`, donc notre dropdown-menu `fixed` se comportait comme `absolute` et se faisait clipper par `overflow-x: auto`. Spec CSS violée par WebKit depuis iOS 5, non reproductible sur Chrome/Firefox mobile émulé — d'où détection tardive. Fix : suppression de la propriété (legacy, no-op depuis iOS 13 où le momentum scrolling est natif). BUG-062 tableau « Toutes les Positions » illisible sur iPhone : 10 colonnes dans 375px = ~38px/colonne, valeurs « € 44 737 » wrappaient sur 2-3 lignes, chaque ligne du tableau faisait 3× sa hauteur normale. Fix : wrapper `.positions-table-wrap { overflow-x: auto }` + `#allPositionsTable { min-width: 720px }` en ≤480px. Pattern cohérent avec les autres tableaux larges (Plan/Fiscalité/Créances/Budget/Financement) wrappés en v229/v321. Voir ARCHITECTURE.md §73.)*
 
 *v325 — 18 avril 2026 (UX senior redesign du chart Stress Casa suite à retour « les couleurs red/green/orange c'était bien, mais les graphs étaient basiques et pas UX friendly » + « améliore ce graph tel un UX graph designer senior ». Réconciliation stoplight + identity : fills/borders per-bar stoplight (signal métier primaire « puis-je financer Casa ? » en L1 lecture 1-sec), identité scénario A/B/C portée par lettre `textMuted` 10px sous la barre + caption bas `A · Cash intégral    B · Prêt banque    C · Cash + margin IBKR` (L2 lecture 10-sec). Labels inline multi-couleur `2.58 M  ✓ 65%` sans pill/background style FT/Bloomberg — moins de chart junk. Légende custom hard-codée via `generateLabels` (3 statuts + 1 besoin) qui élimine la dérivation Chart.js cassée par les arrays de backgroundColor. Error bars neutralisés en `textSecondary` pour ne pas concurrencer les fills stoplight. Layout `{ top: 22, right: 12, bottom: 40, left: 4 }` pour accueillir lettres + caption, `scales.x.ticks.padding: 18` pour cushion lettre/tick horizon. 2 nouveaux plugins Chart.js : `scenLetterPlugin` + `scenCaptionPlugin`. Voir ARCHITECTURE.md §72.)*
 

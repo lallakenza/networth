@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=326';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=326';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=327';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=327';
 
 // ---- Generic table sort utility ----
 /**
@@ -4470,9 +4470,11 @@ function renderImmoView(state) {
   }
 
   // ── Dynamic CF Table (was hardcoded in HTML) ──
+  // v327 — wrap dans un .table-wrap pour scroll horizontal mobile (10 colonnes
+  // → ~960px de large). Sans ça, les lignes wrappent sur 2-3 lignes.
   const cfTableEl = document.getElementById('immoCFTable');
   if (cfTableEl) {
-    let html = '<table style="margin-top:10px;"><thead><tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr></thead><tbody>';
+    let html = '<div class="table-wrap" style="--tbl-min: 960px"><table style="margin-top:10px;"><thead><tr><th>Bien</th><th class="num">Mensualite pret</th><th class="num">Assurance credit</th><th class="num">PNO</th><th class="num">TF /12</th><th class="num">Copro /12</th><th class="num">Total charges</th><th class="num">Loyer HC</th><th class="num">Revenus totaux</th><th class="num" style="background:#f0fff4;color:var(--green)">Cash Flow</th></tr></thead><tbody>';
     fp.forEach((prop, i) => {
       const cd = prop.chargesDetail || {};
       const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
@@ -4496,7 +4498,7 @@ function renderImmoView(state) {
         + '<td class="num ' + cfClass + '"' + cfStyle + '>' + cfText + '</td>'
         + '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>'; // v327 close .table-wrap
     cfTableEl.innerHTML = html;
   }
 
@@ -4881,7 +4883,10 @@ function renderPropertyDetail(state, prop) {
   if (loansEl) {
     let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Détail des prêts</h4>';
     if (prop.loanDetails && prop.loanDetails.length > 0) {
-      html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
+      // v327 — min-width pour forcer scroll horizontal sur mobile (width:100%
+      // seul fait que la table se rétrécit à la largeur du parent, donc jamais
+      // d'overflow).
+      html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.82rem;width:100%;min-width:620px;">'
         + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
       let totalMens = 0, totalAss = 0, totalPrincipal = 0;
       prop.loanDetails.forEach(l => {
@@ -5161,7 +5166,8 @@ function renderFiscalSimulator(container, prop) {
       + '<td class="num" style="color:#2b6cb0;font-weight:700;">' + cashCumule.toLocaleString('fr-FR') + ' €</td>'
       + '</tr>');
 
-    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;"><table style="font-size:0.78rem;width:100%;">'
+    // v327 — min-width pour forcer scroll horizontal sur mobile (9+ colonnes)
+    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.78rem;width:100%;min-width:880px;">'
       + '<thead><tr>'
       + '<th>Année</th>'
       + '<th class="num" style="background:#ebf8ff;" colspan="4">Si tu déclares ' + loyerDeclareCC + '€ CC</th>'
@@ -5353,7 +5359,8 @@ function renderAptView(state, loanKey) {
   html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
   html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Détail des prêts</h3>';
   if (prop.loanDetails && prop.loanDetails.length > 0) {
-    html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;">'
+    // v327 — min-width pour forcer scroll horizontal sur mobile
+    html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.82rem;width:100%;min-width:620px;">'
       + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
     let totalMens = 0, totalAss = 0, totalPrincipal = 0;
     prop.loanDetails.forEach(l => {
@@ -5607,7 +5614,8 @@ function renderAptView(state, loanKey) {
       html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:10px;color:#718096;">Avantage 10 ans</div></div>';
       html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:10px;color:#718096;">Réduction JB totale</div></div>';
       html += '</div>';
-      html += '<div style="overflow-x:auto;"><table style="font-size:0.75rem;width:100%;">'
+      // v327 — min-width pour forcer scroll horizontal sur mobile (8 colonnes)
+      html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.75rem;width:100%;min-width:780px;">'
         + '<thead><tr><th>Année</th>'
         + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
         + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
@@ -5646,7 +5654,8 @@ function renderAptView(state, loanKey) {
   const fiscType = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[loanKey] ? IMMO_CONSTANTS.fiscalite[loanKey].type : 'nu';
 
   const showTVACol = loanKey === 'vitry'; // TVA clawback only applies to Vitry
-  html += '<div style="overflow-x:auto;"><table style="font-size:0.8rem;width:100%;">'
+  // v327 — min-width pour forcer scroll horizontal sur mobile (7-8 colonnes)
+  html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.8rem;width:100%;min-width:720px;">'
     + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
     + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + '<th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
@@ -6767,7 +6776,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=326').then(m => {
+  import('./charts.js?v=327').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
