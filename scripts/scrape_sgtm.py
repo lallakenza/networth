@@ -41,6 +41,8 @@ import os
 import re
 import sys
 import time
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,6 +78,66 @@ def parse_french_number(s: str) -> float | None:
         return val if MIN_PRICE <= val <= MAX_PRICE else None
     except ValueError:
         return None
+
+
+def scrape_casablanca_bourse_http() -> dict | None:
+    """Source OFFICIELLE de la Bourse de Casablanca — HTML rendu server-side,
+    aucune dépendance à Playwright. Ultra-rapide (~1s), pas de Cloudflare.
+
+    URL : https://www.casablanca-bourse.com/fr/live-market/instruments/GTM
+    (le symbole côté BVC est "GTM" — ticker abrégé de Société Générale
+    des Travaux du Maroc ; côté broker retail c'est souvent "SGTM")
+
+    Le prix apparaît dans un `<td><span dir="ltr">826,00</span></td>` précédé
+    du `<th>Cours (MAD)</th>`. Les cours sont en différé 15 minutes (standard BVC),
+    ce qui est largement suffisant pour un dashboard patrimonial quotidien.
+    """
+    url = "https://www.casablanca-bourse.com/fr/live-market/instruments/GTM"
+    print(f"[casablanca-bourse] HTTP GET {url} ...")
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "fr-FR,fr;q=0.9",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status != 200:
+                print(f"[casablanca-bourse] HTTP {resp.status}")
+                return None
+            html = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+        print(f"[casablanca-bourse] erreur réseau: {e}")
+        return None
+
+    # Chercher : <th>Cours (MAD)</th><td ...><span dir="ltr">826,00</span></td>
+    m = re.search(
+        r'Cours \(MAD\)</th>\s*<td[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>([^<]+)</span>',
+        html,
+        re.IGNORECASE,
+    )
+    if not m:
+        # Fallback : span avec classe "text-right" après "Cours (MAD)"
+        m = re.search(r'Cours \(MAD\)</th>.{0,500}?>(\d[\d\s.,]{0,15}\d)<', html, re.DOTALL | re.IGNORECASE)
+    if not m:
+        print("[casablanca-bourse] selecteur Cours (MAD) introuvable")
+        # Debug: afficher les 500 premiers caractères autour du mot "Cours"
+        idx = html.lower().find("cours (mad)")
+        if idx > 0:
+            print(f"[casablanca-bourse] contexte: {html[idx:idx+400]!r}")
+        return None
+
+    raw = m.group(1).strip()
+    val = parse_french_number(raw)
+    if val is None:
+        print(f"[casablanca-bourse] raw='{raw}' hors bornes [{MIN_PRICE}, {MAX_PRICE}]")
+        return None
+
+    print(f"[casablanca-bourse] ✓ prix={val} MAD (raw='{raw}')")
+    return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw}
 
 
 def scrape_idbourse(page: Page) -> dict | None:
@@ -220,7 +282,25 @@ def _dump_debug(page: Page, tag: str) -> None:
 
 
 def scrape() -> dict | None:
-    """Tente chaque source dans l'ordre. Retourne le premier résultat valide."""
+    """Tente chaque source dans l'ordre. Retourne le premier résultat valide.
+
+    Stratégie :
+      1. casablanca-bourse.com (HTTP direct, pas de Playwright) — source officielle BVC,
+         HTML rendu server-side, ~1s, 99 % de fiabilité. Primaire.
+      2. idbourse.com (Playwright, SPA Next.js) — 2ème opinion.
+      3. investing.com (Playwright passe Cloudflare) — dernier recours.
+
+    leboursier.ma volontairement retiré : domaine mort (DNS SERVFAIL) au 19/04/2026.
+    Peut être réintroduit si le DNS revient.
+    """
+    # Tentative 1 : source officielle via HTTP simple. Si ça marche, on évite
+    # complètement le setup Playwright (gain ~30s).
+    result = scrape_casablanca_bourse_http()
+    if result is not None:
+        return result
+
+    # Tentative 2 + 3 : Playwright pour idbourse + investing
+    print("[scrape] casablanca-bourse.com KO → fallback Playwright (idbourse + investing)")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -232,8 +312,7 @@ def scrape() -> dict | None:
         )
         page = context.new_page()
 
-        # Ordre : leboursier (simple, pas de Cloudflare) → idbourse (SPA Next.js) → investing (Cloudflare)
-        for scraper in (scrape_leboursier, scrape_idbourse, scrape_investing):
+        for scraper in (scrape_idbourse, scrape_investing):
             try:
                 result = scraper(page)
                 if result is not None:
