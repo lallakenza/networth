@@ -995,7 +995,7 @@ export const PORTFOLIO = {
       lclCompteDepots: 20412,  // EUR — LCL Compte principal (0%) — MAJ 19/04/2026
       ibkrEUR: 16260,          // EUR — IBKR Nezha (broker, cash/NAV) — MAJ 19/04/2026
       attijariwafarMAD: 11900, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 19/04/2026
-      wioAED: 20106,           // AED — Wio Savings UAE (0%) — MAJ non disponible, valeur inchangée
+      wioAED: 18385,           // AED — Wio UAE (UAE Dirham 17,882.10 + Family account 502.50 = 18,384.60 AED, arrondi) — MAJ 20/04/2026
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
@@ -1150,8 +1150,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '19/04/2026';
-export const APP_VERSION = 'v332';
+export const DATA_LAST_UPDATE = '20/04/2026';
+export const APP_VERSION = 'v333';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

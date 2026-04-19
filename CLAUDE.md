@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v332 (19 avril 2026)
+- **Current version**: v333 (20 avril 2026)
 
 ## Architecture
 
