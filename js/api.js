@@ -228,6 +228,7 @@ async function fetchSGTMFromRepo() {
     return {
       price: snap.priceMAD,
       source: sourcePrefix + (snap.source || 'unknown'),
+      lastUpdate: snap.lastUpdate, // ISO string (UTC) exposée à render.js pour badge tooltip
       ageMs,
       stale,
     };
@@ -249,7 +250,7 @@ async function fetchSGTMPrice() {
   // Tentative 1 : JSON frais < 24h
   const fromRepo = await repoPromise;
   if (fromRepo && !fromRepo.stale) {
-    return { price: fromRepo.price, source: fromRepo.source, ageMs: fromRepo.ageMs };
+    return { price: fromRepo.price, source: fromRepo.source, lastUpdate: fromRepo.lastUpdate, ageMs: fromRepo.ageMs };
   }
 
   // Tentative 2 : scraping runtime via proxies CORS
@@ -327,7 +328,7 @@ async function fetchSGTMPrice() {
     if (fromRepo && fromRepo.stale) {
       console.log('[api] SGTM : scraping échoué, fallback sur dernier relevé stale ('
         + Math.round(fromRepo.ageMs / 3600000) + 'h)');
-      return { price: fromRepo.price, source: fromRepo.source, ageMs: fromRepo.ageMs };
+      return { price: fromRepo.price, source: fromRepo.source, lastUpdate: fromRepo.lastUpdate, ageMs: fromRepo.ageMs };
     }
     return null;
   }
@@ -406,6 +407,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
       portfolio.market.sgtmPriceMAD = cachedSGTM;
       portfolio.market._sgtmLive = true;
       portfolio.market._sgtmSource = cache.sgtm.source || 'cache';
+      portfolio.market._sgtmLastUpdate = cache.sgtm.lastUpdate || null;
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
       // Also re-fetch SGTM if stale
@@ -428,7 +430,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
     if (!prices[pos.ticker]) pos._live = false;
   });
   if (!prices['ACN']) portfolio.market._acnLive = false;
-  if (!cachedSGTM) { portfolio.market._sgtmLive = false; portfolio.market._sgtmSource = null; }
+  if (!cachedSGTM) { portfolio.market._sgtmLive = false; portfolio.market._sgtmSource = null; portfolio.market._sgtmLastUpdate = null; }
 
   // ---- Fetch all missing tickers in parallel (no batching!) ----
   // Each ticker applies immediately and triggers a progressive UI refresh
@@ -463,7 +465,8 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
             portfolio.market.sgtmPriceMAD = r.price;
             portfolio.market._sgtmLive = true;
             portfolio.market._sgtmSource = r.source || 'unknown';
-            cache.sgtm = { price: r.price, source: r.source, _ts: Date.now() };
+            portfolio.market._sgtmLastUpdate = r.lastUpdate || null; // ISO UTC, null si scraping runtime (source=google/leboursier/investing)
+            cache.sgtm = { price: r.price, source: r.source, lastUpdate: r.lastUpdate || null, _ts: Date.now() };
             cacheUpdated = true;
             if (onTickerLoaded) onTickerLoaded();
           }
