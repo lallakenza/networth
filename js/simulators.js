@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=334';
-import { IMMO_CONSTANTS } from './data.js?v=334';
+import { fmt, fmtAxis } from './render.js?v=335';
+import { IMMO_CONSTANTS } from './data.js?v=335';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -62,6 +62,10 @@ function runSimulatorGeneric(config) {
 
   let cumContributions = 0;
   let cumImmoReturns = 0;
+  // v335 — cumul des loyers nets perçus (post-charges, post-impôt) injectés dans le cash pool.
+  // Permet de distinguer "capital épargné" (cumContributions) de "cash-flow immo reçu".
+  let cumRentalCF = 0;
+  let cumRentalCFNS = 0; // version "sans arrêt" (identique ici puisque immo tourne en background)
 
   // Per-property immo tracking
   const props = immoBreakdown || [];
@@ -72,10 +76,11 @@ function runSimulatorGeneric(config) {
   const propBaselines = props.map(() => ({ captured: false, baseEquity: 0, baseCRD: 0 }));
 
   const dataLabels = [], dataNW = [], dataImmo = [], dataBase = [], dataGains = [], dataNWNoStop = [];
-  // v334 — nouvelles séries pour le chart 4 bandes (Capital / Immo Invested / Immo Gains / Intérêts)
+  // v334/335 — séries pour le chart empilé (Capital / Immo Investi / Immo Gains / Loyers / Intérêts)
   const dataCapital = [];       // liquide investi : startLiquidBase + cumContributions
   const dataImmoInvested = [];  // somme par property : baseEquity + (baseCRD - CRD(m)), clampé
   const dataImmoGains = [];     // equity totale − invested (plus-value brute)
+  const dataRentalCF = [];      // v335 — cumul des loyers nets perçus
   const immoBreakdownData = props.map(() => []); // per-property equity arrays
   let month1M = -1;
   let stopChartIdx = -1;
@@ -87,7 +92,8 @@ function runSimulatorGeneric(config) {
     const liquidNS = poolActionsNS + poolCashNS + staticAssets;
     const totalNWns = immoNow + liquidNS;
     const isContributing = m < stopMonth;
-    const gainsNow = liquidNow - startLiquidBase - cumContributions;
+    // v335 — sépare les loyers encaissés du vrai gain marché pour éviter le double-comptage.
+    const gainsNow = liquidNow - startLiquidBase - cumContributions - cumRentalCF;
 
     if (true) { // Monthly granularity — every data point
       const date = new Date(2026, 2 + m, 1);
@@ -133,7 +139,7 @@ function runSimulatorGeneric(config) {
       // If no breakdown props, fall back to delta-based immo
       const immoVal = props.length > 0 ? immoFromProps : Math.round(immoNow);
       // Si pas de breakdown du tout, rendre l'intégralité de l'equity comme "Immo Investi"
-      // (faute de mieux) pour que la somme des 4 bandes reste égale à NW.
+      // (faute de mieux) pour que la somme des 5 bandes reste égale à NW.
       if (props.length === 0) {
         immoInvestedSum = immoVal;
         immoGainsSum = 0;
@@ -148,6 +154,7 @@ function runSimulatorGeneric(config) {
       dataCapital.push(Math.round(startLiquidBase + cumContributions));
       dataImmoInvested.push(Math.round(immoInvestedSum));
       dataImmoGains.push(Math.round(immoGainsSum));
+      dataRentalCF.push(Math.round(cumRentalCF)); // v335
       if (stopYears > 0 && stopChartIdx === -1 && m >= stopMonth) stopChartIdx = dataLabels.length - 1;
     }
 
@@ -174,6 +181,24 @@ function runSimulatorGeneric(config) {
     }
     poolActionsNS += monthlySavings * pctActions;
     poolCashNS += monthlySavings * (1 - pctActions);
+
+    // v335 — Cash-flow locatif net : injecté intégralement dans poolCash (pas split actions/cash).
+    // Hypothèse : les loyers arrivent sur le compte courant, l'utilisateur les laisse en cash ou
+    // les arbitre manuellement vers actions lors de la prochaine période d'épargne.
+    // Continue même après stopMonth car le stop ne concerne QUE l'épargne personnelle —
+    // l'immo continue de produire du cash flow naturellement.
+    let rentalCFThisMonth = 0;
+    props.forEach((p) => {
+      if (typeof p.cashFlowFn === 'function') {
+        rentalCFThisMonth += p.cashFlowFn(m) || 0;
+      }
+    });
+    if (rentalCFThisMonth !== 0) {
+      poolCash += rentalCFThisMonth;
+      poolCashNS += rentalCFThisMonth;
+      cumRentalCF += rentalCFThisMonth;
+      cumRentalCFNS += rentalCFThisMonth;
+    }
   }
 
   const finalNW = dataNW[dataNW.length - 1];
@@ -304,6 +329,7 @@ function runSimulatorGeneric(config) {
   return {
     dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop,
     dataCapital, dataImmoInvested, dataImmoGains, // v334
+    dataRentalCF, // v335
     stopChartIdx, stopYears, immoBreakdownResult
   };
 }
@@ -311,35 +337,38 @@ function runSimulatorGeneric(config) {
 function buildSimChart(canvasId, chartKey, result) {
   const {
     dataLabels, dataNW, dataBase, dataGains, dataImmo, dataNWNoStop,
-    dataCapital, dataImmoInvested, dataImmoGains, // v334
+    dataCapital, dataImmoInvested, dataImmoGains, dataRentalCF, // v334/335
     stopChartIdx, stopYears, immoBreakdownResult
   } = result;
 
-  // v334 — Nouvel ordre bas→haut : Capital Investi, Immo Investi, Immo Gains, Intérêts.
+  // v334/335 — Stacking bas→haut : Capital, Immo Investi, Immo Gains, Loyers perçus, Intérêts Marché.
   // Pour Chart.js avec fill: '-1', chaque dataset stocke la valeur CUMULÉE (= bord supérieur
   // de la bande). Le tooltip et le legend-click utilisent _actual = taille réelle de la bande.
   const len = dataLabels.length;
   const actualCapital = dataCapital.map(v => v);
   const actualImmoInvested = dataImmoInvested.map(v => v);
   const actualImmoGains = dataImmoGains.map(v => v);
-  // Intérêts marché = NW - (Capital + Immo Invested + Immo Gains). Garanti ≥ 0 par construction
-  // sauf arrondis ponctuels (clamp à 0).
-  const actualMarketGains = dataNW.map((nw, i) => Math.max(0, nw - dataCapital[i] - dataImmoInvested[i] - dataImmoGains[i]));
+  const actualRentalCF = (dataRentalCF || new Array(len).fill(0)).map(v => v);
+  // Intérêts marché = NW - (Capital + Immo Invested + Immo Gains + Loyers cumulés).
+  // Garanti ≥ 0 par construction (modulo arrondis).
+  const actualMarketGains = dataNW.map((nw, i) => Math.max(0, nw - dataCapital[i] - dataImmoInvested[i] - dataImmoGains[i] - actualRentalCF[i]));
 
   // Cumulatifs (bord supérieur de chaque bande) pour Chart.js
   const cumCapital = dataCapital.map(v => v);
   const cumPlusImmoInv = cumCapital.map((v, i) => v + actualImmoInvested[i]);
   const cumPlusImmoGains = cumPlusImmoInv.map((v, i) => v + actualImmoGains[i]);
-  const cumPlusMarket = cumPlusImmoGains.map((v, i) => v + actualMarketGains[i]); // = dataNW (modulo arrondi)
+  const cumPlusRental = cumPlusImmoGains.map((v, i) => v + actualRentalCF[i]);
+  const cumPlusMarket = cumPlusRental.map((v, i) => v + actualMarketGains[i]); // = dataNW (modulo arrondi)
 
-  // Datasets ordered bottom-to-top for proper stacking with fill: '-1'
-  // Indices stackables : 0..3. Index 4 = NW Total (ligne overlay), 5+ = NW sans arret, sub-bands.
+  // Datasets ordered bottom-to-top for proper stacking with fill: '-1'.
+  // Indices stackables : 0..4. Index 5 = NW Total (ligne overlay), 6+ = NW sans arret, sub-bands.
   const datasets = [
-    { label: 'Capital Investi',    data: [...cumCapital],       borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)',  fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
-    { label: 'Immobilier Investi', data: [...cumPlusImmoInv],   borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.50)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoInvested },
-    { label: 'Immobilier Gains',   data: [...cumPlusImmoGains], borderColor: '#d69e2e', backgroundColor: 'rgba(214,158,46,0.40)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoGains },
-    { label: 'Intérêts Marché',    data: [...cumPlusMarket],    borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)',   fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualMarketGains },
-    { label: 'Net Worth Total',    data: [...dataNW],           borderColor: '#1a202c', backgroundColor: 'transparent',            fill: false,    tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
+    { label: 'Capital Investi',     data: [...cumCapital],       borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)',  fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
+    { label: 'Immobilier Investi',  data: [...cumPlusImmoInv],   borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.50)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoInvested },
+    { label: 'Immobilier Gains',    data: [...cumPlusImmoGains], borderColor: '#d69e2e', backgroundColor: 'rgba(214,158,46,0.40)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoGains },
+    { label: 'Loyers perçus',       data: [...cumPlusRental],    borderColor: '#805ad5', backgroundColor: 'rgba(128,90,213,0.35)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualRentalCF },
+    { label: 'Intérêts Marché',     data: [...cumPlusMarket],    borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)',   fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualMarketGains },
+    { label: 'Net Worth Total',     data: [...dataNW],           borderColor: '#1a202c', backgroundColor: 'transparent',            fill: false,    tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
   ];
 
   if (stopYears > 0) {
@@ -367,7 +396,7 @@ function buildSimChart(canvasId, chartKey, result) {
             return true;
           },
           itemSort: function(a, b) {
-            // Reverse order: NW Total first, then Gains, Capital, Immo last
+            // Reverse order: NW Total en premier, puis Intérêts, Loyers, Immo Gains, Immo Investi, Capital en dernier
             return b.datasetIndex - a.datasetIndex;
           },
           callbacks: {
@@ -416,9 +445,10 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.hidden = false;
               });
             } else {
-              // v334 — Indices 0-3 sont les bandes empilables (Capital, Immo Inv, Immo Gains, Intérêts).
-              //        Indices 4+ sont les lignes overlay (NW Total, NW sans arret) — jamais empilées.
-              const stackable = new Set([...selected].filter(i => i < 4));
+              // v334/335 — Indices 0-4 sont les bandes empilables
+              //   (Capital, Immo Inv, Immo Gains, Loyers perçus, Intérêts).
+              //   Indices 5+ sont les lignes overlay (NW Total, NW sans arret) — jamais empilées.
+              const stackable = new Set([...selected].filter(i => i < 5));
               const sortedStack = [...stackable].sort((a, b) => a - b);
               const len = dataLabels.length;
               let cumulative = new Array(len).fill(0);
@@ -434,7 +464,7 @@ function buildSimChart(canvasId, chartKey, result) {
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
                   ds.borderWidth = 1.5;
                   ds.hidden = false;
-                } else if (selected.has(i) && i >= 4) {
+                } else if (selected.has(i) && i >= 5) {
                   // Overlay line (NW Total, NW sans arret): show as-is, no stacking
                   ds.data = [...ds._actual];
                   ds.fill = false;
@@ -446,7 +476,7 @@ function buildSimChart(canvasId, chartKey, result) {
                 }
               });
 
-              // v334 — Si Immo Investi + Immo Gains sont sélectionnés ensemble (et uniquement
+              // v334/335 — Si Immo Investi + Immo Gains sont sélectionnés ensemble (et uniquement
               // ces deux), on affiche le breakdown par propriété à la place des 2 bandes immo.
               // Chaque sub-band représente l'equity TOTALE d'une propriété (invested + gains).
               const onlyImmoBandsSelected = selected.size === 2 && selected.has(1) && selected.has(2);
@@ -666,6 +696,25 @@ function runCoupleSimulator(state) {
   const computeRueilCRD = makeComputePropertyCRD(iv, 'rueil');
   const computeVillejuifCRD = makeComputePropertyCRD(iv, 'villejuif');
 
+  // v335 — Cash-flow locatif mensuel par property.
+  // `cf` = loyer total (loyer HC + parking + charges locataires) − charges totales
+  //        (mensualité prêt P+I + assurance + PNO + TF + copro). Déjà net fiscal via `cfNetFiscal`.
+  // Quand le prêt est soldé (CRD=0), on réinjecte `monthlyPret` car la mensualité cesse.
+  const vitryProp = iv?.properties?.find(p => p.loanKey === 'vitry');
+  const rueilProp = iv?.properties?.find(p => p.loanKey === 'rueil');
+  const villejuifProp = iv?.properties?.find(p => p.loanKey === 'villejuif');
+  const vitryCfBase = (vitryProp?.cfNetFiscal ?? vitryProp?.cf) || 0;
+  const rueilCfBase = (rueilProp?.cfNetFiscal ?? rueilProp?.cf) || 0;
+  const villejuifCfBase = (villejuifProp?.cfNetFiscal ?? villejuifProp?.cf) || 0;
+  const vitryPret = vitryProp?.monthlyPret || 0;
+  const rueilPret = rueilProp?.monthlyPret || 0;
+  const villejuifPret = villejuifProp?.monthlyPret || 0;
+  const makeCfFn = (cfBase, pret, crdFn, activeMonth) => (m) => {
+    if (m < (activeMonth || 0)) return 0;
+    const crd = crdFn(m);
+    return cfBase + (crd <= 0 ? pret : 0);
+  };
+
   // Compute initial equity at m=0 to align startEquity with computePropertyEquity(0)
   const vitryEq0 = computeVitryEquity(0);
   const rueilEq0 = computeRueilEquity(0);
@@ -704,6 +753,7 @@ function runCoupleSimulator(state) {
         startEquity: vitryEq0,
         growthFn: computeVitryEquity,
         crdFn: computeVitryCRD,
+        cashFlowFn: makeCfFn(vitryCfBase, vitryPret, computeVitryCRD, 0),
         _computedEquity: true
       },
       {
@@ -711,6 +761,7 @@ function runCoupleSimulator(state) {
         startEquity: rueilEq0,
         growthFn: computeRueilEquity,
         crdFn: computeRueilCRD,
+        cashFlowFn: makeCfFn(rueilCfBase, rueilPret, computeRueilCRD, 0),
         _computedEquity: true
       },
       {
@@ -718,6 +769,7 @@ function runCoupleSimulator(state) {
         startEquity: 0,
         growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0,
         crdFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifCRD(m) : 0,
+        cashFlowFn: makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, IC.villejuifStartMonth),
         _computedEquity: true
       },
     ]
@@ -741,6 +793,10 @@ function runAmineSimulator(state) {
   const iv = s.immoView;
   const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
   const computeVitryCRD = makeComputePropertyCRD(iv, 'vitry'); // v334 — split invested/gains
+  // v335 — Cash-flow locatif Vitry (loyer − charges totales, net fiscal)
+  const vitryPropA = iv?.properties?.find(p => p.loanKey === 'vitry');
+  const vitryCfBaseA = (vitryPropA?.cfNetFiscal ?? vitryPropA?.cf) || 0;
+  const vitryPretA = vitryPropA?.monthlyPret || 0;
 
   // Align starting equity with what computeVitryEquity(0) returns
   const vitryEq0 = computeVitryEquity(0);
@@ -760,13 +816,18 @@ function runAmineSimulator(state) {
       prevImmoTotal = totalEquity;
       return delta;
     },
-    // v334 — single property Vitry pour bénéficier du split 4 bandes
+    // v334 — single property Vitry pour bénéficier du split Immo Investi / Gains
+    // v335 — + cashFlowFn pour injecter les loyers Vitry dans le cash pool
     immoBreakdown: [
       {
         label: 'Vitry',
         startEquity: vitryEq0,
         growthFn: computeVitryEquity,
         crdFn: computeVitryCRD,
+        cashFlowFn: (m) => {
+          const crd = computeVitryCRD(m);
+          return vitryCfBaseA + (crd <= 0 ? vitryPretA : 0);
+        },
         _computedEquity: true
       }
     ]
