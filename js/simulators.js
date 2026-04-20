@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=335';
-import { IMMO_CONSTANTS } from './data.js?v=335';
+import { fmt, fmtAxis } from './render.js?v=336';
+import { IMMO_CONSTANTS } from './data.js?v=336';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -139,7 +139,7 @@ function runSimulatorGeneric(config) {
       // If no breakdown props, fall back to delta-based immo
       const immoVal = props.length > 0 ? immoFromProps : Math.round(immoNow);
       // Si pas de breakdown du tout, rendre l'intégralité de l'equity comme "Immo Investi"
-      // (faute de mieux) pour que la somme des 5 bandes reste égale à NW.
+      // (faute de mieux) pour que la somme des bandes reste égale à NW.
       if (props.length === 0) {
         immoInvestedSum = immoVal;
         immoGainsSum = 0;
@@ -341,34 +341,34 @@ function buildSimChart(canvasId, chartKey, result) {
     stopChartIdx, stopYears, immoBreakdownResult
   } = result;
 
-  // v334/335 — Stacking bas→haut : Capital, Immo Investi, Immo Gains, Loyers perçus, Intérêts Marché.
+  // v336 — Stacking bas→haut : Capital, Immobilier, Loyers perçus, Intérêts Marché.
+  // L'immobilier est affiché en une seule bande ; cliquer dessus (en isolé) déclenche
+  // le breakdown par propriété (Vitry/Rueil/Villejuif).
   // Pour Chart.js avec fill: '-1', chaque dataset stocke la valeur CUMULÉE (= bord supérieur
   // de la bande). Le tooltip et le legend-click utilisent _actual = taille réelle de la bande.
   const len = dataLabels.length;
   const actualCapital = dataCapital.map(v => v);
-  const actualImmoInvested = dataImmoInvested.map(v => v);
-  const actualImmoGains = dataImmoGains.map(v => v);
+  // Immobilier total = Invested + Gains (= dataImmo modulo arrondi). On additionne pour être
+  // strictement cohérent avec les arrays pré-calculés et éviter tout drift de 1€.
+  const actualImmo = dataImmoInvested.map((v, i) => v + dataImmoGains[i]);
   const actualRentalCF = (dataRentalCF || new Array(len).fill(0)).map(v => v);
-  // Intérêts marché = NW - (Capital + Immo Invested + Immo Gains + Loyers cumulés).
-  // Garanti ≥ 0 par construction (modulo arrondis).
-  const actualMarketGains = dataNW.map((nw, i) => Math.max(0, nw - dataCapital[i] - dataImmoInvested[i] - dataImmoGains[i] - actualRentalCF[i]));
+  // Intérêts marché = NW - (Capital + Immobilier + Loyers cumulés). Garanti ≥ 0 par construction.
+  const actualMarketGains = dataNW.map((nw, i) => Math.max(0, nw - dataCapital[i] - actualImmo[i] - actualRentalCF[i]));
 
   // Cumulatifs (bord supérieur de chaque bande) pour Chart.js
   const cumCapital = dataCapital.map(v => v);
-  const cumPlusImmoInv = cumCapital.map((v, i) => v + actualImmoInvested[i]);
-  const cumPlusImmoGains = cumPlusImmoInv.map((v, i) => v + actualImmoGains[i]);
-  const cumPlusRental = cumPlusImmoGains.map((v, i) => v + actualRentalCF[i]);
+  const cumPlusImmo = cumCapital.map((v, i) => v + actualImmo[i]);
+  const cumPlusRental = cumPlusImmo.map((v, i) => v + actualRentalCF[i]);
   const cumPlusMarket = cumPlusRental.map((v, i) => v + actualMarketGains[i]); // = dataNW (modulo arrondi)
 
   // Datasets ordered bottom-to-top for proper stacking with fill: '-1'.
-  // Indices stackables : 0..4. Index 5 = NW Total (ligne overlay), 6+ = NW sans arret, sub-bands.
+  // Indices stackables : 0..3. Index 4 = NW Total (ligne overlay), 5+ = NW sans arret, sub-bands.
   const datasets = [
-    { label: 'Capital Investi',     data: [...cumCapital],       borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)',  fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
-    { label: 'Immobilier Investi',  data: [...cumPlusImmoInv],   borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.50)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoInvested },
-    { label: 'Immobilier Gains',    data: [...cumPlusImmoGains], borderColor: '#d69e2e', backgroundColor: 'rgba(214,158,46,0.40)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmoGains },
-    { label: 'Loyers perçus',       data: [...cumPlusRental],    borderColor: '#805ad5', backgroundColor: 'rgba(128,90,213,0.35)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualRentalCF },
-    { label: 'Intérêts Marché',     data: [...cumPlusMarket],    borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)',   fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualMarketGains },
-    { label: 'Net Worth Total',     data: [...dataNW],           borderColor: '#1a202c', backgroundColor: 'transparent',            fill: false,    tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
+    { label: 'Capital Investi',   data: [...cumCapital],     borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.45)',  fill: 'origin', tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualCapital },
+    { label: 'Immobilier',        data: [...cumPlusImmo],    borderColor: '#b7791f', backgroundColor: 'rgba(183,121,31,0.45)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualImmo },
+    { label: 'Loyers perçus',     data: [...cumPlusRental],  borderColor: '#805ad5', backgroundColor: 'rgba(128,90,213,0.35)',  fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualRentalCF },
+    { label: 'Intérêts Marché',   data: [...cumPlusMarket],  borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.35)',   fill: '-1',     tension: 0.3, borderWidth: 1, pointRadius: 0, _actual: actualMarketGains },
+    { label: 'Net Worth Total',   data: [...dataNW],         borderColor: '#1a202c', backgroundColor: 'transparent',            fill: false,    tension: 0.3, borderWidth: 2.5, pointRadius: 0, _actual: dataNW },
   ];
 
   if (stopYears > 0) {
@@ -396,7 +396,7 @@ function buildSimChart(canvasId, chartKey, result) {
             return true;
           },
           itemSort: function(a, b) {
-            // Reverse order: NW Total en premier, puis Intérêts, Loyers, Immo Gains, Immo Investi, Capital en dernier
+            // Reverse order: NW Total en premier, puis Intérêts, Loyers, Immobilier, Capital en dernier
             return b.datasetIndex - a.datasetIndex;
           },
           callbacks: {
@@ -445,10 +445,10 @@ function buildSimChart(canvasId, chartKey, result) {
                 ds.hidden = false;
               });
             } else {
-              // v334/335 — Indices 0-4 sont les bandes empilables
-              //   (Capital, Immo Inv, Immo Gains, Loyers perçus, Intérêts).
-              //   Indices 5+ sont les lignes overlay (NW Total, NW sans arret) — jamais empilées.
-              const stackable = new Set([...selected].filter(i => i < 5));
+              // v336 — Indices 0-3 sont les bandes empilables
+              //   (Capital, Immobilier, Loyers perçus, Intérêts Marché).
+              //   Indices 4+ sont les lignes overlay (NW Total, NW sans arret) — jamais empilées.
+              const stackable = new Set([...selected].filter(i => i < 4));
               const sortedStack = [...stackable].sort((a, b) => a - b);
               const len = dataLabels.length;
               let cumulative = new Array(len).fill(0);
@@ -464,7 +464,7 @@ function buildSimChart(canvasId, chartKey, result) {
                   ds.backgroundColor = origData[i].backgroundColor.replace(/[\d.]+\)$/, '0.5)');
                   ds.borderWidth = 1.5;
                   ds.hidden = false;
-                } else if (selected.has(i) && i >= 5) {
+                } else if (selected.has(i) && i >= 4) {
                   // Overlay line (NW Total, NW sans arret): show as-is, no stacking
                   ds.data = [...ds._actual];
                   ds.fill = false;
@@ -476,11 +476,11 @@ function buildSimChart(canvasId, chartKey, result) {
                 }
               });
 
-              // v334/335 — Si Immo Investi + Immo Gains sont sélectionnés ensemble (et uniquement
-              // ces deux), on affiche le breakdown par propriété à la place des 2 bandes immo.
+              // v336 — Si "Immobilier" est sélectionné en isolé, on affiche le breakdown par
+              // propriété (Vitry / Rueil / Villejuif) à la place de la bande immo unique.
               // Chaque sub-band représente l'equity TOTALE d'une propriété (invested + gains).
-              const onlyImmoBandsSelected = selected.size === 2 && selected.has(1) && selected.has(2);
-              if (onlyImmoBandsSelected && immoBreakdownResult) {
+              const onlyImmoSelected = selected.size === 1 && selected.has(1);
+              if (onlyImmoSelected && immoBreakdownResult) {
                 const subBorders = ['#c05621', '#b7791f', '#d69e2e'];
                 const subBgs = ['rgba(192,86,33,0.45)', 'rgba(183,121,31,0.35)', 'rgba(214,158,46,0.25)'];
                 let cumSub = new Array(len).fill(0);
@@ -501,9 +501,8 @@ function buildSimChart(canvasId, chartKey, result) {
                     _subLabel: b.label,
                   });
                 });
-                // Masquer les 2 bandes immo principales (les sub-bands prennent leur place)
+                // Masquer la bande immo principale (les sub-bands prennent sa place)
                 chart.data.datasets[1].backgroundColor = 'transparent';
-                chart.data.datasets[2].backgroundColor = 'transparent';
               }
             }
             chart.update();
@@ -567,7 +566,10 @@ function buildSimChart(canvasId, chartKey, result) {
 
 // ============ GENERIC PROPERTY CRD COMPUTER ============
 // Returns the remaining loan principal (CRD) for a property at simulator month m.
-// Used by the 4-band chart stacking to split immo equity into:
+// Encore utilisé en interne pour splitter l'equity en invested + gains (dataImmoInvested /
+// dataImmoGains). Même si le chart v336 refusionne ces deux bandes en une seule, on garde le
+// split sous-jacent : c'est la structure la plus propre (chaque propriété connaît son capital
+// apporté vs sa plus-value), et cela laisse la porte ouverte à un futur toggle optionnel.
 //   - "Immo Investi" (capital apporté + capital amorti) = startEquity + (CRD(0) - CRD(m))
 //   - "Immo Gains" (plus-value brute)                  = equity(m) - "Immo Investi"
 // Plafonné pour que la somme des bandes reste strictement égale à equity(m).
@@ -816,7 +818,7 @@ function runAmineSimulator(state) {
       prevImmoTotal = totalEquity;
       return delta;
     },
-    // v334 — single property Vitry pour bénéficier du split Immo Investi / Gains
+    // v334/336 — single property Vitry pour bénéficier du breakdown au clic
     // v335 — + cashFlowFn pour injecter les loyers Vitry dans le cash pool
     immoBreakdown: [
       {
