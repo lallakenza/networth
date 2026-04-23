@@ -1,10 +1,26 @@
 name: SGTM live price scrape
 
 on:
-  # Séance Bourse de Casablanca: ~9h30 → 15h30 heure Casablanca (UTC+0 l'hiver, UTC+1 l'été).
-  # On scrape toutes les heures entre 9h et 16h UTC lundi-vendredi pour couvrir les 2 fuseaux.
+  # Séance Bourse de Casablanca (BVC) : 9h30 → 15h30 heure Casablanca, lundi-vendredi.
+  # Maroc = UTC+1 toute l'année depuis 2018 (heure légale marocaine, DST permanent).
+  # Exception : pendant le Ramadan (~30 jours/an, dates lunaires), Maroc passe à UTC+0.
+  #
+  # Mapping UTC (hors Ramadan) :
+  #   9h30 Casablanca = 8h30 UTC (ouverture)
+  #   15h30 Casablanca = 14h30 UTC (clôture)
+  #
+  # Cron choisi : `30 8-14 * * 1-5` → 7 runs à :30 de chaque heure entre 8h30 et 14h30 UTC.
+  #   - Capture l'ouverture (run 8h30 UTC)
+  #   - 5 runs intraday (9h30, 10h30, 11h30, 12h30, 13h30 UTC)
+  #   - Capture la clôture (run 14h30 UTC)
+  # Les délais GitHub Actions (jusqu'à ~15 min) sont absorbés par la marge de :30 :
+  # un run "ouverture" qui fire à 8h42 UTC tombe à 9h42 local = 12 min après l'ouverture.
+  #
+  # Pendant le Ramadan (UTC+0) la séance est 9h30-15h30 UTC : on manquerait la dernière
+  # heure (14h30-15h30). Acceptable : le badge "dernier relevé" gère la staleness, et on
+  # pourra étendre temporairement si nécessaire (~30 jours/an).
   schedule:
-    - cron: '0 9-16 * * 1-5'
+    - cron: '30 8-14 * * 1-5'
   # Manuel (test, debug) + sur push du script
   workflow_dispatch:
   push:
