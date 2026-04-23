@@ -93,7 +93,7 @@ js/api.js :: fetchSGTMFromRepo()       ← fetch('./data/<ticker>_live.json?h=<h
 4. data.js bootstrap              → source=null                     → badge "statique"
 ```
 
-**Pour ajouter une nouvelle action marocaine, suivre la checklist dans `ARCHITECTURE.md §v331`** (7 étapes : position data.js, scraper, workflow, JSON bootstrap, factoriser api.js → `fetchMoroccanStockPrice(ticker)`, propagation engine/render, tests régression). Règle-clé : tout ticker avec `broker: 'Attijari'` est automatiquement traité comme "marché sans API Yahoo" par le badge UI (gris neutre, pas rouge alarmiste).
+**Pour ajouter une nouvelle action marocaine** : runbook pratique dans [`docs/ADD_MOROCCAN_STOCK.md`](docs/ADD_MOROCCAN_STOCK.md) (checklist opérationnelle en 9 étapes, ~10 min de copie-colle à partir du 2ème ticker), spec architecturale complète dans `ARCHITECTURE.md §v331`. Règle-clé : tout ticker avec `broker: 'Attijari'` est automatiquement traité comme "marché sans API Yahoo" par le badge UI (gris neutre, pas rouge alarmiste).
 
 **Invariant source** : `portfolio.market._<ticker>Source` doit toujours ∈ `{'repo:<src>', 'repo-stale:<src>', 'repo:static-bootstrap', 'google', 'leboursier', 'investing', 'cache', null}`. Toute nouvelle source ajoute une branche dans `sgtmSuffix()` (app.js) ET dans `isPositionStatic()` (render.js).
 

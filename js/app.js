@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=338';
-import { compute, getGrandTotal } from './engine.js?v=338';
-import { render } from './render.js?v=338';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=338';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=338';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=338';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=338';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=339';
+import { compute, getGrandTotal } from './engine.js?v=339';
+import { render } from './render.js?v=339';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=339';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=339';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=339';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=339';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -890,19 +890,29 @@ async function loadStockPrices(forceRefresh) {
     return 'live (scraping)';
   }
 
+  // v339 — SGTM est comptée comme une action normale dans le badge.
+  // `result.liveCount` et `result.totalTickers` incluent déjà SGTM ; on rend tel quel.
+  // Le détail (source scraper, prix) reste accessible via le title/tooltip HTML.
   function updateBadge(result) {
     if (!sBadge) return;
-    const yahooLive = result.liveCount - (result.sgtmLive ? 1 : 0);
-    const yahooTotal = result.totalTickers - 1;
-    const allYahooLive = yahooLive >= yahooTotal;
+    const live = result.liveCount;
+    const total = result.totalTickers;
+    const allLive = live >= total;
 
-    const statusLabel = yahooLive > 0
-      ? yahooLive + '/' + yahooTotal + ' live'
-      : 'statique (données du ' + DATA_LAST_UPDATE + ')';
-    const sgtmLabel = PORTFOLIO.market.sgtmPriceMAD + ' DH ('
-      + sgtmSuffix(result.sgtmSource || PORTFOLIO.market._sgtmSource, result.sgtmLive) + ')';
-    sBadge.textContent = 'Actions: ' + statusLabel + ' | SGTM: ' + sgtmLabel;
-    sBadge.style.color = allYahooLive ? 'var(--green)' : 'var(--red)';
+    if (live > 0) {
+      sBadge.textContent = 'Actions: ' + live + '/' + total + ' live';
+    } else {
+      sBadge.textContent = 'Actions: statique (données du ' + DATA_LAST_UPDATE + ')';
+    }
+    sBadge.style.color = allLive ? 'var(--green)' : 'var(--red)';
+
+    // Tooltip : détail SGTM + tickers en échec éventuels (pour debug rapide sans console).
+    const sgtmTip = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
+      + sgtmSuffix(result.sgtmSource || PORTFOLIO.market._sgtmSource, result.sgtmLive);
+    const failedTip = (result.failedTickers && result.failedTickers.length > 0)
+      ? '\nÉchec: ' + result.failedTickers.join(', ')
+      : '';
+    sBadge.title = sgtmTip + failedTip;
   }
 
   try {
@@ -935,18 +945,17 @@ async function loadStockPrices(forceRefresh) {
         function onRetryUpdate(liveCount, totalTickers, retryNum) {
           stockSource = 'live';
           refresh();
-          const yahooLive = liveCount - (PORTFOLIO.market._sgtmLive ? 1 : 0);
-          const yahooTotal = totalTickers - 1;
-          const allYahooLive = yahooLive >= yahooTotal;
-          const sgtmLabel = PORTFOLIO.market.sgtmPriceMAD + ' DH ('
-            + sgtmSuffix(PORTFOLIO.market._sgtmSource, PORTFOLIO.market._sgtmLive) + ')';
+          // v339 — SGTM comptée dans le total comme les autres actions
+          const allLive = liveCount >= totalTickers;
           if (sBadge) {
-            sBadge.textContent = 'Actions: ' + yahooLive + '/' + yahooTotal + ' live | SGTM: ' + sgtmLabel;
-            if (!allYahooLive) sBadge.textContent += ' (retry ' + retryNum + '...)';
-            sBadge.style.color = allYahooLive ? 'var(--green)' : 'var(--red)';
+            sBadge.textContent = 'Actions: ' + liveCount + '/' + totalTickers + ' live';
+            if (!allLive) sBadge.textContent += ' (retry ' + retryNum + '...)';
+            sBadge.style.color = allLive ? 'var(--green)' : 'var(--red)';
+            sBadge.title = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
+              + sgtmSuffix(PORTFOLIO.market._sgtmSource, PORTFOLIO.market._sgtmLive);
           }
           if (progressFill) progressFill.style.width = Math.round(liveCount / totalTickers * 100) + '%';
-          if (progressLabel) progressLabel.textContent = 'Retry ' + retryNum + ' — ' + yahooLive + '/' + yahooTotal + ' live';
+          if (progressLabel) progressLabel.textContent = 'Retry ' + retryNum + ' — ' + liveCount + '/' + totalTickers + ' live';
         },
         5,   // maxRetries
         5000 // 5s between retries
