@@ -1,0 +1,13 @@
+{
+  "ticker": "SGTM",
+  "currency": "MAD",
+  "granularity": "daily-close",
+  "note": "Dernier prix observé chaque jour ouvré. Alimenté par scripts/scrape_sgtm.py (upsert par date) + backfill initial depuis git log des commits sur data/sgtm_live.json.",
+  "series": [
+    { "date": "2026-04-19", "priceMAD": 826.0, "source": "casablanca-bourse.com" },
+    { "date": "2026-04-20", "priceMAD": 819.0, "source": "casablanca-bourse.com" },
+    { "date": "2026-04-21", "priceMAD": 820.6, "source": "casablanca-bourse.com" },
+    { "date": "2026-04-22", "priceMAD": 809.0, "source": "casablanca-bourse.com" },
+    { "date": "2026-04-23", "priceMAD": 797.2, "source": "casablanca-bourse.com" }
+  ]
+}

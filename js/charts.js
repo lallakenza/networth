@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=337';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=337';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=337';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=337';
+import { fmt, fmtAxis } from './render.js?v=338';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=338';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=338';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=338';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2970,14 +2970,43 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── SGTM key prices (MAD) - IPO Dec 2025, Casablanca Bourse ──
-  // Sources: TradingView CSEMA:GTM, bmcecapitalbourse.com
-  const SGTM_PRICES = [
+  // Baseline hardcodée (IPO + premiers mois) : TradingView CSEMA:GTM, bmcecapitalbourse.com.
+  // v338 — Fusionnée avec l'historique daily maintenu par scripts/scrape_sgtm.py, exposé
+  // via data/sgtm_history.json et chargé dans historicalData.sgtmHistory côté app.js.
+  // Sans cette fusion, le chart historique flatlinait SGTM à 720 MAD depuis le 19 mars
+  // alors que le scraper avait 5+ jours de prix réels (826 → 797) non exploités.
+  const BASE_SGTM_PRICES = [
     ['2025-12-16', 462], ['2025-12-20', 750], ['2025-12-26', 989],
     ['2025-12-31', 550], ['2026-01-02', 462], ['2026-01-15', 500],
     ['2026-02-01', 550], ['2026-02-15', 650], ['2026-03-01', 700],
     ['2026-03-13', 690], ['2026-03-16', 696], ['2026-03-18', 730],
     ['2026-03-19', 720],
   ];
+  const liveSgtmHistory = Array.isArray(historicalData?.sgtmHistory)
+    ? historicalData.sgtmHistory
+        .filter(e => e && e.date && typeof e.priceMAD === 'number')
+        .map(e => [e.date, e.priceMAD])
+    : [];
+  // Fusion + dédoublonnage (live history wins sur baseline si même date), trié croissant.
+  const SGTM_PRICES = (() => {
+    const merged = [...BASE_SGTM_PRICES, ...liveSgtmHistory]
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    const out = [];
+    for (const cur of merged) {
+      if (out.length && out[out.length - 1][0] === cur[0]) {
+        out[out.length - 1] = cur; // live history (venant après dans le tri si date égale)
+      } else {
+        out.push(cur);
+      }
+    }
+    return out;
+  })();
+  if (liveSgtmHistory.length > 0) {
+    const lastLive = liveSgtmHistory[liveSgtmHistory.length - 1];
+    console.log('[chart] SGTM_PRICES merged: ' + BASE_SGTM_PRICES.length + ' baseline + ' +
+                liveSgtmHistory.length + ' live = ' + SGTM_PRICES.length + ' total (last live: ' +
+                lastLive[0] + ' @ ' + lastLive[1] + ' MAD)');
+  }
   const SGTM_SHARES = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha?.sgtm?.shares || 0);
   // EURMAD now uses historical rates via getFxRate('MAD', date) — no more fixed constant
 
