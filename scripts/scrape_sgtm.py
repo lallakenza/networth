@@ -50,6 +50,7 @@ from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sy
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = REPO_ROOT / "data" / "sgtm_live.json"
+HISTORY_PATH = REPO_ROOT / "data" / "sgtm_history.json"
 
 # Borne de sanity: SGTM oscille typiquement 400-1200 MAD. Toute valeur hors de ça = bug de parsing.
 MIN_PRICE = 300.0
@@ -455,6 +456,44 @@ def main() -> int:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n")
     print(f"[main] ✓ écrit {OUT_PATH}: {snapshot['priceMAD']} MAD (source: {snapshot['source']})")
+
+    # ── Maintien de l'historique daily (v338) ─────────────────────────
+    # Upsert de l'entrée du jour : chaque run remplace la valeur du jour avec le dernier
+    # prix observé. Le dernier commit de la séance = close de facto (séance BVC termine 15h30).
+    # Le chart côté JS consomme cet historique pour peupler `SGTM_PRICES` à la volée.
+    try:
+        today = now.strftime("%Y-%m-%d")
+        entry = {"date": today, "priceMAD": snapshot["priceMAD"], "source": snapshot["source"]}
+        if HISTORY_PATH.exists():
+            hist = json.loads(HISTORY_PATH.read_text())
+        else:
+            hist = {
+                "ticker": "SGTM",
+                "currency": "MAD",
+                "granularity": "daily-close",
+                "note": ("Dernier prix observé chaque jour ouvré. Alimenté par "
+                         "scripts/scrape_sgtm.py (upsert par date)."),
+                "series": [],
+            }
+        series = hist.get("series", [])
+        # Upsert : remplace si le jour existe déjà, sinon append à la bonne position
+        found = False
+        for i, e in enumerate(series):
+            if e.get("date") == today:
+                series[i] = entry
+                found = True
+                break
+        if not found:
+            series.append(entry)
+            series.sort(key=lambda e: e["date"])
+        hist["series"] = series
+        HISTORY_PATH.write_text(json.dumps(hist, indent=2, ensure_ascii=False) + "\n")
+        print(f"[history] ✓ upsert {today}: {snapshot['priceMAD']} MAD "
+              f"({len(series)} jours dans l'historique)")
+    except Exception as e:
+        # Ne JAMAIS faire échouer le run principal si l'historique part en vrille
+        print(f"[history] ⚠ échec non-bloquant: {e}")
+
     return 0
 
 

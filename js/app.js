@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=337';
-import { compute, getGrandTotal } from './engine.js?v=337';
-import { render } from './render.js?v=337';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=337';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=337';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=337';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=337';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=338';
+import { compute, getGrandTotal } from './engine.js?v=338';
+import { render } from './render.js?v=338';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=338';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=338';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=338';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=338';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1043,6 +1043,25 @@ async function loadStockPrices(forceRefresh) {
           if (ytdFill) ytdFill.style.width = (50 + Math.round(pct * 0.5)) + '%'; // 50-100%
           if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
         });
+
+        // v338 — Charge l'historique daily SGTM maintenu par le scraper GitHub Actions.
+        // Yahoo ne couvre pas la Bourse de Casablanca, donc on alimente SGTM_PRICES
+        // via ce fichier same-origin (fetch sans CORS).
+        try {
+          const sgtmHistResp = await fetch('./data/sgtm_history.json?h=' + new Date().getHours());
+          if (sgtmHistResp.ok) {
+            const sgtmHist = await sgtmHistResp.json();
+            if (Array.isArray(sgtmHist.series) && sgtmHist.series.length > 0) {
+              historicalData.sgtmHistory = sgtmHist.series;
+              const first = sgtmHist.series[0].date;
+              const last = sgtmHist.series[sgtmHist.series.length - 1].date;
+              console.log('[app] SGTM history loaded: ' + sgtmHist.series.length + ' days (' + first + ' → ' + last + ')');
+            }
+          }
+        } catch (e) {
+          console.warn('[app] SGTM history fetch failed (non-blocking):', e);
+        }
+
         // Legacy aliases for backward compatibility
         const historicalDataYTD = historicalData;
         const historicalData1Y = historicalData;
