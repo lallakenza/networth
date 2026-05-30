@@ -4872,4 +4872,36 @@ Le pipeline CI-scrape + repo JSON + fallback runtime est le pattern canonique po
 
 **Cache-bust** `?v=330 → ?v=331` sur 18 imports + `APP_VERSION 'v331'`. `DATA_LAST_UPDATE` reste `19/04/2026`.
 
+---
+
+## §77 — v340-342 : Audit frontend (npx skills) + 3 sprints de correctifs (30 mai 2026)
+
+**Contexte** : audit complet du dashboard via deux skills installés avec `npx skills` (`impeccable` — audit a11y/perf/theming/responsive/anti-patterns, et `microsoft/frontend-design-review`), combiné à 4 agents parallèles auditant le code métier (engine, charts, render+app, data+simulators, ~28k lignes) et un calcul réel des ratios de contraste WCAG. Résultat : **0 bug de Net Worth** (les invariants tiennent), mais ~14 défauts d'affichage et d'accessibilité. Corrigés en 3 sprints (un déploiement chacun). Détail bug-par-bug dans `BUG_TRACKER.md` (BUG-064 → BUG-074).
+
+### Sprint 1 — Exactitude financière (v340)
+Cinq bugs faussant des **sous-totaux affichés** (jamais le NW lui-même) :
+- **Loyer Villejuif fantôme** (`computeImmoView`) : `totalLoyerAnnuel`/`totalCFNetFiscal` sommaient toutes les propriétés dont Villejuif (`conditional`, non livré). Filtrés sur `!p.conditional` → aligné sur `computeBudgetView` et `computeCashFlow` qui zéro-taient déjà Villejuif.
+- **WHT YTD toujours à zéro** : `render` lisait `av.whtYTD` jamais renvoyé par l'engine. Ajout de `whtEUR` à `computeAllCosts` (ACN converti USD→EUR + Degiro EUR ; IBKR non traqué) + `whtYTD`/`whtAllTime`.
+- **Signe FTT** (reco « Trop de lignes ») : `abs(commissions) + fttEUR` avec `fttEUR` négatif → soustraction. Corrigé en `+ abs(fttEUR)`.
+- **Label créance Omar** : `'40K MAD'` codé en dur alors que la valeur est pondérée 70%. Dérivé : `'40K MAD × 70%'` (brut × probabilité, depuis la donnée).
+- **Base de départ du simulateur couple** : omettait actions ESPP Nezha, facturationNet Amine, créance Omar, montres, caution Rueil, réservation Villejuif → départ sous-estimé ~25-35K€. Chaque actif rangé dans le bon pool (actions/cash/statique) + garde-fou console vs `s.couple.nw`.
+
+### Sprint 2 — Accessibilité WCAG AA (v341)
+- **Contraste badges header** (P1) : `--success`/`--danger` (calibrés fond clair, 4.8:1 sur `--bg`) réutilisés sur le header navy `#1e3a5f` → 2.29:1 / 1.78:1 (échec AA). Tokens dédiés **`--green-on-dark #4ade80`** (6.6:1) et **`--red-on-dark #ff8a8a`** (5.07:1), appliqués aux badges fxBadge/sBadge. **Règle** : ces tokens sont fond-sombre-uniquement (mauvais contraste sur `--bg`).
+- **`--text-muted`** : `#a8a29e` (2.41:1) → `#78716c` (4.59:1).
+- **Navigation clavier** : cartes KPI (`.kpi-clickable`) et en-têtes triables (`.sortable`) cliquables souris mais ni focusables ni activables clavier. `decorateA11yInteractive()` (app.js, appelé après chaque `render`) ajoute `tabindex=0` + `role=button` ; handler Entrée/Espace délégué (lié une fois). Règle CSS `:focus-visible` générique pour le fond clair (le header sombre garde son outline blanc via une règle plus spécifique).
+
+### Sprint 3 — Charts, simulateur & polish (v342)
+- **SGTM = 0 le jour de l'IPO** : gate de valorisation à `2025-12-15` (date de coût) mais 1er prix baseline daté `2025-12-16` → faux NAV=0/P&L −100% ce jour-là. Le guard pré-IPO de `getSgtmPrice` renvoie le 1er cours connu au lieu de 0.
+- **Cohérence FX coût SGTM** : breakdown en `fxStatic.MAD`, header en taux historique. Les 2 sites passent à `getFxRate('MAD', date)`.
+- **Rollover date 1M/1Y** : `new Date(y, m-1, jour)` débordait certains 29/30/31. Helper module `subPeriodClamped()` (engine.js) bornant le jour au dernier jour du mois cible, câblé sur les 4 sites (1M/1Y × 2 scopes). Unit-testé (month-end + bissextiles).
+- **Curseur appréciation Nezha inerte** : ne pilotait que le label. `makeComputePropertyEquity` accepte un 4ème arg `appreciationOverride` ; seul le sim Nezha le passe (couple/amine inchangés, phases data-driven).
+- **`existingGains` dérivé** : `45000` codé en dur → `s.actionsView.combinedUnrealizedPL` (Amine = combiné − ESPP Nezha). Affecte le split visuel Capital/Marché, pas le NW.
+- **Polish render** : param mort `fmtRatio(target)` retiré ; `creancesAlert` re-masqué quand `needsFollowUpCount` tombe à 0.
+
+### Guide actions marocaines + badge SGTM unifié (déjà en v338-339, contexte)
+Le compteur header affiche désormais SGTM comme un ticker normal (`Actions: N/N live`, détail en `title`). Runbook `docs/ADD_MOROCCAN_STOCK.md` pour ajouter une action BVC. Historique SGTM live alimenté par `data/sgtm_history.json` (scraper GitHub Actions, cron `30 8-14 * * 1-5` calé sur la séance Casablanca).
+
+**Cache-bust** `?v=339 → ?v=342` (3 bumps successifs) sur 18 imports + `APP_VERSION`. `DATA_LAST_UPDATE` reste `20/04/2026`.
+
 
