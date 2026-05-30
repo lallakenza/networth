@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=340';
-import { compute, getGrandTotal } from './engine.js?v=340';
-import { render } from './render.js?v=340';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=340';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=340';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=340';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=340';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=341';
+import { compute, getGrandTotal } from './engine.js?v=341';
+import { render } from './render.js?v=341';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=341';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=341';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=341';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=341';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -228,12 +228,34 @@ function syncNavUI() {
  *
  * Note: Expensive operations (FX fetch, price fetch) are separate async functions
  */
+// v341 — Accessibilité clavier : les éléments cliquables non-natifs (cartes KPI,
+// en-têtes triables) ne sont ni focusables ni activables au clavier. On les décore
+// après chaque render (idempotent) et on lie UNE fois un handler Entrée/Espace délégué.
+// Couvre WCAG 2.1.1 (Keyboard) + 2.4.7 (Focus Visible, via la règle CSS associée).
+function decorateA11yInteractive() {
+  document.querySelectorAll('.kpi-clickable, .sortable').forEach((el) => {
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+  });
+  if (!window._a11yKeyBound) {
+    window._a11yKeyBound = true;
+    document.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && t && t.matches && t.matches('.kpi-clickable, .sortable')) {
+        e.preventDefault();
+        t.click();
+      }
+    });
+  }
+}
+
 function refresh() {
   currentState = compute(PORTFOLIO, currentFX, stockSource);
 
   // Determine the effective view for render
   const effectiveView = currentSubView || currentView;
   render(currentState, effectiveView, currentCurrency);
+  decorateA11yInteractive(); // v341 — focusabilité clavier des cartes/headers cliquables
   rebuildAllCharts(currentState, effectiveView);
 
   // CF projection for person views and immobilier
@@ -467,7 +489,7 @@ async function refreshFX(force) {
     Object.assign(currentFX, fxResult.rates);
     fxSource = fxResult.source;
     const badge = document.getElementById('fxBadge');
-    if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+    if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green-on-dark)'; }
     updateFxTimestamp();
     refresh();
     // If stale, immediately re-fetch in background
@@ -476,7 +498,7 @@ async function refreshFX(force) {
       if (fresh) {
         Object.assign(currentFX, fresh.rates);
         fxSource = fresh.source;
-        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green-on-dark)'; }
         updateFxTimestamp();
         refresh();
       }
@@ -904,7 +926,7 @@ async function loadStockPrices(forceRefresh) {
     } else {
       sBadge.textContent = 'Actions: statique (données du ' + DATA_LAST_UPDATE + ')';
     }
-    sBadge.style.color = allLive ? 'var(--green)' : 'var(--red)';
+    sBadge.style.color = allLive ? 'var(--green-on-dark)' : 'var(--red-on-dark)';
 
     // Tooltip : détail SGTM + tickers en échec éventuels (pour debug rapide sans console).
     const sgtmTip = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
@@ -923,7 +945,7 @@ async function loadStockPrices(forceRefresh) {
         Object.assign(currentFX, fxResult.rates);
         fxSource = fxResult.source;
         const badge = document.getElementById('fxBadge');
-        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green)'; }
+        if (badge) { badge.textContent = 'Taux FX ' + fxSource; badge.style.color = 'var(--green-on-dark)'; }
         updateFxTimestamp();
       }
     }
@@ -950,7 +972,7 @@ async function loadStockPrices(forceRefresh) {
           if (sBadge) {
             sBadge.textContent = 'Actions: ' + liveCount + '/' + totalTickers + ' live';
             if (!allLive) sBadge.textContent += ' (retry ' + retryNum + '...)';
-            sBadge.style.color = allLive ? 'var(--green)' : 'var(--red)';
+            sBadge.style.color = allLive ? 'var(--green-on-dark)' : 'var(--red-on-dark)';
             sBadge.title = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
               + sgtmSuffix(PORTFOLIO.market._sgtmSource, PORTFOLIO.market._sgtmLive);
           }
@@ -1413,7 +1435,7 @@ async function loadStockPrices(forceRefresh) {
     }
   } catch (e) {
     console.warn('Stock fetch error:', e);
-    if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red)'; }
+    if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red-on-dark)'; }
     _stockRefreshInProgress = false; // AUD-011: clear flag on error
   }
 
