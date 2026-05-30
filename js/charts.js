@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=341';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=341';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=341';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=341';
+import { fmt, fmtAxis } from './render.js?v=342';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=342';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=342';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=342';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3027,8 +3027,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
         return price1 + (price2 - price1) * ratio;
       }
     }
-    // If date is before the first SGTM price entry (pre-IPO), return 0
-    if (date < SGTM_PRICES[0][0]) return 0;
+    // v342 — Avant la 1ère entrée de prix : renvoyer le 1er cours connu (et non 0).
+    // Le gate de valorisation appelle getSgtmPrice dès la date de coût (2025-12-15) alors que
+    // le 1er prix baseline est daté 2025-12-16 → évitait un faux NAV=0 / P&L −100% ce jour-là.
+    // Le seul appelant gate déjà sur date >= date d'IPO, donc aucun effet "pré-IPO" réel.
+    if (date < SGTM_PRICES[0][0]) return SGTM_PRICES[0][1];
     // Fallback to last known price if date is beyond range
     return SGTM_PRICES[SGTM_PRICES.length - 1][1];
   }
@@ -3490,7 +3493,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     // IPO date approximation — Dec 2025
     const sgtmIPODate = '2025-12-15';
     if (sgtmIPODate > START_DATE && sgtmIPODate <= todayStr) {
-      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / (fxStatic.MAD || 10.85);
+      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / getFxRate('MAD', sgtmIPODate); // v342 — taux historique (comme la valorisation SGTM), plus fxStatic, pour cohérence header/breakdown
       allTotalDepositsEUR[sgtmIPODate] = (allTotalDepositsEUR[sgtmIPODate] || 0) + sgtmCostEUR;
     }
   }
@@ -3549,7 +3552,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   if (sgtmCostMAD > 0 && sgtmTotalShares > 0) {
     const sgtmIPODate = '2025-12-15';
     if (sgtmIPODate > START_DATE && sgtmIPODate <= todayStr) {
-      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / (fxStatic.MAD || 10.85);
+      const sgtmCostEUR = sgtmTotalShares * sgtmCostMAD / getFxRate('MAD', sgtmIPODate); // v342 — taux historique (comme la valorisation SGTM), plus fxStatic, pour cohérence header/breakdown
       allDepositsSGTM[sgtmIPODate] = (allDepositsSGTM[sgtmIPODate] || 0) + sgtmCostEUR;
     }
   }

@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=341';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=341';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=342';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=342';
 
 // ---- Generic table sort utility ----
 /**
@@ -5983,11 +5983,15 @@ function renderCreancesView(state) {
   }
 
   // Follow-up alert
-  if (crv.needsFollowUpCount > 0) {
+  {
     const alertEl = document.getElementById('creancesAlert');
     if (alertEl) {
-      alertEl.innerHTML = '<strong style="color:var(--red)">⚠ ' + crv.needsFollowUpCount + ' creance(s) a relancer</strong> — Dernier contact > 30 jours';
-      alertEl.style.display = '';
+      if (crv.needsFollowUpCount > 0) {
+        alertEl.innerHTML = '<strong style="color:var(--red)">⚠ ' + crv.needsFollowUpCount + ' creance(s) a relancer</strong> — Dernier contact > 30 jours';
+        alertEl.style.display = '';
+      } else {
+        alertEl.style.display = 'none'; // v342 — re-masquer si plus de relance en attente (évite l'alerte fantôme au re-render)
+      }
     }
   }
 }
@@ -6841,7 +6845,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=341').then(m => {
+  import('./charts.js?v=342').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7166,7 +7170,7 @@ function renderPlanFiscalView(state) {
   const sens = computeSensibilite(state, objectifs[0], { baseRendement, baseSavings });
   const tblSens = document.getElementById('planSensibiliteTable');
   if (tblSens) {
-    const fmtRatio = (ratio, target) => {
+    const fmtRatio = (ratio) => { // v342 — param `target` mort retiré
       const pct = (ratio * 100).toFixed(0);
       const color = ratio >= 1.0 ? '#22c55e' : ratio >= 0.85 ? '#d97706' : '#ef4444';
       return '<span style="color:' + color + ';font-weight:600">' + pct + '%</span>';
