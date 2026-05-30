@@ -5,6 +5,112 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## Audit v340-342 (30 mai 2026) — BUG-064 → BUG-074
+
+Audit complet via `npx skills` (skills `impeccable` + `microsoft/frontend-design-review`) + 4 agents parallèles sur le code métier + calcul réel des ratios de contraste WCAG. **0 bug de Net Worth** (invariants intacts) ; 11 défauts d'affichage/a11y corrigés en 3 sprints (v340 exactitude, v341 accessibilité, v342 charts/sim/polish). Voir `ARCHITECTURE.md §77`.
+
+### BUG-064: Contraste des badges « live » insuffisant sur le header sombre
+- **Version**: cumulatif (depuis l'intro des badges) — corrigé v341
+- **Sévérité**: Haute (P1) — violation WCAG 2.1 AA (1.4.3 Contrast)
+- **Détection**: audit `impeccable` + calcul des ratios. Visible sur les captures utilisateur (« Taux FX live », « Actions: live »).
+- **Symptôme**: badge vert « live » à **2.29:1** et rouge « not live » à **1.78:1** sur le header navy `#1e3a5f` (seuil AA = 4.5).
+- **Cause racine**: `--success #15803d` / `--danger #b91c1c` sont calibrés pour le fond clair (`--bg #fafaf9`, ~4.8:1) puis réutilisés tels quels sur le header sombre via `app.js`.
+- **Correctif**: tokens dédiés `--green-on-dark #4ade80` (6.6:1) et `--red-on-dark #ff8a8a` (5.07:1), appliqués à fxBadge + sBadge. Documenté : tokens fond-sombre-uniquement.
+- **Test**: header → badges lisibles ; `--green-on-dark`/`--red-on-dark` JAMAIS utilisés sur fond clair.
+
+### BUG-065: Loyer Villejuif fantôme dans les totaux immo
+- **Version**: cumulatif — corrigé v340
+- **Sévérité**: Moyenne (P2) — affichage faussé, pas le NW
+- **Détection**: agent d'audit engine.js, confirmé via `render.js:4527-4534`.
+- **Symptôme**: « CF net fiscal total /mois » et loyer annuel total incluaient Villejuif (1700€/mo de loyer non perçu, bien `conditional`/non livré).
+- **Cause racine**: `computeImmoView` sommait `totalLoyerAnnuel`/`totalCFNetFiscal` sur **toutes** les propriétés, alors que `computeBudgetView` (3397) et `computeCashFlow` (4982) zéro-taient déjà Villejuif. Incohérence inter-fonctions.
+- **Correctif**: `properties.reduce(... p.conditional ? 0 : ...)` sur les deux agrégats.
+- **Test**: vue Immobilier → totaux loyer/CF excluent Villejuif tant que non signé/livré.
+
+### BUG-066: WHT (retenue à la source) toujours à zéro dans les coûts Actions YTD
+- **Version**: cumulatif — corrigé v340
+- **Sévérité**: Moyenne (P2) — coûts YTD sous-estimés, silencieux
+- **Détection**: agent render+app (`av.whtYTD` lu mais 0 occurrence côté engine).
+- **Symptôme**: ligne « WHT (retenue source) » jamais affichée (gate `if (r[1] > 0)`) et « Coûts totaux YTD » omettait la retenue.
+- **Cause racine**: `render.js:2391` lisait `av.whtYTD` que `computeActionsView` ne renvoyait pas.
+- **Correctif**: `whtEUR` ajouté à `computeAllCosts` (ACN `wht` USD→EUR via `toEUR` + Degiro `wht` EUR ; IBKR non traqué car `eurAmount` déjà net) + champs `whtYTD`/`whtAllTime`.
+- **Test**: vue Actions → ligne WHT visible, « Coûts totaux » inclut la retenue.
+
+### BUG-067: Base de départ du simulateur couple sous-estimée
+- **Version**: cumulatif — corrigé v340
+- **Sévérité**: Moyenne (P2) — NW de départ du sim ne réconcilie pas avec le dashboard
+- **Détection**: agent data+simulators (réconciliation vs `s.couple.nw`).
+- **Symptôme**: projection couple démarrant ~25-35K€ sous le NW couple réel.
+- **Cause racine**: `runCoupleSimulator` omettait actions ESPP Nezha, facturationNet Amine, créance Omar, montres Nezha, caution Rueil, réservation Villejuif (tout en tirant déjà recvPro/recvPersonal/cash → omission accidentelle).
+- **Correctif**: chaque actif rangé dans le bon pool de croissance (actions/cash/statique) + garde-fou console `[cplSim] écart base liquide+statique` si résidu > 1500€.
+- **Test**: ouvrir sim couple → NW de départ ≈ NW couple dashboard, pas de warning console.
+
+### BUG-068: Cartes KPI et en-têtes triables inaccessibles au clavier
+- **Version**: cumulatif — corrigé v341
+- **Sévérité**: Moyenne (P2) — violation WCAG 2.1.1 (Keyboard) + 2.4.7 (Focus Visible)
+- **Détection**: audit `impeccable` (`tabindex` = 0 occurrence ; `:focus-visible` limité à 3 classes).
+- **Symptôme**: `.kpi-clickable` et `.sortable` cliquables souris mais non atteignables ni activables au clavier ; aucun indicateur de focus sur la plupart des interactifs.
+- **Cause racine**: éléments cliquables non-natifs (div/th avec onclick) sans `tabindex`/`role`/handler clavier.
+- **Correctif**: `decorateA11yInteractive()` (app.js, post-`render`, idempotent) pose `tabindex=0` + `role=button` ; handler Entrée/Espace délégué (lié une fois) ; règle CSS `:focus-visible` générique fond clair.
+- **Test**: Tab atteint cartes KPI + en-têtes tri ; Entrée/Espace déclenche l'action ; outline visible.
+
+### BUG-069: Texte `--text-muted` sous le seuil de contraste AA
+- **Version**: cumulatif — corrigé v341
+- **Sévérité**: Moyenne (P2) — WCAG 1.4.3
+- **Détection**: audit `impeccable` + calcul (usages réels dans `render.js` : insights, alertes).
+- **Symptôme**: `--text-muted #a8a29e` = **2.41:1** sur `--bg` (seuil 4.5).
+- **Correctif**: assombri en `#78716c` (4.59:1).
+- **Test**: listes d'insights + messages d'alerte lisibles.
+
+### BUG-070: SGTM valorisé à 0 le jour de l'IPO
+- **Version**: v330+ (intro pipeline SGTM) — corrigé v342
+- **Sévérité**: Basse (P3) — blip transitoire sur 1 point du chart 5Y/MAX
+- **Détection**: agent charts.js.
+- **Symptôme**: si un jour de cotation tombe pile le 2025-12-15, SGTM NAV=0 avec coût booké → P&L ≈ −2,5K€ (−100%) ce point.
+- **Cause racine**: gate de valorisation `date >= '2025-12-15'` mais 1er prix baseline daté `2025-12-16` → `getSgtmPrice('2025-12-15')` tombait sur le guard pré-IPO `return 0`.
+- **Correctif**: guard pré-IPO renvoie `SGTM_PRICES[0][1]` (1er cours connu) au lieu de 0 ; seul appelant déjà gaté sur la date d'IPO.
+- **Test**: chart 5Y/MAX → courbe SGTM continue dès l'IPO, pas de chute à 0.
+
+### BUG-071: Taux EUR/MAD incohérent entre P&L header et breakdown SGTM
+- **Version**: v330+ — corrigé v342
+- **Sévérité**: Basse (P3) — écart de quelques €
+- **Détection**: agent charts.js.
+- **Symptôme**: « Déposé »/P&L SGTM du header ≠ ligne « SGTM (Maroc) » du panneau breakdown.
+- **Cause racine**: header en taux historique (`_lookupFx(... '2025-12-15')`), breakdown en `fxStatic.MAD` (charts.js:3491/3550).
+- **Correctif**: les 2 sites breakdown passent à `getFxRate('MAD', sgtmIPODate)`, comme la valorisation.
+- **Test**: header et breakdown affichent le même coût/P&L SGTM.
+
+### BUG-072: Rollover de date sur les références 1M/1Y des P&L de période
+- **Version**: cumulatif — corrigé v342
+- **Sévérité**: Basse (P3) — décalage 1-3 jours certains 29/30/31
+- **Détection**: agent engine.js.
+- **Symptôme**: `new Date(2026, 3, 31)` → 1er mai au lieu d'avril → fenêtre de référence P&L 1M/1Y décalée.
+- **Cause racine**: `new Date(y, m-1, jour)` sans bornage du jour (4 sites, 2 scopes).
+- **Correctif**: helper module `subPeriodClamped(date, years, months)` bornant le jour au dernier jour du mois cible. Unit-testé (month-end + bissextiles, 7/7).
+- **Test**: sur le 31, la date 1M tombe sur le dernier jour du mois précédent.
+
+### BUG-073: Curseur « appréciation » du simulateur Nezha inerte
+- **Version**: cumulatif — corrigé v342
+- **Sévérité**: Basse (P3) — UX trompeuse
+- **Détection**: agent simulators.js.
+- **Symptôme**: déplacer le slider ne changeait que le label, pas la projection.
+- **Cause racine**: l'equity venait de `makeComputePropertyEquity` (phases data-driven), le slider n'était jamais injecté.
+- **Correctif**: 4ème arg `appreciationOverride` ; seul le sim Nezha le passe (couple/amine inchangés → phases).
+- **Test**: sim Nezha → bouger l'appréciation modifie Rueil/Villejuif et le NW projeté.
+
+### BUG-074: Lot polish audit (FTT, Omar, existingGains, fmtRatio, creancesAlert)
+- **Version**: cumulatif — corrigé v340/v342
+- **Sévérité**: Basse (P3)
+- **Items**:
+  - **Signe FTT** (engine.js:997) : `abs(commissions) + fttEUR` (fttEUR négatif → soustraction) → `+ abs(fttEUR)`. Coûts cumulés de la reco « Trop de lignes » sous-estimés.
+  - **Label Omar** : `'40K MAD'` codé en dur vs valeur pondérée 70% → dérivé `'40K MAD × 70%'`.
+  - **existingGains** : `45000` codé en dur (identique couple/amine) → `s.actionsView.combinedUnrealizedPL` (Amine = combiné − ESPP Nezha). Cosmétique (split Capital/Marché, pas le NW).
+  - **fmtRatio(target)** : param mort retiré (render.js).
+  - **creancesAlert** : re-masqué quand `needsFollowUpCount` tombe à 0 (anti alerte fantôme au re-render).
+- **Test**: reco coûts cohérente ; label Omar honnête ; band Capital/Marché basé sur le P&L réel ; pas d'alerte créance fantôme.
+
+---
+
 ## BUG-063: Débordement mobile systémique — 13 tableaux non wrappés (audit post-v326)
 - **Version**: Cumulatif (chaque tableau introduit depuis v1), v327 (corrigé en masse)
 - **Sévérité**: Moyenne/Haute (page entière déborde horizontalement sur iPhone → toutes les vues affectées)
@@ -1494,7 +1600,9 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
-*Dernière mise à jour: v327 — 19 avril 2026 (BUG-063 — débordement mobile systémique suite à retour utilisateur post-v326 « y a plein d'autres tableaux qui ont une largeur supérieure ». Audit des 9 vues (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget, Plan-Fiscal, Property Detail) a identifié 13 tableaux ≥ 5 colonnes sans wrapper `overflow-x: auto` + 5 tableaux dynamiques render.js avec `width:100%` qui empêchait le scroll de se déclencher + 1 tableau 10 colonnes (immoCFTable) sans wrapper du tout. Fix généralisé via pattern `.table-wrap` + CSS var `--tbl-min` paramétrable : 13 wraps HTML + 5 min-width dynamiques + 1 wrap inline dans render.js. `--tbl-min` calibré par nombre de colonnes (520 px pour 5 cols, 680-740 px pour 7 cols, 820-900 px pour 8-9 cols). Règle d'or documentée : tout nouveau tableau ≥ 5 colonnes DOIT être wrappé. Voir ARCHITECTURE.md §74.)*
+*Dernière mise à jour: v342 — 30 mai 2026 (audit frontend `npx skills` + 3 sprints, BUG-064 → BUG-074. Skills `impeccable` + `microsoft/frontend-design-review` + 4 agents parallèles sur ~28k lignes + calcul réel des ratios WCAG. 0 bug de Net Worth (invariants intacts). Sprint 1/v340 exactitude : Villejuif fantôme hors totaux immo, WHT YTD réel, signe FTT, label Omar dérivé, base sim couple réconciliée. Sprint 2/v341 accessibilité AA : tokens `--green-on-dark`/`--red-on-dark` pour les badges header (2.29:1 → 6.6:1), `--text-muted` 4.59:1, navigation clavier des cartes/headers cliquables. Sprint 3/v342 charts/sim/polish : SGTM jour d'IPO, FX cohérent header/breakdown, helper `subPeriodClamped` anti-rollover, curseur appréciation Nezha branché, `existingGains` dérivé, 2 nettoyages render. Voir ARCHITECTURE.md §77.)*
+
+*v327 — 19 avril 2026 (BUG-063 — débordement mobile systémique suite à retour utilisateur post-v326 « y a plein d'autres tableaux qui ont une largeur supérieure ». Audit des 9 vues (Couple, Amine, Nezha, Actions, Cash, Immobilier, Créances, Budget, Plan-Fiscal, Property Detail) a identifié 13 tableaux ≥ 5 colonnes sans wrapper `overflow-x: auto` + 5 tableaux dynamiques render.js avec `width:100%` qui empêchait le scroll de se déclencher + 1 tableau 10 colonnes (immoCFTable) sans wrapper du tout. Fix généralisé via pattern `.table-wrap` + CSS var `--tbl-min` paramétrable : 13 wraps HTML + 5 min-width dynamiques + 1 wrap inline dans render.js. `--tbl-min` calibré par nombre de colonnes (520 px pour 5 cols, 680-740 px pour 7 cols, 820-900 px pour 8-9 cols). Règle d'or documentée : tout nouveau tableau ≥ 5 colonnes DOIT être wrappé. Voir ARCHITECTURE.md §74.)*
 
 *v326 — 19 avril 2026 (deux bugs mobile iPhone — BUG-061 dropdown « Analyse » totalement invisible sur iOS Safari : `-webkit-overflow-scrolling: touch` sur `.view-switcher` (≤480px) créait un nouveau containing block pour les descendants `position: fixed`, donc notre dropdown-menu `fixed` se comportait comme `absolute` et se faisait clipper par `overflow-x: auto`. Spec CSS violée par WebKit depuis iOS 5, non reproductible sur Chrome/Firefox mobile émulé — d'où détection tardive. Fix : suppression de la propriété (legacy, no-op depuis iOS 13 où le momentum scrolling est natif). BUG-062 tableau « Toutes les Positions » illisible sur iPhone : 10 colonnes dans 375px = ~38px/colonne, valeurs « € 44 737 » wrappaient sur 2-3 lignes, chaque ligne du tableau faisait 3× sa hauteur normale. Fix : wrapper `.positions-table-wrap { overflow-x: auto }` + `#allPositionsTable { min-width: 720px }` en ≤480px. Pattern cohérent avec les autres tableaux larges (Plan/Fiscalité/Créances/Budget/Financement) wrappés en v229/v321. Voir ARCHITECTURE.md §73.)*
 
