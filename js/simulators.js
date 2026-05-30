@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=339';
-import { IMMO_CONSTANTS } from './data.js?v=339';
+import { fmt, fmtAxis } from './render.js?v=340';
+import { IMMO_CONSTANTS } from './data.js?v=340';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -682,10 +682,23 @@ function runCoupleSimulator(state) {
   const stopYears = parseFloat(document.getElementById('cplSimStopYear').value);
 
   const coupleImmo = s.couple.immoEquity;
-  const couplePoolActions = s.pools.actions + s.nezha.sgtm;
-  const couplePoolCash = s.pools.cash + s.amine.recvPro + s.amine.recvPersonal + s.nezha.cash;
-  const coupleStatic = s.amine.vehicles + s.amine.tva;
+  // v340 — réconcilier la base de départ avec le NW couple du dashboard (s.couple.nw).
+  // Auparavant omis → départ sous-estimé de ~25-35K€ : actions ESPP de Nezha, facturationNet
+  // d'Amine, créance Omar, montres de Nezha, caution Rueil et réservation Villejuif (si non signé).
+  // Chaque actif est rangé dans le bon pool de croissance (actions / cash / statique).
+  const couplePoolActions = s.pools.actions + s.nezha.sgtm + (s.nezha.esppForActions || 0);
+  const couplePoolCash = s.pools.cash + s.amine.recvPro + s.amine.recvPersonal
+    + (s.amine.facturationNet || 0) + s.nezha.cash + (s.nezha.recvOmar || 0)
+    + (s.nezha.villejuifSigned ? 0 : (s.nezha.villejuifReservation || 0));
+  const coupleStatic = s.amine.vehicles + s.amine.tva + (s.nezha.watches || 0) - (s.nezha.cautionRueil || 0);
   const coupleNW = coupleImmo + couplePoolActions + couplePoolCash + coupleStatic;
+  // Garde-fou : la partie liquide+statique du simulateur doit matcher celle du dashboard
+  // (l'immo est remplacé par computedImmo0 plus bas, donc comparé hors immo).
+  const _liquidStaticSim = couplePoolActions + couplePoolCash + coupleStatic;
+  const _liquidStaticDash = (s.couple && s.couple.nw ? s.couple.nw : 0) - coupleImmo;
+  if (Math.abs(_liquidStaticSim - _liquidStaticDash) > 1500) {
+    console.warn('[cplSim] écart base liquide+statique vs dashboard :', Math.round(_liquidStaticSim - _liquidStaticDash), '€');
+  }
 
   // Create property equity computers for each property
   const iv = s.immoView;

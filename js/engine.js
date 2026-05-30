@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=339';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=340';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -650,6 +650,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       interestEUR: interest.total,
       interestItems: interest.items,
       dividendsEUR: totalDividends,
+      // v340 — WHT (retenue à la source) agrégée sur la période. ACN : `wht` stocké en USD
+      // → converti en EUR. Degiro : `wht` déjà en EUR. IBKR : non traqué séparément
+      // (eurAmount est déjà net), donc exclu — cohérent avec la donnée disponible.
+      whtEUR: acnDiv.items.reduce((s, i) => s + toEUR(i.wht || 0, 'USD', fx), 0)
+            + degiroDiv.items.reduce((s, i) => s + (i.wht || 0), 0),
       ibkrDivItems: ibkrDiv.items,
       acnDivItems: acnDiv.items,
       degiroDivItems: degiroDiv.items,
@@ -994,7 +999,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // b) Number of positions vs portfolio size
   const nbPositions = ibkrPositions.length;
   if (nbPositions > 12) {
-    const costTotal = Math.abs(costsAllTime.commissionsEUR) + costsAllTime.fttEUR;
+    const costTotal = Math.abs(costsAllTime.commissionsEUR) + Math.abs(costsAllTime.fttEUR); // v340 — fttEUR est négatif : abs() pour additionner, pas soustraire
     recs.push({ priority: 2, icon: '🎯', title: 'Trop de lignes (' + nbPositions + ' positions)',
       detail: nbPositions + ' positions génèrent des frais (€' + Math.round(costTotal).toLocaleString('fr-FR') + ' cumulés) et du stress. Un cœur ETF (80%) + satellites stock picking (20%) serait plus efficace.' });
   }
@@ -1240,6 +1245,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     fttYTD: costsYtd.fttEUR,
     interestAllTime: costsAllTime.interestEUR,
     interestYTD: costsYtd.interestEUR,
+    whtAllTime: costsAllTime.whtEUR,   // v340 — retenue à la source cumulée
+    whtYTD: costsYtd.whtEUR,           // v340 — retenue à la source YTD (corrige "WHT toujours 0")
     ibkrDepositsTotal: ibkrDepositsTotal,
     esppDeposits: esppDeposits,
     sgtmDepositsEUR: sgtmDepositsEUR,
@@ -2892,8 +2899,11 @@ function computeImmoView(portfolio, fx) {
 
   // Fiscal totals
   const totalImpotAnnuel = properties.reduce((s, p) => s + (p.fiscalite ? p.fiscalite.totalImpot : 0), 0);
-  const totalLoyerAnnuel = properties.reduce((s, p) => s + (p.totalRevenue || p.loyer) * 12, 0);
-  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.cfNetFiscal || p.cf), 0);
+  // v340 — exclure les biens conditionnels (Villejuif non livré) des agrégats loyer/CF :
+  // le loyer n'est pas encore perçu. Aligne computeImmoView sur computeBudgetView (3397)
+  // et computeCashFlow (4982) qui zéro-tent déjà Villejuif.
+  const totalLoyerAnnuel = properties.reduce((s, p) => s + (p.conditional ? 0 : (p.totalRevenue || p.loyer) * 12), 0);
+  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.conditional ? 0 : (p.cfNetFiscal || p.cf)), 0);
 
   // Amortization totals
   const totalInterestPaid = Object.values(amortSchedules).reduce((s, a) => s + a.interestPaid, 0);
@@ -3838,12 +3848,16 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaWatches = Object.values(p.nezha.watches || {}).reduce((s, v) => s + (v || 0), 0);
   // BUG-033: iterate all Nezha créances (not just items[0])
   let nezhaRecvOmar = 0;
+  let nezhaRecvOmarGrossMAD = 0;    // v340 — montant brut (avant probabilité), MAD natif
+  let nezhaRecvOmarWeightedMAD = 0; // v340 — après probabilité, MAD natif (pour label honnête)
   if (p.nezha.creances && p.nezha.creances.items) {
     p.nezha.creances.items.forEach(c => {
       if (c.status === 'recouvré') return; // same rule as Amine: skip recouvré
       const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
       const remaining = c.amount - paymentsTotal;
-      nezhaRecvOmar += toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
+      const prob = (c.probability !== undefined ? c.probability : 1);
+      nezhaRecvOmar += toEUR(remaining * prob, c.currency, fx);
+      if (c.currency === 'MAD') { nezhaRecvOmarGrossMAD += remaining; nezhaRecvOmarWeightedMAD += remaining * prob; }
     });
   }
   // Cash includes ESPP broker cash for consistency with cash view
@@ -4251,7 +4265,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       label: 'Creances & Autres', color: '#ec4899',
       total: nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil,
       sub: [
-        { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: '40K MAD' },
+        { label: 'Creance Omar', val: nezhaRecvOmar, color: '#be185d', owner: nezhaRecvOmarGrossMAD > 0 ? (Math.round(nezhaRecvOmarGrossMAD / 1000) + 'K MAD × ' + Math.round(100 * nezhaRecvOmarWeightedMAD / nezhaRecvOmarGrossMAD) + '%') : '--' }, // v340 — label dérivé (brut × probabilité) au lieu du "40K MAD" codé en dur
         ...(!villejuifSigned && nezhaVillejuifReservation > 0 ? [{ label: 'Reservation Villejuif', val: nezhaVillejuifReservation, color: '#f472b6', owner: 'Remboursable' }] : []),
         ...(nezhaWatches > 0 ? [{ label: 'Rolex Datejust 31', val: nezhaWatches, color: '#a8a29e', owner: 'Rolesor Everose' }] : []),
         ...(nezhaCautionRueil > 0 ? [{ label: 'Caution Rueil', val: -nezhaCautionRueil, color: '#ef4444', owner: 'Dette locataire' }] : []),
