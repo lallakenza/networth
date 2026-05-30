@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=341';
-import { IMMO_CONSTANTS } from './data.js?v=341';
+import { fmt, fmtAxis } from './render.js?v=342';
+import { IMMO_CONSTANTS } from './data.js?v=342';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -596,7 +596,7 @@ function makeComputePropertyCRD(iv, loanKey) {
 // ============ GENERIC PROPERTY EQUITY COMPUTER ============
 // Computes absolute NET equity (after exit costs) for any property
 // based on amort schedule + phased appreciation - projected exit costs
-function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
+function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciationOverride) {
   // Pre-extract exit costs by year for this property
   const exitCostsByYearProp = (iv && iv.exitCostsByYearProp) || {};
 
@@ -641,6 +641,7 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue) {
     const phases = propMeta.appreciationPhases || [];
 
     function getRate(year) {
+      if (appreciationOverride != null) return appreciationOverride; // v342 — le slider du sim Nezha pilote l'appréciation (sinon phases data-driven)
       for (let i = 0; i < phases.length; i++) {
         if (year >= phases[i].start && year <= phases[i].end) return phases[i].rate;
       }
@@ -750,7 +751,9 @@ function runCoupleSimulator(state) {
     returnCash: 0.06, horizonYears, stopYears,
     startNW: coupleNW - coupleImmo + computedImmo0, startImmoEquity: computedImmo0,
     startPoolActions: couplePoolActions, startPoolCash: couplePoolCash,
-    staticAssets: coupleStatic, existingGains: 45000,
+    staticAssets: coupleStatic,
+    // v342 — dérivé du P&L latent réel (était 45000 codé en dur) pour le split Capital/Marché
+    existingGains: (s.actionsView && s.actionsView.combinedUnrealizedPL != null) ? Math.max(0, s.actionsView.combinedUnrealizedPL) : 45000,
     ownerSplit: { amineNW: amineNWStart, nezhaNW: nezhaNWStart, amineShare: 0.75, nezhaShare: 0.25 },
     immoGrowthFn: (m) => {
       // Compute total absolute equity at month m
@@ -822,7 +825,9 @@ function runAmineSimulator(state) {
     returnCash: 0.06, horizonYears, stopYears,
     startNW: s.amine.nw - s.amine.vitryEquity + vitryEq0, startImmoEquity: vitryEq0,
     startPoolActions: s.pools.actions, startPoolCash: aminePoolCash,
-    staticAssets: amineStatic, existingGains: 45000,
+    staticAssets: amineStatic,
+    // v342 — P&L latent Amine = combiné − ESPP Nezha (était 45000 codé en dur)
+    existingGains: (s.actionsView && s.actionsView.combinedUnrealizedPL != null) ? Math.max(0, s.actionsView.combinedUnrealizedPL - (s.actionsView.nezhaEsppUnrealizedPL || 0)) : 45000,
     immoGrowthFn: (m) => {
       // Compute total absolute equity at month m
       const totalEquity = computeVitryEquity(m);
@@ -871,8 +876,9 @@ function runNezhaSimulator(state) {
 
   // Create property equity computers for Rueil and Villejuif
   const ivNz = s.immoView;
-  const computeRueilEquity = makeComputePropertyEquity(ivNz, 'rueil', ivNz?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
-  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
+  // v342 — `appreciation` (slider) pilote désormais réellement la projection (4ème arg).
+  const computeRueilEquity = makeComputePropertyEquity(ivNz, 'rueil', ivNz?.properties?.find(p => p.loanKey === 'rueil')?.value || 0, appreciation);
+  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0, appreciation);
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 

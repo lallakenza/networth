@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=341';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=342';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -33,6 +33,18 @@ import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV
 function toEUR(amount, currency, fx) {
   if (currency === 'EUR') return amount;
   return amount / (fx[currency] || 1);
+}
+
+/**
+ * v342 — Soustrait des années/mois en bornant le jour au dernier jour du mois cible.
+ * Évite le rollover JS (new Date(2026, 3, 31) → 1er mai au lieu d'avril) qui décalait
+ * les dates de référence 1M/1Y des P&L de période de 1 à 3 jours certains 29/30/31.
+ */
+function subPeriodClamped(date, years, months) {
+  const d = new Date(date.getFullYear() - years, date.getMonth() - months, 1);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(date.getDate(), lastDay));
+  return d;
 }
 
 /**
@@ -95,10 +107,10 @@ function computeIBKRPositions(portfolio, fx) {
   const ytdStartStr = now.getFullYear() + '-01-01';
   const mtdStartStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-01';
   // 1M = same day last month (calendar month, not 30 days)
-  const oneMonthAgoDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+  const oneMonthAgoDate = subPeriodClamped(now, 0, 1); // v342 — jour borné (anti-rollover)
   const oneMonthStr = oneMonthAgoDate.getFullYear() + '-' + pad2(oneMonthAgoDate.getMonth() + 1) + '-' + pad2(oneMonthAgoDate.getDate());
     // 1Y = same day last year
-    const oneYearAgoDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    const oneYearAgoDate = subPeriodClamped(now, 1, 0); // v342 — jour borné (anti-rollover, ex: 29 fév)
     const oneYearStr = oneYearAgoDate.getFullYear() + '-' + pad2(oneYearAgoDate.getMonth() + 1) + '-' + pad2(oneYearAgoDate.getDate());
 
   const positions = ibkr.positions.map(pos => {
@@ -466,10 +478,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ytdStartStr = _now.getFullYear() + '-01-01';
   const mtdStartStr = _now.getFullYear() + '-' + _pad2(_now.getMonth() + 1) + '-01';
   const todayStr = _now.getFullYear() + '-' + _pad2(_now.getMonth() + 1) + '-' + _pad2(_now.getDate());
-  const _oneMonthAgo = new Date(_now.getFullYear(), _now.getMonth() - 1, _now.getDate());
+  const _oneMonthAgo = subPeriodClamped(_now, 0, 1); // v342 — jour borné (anti-rollover)
   const oneMonthStr = _oneMonthAgo.getFullYear() + '-' + _pad2(_oneMonthAgo.getMonth() + 1) + '-' + _pad2(_oneMonthAgo.getDate());
   // 1Y = same day last year
-  const _oneYearAgo = new Date(_now.getFullYear() - 1, _now.getMonth(), _now.getDate());
+  const _oneYearAgo = subPeriodClamped(_now, 1, 0); // v342 — jour borné (anti-rollover, ex: 29 fév)
   const oneYearStr = _oneYearAgo.getFullYear() + '-' + _pad2(_oneYearAgo.getMonth() + 1) + '-' + _pad2(_oneYearAgo.getDate());
   // ═══════════════════════════════════════════════════════════════════
   // UNIFIED PERIOD P&L ENGINE
