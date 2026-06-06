@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=343';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=344';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2890,7 +2890,7 @@ function computeImmoView(portfolio, fx) {
         franchiseMonths: franchise.months || 36,
         franchiseStart: franchise.startDate || null,
         loanDisbursed: franchise.loanDisbursed !== undefined ? franchise.loanDisbursed : true,
-        deliveryDate: propMeta.deliveryDate || '2028-03',
+        deliveryDate: propMeta.deliveryDate || '2028-09',
         totalOperation: propMeta.totalOperation || 0,
         fraisDossier: franchise.fraisDossier || 0,
       };
@@ -3382,11 +3382,11 @@ function computeBudgetView(portfolio, fx) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
-  // Villejuif: charges décalées — début après livraison Q1 2028 (franchise 36 mois depuis août 2025)
+  // Villejuif: charges décalées — début après livraison Q3 2028 (franchise 36 mois depuis août 2025)
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
   // Villejuif : promesse de vente, prêt pas débloqué. Seule l'assurance prêt est payée (51€/mois).
-  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~Q1 2028).
+  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~Q3 2028).
   const villejuifActiveCharges = ['assurance']; // seules charges payées actuellement
 
   const investProperties = [];
