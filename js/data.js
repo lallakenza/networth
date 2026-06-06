@@ -1068,9 +1068,14 @@ export const PORTFOLIO = {
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
-      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: false, reservationFees: 3363 },
+      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363 },
       // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
-      // Prix contrat réservation : 336 330€ TTC (TVA 20%) — signé 20/06/2025
+      // Prix contrat réservation : 336 330€ TTC (TVA 20%) — réservation signée 20/06/2025
+      // ACTE DE VENTE NOTARIÉ SIGNÉ juin 2026 → signed=true : equity (value − CRD) comptée dans
+      //   nezhaNW, réservation absorbée (plus de double-compte). Livraison VEFA toujours Q1 2028
+      //   (conditional=true codé en dur dans buildProperty → loyers/CF inactifs jusqu'à livraison).
+      //   ⚠️ Cash : l'apport + frais de notaire versés à la signature seront déduits via la MAJ
+      //   des soldes cash de Nezha (PORTFOLIO.nezha.cash) — fournis séparément.
       // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
       // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
@@ -1150,8 +1155,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '20/04/2026';
-export const APP_VERSION = 'v342';
+export const DATA_LAST_UPDATE = '06/06/2026';
+export const APP_VERSION = 'v343';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

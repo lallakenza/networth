@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=342';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=342';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=343';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=343';
 
 // ---- Generic table sort utility ----
 /**
@@ -686,12 +686,17 @@ function renderExpandSubs(state, view, options = {}) {
         rBadge.style.color = rueilP.cf >= 0 ? '#276749' : '#c53030';
       }
     }
+    // v343 \u2014 Villejuif : acte sign\u00e9 \u2192 le texte de statut suit le flag (source de v\u00e9rit\u00e9 engine).
+    const vjSigned = !!(state.nezha && state.nezha.villejuifSigned);
     const villejuifP = propMap.villejuif;
     if (villejuifP) {
-      // Only show "non signe" warning in immobilier and property-specific views
+      // Status note only in immobilier and property-specific views
       const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
-      const showWarning = relevantViews.includes(view);
-      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + (showWarning ? '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>' : ''));
+      const vjStatusNote = !relevantViews.includes(view) ? ''
+        : (vjSigned
+            ? '<br><span style="font-size:11px;color:#276749">Acte signe \u2014 livraison Q1 2028</span>'
+            : '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>');
+      setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + vjStatusNote);
     }
 
     // ── Dynamic Résumé Immobilier table ──
@@ -701,7 +706,9 @@ function renderExpandSubs(state, view, options = {}) {
       const propMeta = {
         vitry: { owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
         rueil: { owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
-        villejuif: { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
+        villejuif: vjSigned
+          ? { desc: 'Signe \u2014 livraison 2028', owner: 'Nezha', status: 'Sign\u00e9', statusBg: '#c6f6d5', statusColor: '#276749', descColor: '#276749' }
+          : { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
       };
       iv.properties.forEach(prop => {
         const meta = propMeta[prop.loanKey] || {};
@@ -1153,7 +1160,11 @@ function renderNezhaTable(state, view) {
   if (relevantViews.includes(view)) {
     // Villejuif conditionnel
     tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span></strong></td>';
+    const vjSignedN = !!(state.nezha && state.nezha.villejuifSigned);
+    const vjBadgeN = vjSignedN
+      ? '<span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:11px;color:#276749">SIGN\u00c9 \u2014 livraison 2028</span>'
+      : '<span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span>';
+    tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA ' + vjBadgeN + '</strong></td>';
     tbody.appendChild(tr);
     tr = document.createElement('tr');
     tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
@@ -4149,7 +4160,7 @@ function renderImmoView(state) {
         + '</div>';
 
       card.innerHTML = '<div style="border-left:3px solid ' + ownerColor + ';padding-left:10px;">'
-        + '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">CONDITIONNEL</span>' : '') + '</h3>'
+        + '<h3>' + prop.name + regimeBadge + (prop.conditional ? ' <span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:10px;color:#92400e;">NON LIVRÉ</span>' : '') + '</h3>'
         + '<div class="prop-owner"><span style="background:' + ownerBg + ';color:' + ownerColor + ';padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;">' + prop.owner + '</span> <span style="font-size:10px;color:var(--accent);margin-left:4px;">▸ voir détails</span></div>'
         + '</div>'
         + '<div class="prop-kpis">'
@@ -6845,7 +6856,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=342').then(m => {
+  import('./charts.js?v=343').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
