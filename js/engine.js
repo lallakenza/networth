@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=345';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=346';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3832,7 +3832,6 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaVillejuifEquity = villejuifSigned
     ? Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)
     : 0;
-  const nezhaVillejuifFutureEquity = Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute);
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   // Nezha cash — detailed accounts
   // v328: ajout IBKR Nezha (EUR) — traité comme cash France (broker balance, pas de positions détaillées)
@@ -3896,11 +3895,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDelta: nezhaNWDelta,
     nwDeltaPct: nezhaNWDeltaPct,
     nwDeltaTimeframe: nwDeltaTimeframe,
-    // BUG-044 (v297): nezhaNW now already includes nezhaVillejuifEquity when signed.
-    // "With Villejuif" = NW with projected equity, stripping out reservation (refunded at signing) and
-    // any current-if-signed equity. When !signed: +futureEquity replaces reservation. When signed:
-    // future == current, so the two terms cancel and this equals nezhaNW (no double-count).
-    nwWithVillejuif: nezhaNW - nezhaVillejuifEquity - nezhaVillejuifReservation + nezhaVillejuifFutureEquity,
+    // v346 — `nwWithVillejuif` supprimé : depuis l'acte signé (05/06/2026), l'equity Villejuif
+    // est nativement dans nezhaNW (BUG-044) — la projection alternative n'a plus d'objet.
     rueilValue: p.nezha.immo.rueil.value,
     rueilCRD: nezhaRueilCRD,
     rueilEquity: nezhaRueilEquity, // net (after exit costs, floored at 0)
@@ -3909,7 +3905,6 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     villejuifCRD: nezhaVillejuifCRD,
     villejuifEquity: nezhaVillejuifEquity, // net (after exit costs, floored at 0)
     villejuifEquityBrute: nezhaVillejuifEquityBrute,
-    villejuifFutureEquity: nezhaVillejuifFutureEquity,
     villejuifSigned: villejuifSigned,
     villejuifReservation: nezhaVillejuifReservation,
     // Detailed cash

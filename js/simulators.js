@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=345';
-import { IMMO_CONSTANTS } from './data.js?v=345';
+import { fmt, fmtAxis } from './render.js?v=346';
+import { IMMO_CONSTANTS } from './data.js?v=346';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -741,10 +741,8 @@ function runCoupleSimulator(state) {
 
   // v283 — per-owner NW at simulation start, to feed the 75/25 split banner
   const amineNWStart = s.amine?.nw || 0;
-  // Nezha: include Villejuif future equity if already signed
-  const nezhaNWStart = (s.nezha && s.nezha.villejuifSigned)
-    ? (s.nezha.nwWithVillejuif || s.nezha.nw || 0)
-    : (s.nezha?.nw || 0);
+  // v346 — acte Villejuif signé : l'equity est nativement dans nezha.nw (plus de projection alternative)
+  const nezhaNWStart = s.nezha?.nw || 0;
 
   const result = runSimulatorGeneric({
     prefix: 'cplSim', monthlySavings, pctActions, returnActions,

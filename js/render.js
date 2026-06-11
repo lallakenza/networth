@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=345';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=345';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=346';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=346';
 
 // ---- Generic table sort utility ----
 /**
@@ -382,19 +382,9 @@ function renderKPIs(state, view) {
     setText('kpiAmTWR', (_amTWR >= 0 ? '+' : '') + _amTWR.toFixed(1) + '%');
   }
 
-  // Show nwWithVillejuif if villejuifSigned, otherwise show nw
-  const nezhaNWDisplay = s.nezha.villejuifSigned ? s.nezha.nwWithVillejuif : s.nezha.nw;
-  setEur('kpiNzNW', nezhaNWDisplay);
-  // Add asterisk if showing with Villejuif
-  if (s.nezha.villejuifSigned) {
-    const el = document.getElementById('kpiNzNW');
-    if (el && el.parentElement) {
-      const label = el.parentElement.querySelector('.label');
-      if (label) {
-        label.innerHTML = 'Net Worth (actuel)<span style="background:#fef3c7;padding:1px 5px;border-radius:4px;font-size:9px;color:#92400e;margin-left:4px;">+VJ sign\u00e9</span>';
-      }
-    }
-  }
+  // v346 \u2014 Acte sign\u00e9 05/06/2026 : l'equity Villejuif est nativement dans nezha.nw.
+  // Plus de projection alternative \u00ab avec Villejuif \u00bb ni de badge.
+  setEur('kpiNzNW', s.nezha.nw);
   // Add delta indicator for nezha NW
   if (s.nezha.nwDelta !== null && s.nezha.nwDeltaPct !== null) {
     setDelta('kpiNzNW', s.nezha.nwDelta, s.nezha.nwDeltaPct, s.nezha.nwDeltaTimeframe);
@@ -1080,7 +1070,7 @@ function renderCoupleTable(state) {
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash + s.nezha.brokerCash],
     ['Equity Immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['Equity Immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
-    ['Equity Immo \u2014 Villejuif VEFA (Nezha) [conditionnel]', s.nezha.villejuifEquity],
+    ['Equity Immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
     ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
@@ -1155,25 +1145,9 @@ function renderNezhaTable(state, view) {
   tr.innerHTML = '<td><strong>Net Worth Nezha (actuel)</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
   tbody.appendChild(tr);
 
-  // Only show Villejuif section in immobilier and property-specific views
-  const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
-  if (relevantViews.includes(view)) {
-    // Villejuif conditionnel
-    tr = document.createElement('tr');
-    const vjSignedN = !!(state.nezha && state.nezha.villejuifSigned);
-    const vjBadgeN = vjSignedN
-      ? '<span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-size:11px;color:#276749">SIGN\u00c9 \u2014 livraison 2028</span>'
-      : '<span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:11px;color:#92400e">CONDITIONNEL \u2014 acte non signe</span>';
-    tr.innerHTML = '<td colspan="2" style="padding-top:12px"><strong>Villejuif VEFA ' + vjBadgeN + '</strong></td>';
-    tbody.appendChild(tr);
-    tr = document.createElement('tr');
-    tr.innerHTML = '<td>Equity Villejuif VEFA (estimee)</td><td class="num">' + fmt(s.nezha.villejuifEquity) + '</td>';
-    tbody.appendChild(tr);
-    tr = document.createElement('tr');
-    tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td><strong>Net Worth avec Villejuif</strong></td><td class="num"><strong>' + fmt(total + s.nezha.villejuifEquity) + '</strong></td>';
-    tbody.appendChild(tr);
-  }
+  // v346 \u2014 Section \u00ab Net Worth avec Villejuif \u00bb supprim\u00e9e : depuis l'acte sign\u00e9 (05/06/2026),
+  // l'equity Villejuif est une ligne normale du tableau ci-dessus et fait partie du NW actuel.
+  // L'ancienne section l'aurait re-additionn\u00e9e (double-compte d'affichage).
 }
 
 function renderIBKRPositionsSimple(state) {
@@ -1340,8 +1314,8 @@ let _allSortDir = 'desc';
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
-let _immoIncludeVillejuif = true; // toggle for Villejuif (achat futur)
-window._immoIncludeVillejuif = () => _immoIncludeVillejuif; // expose for charts
+// v346 — toggle « Inclure Villejuif » supprimé (acte signé 05/06/2026) : le bien est
+// définitivement acquis, toujours compté. charts.js n'interroge plus window._immoIncludeVillejuif.
 let _posViewMode = 'total'; // 'total' or 'unitaire'
 let _posPeriod = 'all'; // 'all', 'daily', 'mtd', 'oneMonth', 'ytd'
 let _expandedTicker = null; // currently expanded row
@@ -3581,7 +3555,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     + '<div style="margin-top:16px;padding:12px 16px;background:#f0fff4;border-radius:8px;border-left:3px solid var(--green);font-size:12px;line-height:1.6;color:#2d3748">'
     + '<strong>Comment lire ce tableau :</strong><br>'
     + '<strong>Capital amorti</strong> = part du pr\u00eat rembours\u00e9e qui augmente votre equity (le locataire paie, la banque rembourse).<br>'
-    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an' + (_immoIncludeVillejuif ? ', Villejuif 1.7%/an L14+L15' : '') + ').<br>'
+    + '<strong>Appr\u00e9ciation</strong> = hausse de valeur du bien (Vitry 1.5%/an GPE L15, Rueil 1%/an, Villejuif 1.7%/an L14+L15).<br>'
     + '<strong>Cash flow</strong> = loyers - toutes charges (pr\u00eat + assurance + PNO + TF + copro). N\u00e9gatif = effort d\u2019\u00e9pargne mensuel.'
     + (tb.cashflow < 0 ? '<br><em>M\u00eame avec un effort de ' + fmt(Math.abs(tb.cashflow)) + '/mois, vous cr\u00e9ez ' + fmt(total) + '/mois de richesse nette. Le levier bancaire travaille pour vous.</em>' : '')
     + '</div>';
@@ -3667,8 +3641,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
  * Renders the real estate (immobilier) dashboard view
  *
  * Main property portfolio dashboard with multiple sections:
- * 1. Villejuif property inclusion toggle (#immoVillejuifToggle)
- * 2. KPI row (#immoKPIs): Total value, equity, CRD, wealth creation, LTV
+ * 1. KPI row (#immoKPIs): Total value, equity, CRD, wealth creation, LTV
  * 3. Wealth breakdown with mini bar visualization
  * 4. CF Summary Ribbon (#cfSummaryRibbon): Revenus/Charges/CF net with hover tooltips
  * 5. Wealth breakdown section (#wealthBreakdownSection): detailed breakdown table
@@ -3696,37 +3669,8 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
 function renderImmoView(state) {
   const iv = state.immoView;
 
-  // ── Villejuif toggle wiring ──
-  const vilToggle = document.getElementById('immoVillejuifToggle');
-  const vilCheck = document.getElementById('immoVillejuifCheck');
-  function updateVilToggleUI() {
-    if (vilCheck) {
-      vilCheck.style.background = _immoIncludeVillejuif ? 'var(--accent)' : '#fff';
-      vilCheck.style.borderColor = _immoIncludeVillejuif ? 'var(--accent)' : '#cbd5e0';
-      vilCheck.style.color = _immoIncludeVillejuif ? '#fff' : 'transparent';
-    }
-  }
-  if (vilToggle && !vilToggle._wired) {
-    vilToggle._wired = true;
-    vilToggle.addEventListener('click', () => {
-      _immoIncludeVillejuif = !_immoIncludeVillejuif;
-      updateVilToggleUI();
-      // Refresh entire page (KPIs + charts + tables + projections)
-      if (typeof window._appRefresh === 'function') {
-        window._appRefresh();
-      } else {
-        renderImmoView(state); // fallback
-      }
-    });
-  }
-  updateVilToggleUI();
-
-  // ── Filter properties based on toggle ──
-  const filteredProps = _immoIncludeVillejuif
-    ? iv.properties
-    : iv.properties.filter(p => p.loanKey !== 'villejuif');
-  const fp = filteredProps; // shorthand
-  iv._filteredProperties = fp; // expose filtered list for other renderers
+  // v346 — toggle Villejuif supprimé (acte signé) : les 3 biens sont toujours inclus.
+  const fp = iv.properties; // shorthand
 
   // Recompute KPIs from filtered set
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
@@ -4072,42 +4016,40 @@ function renderImmoView(state) {
     tip.innerHTML = html;
   }
   const _fmtK = v => { const a = Math.abs(Math.round(v)); return (v < 0 ? '-' : '') + (a >= 1000 ? (a / 1000).toFixed(0) + 'K' : a + '') + ' \u20ac'; };
-  const _vilNote = !_immoIncludeVillejuif ? '<br><span style="color:#fbd38d;font-size:10px">Hors Villejuif (achat futur)</span>' : '';
-
   // 1. Equity Brute — breakdown per property (above to avoid clipping by row 2)
-  _setTip('kpiImmoViewEq', fp.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>') + _vilNote, true);
+  _setTip('kpiImmoViewEq', fp.map(p => p.name + ' : <b>' + _fmtK(p.equity) + '</b>').join('<br>'), true);
 
   // 2. Equity Nette (après sortie) — show deduction
   _setTip('kpiImmoViewNetEq', fp.map(p => {
     const ne = p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity;
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ne) + '</b> <span style="color:#fc8181;">(-' + _fmtK(ec) + ' frais)</span>';
-  }).join('<br>') + _vilNote, true);
+  }).join('<br>'), true);
 
   // 3. Frais de sortie — per property
   _setTip('kpiImmoViewExitCosts', fp.map(p => {
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ec) + '</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>' + _vilNote, true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>', true);
 
   // 4. CF Net /mois — per property with sign
   _setTip('kpiImmoViewCF', fp.map(p => {
     const s = p.cf >= 0 ? '+' : '';
     const c = p.cf >= 0 ? '#68d391' : '#fc8181';
     return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>' + _vilNote, true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
 
   // 5. Valeur Totale — per property with dynamic ref (above)
   _setTip('kpiImmoViewVal', fp.map(p => {
     const ref = p.referenceValue && p.referenceValue !== p.value
       ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
     return p.name + ' : <b>' + _fmtK(p.value) + '</b>' + ref;
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>' + _vilNote, true);
+  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>', true);
 
   // 6. CRD Total — per property (bottom row → above)
   _setTip('kpiImmoViewCRD', fp.map(p =>
     p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#a0aec0">(fin ' + p.endYear + ')</span>'
-  ).join('<br>') + _vilNote, true);
+  ).join('<br>'), true);
 
   // 7. Création Richesse /mois — breakdown by type (bottom row → above)
   _setTip('kpiImmoViewWealth',
@@ -4116,13 +4058,12 @@ function renderImmoView(state) {
     + 'Cash flow : <b>' + fmt(fTotalWealthBreakdown.cashflow || 0) + '</b>'
     + (fTotalWealthBreakdown.cashflow < 0 ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(Math.abs(fTotalWealthBreakdown.cashflow)) + '</span>' : '')
     + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt(fTotalWealthCreation * 12) + '/an</span>'
-    + _vilNote
   , true);
 
   // 8. LTV Moyen — per property (bottom row → above)
   _setTip('kpiImmoViewLTV', fp.map(p =>
     p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#a0aec0">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
-  ).join('<br>') + _vilNote, true);
+  ).join('<br>'), true);
 
   // Property cards with fiscal data — clickable for detail panel
   const grid = document.getElementById('propGrid');
@@ -4130,9 +4071,7 @@ function renderImmoView(state) {
     grid.innerHTML = '';
     iv.properties.forEach((prop, idx) => {
       const card = document.createElement('div');
-      const isExcluded = !_immoIncludeVillejuif && prop.loanKey === 'villejuif';
       card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
-      if (isExcluded) card.style.opacity = '0.45';
       card.dataset.loanKey = prop.loanKey;
       const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
       const cfSign = prop.cf >= 0 ? '+' : '';
@@ -4191,7 +4130,7 @@ function renderImmoView(state) {
   const lmpSection = document.getElementById('lmpAlertSection');
   if (lmpSection) {
     const rueilProp = fp.find(p => p.loanKey === 'rueil');
-    const villejuifProp = _immoIncludeVillejuif ? iv.properties.find(p => p.loanKey === 'villejuif') : null;
+    const villejuifProp = iv.properties.find(p => p.loanKey === 'villejuif'); // v346 — toujours inclus (acte signé)
 
     // Calculate LMP thresholds
     const LMP_THRESHOLD = 23000; // €/an
@@ -6856,7 +6795,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=345').then(m => {
+  import('./charts.js?v=346').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
