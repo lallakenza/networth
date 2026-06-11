@@ -1071,11 +1071,22 @@ export const PORTFOLIO = {
       villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363 },
       // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
       // Prix contrat réservation : 336 330€ TTC (TVA 20%) — réservation signée 20/06/2025
-      // ACTE DE VENTE NOTARIÉ SIGNÉ juin 2026 → signed=true : equity (value − CRD) comptée dans
-      //   nezhaNW, réservation absorbée (plus de double-compte). Livraison VEFA toujours Q3 2028
-      //   (conditional=true codé en dur dans buildProperty → loyers/CF inactifs jusqu'à livraison).
-      //   ⚠️ Cash : l'apport + frais de notaire versés à la signature seront déduits via la MAJ
-      //   des soldes cash de Nezha (PORTFOLIO.nezha.cash) — fournis séparément.
+      // ACTE DE VENTE NOTARIÉ SIGNÉ 05/06/2026 (Me Wysocki, Évry — SCCV Villejuif 167 Aragon)
+      //   → signed=true : equity (value − CRD) comptée dans nezhaNW, réservation absorbée
+      //   (plus de double-compte). Livraison : acte = T2 2028 (max 30/06/2028) ; opérationnel
+      //   Q3 2028 (retard annoncé promoteur — choix dashboard). conditional=true codé en dur
+      //   dans buildProperty → loyers/CF inactifs jusqu'à livraison.
+      // ÉCHÉANCIER VEFA (acte, art. R261-14) — référence pour le suivi cash :
+      //   34% payés à l'acte = 114 352,20€ (5% résa 16 816,50 + 29% acte 97 535,70),
+      //   financés par : dépôt 3 363 + apport Nezha ~17 860 (complément prix) + tirage LCL ~93 129.
+      //   Solde 221 977,80€ en 8 appels (fondations 1%, plancher RDC 15%, plancher 1er 15%,
+      //   hors d'eau 5%, plâtres 15%, peinture 9%, achèvement 1%, livraison 5%) — TOUS
+      //   couverts par le prêt LCL (acte : « couvrant intégralement la partie exigible à terme »).
+      //   → Zéro sortie cash future pour Nezha jusqu'à la livraison.
+      //   ⚠️ Cash : l'apport tous frais (~29 795€ dont 3 363 déjà sortis en 2025, soit ~26 432€
+      //   de cash frais : complément 17 860,05 + EDD 520 + TPF 2 008 + CSI 337 + émoluments
+      //   ~3 700 + frais bancaires LCL 5 370,05) sera déduit via la MAJ des soldes
+      //   PORTFOLIO.nezha.cash — fournis séparément.
       // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
       // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
       // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
@@ -1156,7 +1167,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '06/06/2026';
-export const APP_VERSION = 'v344';
+export const APP_VERSION = 'v345';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1404,7 +1415,7 @@ export const CURRENCY_CONFIG = {
 // Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (livraison reportée Q3 2028 ; contrat initial 31/03/2028). Cohérent avec fin de franchise prêts (~août 2028).
+  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026. Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). Cohérent avec fin de franchise prêts (~août 2028).
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     // Vitry : prêt lissé → charges ~constantes quelle que soit la période
@@ -1748,7 +1759,7 @@ export const IMMO_CONSTANTS = {
       purchasePrice: 336330,    // prix TTC contrat de réservation §1.7
       totalOperation: 336330,   // montant TTC total (TVA 20%)
       purchaseDate: '2025-06',  // signature contrat réservation 20/06/2025
-      deliveryDate: '2028-09',  // Q3 2028 — livraison reportée (contrat §1.4 initial : 31 mars 2028)
+      deliveryDate: '2028-09',  // Q3 2028 — retard annoncé promoteur. Acte 05/06/2026 : T2 2028, max 30/06/2028 (résa initiale : 31/03/2028)
       // ── Appréciation réaliste par phase (révisée avril 2026) ──
       // Marché Villejuif : -1.17% sur 2 ans (2023-2025), tendance baissière
       // L'effet L15 est largement pricé : +20% entre 2021-2025 autour Louis Aragon
@@ -1930,10 +1941,11 @@ export const EXIT_COSTS = {
     note: 'VEFA — choix régime à faire avant livraison (Q3 2028)',
     timeline: [
       { date: '2025-06', event: 'Signature contrat de réservation (dépôt 3 363€)', icon: 'doc', done: true },
-      { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank' },
+      { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank', done: true },
+      { date: '2026-06', event: 'Acte de vente signé (Me Wysocki, Évry — 34% appelés soit 114 352€)', icon: 'doc', done: true },
       { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
-      { date: '2028-09', event: 'Livraison VEFA + remise des clés (reportée Q3 2028)', icon: 'key' },
-      { date: '2028-06', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
+      { date: '2028-09', event: 'Livraison VEFA + remise des clés (Q3 2028 — acte : max 30/06/2028)', icon: 'key' },
+      { date: '2028-10', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
       { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
       { date: '2028-01', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2030-03', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
@@ -2063,7 +2075,7 @@ export const VITRY_CONSTRAINTS = {
 // ════════════════════════════════════════════════════════════
 // VILLEJUIF — Comparaison JEANBRUN vs LMNP vs LMP
 //
-// Le bien sera livré Q3 2028 (livraison reportée ; contrat §1.4 initial : au plus tard 31 mars 2028). Il faut choisir le régime AVANT.
+// Le bien sera livré Q3 2028 (retard annoncé promoteur ; acte 05/06/2026 : T2 2028, max 30/06/2028). Il faut choisir le régime AVANT.
 // 3 options :
 //   1. Dispositif JEANBRUN (neuf, loi 2025) — location nue
 //   2. LMNP réel (meublé) — avec amortissement
