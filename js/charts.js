@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=345';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=345';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=345';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=345';
+import { fmt, fmtAxis } from './render.js?v=346';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=346';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=346';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=346';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -409,8 +409,7 @@ function buildImmoProjection(state) {
   const projYears = [];
   for (let y = currentYear + 1; y <= currentYear + 7; y++) projYears.push(y);
 
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+  const loanKeys = ['vitry', 'rueil', 'villejuif']; // v346 — Villejuif toujours inclus (acte signé)
   const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
@@ -478,7 +477,7 @@ function buildImmoProjection(state) {
  *   - Annual rent growth: 1.5% after year 1
  *   - Loan payment phases: principal + interest deduction (LMNP)
  *   - Per-property breakdown (Vitry, Rueil, Villejuif) + total
- *   - Conditional Villejuif (respects user toggle: window._immoIncludeVillejuif())
+ *   - Villejuif toujours inclus (v346 — acte signé 05/06/2026, toggle supprimé)
  *
  * @param {Object} state - Computed state (used to determine Villejuif activation status)
  *
@@ -491,11 +490,10 @@ function buildImmoProjection(state) {
  * Side Effects:
  *   - Destroys previous charts.cfProj instance
  *   - Stores new chart in charts.cfProj
- *   - Uses window._immoIncludeVillejuif() to determine if Villejuif is included
+ *   - Villejuif toujours inclus (v346 — acte signé, toggle supprimé)
  */
 export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
 
   const YEARS = 10;
   const START_YEAR = 2026;
@@ -541,8 +539,8 @@ export function buildCFProjection(state) {
 
     vitryData.push(vitryCF);
     rueilData.push(rueilCF);
-    villejuifData.push(includeVillejuif ? villejuifCF : 0);
-    totalData.push(vitryCF + rueilCF + (includeVillejuif ? villejuifCF : 0));
+    villejuifData.push(villejuifCF);
+    totalData.push(vitryCF + rueilCF + villejuifCF);
   }
 
   // Build chart
@@ -558,8 +556,8 @@ export function buildCFProjection(state) {
         { label: 'Equilibre (0)', data: zeroLine, borderColor: '#dee2e6', borderWidth: 1, borderDash: [4,4], pointRadius: 0, pointHoverRadius: 0, fill: false },
         { label: 'Vitry', data: vitryData, borderColor: '#4c6ef5', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#4c6ef5' },
         { label: 'Rueil', data: rueilData, borderColor: '#12b886', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#12b886' },
-        ...(includeVillejuif ? [{ label: 'Villejuif', data: villejuifData, borderColor: '#f59f00', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#f59f00' }] : []),
-        { label: includeVillejuif ? 'Total 3 biens' : 'Total 2 biens', data: totalData, borderColor: '#1a1a2e', backgroundColor: 'rgba(76, 110, 245, 0.08)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3, pointBackgroundColor: '#1a1a2e' },
+        { label: 'Villejuif', data: villejuifData, borderColor: '#f59f00', fill: false, tension: 0.3, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#f59f00' },
+        { label: 'Total 3 biens', data: totalData, borderColor: '#1a1a2e', backgroundColor: 'rgba(76, 110, 245, 0.08)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 3, pointBackgroundColor: '#1a1a2e' },
       ]
     },
     options: {
@@ -717,8 +715,7 @@ function buildImmoViewEquityBar(state) {
   const el = document.getElementById('immoViewEquityChart');
   if (!el) return;
   if (charts.immoViewEq) { charts.immoViewEq.destroy(); delete charts.immoViewEq; }
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const props = includeVillejuif ? state.immoView.properties : state.immoView.properties.filter(p => p.loanKey !== 'villejuif');
+  const props = state.immoView.properties; // v346 — Villejuif toujours inclus (acte signé)
   charts.immoViewEq = new Chart(el, {
     type: 'bar',
     data: {
@@ -962,9 +959,7 @@ function buildAmortChart(state) {
   const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
-  // Filter loan keys based on Villejuif toggle
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+  const loanKeys = ['vitry', 'rueil', 'villejuif']; // v346 — Villejuif toujours inclus (acte signé)
 
   // Build date-indexed lookup for each loan
   const dateMaps = {};
@@ -1067,8 +1062,7 @@ function buildImmoViewProjection(state) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-based
   const projYears = [2027, 2028, 2029, 2030, 2031, 2032];
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const loanKeys = includeVillejuif ? ['vitry', 'rueil', 'villejuif'] : ['vitry', 'rueil'];
+  const loanKeys = ['vitry', 'rueil', 'villejuif']; // v346 — Villejuif toujours inclus (acte signé)
   const loanColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
   const loanNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
@@ -1416,8 +1410,7 @@ export function buildWealthProjectionChart(state, mode, group) {
   // Property names and colors for "par appart" mode
   const propNames = { vitry: 'Vitry-sur-Seine', rueil: 'Rueil-Malmaison', villejuif: 'Villejuif' };
   const propColors = { vitry: '#4c6ef5', rueil: '#12b886', villejuif: '#f59f00' };
-  const includeVillejuif = typeof window._immoIncludeVillejuif === 'function' ? window._immoIncludeVillejuif() : true;
-  const propKeys = Object.keys(proj[0]?.perProp || {}).filter(k => includeVillejuif || k !== 'villejuif');
+  const propKeys = Object.keys(proj[0]?.perProp || {}); // v346 — Villejuif toujours inclus (acte signé)
 
   // Group by year first (used for both modes)
   const byYear = {};
