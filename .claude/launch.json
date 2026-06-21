@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/amine/networth"],
       "port": 8765
+    },
+    {
+      "name": "facturation",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "/Users/amine/facturation"],
+      "port": 8766
     }
   ]
 }
