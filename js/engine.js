@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=347';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=348';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3044,9 +3044,13 @@ function computeImmoView(portfolio, fx) {
       const phases = propMeta.appreciationPhases || [];
 
       // Is this property operational at month m?
+      // v347 — Villejuif : gate CALENDAIRE sur la date de livraison (deliveryDate '2028-09'),
+      // pas un offset relatif. villejuifStartMonth=30 est calibré pour la base mars 2026 du
+      // simulateur ; cette projection a pour base « maintenant » → l'offset dérivait d'1 mois
+      // par mois écoulé (donnait déc 2028 au lieu de sept 2028). Le calendaire ne dérive jamais.
       const isVillejuif = lk === 'villejuif';
-      const vilStartMonth = IC.villejuifStartMonth || 40;
-      const isOperationalAtM = isVillejuif ? (m >= vilStartMonth) : !prop.conditional;
+      const vilDeliveryYM = propMeta.deliveryDate || '2028-09';
+      const isOperationalAtM = isVillejuif ? (dateStr >= vilDeliveryYM) : !prop.conditional;
 
       // Capital from amort schedule (look up the schedule row for this date)
       let capitalM = 0;
@@ -3082,7 +3086,8 @@ function computeImmoView(portfolio, fx) {
       // Cash flow: when operational, with IRL rent growth + charge inflation + loan end detection
       let cfM = 0;
       if (isOperationalAtM) {
-        const yearsOperational = isVillejuif ? (m - vilStartMonth) / 12 : yearsFromNow;
+        const [_vy, _vm] = vilDeliveryYM.split('-').map(Number); // v347 — mois depuis livraison, calendaire
+        const yearsOperational = isVillejuif ? Math.max(0, (y - _vy) * 12 + (mo - _vm)) / 12 : yearsFromNow;
 
         // Revenue grows with IRL
         const revenueGrowthFactor = Math.pow(1 + irlRate, Math.max(0, yearsOperational));
@@ -3172,7 +3177,10 @@ function computeCreancesView(portfolio, fx) {
     const paymentsTotal = (c.payments || []).reduce((s, p) => s + toEUR(p.amount, c.currency, fx), 0);
     const remainingEUR = amountEUR - paymentsTotal;
     const expectedValue = remainingEUR * (c.probability || 1);
-    const monthlyInflationCost = !c.delayDays ? (remainingEUR * INFLATION_RATE / 12) : 0;
+    // v347 — coût d'opportunité (inflation) sur TOUTE créance en cours. delayDays = délai de
+    // paiement estimé (30-45j), pas un flag : l'ancien `!c.delayDays ? … : 0` zéro-tait justement
+    // les factures en attente (SAP/Malt) qui immobilisent le cash. Recouvrées : remainingEUR=0 → 0.
+    const monthlyInflationCost = remainingEUR * INFLATION_RATE / 12;
 
     // Recouvrement tracking
     let daysOverdue = 0;
@@ -4419,7 +4427,7 @@ export function mensualiteAmortissement(P, rAnnual, nMonths) {
 export function valeurFuture(capital, apportMonthly, rAnnual, nMonths) {
   if (nMonths <= 0) return capital;
   if (rAnnual <= 0) return capital + apportMonthly * nMonths;
-  const r = rAnnual / 12;
+  const r = Math.pow(1 + rAnnual, 1 / 12) - 1; // v347 — BUG-049 : racine géométrique (le taux annuel affiché est réellement réalisé, plus d'overshoot ~4%)
   const factor = Math.pow(1 + r, nMonths);
   return capital * factor + apportMonthly * (factor - 1) / r;
 }
@@ -4986,7 +4994,7 @@ export function computeCashFlow(state, portfolio, fx) {
 
   // 1. Revenus actifs (MONTHLY_INCOMES data)
   for (const inc of (MONTHLY_INCOMES || [])) {
-    const monthlyNative = inc.freq === 'yearly' ? inc.amount / 12 : inc.amount;
+    const monthlyNative = inc.amount / ({ monthly: 1, quarterly: 3, 'semi-annual': 6, yearly: 12 }[inc.freq] || 1); // v347 — gère quarterly/semi-annual (avant : seul yearly /12)
     const monthlyEUR = toEUR(monthlyNative, inc.currency, fx);
     incomeSources.push({
       label: inc.label,
@@ -5048,7 +5056,7 @@ export function computeCashFlow(state, portfolio, fx) {
 
   // Dépenses fixes (BUDGET_EXPENSES)
   for (const exp of (BUDGET_EXPENSES || [])) {
-    const monthlyNative = exp.freq === 'yearly' ? exp.amount / 12 : exp.amount;
+    const monthlyNative = exp.amount / ({ monthly: 1, quarterly: 3, 'semi-annual': 6, yearly: 12 }[exp.freq] || 1); // v347 — gère quarterly (Gaz) : avant compté ×3 (comme mensuel)
     const monthlyEUR = toEUR(monthlyNative, exp.currency, fx);
     expenseCategories.push({
       label: exp.label,
@@ -5297,7 +5305,11 @@ export function computeObjectifs(state, opts) {
   const monthlySavingsEUR = (opts && opts.monthlySavingsEUR != null) ? opts.monthlySavingsEUR : 8000;
   const annualReturn = (opts && opts.annualReturn != null) ? opts.annualReturn : 0.06;
   const inflationRate = (opts && opts.inflationRate != null) ? opts.inflationRate : INFLATION_RATE;
-  const r = annualReturn / 12;
+  // v347 — BUG-049 propagé : racine géométrique pour que le taux annuel affiché soit réalisé.
+  // annualReturn/12 traitait le taux comme un APR nominal → (1+r/12)^12 − 1 > annualReturn
+  // (ex : 6% → 6,17% effectif) → projections gonflées de ~4% sur horizons longs. Les simulateurs
+  // utilisent déjà cette racine (v297) ; on aligne objectifs/sensibilité.
+  const r = Math.pow(1 + annualReturn, 1 / 12) - 1;
 
   return (opts && opts.objectifs ? opts.objectifs : DEFAULT_OBJECTIFS).map(obj => {
     let currentValue = 0;
@@ -5403,7 +5415,7 @@ export function computeSensibilite(state, baseObjectif, opts) {
   ];
 
   const matrix = rendementVariations.map(rAnnual => {
-    const r = rAnnual / 12;
+    const r = Math.pow(1 + rAnnual, 1 / 12) - 1; // v347 — BUG-049 : racine géométrique (cohérent avec computeObjectifs + simulateurs)
     const factor = Math.pow(1 + r, monthsToTarget);
     return {
       rendement: rAnnual,

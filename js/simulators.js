@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=347';
-import { IMMO_CONSTANTS } from './data.js?v=347';
+import { fmt, fmtAxis } from './render.js?v=348';
+import { IMMO_CONSTANTS } from './data.js?v=348';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -734,7 +734,11 @@ function runCoupleSimulator(state) {
   // Compute initial equity at m=0 to align startEquity with computePropertyEquity(0)
   const vitryEq0 = computeVitryEquity(0);
   const rueilEq0 = computeRueilEquity(0);
-  const computedImmo0 = vitryEq0 + rueilEq0; // Villejuif not operational at m=0
+  // v347 — Villejuif signé : son equity (value − CRD) est possédée dès m=0, incluse dans le NW.
+  // Avant : exclue puis ré-ajoutée à villejuifStartMonth → marche d'escalier de +36K€. Seul le
+  // LOYER reste gaté sur la livraison (via cashFlowFn/makeCfFn), pas l'equity.
+  const vjEq0 = computeVillejuifEquity(0);
+  const computedImmo0 = vitryEq0 + rueilEq0 + vjEq0;
 
   // Track previous total immo equity for delta calculation
   let prevImmoTotal = computedImmo0;
@@ -755,8 +759,8 @@ function runCoupleSimulator(state) {
     ownerSplit: { amineNW: amineNWStart, nezhaNW: nezhaNWStart, amineShare: 0.75, nezhaShare: 0.25 },
     immoGrowthFn: (m) => {
       // Compute total absolute equity at month m
-      let totalEquity = computeVitryEquity(m) + computeRueilEquity(m);
-      if (m >= IC.villejuifStartMonth) totalEquity += computeVillejuifEquity(m);
+      // v347 — equity Villejuif dès m=0 (possédée depuis l'acte), plus de marche d'escalier à m=30
+      let totalEquity = computeVitryEquity(m) + computeRueilEquity(m) + computeVillejuifEquity(m);
 
       // Return delta from previous month (cumImmoReturns accumulates these)
       const delta = totalEquity - prevImmoTotal;
@@ -885,7 +889,7 @@ function runNezhaSimulator(state) {
       const date = new Date(2026, 2 + m, 1);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       const rueilEq = computeRueilEquity(m);
-      const villejuifEq = m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0;
+      const villejuifEq = computeVillejuifEquity(m); // v347 — equity possédée dès m=0 (acte signé), plus de marche d'escalier
       dataRueil.push(Math.round(rueilEq));
       dataVillejuif.push(Math.round(villejuifEq));
       dataCash.push(Math.round(cashNz + sgtmNz));
