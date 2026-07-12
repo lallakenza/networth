@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=352';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=353';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1484,6 +1484,7 @@ function computeCashView(portfolio, fx) {
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
+    { label: 'CIH Bank', native: p.amine.maroc.cih || 0, currency: 'MAD', yield: CASH_YIELDS.cih || 0, owner: 'Amine' }, // v353 — nouveau compte
     // IBKR: premiers 10K€/10K$ à 0%, le reste au taux IBKR Pro
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, IBKR_CONFIG.cashThreshold),
@@ -3699,11 +3700,12 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       + toEUR(amineWioBusiness, 'AED', fx) * 0) / amineUae  // Wio Business: 0% yield
     : 0;
   const amineRevolutYield = CASH_YIELDS.revolutEUR;
-  const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.nabd;
+  const amineMoroccoMAD = p.amine.maroc.attijari + p.amine.maroc.nabd + (p.amine.maroc.cih || 0); // v353 — + CIH
   const amineMoroccoCash = toEUR(amineMoroccoMAD, 'MAD', fx);
   const amineMoroccoYield = amineMoroccoCash > 0
     ? (toEUR(p.amine.maroc.attijari, 'MAD', fx) * CASH_YIELDS.attijari
-      + toEUR(p.amine.maroc.nabd, 'MAD', fx) * CASH_YIELDS.nabd) / amineMoroccoCash
+      + toEUR(p.amine.maroc.nabd, 'MAD', fx) * CASH_YIELDS.nabd
+      + toEUR(p.amine.maroc.cih || 0, 'MAD', fx) * (CASH_YIELDS.cih || 0)) / amineMoroccoCash
     : 0;
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);

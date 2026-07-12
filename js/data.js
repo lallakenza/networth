@@ -60,9 +60,10 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 6799,       // Attijariwafa Courant (0% rendement) — mis à jour 12 Avr 2026
-      nabd: 37304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — mis à jour 7 Mar 2026 (pas de nouveau relevé)
-      _lastUpdate: '2026-04-12',
+      attijari: 71086,      // Attijariwafa MRA current account (0% rendement) — MAJ 12/07/2026 (relevé app)
+      nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
+      cih: 21298,           // CIH Bank Compte chèques 6914705214037900 (0% rendement) — MAJ 12/07/2026 (nouveau compte suivi)
+      _lastUpdate: '2026-07-12',
     },
 
     // ══════════════════════════════════════════════════════════════════
@@ -1178,7 +1179,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/07/2026';
-export const APP_VERSION = 'v352';
+export const APP_VERSION = 'v353';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1316,6 +1317,7 @@ export const CASH_YIELDS = {
   // --- Maroc ---
   attijari: 0,         // Compte courant, pas de rendement
   nabd: 0,             // Compte courant, pas de rendement
+  cih: 0,              // CIH compte chèques, pas de rendement
   // --- IBKR (taux IBKR Pro = Benchmark - 0.5%) ---
   ibkrCashEUR: 0.0153,  // 1.53% = BM 2.03% - 0.50% commission IBKR
   ibkrCashUSD: 0.0314,  // 3.14% = BM 3.64% - 0.50% commission IBKR
