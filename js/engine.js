@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=346';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=347';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -65,7 +65,10 @@ function esppLotCostEUR(lot, defaultFx) {
  */
 function computeIBKR(portfolio, fx, stockSource) {
   const ibkr = portfolio.amine.ibkr;
-  if (stockSource !== 'live') return ibkr.staticNAV;
+  // v347 — TOUJOURS bottom-up (positions × prix + cash), même en statique : chaque position
+  // porte un prix statique (data.js, rafraîchi par le snapshot). L'ancienne branche
+  // `staticNAV` était un agrégat maintenu à part qui dérivait (photo 31/03 vs positions/cash
+  // MAJ 08/04) → header NW ≠ treemap de +1 434 €. Bottom-up = source unique, zéro désync.
   // Sum position values
   let posTotal = 0;
   ibkr.positions.forEach(pos => {
@@ -737,7 +740,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const acnDividendsAllTime  = costsAllTime.acnDivItems.reduce((s, d) => s + d.netEUR, 0);
   // v298: save trade-only value before adding dividends/costs (used in sanity check below)
   const tradeOnlyRealizedPL = combinedRealizedPL;
-  combinedRealizedPL += ibkrDividendsAllTime + acnDividendsAllTime
+  // v347 — Dividendes IBKR : encaissés en cash (cashEUR/USD) → réalisés, correct.
+  // Dividendes ACN/ESPP : réinvestis en lots FRAC à coût 0 → déjà dans le P&L LATENT ESPP
+  // (encore détenus = non réalisés). Les ajouter ici les double-comptait (invariant Δ gonflé
+  // de ~3,7K€, croissant). On ne les ajoute PLUS au réalisé — leur valeur reste dans l'unrealized.
+  combinedRealizedPL += ibkrDividendsAllTime
                       + costsAllTime.commissionsEUR   // negative = cost
                       + costsAllTime.fttEUR            // negative = cost
                       + costsAllTime.interestEUR;      // negative = cost
@@ -2900,7 +2907,7 @@ function computeImmoView(portfolio, fx) {
   const totalEquity = properties.reduce((s, p) => s + p.equity, 0);
   const totalValue = properties.reduce((s, p) => s + p.value, 0);
   const totalCRD = properties.reduce((s, p) => s + p.crd, 0);
-  const totalCF = properties.reduce((s, p) => s + p.cf, 0);
+  const totalCF = properties.reduce((s, p) => s + (p.conditional ? 0 : p.cf), 0); // v347 — pendant manquant du fix v340 : exclut le CF fictif Villejuif (loyer non perçu)
   const totalWealthCreation = properties.reduce((s, p) => s + p.wealthCreation, 0);
   const totalWealthBreakdown = {
     capitalAmorti: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
@@ -5449,13 +5456,17 @@ export function computeFiscaliteMRE(state) {
     const chargesAnnuelles = vitry.deductibleChargesAnnuel || 0;
     const interetsAnnuels = vitry.loanInterestAnnuel || 0;
 
-    // Régime micro-foncier : abattement 30% si loyer < 15K€, sinon réel
-    const regimeMicro = loyerAnnuel < 15000;
+    // v347 — Respecter le régime DÉCLARÉ (data.js FISCAL_REGIMES via buildProperty), au lieu de
+    // re-forcer micro-foncier sur loyer<15K. Vitry est en réel-foncier (option MRE avantageuse :
+    // les intérêts déductibles écrasent la base imposable). Avant : micro forcé → 1 875€/an affiché
+    // ici vs 165€/an en vue Immo pour LE MÊME bien (×11). Deux chiffres contradictoires dans l'app.
+    const declaredRegime = vitry.fiscalite?.regime || (loyerAnnuel < 15000 ? 'micro-foncier' : 'reel-foncier');
+    const regimeMicro = declaredRegime === 'micro-foncier';
     let revenuImposable;
     if (regimeMicro) {
       revenuImposable = loyerAnnuel * (1 - 0.30);   // abattement 30%
     } else {
-      revenuImposable = loyerAnnuel - chargesAnnuelles - interetsAnnuels;
+      revenuImposable = loyerAnnuel - chargesAnnuelles - interetsAnnuels; // réel : déduction charges + intérêts
     }
     revenuImposable = Math.max(0, revenuImposable);
 
@@ -5475,13 +5486,15 @@ export function computeFiscaliteMRE(state) {
       loyerAnnuel,
       chargesAnnuelles,
       interetsAnnuels,
+      regime: declaredRegime,   // v347 — régime réel affiché (plus « micro » forcé)
       regimeMicro,
       revenuImposable,
       tauxIR: tauxIREffectif,   // taux effectif (moyen), pour affichage
       ir,
       ps,
       total: totalImpotLoyer,
-      netApresImpot: loyerAnnuel - chargesAnnuelles - totalImpotLoyer,
+      // v347 — net cash après impôt = loyer − charges − intérêts − impôt (l'ancien oubliait les intérêts → ×8 trop haut)
+      netApresImpot: loyerAnnuel - chargesAnnuelles - interetsAnnuels - totalImpotLoyer,
     };
   }
 
