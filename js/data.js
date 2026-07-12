@@ -227,28 +227,28 @@ export const PORTFOLIO = {
       positions: [
         // ── ACTIONS CAC 40 & EUROPÉENNES (11 positions) ──
         // Achetées progressivement avril-nov 2025
-        // Cours: Yahoo Finance live 31 mars 2026
+        // Cours: prix live connecteur IBKR 12/07/2026 (fallback — surchargé par Yahoo au runtime)
         // PRU: prix d'achat moyen (costBasis EUR)
-        { ticker: 'AIR.PA',  shares: 200,  price: 160.62, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 175.42, oneMonthAgo: 184.24 },
-        { ticker: 'BN.PA',   shares: 200,  price: 69.22,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 69.94, oneMonthAgo: 72.64 },
+        { ticker: 'AIR.PA',  shares: 200,  price: 196.86, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 175.42, oneMonthAgo: 184.24 },
+        { ticker: 'BN.PA',   shares: 200,  price: 72.50,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 69.94, oneMonthAgo: 72.64 },
         // DG.PA — position fermée le 8 avr 2026 (100 actions vendues à 136.65)
 
-        { ticker: 'FGR.PA',  shares: 100,  price: 131.60, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 139.85, oneMonthAgo: 146.20 },
-        { ticker: 'MC.PA',   shares: 40,   price: 461.05, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 502.20, oneMonthAgo: 544.10 },
-        { ticker: 'OR.PA',   shares: 30,   price: 350.25, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 363.75, oneMonthAgo: 397.40 },
-        { ticker: 'P911.DE', shares: 400,  price: 38.25,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 38.78, oneMonthAgo: 41.39 },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1605.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1897.50, oneMonthAgo: 2049.00 },
-        { ticker: 'SAN.PA',  shares: 50,   price: 82.81,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 79.86, oneMonthAgo: 82.20 },
-        { ticker: 'SAP.DE',  shares: 70,   price: 147.64, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 165.48, oneMonthAgo: 170.96 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
-        { ticker: '4911.T',  shares: 500,  price: 3190,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3068.00, oneMonthAgo: 3300.00 },
-        { ticker: 'IBIT',    shares: 1200, price: 37.68,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 37.19 },
-        { ticker: 'ETHA',    shares: 1100, price: 15.27,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 14.52 },
+        { ticker: 'FGR.PA',  shares: 100,  price: 121.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 139.85, oneMonthAgo: 146.20 },
+        { ticker: 'MC.PA',   shares: 40,   price: 490.85, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 502.20, oneMonthAgo: 544.10 },
+        { ticker: 'OR.PA',   shares: 30,   price: 381.95, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 363.75, oneMonthAgo: 397.40 },
+        { ticker: 'P911.DE', shares: 400,  price: 45.21,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 38.78, oneMonthAgo: 41.39 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1634.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1897.50, oneMonthAgo: 2049.00 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 76.47,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 79.86, oneMonthAgo: 82.20 },
+        { ticker: 'SAP.DE',  shares: 70,   price: 138.00, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 165.48, oneMonthAgo: 170.96 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
+        { ticker: '4911.T',  shares: 500,  price: 2775.40,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3068.00, oneMonthAgo: 3300.00 },
+        { ticker: 'IBIT',    shares: 1200, price: 36.34,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 37.19 },
+        { ticker: 'ETHA',    shares: 1100, price: 13.57,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 14.52 },
       ],
-      // ⬇️ Cash multi-devises (IBKR — mis à jour 08/04/2026 après vente DG + deleverage JPY)
-      // Depuis 18/03: -2000 retrait + 13665 DG sell - 6.83 comm - 11679 EUR→JPY - 319.17 FX fees ≈ -341
-      cashEUR: -341,         // Solde EUR chez IBKR au 08/04/2026 (approx, hors intérêts mars/avr)
-      cashUSD: 0,            // Solde USD chez IBKR au 08/04/2026
-      cashJPY: -2429378,     // Solde JPY chez IBKR au 08/04/2026 (-4590694 + 2161316 EUR→JPY)
+      // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
+      cashEUR: 401,          // Solde EUR chez IBKR — 401,17 (connecteur 12/07/2026)
+      cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 12/07/2026)
+      cashJPY: -2454054,     // Solde JPY chez IBKR — -2 454 053,53 (marge yen ; intérêts courus depuis avril)
+      cashAED: 11319,        // Solde AED chez IBKR — 11 319,13 (conversions EUR→AED 8-11/06/2026, connecteur 12/07/2026)
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
       meta: {
@@ -1167,7 +1167,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/07/2026';
-export const APP_VERSION = 'v350';
+export const APP_VERSION = 'v351';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

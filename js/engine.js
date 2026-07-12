@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=350';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=351';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -74,10 +74,11 @@ function computeIBKR(portfolio, fx, stockSource) {
   ibkr.positions.forEach(pos => {
     posTotal += toEUR(pos.shares * pos.price, pos.currency, fx);
   });
-  // Multi-currency cash
+  // Multi-currency cash — v351 : + AED (solde apparu au connecteur IBKR, conversions EUR→AED juin 2026)
   const cashTotal = ibkr.cashEUR
     + toEUR(ibkr.cashUSD, 'USD', fx)
-    + toEUR(ibkr.cashJPY, 'JPY', fx);
+    + toEUR(ibkr.cashJPY, 'JPY', fx)
+    + toEUR(ibkr.cashAED || 0, 'AED', fx);
   return posTotal + cashTotal;
 }
 
@@ -269,7 +270,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrCashEUR = ibkr.cashEUR;
   const ibkrCashUSD = ibkr.cashUSD;
   const ibkrCashJPY = ibkr.cashJPY;
-  const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx);
+  const ibkrCashAED = ibkr.cashAED || 0; // v351 — solde AED IBKR (conversions EUR→AED juin 2026)
+  const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx) + toEUR(ibkrCashAED, 'AED', fx);
 
   // IBKR positions P/L (using historical FX for cost basis)
   const totalPositionsVal = ibkrPositions.reduce((s, p) => s + p.valEUR, 0);
@@ -3705,9 +3707,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     : 0;
   const amineSgtm = toEUR(p.amine.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
   const amineIbkr = computeIBKR(p, fx, stockSource);
-  // Separate IBKR broker cash (EUR+USD) for reclassification to Cash category
+  // Separate IBKR broker cash (EUR+USD+AED) for reclassification to Cash category
   // JPY margin (carry trade) stays with IBKR as investment position
-  const amineIbkrCashForCash = p.amine.ibkr.cashEUR + toEUR(p.amine.ibkr.cashUSD || 0, 'USD', fx);
+  // v351 — AED inclus (solde converti EUR→AED juin 2026) : c'est du cash, pas un investissement
+  const amineIbkrCashForCash = p.amine.ibkr.cashEUR + toEUR(p.amine.ibkr.cashUSD || 0, 'USD', fx) + toEUR(p.amine.ibkr.cashAED || 0, 'AED', fx);
   const amineIbkrForActions = amineIbkr - amineIbkrCashForCash; // positions + JPY carry
   const amineEsppShares = toEUR(p.amine.espp.shares * m.acnPriceUSD, 'USD', fx);
   const amineEsppCash = p.amine.espp.cashEUR || 0; // BUG-020: include ESPP account cash in NW
