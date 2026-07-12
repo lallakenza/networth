@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=353';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=354';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1482,6 +1482,8 @@ function computeCashView(portfolio, fx) {
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
     { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine' },
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
+    { label: 'Banque Populaire', native: p.amine.uae.banquePopulaire || 0, currency: 'EUR', yield: CASH_YIELDS.banquePopulaire || 0, owner: 'Amine' },
+    { label: 'Binance USDT', native: p.amine.uae.binanceUSDT || 0, currency: 'USD', yield: CASH_YIELDS.binanceUSDT || 0, owner: 'Amine' },
     { label: 'Attijariwafa', native: p.amine.maroc.attijari, currency: 'MAD', yield: CASH_YIELDS.attijari, owner: 'Amine' },
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     { label: 'CIH Bank', native: p.amine.maroc.cih || 0, currency: 'MAD', yield: CASH_YIELDS.cih || 0, owner: 'Amine' }, // v353 — nouveau compte
@@ -3692,6 +3694,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent + amineWioBusiness;
   const amineUae = toEUR(amineUaeAED, 'AED', fx);  // UAE = AED accounts only
   const amineRevolutEUR = p.amine.uae.revolutEUR;   // Revolut = French account (EUR)
+  // v354 — nouveaux comptes : Banque Populaire (EUR) + Binance USDT (stablecoin ≈ USD)
+  const amineBanquePopulaire = p.amine.uae.banquePopulaire || 0;                       // EUR
+  const amineBinanceUSDT = toEUR(p.amine.uae.binanceUSDT || 0, 'USD', fx);             // USDT ≈ USD
   // Weighted average yield for Cash UAE bucket (AED accounts only)
   const amineUaeYield = amineUae > 0
     ? (toEUR(p.amine.uae.mashreq, 'AED', fx) * CASH_YIELDS.mashreq
@@ -3783,7 +3788,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Cash includes brokerage cash (EUR+USD from IBKR + ESPP) for consistency with cash view
   // Excludes IBKR JPY carry trade (stays with Actions as investment position)
   const amineBrokerCash = amineIbkrCashForCash + amineEsppCash;
-  const amineCashTotal = amineUae + amineRevolutEUR + amineMoroccoCash + amineBrokerCash;
+  const amineCashTotal = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash + amineBrokerCash; // v354 — + BP + Binance
   // Actions = positions-only (broker cash reclassified to Cash above)
   // Math: ibkrForActions + esppShares + cashTotal_new = ibkr + espp + cashTotal_old (identical NW)
   const amineTotalAssets = amineIbkrForActions + amineEsppShares + amineCashTotal + amineSgtm
@@ -4100,7 +4105,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       // The parent `amineUae` / `amineCashTotal` (line 3655) already sums it without guard, so dropping
       // it here when negative broke the treemap invariant (stocks + cash + immo + other = nwRef).
       // wioCurrent is 371 AED today (positive), so this is a safety fix for overdraft scenarios.
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash
         + amineBrokerCash + nezhaBrokerCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0) + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [

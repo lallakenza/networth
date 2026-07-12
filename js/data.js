@@ -47,12 +47,14 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 484046,      // Mashreq NEO PLUS (Saver 483,544.74 + Current 501.49) — mis à jour 12 Avr 2026
-      wioSavings: 195500,   // Wio Personal Savings (~6% rendement) — mis à jour 12 Avr 2026
-      wioCurrent: 371,      // Wio Personal Current (compte courant, 0% rendement) — mis à jour 12 Avr 2026
-      wioBusiness: 47025,   // Wio Business (Bairok Consulting LLC, 0% rendement) — mis à jour 12 Avr 2026
-      revolutEUR: 190,      // Revolut EUR balance (déjà en EUR) — mis à jour 12 Avr 2026
-      _lastUpdate: '2026-04-12',
+      mashreq: 493839,      // Mashreq NEO (Saver 493 172,25 + Current 666,46 = 493 838,71) — MAJ 12/07/2026
+      wioSavings: 289000,   // Wio Personal Savings (~6% rendement) — MAJ 12/07/2026
+      wioCurrent: 810,      // Wio Personal Current (0% rendement) — MAJ 12/07/2026
+      wioBusiness: 100000,  // Wio Business (Bairok Consulting LLC, ~100k approx, 0%) — MAJ 12/07/2026
+      revolutEUR: 883,      // Revolut EUR (compte français, déjà en EUR) — MAJ 12/07/2026
+      banquePopulaire: 2008,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 12/07/2026 (nouveau compte suivi)
+      binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
+      _lastUpdate: '2026-07-12',
     },
 
     // ──────────────────────────────────────────────────────
@@ -1179,7 +1181,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/07/2026';
-export const APP_VERSION = 'v353';
+export const APP_VERSION = 'v354';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1312,8 +1314,10 @@ export const CASH_YIELDS = {
   mashreq: 0.0625,     // 6.25% Mashreq NEO+ Savings (taux fixe)
   wioSavings: 0.06,    // 6.00% Wio Savings (taux affiché dans l'app)
   wioCurrent: 0,       // Compte courant, pas de rendement
-  // --- Revolut ---
+  // --- Revolut / Banque Populaire / Binance ---
   revolutEUR: 0,       // Pas de rendement (pas de coffre activé)
+  banquePopulaire: 0,  // Compte individuel BP, pas de rendement
+  binanceUSDT: 0,      // USDT Funding Binance, pas de rendement (hors Earn)
   // --- Maroc ---
   attijari: 0,         // Compte courant, pas de rendement
   nabd: 0,             // Compte courant, pas de rendement
