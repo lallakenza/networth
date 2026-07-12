@@ -1106,7 +1106,7 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 826,       // Bootstrap SGTM en MAD (clôture vendredi 17 avril 2026, +6.44% séance). v330+ : surchargé au runtime par data/sgtm_live.json (scrapé par GitHub Action horaire, .github/workflows/sgtm-scrape.yml).
+    sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD (dernier relevé scrapé 10/07/2026, casablanca-bourse.com). v330+ : surchargé au runtime par data/sgtm_live.json (scrapé par GitHub Action horaire). Ce fallback ne sert que si le fetch du JSON repo échoue.
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 197.55,     // Cours Accenture en USD — live 31/03/2026 (Yahoo Finance)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
@@ -1166,8 +1166,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '06/06/2026';
-export const APP_VERSION = 'v348';
+export const DATA_LAST_UPDATE = '12/07/2026';
+export const APP_VERSION = 'v349';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1602,15 +1602,17 @@ export const IMMO_CONSTANTS = {
       },
     ],
     // ── Franchise des prêts LCL — déblocage + calendrier ──
-    // ⚠️ PRÊT NON ENCORE DÉBLOQUÉ — Nezha n'a pas signé définitivement
-    // Franchise: 36 mois à partir du déblocage (pas encore commencée)
-    // État: loanDisbursed = false (offres signées, déblocage en attente)
-    // Frais de dossier : 1 500€ (sera débité au déblocage)
+    // v347 — ACTE SIGNÉ 05/06/2026 : Nezha a signé définitivement. Déblocage VEFA PAR TRANCHES
+    // (appels de fonds) : ~93 129€ tirés à l'acte (34% appelés), solde jusqu'à livraison Q3 2028.
+    // loanDisbursed reste `false` car le prêt n'est pas INTÉGRALEMENT débloqué (tranches en cours) —
+    // ⚠️ à revoir dans le modèle VEFA cash-basis (le calcul du CRD suppose encore 100% tiré).
+    // Franchise: 36 mois depuis le 1er déblocage (offre : à partir d'août 2025).
+    // Frais de dossier LCL : 1 200€ (FDOSS, déjà débités à l'acte — cf. échéancier apport).
     villejuifFranchise: {
       months: 36,
-      startDate: null,         // Franchise non commencée (déblocage en attente)
-      loanDisbursed: false,    // Prêt non encore débloqué
-      fraisDossier: 1500,      // Frais dossier LCL (à débiter)
+      startDate: null,         // v347 — à préciser (1er déblocage) lors du passage au modèle VEFA cash-basis
+      loanDisbursed: false,    // Prêt pas intégralement débloqué (tranches VEFA en cours)
+      fraisDossier: 1200,      // v347 — FDOSS LCL réel 1 200€ (acte), pas 1 500 estimé
     },
   },
   // ──────────────────────────────────────────────────────
