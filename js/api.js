@@ -379,6 +379,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
   const cache = loadCache();
   let tickersToFetch = [];
   let cachedSGTM = null;
+  let sgtmStale = false; // v347 — force le re-fetch SGTM si le cache dépasse le TTL
   let cacheHadUpdates = false;
 
   const now = Date.now();
@@ -410,7 +411,11 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
       portfolio.market._sgtmLastUpdate = cache.sgtm.lastUpdate || null;
       loaded++;
       if (onProgress) onProgress(loaded, totalTickers, 'SGTM ✓');
-      // Also re-fetch SGTM if stale
+      // v347 — Re-fetch SGTM si le cache dépasse le TTL (le scraper GitHub commit chaque heure).
+      // Avant : le commentaire « re-fetch if stale » n'était suivi d'aucun code → prix du matin
+      // figé toute la journée avec badge « live ✓ ». On applique le cache pour l'affichage instantané
+      // puis on déclenche un re-fetch en tâche de fond si périmé.
+      sgtmStale = !cache.sgtm._ts || (now - cache.sgtm._ts) > CACHE_TTL_MS;
     }
     // Refresh once after applying all cached prices
     if (cacheHadUpdates && onTickerLoaded) onTickerLoaded();
@@ -436,7 +441,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
   // Each ticker applies immediately and triggers a progressive UI refresh
   let cacheUpdated = false;
 
-  if (tickersToFetch.length > 0 || cachedSGTM === null) {
+  if (tickersToFetch.length > 0 || cachedSGTM === null || sgtmStale) { // v347 — sgtmStale déclenche le re-fetch même si un autre ticker n'est pas à re-fetch
     const tickerPromises = tickersToFetch.map(async (ticker) => {
       const result = await fetchStockPrice(ticker);
       if (result) {
@@ -455,10 +460,10 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
       }
     });
 
-    // SGTM in parallel
-    const sgtmPromise = (cachedSGTM === null)
+    // SGTM in parallel — v347 : re-fetch aussi si le cache est périmé (sgtmStale), pas seulement si absent
+    const sgtmPromise = (cachedSGTM === null || sgtmStale)
       ? fetchSGTMPrice().then(r => {
-          loaded++;
+          if (cachedSGTM === null) loaded++; // ne pas double-compter si déjà compté depuis le cache stale
           if (onProgress) onProgress(loaded, totalTickers, 'SGTM' + (r ? ' ✓' : ' ✗'));
           if (r && r.price) {
             cachedSGTM = r.price;
