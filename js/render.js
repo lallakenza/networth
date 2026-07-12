@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS } from './data.js?v=346';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=346';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=347';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=347';
 
 // ---- Generic table sort utility ----
 /**
@@ -3676,7 +3676,7 @@ function renderImmoView(state) {
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
   const fTotalValue = fp.reduce((s, p) => s + p.value, 0);
   const fTotalCRD = fp.reduce((s, p) => s + p.crd, 0);
-  const fTotalCF = fp.reduce((s, p) => s + p.cf, 0);
+  const fTotalCF = fp.reduce((s, p) => s + (p.conditional ? 0 : p.cf), 0); // v347 — exclut le CF fictif Villejuif (loyer non perçu avant livraison), comme engine.totalCF
   const fTotalWealthCreation = fp.reduce((s, p) => s + p.wealthCreation, 0);
   const fTotalWealthBreakdown = {
     capitalAmorti: fp.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
@@ -6750,9 +6750,11 @@ function renderImmoFinancingView(state) {
     proj3Month:  getNum('immoFinProj3Month'),
   };
 
-  // Margin rate selon devise choisie (taux par défaut depuis MARGIN_RATES)
-  const marginRates = { EUR: 3.1, USD: 4.8, JPY: 1.5 };
-  inputs.marginRatePct = marginRates[inputs.marginCurrency] || 3.1;
+  // v347 — Margin rate depuis MARGIN_RATES (data.js), source unique. Avant : {EUR:3.1,...}
+  // codé en dur ici (EUR 3.1% vs 4.3% dans data.js) → MARGIN_RATES importé mais jamais utilisé,
+  // scénarios C/D surestimés de ~31K/69K€. La revue semestrielle mettait à jour une constante morte.
+  const marginRates = { EUR: MARGIN_RATES.EUR * 100, USD: MARGIN_RATES.USD * 100, JPY: MARGIN_RATES.JPY * 100 };
+  inputs.marginRatePct = marginRates[inputs.marginCurrency] || (MARGIN_RATES.EUR * 100);
 
   // Compute
   const result = computeImmoFinancing(inputs);
@@ -6795,7 +6797,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=346').then(m => {
+  import('./charts.js?v=347').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

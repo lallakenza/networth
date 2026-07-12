@@ -1167,7 +1167,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '06/06/2026';
-export const APP_VERSION = 'v346';
+export const APP_VERSION = 'v347';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1422,7 +1422,7 @@ export const IMMO_CONSTANTS = {
     // P2 (2026-2028): AL 145 + BP 1021 + PTZ 0 = 1166 | P3 (2029-2043): AL 145 + BP 688 + PTZ 333 = 1166
     vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // ass: APRIL 17.48€/mois ≈ 17
     rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 250 },  // pret: 969.62, ass: 17.99 (2026), copro: 250 dont 150 refacturé locataire
-    villejuif: { pret: 1669, assurance: 51, pno: 15, tf: 83, copro: 110 },
+    villejuif: { pret: 1698, assurance: 51, pno: 15, tf: 83, copro: 110 }, // v347 — mensualité LCL réelle 1 697,78€ (P1 1 572,79 + P2 124,99), pas le 1669 du financement CA indicatif
   },
   prets: {
     vitryEnd: 2048,      // Année fin du prêt
@@ -2093,7 +2093,7 @@ export const VILLEJUIF_REGIMES = {
     coutMobilier: 3000,        // Investissement mobilier initial
     renouvellementMobilier: 500, // Renouvellement mobilier annuel moyen
     chargesProprietaire: 259,  // copro 110 + PNO 15 + TF 83 + assurance 51
-    mensualitePret: 1669,      // prêt LCL P1+P2
+    mensualitePret: 1698,      // v347 — prêt LCL P1+P2 réel (1 572,79 + 124,99 = 1 697,78€)
     assurancePret: 51,
     valeurBien: 370000,
     totalOperation: 336330,
