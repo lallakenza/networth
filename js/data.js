@@ -302,6 +302,17 @@ export const PORTFOLIO = {
         { date: '2025-09-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 10.85,  label: 'Div QQQM Q3 ($17.54 brut − $5.26 WHT, FX 1.1328)' },  // ($17.54-$5.26)/1.1328
         { date: '2025-12-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 12.50,  label: 'Div QQQM Q4 ($18.73 brut − $5.62 WHT, FX 1.0489)' },  // ($18.73-$5.62)/1.0489
         { date: '2026-02-18', type: 'dividend', ticker: 'RMS.PA', eurAmount: 37.54,  label: 'Div RMS net (€50 brut − €12.46 WHT 25%)' },
+        // ── v352 : dividendes reçus mars-juin 2026 (relevé d'activité IBKR YTD, lu 12/07/2026) ──
+        { date: '2026-03-26', type: 'dividend', ticker: '4911.T', eurAmount: 46.24,  label: 'Div Shiseido net (¥10 000 brut − ¥1 531 WHT 15,3% JP ; ¥8 469 net /183,15)' },
+        { date: '2026-04-23', type: 'dividend', ticker: 'AIR.PA', eurAmount: 544.00, label: 'Div AIR net (€640 brut − €96 WHT 15% NL)' },
+        { date: '2026-04-23', type: 'dividend', ticker: 'RMS.PA', eurAmount: 97.73,  label: 'Div RMS net (€130 brut − €32.27 WHT 25% FR)' },
+        { date: '2026-04-30', type: 'dividend', ticker: 'MC.PA',  eurAmount: 225.00, label: 'Div MC net (€300 brut − €75 WHT 25% FR)' },
+        { date: '2026-05-04', type: 'dividend', ticker: 'OR.PA',  eurAmount: 166.13, label: 'Div OR net (€208.80 + €7.20 lieu = €216 brut − €49.87 WHT FR)' },
+        { date: '2026-05-06', type: 'dividend', ticker: 'BN.PA',  eurAmount: 337.50, label: 'Div BN net (€450.01 brut − €112.51 WHT 25% FR)' },
+        { date: '2026-05-07', type: 'dividend', ticker: 'SAN.PA', eurAmount: 154.55, label: 'Div SAN net (€206 brut − €51.45 WHT 25% FR)' },
+        { date: '2026-05-08', type: 'dividend', ticker: 'SAP.DE', eurAmount: 128.84, label: 'Div SAP net (€175 brut − €46.16 WHT 26,4% DE)' },
+        { date: '2026-05-22', type: 'dividend', ticker: 'FGR.PA', eurAmount: 360.00, label: 'Div FGR net (€480 brut − €120 WHT 25% FR)' },
+        { date: '2026-06-26', type: 'dividend', ticker: 'P911.DE',eurAmount: 402.93, label: 'Div P911 net (€404 brut − €1.07 WHT DE)' },
       ],
       // ── Dividendes ACN (ESPP) ──
       // Source: Accenture IR quarterly dividend history (accenture.com/investor-relations)
@@ -1167,7 +1178,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '12/07/2026';
-export const APP_VERSION = 'v351';
+export const APP_VERSION = 'v352';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
