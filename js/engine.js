@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=349';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=350';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2427,7 +2427,9 @@ function computeVillejuifRegimeComparison() {
       VR.jeanbrun.plafondLoyer.loyerMaxMensuel
     );
     const jRevenuAnnuel = jLoyer * 12;
-    const jChargesAnnuel = (base.chargesProprietaire + base.mensualitePret + base.assurancePret) * 12;
+    // v347 — assurance emprunteur déjà incluse dans chargesProprietaire (259 = copro 110 + PNO 15
+    // + TF 83 + assurance 51) : ne PAS ré-ajouter base.assurancePret (double-compte de +612€/an).
+    const jChargesAnnuel = (base.chargesProprietaire + base.mensualitePret) * 12;
     const jCFBrut = jRevenuAnnuel - jChargesAnnuel;
     // Fiscalité : revenus fonciers imposés au réel
     const jRevenuImposable = Math.max(0, jRevenuAnnuel - (base.chargesProprietaire * 12)); // simplified
@@ -2745,6 +2747,10 @@ function computeImmoView(portfolio, fx) {
           name: sub.name,
           crd: currentRow ? currentRow.remainingCRD : 0,
           rate: subLoansConfig[i] ? subLoansConfig[i].rate : 0,
+          // v347 — propager le flag déclaratif : sans lui, le fallback string-match
+          // 'action logement'.includes('action-logement') échoue (espace vs tiret) → IRA
+          // facturée à tort sur Action Logement / PTZ (exempts).
+          iraExempt: subLoansConfig[i] ? subLoansConfig[i].iraExempt : undefined,
         };
       });
     } else if (IC.loans && IC.loans[loanKey]) {
@@ -2761,7 +2767,13 @@ function computeImmoView(portfolio, fx) {
     const capitalAmortiMois = currentAmortRow ? currentAmortRow.principal : 0;
 
     // 2. Appreciation: property value growth from market appreciation rate
-    const appreciationRate = (IC.properties[loanKey] || {}).appreciation || 0;
+    // v347 — utiliser le taux de la PHASE de l'année courante (comme la projection L3067),
+    // pas le taux lissé annuel. Avant : Vitry affichait 1,5% (lissé) au lieu de 1,0% (phase 2026)
+    // → création de richesse surestimée (~+150€/mois au total sur les 3 biens).
+    const _apMeta = IC.properties[loanKey] || {};
+    const _apYear = new Date().getFullYear();
+    let appreciationRate = _apMeta.appreciation || 0;
+    for (const ph of (_apMeta.appreciationPhases || [])) { if (_apYear >= ph.start && _apYear <= ph.end) { appreciationRate = ph.rate; break; } }
     const appreciationMois = _val * appreciationRate / 12;
 
     // 3. Cash flow: monthly surplus (negative if "effort épargne" — self-funded repairs/costs)

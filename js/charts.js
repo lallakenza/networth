@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=349';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=349';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=349';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=349';
+import { fmt, fmtAxis } from './render.js?v=350';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=350';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=350';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=350';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -355,7 +355,10 @@ function buildGeoChart(state) {
     });
   }
   // Add ESPP (Accenture = Ireland/US)
-  geoMap['Irlande/US (ACN)'] = (s.amine.espp || 0) + (s.nezha.espp || 0);
+  // v347 — parts ESPP SEULES (esppForActions, hors cash UBS) : le cash ESPP appartient à
+  // l'allocation cash, pas à l'exposition géographique actions. Avant : `espp` (total incl. cash)
+  // surévaluait « Irlande/US » de ~2 095€ (le cash y était compté en plus de l'allocation cash).
+  geoMap['Irlande/US (ACN)'] = (s.amine.esppForActions || 0) + (s.nezha.esppForActions || 0);
   // Add SGTM (Morocco)
   geoMap['Maroc (SGTM)'] = (s.amine.sgtm || 0) + (s.nezha.sgtm || 0);
 
