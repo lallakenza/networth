@@ -1088,7 +1088,11 @@ export const PORTFOLIO = {
                    //   appelsPayes = appels de fonds payés au promoteur (acte 05/06/2026 : 34% = 5% résa + 29% acte)
                    //   drawnToDate = capital réellement débloqué par LCL (Prêt 1 64 369,15 + Prêt 2 31 800)
                    // À rafraîchir à chaque appel de fonds / déblocage. Bascule vers value−CRD pleine à la livraison.
-                   underConstruction: true, appelsPayes: 114352, drawnToDate: 96169 },
+                   // v358 — valorisation HYBRIDE : equity = (appelsPayes − drawnToDate) + PV latente reconnue
+                   //   au prorata de l'avancement (appelsPayes / contractPrice). PV latente = valeur marché
+                   //   livrée − prix contrat (discount résident ~15% + appréciation, ~40K). Converge vers la
+                   //   valeur livrée à la livraison. contractPrice = prix TTC de l'acte (avec discount résident).
+                   underConstruction: true, appelsPayes: 114352, drawnToDate: 96169, contractPrice: 336330 },
       // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
       // Prix contrat réservation : 336 330€ TTC (TVA 20%) — réservation signée 20/06/2025
       // ACTE DE VENTE NOTARIÉ SIGNÉ 05/06/2026 (Me Wysocki, Évry — SCCV Villejuif 167 Aragon)
@@ -1187,7 +1191,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '13/07/2026';
-export const APP_VERSION = 'v357';
+export const APP_VERSION = 'v358';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=357';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=358';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2582,11 +2582,21 @@ function computeImmoView(portfolio, fx) {
         currentValue = Math.round(val);
       }
     }
-    // v357 — VEFA « asset under construction » : tant que non livré, la valeur = appels de fonds
-    // payés au promoteur (coût engagé), pas la valeur de marché livrée. Pas d'appréciation.
-    // On conserve la valeur de marché livrée (appréciée) pour la projection long-terme (post-livraison).
+    // v358 — VEFA « asset under construction » : valorisation HYBRIDE tant que non livré.
+    //   valeur portée = capital engagé (appels payés) + plus-value latente reconnue au prorata de l'avancement.
+    //   La PV latente vient du discount résident ~15% + appréciation (valeur marché − prix contrat, ~40K).
+    //   Reconnaître × avancement (appels/prix) fait CONVERGER l'equity vers `valeur livrée − CRD` à 100%.
+    // `_deliveredValue` (marché livré, apprécié) est conservé pour la projection long-terme (post-livraison).
     const _deliveredValue = currentValue;
-    if (propData.underConstruction) currentValue = propData.appelsPayes || propData.value;
+    let _recognizedLatentGain = 0;
+    if (propData.underConstruction) {
+      const _appels = propData.appelsPayes || 0;
+      const _price = propData.contractPrice || _appels;
+      const _completion = _price > 0 ? Math.min(1, _appels / _price) : 0;
+      const _latentGain = Math.max(0, _deliveredValue - _price);
+      _recognizedLatentGain = Math.round(_latentGain * _completion);
+      currentValue = _appels + _recognizedLatentGain; // valeur portée = coût engagé + PV reconnue
+    }
     // Replace propData.value with currentValue everywhere below
     const _val = currentValue;
     const _refValue = propData.value;
@@ -2806,6 +2816,8 @@ function computeImmoView(portfolio, fx) {
       name, owner, conditional: conditional || false,
       value: _val, referenceValue: _refValue, valueDate: _refDate,
       deliveredValue: _deliveredValue, // v357 — valeur de marché livrée (= value hors VEFA ; sert à la projection)
+      recognizedLatentGain: _recognizedLatentGain, // v358 — PV latente reconnue (VEFA) ; 0 hors construction
+      engagedCapital: propData.underConstruction ? ((propData.appelsPayes || 0) - computedCRD) : (_val - computedCRD), // capital réellement engagé (cash-basis)
       crd: computedCRD, equity: _val - computedCRD,
       ltv: (computedCRD / _val * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
@@ -3875,14 +3887,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
   const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
-  // v357 — VEFA en construction : CRD = capital tiré, valeur = appels payés (cohérence avec buildProperty).
-  const _vjUnderConstruction = !!p.nezha.immo.villejuif.underConstruction;
-  const nezhaVillejuifCRD = _vjUnderConstruction
-    ? (p.nezha.immo.villejuif.drawnToDate || 0)
-    : (immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd);
-  const _vjValue = _vjUnderConstruction ? (p.nezha.immo.villejuif.appelsPayes || 0) : p.nezha.immo.villejuif.value;
+  // v357/358 — VEFA en construction : lire valeur portée (coût engagé + PV latente reconnue) et CRD
+  // (capital tiré) directement depuis buildProperty pour une cohérence totale avec l'immoView.
+  const _vjProp = immoView.properties.find(pr => pr.loanKey === 'villejuif');
+  const nezhaVillejuifCRD = _vjProp ? _vjProp.crd : (immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd);
+  const _vjValue = _vjProp ? _vjProp.value : p.nezha.immo.villejuif.value;
   // Si pas signé : on ne compte que les frais de réservation (récupérables)
-  const villejuifExitCosts = immoView.properties.find(pr => pr.loanKey === 'villejuif')?.exitCosts;
+  const villejuifExitCosts = _vjProp?.exitCosts;
   const nezhaVillejuifEquityBrute = _vjValue - nezhaVillejuifCRD;
   const nezhaVillejuifEquity = villejuifSigned
     ? Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)
