@@ -1003,10 +1003,10 @@ export const PORTFOLIO = {
   nezha: {
     // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
     cash: {
-      revolutEUR: 5679,        // EUR — Revolut France (0%) — MAJ 19/04/2026
+      revolutEUR: 8215,        // EUR — Revolut France, tous comptes (0%) — MAJ 13/07/2026
       creditMutuelCC: 8174,    // EUR — Crédit Mutuel compte courant (0%) — MAJ 19/04/2026
-      lclLivretA: 23015,       // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 19/04/2026
-      lclCompteDepots: 20412,  // EUR — LCL Compte principal (0%) — MAJ 19/04/2026
+      lclLivretA: 13000,       // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 13/07/2026 (−10K : apport Villejuif)
+      lclCompteDepots: 8184,   // EUR — LCL Compte principal (0%) — MAJ 13/07/2026 (−12K : apport Villejuif)
       ibkrEUR: 16260,          // EUR — IBKR Nezha (broker, cash/NAV) — MAJ 19/04/2026
       attijariwafarMAD: 119000, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 23/04/2026 (correction : 11900 était une saisie erronée)
       wioAED: 18385,           // AED — Wio UAE (UAE Dirham 17,882.10 + Family account 502.50 = 18,384.60 AED, arrondi) — MAJ 20/04/2026
@@ -1180,8 +1180,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '12/07/2026';
-export const APP_VERSION = 'v354';
+export const DATA_LAST_UPDATE = '13/07/2026';
+export const APP_VERSION = 'v355';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
