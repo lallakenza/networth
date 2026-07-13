@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=359';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=359';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=360';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=360';
 
 // ---- Generic table sort utility ----
 /**
@@ -1101,7 +1101,7 @@ function renderAmineTable(state) {
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash],
     ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
-    ['Creances SAP & Tax (TJM 910 x 20j, garanti 45j)', s.amine.recvPro],
+    ['Creances SAP & Tax (INVSNT006 — 15j + frais, éch. 01/07/2026)', s.amine.recvPro],
     ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
     ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
     ['TVA a payer', s.amine.tva],
@@ -6804,7 +6804,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=359').then(m => {
+  import('./charts.js?v=360').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
