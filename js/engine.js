@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=358';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=359';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3849,6 +3849,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     uae: amineUae,
     uaeAED: amineUaeAED,
     revolutEUR: amineRevolutEUR,
+    banquePopulaire: amineBanquePopulaire, // v359 — exposé pour la table détail Amine
+    binanceUSDT: amineBinanceUSDT,         // v359
     moroccoCash: amineMoroccoCash,
     moroccoMAD: amineMoroccoMAD,
     morocco: amineMoroccoCash + amineSgtm,
@@ -4065,8 +4067,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   };
 
   // ---- POOLS (for simulators) ----
-  const actionsPool = amineIbkr + amineEspp + amineSgtm;
-  const cashPool = amineUae + amineRevolutEUR + amineMoroccoCash;
+  const actionsPool = amineIbkr + amineEspp + amineSgtm; // amineIbkr inclut le cash courtier (EUR/USD/JPY/AED)
+  // v359 — cash externe (banques/exchange), hors cash courtier qui est dans actionsPool.
+  //   + Banque Populaire + Binance USDT (oubliés → pool cash du simulateur sous-évalué de ~5 250€).
+  const cashPool = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash;
   const totalLiquid = actionsPool + cashPool;
   const pctActions = totalLiquid > 0 ? Math.round(actionsPool / totalLiquid * 100) : 0;
 
@@ -4106,6 +4110,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         { label: 'ESPP Accenture', val: amineEsppShares + nezhaEsppForActions, color: '#6366f1', owner: 'Amine + Nezha — ESPP' },
         { label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#4f46e5', owner: 'Amine + Nezha — Maroc' },
       ].filter(s => s.val > 100)
+        // v359 — portage JPY (marge, négatif) : compris dans le total mais exclu par le filtre des
+        // sous-items positifs. On le rajoute pour que Σ sous-items = total de la catégorie.
+        .concat(toEUR(p.amine.ibkr.cashJPY, 'JPY', fx) < -100 ? [{ label: 'Portage JPY (marge)', val: toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#94a3b8', owner: 'Amine — carry Shiseido' }] : [])
     },
     {
       label: 'Crypto', color: '#f59e0b',
@@ -4151,6 +4158,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
         ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: 'Amine — 0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
+        ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire (Amine)', val: amineBanquePopulaire, color: '#f472b6', owner: 'Amine — 0%' }] : []), // v359 — était dans le total, manquait aux sous-items
+        ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT (Amine)', val: amineBinanceUSDT, color: '#f59e0b', owner: 'Amine — 0%' }] : []), // v359
       ]
     },
     {
@@ -4238,7 +4247,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     {
       label: 'Actions IBKR', color: '#2b6cb0',
       total: ibkrNonCryptoSubs.reduce((s, p) => s + p.val, 0) + ibkrJPYVal,
-      sub: ibkrNonCryptoSubs
+      // v359 — + portage JPY (marge, négatif) dans les sous-items pour que Σsub = total.
+      sub: ibkrJPYVal < -100 ? ibkrNonCryptoSubs.concat([{ label: 'Portage JPY (marge)', val: ibkrJPYVal, color: '#94a3b8', owner: 'carry Shiseido' }]) : ibkrNonCryptoSubs
     },
     {
       label: 'Crypto', color: '#f59e0b',
@@ -4269,13 +4279,17 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     {
       label: 'Cash Dormant', color: '#ef4444',
       // BUG-047 (v297): include wioCurrent unconditionally — same rationale as couple view above
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineMoroccoCash + amineBrokerCash,
+      // v359 (BUG-064): + Banque Populaire + Binance USDT — étaient dans le NW et la vue couple
+      //   mais oubliés ici → Σ catégories Amine < amine.nw de ~5 250€ (top vs bas de page).
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash + amineBrokerCash,
       sub: [
         ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: '0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
         ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
         ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: '0%' }] : []),
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: '#f87171', owner: '0%' }] : []),
+        ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire', val: amineBanquePopulaire, color: '#f472b6', owner: '0%' }] : []),
+        ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT', val: amineBinanceUSDT, color: '#f59e0b', owner: '0%' }] : []),
       ]
     },
     {
@@ -4323,6 +4337,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...((nc.ibkrEUR || 0) > 0 ? [{ label: 'IBKR (Nezha)', val: nc.ibkrEUR, color: '#7c2d12', owner: 'à investir' }] : []),
         ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa', val: nezhaCashMarocEUR, color: '#991b1b', owner: Math.round(nc.attijariwafarMAD).toLocaleString("fr-FR") + ' MAD' }] : []),
         ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: Math.round(nc.wioAED).toLocaleString("fr-FR") + ' AED' }] : []),
+        ...(nezhaBrokerCash > 0 ? [{ label: 'Cash ESPP (UBS)', val: nezhaBrokerCash, color: '#8b5cf6', owner: '0%' }] : []), // v359 — était dans le total (nezhaCash) mais manquait aux sous-items
       ]
     },
     {
@@ -4398,6 +4413,31 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);
 
   // NW history removed v86
+
+  // ── v359 — Garde-fou anti-desync d'affichage (BUG-064) ────────────────────────
+  // Vérifie que la somme des catégories de chaque vue == le NW de cette vue, et que
+  // chaque catégorie a total == Σ sous-items. Attrape immédiatement (console) tout
+  // futur ajout de compte oublié dans un des « 9+ emplacements ». Tolérance €2 (arrondis).
+  (function _guardCategorySums() {
+    const chk = (label, sum, ref) => {
+      if (Math.abs(sum - ref) > 2) console.warn('[engine] ⚠ desync ' + label + ' : Σcatégories', Math.round(sum), '≠ NW', Math.round(ref), '(écart ' + Math.round(sum - ref) + '€)');
+    };
+    const sumCat = (arr) => (arr || []).reduce((a, c) => a + (c ? c.total : 0), 0);
+    chk('vue Amine', sumCat(amineCategories), amine.nw);
+    chk('vue Nezha', sumCat(nezhaCategories), nezha.nw);
+    chk('vue Couple', sumCat(coupleCategories), coupleNW);
+    let subOk = true;
+    for (const [nm, arr] of [['couple', coupleCategories], ['amine', amineCategories], ['nezha', nezhaCategories]]) {
+      (arr || []).forEach((c) => {
+        if (!c || !c.sub || !c.sub.length) return;
+        const ss = c.sub.reduce((a, x) => a + (x.val || 0), 0);
+        if (Math.abs(c.total - ss) > 2) { subOk = false; console.warn('[engine] ⚠ sous-items ' + nm + '/' + c.label + ' : Σsub', Math.round(ss), '≠ total', Math.round(c.total)); }
+      });
+    }
+    if (subOk && Math.abs(sumCat(amineCategories) - amine.nw) <= 2 && Math.abs(sumCat(nezhaCategories) - nezha.nw) <= 2 && Math.abs(sumCat(coupleCategories) - coupleNW) <= 2) {
+      console.log('[engine] Catégories cohérentes ✓ (Σcat = NW pour les 3 vues, total = Σsub)');
+    }
+  })();
 
   return {
     fx,

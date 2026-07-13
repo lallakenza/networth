@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=358';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=358';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=359';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=359';
 
 // ---- Generic table sort utility ----
 /**
@@ -1095,6 +1095,8 @@ function renderAmineTable(state) {
     ['SGTM (' + p.amine.sgtm.shares + ' actions @ ' + sgtmPrice + ')', s.amine.sgtm],
     ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED)', s.amine.uae],
     ['Revolut EUR', s.amine.revolutEUR],
+    ['Banque Populaire', s.amine.banquePopulaire || 0],
+    ['Binance USDT', s.amine.binanceUSDT || 0],
     ['Cash Maroc (' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.amine.moroccoCash],
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash],
     ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
@@ -1104,7 +1106,7 @@ function renderAmineTable(state) {
     ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
     ['TVA a payer', s.amine.tva],
   ];
-  buildDetailTable('#amineDetailTable tbody', rows, 'Net Worth Amine');
+  buildDetailTableWithPct('#amineDetailTable', rows, 'Net Worth Amine', s.amine.nw);
 }
 
 function renderNezhaTable(state, view) {
@@ -6393,6 +6395,11 @@ function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   tbody.innerHTML = '';
   let total = 0;
   const data = rows.map(([label, val]) => { total += val; return { label, val, cond: label.includes('conditionnel') }; });
+  // v359 — garde-fou render (BUG-064) : la somme des lignes doit égaler le NW autoritatif.
+  // Attrape tout compte ajouté au NW mais oublié dans la liste des lignes de la table (haut ≠ bas).
+  if (nwTotal != null && Math.abs(total - nwTotal) > 2) {
+    console.warn('[render] ⚠ desync table « ' + totalLabel + ' » : Σlignes ' + Math.round(total) + ' ≠ NW ' + Math.round(nwTotal) + ' (écart ' + Math.round(total - nwTotal) + '€ — compte manquant dans les lignes ?)');
+  }
   const absTotal = Math.abs(nwTotal || total);
   data.forEach(d => {
     const tr = document.createElement('tr');
@@ -6797,7 +6804,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=358').then(m => {
+  import('./charts.js?v=359').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
