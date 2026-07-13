@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=360';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=360';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=361';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=361';
 
 // ---- Generic table sort utility ----
 /**
@@ -1128,7 +1128,9 @@ function renderNezhaTable(state, view) {
     ['Creance Omar (' + Math.round(s.nezha.recvOmarMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.recvOmar],
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
     ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (réf. 278271-0004)', s.nezha.rolexDatejust]] : []),
-    ...(!s.nezha.villejuifSigned && s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : []),
+    ...(s.nezha.villejuifSigned
+      ? (s.nezha.villejuifEquity > 0 ? [['Equity Villejuif VEFA (asset under construction)', s.nezha.villejuifEquity]] : [])
+      : (s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : [])),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
   const tbody = document.querySelector('#nezhaDetailTable tbody');
@@ -1141,6 +1143,11 @@ function renderNezhaTable(state, view) {
     tr.innerHTML = '<td>' + label + '</td><td class="num">' + fmt(val) + '</td>';
     tbody.appendChild(tr);
   });
+  // v361 — garde-fou render (BUG-064) : table construite a la main (hors buildDetailTableWithPct),
+  // on ajoute le meme controle : Somme des lignes doit egaler le NW autoritatif s.nezha.nw.
+  if (Math.abs(total - s.nezha.nw) > 2) {
+    console.warn('[render] desync table Net Worth Nezha : Slignes ' + Math.round(total) + ' != nezha.nw ' + Math.round(s.nezha.nw) + ' (ecart ' + Math.round(total - s.nezha.nw) + ' EUR - ligne manquante ?)');
+  }
   // NW actuel
   let tr = document.createElement('tr');
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
@@ -6804,7 +6811,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=360').then(m => {
+  import('./charts.js?v=361').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
