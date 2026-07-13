@@ -613,11 +613,14 @@ export const PORTFOLIO = {
         // Sources: emprunts familiaux, avances remboursables
         // INVSNT001 — SAP & Tax janv (20j × 910€) — PAYÉ
         { label: 'SAP & Tax — INVSNT001 (janv, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-04-12', payments: [{ amount: 18200, date: '2026-04-12', currency: 'EUR' }], notes: 'Facture payée' },
-        // INVSNT002 — SAP & Tax fév (20j × 910€) — EN ATTENTE
-        { label: 'SAP & Tax — INVSNT002 (fév, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_retard', dueDate: '2026-04-01', lastContact: '2026-04-12', payments: [], notes: 'Facture du 28/02/2026, échéance dépassée' },
-        // INVSNT003 — SAP & Tax mars (21.5j × 910€) — EN ATTENTE
-        { label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-05-01', lastContact: '2026-04-12', payments: [], notes: 'Facture du 01/04/2026, paiement sous 30j' },
-        { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-04-15', lastContact: '2026-03-08', payments: [], notes: 'Note de frais déplacement NZ — Sourcing Desk L\'Oréal, livré 26 fév 2026' },
+        // INVSNT002 — SAP & Tax fév — SOLDÉ (seule créance SAP & Tax en cours = INVSNT006, confirmé 13/07/2026)
+        { label: 'SAP & Tax — INVSNT002 (fév, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-01', lastContact: '2026-07-13', payments: [{ amount: 18200, date: '2026-04-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
+        // INVSNT003 — SAP & Tax mars — SOLDÉ
+        { label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-05-01', lastContact: '2026-07-13', payments: [{ amount: 19565, date: '2026-05-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
+        // INVSNT006 — SAP & Tax (facture 01/06/2026) — SEULE CRÉANCE PRO EN COURS
+        { label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-07-01', lastContact: '2026-07-13', payments: [], notes: 'Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
+        // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
+        { label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
         { label: 'Loyers impayés (Janv + Fév)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-03-01', lastContact: '2026-04-12', payments: [{ amount: 2400, date: '2026-04-12', currency: 'EUR' }], notes: 'Loyers janv+fév payés le 12/04/2026' },
         { label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
@@ -1191,7 +1194,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '13/07/2026';
-export const APP_VERSION = 'v359';
+export const APP_VERSION = 'v360';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
