@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=356';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=357';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2582,6 +2582,11 @@ function computeImmoView(portfolio, fx) {
         currentValue = Math.round(val);
       }
     }
+    // v357 — VEFA « asset under construction » : tant que non livré, la valeur = appels de fonds
+    // payés au promoteur (coût engagé), pas la valeur de marché livrée. Pas d'appréciation.
+    // On conserve la valeur de marché livrée (appréciée) pour la projection long-terme (post-livraison).
+    const _deliveredValue = currentValue;
+    if (propData.underConstruction) currentValue = propData.appelsPayes || propData.value;
     // Replace propData.value with currentValue everywhere below
     const _val = currentValue;
     const _refValue = propData.value;
@@ -2646,6 +2651,9 @@ function computeImmoView(portfolio, fx) {
     } else {
       computedCRD = propData.crd;
     }
+    // v357 — VEFA en construction : CRD = capital réellement débloqué par la banque (appels de fonds),
+    // pas le principal plein. Le tableau d'amortissement modélise un déblocage 100% qui n'a pas eu lieu.
+    if (propData.underConstruction) computedCRD = propData.drawnToDate || 0;
 
     // Loan details for detail panel
     /**
@@ -2761,7 +2769,11 @@ function computeImmoView(portfolio, fx) {
     } else if (IC.loans && IC.loans[loanKey]) {
       loanCRDs = [{ name: 'Prêt principal', crd: computedCRD, rate: IC.loans[loanKey].rate || 0 }];
     }
-    const exitCosts = computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
+    // v357 — VEFA en construction : pas de frais de sortie (bien non livré, non cessible en direct) ;
+    // l'equity nette = equity brute = appels payés − capital tiré.
+    const exitCosts = propData.underConstruction
+      ? { netEquityAfterExit: Math.max(0, _val - computedCRD), totalExitCosts: 0, iraTotal: 0, pvImmoTax: 0, agencyFee: 0 }
+      : computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
     // ── PV Abattement schedule (for chart visualization) ──
     const pvAbattementSchedule = computePVAbattementSchedule();
@@ -2793,6 +2805,7 @@ function computeImmoView(portfolio, fx) {
     return {
       name, owner, conditional: conditional || false,
       value: _val, referenceValue: _refValue, valueDate: _refDate,
+      deliveredValue: _deliveredValue, // v357 — valeur de marché livrée (= value hors VEFA ; sert à la projection)
       crd: computedCRD, equity: _val - computedCRD,
       ltv: (computedCRD / _val * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
@@ -3862,10 +3875,15 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
   const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
-  const nezhaVillejuifCRD = immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd;
+  // v357 — VEFA en construction : CRD = capital tiré, valeur = appels payés (cohérence avec buildProperty).
+  const _vjUnderConstruction = !!p.nezha.immo.villejuif.underConstruction;
+  const nezhaVillejuifCRD = _vjUnderConstruction
+    ? (p.nezha.immo.villejuif.drawnToDate || 0)
+    : (immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd);
+  const _vjValue = _vjUnderConstruction ? (p.nezha.immo.villejuif.appelsPayes || 0) : p.nezha.immo.villejuif.value;
   // Si pas signé : on ne compte que les frais de réservation (récupérables)
   const villejuifExitCosts = immoView.properties.find(pr => pr.loanKey === 'villejuif')?.exitCosts;
-  const nezhaVillejuifEquityBrute = p.nezha.immo.villejuif.value - nezhaVillejuifCRD;
+  const nezhaVillejuifEquityBrute = _vjValue - nezhaVillejuifCRD;
   const nezhaVillejuifEquity = villejuifSigned
     ? Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)
     : 0;
@@ -3938,7 +3956,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     rueilCRD: nezhaRueilCRD,
     rueilEquity: nezhaRueilEquity, // net (after exit costs, floored at 0)
     rueilEquityBrute: nezhaRueilEquityBrute,
-    villejuifValue: p.nezha.immo.villejuif.value,
+    villejuifValue: _vjValue, // v357 — appels payés si en construction, sinon valeur livrée
     villejuifCRD: nezhaVillejuifCRD,
     villejuifEquity: nezhaVillejuifEquity, // net (after exit costs, floored at 0)
     villejuifEquityBrute: nezhaVillejuifEquityBrute,

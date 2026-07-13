@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=356';
-import { IMMO_CONSTANTS } from './data.js?v=356';
+import { fmt, fmtAxis } from './render.js?v=357';
+import { IMMO_CONSTANTS } from './data.js?v=357';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -705,7 +705,7 @@ function runCoupleSimulator(state) {
   const iv = s.immoView;
   const computeVitryEquity = makeComputePropertyEquity(iv, 'vitry', iv?.properties?.find(p => p.loanKey === 'vitry')?.value || 0);
   const computeRueilEquity = makeComputePropertyEquity(iv, 'rueil', iv?.properties?.find(p => p.loanKey === 'rueil')?.value || 0);
-  const computeVillejuifEquity = makeComputePropertyEquity(iv, 'villejuif', iv?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0);
+  const computeVillejuifEquity = makeComputePropertyEquity(iv, 'villejuif', iv?.properties?.find(p => p.loanKey === 'villejuif')?.deliveredValue || iv?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0); // v357 — projection = valeur livrée (VEFA basculée post-livraison)
 
   // CRD par property pour le split "Immo Investi" vs "Immo Gains" (v334)
   const computeVitryCRD = makeComputePropertyCRD(iv, 'vitry');
@@ -880,7 +880,7 @@ function runNezhaSimulator(state) {
   const ivNz = s.immoView;
   // v342 — `appreciation` (slider) pilote désormais réellement la projection (4ème arg).
   const computeRueilEquity = makeComputePropertyEquity(ivNz, 'rueil', ivNz?.properties?.find(p => p.loanKey === 'rueil')?.value || 0, appreciation);
-  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0, appreciation);
+  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.deliveredValue || ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0, appreciation); // v357 — projection = valeur livrée
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
