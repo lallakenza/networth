@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=365';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=366';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1561,12 +1561,16 @@ function computeCashView(portfolio, fx) {
     const gross = accts.reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
     const nominalProductive = accts.filter(a => (a.yield || 0) > 0).reduce((s, a) => s + a.valEUR, 0);
     const potentialGross = accts.reduce((s, a) => s + a.valEUR * Math.max(a.yield || 0, REF_YIELD_CASH), 0);
+    // Cash rémunéré < benchmark 6% (= gisement optimisable). optimalCash = déjà ≥ 6%.
+    const subOptimalCash = accts.filter(a => (a.yield || 0) < REF_YIELD_CASH).reduce((s, a) => s + a.valEUR, 0);
     return {
       grossInterest: gross,
       realNet: gross - total * INFLATION_RATE,
       inflationErosion: total * INFLATION_RATE,
       nominalProductive,
       nominalDormant: total - nominalProductive,
+      subOptimalCash,
+      optimalCash: total - subOptimalCash,
       potentialGross,
       potentialNet: potentialGross - total * INFLATION_RATE,
       gapToPotential: potentialGross - gross,
