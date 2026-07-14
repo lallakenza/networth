@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=361';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=362';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2804,13 +2804,19 @@ function computeImmoView(portfolio, fx) {
     const appreciationMois = _val * appreciationRate / 12;
 
     // 3. Cash flow: monthly surplus (negative if "effort épargne" — self-funded repairs/costs)
-    // For conditional properties (not yet signed / not delivered): no CF, no capital amortization
-    // Only appreciation counts for properties not yet generating revenue
+    // For conditional properties (VEFA under construction, not yet delivered): NO monthly wealth
+    // creation at all — no rent (CF), no principal repayment (franchise), and no market appreciation.
+    // v362 (BUG-065): previously appreciation was still counted (appreciationMois applied to the
+    // carrying value = construction cost + recognized discount). That was spurious: (1) the resident
+    // discount is already captured as `recognizedLatentGain` inside `equity` (balance-sheet), and
+    // (2) a unit not yet delivered doesn't accrue realized market appreciation month by month.
+    // So zero all three flow components for conditional, consistent with CF/loyer aggregates.
     const wealthCF = conditional ? 0 : cf;
     const wealthCapital = conditional ? 0 : capitalAmortiMois;
+    const wealthAppreciation = conditional ? 0 : appreciationMois;
 
     // Total wealth creation = capital amortization + appreciation + cashflow
-    const wealthCreationComputed = wealthCapital + appreciationMois + wealthCF;
+    const wealthCreationComputed = wealthCapital + wealthAppreciation + wealthCF;
 
     return {
       name, owner, conditional: conditional || false,
@@ -2829,8 +2835,8 @@ function computeImmoView(portfolio, fx) {
       yieldNetFiscal: fisc ? (cfNetFiscal * 12 / _val * 100) : null,
       wealthCreation: Math.round(wealthCreationComputed),
       wealthBreakdown: {
-        capitalAmorti: Math.round(capitalAmortiMois),
-        appreciation: Math.round(appreciationMois),
+        capitalAmorti: Math.round(wealthCapital),
+        appreciation: Math.round(wealthAppreciation),
         cashflow: Math.round(wealthCF),
         effortEpargne: wealthCF < 0 ? Math.round(Math.abs(wealthCF)) : 0,
       },
