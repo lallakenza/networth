@@ -3675,12 +3675,17 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <div class="grid2" style="margin-top:20px;">
     <div>
-      <h3>Cash Productif vs Dormant</h3>
-      <div id="cashYieldBars" style="display:flex;flex-direction:column;gap:10px;"></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-top:6px;">
-        <span>&#x1F7E2; Productif (&ge;3% yield)</span>
-        <span>&#x1F534; Dormant (&lt;3% yield)</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Cash Productif vs Dormant</h3>
+        <div id="cashFrameToggle" role="group" aria-label="Cadre de calcul du rendement" style="display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;font-size:12px;">
+          <button type="button" data-frame="nominal" aria-pressed="false" style="border:none;background:transparent;padding:5px 13px;cursor:pointer;color:var(--gray);font-weight:600;">Sans inflation</button>
+          <button type="button" data-frame="real" aria-pressed="true" style="border:none;background:transparent;padding:5px 13px;cursor:pointer;color:var(--gray);font-weight:600;">Apr&egrave;s inflation</button>
+        </div>
       </div>
+      <div id="cashFrameCaption" style="font-size:11px;color:var(--gray);margin:5px 0 8px;"></div>
+      <div id="cashPotentialHeadline" style="font-size:12px;margin-bottom:10px;"></div>
+      <div id="cashYieldBars" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <div id="cashYieldLegend" style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--gray);margin-top:8px;flex-wrap:wrap;"></div>
     </div>
     <div>
       <h3 id="cashYieldTitle" style="display:none;"></h3>
@@ -4345,7 +4350,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=363"></script>
+<script type="module" src="js/app.js?v=364"></script>
 
 </body>
 </html>
