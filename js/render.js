@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=361';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=361';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=362';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=362';
 
 // ---- Generic table sort utility ----
 /**
@@ -3705,6 +3705,28 @@ function renderImmoView(state) {
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
   setText('kpiImmoViewLTV', fAvgLTV.toFixed(1) + '%');
 
+  // v362 — Sous-note « dont Villejuif VEFA » sur les KPI de BILAN (valeur/equity/CRD).
+  // Choix utilisateur : Villejuif (VEFA en construction) reste inclus dans ces totaux pour
+  // que la vue immo reconcilie avec la part immo du NW ; on l'annote pour transparence.
+  // Les métriques de FLUX (CF, création richesse) l'excluent déjà (biens non opérationnels).
+  const vjProp = fp.find(p => p.conditional);
+  const setVjSubnote = (kpiId, vjVal) => {
+    const el = document.getElementById(kpiId);
+    if (!el) return;
+    const card = el.closest('.kpi') || el.parentElement;
+    if (!card) return;
+    card.querySelectorAll('.kpi-vj-subnote').forEach(n => n.remove());
+    if (!vjProp || !(vjVal > 0)) return;
+    const note = document.createElement('div');
+    note.className = 'kpi-vj-subnote';
+    note.style.cssText = 'font-size:10px;color:#718096;margin-top:2px;line-height:1.25;';
+    note.textContent = 'dont Villejuif VEFA : ' + fmt(Math.round(vjVal));
+    card.appendChild(note);
+  };
+  setVjSubnote('kpiImmoViewVal', vjProp ? vjProp.value : 0);
+  setVjSubnote('kpiImmoViewEq', vjProp ? vjProp.equity : 0);
+  setVjSubnote('kpiImmoViewCRD', vjProp ? vjProp.crd : 0);
+
   // ── UX: Mini wealth breakdown bar under KPI ──
   const wealthKpiEl = document.getElementById('kpiImmoViewWealth');
   if (wealthKpiEl) {
@@ -6811,7 +6833,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=361').then(m => {
+  import('./charts.js?v=362').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
