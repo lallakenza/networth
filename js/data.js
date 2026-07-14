@@ -48,9 +48,9 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 493839,      // Mashreq NEO (Saver 493 172,25 + Current 666,46 = 493 838,71) — MAJ 12/07/2026
-      wioSavings: 289000,   // Wio Personal Savings (~6% rendement) — MAJ 12/07/2026
+      wioSavings: 389000,   // Wio Personal Savings (~6% rendement) — MAJ 14/07/2026 (+100k AED viré depuis Wio Business)
       wioCurrent: 810,      // Wio Personal Current (0% rendement) — MAJ 12/07/2026
-      wioBusiness: 100000,  // Wio Business (Bairok Consulting LLC, ~100k approx, 0%) — MAJ 12/07/2026
+      wioBusiness: 3000,    // Wio Business (Bairok Consulting LLC, 0%) — MAJ 14/07/2026 (100k salaire balayé vers Wio Savings à 6%)
       revolutEUR: 883,      // Revolut EUR (compte français, déjà en EUR) — MAJ 12/07/2026
       banquePopulaire: 2008,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 12/07/2026 (nouveau compte suivi)
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
@@ -1194,7 +1194,7 @@ export const PORTFOLIO = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '13/07/2026';
-export const APP_VERSION = 'v364';
+export const APP_VERSION = 'v365';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
