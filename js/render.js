@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=363';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=363';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=364';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=364';
 
 // ---- Generic table sort utility ----
 /**
@@ -3241,34 +3241,60 @@ function renderCashView(state) {
   // Yield bars — Couple, Amine, Nezha (click to toggle % ↔ montants, hover for breakdown)
   const barsContainer = document.getElementById('cashYieldBars');
   if (barsContainer && cv.totalCash > 0) {
-    const inflRate = 0.03;
-    // Build per-account lists for each row
+    // v364 — deux cadres (frames) : 'nominal' (sans inflation) et 'real' (après inflation).
+    // Toutes les métriques dérivées viennent de l'engine (cv.coupleFrame / cv.byOwner.X) —
+    // règle d'or #1 : render ne recalcule pas, il lit.
+    const inflRate = cv.inflationRate != null ? cv.inflationRate : 0.03;
+    const refYield = cv.refYield != null ? cv.refYield : 0.06;
+    const pctTxt = (rate) => { const v = rate * 100; return (Math.round(v) === v ? v.toFixed(0) : v.toFixed(1)); };
+    const inflPctTxt = pctTxt(inflRate);
+    const refPctTxt = pctTxt(refYield);
+    // Per-account lists for tooltips (productive is recomputed per active frame at render time)
     const allAccounts = cv.accounts.filter(a => !a.isDebt).map(a => ({
-      label: a.label, valEUR: a.valEUR, yield: a.yield || 0, productive: (a.yield || 0) >= 0.03
+      label: a.label, valEUR: a.valEUR, yield: a.yield || 0
     }));
     const amineAccts = cv.byOwner ? cv.byOwner.Amine.accounts : [];
     const nezhaAccts = cv.byOwner ? cv.byOwner.Nezha.accounts : [];
 
     const rows = [
-      { label: 'Couple', yielding: cv.totalYielding, nonYielding: cv.totalNonYielding, total: cv.totalCash,
-        yieldSum: cv.weightedAvgYield * cv.totalCash, accounts: allAccounts },
+      { label: 'Couple', total: cv.totalCash, frame: cv.coupleFrame,
+        yielding: cv.totalYielding, nonYielding: cv.totalNonYielding, accounts: allAccounts },
       ...(cv.byOwner ? [
-        { label: 'Amine', yielding: cv.byOwner.Amine.yielding, nonYielding: cv.byOwner.Amine.nonYielding,
-          total: cv.byOwner.Amine.total, yieldSum: cv.byOwner.Amine.weightedYieldSum, accounts: amineAccts },
-        { label: 'Nezha', yielding: cv.byOwner.Nezha.yielding, nonYielding: cv.byOwner.Nezha.nonYielding,
-          total: cv.byOwner.Nezha.total, yieldSum: cv.byOwner.Nezha.weightedYieldSum, accounts: nezhaAccts },
+        { label: 'Amine', total: cv.byOwner.Amine.total, frame: cv.byOwner.Amine,
+          yielding: cv.byOwner.Amine.yielding, nonYielding: cv.byOwner.Amine.nonYielding, accounts: amineAccts },
+        { label: 'Nezha', total: cv.byOwner.Nezha.total, frame: cv.byOwner.Nezha,
+          yielding: cv.byOwner.Nezha.yielding, nonYielding: cv.byOwner.Nezha.nonYielding, accounts: nezhaAccts },
       ] : []),
     ];
     barsContainer._rows = rows;
-    barsContainer._showAmounts = false;
+    barsContainer._buildTip = buildBarTooltip;   // v364 — refs à jour, lues par les listeners liés une seule fois (anti-leak)
+    barsContainer._renderBars = renderYieldBars;
+    if (barsContainer._showAmounts == null) barsContainer._showAmounts = false;
+    if (barsContainer._frame == null) barsContainer._frame = 'real'; // défaut : cadre réel (honnête), continuité avec l'affichage actuel
+
+    // Display params for a row in the ACTIVE frame. gap (manque à gagner) est INVARIANT
+    // entre les deux cadres (le terme d'inflation s'annule) — c'est volontaire.
+    function frameData(r) {
+      const f = r.frame || {};
+      const real = barsContainer._frame === 'real';
+      const prodEUR = real ? r.yielding : (f.nominalProductive || 0);
+      const dormEUR = real ? r.nonYielding : (f.nominalDormant || 0);
+      const rendu = real ? (f.realNet || 0) : (f.grossInterest || 0);           // €/an affiché
+      const potentiel = real ? (f.potentialNet || 0) : (f.potentialGross || 0); // plafond dans le cadre courant
+      const gap = f.gapToPotential || 0;                                        // manque à gagner (invariant)
+      return { real, prodEUR, dormEUR, rendu, potentiel, gap,
+        pctProd: r.total > 0 ? Math.round(prodEUR / r.total * 100) : 0 };
+    }
 
     const MAX_ACCTS = 5; // max accounts per category in tooltip
     function buildBarTooltip(r) {
-      const prodAccts = r.accounts.filter(a => a.productive).sort((a, b) => b.valEUR - a.valEUR);
-      const dormAccts = r.accounts.filter(a => !a.productive).sort((a, b) => b.valEUR - a.valEUR);
-      const avgYield = r.total > 0 ? (r.yieldSum / r.total * 100).toFixed(1) : '0.0';
-      const net = r.yieldSum - r.total * inflRate;
-      // % relative to total cash
+      const fd = frameData(r);
+      // Productive membership follows the ACTIVE frame (not a frozen flag) :
+      //   nominal → rapporte quelque chose (yield>0) ; réel → bat l'inflation (yield≥3%)
+      const isProd = a => fd.real ? (a.yield >= inflRate) : (a.yield > 0);
+      const prodAccts = r.accounts.filter(isProd).sort((a, b) => b.valEUR - a.valEUR);
+      const dormAccts = r.accounts.filter(a => !isProd(a)).sort((a, b) => b.valEUR - a.valEUR);
+      const avgYield = r.total > 0 ? (r.frame.grossInterest / r.total * 100).toFixed(1) : '0.0';
       const pctOf = v => r.total > 0 ? (v / r.total * 100).toFixed(1) : '0.0';
 
       let html = '<div style="font-weight:700;margin-bottom:6px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px;">'
@@ -3281,7 +3307,7 @@ function renderCashView(state) {
         const rest = accts.slice(MAX_ACCTS);
         shown.forEach(a => {
           h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
-            + '<span>' + a.label + '</span><span>' + fmt(a.valEUR) + ' · ' + pctOf(a.valEUR) + '%</span></div>';
+            + '<span>' + a.label + ' <span style="color:#a0aec0;">' + (a.yield * 100).toFixed(a.yield * 100 % 1 ? 2 : 0) + '%</span></span><span>' + fmt(a.valEUR) + ' · ' + pctOf(a.valEUR) + '%</span></div>';
         });
         if (rest.length > 0) {
           const restTotal = rest.reduce((s, a) => s + a.valEUR, 0);
@@ -3291,12 +3317,16 @@ function renderCashView(state) {
         return h;
       }
 
-      html += renderAcctList(prodAccts, '#68d391', 'PRODUCTIF', r.yielding);
-      html += renderAcctList(dormAccts, '#fc8181', 'DORMANT', r.nonYielding);
+      html += renderAcctList(prodAccts, '#68d391', fd.real ? "BAT L'INFLATION (≥" + inflPctTxt + '%)' : 'PRODUCTIF (>0%)', fd.prodEUR);
+      html += renderAcctList(dormAccts, '#fc8181', fd.real ? 'ÉRODÉ (<' + inflPctTxt + '%)' : 'DORMANT (0%)', fd.dormEUR);
 
-      html += '<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:6px;padding-top:4px;font-size:11px;text-align:center;">'
-        + 'Net vs inflation : <span style="color:' + (net >= 0 ? '#68d391' : '#fc8181') + ';font-weight:600;">'
-        + (net >= 0 ? '+' : '') + fmt(Math.round(net)) + '/an</span></div>';
+      const renduColor = fd.rendu >= 0 ? '#68d391' : '#fc8181';
+      html += '<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:6px;padding-top:4px;font-size:11px;line-height:1.7;">'
+        + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Aujourd\'hui (' + (fd.real ? 'après inflation' : 'brut') + ')</span><span style="color:' + renduColor + ';font-weight:600;">' + (fd.rendu >= 0 ? '+' : '') + fmt(Math.round(fd.rendu)) + '/an</span></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Potentiel à ' + refPctTxt + '%</span><span style="color:#68d391;font-weight:600;">' + (fd.potentiel >= 0 ? '+' : '') + fmt(Math.round(fd.potentiel)) + '/an</span></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Manque à gagner</span><span style="color:#f6c453;font-weight:600;">+' + fmt(Math.round(fd.gap)) + '/an</span></div>'
+        + '<div style="color:#a0aec0;font-size:10px;margin-top:3px;text-align:center;">Le manque à gagner est identique avec/sans inflation</div>'
+        + '</div>';
       return html;
     }
 
@@ -3304,30 +3334,95 @@ function renderCashView(state) {
       const showAmt = barsContainer._showAmounts;
       barsContainer.innerHTML = rows.map((r, idx) => {
         if (r.total <= 0) return '';
-        const pctProd = Math.round(r.yielding / r.total * 100);
+        const fd = frameData(r);
+        const pctProd = fd.pctProd;
         const pctDorm = 100 - pctProd;
-        const net = r.yieldSum - r.total * inflRate;
-        const netStr = (net >= 0 ? '+' : '') + fmt(Math.round(net));
-        const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
+        const renduStr = (fd.rendu >= 0 ? '+' : '') + fmt(Math.round(fd.rendu));
+        const renduColor = fd.rendu >= 0 ? 'var(--green)' : 'var(--red)';
+        const microLabel = fd.real ? ('net après inflation ' + inflPctTxt + '%') : 'intérêts bruts';
         let segs = '';
         if (pctProd > 0) {
-          const prodLabel = showAmt ? fmt(r.yielding, true) : pctProd + '%';
+          const prodLabel = showAmt ? fmt(fd.prodEUR, true) : pctProd + '%';
           segs += '<div class="mb-seg" style="width:' + pctProd + '%;background:var(--green)">' + prodLabel + '</div>';
         }
         if (pctDorm > 0) {
-          const dormLabel = showAmt ? fmt(r.nonYielding, true) : pctDorm + '%';
+          const dormLabel = showAmt ? fmt(fd.dormEUR, true) : pctDorm + '%';
           segs += '<div class="mb-seg" style="width:' + pctDorm + '%;background:var(--red)">' + dormLabel + '</div>';
         }
-        return '<div class="yield-bar-row" data-bar-idx="' + idx + '" style="display:flex;align-items:center;gap:10px;position:relative;">'
+        // Manque à gagner (invariant nominal/réel) ; comptes déjà ≥ refYield ⇒ "placé"
+        const manque = fd.gap < 50
+          ? '<span style="color:var(--green);">✓ placé à ' + refPctTxt + '%</span>'
+          : 'manque +' + fmt(Math.round(fd.gap)) + ' → ' + fmt(Math.round(fd.potentiel));
+        const aria = r.label + ' — ' + pctProd + '% productif, ' + renduStr + ' euros par an ' + (fd.real ? 'après inflation' : 'brut') + ', manque ' + Math.round(fd.gap) + ' euros par an pour atteindre ' + refPctTxt + '%';
+        return '<div class="yield-bar-row" data-bar-idx="' + idx + '" role="group" aria-label="' + aria + '" style="display:flex;align-items:center;gap:10px;position:relative;">'
           + '<span style="min-width:52px;font-weight:600;font-size:13px;">' + r.label + '</span>'
-          + '<div class="meter-bar" style="height:28px;flex:1;cursor:pointer;" data-yieldbar="1">' + segs + '</div>'
-          + '<span style="min-width:100px;text-align:right;font-size:13px;font-weight:600;color:' + netColor + '">' + netStr + '/an</span>'
+          + '<div class="meter-bar" role="button" tabindex="0" aria-label="Basculer pourcentage / montant" style="height:28px;flex:1;cursor:pointer;" data-yieldbar="1">' + segs + '</div>'
+          + '<span style="min-width:150px;text-align:right;display:flex;flex-direction:column;line-height:1.25;">'
+          +   '<span style="font-size:13px;font-weight:700;color:' + renduColor + '">' + renduStr + '/an</span>'
+          +   '<span style="font-size:10px;color:var(--gray);">' + microLabel + '</span>'
+          +   '<span style="font-size:10px;color:var(--gray);">' + manque + '</span>'
+          + '</span>'
           + '</div>';
       }).join('');
     }
-    renderYieldBars();
 
-    // Click to toggle % ↔ montants
+    // ── Ligne "potentiel max" (couple) au-dessus des barres ──
+    function renderPotentialHeadline() {
+      const el = document.getElementById('cashPotentialHeadline');
+      if (!el) return;
+      const fd = frameData(rows[0]); // Couple
+      el.innerHTML = '<span style="color:var(--gray);">Potentiel max à ' + refPctTxt + '% : </span>'
+        + '<strong style="color:var(--green);">' + (fd.potentiel >= 0 ? '+' : '') + fmt(Math.round(fd.potentiel)) + '/an</strong>'
+        + '<span style="color:var(--gray);"> · capté ' + (fd.rendu >= 0 ? '+' : '') + fmt(Math.round(fd.rendu)) + ' · </span>'
+        + '<strong style="color:var(--gold);">manque +' + fmt(Math.round(fd.gap)) + '/an</strong>'
+        + '<span style="color:var(--gray);"> (si tout le cash sous-optimal est placé à ' + refPctTxt + '%)</span>';
+    }
+
+    // ── Légende + badge de cadre (JS-driven : change avec le toggle) ──
+    function updateLegend() {
+      const leg = document.getElementById('cashYieldLegend');
+      const real = barsContainer._frame === 'real';
+      if (leg) {
+        const badge = real
+          ? '<span style="background:var(--danger-soft,#fde8e8);color:var(--red);padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;">↓ inflation ' + inflPctTxt + '%</span>'
+          : '<span style="background:var(--surface-subtle,#edf2f7);color:var(--gray);padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;">brut</span>';
+        leg.innerHTML = '<span>&#x1F7E2; ' + (real ? "Bat l'inflation (&ge; " + inflPctTxt + '%)' : 'Productif (rapporte &gt; 0%)') + '</span>'
+          + badge
+          + '<span>&#x1F534; ' + (real ? "&Eacute;rod&eacute; (&lt; " + inflPctTxt + '%)' : 'Dormant (0%)') + '</span>';
+      }
+      const cap = document.getElementById('cashFrameCaption');
+      if (cap) cap.textContent = real
+        ? "Cadre réel : rendement net après érosion de l'inflation (" + inflPctTxt + '%) — bascule pour le brut.'
+        : "Cadre nominal : intérêts bruts perçus — bascule pour l'impact de l'inflation (" + inflPctTxt + '%).';
+    }
+
+    // ── Boutons du toggle de cadre ──
+    function applyFrameButtons() {
+      const tg = document.getElementById('cashFrameToggle');
+      if (!tg) return;
+      tg.querySelectorAll('[data-frame]').forEach(b => {
+        const on = b.getAttribute('data-frame') === barsContainer._frame;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.style.background = on ? 'var(--accent)' : 'transparent';
+        b.style.color = on ? '#fff' : 'var(--gray)';
+      });
+    }
+
+    function renderAll() { renderYieldBars(); renderPotentialHeadline(); updateLegend(); applyFrameButtons(); }
+    renderAll();
+
+    // Toggle de cadre (nominal ⇄ réel) — orthogonal au click % ↔ € sur les barres
+    const frameToggle = document.getElementById('cashFrameToggle');
+    if (frameToggle) {
+      frameToggle.onclick = (e) => {
+        const btn = e.target.closest('[data-frame]');
+        if (!btn) return;
+        barsContainer._frame = btn.getAttribute('data-frame');
+        renderAll();
+      };
+    }
+
+    // Click sur une barre : bascule % ↔ montants (inchangé, orthogonal au cadre)
     barsContainer.onclick = (e) => {
       if (e.target.closest('[data-yieldbar]') || e.target.closest('.mb-seg')) {
         barsContainer._showAmounts = !barsContainer._showAmounts;
@@ -3335,43 +3430,45 @@ function renderCashView(state) {
       }
     };
 
-    // Hover tooltip
-    let barTip = null;
-    barsContainer.addEventListener('mouseenter', (e) => {
-      const row = e.target.closest('.yield-bar-row');
-      if (!row) return;
-      const idx = parseInt(row.getAttribute('data-bar-idx'));
-      const r = rows[idx];
-      if (!r) return;
-      barTip = document.getElementById('_barTip'); // AUD-007: reuse tooltip if exists
-      if (!barTip) {
-        barTip = document.createElement('div');
-        barTip.id = '_barTip';
-        barTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
-          + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;';
-        document.body.appendChild(barTip);
-      }
-      barTip.innerHTML = buildBarTooltip(r);
-      barTip.style.display = 'block';
-      const rect = row.getBoundingClientRect();
-      barTip.style.left = (rect.left + rect.width / 2 - 150) + 'px';
-      barTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
-    }, true);
-    barsContainer.addEventListener('mouseover', (e) => {
-      const row = e.target.closest('.yield-bar-row');
-      if (!row || !barTip) return;
-      const idx = parseInt(row.getAttribute('data-bar-idx'));
-      const r = rows[idx];
-      if (!r) return;
-      barTip.innerHTML = buildBarTooltip(r);
-      const rect = row.getBoundingClientRect();
-      barTip.style.left = (rect.left + rect.width / 2 - 150) + 'px';
-      barTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
-      barTip.style.display = 'block';
-    });
-    barsContainer.addEventListener('mouseleave', () => {
-      if (barTip) barTip.style.display = 'none';
-    });
+    // Hover tooltip + clavier — listeners liés UNE SEULE fois (évite l'accumulation à chaque
+    // refresh()). Ils lisent barsContainer._rows / _buildTip / _renderBars, rafraîchis à chaque rendu.
+    if (!barsContainer._tipBound) {
+      barsContainer._tipBound = true;
+      let barTip = null;
+      const rowFrom = (e) => {
+        const row = e.target.closest('.yield-bar-row');
+        if (!row) return null;
+        const idx = parseInt(row.getAttribute('data-bar-idx'));
+        const r = (barsContainer._rows || [])[idx];
+        return r ? { row, r } : null;
+      };
+      const showTip = (ctx) => {
+        barTip = document.getElementById('_barTip'); // AUD-007: reuse tooltip if exists
+        if (!barTip) {
+          barTip = document.createElement('div');
+          barTip.id = '_barTip';
+          barTip.style.cssText = 'position:absolute;z-index:999;background:#1a202c;color:#fff;padding:10px 14px;border-radius:8px;'
+            + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);pointer-events:none;min-width:260px;max-width:360px;';
+          document.body.appendChild(barTip);
+        }
+        barTip.innerHTML = barsContainer._buildTip(ctx.r);
+        barTip.style.display = 'block';
+        const rect = ctx.row.getBoundingClientRect();
+        barTip.style.left = (rect.left + rect.width / 2 - 150) + 'px';
+        barTip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
+      };
+      barsContainer.addEventListener('mouseenter', (e) => { const c = rowFrom(e); if (c) showTip(c); }, true);
+      barsContainer.addEventListener('mouseover', (e) => { const c = rowFrom(e); if (c && barTip) showTip(c); });
+      barsContainer.addEventListener('mouseleave', () => { if (barTip) barTip.style.display = 'none'; });
+      // Clavier : Entrée/Espace sur une barre bascule % ↔ montant (même action que le click)
+      barsContainer.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-yieldbar]')) {
+          e.preventDefault();
+          barsContainer._showAmounts = !barsContainer._showAmounts;
+          if (barsContainer._renderBars) barsContainer._renderBars();
+        }
+      });
+    }
   }
 
   // JPY note
@@ -6838,7 +6935,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=363').then(m => {
+  import('./charts.js?v=364').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

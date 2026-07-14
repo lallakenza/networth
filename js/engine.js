@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=363';
+import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=364';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1513,7 +1513,10 @@ function computeCashView(portfolio, fx) {
   let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
   let weightedYieldSum = 0;
   const byCurrency = {};
-  const PRODUCTIVE_THRESHOLD = 0.03; // ≥3% = productif, <3% = dormant
+  // v364 — "productif (réel)" = bat l'inflation. On lie le seuil à INFLATION_RATE (et non un 0.03
+  // figé) pour que le split des barres (yielding/nonYielding) reste cohérent avec le label
+  // « ≥ inflation% » et l'appartenance des comptes dans le tooltip si le taux d'inflation change.
+  const PRODUCTIVE_THRESHOLD = INFLATION_RATE; // ≥ inflation = productif, < inflation = dormant (érodé)
 
   // Per-owner breakdown
   const byOwner = {
@@ -1544,14 +1547,43 @@ function computeCashView(portfolio, fx) {
     }
   });
 
+  // ── v364 — Métriques "cash productif" en 2 cadres : NOMINAL (sans inflation) et RÉEL (après
+  // inflation), + potentiel max si le cash sous-optimal est placé au benchmark refYield (6%).
+  // Consommé par le composant #cashYieldBars (toggle nominal/réel + ligne potentiel max).
+  //   grossInterest  = Σ valEUR × yield              (intérêts bruts perçus /an — cadre NOMINAL)
+  //   realNet        = grossInterest − total×inflation (net après érosion — cadre RÉEL, peut être <0)
+  //   nominalProductive = Σ valEUR où yield > 0        (rapporte quelque chose)   → dormant = 0%
+  //   realProductive    = Σ valEUR où yield ≥ inflation (bat l'inflation)         → = "yielding"
+  //   potentialGross = Σ valEUR × max(yield, refYield)  (garde les comptes déjà >6%, monte le reste à 6%)
+  //   gapToPotential = potentialGross − grossInterest   (manque à gagner — identique nominal/réel)
+  const REF_YIELD_CASH = IBKR_CONFIG.refYield; // 6% benchmark
+  function cashFrameMetrics(accts, total) {
+    const gross = accts.reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
+    const nominalProductive = accts.filter(a => (a.yield || 0) > 0).reduce((s, a) => s + a.valEUR, 0);
+    const potentialGross = accts.reduce((s, a) => s + a.valEUR * Math.max(a.yield || 0, REF_YIELD_CASH), 0);
+    return {
+      grossInterest: gross,
+      realNet: gross - total * INFLATION_RATE,
+      inflationErosion: total * INFLATION_RATE,
+      nominalProductive,
+      nominalDormant: total - nominalProductive,
+      potentialGross,
+      potentialNet: potentialGross - total * INFLATION_RATE,
+      gapToPotential: potentialGross - gross,
+    };
+  }
+
   // Per-owner computed fields
   ['Amine', 'Nezha'].forEach(name => {
     const ow = byOwner[name];
     ow.avgYield = ow.total > 0 ? (ow.weightedYieldSum / ow.total) : 0;
     ow.netVsInflation = ow.weightedYieldSum - (ow.total * INFLATION_RATE); // gain - erosion
+    Object.assign(ow, cashFrameMetrics(ow.accounts, ow.total));
   });
 
   const weightedAvgYield = totalCash > 0 ? (weightedYieldSum / totalCash) : 0;
+  // Couple-level frame metrics (exclude debt account from the account set)
+  const coupleFrame = cashFrameMetrics(accounts.filter(a => !a.isDebt), totalCash);
   const monthlyInflationCost = totalNonYielding * INFLATION_RATE / 12;
   const annualInflationCost = totalNonYielding * INFLATION_RATE;
   const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
@@ -1711,6 +1743,9 @@ function computeCashView(portfolio, fx) {
     jpyShortEUR,
     diagnostics,
     byOwner,
+    coupleFrame,
+    inflationRate: INFLATION_RATE,
+    refYield: REF_YIELD_CASH,
     fxDailyPL,
     fxDailyDetail,
   };
