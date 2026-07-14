@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=362';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=362';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=363';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=363';
 
 // ---- Generic table sort utility ----
 /**
@@ -3823,8 +3823,13 @@ function renderImmoView(state) {
   //
   const cfRibbon = document.getElementById('cfSummaryRibbon');
   if (cfRibbon) {
-    const totalRevenue = fp.reduce((s, p) => s + (p.totalRevenue || 0), 0);
-    const totalCharges = fp.reduce((s, p) => s + (p.chargesDetail ? (p.chargesDetail.pret + p.chargesDetail.assurance + p.chargesDetail.pno + p.chargesDetail.tf + p.chargesDetail.copro) : 0), 0);
+    // v363 (BUG-066) — exclure les biens conditionnels (Villejuif VEFA non livré) du ruban
+    // Revenus/Charges/CF net : aucun loyer perçu aujourd'hui, prêt en franchise. Les tooltips
+    // sautaient déjà `conditional` (lignes ~3862/3877/3896) mais les TOTAUX les incluaient →
+    // total ≠ Σ sous-items (Revenus affichait 4 420 alors que Vitry+Rueil = 2 720) et CF net −277
+    // au lieu de −20. On aligne les totaux sur les tooltips et sur le KPI « CF Net /mois ».
+    const totalRevenue = fp.reduce((s, p) => s + (p.conditional ? 0 : (p.totalRevenue || 0)), 0);
+    const totalCharges = fp.reduce((s, p) => s + (p.conditional || !p.chargesDetail ? 0 : (p.chargesDetail.pret + p.chargesDetail.assurance + p.chargesDetail.pno + p.chargesDetail.tf + p.chargesDetail.copro)), 0);
     const netCF = totalRevenue - totalCharges;
     const maxBar = Math.max(totalRevenue, totalCharges);
     const revPct = maxBar > 0 ? Math.round(totalRevenue / maxBar * 100) : 0;
@@ -6833,7 +6838,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=362').then(m => {
+  import('./charts.js?v=363').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
