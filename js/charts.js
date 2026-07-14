@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=365';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=365';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=365';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=365';
+import { fmt, fmtAxis } from './render.js?v=366';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=366';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=366';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=366';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -650,67 +650,129 @@ function buildActionsSectorDonut(state) {
   });
 }
 
-// ============ CASH YIELD GAP — MANQUE A GAGNER ============
+// ============ CASH YIELD — RENDEMENT & MANQUE A GAGNER (v366) ============
+// Période d'affichage des flux (jour/mois/an). Module-scope → persiste entre re-rendus.
+let cashYieldPeriod = 'mois';
+
 function buildCashYieldPotential(state) {
   const el = document.getElementById('cashCurrencyChart');
   if (!el) return;
   el.style.display = 'none';
   const parent = el.parentElement;
-  const prev = parent.querySelector('.yield-potential');
-  if (prev) prev.remove();
-
-  const TARGET = 0.06;
+  parent.style.height = 'auto';      // le conteneur .chart-container fait 280px : on le libère
+  parent.style.minHeight = '0';
   const cv = state.cashView;
-  if (!cv || !cv.accounts) return;
+  // Shape (BUG-057 discipline) : cv.coupleFrame N'A PAS de .total → lire cv.totalCash pour le couple.
+  if (!cv || !cv.coupleFrame || !cv.byOwner) return;
 
-  // For each person, find accounts below 6% and compute the gap
-  function computeGap(ownerFilter) {
-    const accts = cv.accounts.filter(ownerFilter);
-    let subOptimalCash = 0, currentYieldOnSubOptimal = 0;
-    accts.forEach(a => {
-      const y = a.yield || 0;
-      const bal = a.valEUR || 0;
-      if (y < TARGET && bal > 0) {
-        subOptimalCash += bal;
-        currentYieldOnSubOptimal += bal * y;
-      }
+  const DIV = { jour: 365, mois: 12, an: 1 };
+  const SUF = { jour: '/jour', mois: '/mois', an: '/an' };
+  const PWORD = { jour: 'par jour', mois: 'par mois', an: 'par an' };
+
+  // Wrapper stable : on ne le recrée pas (le handler délégué survit) ; on ne rebâtit que son innerHTML.
+  let wrap = parent.querySelector('.yield-potential');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.className = 'yield-potential';
+    wrap.style.cssText = 'padding:4px 0;';
+    parent.appendChild(wrap);
+    wrap.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-period]');
+      if (!btn) return;
+      cashYieldPeriod = btn.getAttribute('data-period');
+      if (wrap._render) wrap._render();
+      // le rebuild innerHTML perd le focus → le restaurer sur le segment actif (a11y clavier)
+      const active = wrap.querySelector('[data-period="' + cashYieldPeriod + '"]');
+      if (active) active.focus();
     });
-    const potentialYield = subOptimalCash * TARGET;
-    const gap = potentialYield - currentYieldOnSubOptimal;
-    return { subOptimalCash, currentYieldOnSubOptimal, potentialYield, gap };
   }
 
-  const rows = [
-    { name: 'Couple', ...computeGap(() => true), color: '#2b6cb0' },
-    { name: 'Amine', ...computeGap(a => a.owner === 'Amine'), color: '#48bb78' },
-    { name: 'Nezha', ...computeGap(a => a.owner === 'Nezha'), color: '#ed8936' },
+  const people = [
+    { name: 'Couple', cash: cv.totalCash, m: cv.coupleFrame, couple: true },
+    { name: 'Amine', cash: cv.byOwner.Amine.total, m: cv.byOwner.Amine },
+    { name: 'Nezha', cash: cv.byOwner.Nezha.total, m: cv.byOwner.Nezha },
   ];
 
-  let html = '<div class="yield-potential" style="padding:4px 0;">';
-  // Filter to only rows with gap > 0
-  const activeRows = rows.filter(r => r.gap > 0);
-
-  if (activeRows.length === 0) {
-    // No gaps, don't show anything
-    return;
+  // Flux (rapporte / manque) : divisé par la période EN EUR, puis fmt applique la devise
+  // d'affichage + l'arrondi UNE seule fois (pas de double-arrondi ; correct en EUR/AED/MAD/USD).
+  function flowStr(annual, sign) {
+    return sign + fmt((annual || 0) / DIV[cashYieldPeriod]);
   }
 
-  html += '<div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:6px;">Manque à gagner (cash &lt;6%)</div>';
-  html += '<div style="display:flex;gap:12px;font-size:12px;">';
+  function card(person) {
+    const { name, cash, m, couple } = person;
+    const suffix = SUF[cashYieldPeriod];
+    const income = m.grossInterest || 0;
+    const gap = m.gapToPotential || 0;
+    const subopt = m.subOptimalCash || 0;
+    const optimal = m.optimalCash || 0;
+    const hasCash = cash > 0.5;
+    const pctGreen = hasCash ? Math.round(optimal / cash * 100) : 0;
+    const pctAmber = 100 - pctGreen;
+    const gapZero = gap < 0.5 || subopt < 1;
 
-  activeRows.forEach(r => {
-    const daily = r.gap / 365;
-    const annual = r.gap;
-    html += '<div style="flex:1;text-align:center;padding:8px;background:#fffbeb;border-radius:6px;">';
-    html += '<div style="font-size:11px;color:#78716c;">' + r.name + '</div>';
-    html += '<div style="font-size:16px;font-weight:700;color:#92400e;">-' + fmt(Math.round(daily)) + '/jour</div>';
-    html += '<div style="font-size:10px;color:#a0aec0;">' + fmt(Math.round(r.subOptimalCash), true) + ' sous 6% | -' + fmt(Math.round(annual)) + '/an</div>';
-    html += '</div>';
-  });
+    const aria = hasCash
+      ? name + ' : ' + fmt(cash) + ' de cash, rapporte ' + fmt(income / DIV[cashYieldPeriod]) + ' ' + PWORD[cashYieldPeriod]
+        + (gapZero ? ', tout placé à au moins 6 %' : ', manque à gagner ' + fmt(gap / DIV[cashYieldPeriod]) + ' ' + PWORD[cashYieldPeriod])
+      : name + ' : aucun cash';
 
-  html += '</div>';
-  html += '</div>';
-  parent.insertAdjacentHTML('beforeend', html);
+    const head = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:' + (couple ? 'var(--accent)' : 'var(--gray)') + ';">'
+      + name + (couple ? ' <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--gray);font-size:9px;">= Amine + Nezha</span>' : '') + '</div>';
+
+    if (!hasCash) {
+      return '<div aria-label="' + aria + '" style="flex:1;min-width:150px;padding:12px;border-radius:8px;display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--border);">'
+        + head + '<div style="font-size:12px;color:var(--gray);">Aucun cash</div></div>';
+    }
+
+    const cashRow = '<div><div style="font-size:10px;color:var(--gray);">Cash</div>'
+      + '<div style="font-size:15px;font-weight:600;">' + fmt(cash) + '</div></div>';
+
+    const bar = '<div title="' + pctGreen + '% ≥ 6 %" aria-hidden="true" style="height:6px;border-radius:999px;overflow:hidden;background:var(--surface-subtle);display:flex;">'
+      + (pctGreen > 0 ? '<div style="width:' + pctGreen + '%;background:var(--green);"></div>' : '')
+      + (pctAmber > 0 ? '<div style="width:' + pctAmber + '%;background:var(--gold);"></div>' : '')
+      + '</div>';
+
+    const incomeRow = '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+      + '<span style="font-size:10px;color:var(--gray);">Rapporte <span style="opacity:.8">' + suffix + '</span></span>'
+      + '<span style="font-size:20px;font-weight:800;color:var(--green);" data-role="rapporte">' + flowStr(income, '+') + '</span></div>';
+
+    let manqueRow;
+    if (gapZero) {
+      manqueRow = '<div style="font-size:12px;font-weight:600;color:var(--green);">✓ tout placé ≥ 6 %</div>';
+    } else {
+      manqueRow = '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+        + '<span style="font-size:10px;color:var(--gray);">Manque à gagner <span style="opacity:.8">' + suffix + '</span></span>'
+        + '<span style="font-size:14px;font-weight:700;color:var(--gold);" data-role="manque">' + flowStr(gap, '−') + '</span></div>'
+        + '<div style="font-size:10px;color:var(--gray);">' + fmt(Math.round(subopt), true) + ' sous 6 % → à placer</div>';
+    }
+
+    return '<div aria-label="' + aria + '" style="flex:1;min-width:150px;padding:12px;border-radius:8px;display:flex;flex-direction:column;gap:8px;'
+      + 'background:' + (couple ? 'var(--surface-subtle)' : 'var(--card)') + ';border:1px solid var(--border);' + (couple ? 'border-left:3px solid var(--accent);' : '') + '">'
+      + head + cashRow + bar + incomeRow + manqueRow + '</div>';
+  }
+
+  function render() {
+    const seg = ['jour', 'mois', 'an'].map(pp => {
+      const on = pp === cashYieldPeriod;
+      const lbl = { jour: 'Jour', mois: 'Mois', an: 'An' }[pp];
+      return '<button type="button" data-period="' + pp + '" aria-pressed="' + (on ? 'true' : 'false') + '"'
+        + ' style="border:none;padding:5px 13px;cursor:pointer;font-weight:600;font-size:12px;background:' + (on ? 'var(--accent)' : 'transparent') + ';color:' + (on ? '#fff' : 'var(--gray)') + ';">' + lbl + '</button>';
+    }).join('');
+
+    const header = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
+      + '<div style="flex:1;min-width:180px;">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);">Rendement du cash par personne</div>'
+      + '<div style="font-size:11px;color:var(--gray);margin-top:2px;">Ce que chaque poche de cash rapporte, et le manque à gagner face à un placement à 6 %. Montants bruts avant impôt.</div>'
+      + '</div>'
+      + '<div role="group" aria-label="Période d\'affichage des flux" style="display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;">' + seg + '</div>'
+      + '</div>';
+
+    const cards = '<div style="display:flex;gap:12px;flex-wrap:wrap;">' + people.map(card).join('') + '</div>';
+    wrap.innerHTML = header + cards;
+  }
+
+  wrap._render = render; // refs à jour lues par le handler délégué (anti-stale-closure)
+  render();
 }
 
 // ============ IMMO VIEW EQUITY BAR ============
