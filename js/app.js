@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=366';
-import { compute, getGrandTotal } from './engine.js?v=366';
-import { render } from './render.js?v=366';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=366';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=366';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=366';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=366';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=367';
+import { compute, getGrandTotal } from './engine.js?v=367';
+import { render } from './render.js?v=367';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=367';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=367';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=367';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=367';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -794,15 +794,51 @@ function update1YKPIFromChart() {
 
   if (!plValues || plValues.length === 0) return;
 
-  const pl1Y = plValues[plValues.length - 1];
+  // ── v367 (BUG-069) — P&L 1 An = DELTA sur 12 mois, pas le P&L lifetime ──────────────
+  // Depuis v303, plValues* est une série LIFETIME (charts.js « UNIFIED P&L SEMANTIC » :
+  // lifetime_PL[t] = nav[t] − dépôts_cumulés_depuis_l'origine[t]). Prendre plValues[last]
+  // tel quel affichait donc le P&L DEPUIS TOUJOURS sous le libellé « 1 An » — dont
+  // +50 665 € de P&L réalisé Degiro gagné entre 2020 et avril 2025, hors fenêtre.
+  // Erreur constatée : +38 438 affiché contre ≈ −27 000 réels (inversion de signe).
+  // Fix : soustraire la valeur au repère 1-an. ATTENTION : on ne peut PAS utiliser
+  // plValues[0] — la série 1Y est étendue jusqu'au 1er trade (2025-04-02, ~15,4 mois),
+  // donc l'index 0 n'est pas le repère 1 an. On résout l'index PAR DATE.
+  //
+  // Le repère est calqué À L'IDENTIQUE sur celui du panneau « Répartition P&L par
+  // position » (charts.js ~3743-3746 + 4101 : oneYAgo dérivé de la DERNIÈRE DATE DU
+  // GRAPHIQUE, setFullYear(-1), puis closestDate(..., 'after') SANS recul d'un cran).
+  // Contrairement à MTD/1M qui reculent d'un cran, la fenêtre 1Y du panneau part du 1er
+  // label >= repère. Mirrorer exactement ⇒ carte et panneau mesurent la même fenêtre et
+  // se réconcilient (c'était précisément l'incohérence signalée).
+  const labels1Y = data.labels || [];
+  const lastLabel1Y = labels1Y[labels1Y.length - 1];
+  const _oneYAgo = new Date(lastLabel1Y);
+  _oneYAgo.setFullYear(_oneYAgo.getFullYear() - 1);
+  const oneYearAgoRef = _oneYAgo.toISOString().slice(0, 10);
+  const firstGE1Y = labels1Y.find(d => d >= oneYearAgoRef);
+  const idx1Y = firstGE1Y ? labels1Y.indexOf(firstGE1Y) : 0;
 
-  // Compute % relative to capital deployed (startValue + cumDeposits)
-  const startVal = navValues ? navValues[0] : (data.startValue || 0);
-  const cumDep = cumDepSeries
-    ? (cumDepSeries[cumDepSeries.length - 1] || 0)
+  const lastIdx1Y = plValues.length - 1;
+  const pl1Y = plValues[lastIdx1Y] - (plValues[idx1Y] || 0);
+
+  // % sur le capital déployé DANS LA FENÊTRE : NAV au repère 1-an + dépôts de la période
+  // (miroir de capMTD = navBeforeMTD + depMTD). Avant, le dénominateur mélangeait un
+  // numérateur lifetime avec la base de dépôts sur 15 mois → % dénué de sens (+10,5%).
+  const startVal = navValues ? (navValues[idx1Y] || 0) : (data.startValue || 0);
+  const depIn1Y = cumDepSeries
+    ? ((cumDepSeries[cumDepSeries.length - 1] || 0) - (cumDepSeries[idx1Y] || 0))
     : 0;
-  const capitalDeployed = startVal + cumDep;
+  const capitalDeployed = startVal + depIn1Y;
   const pct1Y = capitalDeployed > 0 ? (pl1Y / capitalDeployed * 100) : 0;
+
+  // Garde-fou : le panneau « Répartition P&L par position » (_chartBreakdown.oneYear) est
+  // un vrai delta 12 mois. La carte doit désormais s'y aligner (tolérance large : coûts
+  // annexes + FX cash ne sont pas répartis par position).
+  const _bd1Y = window._chartBreakdown && window._chartBreakdown.oneYear;
+  if (_bd1Y && typeof _bd1Y.total === 'number' && Math.abs(pl1Y - _bd1Y.total) > 5000) {
+    console.warn('[kpi-1y] ⚠ P&L 1 An (' + Math.round(pl1Y) + ') diverge du breakdown 1 An ('
+      + Math.round(_bd1Y.total) + ') — écart ' + Math.round(pl1Y - _bd1Y.total) + ' €');
+  }
 
   // Update the 1Y KPI card
   const fmt = v => {
