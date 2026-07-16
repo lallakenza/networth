@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=367';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=367';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=367';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=367';
+import { fmt, fmtAxis } from './render.js?v=368';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=368';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=368';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=368';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4009,10 +4009,23 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     // This ensures the breakdown total matches the KPI card total (which uses totalValues)
     function injectExternalItems(bd, startDate, endDate) {
       if (!bd || !bd.hasData) return;
-      if (!includeESPP && !includeSGTM) return; // IBKR-only scope, nothing to add
+      // v368 (BUG-074) — gater sur le SCOPE, pas sur les options de build.
+      // app.js passe TOUJOURS includeESPP:true / includeSGTM:true (toutes les séries
+      // doivent être calculées pour le graphe) ⇒ l'ancien garde `if (!includeESPP &&
+      // !includeSGTM) return;` était du CODE MORT et ESPP+SGTM étaient injectés dans le
+      // breakdown de TOUS les scopes. Or la CARTE est scope-aware (updateKPIsFromChart
+      // choisit plValuesIBKR|ESPP|SGTM|Total) ⇒ en scope 'ibkr' le panneau contenait
+      // ACN + SGTM que la carte excluait : panneau ≠ carte pour tout scope sauf « Tous ».
+      // NB : le const `scope` (~ligne 4134) est déclaré APRÈS les appels ci-dessous
+      // (zone morte temporelle) → on recalcule localement avec la MÊME formule.
+      const _showAll = includeESPP || includeSGTM;
+      const _scope = (options && options.scope) || (_showAll ? 'all' : 'ibkr');
+      const scopeHasESPP = (_scope === 'all' || _scope === 'espp');
+      const scopeHasSGTM = (_scope === 'all' || _scope === 'maroc');
+      if (!scopeHasESPP && !scopeHasSGTM) return; // scope IBKR/Degiro : rien à injecter
 
       // ESPP P&L for this period
-      if (includeESPP) {
+      if (scopeHasESPP) {
         const esppStart = arrayValAtDate(chartValuesESPP, startDate);
         const esppEnd = arrayValAtDate(chartValuesESPP, endDate);
         // ESPP deposits in this period (from cumDepositsESPP)
@@ -4038,7 +4051,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       }
 
       // SGTM P&L for this period
-      if (includeSGTM) {
+      if (scopeHasSGTM) {
         const sgtmStart = arrayValAtDate(chartValuesSGTM, startDate);
         const sgtmEnd = arrayValAtDate(chartValuesSGTM, endDate);
         const cumSGTMStart = arrayValAtDate(cumDepositsSGTM, startDate);

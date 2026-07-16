@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=367';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=367';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=368';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=368';
 
 // ---- Generic table sort utility ----
 /**
@@ -1532,10 +1532,26 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     if (cbItem && cbItem.startVal != null) {
       valeurDebut = cbItem.startVal;
     } else if (_posPeriod !== 'all') {
-      // Fallback to quote-based ref price if chart data not available
-      const refPriceMap = { daily: pos.price, mtd: pos.mtdOpen, oneMonth: pos.oneMonthOpen, ytd: pos.ytdOpen };
-      const refPrice = refPriceMap[_posPeriod] || pos.price;
-      valeurDebut = refPrice && pos.shares ? Math.round(refPrice * pos.shares) : null;
+      // Fallback to quote-based ref price if chart data not available.
+      // v368 (BUG-071) — deux bugs sur cette ligne :
+      //   1. daily utilisait pos.price (le prix ACTUEL) ⇒ « Valeur début » = « Valeur
+      //      actuelle » (mouvement 0 affiché) alors que la colonne P&L montrait un dailyPL
+      //      non nul : la ligne violait PL = fin − début. La bonne réf est previousClose,
+      //      exactement ce qu'utilise l'engine (engine.js getRefPrice case 'daily').
+      //   2. pos.oneMonthOpen n'existe NULLE PART dans le code (le vrai champ est
+      //      oneMonthAgo) ⇒ undefined ⇒ retombait sur pos.price via `|| pos.price`,
+      //      même symptôme silencieux pour la période 1M.
+      // On supprime aussi le `|| pos.price` : une réf manquante doit rendre « — », pas
+      // fabriquer une valeur de début égale à la valeur de fin.
+      // v368 (BUG-076) — 3e bug de ce fallback : refPrice est en devise NATIVE (IBIT/ETHA/ACN en
+      // USD, 4911.T en JPY) mais le produit était rendu via fmt(), qui traite son entrée comme des
+      // EUR (puis convertit vers la devise d'affichage) ⇒ « Valeur début » de 4911.T était le
+      // montant en YENS affiché en euros. On convertit en EUR au taux courant, exactement comme
+      // l'engine (qui, depuis v368, valorise les deux bornes à curFxRate pour les 5 périodes).
+      const refPriceMap = { daily: pos.previousClose, mtd: pos.mtdOpen, oneMonth: pos.oneMonthAgo, ytd: pos.ytdOpen };
+      const refPrice = refPriceMap[_posPeriod];
+      const _refRate = _fx[pos.currency] || 1;
+      valeurDebut = (refPrice > 0 && pos.shares) ? Math.round(refPrice * pos.shares / _refRate) : null;
     }
     const plPeriode = pos[periodMap[_posPeriod]] || null;
     const pctPeriode = pos[periodPctMap[_posPeriod]] || null;
@@ -2703,6 +2719,26 @@ function setupKPIDetailPanels(state) {
 
     html += '</div>'; // end grid
     html += '</div>'; // end detail-body
+    // v368 (BUG-075) — le paramètre `total` était passé par TOUS les appelants puis IGNORÉ.
+    // Résultat : le panneau n'affichait que des sous-totaux (en-têtes Pertes/Gains, calculés
+    // sur TOUS les items, frais inclus) et un pied (calculé hors frais pour la vue 1 An) —
+    // deux « totaux » différents (−27 031 vs −27 528) et aucun chiffre d'ancrage comparable
+    // à la carte. On affiche désormais le net de la période, qui DOIT égaler la carte.
+    // Garde-fou : n'afficher le net d'ancrage que là où bd.total est fiable. Pour les scopes
+    // 'espp'/'maroc'/'degiro', le total du panneau dérive encore du NAV IBKR
+    // (computePeriodBreakdown ⇒ chartPL = snapEnd.nav − snapStart.nav − dépôts, IBKR-only) auquel
+    // les injections ESPP/SGTM s'ajoutent ⇒ il ne correspond pas à la carte scopée. Connu, à
+    // traiter par une refonte per-scope de computePeriodBreakdown (non vérifiable hors navigateur).
+    const _scopeNow = (typeof window !== 'undefined' && window._currentScope) || 'ibkr';
+    const _totalTrustworthy = (_scopeNow === 'all' || _scopeNow === 'ibkr');
+    if (total != null && isFinite(total) && _totalTrustworthy) {
+      const _tc = total >= 0 ? 'var(--green)' : 'var(--red)';
+      html += '<div class="detail-total" style="padding:8px 12px;font-weight:700;font-size:13px;'
+        + 'border-top:1px solid var(--border);display:flex;justify-content:space-between;">'
+        + '<span>Net de la période</span>'
+        + '<span style="color:' + _tc + ';">' + (total >= 0 ? '+' : '') + fmt(Math.round(total)) + '</span>'
+        + '</div>';
+    }
     if (footer) html += '<div class="detail-footer">' + footer + '</div>';
     return html;
   }
@@ -2790,11 +2826,17 @@ function setupKPIDetailPanels(state) {
       const cb = window._chartBreakdown?.ytd;
       if (cb?.hasData) {
         const items = cb.breakdown;
+        // v368 (BUG-075) — ce pied compte HORS frais (!_isCost) alors que les en-têtes
+        // « Pertes/Gains » de renderPLBreakdown comptent frais INCLUS : d'où deux totaux
+        // contradictoires dans le même panneau (ex. 1 An : −47 999/+20 968 en-têtes vs
+        // −45 558/+18 030 pied — l'écart = les 4 lignes de frais −2 441 et les dividendes
+        // nets +2 938). On garde le calcul hors frais (utile) mais on le LIBELLE comme tel ;
+        // le net d'ancrage (= la carte) est désormais rendu par renderPLBreakdown via `total`.
         const gainers = items.filter(i => i.pl > 0 && !i._isCost);
         const losers = items.filter(i => i.pl < 0 && !i._isCost);
         const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
         const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
-        let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
+        let footer = 'Hors frais — pertes : ' + fmt(Math.round(totalLoss)) + ' | gains : +' + fmt(Math.round(totalGain));
         if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
         return renderPLBreakdown(items, cb.total, footer);
       }
@@ -2813,11 +2855,17 @@ function setupKPIDetailPanels(state) {
       const cb = window._chartBreakdown?.oneYear;
       if (cb?.hasData) {
         const items = cb.breakdown;
+        // v368 (BUG-075) — ce pied compte HORS frais (!_isCost) alors que les en-têtes
+        // « Pertes/Gains » de renderPLBreakdown comptent frais INCLUS : d'où deux totaux
+        // contradictoires dans le même panneau (ex. 1 An : −47 999/+20 968 en-têtes vs
+        // −45 558/+18 030 pied — l'écart = les 4 lignes de frais −2 441 et les dividendes
+        // nets +2 938). On garde le calcul hors frais (utile) mais on le LIBELLE comme tel ;
+        // le net d'ancrage (= la carte) est désormais rendu par renderPLBreakdown via `total`.
         const gainers = items.filter(i => i.pl > 0 && !i._isCost);
         const losers = items.filter(i => i.pl < 0 && !i._isCost);
         const totalLoss = losers.reduce((s, i) => s + i.pl, 0);
         const totalGain = gainers.reduce((s, i) => s + i.pl, 0);
-        let footer = 'Total pertes : ' + fmt(Math.round(totalLoss)) + ' | Total gains : +' + fmt(Math.round(totalGain));
+        let footer = 'Hors frais — pertes : ' + fmt(Math.round(totalLoss)) + ' | gains : +' + fmt(Math.round(totalGain));
         if (losers.length > 0) footer += '<br>⚠ Plus gros contributeur négatif : ' + losers[0].label + ' (' + fmt(Math.round(losers[0].pl)) + ')';
         return renderPLBreakdown(items, cb.total, footer);
       }
@@ -6935,7 +6983,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=367').then(m => {
+  import('./charts.js?v=368').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
