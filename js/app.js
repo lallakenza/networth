@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=367';
-import { compute, getGrandTotal } from './engine.js?v=367';
-import { render } from './render.js?v=367';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=367';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=367';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=367';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=367';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=368';
+import { compute, getGrandTotal } from './engine.js?v=368';
+import { render } from './render.js?v=368';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=368';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=368';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=368';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=368';
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };
@@ -1321,6 +1321,36 @@ async function loadStockPrices(forceRefresh) {
               });
               update1YKPIFromChart();
               // v269: No need to rebuild visible chart — YTD data was never overwritten
+            } else {
+              // v368 (BUG-072) — pendant symétrique. Quand la période EST 1Y, le bloc
+              // ci-dessus ne tourne pas ET updateKPIsFromChart() est court-circuité
+              // (scopeMode === '1y') : les cartes Daily/MTD/1M/YTD gardaient donc les
+              // valeurs de l'ANCIEN scope. Pire, updateKPI() mémorise le résultat dans
+              // window._chartKPIOverrides, que render.js re-sert à chaque re-render →
+              // une carte YTD périmée assise à côté de cartes correctement re-scopées.
+              // On rebâtit la série YTD du nouveau scope en silence et on rafraîchit.
+              const ytdRes = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
+                mode: 'ytd',
+                startingNAV: 209495,
+                includeESPP: true,
+                includeSGTM: true,
+                scope: currentScope,
+                skipRender: true,  // on affiche le graphe 1Y : ne pas toucher au canvas
+              });
+              if (ytdRes) {
+                // ⚠ updateKPIsFromChart() ne tire PAS ses séries P&L de son argument : il lit le
+                // GLOBAL window._ytdChartFullData (app.js ~532). Or skipRender est justement le
+                // flag qui empêche charts.js de mettre ce global à jour → il contient encore le
+                // dataset 1Y (échantillonné à la semaine, ~54 points) alors que ytdRes.labels est
+                // en quotidien (~137 points). plSeries[n-1] serait undefined ⇒ NaN sur les 4
+                // cartes, mémorisé dans _chartKPIOverrides et re-servi à chaque re-render.
+                // On pointe donc le global sur les données YTD fraîches le temps de l'appel,
+                // puis on restaure (la vue active reste le 1Y).
+                const _savedFull = window._ytdChartFullData;
+                window._ytdChartFullData = (window._chartDataByMode && window._chartDataByMode.ytd) || ytdRes;
+                updateKPIsFromChart(ytdRes);
+                window._ytdChartFullData = _savedFull;
+              }
             }
             // Re-apply current period filter
             if (currentPeriod !== 'YTD' && currentPeriod !== '1Y') redrawChartForPeriod(currentPeriod);

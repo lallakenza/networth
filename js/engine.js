@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=367';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=368';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -125,8 +125,19 @@ function computeIBKRPositions(portfolio, fx) {
     else if (pos.currency === 'USD') priceLabel = '$' + pos.price.toFixed(2);
     else if (pos.currency === 'JPY') priceLabel = '\u00a5' + Math.round(pos.price);
 
-    const prevFxRate = FX_STATIC[pos.currency] || fx[pos.currency];
     const curFxRate = fx[pos.currency] || 1;
+    // v368 (BUG-073) — NE JAMAIS utiliser FX_STATIC comme « clôture FX de la veille ».
+    // FX_STATIC est le fallback statique de data.js, annoté 31/03/2026 (USD 1.1467,
+    // JPY 183.15) — pas le taux d'hier. Valoriser previousClose à ce taux injectait des
+    // MOIS de dérive FX dans un chiffre censé couvrir UNE séance (~510 € de FX fantôme
+    // par 1% d'écart EUR/USD sur la poche USD). Le bug était masqué quand l'API était
+    // down (fx === FX_STATIC ⇒ les termes s'annulent) : il ne frappait que quand ça compte.
+    // Aucune FX datée n'est disponible ici (fx = taux courants ; fetchFXRates interroge
+    // open.er-api.com qui ne renvoie pas de clôture précédente). On valorise donc les deux
+    // bornes au taux courant ⇒ le P&L Daily est un pur mouvement de PRIX à FX constant.
+    // TODO (effet FX daily réel) : exposer la clôture FX de la veille — les paires
+    // EURUSD=X/EURJPY=X ont un previousClose via le endpoint chart utilisé par api.js.
+    const prevFxRate = curFxRate;
     const trades = tradesByTicker[pos.ticker] || [];
 
     // ── FX P&L decomposition ──
@@ -488,6 +499,45 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // 1Y = same day last year
   const _oneYearAgo = subPeriodClamped(_now, 1, 0); // v342 — jour borné (anti-rollover, ex: 29 fév)
   const oneYearStr = _oneYearAgo.getFullYear() + '-' + _pad2(_oneYearAgo.getMonth() + 1) + '-' + _pad2(_oneYearAgo.getDate());
+
+  // ── v368 (BUG-070) — Garde-fou péremption des prix de référence ────────────────────
+  // mtdOpen/oneMonthAgo/oneYearAgo sont figés dans data.js (seul previousClose est live).
+  // Ils étaient restés en vintage mars/avril 2026 tout en étant appariés à des bornes de
+  // période calculées correctement (juillet) → prix de mars vs fenêtre de juillet.
+  // On compare la date DÉCLARÉE de chaque référence (PRICE_REFS_AS_OF) à la borne calculée.
+  // Si ça dérive, on dégrade (hasData=false → « -- ») plutôt que d'afficher un faux chiffre.
+  const _refsAsOf = PRICE_REFS_AS_OF || {};
+  const _daysApart = (a, b) => (!a || !b) ? Infinity
+    : Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
+  const refStale = {
+    // ytdOpen : doit être dans l'année de la fenêtre YTD
+    ytd:      !_refsAsOf.ytdOpen     || _refsAsOf.ytdOpen.slice(0, 4) !== ytdStartStr.slice(0, 4),
+    // mtdOpen : doit être dans le mois de la fenêtre MTD
+    mtd:      !_refsAsOf.mtdOpen     || _refsAsOf.mtdOpen.slice(0, 7) !== mtdStartStr.slice(0, 7),
+    // 1M / 1Y : tolérance de 7 jours autour de la borne calculée (jours fériés/week-ends)
+    oneMonth: _daysApart(_refsAsOf.oneMonthAgo, oneMonthStr) > 7,
+    oneYear:  _daysApart(_refsAsOf.oneYearAgo,  oneYearStr)  > 7,
+  };
+  // Le tableau des positions lit pos.mtdPL / oneMonthPL / ytdPL / oneYearPL (calculés dans
+  // computeIBKRPositions, qui n'a pas connaissance de refStale). Sans ça, seules les CARTES
+  // dégradaient : le tableau, lui, continuait d'afficher des P&L calculés contre un prix de la
+  // mauvaise date. On neutralise les colonnes concernées ⇒ elles rendent « — » (render.js
+  // fait `pos[periodMap[...]] || null`).
+  (ibkrPositions || []).forEach(p => {
+    if (refStale.mtd) p.mtdPL = null;
+    if (refStale.oneMonth) p.oneMonthPL = null;
+    if (refStale.ytd) p.ytdPL = null;
+    if (refStale.oneYear) p.oneYearPL = null;
+  });
+
+  const _staleList = Object.keys(refStale).filter(k => refStale[k]);
+  if (_staleList.length) {
+    console.warn('[engine] ⚠ Prix de référence périmés : ' + _staleList.join(', ')
+      + ' — P&L de ces périodes masqué (« -- ») au lieu d\'un chiffre faux. '
+      + 'Rafraîchir les prix dans data.js puis PRICE_REFS_AS_OF. Bornes calculées : '
+      + 'mtd=' + mtdStartStr + ', 1M=' + oneMonthStr + ', 1Y=' + oneYearStr
+      + ' | déclarées : ' + JSON.stringify(_refsAsOf));
+  }
   // ═══════════════════════════════════════════════════════════════════
   // UNIFIED PERIOD P&L ENGINE
   // Même algorithme pour les 5 KPIs (Daily, MTD, 1M, YTD, 1Y)
@@ -1326,9 +1376,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
       const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
 
-      // IBKR cash FX P&L (daily only — uses FX_STATIC as prev)
-      const jpyPrevFx = FX_STATIC.JPY || fx.JPY;
-      const usdPrevFx = FX_STATIC.USD || fx.USD;
+      // IBKR cash FX P&L (daily) — v368 (BUG-073), même racine que prevFxRate ci-dessus :
+      // FX_STATIC (31/03/2026) n'est PAS la clôture FX de la veille. Sur le short JPY, ça
+      // affichait des mois de dérive EUR/JPY (183.15 statique vs live) comme « Impact FX
+      // cash » d'UNE séance, dans le pied du détail Daily (render.js ~2768).
+      // Faute de FX datée côté engine, on valorise les deux bornes au taux courant ⇒ effet
+      // FX daily = 0 (non calculable) plutôt qu'un chiffre faux de plusieurs milliers.
+      // Même TODO : exposer la clôture FX de la veille pour un effet FX daily réel.
+      const jpyPrevFx = fx.JPY;
+      const usdPrevFx = fx.USD;
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
 
@@ -1391,7 +1447,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         }
 
         items.sort((a, b) => a.pl - b.pl);
-        return { total, hasData: hasField(field), breakdown: items, cashFxPL: cfxPL, costs: periodCosts };
+        // v368 — une référence de prix périmée ⇒ hasData=false ⇒ l'UI affiche « -- »
+        // plutôt qu'un P&L calculé contre un prix de la mauvaise date.
+        return { total, hasData: hasField(field) && !opts.refStale, breakdown: items, cashFxPL: cfxPL, costs: periodCosts };
       }
 
       // ── Apply unified function to all 5 periods ──
@@ -1400,11 +1458,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       //   - MTD/1M/YTD: SGTM in breakdown ONLY (no period-start ref price available)
       //   - 1Y: SGTM in total + breakdown (IPO was Dec 2025, within 1Y window)
       return {
-        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL }),
-        mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true }),
-        ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true }),
-        oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true }),
+        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL }), // previousClose = live API, jamais périmé
+        mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true, refStale: refStale.mtd }),
+        ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true, refStale: refStale.ytd }),
+        oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true, refStale: refStale.oneMonth }),
         oneYear:  fullPeriodPL('oneYearPL',  m.acnOneYearAgo,    closedOneYear,  costsOneYear,  {
+          refStale: refStale.oneYear,
           sgtmInTotal: true,
           sgtmInBreakdown: true,
           degiroPL: degiro1Y.total,

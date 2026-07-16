@@ -213,7 +213,7 @@ export const PORTFOLIO = {
     //   - sector: secteur d'activité (industrials, luxury, tech, etc.)
     //   - geo: géographie (france, germany, japan, crypto, etc.)
     //   - ytdOpen: clôture 1er jour bourse 2026 (2 janvier) — historique
-    //   - mtdOpen: clôture 1er jour du mois courant (avril 2026)
+    //   - mtdOpen: clôture 1er jour du mois courant (1 juil 2026) — voir PRICE_REFS_AS_OF
     //   - oneMonthAgo: clôture ~30 jours avant (mi-mars 2026)
     //
     // MISE À JOUR DES PRIX :
@@ -232,20 +232,20 @@ export const PORTFOLIO = {
         // Achetées progressivement avril-nov 2025
         // Cours: prix live connecteur IBKR 12/07/2026 (fallback — surchargé par Yahoo au runtime)
         // PRU: prix d'achat moyen (costBasis EUR)
-        { ticker: 'AIR.PA',  shares: 200,  price: 196.86, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 175.42, oneMonthAgo: 184.24 },
-        { ticker: 'BN.PA',   shares: 200,  price: 72.50,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 69.94, oneMonthAgo: 72.64 },
+        { ticker: 'AIR.PA',  shares: 200,  price: 196.86, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', ytdOpen: 203.70, mtdOpen: 198.22, oneMonthAgo: 185.3 },
+        { ticker: 'BN.PA',   shares: 200,  price: 72.50,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 72.2, oneMonthAgo: 66.2 },
         // DG.PA — position fermée le 8 avr 2026 (100 actions vendues à 136.65)
 
-        { ticker: 'FGR.PA',  shares: 100,  price: 121.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 139.85, oneMonthAgo: 146.20 },
-        { ticker: 'MC.PA',   shares: 40,   price: 490.85, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 502.20, oneMonthAgo: 544.10 },
-        { ticker: 'OR.PA',   shares: 30,   price: 381.95, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 363.75, oneMonthAgo: 397.40 },
-        { ticker: 'P911.DE', shares: 400,  price: 45.21,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 38.78, oneMonthAgo: 41.39 },
-        { ticker: 'RMS.PA',  shares: 10,   price: 1634.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1897.50, oneMonthAgo: 2049.00 },
-        { ticker: 'SAN.PA',  shares: 50,   price: 76.47,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 79.86, oneMonthAgo: 82.20 },
-        { ticker: 'SAP.DE',  shares: 70,   price: 138.00, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 236.92, mtdOpen: 165.48, oneMonthAgo: 170.96 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
-        { ticker: '4911.T',  shares: 500,  price: 2775.40,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 3068.00, oneMonthAgo: 3300.00 },
-        { ticker: 'IBIT',    shares: 1200, price: 36.34,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 39.19, oneMonthAgo: 37.19 },
-        { ticker: 'ETHA',    shares: 1100, price: 13.57,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 15.37, oneMonthAgo: 14.52 },
+        { ticker: 'FGR.PA',  shares: 100,  price: 121.55, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 126.15, oneMonthAgo: 129.35 },
+        { ticker: 'MC.PA',   shares: 40,   price: 490.85, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 481.0, oneMonthAgo: 520.3 },
+        { ticker: 'OR.PA',   shares: 30,   price: 381.95, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.35, oneMonthAgo: 386.15 },
+        { ticker: 'P911.DE', shares: 400,  price: 45.21,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 44.11, oneMonthAgo: 49.0 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1634.00, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1595.0, oneMonthAgo: 1749.5 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 76.47,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 73.05, oneMonthAgo: 75.66 },
+        { ticker: 'SAP.DE',  shares: 70,   price: 138.00, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 201.95, mtdOpen: 140.88, oneMonthAgo: 142.9 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
+        { ticker: '4911.T',  shares: 500,  price: 2775.40,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 2633, oneMonthAgo: 2552 },
+        { ticker: 'IBIT',    shares: 1200, price: 36.34,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 34.0, oneMonthAgo: 37.17 },
+        { ticker: 'ETHA',    shares: 1100, price: 13.57,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 12.19, oneMonthAgo: 13.54 },
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       cashEUR: 401,          // Solde EUR chez IBKR — 401,17 (connecteur 12/07/2026)
@@ -1135,57 +1135,76 @@ export const PORTFOLIO = {
   market: {
     sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD (dernier relevé scrapé 10/07/2026, casablanca-bourse.com). v330+ : surchargé au runtime par data/sgtm_live.json (scrapé par GitHub Action horaire). Ce fallback ne sert que si le fetch du JSON repo échoue.
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
-    acnPriceUSD: 197.55,     // Cours Accenture en USD — live 31/03/2026 (Yahoo Finance)
+    acnPriceUSD: 144.61,     // Cours Accenture en USD — clôture 16/07/2026 (bootstrap ; écrasé par l'API si dispo)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
     acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
-    acnMtdOpen: 205.93,      // ACN clôture 3 mar 2026
-    acnOneMonthAgo: 208.72,  // ACN clôture ~27 fév 2026
-    acnOneYearAgo: 305.32,   // ACN clôture 21 mars 2025 (Yahoo Finance)
-    // ── Prix historiques 1Y ago (21 mars 2025) — pour P&L 1 An ──
-    // Source : Yahoo Finance v8/chart API — fetched une fois, stockés en dur
+    acnMtdOpen: 131.13,  // ACN clôture 1er juil 2026
+    acnOneMonthAgo: 165.52,  // ACN clôture 16 juin 2026
+    acnOneYearAgo: 279.67,  // ACN clôture 16 juil 2025
+    // ── Prix historiques 1Y ago (16 juillet 2025) — pour P&L 1 An ──
+    // Source : Yahoo Finance v8/chart API — rafraîchis le 16/07/2026 (voir PRICE_REFS_AS_OF)
     // Ces prix servent de référence pour calculer l'évolution sur 1 an
     // Pour les positions IBKR (toutes achetées APRÈS mars 2025), ces prix
     // ne sont pas utilisés dans le calcul P&L (sharesAtStart=0) mais sont
     // stockés pour référence historique et futur usage.
     oneYearAgoPrices: {
-      // IBKR positions — clôture 21 mars 2025
-      'AIR.PA':  166.64,    // Airbus
-      'BN.PA':   71.88,     // Danone
-      'DG.PA':   118.25,    // Vinci
-      'FGR.PA':  109.45,    // Eiffage
-      'MC.PA':   602.50,    // LVMH
-      'OR.PA':   352.75,    // L'Oréal
-      'P911.DE': 51.96,     // Porsche
-      'RMS.PA':  2513.00,   // Hermès
-      'SAN.PA':  105.84,    // Sanofi
-      'SAP.DE':  251.95,    // SAP SE
-      '4911.T':  2849.50,   // Shiseido (JPY)
-      'IBIT':    47.70,     // iShares Bitcoin (USD)
-      'ETHA':    14.93,     // iShares Ethereum (USD)
-      'ACN':     305.32,    // Accenture (USD) — même que acnOneYearAgo
-      // IBKR positions fermées (vendues pendant la période 1Y)
-      'QQQM':    198.01,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
-      'GLE':     42.35,     // Société Générale (EUR) — acheté août 2025, vendu fév 2026
-      'WLN':     6.74,      // Worldline (EUR) — acheté août 2025, vendu fév 2026
-      'EDEN':    31.39,     // Edenred (EUR) — acheté sept 2025, vendu fév 2026
-      'NXI':     10.06,     // Nexity (EUR) — acheté août 2025, vendu fév 2026
+      // IBKR positions — clôture 16 juillet 2025
+      'AIR.PA':   181.0,    // Airbus
+      'BN.PA':    67.52,     // Danone
+      'DG.PA':    122.7,    // Vinci
+      'FGR.PA':   114.4,    // Eiffage
+      'MC.PA':    475.6,    // LVMH
+      'OR.PA':    364.0,    // L'Oréal
+      'P911.DE':  43.38,     // Porsche
+      'RMS.PA':   2420.0,   // Hermès
+      'SAN.PA':   83.2,    // Sanofi
+      'SAP.DE':   259.95,    // SAP SE
+      '4911.T':   2400,   // Shiseido (JPY)
+      'IBIT':     67.83,     // iShares Bitcoin (USD)
+      'ETHA':     25.63,     // iShares Ethereum (USD)
+      'ACN':      279.67,    // Accenture (USD) — même que acnOneYearAgo
+      // Positions fermées depuis (prix au 16 juil 2025 ; sharesAtStart=0 si achetées après)
+      'QQQM':     229.42,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
+      'GLE':      49.06,     // Société Générale (EUR) — acheté août 2025, vendu fév 2026
+      'WLN':      3.571,      // Worldline (EUR) — acheté août 2025, vendu fév 2026
+      'EDEN':     25.59,     // Edenred (EUR) — acheté sept 2025, vendu fév 2026
+      'NXI':      9.27,     // Nexity (EUR) — acheté août 2025, vendu fév 2026
       // Degiro positions liquidées en avril 2025 — ces positions EXISTAIENT
       // le 21 mars 2025, donc leur P&L 1Y = (proceeds - shares × prix_1Y_ago)
-      'NVDA':    117.70,    // NVIDIA (USD) — 540 actions vendues le 7 avr 2025 @ $89.73
-      'INFY':    18.32,     // Infosys (USD) — 300 actions vendues le 7 avr 2025 @ $16.95
+      'NVDA':     171.37,    // NVIDIA (USD) — 540 actions vendues le 7 avr 2025 @ $89.73
+      'INFY':     18.5,     // Infosys (USD) — 300 actions vendues le 7 avr 2025 @ $16.95
     },
-    // ── Taux de change historiques 1Y ago (21 mars 2025) ──
+    // ── Taux de change historiques 1Y ago (16 juillet 2025) ──
     // Source : Yahoo Finance EURJPY=X, EURUSD=X, etc.
     // Utilisés pour convertir les P&L des positions étrangères à leur valeur
     // de référence 1Y ago
     fxOneYearAgo: {
       EUR: 1,
-      USD: 1.0857,    // EUR/USD le 21 mars 2025
-      JPY: 161.32,    // EUR/JPY le 21 mars 2025
-      MAD: 10.14,     // EUR/MAD le 21 mars 2025
-      AED: 3.98,      // EUR/AED le 21 mars 2025
+      USD: 1.1636,    // EUR/USD le 16 juillet 2025
+      JPY: 172.21,    // EUR/JPY le 16 juillet 2025
+      MAD: 10.171,    // EUR/MAD le 16 juillet 2025
+      AED: 4.2701,    // EUR/AED le 16 juillet 2025
     },
   },
+};
+
+// ════════════════════════════════════════════════════════════
+// DATES DE RÉFÉRENCE DES PRIX HISTORIQUES (anti-péremption silencieuse)
+// ════════════════════════════════════════════════════════════
+// v368 (BUG-070) — mtdOpen / oneMonthAgo / oneYearAgo sont des prix FIGÉS dans data.js
+// (l'API ne rafraîchit que previousClose). Ils étaient restés à une vintage mars/avril 2026
+// alors que l'engine les appariait à des DATES de début de période calculées correctement
+// → un prix de mars comparé à une fenêtre de juillet (écart engine MTD −6 115 vs réel).
+//
+// Ces dates déclarent À QUELLE DATE chaque prix de référence a été relevé. L'engine les
+// compare aux bornes qu'il calcule et DÉGRADE (hasData=false → « -- ») au lieu d'afficher
+// un chiffre faux. Rafraîchir mtdOpen le 1er de chaque mois et oneMonthAgo/oneYearAgo
+// avec, puis mettre ces dates à jour.
+export const PRICE_REFS_AS_OF = {
+  ytdOpen:     '2026-01-02', // 1er jour de bourse de l'année en cours (annuel)
+  mtdOpen:     '2026-07-01', // 1er jour de bourse du mois en cours (mensuel)
+  oneMonthAgo: '2026-06-16', // ~1 mois avant aujourd'hui (mensuel)
+  oneYearAgo:  '2025-07-16', // ~1 an avant aujourd'hui (mensuel)
 };
 
 // ════════════════════════════════════════════════════════════
@@ -1193,8 +1212,8 @@ export const PORTFOLIO = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '13/07/2026';
-export const APP_VERSION = 'v367';
+export const DATA_LAST_UPDATE = '16/07/2026';
+export const APP_VERSION = 'v368';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
