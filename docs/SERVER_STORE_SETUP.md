@@ -32,7 +32,23 @@ alter table price_history enable row level security;
 create policy "anon read"   on price_history for select using (true);
 create policy "anon insert" on price_history for insert with check (true);
 create policy "anon update" on price_history for update using (true) with check (true);
+
+-- updated_at = vraie date de dernière écriture (le DEFAULT ne se déclenche qu'à l'INSERT ;
+-- un upsert fait un UPDATE et laisserait updated_at figé sans ce trigger).
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end;
+$$;
+drop trigger if exists trg_price_history_updated_at on public.price_history;
+create trigger trg_price_history_updated_at
+  before insert or update on public.price_history
+  for each row execute function public.set_updated_at();
 ```
+
+> Note : ce projet a désactivé les clés legacy (anon/service_role) → utiliser la clé
+> **publishable** (`sb_publishable_…`, récupérable via
+> `GET https://api.supabase.com/v1/projects/<ref>/api-keys?reveal=true`) comme valeur
+> `anonKey` dans `SERVER_STORE`. Table déjà provisionnée sur le projet `mjbmtubkhlspwfqhqgvq`.
 
 ## 2. Récupérer l'URL + la clé anon
 
