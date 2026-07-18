@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=379';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=380';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1287,6 +1287,40 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     });
   }
 
+  // ── v380 — INSIGHTS DEDIES PAR PROPRIETAIRE (toggle owner) ──
+  // Amine : les insights ci-dessus SONT les siens (IBKR = 100% Amine → track-record, concentration,
+  // couts, dividendes… lui appartiennent). Nezha : elle ne detient que de l'ESPP Accenture + du SGTM
+  // (aucun trade IBKR) → un jeu dedie « portefeuille + geo », sans track-record/couts/recommandations.
+  const _nezhaSgtmShares = (portfolio.nezha.sgtm && portfolio.nezha.sgtm.shares) || 0;
+  const _nezhaSgtmCostEUR = toEUR(_nezhaSgtmShares * (m.sgtmCostBasisMAD || portfolio.market.sgtmCostBasisMAD || 420), 'MAD', fx);
+  const _nezhaSgtmPL = nezhaSgtm - _nezhaSgtmCostEUR;
+  const _nezhaHoldings = [];
+  if (nezhaEsppCurrentVal > 0) _nezhaHoldings.push({ label: 'ESPP Accenture (ACN)', valEUR: nezhaEsppCurrentVal, pl: nezhaEsppUnrealizedPL, shares: nezhaEsppShares });
+  if (nezhaSgtm > 0) _nezhaHoldings.push({ label: 'SGTM (Maroc)', valEUR: nezhaSgtm, pl: _nezhaSgtmPL, shares: _nezhaSgtmShares });
+  const _nezhaTotalVal = _nezhaHoldings.reduce((s, h) => s + h.valEUR, 0);
+  const _nezhaTotalPL = _nezhaHoldings.reduce((s, h) => s + h.pl, 0);
+  const nezhaInsights = [];
+  if (_nezhaHoldings.length > 0) {
+    nezhaInsights.push({
+      type: 'holdings',
+      title: 'Portefeuille Actions de Nezha',
+      positions: _nezhaHoldings.map(h => ({ ...h, pct: _nezhaTotalVal > 0 ? (h.valEUR / _nezhaTotalVal * 100) : 0 })),
+      totalVal: _nezhaTotalVal,
+      totalPL: _nezhaTotalPL,
+    });
+    const _nzGeo = geoAllocationOwner.nezha || {};
+    const _nzGeoTot = Object.values(_nzGeo).reduce((s, v) => s + v, 0);
+    nezhaInsights.push({
+      type: 'geo',
+      title: 'Diversification Geographique',
+      francePct: 0,
+      usPct: _nzGeoTot > 0 ? ((_nzGeo.us || 0) / _nzGeoTot * 100) : 0,
+      cryptoPct: 0,
+      emergingPct: _nzGeoTot > 0 ? (((_nzGeo.morocco || 0) + (_nzGeo.japan || 0)) / _nzGeoTot * 100) : 0,
+    });
+  }
+  const insightsOwner = { amine: insights, nezha: nezhaInsights };
+
   return {
     ibkrPositions,
     ibkrNAV,
@@ -1377,6 +1411,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     geoAllocationOwner,    // v378 — { amine:{...}, nezha:{...} } pour le toggle owner (donut géo)
     sectorAllocationOwner, // v378 — idem (donut secteur)
     insights,
+    insightsOwner,         // v380 — { amine:[...], nezha:[...] } insights dédiés par propriétaire
     // ═══════════════════════════════════════════════════════════════════
     // UNIFIED PERIOD P&L — même fonction pour les 5 KPIs
     // fullPeriodPL(field, acnRef, closedPL, costs, opts) produit {total, breakdown, costs}

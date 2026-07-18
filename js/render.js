@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=379';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=379';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=380';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=380';
 
 // ---- Generic table sort utility ----
 /**
@@ -2382,11 +2382,15 @@ function renderActionsView(state) {
   const _twrMetrics = window._chartKPIData?.twr ?? av.twr;
   setText('actionsTWR', (_twrMetrics >= 0 ? '+' : '') + _twrMetrics.toFixed(1) + '%');
 
-  // Insights
+  // Insights — v380 : dédiés par propriétaire quand le toggle owner n'est pas 'both'.
+  // Amine → av.insightsOwner.amine (= ses insights IBKR) ; Nezha → av.insightsOwner.nezha
+  // (portefeuille ESPP+SGTM + géo, pas de track-record/coûts). 'both' → av.insights inchangé.
+  const _insOwner = window._activeOwner || 'both';
+  const insightsList = (_insOwner !== 'both' && av.insightsOwner && av.insightsOwner[_insOwner]) || av.insights;
   const insightsContainer = document.getElementById('actionsInsights');
-  if (insightsContainer && av.insights) {
+  if (insightsContainer && insightsList) {
     insightsContainer.innerHTML = '';
-    av.insights.forEach(ins => {
+    insightsList.forEach(ins => {
       const card = document.createElement('div');
       card.style.cssText = 'background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;';
       let html = '<h4 style="margin:0 0 10px 0;font-size:14px;color:var(--accent);">' + ins.title + '</h4>';
@@ -2399,6 +2403,20 @@ function renderActionsView(state) {
         html += '<div style="font-size:13px;">Profit factor : <strong>' + (ins.profitFactor === Infinity ? '\u221e' : ins.profitFactor.toFixed(1)) + 'x</strong></div>';
         if (ins.topWin) html += '<div style="font-size:12px;margin-top:6px;color:#718096;">Meilleur trade : ' + ins.topWin.label + ' (+' + fmt(ins.topWin.pl) + ')</div>';
         if (ins.topLoss) html += '<div style="font-size:12px;color:#718096;">Pire trade : ' + ins.topLoss.label + ' (' + fmt(ins.topLoss.pl) + ')</div>';
+      }
+
+      else if (ins.type === 'holdings') {
+        // v380 — insight dédié Nezha : ses positions Actions (ESPP + SGTM) avec valeur, P&L latent, poids
+        const tplC = ins.totalPL >= 0 ? 'pl-pos' : 'pl-neg';
+        html += '<div style="font-size:13px;margin-bottom:10px;">Valeur totale : <strong>€' + fmt(Math.round(ins.totalVal)) + '</strong> · P&L latent : <strong class="' + tplC + '">' + (ins.totalPL >= 0 ? '+' : '') + fmt(Math.round(ins.totalPL)) + '</strong></div>';
+        ins.positions.forEach(p => {
+          const plc = p.pl >= 0 ? 'pl-pos' : 'pl-neg';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #edf2f7;">'
+            + '<span>' + p.label + ' <span style="color:#a0aec0;font-size:11px;">×' + p.shares + '</span></span>'
+            + '<span style="text-align:right;"><strong>€' + fmt(Math.round(p.valEUR)) + '</strong> '
+            + '<span class="' + plc + '">(' + (p.pl >= 0 ? '+' : '') + fmt(Math.round(p.pl)) + ')</span> '
+            + '<span style="color:#a0aec0;">' + p.pct.toFixed(0) + '%</span></span></div>';
+        });
       }
 
       else if (ins.type === 'concentration') {
@@ -2650,6 +2668,26 @@ function setupKPIDetailPanels(state) {
 
   // Helper: render a P&L breakdown in two columns (losers | gainers)
   function renderPLBreakdown(items, total, footer) {
+    // v380 — filtre propriétaire : ne montrer que les positions du propriétaire actif.
+    // Le P&L de période est purement mark-to-market (Δprix × parts) → répartir ACN/SGTM par
+    // ratio de parts est EXACT pour la période. IBKR + coûts (_FX_CASH/_COMM/…) = 100% Amine.
+    const _o = window._activeOwner || 'both';
+    if (_o !== 'both' && items && items.length) {
+      const esppTot = (av.esppShares || 0) + (av.nezhaEsppShares || 0);
+      const sgtmTot = (av.sgtmAmineShares || 0) + (av.sgtmNezhaShares || 0);
+      const esppRatio = esppTot > 0 ? (_o === 'amine' ? av.esppShares : (av.nezhaEsppShares || 0)) / esppTot : 0;
+      const sgtmRatio = sgtmTot > 0 ? (_o === 'amine' ? av.sgtmAmineShares : av.sgtmNezhaShares) / sgtmTot : 0;
+      const scoped = [];
+      for (const it of items) {
+        const tk = it.ticker || '';
+        if (tk === 'ACN') { const pl = it.pl * esppRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
+        else if (tk === 'SGTM') { const pl = it.pl * sgtmRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
+        else if (_o === 'amine') { scoped.push(it); } // IBKR positions + coûts = Amine
+        // nezha : on saute IBKR + coûts (elle ne trade pas)
+      }
+      items = scoped;
+      total = scoped.reduce((s, i) => s + i.pl, 0);
+    }
     if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Pas de données</div>';
     // Filter out near-zero P&L (e.g. European stocks when market is closed)
     const threshold = 0.5;
@@ -7023,7 +7061,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=379').then(m => {
+  import('./charts.js?v=380').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
