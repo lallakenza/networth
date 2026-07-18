@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=386';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=386';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=387';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=387';
 
 // ---- Generic table sort utility ----
 /**
@@ -310,7 +310,7 @@ export function render(state, view, currency) {
 
 // ---- Individual render functions ----
 
-const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances', 'budget', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
+const ASSET_VIEWS = ['actions', 'cash', 'immobilier', 'creances', 'budget', 'apt_vitry', 'apt_rueil', 'apt_villejuif', 'historique'];
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 
 function renderHeader(state, view) {
@@ -322,8 +322,8 @@ function renderHeader(state, view) {
     if (subEl) subEl.textContent = v.subtitle;
   } else {
     // Asset views
-    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel', apt_vitry: 'Vitry-sur-Seine', apt_rueil: 'Rueil-Malmaison', apt_villejuif: 'Villejuif (VEFA)' };
-    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: '19 Rue Nathalie Lemel — T3 Location nue', apt_rueil: '21 All\u00e9e des Glycines — T3 meubl\u00e9 LMNP', apt_villejuif: '167 Bd Maxime Gorki — T3 VEFA' };
+    const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel', apt_vitry: 'Vitry-sur-Seine', apt_rueil: 'Rueil-Malmaison', apt_villejuif: 'Villejuif (VEFA)', historique: 'Historique du Patrimoine' };
+    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: '19 Rue Nathalie Lemel — T3 Location nue', apt_rueil: '21 All\u00e9e des Glycines — T3 meubl\u00e9 LMNP', apt_villejuif: '167 Bd Maxime Gorki — T3 VEFA', historique: 'Évolution quotidienne du net worth — snapshots automatiques (type Finary)' };
     if (titleEl) titleEl.textContent = titles[view] || '';
     if (subEl) subEl.textContent = subs[view] || '';
   }
@@ -7065,7 +7065,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=386').then(m => {
+  import('./charts.js?v=387').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
