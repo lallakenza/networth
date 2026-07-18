@@ -43,10 +43,16 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
+# NB : `from __future__ import annotations` (en tête) rend toutes les annotations
+# paresseuses (chaînes non évaluées), donc `page: Page` dans les signatures ne force
+# PAS l'import de Playwright au chargement du module. On importe Playwright UNIQUEMENT
+# dans scrape() → les utilitaires history (--backfill, --price-at) tournent sans lui.
+if False:  # pragma: no cover — pour les type-checkers uniquement
+    from playwright.sync_api import Page  # noqa: F401
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = REPO_ROOT / "data" / "sgtm_live.json"
@@ -388,6 +394,7 @@ def scrape() -> dict | None:
 
     # Tentatives 2, 3, 4 : Playwright (casablanca-bourse.com, puis idbourse, puis investing)
     print("[scrape] HTTP casablanca-bourse.com KO → fallback Playwright (casablanca-bourse-pw, idbourse, investing)")
+    from playwright.sync_api import sync_playwright  # import paresseux (voir en-tête)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -416,7 +423,86 @@ def scrape() -> dict | None:
     return None
 
 
+def _new_history_doc() -> dict:
+    return {
+        "ticker": "SGTM",
+        "currency": "MAD",
+        "granularity": "daily-close",
+        "note": ("Dernier prix observé chaque jour ouvré (close de facto — la séance BVC "
+                 "termine à 15h30 et le dernier run intraday capture ce prix). Alimenté par "
+                 "scripts/scrape_sgtm.py (upsert par date à chaque run) ; reconstructible "
+                 "intégralement depuis le git log de data/sgtm_live.json via `--backfill`."),
+        "series": [],
+    }
+
+
+def upsert_history_entry(day: str, price_mad: float, source: str) -> int:
+    """Insère/remplace l'entrée `day` dans data/sgtm_history.json. Retourne la taille de la série.
+
+    Utilisé par le run normal (upsert du jour) ET par --backfill (upsert de chaque jour
+    reconstruit). Ne lève jamais : l'historique ne doit pas faire échouer le scrape.
+    """
+    hist = json.loads(HISTORY_PATH.read_text()) if HISTORY_PATH.exists() else _new_history_doc()
+    series = hist.get("series", [])
+    entry = {"date": day, "priceMAD": round(price_mad, 2), "source": source}
+    for i, e in enumerate(series):
+        if e.get("date") == day:
+            series[i] = entry
+            break
+    else:
+        series.append(entry)
+        series.sort(key=lambda e: e["date"])
+    hist["series"] = series
+    HISTORY_PATH.write_text(json.dumps(hist, indent=2, ensure_ascii=False) + "\n")
+    return len(series)
+
+
+def rebuild_history_from_git() -> int:
+    """Reconstruit data/sgtm_history.json depuis TOUT le git log de data/sgtm_live.json.
+
+    Chaque commit du fichier live est un relevé horodaté (champ `lastUpdate`). Le close de
+    facto d'un jour = le DERNIER relevé de ce jour (max timestamp). On récupère chaque version
+    du blob via `git show <sha>:data/sgtm_live.json` et on garde, par date, l'observation la
+    plus tardive. Idempotent : réécrit intégralement la série.
+    """
+    rel = "data/sgtm_live.json"
+    shas = subprocess.check_output(
+        ["git", "-C", str(REPO_ROOT), "log", "--reverse", "--format=%H", "--", rel],
+        text=True,
+    ).split()
+    by_day: dict[str, tuple[float, str, str]] = {}  # date -> (price, source, ts)
+    for sha in shas:
+        try:
+            blob = subprocess.check_output(
+                ["git", "-C", str(REPO_ROOT), "show", f"{sha}:{rel}"], text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            d = json.loads(blob)
+        except Exception:
+            continue
+        ts = d.get("lastUpdate", "")
+        day = ts[:10]
+        price = d.get("priceMAD")
+        if not day or price is None:
+            continue
+        if day not in by_day or ts > by_day[day][2]:
+            by_day[day] = (price, d.get("source", ""), ts)
+    doc = _new_history_doc()
+    doc["series"] = [
+        {"date": k, "priceMAD": round(v[0], 2), "source": v[1]}
+        for k, v in sorted(by_day.items())
+    ]
+    HISTORY_PATH.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    print(f"[backfill] ✓ {len(doc['series'])} jours reconstruits depuis {len(shas)} commits "
+          f"→ {HISTORY_PATH.name}"
+          + (f" ({doc['series'][0]['date']} → {doc['series'][-1]['date']})" if doc['series'] else ""))
+    return 0
+
+
 def main() -> int:
+    if "--backfill" in sys.argv:
+        return rebuild_history_from_git()
+
     print(f"=== scrape_sgtm.py — {datetime.now(timezone.utc).isoformat()} ===")
 
     # Lire l'état précédent pour comparer
@@ -463,33 +549,8 @@ def main() -> int:
     # Le chart côté JS consomme cet historique pour peupler `SGTM_PRICES` à la volée.
     try:
         today = now.strftime("%Y-%m-%d")
-        entry = {"date": today, "priceMAD": snapshot["priceMAD"], "source": snapshot["source"]}
-        if HISTORY_PATH.exists():
-            hist = json.loads(HISTORY_PATH.read_text())
-        else:
-            hist = {
-                "ticker": "SGTM",
-                "currency": "MAD",
-                "granularity": "daily-close",
-                "note": ("Dernier prix observé chaque jour ouvré. Alimenté par "
-                         "scripts/scrape_sgtm.py (upsert par date)."),
-                "series": [],
-            }
-        series = hist.get("series", [])
-        # Upsert : remplace si le jour existe déjà, sinon append à la bonne position
-        found = False
-        for i, e in enumerate(series):
-            if e.get("date") == today:
-                series[i] = entry
-                found = True
-                break
-        if not found:
-            series.append(entry)
-            series.sort(key=lambda e: e["date"])
-        hist["series"] = series
-        HISTORY_PATH.write_text(json.dumps(hist, indent=2, ensure_ascii=False) + "\n")
-        print(f"[history] ✓ upsert {today}: {snapshot['priceMAD']} MAD "
-              f"({len(series)} jours dans l'historique)")
+        n = upsert_history_entry(today, snapshot["priceMAD"], snapshot["source"])
+        print(f"[history] ✓ upsert {today}: {snapshot['priceMAD']} MAD ({n} jours dans l'historique)")
     except Exception as e:
         # Ne JAMAIS faire échouer le run principal si l'historique part en vrille
         print(f"[history] ⚠ échec non-bloquant: {e}")

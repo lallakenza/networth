@@ -4,13 +4,21 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=368';
-import { compute, getGrandTotal } from './engine.js?v=368';
-import { render } from './render.js?v=368';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices } from './api.js?v=368';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=368';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=368';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=368';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=369';
+import { compute, getGrandTotal } from './engine.js?v=369';
+import { render } from './render.js?v=369';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=369';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=369';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=369';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=369';
+
+// v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
+// (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
+// → { priceMAD, dateUsed, forwardFilled, ... }. Lit data/<ticker>_history.json (auto-alimenté).
+if (typeof window !== 'undefined') {
+  window.getMoroccanPriceAt = getMoroccanPriceAt;
+  window.pickMoroccanPriceAt = pickMoroccanPriceAt;
+}
 
 // ---- App state ----
 let currentFX = { ...FX_STATIC };

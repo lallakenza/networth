@@ -2,12 +2,337 @@
   "ticker": "SGTM",
   "currency": "MAD",
   "granularity": "daily-close",
-  "note": "Dernier prix observé chaque jour ouvré. Alimenté par scripts/scrape_sgtm.py (upsert par date) + backfill initial depuis git log des commits sur data/sgtm_live.json.",
+  "note": "Dernier prix observé chaque jour ouvré (close de facto — la séance BVC termine à 15h30 et le dernier run intraday capture ce prix). Alimenté par scripts/scrape_sgtm.py (upsert par date à chaque run) ; reconstructible intégralement depuis le git log de data/sgtm_live.json via `--backfill`.",
   "series": [
-    { "date": "2026-04-19", "priceMAD": 826.0, "source": "casablanca-bourse.com" },
-    { "date": "2026-04-20", "priceMAD": 819.0, "source": "casablanca-bourse.com" },
-    { "date": "2026-04-21", "priceMAD": 820.6, "source": "casablanca-bourse.com" },
-    { "date": "2026-04-22", "priceMAD": 809.0, "source": "casablanca-bourse.com" },
-    { "date": "2026-04-23", "priceMAD": 797.2, "source": "casablanca-bourse.com" }
+    {
+      "date": "2026-04-17",
+      "priceMAD": 826.0,
+      "source": "static-bootstrap"
+    },
+    {
+      "date": "2026-04-19",
+      "priceMAD": 826.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-20",
+      "priceMAD": 819.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-21",
+      "priceMAD": 820.6,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-22",
+      "priceMAD": 809.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-23",
+      "priceMAD": 797.2,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-24",
+      "priceMAD": 785.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-27",
+      "priceMAD": 779.9,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-28",
+      "priceMAD": 773.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-29",
+      "priceMAD": 764.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-04-30",
+      "priceMAD": 759.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-01",
+      "priceMAD": 755.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-04",
+      "priceMAD": 770.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-05",
+      "priceMAD": 770.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-06",
+      "priceMAD": 795.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-07",
+      "priceMAD": 794.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-08",
+      "priceMAD": 786.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-11",
+      "priceMAD": 772.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-12",
+      "priceMAD": 772.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-13",
+      "priceMAD": 763.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-14",
+      "priceMAD": 760.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-15",
+      "priceMAD": 760.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-18",
+      "priceMAD": 748.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-19",
+      "priceMAD": 746.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-20",
+      "priceMAD": 731.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-21",
+      "priceMAD": 734.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-22",
+      "priceMAD": 735.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-25",
+      "priceMAD": 750.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-26",
+      "priceMAD": 731.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-27",
+      "priceMAD": 731.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-28",
+      "priceMAD": 731.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-05-29",
+      "priceMAD": 731.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-01",
+      "priceMAD": 731.5,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-02",
+      "priceMAD": 730.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-03",
+      "priceMAD": 724.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-04",
+      "priceMAD": 730.2,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-05",
+      "priceMAD": 730.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-08",
+      "priceMAD": 735.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-09",
+      "priceMAD": 726.2,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-10",
+      "priceMAD": 722.9,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-11",
+      "priceMAD": 708.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-12",
+      "priceMAD": 726.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-15",
+      "priceMAD": 766.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-16",
+      "priceMAD": 760.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-17",
+      "priceMAD": 760.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-18",
+      "priceMAD": 742.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-19",
+      "priceMAD": 733.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-22",
+      "priceMAD": 725.2,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-23",
+      "priceMAD": 727.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-24",
+      "priceMAD": 725.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-25",
+      "priceMAD": 715.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-26",
+      "priceMAD": 715.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-29",
+      "priceMAD": 713.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-06-30",
+      "priceMAD": 714.9,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-01",
+      "priceMAD": 710.5,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-02",
+      "priceMAD": 713.9,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-03",
+      "priceMAD": 726.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-06",
+      "priceMAD": 720.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-07",
+      "priceMAD": 709.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-08",
+      "priceMAD": 705.5,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-09",
+      "priceMAD": 709.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-10",
+      "priceMAD": 707.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-13",
+      "priceMAD": 703.1,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-14",
+      "priceMAD": 699.9,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-15",
+      "priceMAD": 696.0,
+      "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-16",
+      "priceMAD": 696.0,
+      "source": "casablanca-bourse.com"
+    }
   ]
 }
