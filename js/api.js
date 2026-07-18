@@ -1082,6 +1082,99 @@ export async function saveServerHistory(data) {
   } catch (e) { console.warn('[hist] L2 upload failed (non-bloquant):', e && e.message); }
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  v386 — SNAPSHOTS QUOTIDIENS DU PATRIMOINE (table Supabase nw_snapshots)
+//  Table APPEND-ONLY : PK (snap_date, captured_at), policies anon = INSERT+SELECT
+//  seulement (UPDATE/DELETE = no-op même avec la clé publique) → l'historique est
+//  infalsifiable ; les corrections passent par la Management API (admin).
+//  Sémantique du jour : plusieurs lignes possibles par date, la « meilleure » est
+//  choisie À LA LECTURE : qualité live > partial > static, puis captured_at max.
+// ════════════════════════════════════════════════════════════════════
+const SNAP_TABLE = 'nw_snapshots';
+const _QUALITY_RANK = { live: 3, partial: 2, static: 1 };
+
+/** Date calendaire Europe/Paris (PAS l'UTC : un snapshot du soir doit rester sur le bon jour). */
+export function parisDateISO() {
+  return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+}
+
+function _snapHeaders() {
+  return { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey, 'Content-Type': 'application/json' };
+}
+
+/** INSERT une ligne de snapshot (append-only — jamais d'update). */
+export async function saveDailySnapshot(snapDateISO, quality, data) {
+  if (!_serverConfigured() || !data) return false;
+  try {
+    const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE;
+    const res = await fetch(u, {
+      method: 'POST',
+      headers: { ..._snapHeaders(), Prefer: 'return=minimal' },
+      body: JSON.stringify({ snap_date: snapDateISO, quality, data }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (res.ok) { console.log('[snapshot] insert OK — ' + snapDateISO + ' (' + quality + ')'); return true; }
+    console.warn('[snapshot] insert HTTP ' + res.status);
+    return false;
+  } catch (e) { console.warn('[snapshot] insert failed (non-bloquant):', e && e.message); return false; }
+}
+
+/**
+ * Charge l'historique des snapshots, réduit à UNE ligne par date
+ * (qualité live > partial > static, puis la plus récente).
+ * @returns {Promise<Array<{date:string, quality:string, capturedAt:string, data:object}>>} trié ASC
+ */
+export async function loadSnapshots(sinceISO) {
+  if (!_serverConfigured()) return [];
+  try {
+    let u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE
+      + '?select=snap_date,captured_at,quality,data&order=snap_date.asc,captured_at.asc';
+    if (sinceISO) u += '&snap_date=gte.' + sinceISO;
+    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    const byDate = new Map();
+    for (const row of rows) {
+      const prev = byDate.get(row.snap_date);
+      const better = !prev
+        || (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[prev.quality] || 0)
+        || ((_QUALITY_RANK[row.quality] || 0) === (_QUALITY_RANK[prev.quality] || 0) && row.captured_at > prev.captured_at);
+      if (better) byDate.set(row.snap_date, row);
+    }
+    return [...byDate.values()]
+      .sort((a, b) => a.snap_date.localeCompare(b.snap_date))
+      .map(row => ({ date: row.snap_date, quality: row.quality, capturedAt: row.captured_at, data: row.data }));
+  } catch (e) { console.warn('[snapshot] load failed:', e && e.message); return []; }
+}
+
+/**
+ * Capture « intelligente » : n'insère que si ça améliore le jour —
+ * (a) aucune ligne aujourd'hui, (b) on upgrade la qualité (static→live),
+ * (c) même qualité mais la dernière capture a > 4 h (raffinement fin de journée).
+ * Anti-spam : le refresh 10 min ne ré-insère pas sans amélioration.
+ */
+export async function maybeSaveDailySnapshot(quality, data) {
+  if (!_serverConfigured() || !data) return false;
+  const today = parisDateISO();
+  try {
+    const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE
+      + '?select=captured_at,quality&snap_date=eq.' + today + '&order=captured_at.desc';
+    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(9000) });
+    const rows = res.ok ? await res.json() : [];
+    let best = null;
+    for (const row of rows) {
+      if (!best || (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[best.quality] || 0)) best = row;
+    }
+    const rank = _QUALITY_RANK[quality] || 0;
+    const bestRank = best ? (_QUALITY_RANK[best.quality] || 0) : -1;
+    const lastAt = rows.length ? rows[0].captured_at : null;
+    const hoursSince = lastAt ? (Date.now() - new Date(lastAt).getTime()) / 3.6e6 : Infinity;
+    const should = !best || rank > bestRank || (rank >= bestRank && hoursSince > 4);
+    if (!should) { console.log('[snapshot] déjà couvert aujourd\'hui (' + (best && best.quality) + ', il y a ' + hoursSince.toFixed(1) + ' h) → skip'); return false; }
+    return await saveDailySnapshot(today, quality, data);
+  } catch (e) { console.warn('[snapshot] maybeSave failed:', e && e.message); return false; }
+}
+
 /**
  * Fetch daily close prices for a single ticker via Yahoo Finance chart API.
  * @param {string} symbol - Yahoo Finance ticker (e.g., 'AIR.PA', 'IBIT', '4911.T')

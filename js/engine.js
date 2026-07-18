@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=385';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=386';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4003,6 +4003,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDelta: amineNWDelta,
     nwDeltaPct: amineNWDeltaPct,
     nwDeltaTimeframe: nwDeltaTimeframe,
+    _facturationSource: _factuSrc, // v386 — provenance (localStorage vs data.js fallback) pour les snapshots
     ibkr: amineIbkr,           // full IBKR NAV (positions + all cash incl. JPY carry)
     ibkrForActions: amineIbkrForActions, // positions + JPY carry (excl. EUR/USD cash → moved to Cash)
     espp: amineEspp,           // full ESPP value (shares + cash)
@@ -4587,7 +4588,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Vérifie que la somme des catégories de chaque vue == le NW de cette vue, et que
   // chaque catégorie a total == Σ sous-items. Attrape immédiatement (console) tout
   // futur ajout de compte oublié dans un des « 9+ emplacements ». Tolérance €2 (arrondis).
-  (function _guardCategorySums() {
+  const _guardsOk = (function _guardCategorySums() {
     const chk = (label, sum, ref) => {
       if (Math.abs(sum - ref) > 2) console.warn('[engine] ⚠ desync ' + label + ' : Σcatégories', Math.round(sum), '≠ NW', Math.round(ref), '(écart ' + Math.round(sum - ref) + '€)');
     };
@@ -4603,9 +4604,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         if (Math.abs(c.total - ss) > 2) { subOk = false; console.warn('[engine] ⚠ sous-items ' + nm + '/' + c.label + ' : Σsub', Math.round(ss), '≠ total', Math.round(c.total)); }
       });
     }
-    if (subOk && Math.abs(sumCat(amineCategories) - amine.nw) <= 2 && Math.abs(sumCat(nezhaCategories) - nezha.nw) <= 2 && Math.abs(sumCat(coupleCategories) - coupleNW) <= 2) {
-      console.log('[engine] Catégories cohérentes ✓ (Σcat = NW pour les 3 vues, total = Σsub)');
-    }
+    const allOk = subOk && Math.abs(sumCat(amineCategories) - amine.nw) <= 2 && Math.abs(sumCat(nezhaCategories) - nezha.nw) <= 2 && Math.abs(sumCat(coupleCategories) - coupleNW) <= 2;
+    if (allOk) console.log('[engine] Catégories cohérentes ✓ (Σcat = NW pour les 3 vues, total = Σsub)');
+    return allOk; // v386 — exposé (state._guardsOk) : un snapshot capturé pendant un desync est flagué
   })();
 
   return {
@@ -4633,6 +4634,120 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     equityHistory: EQUITY_HISTORY,
     _fx: fx,  // v309 — exposé pour computeCashFlow réutilisé dans computeAlerts
     _dataLastUpdate: DATA_LAST_UPDATE,  // v317 — exposé pour alert C2 (fraîcheur données)
+    _guardsOk,  // v386 — invariants Σcat=NW vérifiés (false ⇒ snapshot flagué, pas de capture silencieuse d'un desync)
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  v386 — SNAPSHOT QUOTIDIEN DU PATRIMOINE (historique type Finary)
+//  buildDailySnapshot(state) fige l'arbre COMPLET du patrimoine en un document
+//  compact (~5 Ko) : total par personne, cartes KPI par vue, CHAQUE compte cash,
+//  CHAQUE appartement (brute ET nette), CHAQUE position, créances, autres actifs.
+//  Persisté 1×/jour (append-only) dans Supabase → l'historique se construit seul.
+//  Règles :
+//   - IDs STABLES snake_case (jamais les labels français affichés — un renommage
+//     data.js ne doit JAMAIS casser une série ; cf. précédent SOGE→Nabd).
+//   - EUR arrondi à l'euro ; native gardé pour les comptes (règle multi-devises).
+//   - Immo : equity BRUTE (value−CRD) ET NETTE (après frais de sortie) — les deux
+//     sémantiques coexistent dans l'app, l'historique doit les distinguer.
+//   - Créances keyées par id (INVSNT005…) — pas de nom de contrepartie dans le blob.
+//   - meta fige fx/stockSource/fxSource/facturationSource/guardsOk/versions → un
+//     jour à données dégradées ou une MAJ manuelle data.js reste explicable a posteriori.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Labels d'affichage (cashView) → ids stables. Fallback : slugify + warn (rename à mapper).
+const CASH_ACCOUNT_IDS = {
+  'Mashreq NEO+': 'mashreq', 'Wio Savings': 'wio_savings', 'Wio Current': 'wio_current',
+  'Wio Business (Bairok)': 'wio_business', 'Revolut EUR': 'revolut_amine',
+  'Banque Populaire': 'banque_populaire', 'Binance USDT': 'binance',
+  'Attijariwafa': 'attijari_amine', 'Nabd (ex-SOGE)': 'nabd', 'CIH Bank': 'cih',
+  'IBKR Cash EUR': 'ibkr_cash_eur', 'IBKR Cash USD': 'ibkr_cash_usd', 'IBKR Cash JPY': 'ibkr_cash_jpy',
+  'ESPP Cash (Amine)': 'espp_cash_amine', 'ESPP Cash (Nezha)': 'espp_cash_nezha',
+  'Revolut EUR (Nezha)': 'revolut_nezha', 'Crédit Mutuel': 'credit_mutuel',
+  'Livret A (LCL)': 'livret_a', 'LCL Compte principal': 'lcl_compte',
+  'IBKR (Nezha)': 'ibkr_nezha', 'Attijariwafa (Nezha)': 'attijari_nezha', 'Wio UAE (Nezha)': 'wio_nezha',
+};
+
+export function buildDailySnapshot(state) {
+  const r = (v) => (typeof v === 'number' && isFinite(v)) ? Math.round(v) : null;
+  const r2 = (v) => (typeof v === 'number' && isFinite(v)) ? Math.round(v * 100) / 100 : null;
+  const s = state;
+  const av = s.actionsView, cv = s.cashView, iv = s.immoView;
+
+  // Cartes KPI par vue (les 4 catégories × 3 vues = les séries par-KPI demandées)
+  const viewCards = (v) => ({
+    stocks: r(v.stocks?.val), cash: r(v.cash?.val), immo: r(v.immo?.val), other: r(v.other?.val), nwRef: r(v.nwRef),
+  });
+
+  // Chaque compte cash — id stable, EUR + natif + devise
+  const accounts = {};
+  (cv.accounts || []).forEach((a) => {
+    let id = CASH_ACCOUNT_IDS[a.label];
+    if (!id) {
+      id = String(a.label || 'compte').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      console.warn('[snapshot] label de compte non mappé « ' + a.label + ' » → id dérivé « ' + id + ' » (ajouter à CASH_ACCOUNT_IDS pour stabiliser la série)');
+    }
+    accounts[id] = { eur: r(a.valEUR), native: r2(a.native), ccy: a.currency, owner: a.owner === 'Nezha' ? 'N' : 'A', ...(a.isDebt ? { debt: true } : {}) };
+  });
+
+  // Chaque appartement — brute ET nette (+ flags VEFA)
+  const PROP_IDS = { 0: 'vitry', 1: 'rueil', 2: 'villejuif' };
+  const NET_EQUITY = { vitry: s.amine.vitryEquity, rueil: s.nezha.rueilEquity, villejuif: s.nezha.villejuifEquity };
+  const properties = {};
+  (iv.properties || []).forEach((p, i) => {
+    const id = PROP_IDS[i] || ('prop_' + i);
+    properties[id] = {
+      value: r(p.value), crd: r(p.crd), equityGross: r(p.equity), equityNet: r(NET_EQUITY[id]),
+      cf: r(p.cf), loyer: r(p.loyer),
+      ...(p.conditional ? { conditional: true } : {}),
+    };
+  });
+  properties.villejuif = { ...(properties.villejuif || {}), signed: !!s.nezha.villejuifSigned, reservation: r(s.nezha.villejuifReservation) };
+
+  // Chaque position actions
+  const positions = {};
+  (av.ibkrPositions || []).forEach((p) => { positions[p.ticker] = { eur: r(p.valEUR), pl: r(p.unrealizedPL) }; });
+  if (av.esppCurrentVal > 0) positions['ACN.ESPP.A'] = { eur: r(av.esppCurrentVal), pl: r(av.esppUnrealizedPL) };
+  if (av.nezhaEsppCurrentVal > 0) positions['ACN.ESPP.N'] = { eur: r(av.nezhaEsppCurrentVal), pl: r(av.nezhaEsppUnrealizedPL) };
+  if (av.sgtmAmineVal > 0) positions['SGTM.A'] = { eur: r(av.sgtmAmineVal) };
+  if (av.sgtmNezhaVal > 0) positions['SGTM.N'] = { eur: r(av.sgtmNezhaVal) };
+
+  // Créances actives keyées par id (pas de nom de contrepartie dans le blob)
+  const creanceItems = {};
+  ((s.creancesView || {}).activeItems || []).forEach((c, i) => {
+    const id = String(c.id || 'item_' + i).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    creanceItems[id] = { eur: r(c.remainingEUR != null ? c.remainingEUR : c.amountEUR), expected: r(c.expectedValue), prob: r2(c.probability), status: c.status || null, type: c.type || null, owner: c.owner === 'Nezha' ? 'N' : 'A' };
+  });
+
+  return {
+    schema: 1,
+    total: { couple: r(s.couple.nw), amine: r(s.amine.nw), nezha: r(s.nezha.nw) },
+    views: { couple: viewCards(s.views.couple), amine: viewCards(s.views.amine), nezha: viewCards(s.views.nezha) },
+    cash: { total: r(cv.totalCash), amine: r(s.amine.cashTotal), nezha: r(s.nezha.cash), yieldAvg: r2((cv.weightedAvgYield || 0) * 100), accounts },
+    stocks: {
+      total: r(av.totalStocks), ibkrNAV: r(av.ibkrNAV), ibkrCash: r(av.ibkrCashTotal),
+      esppAmine: r(av.esppCurrentVal), esppNezha: r(av.nezhaEsppCurrentVal),
+      sgtmAmine: r(av.sgtmAmineVal), sgtmNezha: r(av.sgtmNezhaVal),
+      unrealizedPL: r(av.totalUnrealizedPL), realizedPL: r(av.combinedRealizedPL),
+      positions,
+    },
+    immo: { equityNet: r(s.couple.immoEquity), equityGross: r(s.couple.immoEquityBrute), value: r(s.couple.immoValue), crd: r(s.couple.immoCRD), properties },
+    autres: {
+      total: r(s.couple.autreTotal), vehicles: r(s.couple.autreVehicles), watches: r(s.couple.autreWatches),
+      creancesPro: r(s.couple.autreCreancesPro), creancesPerso: r(s.couple.autreCreancesPerso),
+      facturation: r(s.couple.autreFacturation), tva: r(s.couple.autreTva),
+      villejuifReservation: r(s.couple.autreVillejuifReservation), cautionRueil: r(s.couple.autreCautionRueil),
+    },
+    creances: { items: creanceItems, dettesTotal: r((s.creancesView || {}).totalDettes), expectedTotal: r((s.creancesView || {}).totalExpected) },
+    kpis: { liquid: r(s.pools.totalLiquid), pctActions: r2(s.pools.pctActions) },
+    meta: {
+      fx: { USD: r2(s.fx.USD), JPY: r2(s.fx.JPY), AED: r2(s.fx.AED), MAD: r2(s.fx.MAD) },
+      stockSource: s.stockSource || null,
+      sgtmSource: (av && av._sgtmSource) || null,
+      facturationSource: s.amine._facturationSource || null,
+      guardsOk: s._guardsOk !== false,
+      dataLastUpdate: s._dataLastUpdate || null,
+    },
   };
 }
 

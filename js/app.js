@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=385';
-import { compute, getGrandTotal } from './engine.js?v=385';
-import { render } from './render.js?v=385';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory } from './api.js?v=385';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=385';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=385';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=385';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=386';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=386';
+import { render } from './render.js?v=386';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot } from './api.js?v=386';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=386';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=386';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=386';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1341,6 +1341,25 @@ async function loadStockPrices(forceRefresh) {
         // ── Rebuild avec le delta frais (unifie prix live + FX, puis rebuild complet) ──
         buildChartsFromHist(historicalData);
         console.log('[app] Portfolio charts (re)built with fresh delta + live unification for ' + todayStr);
+
+        // ── v386 — SNAPSHOT QUOTIDIEN DU PATRIMOINE (historique type Finary) ──
+        // currentState est frais (refresh() dans buildChartsFromHist, prix live unifiés).
+        // Try/catch DÉDIÉ : une régression graphe ne doit jamais stopper l'accumulation
+        // d'historique, et inversement. Gating qualité : on ne fige JAMAIS un jour en
+        // prix statiques (fausse chute permanente) ; partiel = flagué 'partial'.
+        try {
+          if (stockSource === 'live' && currentState) {
+            const _allLive = result && result.totalTickers > 0 && result.liveCount >= result.totalTickers;
+            const _quality = _allLive ? 'live' : 'partial';
+            const _snap = buildDailySnapshot(currentState);
+            _snap.meta.fxSource = fxSource;
+            _snap.meta.liveTickers = result ? (result.liveCount + '/' + result.totalTickers) : null;
+            _snap.meta.appVersion = APP_VERSION;
+            maybeSaveDailySnapshot(_quality, _snap); // fire-and-forget (append-only, anti-spam 4 h)
+          } else {
+            console.log('[snapshot] prix statiques → pas de capture (on ne fige jamais un jour dégradé)');
+          }
+        } catch (e) { console.warn('[snapshot] capture échouée (non-bloquant):', e); }
 
         // v280: Signal grid animation with real grand total + velocity info.
         // Velocity = 6-month rolling delta on EQUITY_HISTORY actions (proxy for
