@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=386';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=386';
-import { render } from './render.js?v=386';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot } from './api.js?v=386';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=386';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=386';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=386';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=387';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=387';
+import { render } from './render.js?v=387';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot } from './api.js?v=387';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=387';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=387';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=387';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -37,7 +37,7 @@ let simulatorsBound = false;
 
 const PERSON_VIEWS = ['couple', 'amine', 'nezha'];
 const IMMO_VIEWS = ['immobilier', 'apt_vitry', 'apt_rueil', 'apt_villejuif'];
-const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget', 'immo-financing', 'plan-fiscal'];
+const ALL_VIEWS = ['couple', 'amine', 'nezha', 'actions', 'cash', 'immobilier', 'creances', 'budget', 'immo-financing', 'plan-fiscal', 'historique'];
 const IMMO_SUB_VIEWS = ['apt_vitry', 'apt_rueil', 'apt_villejuif'];
 
 // ---- Scope-aware KPI card updater ----
@@ -203,7 +203,7 @@ function restoreFromHash() {
  *   - Removes .active from all other buttons
  */
 // v320 — Vues groupées dans le dropdown "Analyse" (barre de nav).
-const ANALYSE_VIEWS = ['creances', 'budget', 'immo-financing', 'plan-fiscal'];
+const ANALYSE_VIEWS = ['creances', 'budget', 'immo-financing', 'plan-fiscal', 'historique'];
 
 function syncNavUI() {
   // Sync main view buttons

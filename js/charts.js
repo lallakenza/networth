@@ -5,10 +5,11 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=386';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=386';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=386';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=386';
+import { fmt, fmtAxis } from './render.js?v=387';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=387';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=387';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=387';
+import { loadSnapshots } from './api.js?v=387'; // v387 — historique NW (snapshots quotidiens Supabase)
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -104,6 +105,9 @@ export function rebuildAllCharts(state, view) {
   if (view === 'budget') {
     buildBudgetZoneDonut(state);
     buildBudgetTypeDonut(state);
+  }
+  if (view === 'historique') {
+    buildHistoriqueCharts(state);
   }
 
   if (PERSON_VIEWS.includes(view)) {
@@ -795,6 +799,154 @@ function buildImmoViewEquityBar(state) {
       plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
         tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
       scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  v387 — HISTORIQUE DU PATRIMOINE (vue 'historique', snapshots quotidiens Supabase)
+//  Deux graphes : (1) NW total Couple/Amine/Nezha, (2) aires empilées par catégorie
+//  (les cartes views.couple figées dans chaque snapshot). Les données viennent de
+//  loadSnapshots() (réduction « meilleure ligne par jour » côté api.js). Cache session
+//  window._nwSnapCache pour ne pas re-fetcher à chaque re-render ; période via pills.
+// ════════════════════════════════════════════════════════════════════════════
+function _histPeriodCutoff(period) {
+  const d = new Date();
+  if (period === '1M') d.setMonth(d.getMonth() - 1);
+  else if (period === '3M') d.setMonth(d.getMonth() - 3);
+  else if (period === '6M') d.setMonth(d.getMonth() - 6);
+  else if (period === 'YTD') return d.getFullYear() + '-01-01';
+  else if (period === '1A') d.setFullYear(d.getFullYear() - 1);
+  else return null; // MAX
+  return d.toISOString().slice(0, 10);
+}
+
+function buildHistoriqueCharts() {
+  const elTotal = document.getElementById('nwHistTotalChart');
+  const elCats = document.getElementById('nwHistCatsChart');
+  if (!elTotal || !elCats) return;
+
+  // Bind les pills une seule fois
+  if (!window._histPeriodBound) {
+    window._histPeriodBound = true;
+    window._histPeriod = 'MAX';
+    document.querySelectorAll('#histPeriodBar .hist-period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window._histPeriod = btn.dataset.histPeriod;
+        document.querySelectorAll('#histPeriodBar .hist-period-btn').forEach(b => {
+          const on = b === btn;
+          b.classList.toggle('active', on);
+          b.style.background = on ? '#1a365d' : '#fff';
+          b.style.color = on ? '#fff' : '';
+          b.style.borderColor = on ? '#1a365d' : '#cbd5e0';
+        });
+        _drawHistoriqueCharts();
+      });
+    });
+  }
+
+  // Fetch une fois par session, puis dessine (re-dessins = depuis le cache)
+  if (window._nwSnapCache) { _drawHistoriqueCharts(); return; }
+  if (window._nwSnapLoading) return;
+  window._nwSnapLoading = true;
+  loadSnapshots().then(rows => {
+    window._nwSnapCache = rows || [];
+    window._nwSnapLoading = false;
+    console.log('[historique] ' + window._nwSnapCache.length + ' snapshot(s) chargés depuis Supabase');
+    _drawHistoriqueCharts();
+  }).catch(e => { window._nwSnapLoading = false; console.warn('[historique] chargement échoué:', e); });
+}
+
+function _drawHistoriqueCharts() {
+  const elTotal = document.getElementById('nwHistTotalChart');
+  const elCats = document.getElementById('nwHistCatsChart');
+  const emptyMsg = document.getElementById('histEmptyMsg');
+  if (!elTotal || !elCats) return;
+  const all = window._nwSnapCache || [];
+  const cutoff = _histPeriodCutoff(window._histPeriod || 'MAX');
+  const rows = cutoff ? all.filter(r => r.date >= cutoff) : all;
+
+  // KPI strip
+  const last = rows[rows.length - 1] || all[all.length - 1] || null;
+  const first = rows[0] || null;
+  const elNW = document.getElementById('kpiHistNW');
+  const elDelta = document.getElementById('kpiHistDelta');
+  const elDays = document.getElementById('kpiHistDays');
+  const elLast = document.getElementById('kpiHistLast');
+  if (elNW && last) { elNW.dataset.eur = last.data.total.couple; elNW.textContent = fmt(last.data.total.couple); }
+  if (elDelta) {
+    if (rows.length >= 2) {
+      const d = last.data.total.couple - first.data.total.couple;
+      const pct = first.data.total.couple ? (d / first.data.total.couple * 100) : 0;
+      elDelta.textContent = (d >= 0 ? '+' : '') + fmt(d) + ' (' + (d >= 0 ? '+' : '') + pct.toFixed(1) + '%)';
+      elDelta.style.color = d >= 0 ? 'var(--green)' : '#e53e3e';
+    } else { elDelta.textContent = '--'; }
+  }
+  if (elDays) elDays.textContent = String(rows.length);
+  if (elLast && last) elLast.textContent = last.date + ' (' + last.quality + ')';
+
+  // Empty / 1-point state
+  if (emptyMsg) {
+    if (all.length === 0) {
+      emptyMsg.style.display = 'block';
+      emptyMsg.textContent = 'Aucun snapshot pour le moment — le premier sera capturé automatiquement lors d\'une visite avec prix live. Revenez demain !';
+    } else if (all.length === 1) {
+      emptyMsg.style.display = 'block';
+      emptyMsg.textContent = 'Premier snapshot capturé le ' + all[0].date + ' ✓ — l\'historique se construit à chaque visite (1 point par jour). La courbe prendra forme dans les prochains jours.';
+    } else {
+      emptyMsg.style.display = 'none';
+    }
+  }
+
+  const labels = rows.map(r => { const [y, m, dd] = r.date.split('-'); return dd + '/' + m + (window._histPeriod === 'MAX' || window._histPeriod === '1A' ? '/' + y.slice(2) : ''); });
+  const serie = (fn) => rows.map(r => { try { return fn(r.data); } catch (e) { return null; } });
+
+  // ── Graphe 1 : NW total (3 lignes) ──
+  if (charts.nwHistTotal) charts.nwHistTotal.destroy();
+  charts.nwHistTotal = new Chart(elTotal, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Couple', data: serie(d => d.total.couple), borderColor: '#1a365d', backgroundColor: 'rgba(26,54,93,0.08)', borderWidth: 2.5, fill: true, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 3, spanGaps: true },
+        { label: 'Amine', data: serie(d => d.total.amine), borderColor: '#3182ce', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, spanGaps: true },
+        { label: 'Nezha', data: serie(d => d.total.nezha), borderColor: '#d69e2e', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, spanGaps: true },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.y) } },
+      },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } } },
+    },
+  });
+
+  // ── Graphe 2 : catégories empilées (cartes couple figées) ──
+  if (charts.nwHistCats) charts.nwHistCats.destroy();
+  const CAT_STYLES = [
+    ['Actions', d => d.views.couple.stocks, '#2b6cb0'],
+    ['Cash', d => d.views.couple.cash, '#48bb78'],
+    ['Immo', d => d.views.couple.immo, '#ed8936'],
+    ['Autres', d => d.views.couple.other, '#9f7aea'],
+  ];
+  charts.nwHistCats = new Chart(elCats, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: CAT_STYLES.map(([label, fn, color]) => ({
+        label, data: serie(fn), borderColor: color, backgroundColor: color + '55',
+        borderWidth: 1.5, fill: true, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, stack: 'nw', spanGaps: true,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.y) } },
+      },
+      scales: { y: { stacked: true, ticks: { callback: v => fmtAxis(v) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } } },
+    },
   });
 }
 
