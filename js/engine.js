@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=377';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=378';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -326,6 +326,28 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sectorAllocation[sec] = (sectorAllocation[sec] || 0) + p.valEUR;
   });
   sectorAllocation.tech = (sectorAllocation.tech || 0) + amineEspp; // ACN = tech/consulting
+
+  // v378 — allocations géo/secteur PAR PROPRIÉTAIRE (le toggle owner filtre toute la vue Actions,
+  // pas seulement le graphe/tableau). 'both' garde les objets ci-dessus INCHANGÉS (zéro régression) ;
+  // on ne calcule ici que les variantes amine/nezha. IBKR = 100% Amine ; ESPP/SGTM répartis.
+  function _scopeActionsAlloc(inclAmine, inclNezha) {
+    const geo = {}, sector = {};
+    if (inclAmine) {
+      ibkrPositions.forEach(p => {
+        geo[p.geo || 'other'] = (geo[p.geo || 'other'] || 0) + p.valEUR;
+        sector[p.sector || 'other'] = (sector[p.sector || 'other'] || 0) + p.valEUR;
+      });
+    }
+    const espp = (inclAmine ? amineEspp : 0) + (inclNezha ? nezhaEspp : 0);
+    const sgtm = (inclAmine ? amineSgtm : 0) + (inclNezha ? nezhaSgtm : 0);
+    if (espp) { geo.us = (geo.us || 0) + espp; sector.tech = (sector.tech || 0) + espp; }
+    if (sgtm) { geo.morocco = (geo.morocco || 0) + sgtm; } // SGTM sans secteur, comme en 'both'
+    return { geo, sector };
+  }
+  const _amineActionsAlloc = _scopeActionsAlloc(true, false);
+  const _nezhaActionsAlloc = _scopeActionsAlloc(false, true);
+  const geoAllocationOwner = { amine: _amineActionsAlloc.geo, nezha: _nezhaActionsAlloc.geo };
+  const sectorAllocationOwner = { amine: _amineActionsAlloc.sector, nezha: _nezhaActionsAlloc.sector };
 
   const meta = ibkr.meta || {};
 
@@ -1352,6 +1374,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     totalDeposits,
     geoAllocation,
     sectorAllocation,
+    geoAllocationOwner,    // v378 — { amine:{...}, nezha:{...} } pour le toggle owner (donut géo)
+    sectorAllocationOwner, // v378 — idem (donut secteur)
     insights,
     // ═══════════════════════════════════════════════════════════════════
     // UNIFIED PERIOD P&L — même fonction pour les 5 KPIs
@@ -4476,32 +4500,38 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     japan: ['#dc2626','#ef4444'],
     morocco: ['#ca8a04','#eab308'],
   };
-  const geoGroups = {};
-  p.amine.ibkr.positions.forEach((pos, i) => {
-    const geo = pos.geo || 'france';
-    if (!geoGroups[geo]) geoGroups[geo] = [];
-    const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
-    const short = pos.label.replace(/\s*\(.*\)/, '');
-    const palIdx = geoGroups[geo].length;
-    const pal = geoColorSubs[geo] || ['#94a3b8'];
-    geoGroups[geo].push({ label: short, val: valEUR, color: pal[palIdx % pal.length], owner: 'IBKR', ticker: pos.ticker });
-  });
-  // Add ESPP (merged Amine + Nezha) to US
-  if (!geoGroups['us']) geoGroups['us'] = [];
-  geoGroups['us'].push({ label: 'ESPP Accenture', val: amineEspp + nezhaEspp, color: '#10b981', owner: 'ESPP' });
-  // Add SGTM (merged Amine + Nezha) to Morocco
-  if (!geoGroups['morocco']) geoGroups['morocco'] = [];
-  geoGroups['morocco'].push({ label: 'SGTM', val: amineSgtm + nezhaSgtm, color: '#ca8a04', owner: 'Maroc' });
-  // IBKR cash (EUR/USD) reclassified to Cash category in v292 — no longer in Actions geo treemap
-  const actionsCategories = Object.entries(geoGroups)
-    .map(([geo, subs]) => ({
-      label: geoLabels[geo] || geo,
-      color: geoColors[geo] || '#94a3b8',
-      total: subs.reduce((s, p) => s + p.val, 0),
-      sub: subs.filter(s => s.val > 100),
-    }))
-    .filter(c => c.total > 0)
-    .sort((a, b) => b.total - a.total);
+  // v378 — treemap catégories PAR PROPRIÉTAIRE (le toggle owner filtre aussi le treemap).
+  // 'both' = _buildActionsCategories(true,true) reproduit EXACTEMENT le comportement historique
+  // (IBKR par géo + ESPP fusionné → US + SGTM fusionné → Maroc). IBKR = 100% Amine.
+  function _buildActionsCategories(inclAmine, inclNezha) {
+    const geoGroups = {};
+    if (inclAmine) {
+      p.amine.ibkr.positions.forEach((pos) => {
+        const geo = pos.geo || 'france';
+        if (!geoGroups[geo]) geoGroups[geo] = [];
+        const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
+        const short = pos.label.replace(/\s*\(.*\)/, '');
+        const pal = geoColorSubs[geo] || ['#94a3b8'];
+        geoGroups[geo].push({ label: short, val: valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR', ticker: pos.ticker });
+      });
+    }
+    const espp = (inclAmine ? amineEspp : 0) + (inclNezha ? nezhaEspp : 0);
+    const sgtm = (inclAmine ? amineSgtm : 0) + (inclNezha ? nezhaSgtm : 0);
+    if (espp > 0) { if (!geoGroups['us']) geoGroups['us'] = []; geoGroups['us'].push({ label: 'ESPP Accenture', val: espp, color: '#10b981', owner: 'ESPP' }); }
+    if (sgtm > 0) { if (!geoGroups['morocco']) geoGroups['morocco'] = []; geoGroups['morocco'].push({ label: 'SGTM', val: sgtm, color: '#ca8a04', owner: 'Maroc' }); }
+    // IBKR cash (EUR/USD) reclassified to Cash category in v292 — no longer in Actions geo treemap
+    return Object.entries(geoGroups)
+      .map(([geo, subs]) => ({
+        label: geoLabels[geo] || geo,
+        color: geoColors[geo] || '#94a3b8',
+        total: subs.reduce((s, x) => s + x.val, 0),
+        sub: subs.filter(s => s.val > 100),
+      }))
+      .filter(c => c.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }
+  const actionsCategories = _buildActionsCategories(true, true);
+  const actionsCategoriesOwner = { amine: _buildActionsCategories(true, false), nezha: _buildActionsCategories(false, true) };
 
   // ---- IBKR Positions sorted by value ----
   const ibkrPositions = computeIBKRPositions(p, fx);
@@ -4555,6 +4585,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     amineCategories,
     nezhaCategories,
     actionsCategories,
+    actionsCategoriesOwner, // v378 — { amine:[...], nezha:[...] } pour le treemap owner-filtré
     views,
     ibkrPositions,
     actionsView,

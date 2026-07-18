@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=377';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=377';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=377';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=377';
+import { fmt, fmtAxis } from './render.js?v=378';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=378';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=378';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=378';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -610,7 +610,9 @@ export function buildCFProjection(state) {
 function buildActionsGeoDonut(state) {
   const el = document.getElementById('actionsGeoChart');
   if (!el) return;
-  const geo = state.actionsView.geoAllocation;
+  // v378 — le toggle owner (Couple/Amine/Nezha) filtre aussi le donut géo. 'both' → objet inchangé.
+  const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  const geo = (_o !== 'both' && state.actionsView.geoAllocationOwner && state.actionsView.geoAllocationOwner[_o]) || state.actionsView.geoAllocation;
   const labels = { france: 'France', crypto: 'Crypto', us: 'US/Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
   const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e' };
   const entries = Object.entries(geo).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
@@ -632,7 +634,9 @@ function buildActionsGeoDonut(state) {
 function buildActionsSectorDonut(state) {
   const el = document.getElementById('actionsSectorChart');
   if (!el) return;
-  const sec = state.actionsView.sectorAllocation;
+  // v378 — le toggle owner filtre aussi le donut secteur. 'both' → objet inchangé.
+  const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  const sec = (_o !== 'both' && state.actionsView.sectorAllocationOwner && state.actionsView.sectorAllocationOwner[_o]) || state.actionsView.sectorAllocation;
   const labels = { luxury: 'Luxe', industrials: 'Industrie', tech: 'Tech', crypto: 'Crypto', consumer: 'Conso', healthcare: 'Sant\u00e9', automotive: 'Auto' };
   const colors = { luxury: '#9f7aea', industrials: '#2b6cb0', tech: '#48bb78', crypto: '#ed8936', consumer: '#e53e3e', healthcare: '#38a169', automotive: '#4a5568' };
   const entries = Object.entries(sec).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
@@ -1006,8 +1010,11 @@ function buildNezhaTreemap(state) {
   buildGenericTreemap('nezhaTreemap', 'nezhaTreemap', state.nezhaCategories, total, 'du NW Nezha');
 }
 function buildActionsTreemap(state) {
-  const total = state.actionsCategories.reduce((s, c) => s + c.total, 0);
-  buildGenericTreemap('actionsTreemap', 'actionsTreemap', state.actionsCategories, total, 'du portefeuille');
+  // v378 — le toggle owner filtre aussi le treemap. 'both' → catégories inchangées.
+  const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  const cats = (_o !== 'both' && state.actionsCategoriesOwner && state.actionsCategoriesOwner[_o]) || state.actionsCategories;
+  const total = cats.reduce((s, c) => s + c.total, 0);
+  buildGenericTreemap('actionsTreemap', 'actionsTreemap', cats, total, 'du portefeuille');
 }
 
 // ============ AMORTIZATION CHART ============
