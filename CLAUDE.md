@@ -131,6 +131,11 @@ js/api.js :: fetchSGTMFromRepo()       ← fetch('./data/<ticker>_live.json?h=<h
 | Presets immo Maroc/UAE | `js/data.js` | `IMMO_PRESETS` ~2452 |
 | Module Financement render | `js/render.js` | `renderImmoFinancingView` ~6595 |
 | Plan & Fiscalité render | `js/render.js` | `renderPlanFiscalView` ~6908 |
+| Snapshot quotidien NW (builder + ids stables) | `js/engine.js` | `buildDailySnapshot`, `CASH_ACCOUNT_IDS` (fin de fichier) |
+| Snapshots Supabase (append-only) | `js/api.js` | `saveDailySnapshot`/`loadSnapshots`/`maybeSaveDailySnapshot` |
+| Capture snapshot (gating live) | `js/app.js` | après `buildChartsFromHist` (try/catch dédié) |
+| Vue Historique (courbes + explorateur) | `js/charts.js` | `buildHistoriqueCharts`/`_drawSerieExplorer` |
+| Deltas « vs hier » cartes NW | `js/render.js` | `applySnapshotDeltas` |
 
 ## Data Update Cheatsheet (v304+)
 

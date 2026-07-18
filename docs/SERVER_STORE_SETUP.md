@@ -50,6 +50,53 @@ create trigger trg_price_history_updated_at
 > `GET https://api.supabase.com/v1/projects/<ref>/api-keys?reveal=true`) comme valeur
 > `anonKey` dans `SERVER_STORE`. Table déjà provisionnée sur le projet `mjbmtubkhlspwfqhqgvq`.
 
+---
+
+# Snapshots quotidiens du patrimoine (table `nw_snapshots`, v386+)
+
+Historique NW type Finary : chaque visite avec **prix live** fige l'arbre complet du
+patrimoine (total/personne, cartes KPI par vue, chaque compte cash, chaque appartement
+brute+nette, chaque position, créances, meta qualité) — `buildDailySnapshot(state)` dans
+`js/engine.js`, ~5 Ko/jour, ids **stables snake_case** (`CASH_ACCOUNT_IDS`).
+
+## Table (APPEND-ONLY — différent de price_history !)
+
+```sql
+create table public.nw_snapshots (
+  snap_date  date not null,
+  captured_at timestamptz not null default now(),
+  quality    text not null default 'static' check (quality in ('live','partial','static')),
+  data       jsonb not null check (pg_column_size(data) < 200000),
+  primary key (snap_date, captured_at)
+);
+alter table public.nw_snapshots enable row level security;
+create policy "nw_snap_read"   on public.nw_snapshots for select to anon using (true);
+create policy "nw_snap_insert" on public.nw_snapshots for insert to anon
+  with check (snap_date between date '2020-01-01' and current_date + 1);
+-- PAS de policy UPDATE ni DELETE : un snapshot d'hier est IRREMPLAÇABLE (on ne peut pas
+-- recalculer le NW passé). Même avec la clé publique, l'historique est infalsifiable.
+-- Corrections admin uniquement via la Management API.
+```
+
+## Sémantique
+
+- Plusieurs lignes possibles par jour (append) ; la « meilleure » est choisie **à la
+  lecture** : qualité `live > partial > static`, puis `captured_at` max (`loadSnapshots`).
+- Écriture : `maybeSaveDailySnapshot` (api.js) — insert seulement si 1ʳᵉ du jour, upgrade
+  de qualité, ou raffinement > 4 h. **Jamais de capture en prix statiques** (une fausse
+  chute deviendrait permanente).
+- Date du jour = calendrier **Europe/Paris** (`parisDateISO`), pas UTC.
+- Jours sans visite = trous assumés (forward-fill à l'affichage). Pas de seed depuis
+  EQUITY_HISTORY dans la courbe NW (actions-only → serait des données inventées, purgées
+  v86/v150) ; elle est rendue comme série séparée dans la vue Historique.
+
+## Consommation
+
+Vue **Analyse → 📈 Historique** : courbes NW (couple/amine/nezha), aires par catégorie,
+explorateur de séries (~73 séries : chaque compte, bien, position, créance), profondeur
+mensuelle actions. Deltas « vs hier » sur les cartes NW (`applySnapshotDeltas`, render.js).
+Cache session `window._nwSnapCache`, préchargé à l'init (app.js).
+
 ## 2. Récupérer l'URL + la clé anon
 
 **Project Settings → API** :
