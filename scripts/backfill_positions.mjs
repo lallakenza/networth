@@ -279,7 +279,7 @@ const BANK_EXACT = {}; // accountId → [{date, native}]
 try {
   const { readdirSync } = await import('node:fs');
   for (const fn of readdirSync(join(ROOT, 'data'))) {
-    if (!/^awb_balance_\d+\.json$/.test(fn)) continue;
+    if (!/^[a-z0-9]+_balance_\d+\.json$/.test(fn)) continue;
     const j = JSON.parse(await readFile(join(ROOT, 'data', fn), 'utf8'));
     const obs = j.series.split(',').map(s => { const [d, v] = s.split(':'); return { date: d, native: parseFloat(v) }; });
     const id = j.account;
