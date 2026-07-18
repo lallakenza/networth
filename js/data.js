@@ -62,7 +62,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 71086,      // Attijariwafa MRA current account (0% rendement) — MAJ 12/07/2026 (relevé app)
+      attijari: 57101,      // Attijariwafa MRA current account (0% rendement) — MAJ 19/07/2026 (Attijarinet live, solde comptable)
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
       cih: 21298,           // CIH Bank Compte chèques 6914705214037900 (0% rendement) — MAJ 12/07/2026 (nouveau compte suivi)
       _lastUpdate: '2026-07-12',
@@ -1213,7 +1213,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '16/07/2026';
-export const APP_VERSION = 'v394';
+export const APP_VERSION = 'v395';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

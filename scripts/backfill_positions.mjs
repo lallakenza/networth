@@ -271,6 +271,28 @@ function gitObservations() {
 }
 const _OBS = gitObservations();
 const CASH_OBS = _OBS.cash, FACT_OBS = _OBS.facts;
+
+// ── v395 — SÉRIES BANCAIRES EXACTES (extraites de l'e-banking, committées dans data/) ──
+// Priorité sur l'escalier git : la banque donne le solde comptable QUOTIDIEN officiel.
+// data/awb_balance_YYYYMMDD.json = extrait brut Attijarinet (graphe « Evolution of the balance »).
+const BANK_EXACT = {}; // accountId → [{date, native}]
+try {
+  const { readdirSync } = await import('node:fs');
+  for (const fn of readdirSync(join(ROOT, 'data'))) {
+    if (!/^awb_balance_\d+\.json$/.test(fn)) continue;
+    const j = JSON.parse(await readFile(join(ROOT, 'data', fn), 'utf8'));
+    const obs = j.series.split(',').map(s => { const [d, v] = s.split(':'); return { date: d, native: parseFloat(v) }; });
+    const id = j.account;
+    BANK_EXACT[id] = [...(BANK_EXACT[id] || []), ...obs].sort((a, b) => a.date.localeCompare(b.date));
+    console.log('[bank-exact]', fn, '→', id, ':', obs.length, 'soldes quotidiens officiels (' + obs[0].date + ' → ' + obs[obs.length - 1].date + ')');
+  }
+} catch (e) { console.warn('[bank-exact] lecture échouée:', e.message); }
+const bankExactAt = (id, d) => {
+  const obs = BANK_EXACT[id];
+  if (!obs || !obs.length || d < obs[0].date || d > obs[obs.length - 1].date) return null; // hors fenêtre → escalier git
+  let v = null; for (const o of obs) { if (o.date <= d) v = o.native; else break; }
+  return v;
+};
 const factAt = (path, d) => { let v = null; for (const o of FACT_OBS[path] || []) { if (o.date <= d) v = o.native; else break; } return v; };
 console.log('[facts-git]', Object.keys(FACT_OBS).length, 'séries de faits bruts (immo/créances/tva/factu/véhicules/montres)');
 const _creKeys = [...new Set(Object.keys(FACT_OBS).filter(k => k.startsWith('cre.')).map(k => k.split('.')[1]))];
@@ -434,11 +456,12 @@ for (const d of targets) {
   // Cash observé via l'historique git (escalier entre observations, converti au FX du jour)
   const accounts = {};
   for (const [id, spec] of Object.entries(CASH_SPEC)) {
-    const native = cashAt(id, d);
+    const exact = bankExactAt(id, d);
+    const native = exact != null ? exact : cashAt(id, d);
     if (native == null) continue;
     const fxv = fxAt(spec.ccy, d);
     if (!(fxv > 0)) continue;
-    accounts[id] = { eur: Math.round(native / fxv), native, ccy: spec.ccy, owner: spec.owner, est: true };
+    accounts[id] = { eur: Math.round(native / fxv), native, ccy: spec.ccy, owner: spec.owner, ...(exact != null ? { exact: true } : { est: true }) };
   }
   // Faits bruts observés via git (v393) : immo, autres actifs, créances — escalier
   const properties = {};
