@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=375';
-import { compute, getGrandTotal } from './engine.js?v=375';
-import { render } from './render.js?v=375';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=375';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=375';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=375';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=375';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=376';
+import { compute, getGrandTotal } from './engine.js?v=376';
+import { render } from './render.js?v=376';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore } from './api.js?v=376';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=376';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=376';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=376';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1184,38 +1184,6 @@ async function loadStockPrices(forceRefresh) {
         if (ytdTitle) ytdTitle.textContent = 'Chargement des prix historiques...';
         if (ytdFill) ytdFill.style.width = '50%';
 
-        // ── Single fetch: snapshot (static 1Y+) + delta (YTD from API) ──
-        // v259: One dataset serves ALL periods (MTD→MAX). No more dual fetch.
-        const historicalData = await fetchHistoricalPrices(ytdTickers, PRICE_SNAPSHOT, (loaded, total, ticker) => {
-          const pct = Math.round(loaded / total * 100);
-          if (ytdFill) ytdFill.style.width = (50 + Math.round(pct * 0.5)) + '%'; // 50-100%
-          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
-        });
-
-        // v338 — Charge l'historique daily SGTM maintenu par le scraper GitHub Actions.
-        // Yahoo ne couvre pas la Bourse de Casablanca, donc on alimente SGTM_PRICES
-        // via ce fichier same-origin (fetch sans CORS).
-        try {
-          // v372 — via la couche harmonisée : getStockHistory('SGTM') dispatche vers le provider
-          // Casablanca (fichier committé data/sgtm_history.json ∪ accumulation localStorage).
-          // Plus AUCUN fetch/merge SGTM en direct ici — tout passe par la porte d'entrée unifiée.
-          const sgtmHist = await getStockHistory('SGTM', 'ytd');
-          const merged = sgtmHist ? sgtmHist.series : [];
-          if (merged.length > 0) {
-            historicalData.sgtmHistory = merged;
-            console.log('[app] SGTM history (harmonisé): ' + merged.length + ' jours ('
-              + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
-          }
-        } catch (e) {
-          console.warn('[app] SGTM history fetch failed (non-blocking):', e);
-        }
-
-        // Legacy aliases for backward compatibility
-        const historicalDataYTD = historicalData;
-        const historicalData1Y = historicalData;
-
-        if (ytdProgress) ytdProgress.style.display = 'none';
-
         // ════════════════════════════════════════════════════════════
         //  PRICE UNIFICATION — Single source of truth
         //  The quote API (fetchStockPrices) returns live prices used by
@@ -1226,6 +1194,7 @@ async function loadStockPrices(forceRefresh) {
         //  and table). FIX: inject live quote prices into the historical
         //  data's last entry (today), so the chart simulation uses the
         //  EXACT same prices as the positions table.
+        //  (v376: hoisté avant le fetch pour permettre le rendu instantané.)
         // ════════════════════════════════════════════════════════════
         const todayStr = new Date().toISOString().slice(0, 10);
         function unifyPrices(histData) {
@@ -1260,50 +1229,82 @@ async function loadStockPrices(forceRefresh) {
             }
           }
         }
-        unifyPrices(historicalData);
-        console.log('[app] Price unification: injected live quote prices + FX (USD/JPY/MAD) into historical data for ' + todayStr);
 
-        // Build the YTD portfolio evolution chart — default scope is 'all' (Tous)
-        const chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, historicalDataYTD, FX_STATIC, {
-          mode: 'ytd',
-          startingNAV: 209495,
-          includeESPP: true,
-          includeSGTM: true,
-          scope: 'all',
+        // ── v376: build du graphe extrait en fonction réutilisable ──
+        // Sert deux fois : (1) rendu INSTANTANÉ depuis le store persistant,
+        // (2) rebuild avec le delta réseau frais. Idempotent (refresh() rebuild).
+        let chartResultYTD = null;
+        function buildChartsFromHist(hist, opts) {
+          if (!(opts && opts.skipUnify)) unifyPrices(hist);
+          // YTD (rendu visible) — scope 'all' (Tous) par défaut
+          chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, hist, FX_STATIC, {
+            mode: 'ytd', startingNAV: 209495, includeESPP: true, includeSGTM: true, scope: 'all',
+          });
+          if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
+          // 1Y (silencieux — stocké dans _chartDataByMode['1y'])
+          buildPortfolioYTDChart(PORTFOLIO, hist, FX_STATIC, {
+            mode: '1y', includeESPP: true, includeSGTM: true, scope: 'all', skipRender: true,
+          });
+          update1YKPIFromChart();
+          // alltime (silencieux — splice 5Y/MAX)
+          buildPortfolioYTDChart(PORTFOLIO, hist, FX_STATIC, {
+            mode: 'alltime', includeESPP: true, includeSGTM: true, skipRender: true,
+          });
+          // Re-render positions table (le _chartBreakdown est maintenant dispo)
+          refresh();
+          if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
+          update1YKPIFromChart();
+          renderPortfolioChart(); // v274: force le canvas portfolioYTD visible après refresh()
+        }
+
+        // ── v376: RENDU INSTANTANÉ depuis le store persistant (AVANT tout réseau) ──
+        // Dès la 2e visite du navigateur, localStorage contient l'historique jusqu'à
+        // hier → le graphe s'affiche IMMÉDIATEMENT (le point « aujourd'hui » se cale via
+        // les quotes live déjà chargées). Le fetch ci-dessous ne rafraîchit que le delta.
+        // (1re visite : pas de store → on attend le fetch une seule fois.)
+        const _instantBase = getHistoricalBase(PRICE_SNAPSHOT);
+        if (_instantBase._fromStore) {
+          try {
+            buildChartsFromHist(_instantBase, { skipUnify: true });
+            if (ytdProgress) ytdProgress.style.display = 'none';
+            console.log('[v376] Graphe rendu INSTANTANÉMENT depuis le store localStorage ('
+              + Object.keys(_instantBase.tickers).length + ' tickers, maj ' + _instantBase._storeUpdated + ')');
+          } catch (e) { console.warn('[v376] rendu instantané échoué (fallback fetch):', e); }
+        }
+
+        // ── Fetch réseau : delta depuis la dernière visite (skip si store frais) ──
+        // v259: One dataset serves ALL periods (MTD→MAX). No more dual fetch.
+        const historicalData = await fetchHistoricalPrices(ytdTickers, PRICE_SNAPSHOT, (loaded, total, ticker) => {
+          const pct = Math.round(loaded / total * 100);
+          if (ytdFill) ytdFill.style.width = (50 + Math.round(pct * 0.5)) + '%'; // 50-100%
+          if (ytdLabel) ytdLabel.textContent = loaded + '/' + total + ' — ' + ticker + (loaded === total ? ' ✓' : '...');
         });
-        if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
-        console.log('[app] YTD portfolio chart built successfully (scope: all)');
 
-        // v269: Silently build 1Y chart — skipRender prevents canvas/data overwrite
-        buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
-          mode: '1y',
-          includeESPP: true,
-          includeSGTM: true,
-          scope: 'all',
-          skipRender: true,  // v269: store in _chartDataByMode['1y'], don't touch canvas
-        });
-        update1YKPIFromChart();
+        // v338/v372 — Historique daily SGTM (Bourse de Casablanca, non couverte par Yahoo)
+        // via la couche harmonisée (fichier committé data/sgtm_history.json ∪ localStorage).
+        try {
+          const sgtmHist = await getStockHistory('SGTM', 'ytd');
+          const merged = sgtmHist ? sgtmHist.series : [];
+          if (merged.length > 0) {
+            historicalData.sgtmHistory = merged;
+            console.log('[app] SGTM history (harmonisé): ' + merged.length + ' jours ('
+              + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
+          }
+        } catch (e) {
+          console.warn('[app] SGTM history fetch failed (non-blocking):', e);
+        }
 
-        // v269: Silently build alltime simulation for 5Y/MAX splice
-        buildPortfolioYTDChart(PORTFOLIO, historicalData1Y, FX_STATIC, {
-          mode: 'alltime',
-          includeESPP: true,
-          includeSGTM: true,
-          skipRender: true,  // v269: alltime never renders anyway, but be explicit
-        });
-        console.log('[app] v269: 1Y + alltime stored silently (no YTD rebuild needed)');
+        // v376 — re-persiste le store AVEC sgtmHistory (pour le rendu instantané suivant)
+        try { saveHistStore(historicalData); } catch (e) { /* best effort */ }
+        if (ytdProgress) ytdProgress.style.display = 'none';
 
-        // Re-render positions table now that _chartBreakdown is available.
-        // The override in render.js replaces engine.js period P&L with
-        // chart-derived values, ensuring breakdown == table for all positions.
-        refresh();
-        // Re-apply chart KPI overrides (refresh() resets them to engine.js values)
-        if (chartResultYTD) updateKPIsFromChart(chartResultYTD);
-        update1YKPIFromChart();
-        // v274: Force re-render the portfolio chart after refresh().
-        // refresh() → rebuildAllCharts() destroys/rebuilds other charts which can
-        // sometimes leave the portfolioYTD canvas blank. This ensures it's always visible.
-        renderPortfolioChart();
+        // Legacy aliases for backward compatibility (utilisés par le bind owner-bar plus bas)
+        const historicalDataYTD = historicalData;
+        const historicalData1Y = historicalData;
+
+        // ── Rebuild avec le delta frais (unifie prix live + FX, puis rebuild complet) ──
+        buildChartsFromHist(historicalData);
+        console.log('[app] Portfolio charts (re)built with fresh delta + live unification for ' + todayStr);
 
         // v280: Signal grid animation with real grand total + velocity info.
         // Velocity = 6-month rolling delta on EQUITY_HISTORY actions (proxy for
