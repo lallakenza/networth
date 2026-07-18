@@ -8,3 +8,4 @@ package-lock.json
 skills-lock.json
 .agents/
 .claude/skills/
+.tmp_snapshot/
