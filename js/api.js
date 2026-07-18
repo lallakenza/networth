@@ -930,6 +930,70 @@ function saveHistCache(data) {
   } catch (e) { /* quota exceeded */ }
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  v376 — Store historique PERSISTANT & AUTO-ACCUMULANT (localStorage)
+//  localStorage EST notre "base de données" (dashboard perso mono-utilisateur,
+//  aucun enjeu de sécurité). On y garde l'historique COMPLET fusionné = snapshot
+//  statique bundlé + TOUS les deltas API déjà récupérés. Bénéfices :
+//   1. Le graphe se rend INSTANTANÉMENT depuis le store (zéro attente réseau).
+//   2. L'API n'est sollicitée que pour le delta « depuis la dernière visite ».
+//   3. Ce delta est re-persisté à chaque visite → le store grandit ; la 1re passe
+//      lente ne se paie qu'UNE fois par navigateur, puis c'est instantané.
+//  Différence avec le cache nw_hist_* (delta seul, TTL 1h, purgé quotidiennement) :
+//  ce store n'expire jamais et accumule.
+// ════════════════════════════════════════════════════════════════════
+const HIST_STORE_KEY = 'nw_hist_store_v1';
+
+function _todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** Lit le store persistant. Retourne {tickers, fx, sgtmHistory?, _updated, _lastDate} ou null. */
+export function loadHistStore() {
+  try {
+    const raw = localStorage.getItem(HIST_STORE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || s.v !== 1 || !s.tickers || !s.fx || !Object.keys(s.tickers).length) return null;
+    return s;
+  } catch (e) { return null; }
+}
+
+/** Persiste le store accumulé (best-effort ; silencieux si quota dépassé). */
+export function saveHistStore(data) {
+  try {
+    if (!data || !data.tickers) return;
+    const s = {
+      v: 1,
+      tickers: data.tickers,
+      fx: data.fx || {},
+      _updated: _todayISO(),
+      _lastDate: getLastDate(data),
+    };
+    if (data.sgtmHistory && data.sgtmHistory.length) s.sgtmHistory = data.sgtmHistory;
+    localStorage.setItem(HIST_STORE_KEY, JSON.stringify(s));
+  } catch (e) { /* quota — best effort, on retombera sur le snapshot */ }
+}
+
+/**
+ * Base instantanée pour le graphe : clone du store accumulé si présent,
+ * sinon clone du snapshot statique bundlé (1re visite du navigateur).
+ * `_fromStore` indique la provenance ; `_storeUpdated` la fraîcheur du store.
+ */
+export function getHistoricalBase(snapshot) {
+  const store = loadHistStore();
+  const src = store || snapshot || { tickers: {}, fx: {} };
+  const base = { tickers: {}, fx: {} };
+  for (const [t, d] of Object.entries(src.tickers || {})) base.tickers[t] = { dates: [...d.dates], closes: [...d.closes] };
+  for (const [k, d] of Object.entries(src.fx || {})) base.fx[k] = { dates: [...d.dates], closes: [...d.closes] };
+  base._snapshotDate = store ? (store._lastDate || '1900-01-01') : ((snapshot && snapshot._snapshotDate) || '1900-01-01');
+  base._fromStore = !!store;
+  base._storeUpdated = store ? store._updated : null;
+  if (store && store.sgtmHistory) base.sgtmHistory = store.sgtmHistory.map(x => ({ ...x }));
+  return base;
+}
+
 /**
  * Fetch daily close prices for a single ticker via Yahoo Finance chart API.
  * @param {string} symbol - Yahoo Finance ticker (e.g., 'AIR.PA', 'IBIT', '4911.T')
@@ -1008,16 +1072,20 @@ async function fetchTickerHistory(symbol, range) {
  * @returns {object} { tickers: { [t]: {dates,closes} }, fx: { usd, jpy, mad } }
  */
 export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
-  // ── Step 1: Deep-clone snapshot as our base ──
-  const result = { tickers: {}, fx: {} };
-  for (const [t, d] of Object.entries(snapshot.tickers || {})) {
-    result.tickers[t] = { dates: [...d.dates], closes: [...d.closes] };
+  // ── Step 1: Base = store persistant accumulé (v376) OU snapshot statique (1re visite) ──
+  const result = getHistoricalBase(snapshot);
+  const snapshotDate = result._snapshotDate || '1900-01-01';
+  console.log('[hist] Base loaded (' + (result._fromStore ? 'store localStorage' : 'snapshot statique') + '): '
+    + Object.keys(result.tickers).length + ' tickers + ' + Object.keys(result.fx).length + ' FX, up to ' + snapshotDate);
+
+  // ── Step 1b (v376): skip réseau si le store a déjà été rafraîchi AUJOURD'HUI ──
+  // L'historique daily ne bouge pas en intraday ; le prix « aujourd'hui » vient des
+  // quotes live (unifyPrices côté app.js), pas d'ici. Évite 16+ requêtes redondantes
+  // sur les visites répétées du même jour → chargement instantané.
+  if (result._fromStore && result._storeUpdated === _todayISO()) {
+    console.log('[hist] Store déjà à jour (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + getLastDate(result));
+    return result;
   }
-  for (const [k, d] of Object.entries(snapshot.fx || {})) {
-    result.fx[k] = { dates: [...d.dates], closes: [...d.closes] };
-  }
-  const snapshotDate = snapshot._snapshotDate || '1900-01-01';
-  console.log('[hist] Snapshot base loaded: ' + Object.keys(result.tickers).length + ' tickers + ' + Object.keys(result.fx).length + ' FX, up to ' + snapshotDate);
 
   // ── Step 2: Check delta cache ──
   const cached = loadHistCache();
@@ -1026,6 +1094,7 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
     if (missing.length === 0) {
       // Merge cached delta into snapshot
       mergeInto(result, cached, snapshotDate);
+      saveHistStore(result); // v376 — persiste le store accumulé
       console.log('[hist] Delta from cache, merged. Total coverage → ' + getLastDate(result));
       return result;
     }
@@ -1071,6 +1140,7 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
 
   // ── Step 4: Merge delta into snapshot ──
   mergeInto(result, delta, snapshotDate);
+  saveHistStore(result); // v376 — persiste le store accumulé (grandit à chaque visite)
 
   const loadedCount = Object.keys(delta.tickers).length;
   const fxStatus = Object.keys(delta.fx).map(k => k.toUpperCase() + ': ' + (delta.fx[k] ? '✓' : '✗')).join(', ');
