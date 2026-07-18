@@ -1257,7 +1257,8 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   for (const [k, d] of Object.entries(delta.fx)) result.fx[k] = unionSeries(result.fx[k], d);
   result._backfilled = true; // le store est désormais complet → visites suivantes = gap-only
   saveHistStore(result);         // L1 (localStorage, cache local instantané)
-  saveServerHistory(result);     // L2 (Supabase, upload en background — fire-and-forget)
+  result._didFetch = true;       // v385 — signal : l'upload L2 se fait côté app.js APRÈS avoir
+                                 // fusionné SGTM (sinon le blob L2 n'aurait jamais l'historique SGTM)
 
   const loadedCount = Object.keys(delta.tickers).length;
   const fxStatus = Object.keys(delta.fx).map(k => k.toUpperCase() + ': ' + (delta.fx[k] ? '✓' : '✗')).join(', ');
