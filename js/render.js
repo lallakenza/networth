@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=372';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=372';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=373';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=373';
 
 // ---- Generic table sort utility ----
 /**
@@ -1431,10 +1431,10 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
 
   // First pass: detect if there are any static positions
   // Une position est "statique" si son flag _live est faux OU si sa source
-  // indique un bootstrap (JSON initial non encore rafraîchi par le CI). Les
-  // actions marocaines (SGTM et futures) passent par le pipeline GitHub Action
-  // → data/<ticker>_live.json : tant que la CI ne l'a pas mis à jour, le prix
-  // est effectivement la valeur hardcodée de data.js, donc traité comme static.
+  // indique un bootstrap (valeur figée data.js non encore rafraîchie). v372 : les
+  // actions marocaines (SGTM et futures) sont désormais LIVE en runtime via l'API
+  // TradingView (scanner CSEMA:<ticker>, direct navigateur) ; seul le fallback
+  // ultime « static-bootstrap » (toutes sources KO) est traité comme statique.
   function isPositionStatic(pos) {
     if (pos._live !== true) return true;
     const src = pos._source || '';
@@ -1470,10 +1470,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     const plS = pl !== null ? (pl >= 0 ? '+' : '') : '';
     const pctPL = hasPL ? pos.pctPL : null;
     const isStatic = isPositionStatic(pos);
-    // Marchés sans API Yahoo directe (actions marocaines via pipeline CI) :
-    // on utilise un badge gris neutre plutôt que rouge, car c'est "normal"
-    // qu'ils passent par le pipeline repo-JSON. À étendre pour tout ticker
-    // futur sur Casablanca (CSR, LHM, IAM, ATW, etc.) — cf. ARCHITECTURE §v330.
+    // Marchés sans API Yahoo directe (Bourse de Casablanca) : badge gris neutre
+    // plutôt que rouge, car c'est "normal" qu'ils passent par la voie dédiée
+    // (v372 : API TradingView en direct → couche harmonisée getStockQuote). Le
+    // test broker==='Attijari' généralise déjà à tout futur ticker BVC (CSR, LHM,
+    // IAM, ATW…) sans code supplémentaire.
     const isMoroccanNoYahoo = pos.ticker === 'SGTM' || pos.broker === 'Attijari';
     const src = pos._source || '';
     // Format tooltip "lastUpdate" pour badges live/DATED (fuseau Europe/Paris affiché
@@ -6983,7 +6984,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=372').then(m => {
+  import('./charts.js?v=373').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

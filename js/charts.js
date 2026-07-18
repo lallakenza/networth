@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=372';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=372';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=372';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=372';
+import { fmt, fmtAxis } from './render.js?v=373';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=373';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=373';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=373';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3028,17 +3028,15 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
 
   // ── SGTM key prices (MAD) - IPO Dec 2025, Casablanca Bourse ──
-  // Baseline hardcodée (IPO + premiers mois) : TradingView CSEMA:GTM, bmcecapitalbourse.com.
-  // v338 — Fusionnée avec l'historique daily maintenu par scripts/scrape_sgtm.py, exposé
-  // via data/sgtm_history.json et chargé dans historicalData.sgtmHistory côté app.js.
-  // Sans cette fusion, le chart historique flatlinait SGTM à 720 MAD depuis le 19 mars
-  // alors que le scraper avait 5+ jours de prix réels (826 → 797) non exploités.
+  // v372 — L'ancienne baseline hardcodée (13 points approximatifs Déc-2025→Mars-2026) est
+  // DEVENUE OBSOLÈTE : data/sgtm_history.json contient désormais l'OHLCV quotidien RÉEL depuis
+  // l'IPO (145 jours, backfill websocket TradingView via scripts/tv_history.mjs), qui écrase la
+  // baseline sur toute date commune. Plusieurs anciens points étaient d'ailleurs FAUX
+  // (31/12=550 vs réel 915, 15/01=500 vs réel 878). On ne garde donc qu'UNE ancre = le vrai
+  // close d'IPO, comme simple garde-fou anti-série-vide si le fichier historique ne charge pas.
+  // Cas normal : historicalData.sgtmHistory (réel) fournit toute la série.
   const BASE_SGTM_PRICES = [
-    ['2025-12-16', 462], ['2025-12-20', 750], ['2025-12-26', 989],
-    ['2025-12-31', 550], ['2026-01-02', 462], ['2026-01-15', 500],
-    ['2026-02-01', 550], ['2026-02-15', 650], ['2026-03-01', 700],
-    ['2026-03-13', 690], ['2026-03-16', 696], ['2026-03-18', 730],
-    ['2026-03-19', 720],
+    ['2025-12-16', 461.95], // close IPO réel (source : TradingView CSEMA:GTM)
   ];
   const liveSgtmHistory = Array.isArray(historicalData?.sgtmHistory)
     ? historicalData.sgtmHistory
