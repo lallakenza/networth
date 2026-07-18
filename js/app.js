@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=374';
-import { compute, getGrandTotal } from './engine.js?v=374';
-import { render } from './render.js?v=374';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=374';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=374';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=374';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=374';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=375';
+import { compute, getGrandTotal } from './engine.js?v=375';
+import { render } from './render.js?v=375';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=375';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=375';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=375';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=375';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -223,9 +223,11 @@ function syncNavUI() {
   if (analyseToggle) {
     analyseToggle.classList.toggle('parent-active', ANALYSE_VIEWS.includes(currentView));
   }
-  // v374 — le filtre propriétaire ne pilote que la vue Actions : visible uniquement là.
+  // v375 — le filtre propriétaire ne pilote que la vue Actions : visible uniquement là.
+  // display:flex (pas inline-flex) pour hériter du justify-content:flex-end de .currency-bar
+  // → aligné à DROITE, juste sous le sélecteur de devise (là où l'utilisateur l'attend).
   const ownerBar = document.getElementById('ownerBar');
-  if (ownerBar) ownerBar.style.display = (currentView === 'actions') ? 'inline-flex' : 'none';
+  if (ownerBar) ownerBar.style.display = (currentView === 'actions') ? 'flex' : 'none';
 }
 
 // ---- Central refresh ----
@@ -1129,15 +1131,18 @@ async function loadStockPrices(forceRefresh) {
       const soldTickers = [...soldTickerSet];
       if (soldTickers.length > 0) {
         console.log('[app] Fetching sold stock prices in background:', soldTickers);
-        const soldResult = await fetchSoldStockPrices(soldTickers, PORTFOLIO, throttledRefresh);
-        // Map Yahoo tickers back to original tickers for engine.js lookup
-        if (soldResult.loaded > 0) {
-          const sp = PORTFOLIO._soldPrices || {};
-          Object.entries(soldTickerMap).forEach(([yahoo, orig]) => {
-            if (sp[yahoo] && !sp[orig]) { sp[orig] = sp[yahoo]; }
-          });
-          refresh(); // Final refresh with sold prices
-        }
+        // v375 — NE PAS bloquer le graphe : les prix des positions VENDUES ne servent qu'au
+        // détail « si gardé aujourd'hui » (pas au chart ni aux KPIs). On lance en fire-and-forget
+        // pour que le fetch historique + graphe démarrent immédiatement (gain de temps 1er chargement).
+        fetchSoldStockPrices(soldTickers, PORTFOLIO, throttledRefresh).then(soldResult => {
+          if (soldResult && soldResult.loaded > 0) {
+            const sp = PORTFOLIO._soldPrices || {};
+            Object.entries(soldTickerMap).forEach(([yahoo, orig]) => {
+              if (sp[yahoo] && !sp[orig]) { sp[orig] = sp[yahoo]; }
+            });
+            refresh(); // refresh quand les prix vendus arrivent
+          }
+        }).catch(() => {});
       }
     }
 
