@@ -1032,7 +1032,15 @@ function unionSeries(base, delta) {
 //  ⚠ url + anonKey VIDES ⇒ L2 no-op (comportement L1-only v382 strictement inchangé).
 //  À remplir après provisioning (voir docs/SERVER_STORE_SETUP.md).
 // ════════════════════════════════════════════════════════════════════
-const SERVER_STORE = { url: '', anonKey: '', table: 'price_history', row: 'singleton' };
+// v384 — L2 activé sur le projet Supabase existant (clé PUBLISHABLE, faite pour le client ;
+// RLS anon + contraintes single-row/taille = le pire cas reste « écraser le cache prix de
+// networth », jamais toucher les autres tables ni saturer le stockage). Donnée = prix publics.
+const SERVER_STORE = {
+  url: 'https://mjbmtubkhlspwfqhqgvq.supabase.co',
+  anonKey: 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO',
+  table: 'price_history',
+  row: 'singleton',
+};
 function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKey); }
 
 /** Lit le blob d'historique depuis Supabase (L2). Retourne {tickers,fx,sgtmHistory?,_lastDate,_backfilled} ou null. */
