@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=373';
-import { compute, getGrandTotal } from './engine.js?v=373';
-import { render } from './render.js?v=373';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=373';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=373';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=373';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=373';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=374';
+import { compute, getGrandTotal } from './engine.js?v=374';
+import { render } from './render.js?v=374';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=374';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=374';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=374';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=374';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -223,6 +223,9 @@ function syncNavUI() {
   if (analyseToggle) {
     analyseToggle.classList.toggle('parent-active', ANALYSE_VIEWS.includes(currentView));
   }
+  // v374 — le filtre propriétaire ne pilote que la vue Actions : visible uniquement là.
+  const ownerBar = document.getElementById('ownerBar');
+  if (ownerBar) ownerBar.style.display = (currentView === 'actions') ? 'inline-flex' : 'none';
 }
 
 // ---- Central refresh ----
@@ -420,14 +423,57 @@ window.addEventListener('hashchange', () => {
 });
 
 // Currency switching
-document.querySelectorAll('.cur-btn').forEach(btn => {
+// NB v374 : scoper sur [data-cur] — le toggle propriétaire (#ownerBar) réutilise la classe
+// .cur-btn pour le style du header mais porte data-owner ; sans ce filtre il déclencherait
+// le handler devise (currentCurrency = undefined).
+document.querySelectorAll('.cur-btn[data-cur]').forEach(btn => {
   btn.addEventListener('click', () => {
     currentCurrency = btn.dataset.cur;
-    document.querySelectorAll('.cur-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.cur-btn[data-cur]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     refresh();
   });
 });
+
+// v374 — toggle propriétaire global (#ownerBar : Couple / Amine / Nezha). Ne pilote que la vue
+// Actions (KPIs P&L + tableau + répartition + graphe). owner='both' ⇒ tout inchangé (v373).
+function onOwnerChange() {
+  const activeData = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
+  const period = (activeData && activeData.currentPeriod) || 'YTD';
+  // 1) Cartes P&L période (Daily/MTD/1M/YTD/1An) — owner-aware via _activeOwner dans les updaters
+  const ytd = window._chartDataByMode?.ytd || window._ytdChartFullData;
+  if (ytd) {
+    if (period === '1Y') { // v368 : éviter le piège NaN (global pointe sur la série 1Y échantillonnée)
+      const _saved = window._ytdChartFullData;
+      window._ytdChartFullData = (window._chartDataByMode && window._chartDataByMode.ytd) || ytd;
+      updateKPIsFromChart(ytd);
+      window._ytdChartFullData = _saved;
+    } else {
+      updateKPIsFromChart(ytd);
+    }
+  }
+  update1YKPIFromChart();
+  // 2) Tableau des positions + top-5 cartes owner-aware (re-render la vue actions)
+  refresh();
+  // 3) Ligne du graphe (owner-aware, charts.js filtre inline)
+  if (activeData) {
+    redrawChartForPeriod(period);
+    if ((window._ytdDisplayMode || 'value') === 'pl') switchChartMode('pl');
+  }
+  if (window._refreshActiveBreakdown) window._refreshActiveBreakdown();
+}
+if (!window._ownerBarBound) {
+  window._ownerBarBound = true;
+  window._activeOwner = window._activeOwner || 'both';
+  document.querySelectorAll('#ownerBar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#ownerBar button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      window._activeOwner = btn.dataset.owner;
+      onOwnerChange();
+    });
+  });
+}
 
 // Category expand/collapse
 let openCat = null;
@@ -575,6 +621,14 @@ function updateKPIsFromChart(chartData) {
       plSeries = fullData?.plValuesIBKR;
       cumDeposits = fullData?.cumDepositsAtPoint;
       break;
+  }
+
+  // v374 — filtre propriétaire ADDITIF : on ne fait que remplacer les séries source (mêmes
+  // formules downstream). owner==='both' → ownerScopedSeries renvoie null ⇒ chemin inchangé.
+  const _o = window._activeOwner || 'both';
+  if (_o !== 'both' && fullData && window.ownerScopedSeries) {
+    const f = window.ownerScopedSeries(fullData, activeScope, _o);
+    if (f) { values = f.nav; plSeries = f.pl; cumDeposits = f.cumDeposits; }
   }
 
   const n = values.length;
@@ -803,6 +857,14 @@ function update1YKPIFromChart() {
       cumDepSeries = data.cumDepositsAtPoint;
       navValues = data.ibkrValues;
       break;
+  }
+
+  // v374 — filtre propriétaire ADDITIF (miroir de updateKPIsFromChart). owner==='both' → null ⇒ inchangé.
+  // Numérateur ET dénominateur owner-scalés de façon cohérente ⇒ le fix v367 (delta 12 mois) est préservé.
+  const _o1y = window._activeOwner || 'both';
+  if (_o1y !== 'both' && window.ownerScopedSeries) {
+    const f = window.ownerScopedSeries(data, activeScope, _o1y);
+    if (f) { plValues = f.pl; cumDepSeries = f.cumDeposits; navValues = f.nav; }
   }
 
   if (!plValues || plValues.length === 0) return;
@@ -1488,24 +1550,8 @@ async function loadStockPrices(forceRefresh) {
           });
         });
 
-        // v269: Bind Owner toggle (Amine / Nezha / Both)
-        window._activeOwner = 'both';
-        document.querySelectorAll('#ytdOwnerToggle button').forEach(btn => {
-          btn.addEventListener('click', () => {
-            document.querySelectorAll('#ytdOwnerToggle button').forEach(b => {
-              b.style.background = '#fff'; b.style.color = '#4a5568';
-            });
-            btn.style.background = '#2d3748'; btn.style.color = '#fff';
-            window._activeOwner = btn.dataset.owner;
-            // Re-render current chart with owner filter (no rebuild needed)
-            const currentMode = window._ytdDisplayMode || 'value';
-            const activeData = window._chartDataByMode[window._activeChartMode] || window._ytdChartFullData;
-            if (activeData) {
-              redrawChartForPeriod(activeData.currentPeriod || currentPeriod);
-              if (currentMode === 'pl') switchChartMode('pl');
-            }
-          });
-        });
+        // v374 — le toggle propriétaire est désormais dans le header (#ownerBar), lié une seule
+        // fois au top-level (window._ownerBarBound) et pilotant onOwnerChange(). Plus de binding ici.
         } // end BUG-021 guard (_chartTogglesBound)
       } catch (e) {
         console.warn('[app] YTD chart error:', e);

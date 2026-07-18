@@ -5,10 +5,10 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=373';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=373';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=373';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=373';
+import { fmt, fmtAxis } from './render.js?v=374';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=374';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=374';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=374';
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2171,6 +2171,53 @@ function computeAbsoluteTooltipPerOwnerESPP(chartLabels, navESPPAmine, navESPPNe
     absPLESPPNezha: navESPPNezha.map((v, i) => Math.round((v || 0) - absDepsNezha[i])),
   };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// FILTRE PAR PROPRIÉTAIRE (v374) — source unique de la combinaison owner, partagée graphe + KPIs
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// Règles (identiques au filtre inline du graphe, charts.js §owner) : IBKR + Degiro = 100% Amine ;
+// ESPP = séries par-owner (pas un ratio) ; SGTM = proportionnel aux parts (50/50).
+// GARANTIE ANTI-RÉGRESSION : owner==='both' → renvoie null ⇒ les appelants gardent leur chemin
+// « both » actuel (byte-identique à v373). Toute la logique owner est layerée par-dessus.
+function ownerRatios(owner) {
+  const aS = PORTFOLIO.amine?.sgtm?.shares || 32;
+  const nS = PORTFOLIO.nezha?.sgtm?.shares || 32;
+  return {
+    ibkr: owner === 'amine' ? 1 : 0,
+    degiro: owner === 'amine' ? 1 : 0,
+    sgtm: (owner === 'amine' ? aS : nS) / (aS + nS),
+  };
+}
+function ownerEsppArrays(data, owner) {
+  if (owner === 'amine') return { nav: data.esppValuesAmine, pl: data.plValuesESPPAmine, dep: data.cumDepositsESPPAmine };
+  return { nav: data.esppValuesNezha, pl: data.plValuesESPPNezha, dep: data.cumDepositsESPPNezha };
+}
+/**
+ * Séries {nav, pl, cumDeposits} filtrées par propriétaire pour un scope plateforme donné.
+ * Réutilisé par le graphe (via redraw) ET par les KPIs (app.js) pour qu'ils réconcilient par construction.
+ * @returns {{nav:number[], pl:number[], cumDeposits:number[]}|null} null si owner==='both' (chemin inchangé).
+ */
+window.ownerScopedSeries = function ownerScopedSeries(data, scope, owner) {
+  if (!data || !owner || owner === 'both') return null; // ← court-circuit « both » = zéro régression
+  const r = ownerRatios(owner), e = ownerEsppArrays(data, owner);
+  const sc = (arr, k) => (arr || []).map(v => Math.round((v || 0) * k));
+  switch (scope) {
+    case 'espp':   return { nav: e.nav || [], pl: e.pl || [], cumDeposits: e.dep || [] };
+    case 'maroc':  return { nav: sc(data.sgtmValues, r.sgtm), pl: sc(data.plValuesSGTM, r.sgtm), cumDeposits: sc(data.cumDepositsSGTM, r.sgtm) };
+    case 'degiro': return { nav: sc(data.degiroValues, r.degiro), pl: sc(data.plValuesDegiro, r.degiro), cumDeposits: sc(data.cumDepositsDegiro, r.degiro) };
+    case 'all': { // somme élément-par-élément — miroir exact des lignes du graphe (slicedTotal/slicedPLTotal)
+      const N = (data.labels || []).length, nav = [], pl = [], dep = [];
+      for (let i = 0; i < N; i++) {
+        nav[i] = Math.round((data.ibkrValues?.[i] || 0) * r.ibkr) + (e.nav?.[i] || 0) + Math.round((data.sgtmValues?.[i] || 0) * r.sgtm) + Math.round((data.degiroValues?.[i] || 0) * r.degiro);
+        pl[i]  = Math.round((data.plValuesIBKR?.[i] || 0) * r.ibkr) + (e.pl?.[i] || 0) + Math.round((data.plValuesSGTM?.[i] || 0) * r.sgtm) + Math.round((data.plValuesDegiro?.[i] || 0) * r.degiro);
+        dep[i] = Math.round((data.cumDepositsAtPoint?.[i] || 0) * r.ibkr) + (e.dep?.[i] || 0) + Math.round((data.cumDepositsSGTM?.[i] || 0) * r.sgtm) + Math.round((data.cumDepositsDegiro?.[i] || 0) * r.degiro);
+      }
+      return { nav, pl, cumDeposits: dep };
+    }
+    case 'ibkr': default:
+      return { nav: sc(data.ibkrValues, r.ibkr), pl: sc(data.plValuesIBKR, r.ibkr), cumDeposits: sc(data.cumDepositsAtPoint, r.ibkr) };
+  }
+};
 
 // ── Unified chart rendering function ──
 // v276: exported for app.js to call after refresh() (fixes blank chart on init)
