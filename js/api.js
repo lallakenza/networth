@@ -333,31 +333,16 @@ export function mergeMoroccanHistory(fileSeries, localSeries) {
  * @returns {Promise<{ticker:string, dateRequested:string, dateUsed:string, priceMAD:number, currency:string, source:string, forwardFilled:boolean}|null>}
  */
 export async function getMoroccanPriceAt(ticker, date, opts = {}) {
-  const key = String(ticker).toLowerCase();
-  let cached = _moroccanHistoryCache[key];
-  // Cache 1h (l'historique ne bouge qu'une fois/jour ; 1h suffit largement).
-  if (!cached || (Date.now() - cached._ts) > 3600 * 1000) {
-    try {
-      const bust = Math.floor(Date.now() / 3600000);
-      const res = await fetchWithTimeout(`./data/${key}_history.json?h=${bust}`, 5000);
-      const doc = res.ok ? await res.json() : {};
-      cached = { series: Array.isArray(doc.series) ? doc.series : [], currency: doc.currency || 'MAD', _ts: Date.now() };
-      _moroccanHistoryCache[key] = cached;
-    } catch (e) {
-      cached = { series: [], currency: 'MAD', _ts: Date.now() }; // fichier KO : on garde le localStorage seul
-      _moroccanHistoryCache[key] = cached;
-    }
-  }
-  // Fusion base committée ∪ accumulation localStorage (v370)
-  const merged = mergeMoroccanHistory(cached.series, getLocalMoroccanHistory(key));
-  const hit = pickMoroccanPriceAt(merged, date, opts);
+  // v372 — passe par le même chargement fusionné (fichier ∪ localStorage) que le provider Casablanca.
+  const { series, currency } = await loadMergedMoroccanSeries(ticker);
+  const hit = pickMoroccanPriceAt(series, date, opts);
   if (!hit) return null;
   return {
     ticker: String(ticker).toUpperCase(),
     dateRequested: date,
     dateUsed: hit.dateUsed,
     priceMAD: hit.priceMAD,
-    currency: cached.currency || 'MAD',
+    currency: currency || 'MAD',
     source: hit.source,
     forwardFilled: hit.forwardFilled,
   };
@@ -511,6 +496,100 @@ async function fetchSGTMPrice() {
 // MAIN — Fetch all stock prices with cache + aggressive retry
 // ============================================================
 
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// COUCHE DE DONNÉES HARMONISÉE (v372) — une seule porte d'entrée par action, dispatch par marché
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// getStockQuote(stock) / getStockHistory(stock, range) sont les SEULES primitives de récupération
+// par action du site. Elles résolvent le MARCHÉ à partir des métadonnées de l'action puis délèguent
+// au provider approprié. Les fonctions source-spécifiques (fetchStockPrice=Yahoo,
+// fetchTickerHistory=Yahoo, fetchSGTMPrice/fetchMoroccanStockFromTradingView=Casablanca) deviennent
+// des IMPLÉMENTATIONS DE PROVIDER — appelées uniquement d'ici, jamais en direct ailleurs.
+//
+// Un « stock » = un objet {ticker, currency?, geo?, broker?, market?} (une position data.js convient)
+// ou une simple chaîne ticker. Le marché est déduit ; on peut le forcer via un champ `market`.
+
+// Mapping ticker broker → code BVC/TradingView quand ils diffèrent (SGTM broker = GTM à la BVC).
+const BVC_CODE = { SGTM: 'GTM' };
+const SGTM_STOCK = { ticker: 'SGTM', broker: 'Attijari', geo: 'morocco', currency: 'MAD' };
+
+/** Déduit le marché/provider d'une action. Signaux : market explicite > broker Attijari / geo Maroc > ticker SGTM. */
+export function resolveMarket(stock) {
+  const s = typeof stock === 'string' ? { ticker: stock } : (stock || {});
+  if (s.market) return s.market;
+  if (s.broker === 'Attijari' || s.geo === 'morocco' || s.geo === 'maroc' || s.geo === 'casablanca') return 'casablanca';
+  if (s.ticker === 'SGTM') return 'casablanca';
+  return 'yahoo';
+}
+
+// ── Provider Casablanca (Bourse de Casablanca — TradingView) ────────────────────────────────
+// Quote : pour SGTM on garde la chaîne complète (TradingView → repo JSON → scraping → stale) ;
+// pour tout autre ticker BVC, TradingView scanner uniquement. Historique : fichier committé
+// data/<ticker>_history.json ∪ accumulation localStorage (fusion via mergeMoroccanHistory).
+async function loadMergedMoroccanSeries(ticker) {
+  const key = String(ticker).toLowerCase();
+  let cached = _moroccanHistoryCache[key];
+  if (!cached || (Date.now() - cached._ts) > 3600 * 1000) {
+    try {
+      const bust = Math.floor(Date.now() / 3600000);
+      const res = await fetchWithTimeout(`./data/${key}_history.json?h=${bust}`, 5000);
+      const doc = res.ok ? await res.json() : {};
+      cached = { series: Array.isArray(doc.series) ? doc.series : [], currency: doc.currency || 'MAD', _ts: Date.now() };
+    } catch (e) {
+      cached = { series: [], currency: 'MAD', _ts: Date.now() };
+    }
+    _moroccanHistoryCache[key] = cached;
+  }
+  return { series: mergeMoroccanHistory(cached.series, getLocalMoroccanHistory(key)), currency: cached.currency || 'MAD' };
+}
+
+const CasablancaProvider = {
+  async quote(stock) {
+    const r = (stock.ticker === 'SGTM')
+      ? await fetchSGTMPrice()                                              // chaîne complète (fallbacks SGTM)
+      : await fetchMoroccanStockFromTradingView(BVC_CODE[stock.ticker] || stock.ticker); // autres BVC : TradingView seul
+    if (!r || !(r.price > 0)) return null;
+    return { price: r.price, previousClose: null, currency: 'MAD', source: r.source, market: 'casablanca', lastUpdate: r.lastUpdate || null };
+  },
+  async history(stock) {
+    const { series } = await loadMergedMoroccanSeries(stock.ticker);
+    return { market: 'casablanca', dates: series.map(e => e.date), closes: series.map(e => e.priceMAD), series };
+  },
+};
+
+// ── Provider Yahoo (US / Europe / Japon — Yahoo Finance) ────────────────────────────────────
+const YahooProvider = {
+  async quote(stock) {
+    const r = await fetchStockPrice(stock.ticker);                          // v8/v6 Yahoo, race proxies
+    if (!r) return null;
+    return { price: r.price, previousClose: r.previousClose, currency: stock.currency || null, source: 'yahoo', market: 'yahoo' };
+  },
+  async history(stock, range) {
+    const r = await fetchTickerHistory(stock.ticker, range || 'ytd');       // {dates,closes} | null
+    if (!r) return null;
+    return { market: 'yahoo', dates: r.dates, closes: r.closes, series: r.dates.map((d, i) => ({ date: d, priceMAD: r.closes[i], close: r.closes[i] })) };
+  },
+};
+
+const PROVIDERS = { yahoo: YahooProvider, casablanca: CasablancaProvider };
+
+/**
+ * Quote unifiée d'une action, quel que soit le marché.
+ * @returns {Promise<{price:number, previousClose:number|null, currency:string|null, source:string, market:string, lastUpdate?:string}|null>}
+ */
+export async function getStockQuote(stock) {
+  const s = typeof stock === 'string' ? { ticker: stock } : (stock || {});
+  return PROVIDERS[resolveMarket(s)].quote(s);
+}
+
+/**
+ * Historique unifié d'une action (séries quotidiennes), quel que soit le marché.
+ * @returns {Promise<{market:string, dates:string[], closes:number[], series:Array}|null>}
+ */
+export async function getStockHistory(stock, range) {
+  const s = typeof stock === 'string' ? { ticker: stock } : (stock || {});
+  return PROVIDERS[resolveMarket(s)].history(s, range);
+}
+
 /**
  * Apply a single ticker price to the portfolio (mutates portfolio in place)
  * @param {string} ticker
@@ -616,7 +695,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
 
   if (tickersToFetch.length > 0 || cachedSGTM === null || sgtmStale) { // v347 — sgtmStale déclenche le re-fetch même si un autre ticker n'est pas à re-fetch
     const tickerPromises = tickersToFetch.map(async (ticker) => {
-      const result = await fetchStockPrice(ticker);
+      const result = await getStockQuote({ ticker });
       if (result) {
         result._ts = Date.now(); // cache timestamp for TTL
         prices[ticker] = result;
@@ -635,7 +714,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
 
     // SGTM in parallel — v347 : re-fetch aussi si le cache est périmé (sgtmStale), pas seulement si absent
     const sgtmPromise = (cachedSGTM === null || sgtmStale)
-      ? fetchSGTMPrice().then(r => {
+      ? getStockQuote(SGTM_STOCK).then(r => {
           if (cachedSGTM === null) loaded++; // ne pas double-compter si déjà compté depuis le cache stale
           if (onProgress) onProgress(loaded, totalTickers, 'SGTM' + (r ? ' ✓' : ' ✗'));
           if (r && r.price) {
@@ -706,7 +785,7 @@ export async function fetchSoldStockPrices(soldTickers, portfolio, onTickerLoade
       return;
     }
     // Fetch live
-    const result = await fetchStockPrice(ticker);
+    const result = await getStockQuote({ ticker });
     if (result) {
       result._ts = Date.now();
       portfolio._soldPrices[ticker] = result;
@@ -748,7 +827,7 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
 
     // Fetch all remaining in parallel
     const results = await Promise.all(remaining.map(async (ticker) => {
-      const result = await fetchStockPrice(ticker);
+      const result = await getStockQuote({ ticker });
       return { ticker, result };
     }));
 
@@ -967,9 +1046,11 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
 
   for (const ticker of tickers) {
     allPromises.push(
-      fetchTickerHistory(ticker).then(data => {
+      getStockHistory({ ticker }, 'ytd').then(data => {
         loaded++;
-        if (data) delta.tickers[ticker] = data;
+        // v372 — ne garder que {dates,closes} (le provider renvoie aussi market/series, inutiles ici
+        // et qui gonfleraient le blob de cache nw_hist_*).
+        if (data) delta.tickers[ticker] = { dates: data.dates, closes: data.closes };
         if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
       })
     );
@@ -977,9 +1058,9 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
 
   for (const { symbol, key } of fxPairs) {
     allPromises.push(
-      fetchTickerHistory(symbol).then(data => {
+      getStockHistory({ ticker: symbol }, 'ytd').then(data => {
         loaded++;
-        if (data) delta.fx[key] = data;
+        if (data) delta.fx[key] = { dates: data.dates, closes: data.closes };
         if (onProgress) onProgress(loaded, total, symbol + (data ? ' ✓' : ' ✗'));
       })
     );

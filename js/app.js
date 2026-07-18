@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=371';
-import { compute, getGrandTotal } from './engine.js?v=371';
-import { render } from './render.js?v=371';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt, getLocalMoroccanHistory, mergeMoroccanHistory } from './api.js?v=371';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=371';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=371';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=371';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=372';
+import { compute, getGrandTotal } from './engine.js?v=372';
+import { render } from './render.js?v=372';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=372';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=372';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=372';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=372';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -18,6 +18,11 @@ import { PRICE_SNAPSHOT } from './price_snapshot.js?v=371';
 if (typeof window !== 'undefined') {
   window.getMoroccanPriceAt = getMoroccanPriceAt;
   window.pickMoroccanPriceAt = pickMoroccanPriceAt;
+  // v372 — couche harmonisée exposée pour usage direct : await getStockQuote({ticker:'AIR.PA'})
+  // ou getStockQuote('SGTM') ; getStockHistory(stock,'ytd') ; resolveMarket(stock) → 'yahoo'|'casablanca'.
+  window.getStockQuote = getStockQuote;
+  window.getStockHistory = getStockHistory;
+  window.resolveMarket = resolveMarket;
 }
 
 // ---- App state ----
@@ -1124,15 +1129,14 @@ async function loadStockPrices(forceRefresh) {
         // Yahoo ne couvre pas la Bourse de Casablanca, donc on alimente SGTM_PRICES
         // via ce fichier same-origin (fetch sans CORS).
         try {
-          const sgtmHistResp = await fetch('./data/sgtm_history.json?h=' + new Date().getHours());
-          const fileSeries = sgtmHistResp.ok ? ((await sgtmHistResp.json()).series || []) : [];
-          // v370 — fusion base committée ∪ accumulation localStorage (« 0 infra », sans GitHub Actions).
-          // Le localStorage grossit à chaque visite via recordMoroccanDailyClose (relevé TradingView).
-          const merged = mergeMoroccanHistory(fileSeries, getLocalMoroccanHistory('sgtm'));
+          // v372 — via la couche harmonisée : getStockHistory('SGTM') dispatche vers le provider
+          // Casablanca (fichier committé data/sgtm_history.json ∪ accumulation localStorage).
+          // Plus AUCUN fetch/merge SGTM en direct ici — tout passe par la porte d'entrée unifiée.
+          const sgtmHist = await getStockHistory('SGTM', 'ytd');
+          const merged = sgtmHist ? sgtmHist.series : [];
           if (merged.length > 0) {
             historicalData.sgtmHistory = merged;
-            console.log('[app] SGTM history: ' + fileSeries.length + ' committés + '
-              + getLocalMoroccanHistory('sgtm').length + ' localStorage = ' + merged.length + ' jours ('
+            console.log('[app] SGTM history (harmonisé): ' + merged.length + ' jours ('
               + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
           }
         } catch (e) {
