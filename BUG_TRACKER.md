@@ -5,6 +5,39 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v378-v379 (18 juillet 2026) — BUG-076 + perf
+
+### BUG-076: Le toggle owner ne filtrait pas le treemap / donuts géo+secteur (vue Actions)
+- **Version**: introduit avec le toggle owner généralisé (v374) — corrigé **v378**.
+- **Sévérité**: Moyenne (P2) — affichage incohérent, pas le NW.
+- **Détection**: rapport utilisateur + repro Chrome (clics programmatiques both→amine→nezha,
+  diff des `Chart.getChart(...).data`). Le graphe d'évolution + KPIs + tableau se filtraient ;
+  treemap/geo/secteur restaient identiques (couple).
+- **Cause racine**: le filtre owner (v374) ne touchait que render.js (tableau/KPIs/top-5) et la
+  ligne du graphe (`ownerScopedSeries`). Le treemap (`state.actionsCategories`) et les donuts
+  (`state.actionsView.geoAllocation`/`sectorAllocation`) sont construits dans charts.js à partir de
+  données moteur **niveau couple**. `refresh()`→`rebuildAllCharts` les reconstruisait à chaque
+  changement d'owner, mais toujours avec les mêmes données → aucun changement visible.
+- **Correctif**: le moteur expose des variantes owner (`geoAllocationOwner`, `sectorAllocationOwner`,
+  `actionsCategoriesOwner` = `{ amine, nezha }`, `both` inchangé) ; les 3 builders charts.js
+  piochent la variante quand `window._activeOwner !== 'both'`. Vérifié : partition exacte
+  amine+nezha == both.
+- **Pattern** (voir aussi pitfall #1 CLAUDE.md « Owner filtering inconsistency ») : un filtre owner
+  doit être appliqué à CHAQUE consommateur (ligne graphe, KPIs, tableau, top-5, **treemap, donut
+  géo, donut secteur**, breakdown P&L). Il reste couple-level : `_chartBreakdown` (Répartition P&L
+  par position) — gap connu, à traiter si besoin.
+
+### Perf (v379) : graphe héros « mega lent » au 1er affichage
+- **Mesure prod** (Performance API) : frame page = 771 ms, mais **~84 fetch CORS-proxy** (allorigins/
+  codetabs…), **timeout 10,7 s chacun** → le graphe d'évolution restait vide ~10-18 s.
+- **Correctif**: `renderHeroChartFromStore()` (app.js, module-scope) appelée à l'**init** (après
+  `refresh()`, AVANT `loadLivePrices` et tout réseau) : dès la 2e visite du navigateur, le graphe est
+  dessiné depuis le store localStorage (v376) en ~1 s ; les prix live se calent quand les proxies
+  aboutissent. 1re visite (store vide) inchangée. Vérifié console : log `[v379] … AU CHARGEMENT` émis
+  depuis app.js:544 (init), avant les fetch.
+
+---
+
 ## v377 (18 juillet 2026) — BUG-075
 
 ### BUG-075: `ReferenceError: noAPI is not defined` gelait TOUTE la vue Actions (landing page)
