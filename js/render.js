@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=376';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=376';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=377';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=377';
 
 // ---- Generic table sort utility ----
 /**
@@ -1580,7 +1580,13 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     };
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
-    if (isStatic && !noAPI) tr.style.color = '#718096';
+    // v377 — grise (#718096) les lignes réellement statiques SAUF les marchés sans
+    // API Yahoo (Casablanca) dont le caractère "statique" est normal. `noAPI` était
+    // un nom mort (jamais défini) : c'est `isMoroccanNoYahoo`. Le && court-circuitait
+    // tant qu'aucune position n'était statique ; dès que SGTM tombe en statique (fetch
+    // TradingView KO), `!noAPI` était évalué → ReferenceError → refresh() throw → toute
+    // la vue Actions bloquée sous l'overlay de chargement (BUG critique, landing page).
+    if (isStatic && !isMoroccanNoYahoo) tr.style.color = '#718096';
     let rowHtml = '<td>' + pos.label + liveBadge + '</td>';
     colOrder.forEach(k => { const cellFn = _cells[k]; if (cellFn) rowHtml += cellFn(); });
     tr.innerHTML = rowHtml;
@@ -7017,7 +7023,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=376').then(m => {
+  import('./charts.js?v=377').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
