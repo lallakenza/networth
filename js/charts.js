@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=388';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=388';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=388';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=388';
-import { loadSnapshots } from './api.js?v=388'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=388'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=389';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=389';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=389';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=389';
+import { loadSnapshots } from './api.js?v=389'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=389'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -952,6 +952,36 @@ function _drawHistoriqueCharts() {
 
   // ── Graphe 3 : explorateur de séries (v388) ──
   try { _drawSerieExplorer(rows, all, labels); } catch (e) { console.warn('[historique] explorateur:', e); }
+
+  // ── Graphe 4 : profondeur mensuelle Actions (v389) — EQUITY_HISTORY, série SÉPARÉE ──
+  // JAMAIS fusionnée à la courbe NW (actions-only ; les données NW inventées ont été
+  // purgées v86/v150 — on ne les réinvente pas). Axe temporel propre (mensuel 2020→).
+  try { _drawEquityDepthChart(); } catch (e) { console.warn('[historique] equity depth:', e); }
+}
+
+function _drawEquityDepthChart() {
+  const el = document.getElementById('eqHistDepthChart');
+  if (!el || !EQUITY_HISTORY || !EQUITY_HISTORY.length) return;
+  if (charts.eqHistDepth) charts.eqHistDepth.destroy();
+  const rows = EQUITY_HISTORY;
+  const labels = rows.map(r => r.date.slice(2, 7)); // 'YY-MM'
+  const mk = (label, key, color, fill) => ({
+    label, data: rows.map(r => (typeof r[key] === 'number' ? r[key] : null)),
+    borderColor: color, backgroundColor: fill ? color + '22' : undefined,
+    borderWidth: label === 'Total' ? 2.5 : 1.2, fill: !!fill, tension: 0.2, pointRadius: 0, spanGaps: true,
+  });
+  charts.eqHistDepth = new Chart(el, {
+    type: 'line',
+    data: { labels, datasets: [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#a0aec0')] },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.y) } },
+      },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 14 } } },
+    },
+  });
 }
 
 // ── v388 — EXPLORATEUR DE SÉRIES : l'historique de n'importe quelle série suivie ──

@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=388';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=388';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=389';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=389';
 
 // ---- Generic table sort utility ----
 /**
@@ -355,6 +355,9 @@ function renderKPIs(state, view) {
   if (s.couple.nwDelta !== null && s.couple.nwDeltaPct !== null) {
     setDelta('kpiCoupleNW', s.couple.nwDelta, s.couple.nwDeltaPct, s.couple.nwDeltaTimeframe);
   }
+  // v389 — deltas « vs hier » depuis les snapshots quotidiens Supabase (réveil de setDelta,
+  // dormant depuis v150). Réappliqués à chaque render si le cache est chargé.
+  applySnapshotDeltas(s);
 
   setEur('kpiCoupleAmNW', s.amine.nw);
   if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
@@ -1294,6 +1297,32 @@ function setSubPct(id, pct) {
 }
 
 // Add delta indicator showing change since last data point
+// ── v389 — Deltas NW depuis les snapshots quotidiens (window._nwSnapCache, chargé par app.js) ──
+// Baseline = dernier snapshot AVANT aujourd'hui (Paris). Libellé « vs hier » si J-1, sinon
+// « vs DD/MM ». Comparaison EUR vs EUR (state live vs total figé). Silencieux si <1 baseline.
+export function applySnapshotDeltas(s) {
+  try {
+    const cache = window._nwSnapCache;
+    if (!cache || !cache.length || !s) return;
+    const todayParis = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+    const base = [...cache].reverse().find(r => r.date < todayParis);
+    if (!base || !base.data || !base.data.total) return;
+    const yesterdayParis = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date(Date.now() - 864e5));
+    const label = base.date === yesterdayParis ? 'vs hier' : 'vs ' + base.date.slice(8, 10) + '/' + base.date.slice(5, 7);
+    const apply = (id, current, baseline) => {
+      if (typeof current !== 'number' || typeof baseline !== 'number' || !baseline) return;
+      const d = current - baseline;
+      if (Math.abs(d) < 1) return; // pas de chip pour ±0 €
+      setDelta(id, d, d / Math.abs(baseline) * 100, label);
+    };
+    apply('kpiCoupleNW', s.couple.nw, base.data.total.couple);
+    apply('kpiCoupleAmNW', s.amine.nw, base.data.total.amine);
+    apply('kpiCoupleNzNW', s.nezha.nw, base.data.total.nezha);
+    apply('kpiAmNW', s.amine.nw, base.data.total.amine);
+    apply('kpiNzNW', s.nezha.nw, base.data.total.nezha);
+  } catch (e) { /* non-bloquant */ }
+}
+
 function setDelta(id, deltaVal, deltaPct, timeframe) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -7065,7 +7094,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=388').then(m => {
+  import('./charts.js?v=389').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

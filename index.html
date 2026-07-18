@@ -3982,6 +3982,10 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <span id="histSerieDelta" style="font-size:12.5px;font-weight:600;"></span>
   </div>
   <div class="chart-container" style="min-height:280px;"><canvas id="nwHistSerieChart"></canvas></div>
+
+  <h3 style="margin-top:26px;">Actions &mdash; profondeur mensuelle 2020 &rarr; aujourd'hui</h3>
+  <p style="color:#718096;font-size:12px;margin:2px 0 10px;">S&eacute;rie <strong>actions uniquement</strong> (IBKR + ESPP + Degiro, hors cash/immo/cr&eacute;ances) &mdash; historique mensuel v&eacute;rifi&eacute; (EQUITY_HISTORY). Volontairement s&eacute;par&eacute;e de la courbe NW : le net worth complet n'existe qu'&agrave; partir des snapshots quotidiens ci-dessus.</p>
+  <div class="chart-container" style="min-height:280px;"><canvas id="eqHistDepthChart"></canvas></div>
 </div>
 
 <div class="card hidden" data-view="budget">
@@ -4388,7 +4392,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=388"></script>
+<script type="module" src="js/app.js?v=389"></script>
 
 </body>
 </html>
