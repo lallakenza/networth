@@ -137,11 +137,102 @@ const CASH_SPEC = {
   attijari_nezha:   { s: 'nezha', keys: ['attijariwafarMAD', 'attijariwafar'], ccy: 'MAD', owner: 'N' },
   wio_nezha:        { s: 'nezha', keys: ['wioAED'], ccy: 'AED', owner: 'N' },
 };
-function gitCashObservations() {
+// ── FAITS BRUTS (v393) : immo, créances, TVA, facturation, véhicules, montres ──
+// « Chiffres de base » de chaque version — JAMAIS les NW calculés (bugs passés).
+// Bloc à accolades équilibrées (les blocs immo/créances contiennent des sous-objets).
+function _block(text, startRe) {
+  const m = text.match(startRe);
+  if (!m) return null;
+  let i = text.indexOf('{', m.index); if (i < 0) return null;
+  let depth = 0;
+  for (let j = i; j < text.length && j < i + 20000; j++) {
+    if (text[j] === '{') depth++;
+    else if (text[j] === '}') { depth--; if (depth === 0) return text.slice(i, j + 1); }
+  }
+  return null;
+}
+const _num = (blk, key) => { const m = (blk || '').match(new RegExp('\\b' + key + '\\s*:\\s*(-?[0-9][0-9_ .]*)')); if (!m) return null; const v = parseFloat(m[1].replace(/[_ ]/g, '')); return isFinite(v) ? v : null; };
+const _sumNums = (blk) => { let s = 0, any = false; for (const m of (blk || '').matchAll(/\b[a-zA-Z_]+\s*:\s*(-?[0-9][0-9_ .]*)/g)) { const v = parseFloat(m[1].replace(/[_ ]/g, '')); if (isFinite(v)) { s += v; any = true; } } return any ? s : null; };
+
+function extractFacts(text, parts) {
+  const f = {};
+  const vitry = _block(parts.amine, /\bvitry\s*:\s*\{/);
+  if (vitry) { f['vitry.value'] = _num(vitry, 'value'); f['vitry.crd'] = _num(vitry, 'crd'); }
+  const rueil = _block(parts.nezha, /\brueil\s*:\s*\{/);
+  if (rueil) { f['rueil.value'] = _num(rueil, 'value'); f['rueil.crd'] = _num(rueil, 'crd'); }
+  const vj = _block(parts.nezha, /\bvillejuif\s*:\s*\{/);
+  if (vj) {
+    f['villejuif.value'] = _num(vj, 'value'); f['villejuif.crd'] = _num(vj, 'crd');
+    f['villejuif.reservation'] = _num(vj, 'reservationFees');
+    const sg = vj.match(/\bsigned\s*:\s*(true|false)/); if (sg) f['villejuif.signed'] = sg[1] === 'true' ? 1 : 0;
+  }
+  f['tva'] = _num(parts.amine, 'tva');
+  f['cautionRueil'] = _num(parts.nezha, 'cautionRueil');
+  f['vehicles'] = _sumNums(_block(parts.amine, /\bvehicles\s*:\s*\{/));
+  f['watches'] = _sumNums(_block(parts.nezha, /\bwatches\s*:\s*\{/));
+  const aug = _block(text, /\baugustin\s*:\s*\{/), ben = _block(text, /\bbenoit\s*:\s*\{/);
+  if (aug) f['factu.augustin'] = _num(aug, 'amount');
+  if (ben) f['factu.benoit'] = _num(ben, 'amount');
+  // Créances : items[] = objets AVEC tableaux imbriqués (payments) et SANS champ id.
+  // Identité = code INVSNT du label si présent, sinon slug du label (avant '('), préfixé
+  // par la section (a_/n_) — l'anonymisation pour la table publique se fait à l'injection.
+  let searchFrom = 0;
+  while (true) {
+    const ci = text.slice(searchFrom).search(/\bcreances\s*:\s*\{/);
+    if (ci < 0) break;
+    const absIdx = searchFrom + ci;
+    const creBlock = _block(text.slice(absIdx), /\bcreances\s*:\s*\{/);
+    searchFrom = absIdx + 10;
+    if (!creBlock) continue;
+    const owner = absIdx >= (parts.amine.length) ? 'n' : 'a';
+    const ai = creBlock.search(/\bitems\s*:\s*\[/);
+    if (ai < 0) continue;
+    // Découpe les objets top-level du tableau items par accolades équilibrées
+    let depth = 0, start = -1;
+    const bracket = creBlock.indexOf('[', ai);
+    for (let j = bracket; j < creBlock.length; j++) {
+      const ch = creBlock[j];
+      if (ch === '{') { if (depth === 0) start = j; depth++; }
+      else if (ch === '}') { depth--; if (depth === 0 && start >= 0) {
+        const it = creBlock.slice(start, j + 1);
+        const lm = it.match(/\blabel\s*:\s*'([^']+)'/);
+        if (lm) {
+          const label = lm[1];
+          const idm = it.match(/\bid\s*:\s*'([^']+)'/); // versions récentes : id stable explicite
+          const inv = label.match(/INVSNT\d+/i);
+          const key = owner + '_' + (idm ? idm[1].toLowerCase()
+            : inv ? inv[0].toLowerCase()
+            : label.split('(')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24));
+          const amount = _num(it, 'amount');
+          if (amount != null) {
+            // remaining = amount − Σ payments (même devise supposée)
+            let paid = 0;
+            const payTxt = (it.match(/\bpayments\s*:\s*\[([\s\S]*?)\]/) || [])[1] || '';
+            for (const pm of payTxt.matchAll(/\bamount\s*:\s*(-?[0-9][0-9_ .]*)/g)) { const v = parseFloat(pm[1].replace(/[_ ]/g, '')); if (isFinite(v)) paid += v; }
+            const st = it.match(/\bstatus\s*:\s*'([^']+)'/);
+            const cc = it.match(/\bcurrency\s*:\s*'([^']+)'/);
+            const ty = it.match(/\btype\s*:\s*'([^']+)'/);
+            f['cre.' + key + '.amount'] = Math.max(0, amount - paid);
+            f['cre.' + key + '.recovered'] = st && /recouvr|rembours/i.test(st[1]) ? 1 : 0;
+            f['cre.' + key + '.prob'] = _num(it, 'probability');
+            if (cc) f['cre.' + key + '.ccy'] = cc[1];
+            if (ty) f['cre.' + key + '.type'] = ty[1];
+          }
+        }
+        start = -1;
+      } }
+      else if (ch === ']' && depth === 0) break;
+    }
+  }
+  return f;
+}
+
+function gitObservations() {
+  gitObservations._allCre = new Set();
   const sh = (cmd) => execSync(cmd, { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }).toString();
   const commits = sh("git log --follow --reverse --format='%H %ad' --date=short -- js/data.js")
     .trim().split('\n').map(l => { const [sha, date] = l.split(' '); return { sha, date }; });
-  const lastByDay = {};
+  const cashByDay = {}, factByDay = {};
   for (const { sha, date } of commits) {
     let text; try { text = sh('git show ' + sha + ':js/data.js'); } catch (e) { continue; }
     const idx = text.search(/\bnezha\s*:\s*\{/);
@@ -149,21 +240,85 @@ function gitCashObservations() {
     for (const [id, spec] of Object.entries(CASH_SPEC)) {
       for (const key of spec.keys) {
         const m = parts[spec.s].match(new RegExp('\\b' + key + '\\s*:\\s*(-?[0-9][0-9_ .]*)'));
-        if (m) { const v = parseFloat(m[1].replace(/[_ ]/g, '')); if (isFinite(v)) { (lastByDay[id] = lastByDay[id] || {})[date] = v; } break; }
+        if (m) { const v = parseFloat(m[1].replace(/[_ ]/g, '')); if (isFinite(v)) { (cashByDay[id] = cashByDay[id] || {})[date] = v; } break; }
       }
     }
-  }
-  const series = {};
-  for (const [id, byDay] of Object.entries(lastByDay)) {
-    const obs = [];
-    for (const d of Object.keys(byDay).sort()) {
-      if (obs.length === 0 || obs[obs.length - 1].native !== byDay[d]) obs.push({ date: d, native: byDay[d] });
+    const facts = extractFacts(text, parts);
+    for (const [path, v] of Object.entries(facts)) {
+      if (v == null) continue;
+      (factByDay[path] = factByDay[path] || {})[date] = v;
     }
-    series[id] = obs;
+    // Présence des créances : une clé déjà vue mais ABSENTE de ce commit = créance retirée
+    // (restructurée/supprimée) → sa série doit S'ARRÊTER, pas être forward-fillée à jamais.
+    const seenNow = new Set(Object.keys(facts).filter(k => k.startsWith('cre.') && k.endsWith('.amount')).map(k => k.split('.')[1]));
+    for (const k of seenNow) gitObservations._allCre.add(k);
+    for (const k of gitObservations._allCre) {
+      (factByDay['cre.' + k + '.present'] = factByDay['cre.' + k + '.present'] || {})[date] = seenNow.has(k) ? 1 : 0;
+    }
   }
-  return series;
+  const mkSeries = (byDay) => {
+    const series = {};
+    for (const [id, days] of Object.entries(byDay)) {
+      const obs = [];
+      for (const d of Object.keys(days).sort()) {
+        if (obs.length === 0 || obs[obs.length - 1].native !== days[d]) obs.push({ date: d, native: days[d] });
+      }
+      series[id] = obs;
+    }
+    return series;
+  };
+  return { cash: mkSeries(cashByDay), facts: mkSeries(factByDay) };
 }
-const CASH_OBS = gitCashObservations();
+const _OBS = gitObservations();
+const CASH_OBS = _OBS.cash, FACT_OBS = _OBS.facts;
+const factAt = (path, d) => { let v = null; for (const o of FACT_OBS[path] || []) { if (o.date <= d) v = o.native; else break; } return v; };
+console.log('[facts-git]', Object.keys(FACT_OBS).length, 'séries de faits bruts (immo/créances/tva/factu/véhicules/montres)');
+const _creKeys = [...new Set(Object.keys(FACT_OBS).filter(k => k.startsWith('cre.')).map(k => k.split('.')[1]))];
+console.log('[facts-git] clés créances découvertes :', _creKeys.join(', '));
+
+// Clés d'extraction (slugs historiques avec prénoms) → ids publics ANONYMES (= ids data.js,
+// normalisés lowercase comme dans buildDailySnapshot). Clé inconnue ⇒ sautée + warn (aucune
+// fuite de prénom dans la table publique).
+const CRE_ALIAS = {
+  a_invsnt001: 'invsnt001', a_invsnt002: 'invsnt002', a_invsnt003: 'invsnt003',
+  a_invsnt004: 'invsnt004', a_invsnt005: 'invsnt005', a_invsnt006: 'invsnt006',
+  a_malt_frais_deplacement_nz: 'creb01', a_malt_frais_deplacement: 'creb01', a_malt: 'creb01',
+  a_loyers_impayes: 'creb02', a_loyers_impayes_janv_fev: 'creb02',
+  a_kenza: 'crep01', a_abdelkader: 'crep02', a_mehdi: 'crep03', a_mehdi_avance: 'crep04',
+  a_akram: 'crep05', a_anas: 'crep06',
+  a_sap_tax: 'creb00',                                     // agrégat SAP & Tax pré-numérotation INVSNT
+  a_loyer_impay_u00e9: 'creb02', a_loyers_impay_u00e9s: 'creb02', // vieux labels avec échappements \u00e9
+  a_malt_frais_deplacement_n: 'creb01',                    // slug tronqué à 24 chars
+  n_omar: 'cren01',
+  a_creb01: 'creb01', a_creb02: 'creb02', a_crep01: 'crep01', a_crep02: 'crep02',
+  a_crep03: 'crep03', a_crep04: 'crep04', a_crep05: 'crep05', n_cren01: 'cren01',
+};
+const _unaliased = _creKeys.filter(k => !CRE_ALIAS[k] && !/invsnt/.test(k));
+if (_unaliased.length) console.warn('[facts-git] ⚠ clés créances SANS alias (sautées, à mapper) :', _unaliased.join(', '));
+const _pubOf = (k) => CRE_ALIAS[k] || (/invsnt/.test(k) ? k.replace(/^[an]_/, '') : null);
+const CRE_PUB_IDS = [...new Set(_creKeys.map(_pubOf).filter(Boolean))];
+const CRE_KEYS_BY_PUB = {}; _creKeys.forEach(k => { const pid = _pubOf(k); if (pid) (CRE_KEYS_BY_PUB[pid] = CRE_KEYS_BY_PUB[pid] || []).push(k); });
+function crePresentAt(pubId, d) {
+  let bestDate = ''; const atBest = [];
+  for (const k of CRE_KEYS_BY_PUB[pubId] || []) {
+    for (const o of FACT_OBS['cre.' + k + '.present'] || []) {
+      if (o.date > d) break;
+      if (o.date > bestDate) { bestDate = o.date; atBest.length = 0; }
+      if (o.date === bestDate) atBest.push(o.native);
+    }
+  }
+  return atBest.length === 0 ? null : (atBest.some(v => v === 1) ? 1 : 0);
+}
+function creFactAt(pubId, field, d) {
+  let best = null, bestDate = '';
+  for (const k of CRE_KEYS_BY_PUB[pubId] || []) {
+    for (const o of FACT_OBS['cre.' + k + '.' + field] || []) {
+      if (o.date <= d && o.date >= bestDate) { best = o.native; bestDate = o.date; }
+      if (o.date > d) break;
+    }
+  }
+  return best;
+}
 console.log('[cash-git]', Object.keys(CASH_OBS).length, 'comptes,',
   Object.values(CASH_OBS).reduce((s, o) => s + o.length, 0), 'observations (commits data.js)');
 const cashAt = (id, d) => { let v = null; for (const o of CASH_OBS[id] || []) { if (o.date <= d) v = o.native; else break; } return v; };
@@ -174,6 +329,21 @@ for (const [id, expect] of Object.entries(HEAD_CHECK)) {
   const lastV = obs.length ? obs[obs.length - 1].native : null;
   console.log('[V5]', id, 'dernière obs', lastV, 'vs data.js HEAD', expect, lastV === expect ? '✓' : '✗');
   if (lastV !== expect) { console.error('[V5] ÉCHEC'); process.exit(1); }
+}
+// V6 : dernières observations des FAITS == data.js HEAD
+const _lastFact = (p) => { const o = FACT_OBS[p] || []; return o.length ? o[o.length - 1].native : null; };
+const FACT_CHECK = [
+  ['vitry.value', PORTFOLIO.amine.immo.vitry.value], ['vitry.crd', PORTFOLIO.amine.immo.vitry.crd],
+  ['rueil.value', PORTFOLIO.nezha.immo.rueil.value], ['rueil.crd', PORTFOLIO.nezha.immo.rueil.crd],
+  ['villejuif.signed', PORTFOLIO.nezha.immo.villejuif.signed ? 1 : 0],
+  ['tva', PORTFOLIO.amine.tva],
+  ['vehicles', Object.values(PORTFOLIO.amine.vehicles).reduce((s, v) => s + v, 0)],
+  ['factu.augustin', PORTFOLIO.amine.facturation.augustin.amount],
+];
+for (const [p, expect] of FACT_CHECK) {
+  const lastV = _lastFact(p);
+  console.log('[V6]', p.padEnd(18), 'dernière obs', lastV, 'vs HEAD', expect, lastV === expect ? '✓' : '✗');
+  if (lastV !== expect) { console.error('[V6] ÉCHEC — mapping à corriger'); process.exit(1); }
 }
 
 // V1 : Σ lots == parts actuelles
@@ -270,9 +440,57 @@ for (const d of targets) {
     if (!(fxv > 0)) continue;
     accounts[id] = { eur: Math.round(native / fxv), native, ccy: spec.ccy, owner: spec.owner, est: true };
   }
-  const data = { schema: 1, stocks, meta: { backfill: true, method: 'parts(J,trades/lots) × clôture(J,store) × FX(J) ; cash = observations git data.js (escalier)', appVersion: 'backfill-v392' } };
+  // Faits bruts observés via git (v393) : immo, autres actifs, créances — escalier
+  const properties = {};
+  for (const pid of ['vitry', 'rueil', 'villejuif']) {
+    const value = factAt(pid + '.value', d), crd = factAt(pid + '.crd', d);
+    if (value == null && crd == null) continue;
+    const p = { est: true };
+    if (value != null) p.value = Math.round(value);
+    if (crd != null) p.crd = Math.round(crd);
+    if (pid === 'villejuif') {
+      const signed = factAt('villejuif.signed', d) === 1;
+      p.signed = signed;
+      const resv = factAt('villejuif.reservation', d);
+      if (!signed && resv != null) p.reservation = Math.round(resv);
+      if (signed && value != null && crd != null) p.equityGross = Math.round(value - crd);
+    } else if (value != null && crd != null) {
+      p.equityGross = Math.round(value - crd); // arithmétique sur faits bruts, pas le NW calculé
+    }
+    properties[pid] = p;
+  }
+  const autres = {};
+  const veh = factAt('vehicles', d); if (veh != null) autres.vehicles = Math.round(veh);
+  const wat = factAt('watches', d); if (wat != null) autres.watches = Math.round(wat);
+  const tva = factAt('tva', d); if (tva != null) autres.tva = Math.round(tva);
+  const caution = factAt('cautionRueil', d); if (caution != null) autres.cautionRueil = -Math.round(caution); // négatif (dette), convention live
+  const aug = factAt('factu.augustin', d), ben = factAt('factu.benoit', d);
+  const madFx = fxAt('MAD', d);
+  if (aug != null && ben != null && madFx > 0) autres.facturation = Math.round((aug + ben) / madFx);
+  // Créances actives (statut ≠ recouvré) : série qui naît à l'apparition, meurt au recouvrement
+  const creanceItems = {}; let crePro = 0, crePerso = 0, hasCre = false;
+  for (const pubId of CRE_PUB_IDS) {
+    const amount = creFactAt(pubId, 'amount', d);
+    if (amount == null || creFactAt(pubId, 'recovered', d) === 1) continue;
+    if (crePresentAt(pubId, d) === 0) continue; // créance retirée de data.js → série terminée
+    const ccy = creFactAt(pubId, 'ccy', d) || 'EUR';
+    const cfx = fxAt(typeof ccy === 'string' ? ccy : 'EUR', d);
+    if (!(cfx > 0)) continue;
+    const eur = Math.round(amount / cfx);
+    const prob = creFactAt(pubId, 'prob', d);
+    creanceItems[pubId] = { eur, est: true, ...(prob != null ? { prob, expected: Math.round(eur * prob) } : {}) };
+    hasCre = true;
+    const weighted = prob != null ? eur * prob : eur;
+    if (creFactAt(pubId, 'type', d) === 'perso') crePerso += weighted; else crePro += weighted;
+  }
+  if (hasCre) { autres.creancesPro = Math.round(crePro); autres.creancesPerso = Math.round(crePerso); }
+
+  const data = { schema: 1, stocks, meta: { backfill: true, method: 'parts(J,trades/lots) × clôture(J,store) × FX(J) ; cash+immo+créances+autres = observations git data.js (escalier)', appVersion: 'backfill-v393' } };
   if (Object.keys(accounts).length > 0) data.cash = { accounts };
-  if (Object.keys(positions).length === 0 && Object.keys(accounts).length === 0) continue;
+  if (Object.keys(properties).length > 0) data.immo = { properties };
+  if (Object.keys(autres).length > 0) data.autres = autres;
+  if (hasCre) data.creances = { items: creanceItems };
+  if (Object.keys(positions).length === 0 && Object.keys(accounts).length === 0 && Object.keys(properties).length === 0) continue;
   rows.push({ snap_date: d, quality: 'partial', data });
 }
 console.log('[backfill]', rows.length, 'snapshots partiels construits |', Math.round(JSON.stringify(rows).length / 1024), 'Ko total');
