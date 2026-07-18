@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=380';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=380';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=381';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=381';
 
 // ---- Generic table sort utility ----
 /**
@@ -2408,12 +2408,12 @@ function renderActionsView(state) {
       else if (ins.type === 'holdings') {
         // v380 — insight dédié Nezha : ses positions Actions (ESPP + SGTM) avec valeur, P&L latent, poids
         const tplC = ins.totalPL >= 0 ? 'pl-pos' : 'pl-neg';
-        html += '<div style="font-size:13px;margin-bottom:10px;">Valeur totale : <strong>€' + fmt(Math.round(ins.totalVal)) + '</strong> · P&L latent : <strong class="' + tplC + '">' + (ins.totalPL >= 0 ? '+' : '') + fmt(Math.round(ins.totalPL)) + '</strong></div>';
+        html += '<div style="font-size:13px;margin-bottom:10px;">Valeur totale : <strong>' + fmt(Math.round(ins.totalVal)) + '</strong> · P&L latent : <strong class="' + tplC + '">' + (ins.totalPL >= 0 ? '+' : '') + fmt(Math.round(ins.totalPL)) + '</strong></div>';
         ins.positions.forEach(p => {
           const plc = p.pl >= 0 ? 'pl-pos' : 'pl-neg';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #edf2f7;">'
             + '<span>' + p.label + ' <span style="color:#a0aec0;font-size:11px;">×' + p.shares + '</span></span>'
-            + '<span style="text-align:right;"><strong>€' + fmt(Math.round(p.valEUR)) + '</strong> '
+            + '<span style="text-align:right;"><strong>' + fmt(Math.round(p.valEUR)) + '</strong> '
             + '<span class="' + plc + '">(' + (p.pl >= 0 ? '+' : '') + fmt(Math.round(p.pl)) + ')</span> '
             + '<span style="color:#a0aec0;">' + p.pct.toFixed(0) + '%</span></span></div>';
         });
@@ -2642,7 +2642,11 @@ function setupKPIDetailPanels(state) {
   const av = state.actionsView;
   const panel = document.getElementById('kpiDetailPanel');
   if (!panel) return;
-  let activeKPI = null;
+  // v380 — activeKPI persisté sur window : setupKPIDetailPanels() re-tourne à chaque refresh()
+  // (donc à chaque changement d'owner), ce qui remettait activeKPI à null et empêchait
+  // _refreshActiveBreakdown de rafraîchir un panneau déjà ouvert → il restait figé sur
+  // l'ancien propriétaire. En le persistant, le panneau ouvert se re-scope au bon owner.
+  let activeKPI = window._activeKPI || null;
 
   // Build all positions list for unrealized P&L breakdown
   const allPos = av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
@@ -3164,13 +3168,13 @@ function setupKPIDetailPanels(state) {
       if (activeKPI === detailId) {
         panel.style.display = 'none';
         this.classList.remove('active-kpi');
-        activeKPI = null;
+        activeKPI = null; window._activeKPI = null;
         return;
       }
       // Deactivate previous
       document.querySelectorAll('.kpi-clickable.active-kpi').forEach(k => k.classList.remove('active-kpi'));
       this.classList.add('active-kpi');
-      activeKPI = detailId;
+      activeKPI = detailId; window._activeKPI = detailId;
       // Generate and show detail
       const generator = detailGenerators[detailId];
       if (generator) {
@@ -7061,7 +7065,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=380').then(m => {
+  import('./charts.js?v=381').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
