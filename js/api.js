@@ -315,17 +315,61 @@ export async function getMoroccanPriceAt(ticker, date, opts = {}) {
   };
 }
 
+// ── TradingView scanner : API JSON DIRECTE pour la Bourse de Casablanca (v370) ──────────────
+// GET scanner.tradingview.com/symbol?symbol=CSEMA:<ticker>&fields=... → JSON plat
+// { close, currency, open, change, volume }. CORS renvoie l'origine appelante (donc appelable
+// DIRECTEMENT depuis le navigateur), aucune auth, aucun Cloudflare, cours différés 15 min
+// (standard BVC). Couvre TOUTE la cote (76 valeurs) via le préfixe CSEMA:.
+// → Permet de se passer de GitHub Actions pour le prix LIVE : le navigateur fetch en direct.
+// Trouvé en balayant 20+ sites (investing/marketscreener = Cloudflare 403 ; Yahoo ne couvre
+// pas la BVC ; idbourse/BVC = clé/endpoints server-side) — seule API BVC propre + CORS-friendly.
+const TV_SYMBOL_URL = 'https://scanner.tradingview.com/symbol';
+
+/**
+ * Prix live d'une action de la Bourse de Casablanca via TradingView (direct, CORS, sans proxy).
+ * @param {string} bvcTicker  code BVC (ex 'GTM' pour SGTM, 'ATW', 'IAM', 'BCP'…)
+ * @returns {Promise<{price:number, currency:string, open:?number, change:?number, source:'tradingview'}|null>}
+ */
+async function fetchMoroccanStockFromTradingView(bvcTicker) {
+  try {
+    const sym = encodeURIComponent('CSEMA:' + bvcTicker);
+    const url = `${TV_SYMBOL_URL}?symbol=${sym}&fields=close,currency,open,change,volume`;
+    const res = await fetchWithTimeout(url, 6000);
+    if (!res.ok) return null;
+    const d = await res.json();
+    const price = d && Number(d.close);
+    if (!isFinite(price) || price <= 0) return null;
+    return {
+      price,
+      currency: d.currency || 'MAD',
+      open: (d.open != null ? Number(d.open) : null),
+      change: (d.change != null ? Number(d.change) : null),
+      source: 'tradingview',
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // Retourne { price, source, ageMs? } ou null. Ordre de priorité :
-//   1. 'repo:...'        — JSON frais < 24h (CI a tourné récemment) → badge "live ✓"
-//   2. 'google'/'leboursier'/'investing' — scraping runtime via proxy CORS → "live (scraping)"
-//   3. 'repo-stale:...'  — JSON > 24h (week-end prolongé, CI down) → "dernier relevé (Xh)"
+//   1. 'tradingview'     — API JSON directe (CORS), aucun GitHub Actions requis → badge "live ✓"
+//   2. 'repo:...'        — JSON frais < 24h (CI a tourné récemment) → badge "live ✓"
+//   3. 'google'/'leboursier'/'investing' — scraping runtime via proxy CORS → "live (scraping)"
+//   4. 'repo-stale:...'  — JSON > 24h (week-end prolongé, CI down) → "dernier relevé (Xh)"
 //   (fallback final = valeur hardcodée data.js, géré côté appelant avec source=null → "statique")
 async function fetchSGTMPrice() {
-  // On lance la lecture du JSON en parallèle dès le départ pour pouvoir l'utiliser
-  // soit en source primaire (si frais) soit en fallback final (si stale + scraping KO).
+  // On lance la lecture du JSON repo en parallèle dès le départ pour l'utiliser en fallback
+  // si TradingView est indisponible (bloqué réseau, endpoint modifié…).
   const repoPromise = fetchSGTMFromRepo();
 
-  // Tentative 1 : JSON frais < 24h
+  // Tentative 1 (v370) : TradingView en DIRECT — SGTM (broker) = 'GTM' côté BVC/TradingView.
+  const fromTV = await fetchMoroccanStockFromTradingView('GTM');
+  if (fromTV) {
+    console.log('[api] SGTM TradingView (direct, CORS): ' + fromTV.price + ' MAD');
+    return { price: fromTV.price, source: 'tradingview' };
+  }
+
+  // Tentative 2 : JSON frais < 24h (GitHub Action — fallback si TradingView KO)
   const fromRepo = await repoPromise;
   if (fromRepo && !fromRepo.stale) {
     return { price: fromRepo.price, source: fromRepo.source, lastUpdate: fromRepo.lastUpdate, ageMs: fromRepo.ageMs };

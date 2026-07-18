@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=369';
-import { compute, getGrandTotal } from './engine.js?v=369';
-import { render } from './render.js?v=369';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=369';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=369';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=369';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=369';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=370';
+import { compute, getGrandTotal } from './engine.js?v=370';
+import { render } from './render.js?v=370';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=370';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=370';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=370';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=370';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -951,6 +951,7 @@ async function loadStockPrices(forceRefresh) {
     if (!isLive) return 'statique';
     if (!source) return 'live';
     if (source === 'static-bootstrap' || source === 'repo:static-bootstrap') return 'statique';
+    if (source === 'tradingview') return 'live ✓'; // v370 — API TradingView directe (sans GitHub Actions)
     if (source.startsWith('repo-stale:')) return 'dernier relevé';
     if (source.startsWith('repo:')) return 'live ✓';
     return 'live (scraping)';
