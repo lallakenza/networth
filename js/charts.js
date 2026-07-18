@@ -5,11 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=387';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=387';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=387';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=387';
-import { loadSnapshots } from './api.js?v=387'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { fmt, fmtAxis } from './render.js?v=388';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=388';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=388';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=388';
+import { loadSnapshots } from './api.js?v=388'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=388'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -946,6 +947,126 @@ function _drawHistoriqueCharts() {
         tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.y) } },
       },
       scales: { y: { stacked: true, ticks: { callback: v => fmtAxis(v) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } } },
+    },
+  });
+
+  // ── Graphe 3 : explorateur de séries (v388) ──
+  try { _drawSerieExplorer(rows, all, labels); } catch (e) { console.warn('[historique] explorateur:', e); }
+}
+
+// ── v388 — EXPLORATEUR DE SÉRIES : l'historique de n'importe quelle série suivie ──
+// Catalogue construit dynamiquement depuis l'UNION des clés de tous les snapshots
+// (un compte fermé ou une position vendue reste explorable sur son passé).
+const _ACCOUNT_LABELS = Object.fromEntries(Object.entries(CASH_ACCOUNT_IDS).map(([label, id]) => [id, label]));
+const _PROP_LABELS = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
+
+function _histSeriesCatalog(all) {
+  const cat = [];
+  const add = (group, id, label, fn) => cat.push({ group, id, label, fn });
+  add('Totaux', 'nw.couple', 'NW Couple', d => d.total.couple);
+  add('Totaux', 'nw.amine', 'NW Amine', d => d.total.amine);
+  add('Totaux', 'nw.nezha', 'NW Nezha', d => d.total.nezha);
+  [['stocks', 'Actions'], ['cash', 'Cash'], ['immo', 'Immo'], ['other', 'Autres']].forEach(([k, lb]) => {
+    add('Catégories (couple)', 'cat.' + k, lb, d => d.views.couple[k]);
+  });
+  add('KPIs', 'kpi.liquid', 'Patrimoine liquide', d => d.kpis && d.kpis.liquid);
+  [['vehicles', 'Véhicules'], ['watches', 'Montres'], ['creancesPro', 'Créances pro'], ['creancesPerso', 'Créances perso'],
+   ['facturation', 'Facturation nette'], ['tva', 'TVA (dette)']].forEach(([k, lb]) => {
+    add('Autres actifs', 'autre.' + k, lb, d => d.autres && d.autres[k]);
+  });
+  // Immo : 4 séries par bien
+  const propIds = new Set(); all.forEach(r => Object.keys((r.data.immo || {}).properties || {}).forEach(k => propIds.add(k)));
+  [...propIds].forEach(p => {
+    const lb = _PROP_LABELS[p] || p;
+    add('Immobilier', 'immo.' + p + '.equityNet', lb + ' — equity nette', d => { const x = d.immo.properties[p]; return x && x.equityNet; });
+    add('Immobilier', 'immo.' + p + '.equityGross', lb + ' — equity brute', d => { const x = d.immo.properties[p]; return x && x.equityGross; });
+    add('Immobilier', 'immo.' + p + '.value', lb + ' — valeur', d => { const x = d.immo.properties[p]; return x && x.value; });
+    add('Immobilier', 'immo.' + p + '.crd', lb + ' — CRD', d => { const x = d.immo.properties[p]; return x && x.crd; });
+  });
+  // Comptes cash (union)
+  const accIds = new Set(); all.forEach(r => Object.keys((r.data.cash || {}).accounts || {}).forEach(k => accIds.add(k)));
+  [...accIds].sort().forEach(a => {
+    add('Comptes cash', 'acct.' + a, _ACCOUNT_LABELS[a] || a, d => { const x = d.cash.accounts[a]; return x && x.eur; });
+  });
+  // Positions (union)
+  const posIds = new Set(); all.forEach(r => Object.keys((r.data.stocks || {}).positions || {}).forEach(k => posIds.add(k)));
+  [...posIds].sort().forEach(t => {
+    add('Positions', 'pos.' + t, t, d => { const x = d.stocks.positions[t]; return x && x.eur; });
+  });
+  // Créances (union)
+  const crIds = new Set(); all.forEach(r => Object.keys((r.data.creances || {}).items || {}).forEach(k => crIds.add(k)));
+  [...crIds].sort().forEach(c => {
+    add('Créances', 'cre.' + c, c.toUpperCase(), d => { const x = d.creances.items[c]; return x && x.eur; });
+  });
+  return cat;
+}
+
+function _drawSerieExplorer(rows, all, labels) {
+  const sel = document.getElementById('histSerieSelect');
+  const cmp = document.getElementById('histSerieCompare');
+  const el = document.getElementById('nwHistSerieChart');
+  if (!sel || !el) return;
+  const catalog = _histSeriesCatalog(all);
+  const byId = Object.fromEntries(catalog.map(c => [c.id, c]));
+
+  // (Re)peuple les selects si le catalogue a changé (nouvelles clés possibles à chaque fetch)
+  const sig = catalog.map(c => c.id).join(',');
+  if (window._histSerieSig !== sig) {
+    window._histSerieSig = sig;
+    const prevA = sel.value, prevB = cmp.value;
+    const build = (s, withNone) => {
+      s.innerHTML = withNone ? '<option value="">— comparer avec (optionnel) —</option>' : '';
+      let group = null, og = null;
+      catalog.forEach(c => {
+        if (c.group !== group) { group = c.group; og = document.createElement('optgroup'); og.label = group; s.appendChild(og); }
+        const o = document.createElement('option'); o.value = c.id; o.textContent = c.label; og.appendChild(o);
+      });
+    };
+    build(sel, false); build(cmp, true);
+    sel.value = (prevA && byId[prevA]) ? prevA : 'nw.couple';
+    cmp.value = (prevB && byId[prevB]) ? prevB : '';
+    if (!window._histSerieBound) {
+      window._histSerieBound = true;
+      sel.addEventListener('change', _drawHistoriqueCharts);
+      cmp.addEventListener('change', _drawHistoriqueCharts);
+    }
+  }
+
+  const a = byId[sel.value] || byId['nw.couple'];
+  const b = cmp.value ? byId[cmp.value] : null;
+  const serieOf = (c) => rows.map(r => { try { const v = c.fn(r.data); return (typeof v === 'number' && isFinite(v)) ? v : null; } catch (e) { return null; } });
+  const dataA = serieOf(a);
+  const dataB = b ? serieOf(b) : null;
+
+  // Delta chip (série A, premiers/derniers points non-null de la période)
+  const deltaEl = document.getElementById('histSerieDelta');
+  if (deltaEl) {
+    const nn = dataA.map((v, i) => [v, i]).filter(([v]) => v != null);
+    if (nn.length >= 2) {
+      const d = nn[nn.length - 1][0] - nn[0][0];
+      const pct = nn[0][0] ? (d / Math.abs(nn[0][0]) * 100) : 0;
+      deltaEl.textContent = a.label + ' : ' + (d >= 0 ? '+' : '') + fmt(d) + ' (' + (d >= 0 ? '+' : '') + pct.toFixed(1) + '%)';
+      deltaEl.style.color = d >= 0 ? 'var(--green)' : '#e53e3e';
+    } else { deltaEl.textContent = ''; }
+  }
+
+  if (charts.nwHistSerie) charts.nwHistSerie.destroy();
+  charts.nwHistSerie = new Chart(el, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: a.label, data: dataA, borderColor: '#2b6cb0', backgroundColor: 'rgba(43,108,176,0.08)', borderWidth: 2, fill: !b, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 3, spanGaps: true },
+        ...(b ? [{ label: b.label, data: dataB, borderColor: '#ed8936', borderWidth: 2, fill: false, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 3, spanGaps: true }] : []),
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.y) } },
+      },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } } },
     },
   });
 }
