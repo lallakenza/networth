@@ -1022,6 +1022,58 @@ function unionSeries(base, delta) {
   return { dates, closes: dates.map(d => map.get(d)) };
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  v383 — L2 : STORE SERVEUR PARTAGÉ (Supabase) — synchronise l'historique ENTRE MACHINES
+//  L1 (localStorage) = cache local instantané ; L2 (Supabase) = source partagée. Une nouvelle
+//  machine lit tout l'historique depuis L2 en 1 requête (au lieu de re-backfiller 5Y depuis
+//  Yahoo) ; seul le delta manquant est chargé de Yahoo/TradingView, rendu, puis ré-uploadé
+//  vers L2 en arrière-plan. Donnée = prix d'actions PUBLICS (non sensible) → clé anon dans le
+//  client = pratique standard Supabase, RLS permissive suffit.
+//  ⚠ url + anonKey VIDES ⇒ L2 no-op (comportement L1-only v382 strictement inchangé).
+//  À remplir après provisioning (voir docs/SERVER_STORE_SETUP.md).
+// ════════════════════════════════════════════════════════════════════
+const SERVER_STORE = { url: '', anonKey: '', table: 'price_history', row: 'singleton' };
+function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKey); }
+
+/** Lit le blob d'historique depuis Supabase (L2). Retourne {tickers,fx,sgtmHistory?,_lastDate,_backfilled} ou null. */
+export async function loadServerHistory() {
+  if (!_serverConfigured()) return null;
+  try {
+    const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SERVER_STORE.table
+      + '?id=eq.' + SERVER_STORE.row + '&select=data';
+    const r = await fetch(u, {
+      headers: { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey },
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return (rows && rows[0] && rows[0].data) || null;
+  } catch (e) { console.warn('[hist] L2 read failed (non-bloquant):', e && e.message); return null; }
+}
+
+/** Upsert le blob d'historique vers Supabase (L2). Fire-and-forget (best-effort). */
+export async function saveServerHistory(data) {
+  if (!_serverConfigured() || !data || !data.tickers) return;
+  try {
+    const tickers = {}, fx = {};
+    for (const [t, d] of Object.entries(data.tickers)) tickers[t] = _trimSeries(d);
+    for (const [k, d] of Object.entries(data.fx || {})) fx[k] = _trimSeries(d);
+    const blob = { tickers, fx, _lastDate: getLastDate(data), _backfilled: !!data._backfilled };
+    if (data.sgtmHistory && data.sgtmHistory.length) blob.sgtmHistory = data.sgtmHistory;
+    const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SERVER_STORE.table;
+    await fetch(u, {
+      method: 'POST',
+      headers: {
+        apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey,
+        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ id: SERVER_STORE.row, data: blob }),
+      signal: AbortSignal.timeout(15000),
+    });
+    console.log('[hist] L2 Supabase upload OK → coverage ' + blob._lastDate);
+  } catch (e) { console.warn('[hist] L2 upload failed (non-bloquant):', e && e.message); }
+}
+
 /**
  * Fetch daily close prices for a single ticker via Yahoo Finance chart API.
  * @param {string} symbol - Yahoo Finance ticker (e.g., 'AIR.PA', 'IBIT', '4911.T')
@@ -1126,6 +1178,20 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
     return result;
   }
 
+  // ── v383 : L2 — fusionner le store serveur Supabase AVANT de décider le delta ──
+  // Une autre machine (ou session) a pu enrichir la base partagée depuis la dernière visite
+  // locale. On lit L2, on l'unit à L1, puis le calcul du gap se fait sur L1∪L2 → on ne
+  // redemande à Yahoo/TradingView QUE ce qui manque encore dans nos serveurs. Sur une machine
+  // neuve (L1 vide), L2 fournit tout l'historique en 1 requête → pas de backfill 5Y depuis Yahoo.
+  const server = await loadServerHistory();
+  if (server && server.tickers) {
+    for (const [t, d] of Object.entries(server.tickers)) result.tickers[t] = unionSeries(result.tickers[t], d);
+    for (const [k, d] of Object.entries(server.fx || {})) result.fx[k] = unionSeries(result.fx[k], d);
+    if (server.sgtmHistory && (!result.sgtmHistory || server.sgtmHistory.length > result.sgtmHistory.length)) result.sgtmHistory = server.sgtmHistory;
+    if (server._backfilled) result._backfilled = true;
+    console.log('[hist] L2 Supabase fusionné → coverage ' + getFirstDate(result) + ' → ' + getLastDate(result));
+  }
+
   // ── Step 2 (v382): fetch CIBLÉ par série ──
   // • BACKFILL 5Y — 1re visite du navigateur (store jamais complété) OU nouvelle position
   //   absente du store → on charge l'historique complet une seule fois.
@@ -1182,7 +1248,8 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   for (const [t, d] of Object.entries(delta.tickers)) result.tickers[t] = unionSeries(result.tickers[t], d);
   for (const [k, d] of Object.entries(delta.fx)) result.fx[k] = unionSeries(result.fx[k], d);
   result._backfilled = true; // le store est désormais complet → visites suivantes = gap-only
-  saveHistStore(result);
+  saveHistStore(result);         // L1 (localStorage, cache local instantané)
+  saveServerHistory(result);     // L2 (Supabase, upload en background — fire-and-forget)
 
   const loadedCount = Object.keys(delta.tickers).length;
   const fxStatus = Object.keys(delta.fx).map(k => k.toUpperCase() + ': ' + (delta.fx[k] ? '✓' : '✗')).join(', ');
