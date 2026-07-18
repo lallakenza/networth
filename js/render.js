@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=389';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=389';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=391';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=391';
 
 // ---- Generic table sort utility ----
 /**
@@ -1305,8 +1305,9 @@ export function applySnapshotDeltas(s) {
     const cache = window._nwSnapCache;
     if (!cache || !cache.length || !s) return;
     const todayParis = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
-    const base = [...cache].reverse().find(r => r.date < todayParis);
-    if (!base || !base.data || !base.data.total) return;
+    // v391 — sauter les snapshots rétroactifs (backfill positions : pas de total NW)
+    const base = [...cache].reverse().find(r => r.date < todayParis && r.data && r.data.total && r.data.total.couple != null);
+    if (!base) return;
     const yesterdayParis = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date(Date.now() - 864e5));
     const label = base.date === yesterdayParis ? 'vs hier' : 'vs ' + base.date.slice(8, 10) + '/' + base.date.slice(5, 7);
     const apply = (id, current, baseline) => {
@@ -7094,7 +7095,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=389').then(m => {
+  import('./charts.js?v=391').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

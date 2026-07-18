@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=389';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=389';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=389';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=389';
-import { loadSnapshots } from './api.js?v=389'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=389'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=391';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=391';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=391';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=391';
+import { loadSnapshots } from './api.js?v=391'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=391'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -865,41 +865,51 @@ function _drawHistoriqueCharts() {
   const all = window._nwSnapCache || [];
   const cutoff = _histPeriodCutoff(window._histPeriod || 'MAX');
   const rows = cutoff ? all.filter(r => r.date >= cutoff) : all;
+  // v391 — séparation : les courbes NW/catégories ne lisent que les snapshots RÉELS
+  // (les rétroactifs backfill n'ont qu'un bloc stocks — le NW passé n'est PAS inventé).
+  // L'explorateur de séries, lui, lit TOUT (positions reconstituées incluses).
+  const isReal = r => r.data && r.data.total && r.data.total.couple != null;
+  const rowsNW = rows.filter(isReal);
+  const allReal = all.filter(isReal);
 
   // KPI strip
-  const last = rows[rows.length - 1] || all[all.length - 1] || null;
-  const first = rows[0] || null;
+  const last = rowsNW[rowsNW.length - 1] || allReal[allReal.length - 1] || null;
+  const first = rowsNW[0] || null;
   const elNW = document.getElementById('kpiHistNW');
   const elDelta = document.getElementById('kpiHistDelta');
   const elDays = document.getElementById('kpiHistDays');
   const elLast = document.getElementById('kpiHistLast');
   if (elNW && last) { elNW.dataset.eur = last.data.total.couple; elNW.textContent = fmt(last.data.total.couple); }
   if (elDelta) {
-    if (rows.length >= 2) {
+    if (rowsNW.length >= 2) {
       const d = last.data.total.couple - first.data.total.couple;
       const pct = first.data.total.couple ? (d / first.data.total.couple * 100) : 0;
       elDelta.textContent = (d >= 0 ? '+' : '') + fmt(d) + ' (' + (d >= 0 ? '+' : '') + pct.toFixed(1) + '%)';
       elDelta.style.color = d >= 0 ? 'var(--green)' : '#e53e3e';
     } else { elDelta.textContent = '--'; }
   }
-  if (elDays) elDays.textContent = String(rows.length);
+  // Jours couverts : snapshots NW réels + positions reconstituées (backfill trades×prix)
+  const nBackfill = rows.length - rowsNW.length;
+  if (elDays) elDays.textContent = String(rowsNW.length) + (nBackfill > 0 ? ' (+' + nBackfill + ' reconst.)' : '');
   if (elLast && last) elLast.textContent = last.date + ' (' + last.quality + ')';
 
-  // Empty / 1-point state
+  // Empty / 1-point state (sur les snapshots NW RÉELS — le backfill ne compte pas ici)
   if (emptyMsg) {
-    if (all.length === 0) {
+    if (allReal.length === 0) {
       emptyMsg.style.display = 'block';
       emptyMsg.textContent = 'Aucun snapshot pour le moment — le premier sera capturé automatiquement lors d\'une visite avec prix live. Revenez demain !';
-    } else if (all.length === 1) {
+    } else if (allReal.length === 1) {
       emptyMsg.style.display = 'block';
-      emptyMsg.textContent = 'Premier snapshot capturé le ' + all[0].date + ' ✓ — l\'historique se construit à chaque visite (1 point par jour). La courbe prendra forme dans les prochains jours.';
+      emptyMsg.textContent = 'Premier snapshot NW capturé le ' + allReal[0].date + ' ✓ — la courbe NW se construit à chaque visite (1 point par jour). L\'explorateur de séries, lui, remonte déjà le passé des positions (reconstitution trades × prix).';
     } else {
       emptyMsg.style.display = 'none';
     }
   }
 
-  const labels = rows.map(r => { const [y, m, dd] = r.date.split('-'); return dd + '/' + m + (window._histPeriod === 'MAX' || window._histPeriod === '1A' ? '/' + y.slice(2) : ''); });
-  const serie = (fn) => rows.map(r => { try { return fn(r.data); } catch (e) { return null; } });
+  const mkLabels = (rs) => rs.map(r => { const [y, m, dd] = r.date.split('-'); return dd + '/' + m + (window._histPeriod === 'MAX' || window._histPeriod === '1A' ? '/' + y.slice(2) : ''); });
+  const labels = mkLabels(rowsNW);       // graphes NW/catégories : snapshots réels uniquement
+  const labelsAll = mkLabels(rows);      // explorateur : tout (positions reconstituées incluses)
+  const serie = (fn) => rowsNW.map(r => { try { return fn(r.data); } catch (e) { return null; } });
 
   // ── Graphe 1 : NW total (3 lignes) ──
   if (charts.nwHistTotal) charts.nwHistTotal.destroy();
@@ -908,9 +918,9 @@ function _drawHistoriqueCharts() {
     data: {
       labels,
       datasets: [
-        { label: 'Couple', data: serie(d => d.total.couple), borderColor: '#1a365d', backgroundColor: 'rgba(26,54,93,0.08)', borderWidth: 2.5, fill: true, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 3, spanGaps: true },
-        { label: 'Amine', data: serie(d => d.total.amine), borderColor: '#3182ce', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, spanGaps: true },
-        { label: 'Nezha', data: serie(d => d.total.nezha), borderColor: '#d69e2e', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, spanGaps: true },
+        { label: 'Couple', data: serie(d => d.total.couple), borderColor: '#1a365d', backgroundColor: 'rgba(26,54,93,0.08)', borderWidth: 2.5, fill: true, tension: 0.25, pointRadius: rowsNW.length > 60 ? 0 : 3, spanGaps: true },
+        { label: 'Amine', data: serie(d => d.total.amine), borderColor: '#3182ce', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rowsNW.length > 60 ? 0 : 2, spanGaps: true },
+        { label: 'Nezha', data: serie(d => d.total.nezha), borderColor: '#d69e2e', borderWidth: 1.5, fill: false, tension: 0.25, pointRadius: rowsNW.length > 60 ? 0 : 2, spanGaps: true },
       ],
     },
     options: {
@@ -937,7 +947,7 @@ function _drawHistoriqueCharts() {
       labels,
       datasets: CAT_STYLES.map(([label, fn, color]) => ({
         label, data: serie(fn), borderColor: color, backgroundColor: color + '55',
-        borderWidth: 1.5, fill: true, tension: 0.25, pointRadius: rows.length > 60 ? 0 : 2, stack: 'nw', spanGaps: true,
+        borderWidth: 1.5, fill: true, tension: 0.25, pointRadius: rowsNW.length > 60 ? 0 : 2, stack: 'nw', spanGaps: true,
       })),
     },
     options: {
@@ -951,7 +961,7 @@ function _drawHistoriqueCharts() {
   });
 
   // ── Graphe 3 : explorateur de séries (v388) ──
-  try { _drawSerieExplorer(rows, all, labels); } catch (e) { console.warn('[historique] explorateur:', e); }
+  try { _drawSerieExplorer(rows, all, labelsAll); } catch (e) { console.warn('[historique] explorateur:', e); }
 
   // ── Graphe 4 : profondeur mensuelle Actions (v389) — EQUITY_HISTORY, série SÉPARÉE ──
   // JAMAIS fusionnée à la courbe NW (actions-only ; les données NW inventées ont été
