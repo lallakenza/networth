@@ -237,6 +237,84 @@ async function fetchSGTMFromRepo() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// PRIX D'UNE ACTION MAROCAINE À UNE DATE DONNÉE (v369)
+// ════════════════════════════════════════════════════════════════════════════
+// Yahoo ne couvre AUCUNE action de la Bourse de Casablanca. La source de vérité est
+// l'historique quotidien auto-alimenté du repo : `data/<ticker>_history.json` (closes de
+// facto, maintenu par scripts/scrape_<ticker>.py — upsert quotidien + `--backfill` git log).
+// Pendant du script Python scripts/moroccan_price_at.py, mêmes règles.
+//
+// Convention « prix à la date D » = dernier close CONNU <= D (forward-fill) : si D tombe un
+// week-end / férié BVC / jour sans relevé, on renvoie le close du dernier jour de bourse <= D.
+// C'est la convention standard pour un prix de référence (mtdOpen, oneMonthAgo…) et ça évite
+// d'inventer un prix un jour non coté.
+
+const _moroccanHistoryCache = {}; // ticker(lower) -> { series, _ts }
+
+/**
+ * Cœur PUR (sync) : sélectionne le prix à une date dans une série déjà chargée.
+ * @param {Array<{date:string, priceMAD:number, source?:string}>} series  triée ou non
+ * @param {string} date  'YYYY-MM-DD'
+ * @param {{exact?:boolean}} [opts]  exact=true → uniquement un close ce jour précis, sinon forward-fill
+ * @returns {{priceMAD:number, dateUsed:string, source:string, forwardFilled:boolean}|null}
+ */
+export function pickMoroccanPriceAt(series, date, opts = {}) {
+  if (!Array.isArray(series) || series.length === 0) return null;
+  const clean = series
+    .filter(e => e && e.date && typeof e.priceMAD === 'number')
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (clean.length === 0) return null;
+
+  if (opts.exact) {
+    const hit = clean.find(e => e.date === date);
+    return hit ? { priceMAD: hit.priceMAD, dateUsed: hit.date, source: hit.source || '', forwardFilled: false } : null;
+  }
+  // forward-fill : dernière entrée dont la date <= date cible
+  let chosen = null;
+  for (const e of clean) {
+    if (e.date <= date) chosen = e; else break;
+  }
+  if (!chosen) return null; // date antérieure à tout l'historique — on ne fabrique rien
+  return { priceMAD: chosen.priceMAD, dateUsed: chosen.date, source: chosen.source || '', forwardFilled: chosen.date !== date };
+}
+
+/**
+ * Prix d'une action marocaine `ticker` à la date `date` (fetch + cache de l'historique repo).
+ * @param {string} ticker  ex. 'SGTM' (générique : lit data/<ticker>_history.json)
+ * @param {string} date    'YYYY-MM-DD'
+ * @param {{exact?:boolean}} [opts]
+ * @returns {Promise<{ticker:string, dateRequested:string, dateUsed:string, priceMAD:number, currency:string, source:string, forwardFilled:boolean}|null>}
+ */
+export async function getMoroccanPriceAt(ticker, date, opts = {}) {
+  const key = String(ticker).toLowerCase();
+  let cached = _moroccanHistoryCache[key];
+  // Cache 1h (l'historique ne bouge qu'une fois/jour ; 1h suffit largement).
+  if (!cached || (Date.now() - cached._ts) > 3600 * 1000) {
+    try {
+      const bust = Math.floor(Date.now() / 3600000);
+      const res = await fetchWithTimeout(`./data/${key}_history.json?h=${bust}`, 5000);
+      if (!res.ok) return null;
+      const doc = await res.json();
+      cached = { series: Array.isArray(doc.series) ? doc.series : [], currency: doc.currency || 'MAD', _ts: Date.now() };
+      _moroccanHistoryCache[key] = cached;
+    } catch (e) {
+      return null;
+    }
+  }
+  const hit = pickMoroccanPriceAt(cached.series, date, opts);
+  if (!hit) return null;
+  return {
+    ticker: String(ticker).toUpperCase(),
+    dateRequested: date,
+    dateUsed: hit.dateUsed,
+    priceMAD: hit.priceMAD,
+    currency: cached.currency || 'MAD',
+    source: hit.source,
+    forwardFilled: hit.forwardFilled,
+  };
+}
+
 // Retourne { price, source, ageMs? } ou null. Ordre de priorité :
 //   1. 'repo:...'        — JSON frais < 24h (CI a tourné récemment) → badge "live ✓"
 //   2. 'google'/'leboursier'/'investing' — scraping runtime via proxy CORS → "live (scraping)"
