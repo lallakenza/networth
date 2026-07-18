@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=373';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=373';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=374';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=374';
 
 // ---- Generic table sort utility ----
 /**
@@ -1907,6 +1907,11 @@ function renderActionsView(state) {
   const av = state.actionsView;
   // Store actionsView globally so app.js scope toggle can update KPIs
   window._actionsView = av;
+  // v374 — filtre propriétaire (Amine / Nezha / Both). owner==='both' → showAmine=showNezha=true
+  // ⇒ ensemble complet, byte-identique à v373. IBKR/Degiro=100% Amine ; ESPP par-owner ; SGTM 50/50.
+  const owner = window._activeOwner || 'both';
+  const showAmine = owner !== 'nezha';
+  const showNezha = owner !== 'amine';
   // KPIs — cross-platform
   setEur('kpiActionsTotal', av.totalStocks);
   const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
@@ -1982,7 +1987,7 @@ function renderActionsView(state) {
   const totalAllVal = av.totalStocks;
   const pctFromRef = (price, ref) => (ref && ref > 0 && price > 0) ? ((price - ref) / ref * 100) : null;
   const allTrades = av.trades || [];
-  const allPositions = av.ibkrPositions.map(p => ({
+  const allPositions = (showAmine ? av.ibkrPositions : []).map(p => ({ // v374 : IBKR = 100% Amine → aucune ligne pour Nezha
     ...p,
     broker: 'IBKR',
     weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
@@ -2005,19 +2010,20 @@ function renderActionsView(state) {
     costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
     label: 'ESPP (' + l.source + ')', owner: 'Nezha',
   }));
-  const esppAllTrades = [...esppLotsAmine, ...esppLotsNezha];
+  // v374 — ESPP par propriétaire (lots distincts, pas de ratio)
+  const esppAllTrades = [...(showAmine ? esppLotsAmine : []), ...(showNezha ? esppLotsNezha : [])];
 
-  const esppTotalShares = av.esppShares + (av.nezhaEsppShares || 0);
-  const esppTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
-  const esppTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
-  const esppTotalPL = av.esppUnrealizedPL + (av.nezhaEsppUnrealizedPL || 0);
+  const esppTotalShares = (showAmine ? av.esppShares : 0) + (showNezha ? (av.nezhaEsppShares || 0) : 0);
+  const esppTotalVal = (showAmine ? av.esppCurrentVal : 0) + (showNezha ? (av.nezhaEsppCurrentVal || 0) : 0);
+  const esppTotalCost = (showAmine ? av.esppCostBasisEUR : 0) + (showNezha ? (av.nezhaEsppCostBasisEUR || 0) : 0);
+  const esppTotalPL = (showAmine ? av.esppUnrealizedPL : 0) + (showNezha ? (av.nezhaEsppUnrealizedPL || 0) : 0);
   // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
   const esppPeriodPL = (period) => {
     const bd = av.periodPL[period]?.breakdown;
     if (bd) { const acnItems = bd.filter(b => b.ticker === 'ACN'); if (acnItems.length) return acnItems.reduce((s, b) => s + b.pl, 0); }
     return null;
   };
-  allPositions.push({
+  if (esppTotalShares > 0) allPositions.push({ // v374 : ne pas afficher une ligne ACN à 0 part (ex. Nezha sans ESPP)
     label: 'Accenture (' + esppTotalShares + ' ACN)',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
@@ -2046,12 +2052,13 @@ function renderActionsView(state) {
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
 
-  // SGTM Amine + Nezha
-  const sgtmShares = av.sgtmAmineShares + av.sgtmNezhaShares;
-  const sgtmTotalVal = av.sgtmAmineVal + av.sgtmNezhaVal;
-  const sgtmCostBasis = av.sgtmCostBasisEUR || null;
+  // SGTM Amine + Nezha — v374 : parts par propriétaire ; PRU (cost basis) mis à l'échelle des parts incluses
+  const sgtmShares = (showAmine ? av.sgtmAmineShares : 0) + (showNezha ? av.sgtmNezhaShares : 0);
+  const sgtmTotalVal = (showAmine ? av.sgtmAmineVal : 0) + (showNezha ? av.sgtmNezhaVal : 0);
+  const _sgtmAllShares = av.sgtmAmineShares + av.sgtmNezhaShares;
+  const sgtmCostBasis = (av.sgtmCostBasisEUR && _sgtmAllShares > 0) ? (av.sgtmCostBasisEUR * sgtmShares / _sgtmAllShares) : null;
   const sgtmPL = sgtmCostBasis ? sgtmTotalVal - sgtmCostBasis : null;
-  allPositions.push({
+  if (sgtmShares > 0) allPositions.push({
     label: 'SGTM (' + sgtmShares + ' actions)',
     broker: 'Attijari',
     ticker: 'SGTM',
@@ -2072,12 +2079,38 @@ function renderActionsView(state) {
     _source: av._sgtmSource || null,
     _lastUpdate: av._sgtmLastUpdate || null,
     _trades: [
-      ...(p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Amine' }] : []),
-      ...(p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
+      ...(showAmine && p.amine.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.amine.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.amine.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Amine' }] : []),
+      ...(showNezha && p.nezha.sgtm.shares > 0 ? [{ date: '2025-12-01', type: 'buy', ticker: 'SGTM', qty: p.nezha.sgtm.shares, costBasis: p.market.sgtmCostBasisMAD || 420, currency: 'MAD', cost: p.nezha.sgtm.shares * (p.market.sgtmCostBasisMAD || 420), label: 'IPO', owner: 'Nezha' }] : []),
     ],
   });
 
   // Add pruEUR for sorting
+  // v374 — recalcul des poids sur le sous-ensemble du propriétaire actif (somme = 100% par owner).
+  // GATÉ sur owner!=='both' : pour 'both', totalOwnerVal (Σ valEUR des lignes) ≠ av.totalStocks
+  // (qui inclut le cash IBKR/ESPP) → on garde les poids d'origine (base av.totalStocks) intacts.
+  const totalOwnerVal = allPositions.reduce((s, p) => s + (p.valEUR || 0), 0);
+  if (owner !== 'both') {
+    allPositions.forEach(p => { p.weight = totalOwnerVal > 0 ? (p.valEUR / totalOwnerVal * 100) : 0; });
+  }
+
+  // v374 — top-5 KPIs owner-aware, DÉRIVÉS du sous-ensemble filtré (⇒ KPI == Σ lignes visibles).
+  // Pour 'both' on ne touche rien (cartes déjà posées lignes ~1915-1933, byte-identique v373).
+  // IBKR/Degiro = 100% Amine ⇒ Réalisé/Dividendes = 0 pour Nezha (règle de propriété).
+  if (owner !== 'both') {
+    const oUnreal = allPositions.reduce((s, p) => s + (p.unrealizedPL || 0), 0);
+    const oCost = allPositions.reduce((s, p) => s + (p.costEUR || 0), 0);
+    const oReal = showAmine ? av.combinedRealizedPL : 0;
+    setEur('kpiActionsTotal', totalOwnerVal);
+    const _uEl = document.getElementById('kpiActionsUnrealizedPL');
+    if (_uEl) { _uEl.textContent = (oUnreal >= 0 ? '+' : '') + fmt(oUnreal); _uEl.className = 'value ' + (oUnreal >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsUnrealizedPL', oCost > 0 ? (oUnreal / oCost * 100) : 0);
+    const _rEl = document.getElementById('kpiActionsRealizedPL');
+    if (_rEl) { _rEl.textContent = (oReal >= 0 ? '+' : '') + fmt(oReal); _rEl.className = 'value ' + (oReal >= 0 ? 'pl-pos' : 'pl-neg'); }
+    setSubPct('kpiActionsRealizedPL', oCost > 0 ? (oReal / oCost * 100) : 0);
+    setText('kpiActionsTotalDeposits', fmt(oCost)); // sous-ensemble : coût de base (approx. du déployé net)
+    setText('kpiActionsDividends', fmt(showAmine ? av.dividends : 0));
+  }
+
   allPositions.forEach(p => { p.pruEUR = p.costEUR && p.shares > 0 ? p.costEUR / p.shares : 0; });
 
   // ════════════════════════════════════════════════════════════
@@ -6984,7 +7017,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=373').then(m => {
+  import('./charts.js?v=374').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
