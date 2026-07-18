@@ -1133,7 +1133,7 @@ export const PORTFOLIO = {
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════
   market: {
-    sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD (dernier relevé scrapé 10/07/2026, casablanca-bourse.com). v330+ : surchargé au runtime par data/sgtm_live.json (scrapé par GitHub Action horaire). Ce fallback ne sert que si le fetch du JSON repo échoue.
+    sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD — fallback de DERNIER recours uniquement. v372 : le prix live vient en runtime de l'API TradingView (scanner CSEMA:GTM, direct navigateur), puis en repli data/sgtm_live.json, puis scraping proxy. Cette valeur figée ne sert que si TOUTES ces sources échouent.
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
     acnPriceUSD: 144.61,     // Cours Accenture en USD — clôture 16/07/2026 (bootstrap ; écrasé par l'API si dispo)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
@@ -1213,7 +1213,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '16/07/2026';
-export const APP_VERSION = 'v372';
+export const APP_VERSION = 'v373';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

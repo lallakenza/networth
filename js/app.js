@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=372';
-import { compute, getGrandTotal } from './engine.js?v=372';
-import { render } from './render.js?v=372';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=372';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=372';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=372';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=372';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=373';
+import { compute, getGrandTotal } from './engine.js?v=373';
+import { render } from './render.js?v=373';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=373';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=373';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=373';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=373';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
