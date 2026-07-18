@@ -1,0 +1,29 @@
+name: Daily NW snapshot
+
+# v390 — Snapshot quotidien du patrimoine SANS visite du site (confirmé par Amine, 18/07/2026).
+# ~22h/23h Paris (21h UTC, après clôture US 16h ET). Prix live Yahoo depuis le runner,
+# SGTM via data/sgtm_live.json (cron horaire existant), INSERT Supabase append-only.
+# Aucun secret requis : la clé publishable Supabase est publique par design (cf. docs/SERVER_STORE_SETUP.md).
+
+on:
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: daily-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Capture + insert daily snapshot
+        run: node scripts/daily_snapshot.mjs
