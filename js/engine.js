@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=393';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=394';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3510,6 +3510,9 @@ function computeCreancesView(portfolio, fx) {
   }
 
   // Inject facturation receivables into active items
+  // v394 — id stable anonyme (sinon buildDailySnapshot retombe sur item_N positionnel,
+  // qui casse la continuité des séries historiques à chaque réordonnancement)
+  factuCreances.forEach((c, i) => { if (!c.id) c.id = 'FACTU' + String(i + 1).padStart(2, '0'); });
   activeItems.push(...factuCreances);
 
   // ── KPIs (computed AFTER facturation injection so totals include Augustin etc.) ──
