@@ -112,6 +112,70 @@ function sharesAt(storeId, d) {
 const lotsA = (PORTFOLIO.amine.espp.lots || []), lotsN = ((PORTFOLIO.nezha.espp || {}).lots || []);
 const esppSharesAt = (lots, d) => lots.filter(l => l.date <= d).reduce((s, l) => s + (l.shares || 0), 0);
 
+// ── CASH depuis l'HISTORIQUE GIT de data.js (v392) ──
+// Chaque commit modifiant un solde = une observation datée réelle (« le solde valait X
+// ce jour-là »). Fonction en escalier entre observations (un solde bancaire persiste).
+// Ids stables = ceux des snapshots live (CASH_ACCOUNT_IDS engine). Parsing par section
+// (amine avant « nezha: { », nezha après) car revolutEUR existe des deux côtés.
+import { execSync } from 'node:child_process';
+const CASH_SPEC = {
+  mashreq:          { s: 'amine', keys: ['mashreq'], ccy: 'AED', owner: 'A' },
+  wio_savings:      { s: 'amine', keys: ['wioSavings'], ccy: 'AED', owner: 'A' },
+  wio_current:      { s: 'amine', keys: ['wioCurrent'], ccy: 'AED', owner: 'A' },
+  wio_business:     { s: 'amine', keys: ['wioBusiness'], ccy: 'AED', owner: 'A' },
+  revolut_amine:    { s: 'amine', keys: ['revolutEUR', 'revolut'], ccy: 'EUR', owner: 'A' },
+  banque_populaire: { s: 'amine', keys: ['banquePopulaire'], ccy: 'EUR', owner: 'A' },
+  binance:          { s: 'amine', keys: ['binanceUSDT'], ccy: 'USD', owner: 'A' },
+  attijari_amine:   { s: 'amine', keys: ['attijari'], ccy: 'MAD', owner: 'A' },
+  nabd:             { s: 'amine', keys: ['nabd', 'soge'], ccy: 'MAD', owner: 'A' },
+  cih:              { s: 'amine', keys: ['cih'], ccy: 'MAD', owner: 'A' },
+  revolut_nezha:    { s: 'nezha', keys: ['revolutEUR'], ccy: 'EUR', owner: 'N' },
+  credit_mutuel:    { s: 'nezha', keys: ['creditMutuelCC', 'creditMutuel'], ccy: 'EUR', owner: 'N' },
+  livret_a:         { s: 'nezha', keys: ['lclLivretA', 'livretA'], ccy: 'EUR', owner: 'N' },
+  lcl_compte:       { s: 'nezha', keys: ['lclCompteDepots', 'lclDepots'], ccy: 'EUR', owner: 'N' },
+  ibkr_nezha:       { s: 'nezha', keys: ['ibkrEUR'], ccy: 'EUR', owner: 'N' },
+  attijari_nezha:   { s: 'nezha', keys: ['attijariwafarMAD', 'attijariwafar'], ccy: 'MAD', owner: 'N' },
+  wio_nezha:        { s: 'nezha', keys: ['wioAED'], ccy: 'AED', owner: 'N' },
+};
+function gitCashObservations() {
+  const sh = (cmd) => execSync(cmd, { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }).toString();
+  const commits = sh("git log --follow --reverse --format='%H %ad' --date=short -- js/data.js")
+    .trim().split('\n').map(l => { const [sha, date] = l.split(' '); return { sha, date }; });
+  const lastByDay = {};
+  for (const { sha, date } of commits) {
+    let text; try { text = sh('git show ' + sha + ':js/data.js'); } catch (e) { continue; }
+    const idx = text.search(/\bnezha\s*:\s*\{/);
+    const parts = { amine: idx > 0 ? text.slice(0, idx) : text, nezha: idx > 0 ? text.slice(idx) : '' };
+    for (const [id, spec] of Object.entries(CASH_SPEC)) {
+      for (const key of spec.keys) {
+        const m = parts[spec.s].match(new RegExp('\\b' + key + '\\s*:\\s*(-?[0-9][0-9_ .]*)'));
+        if (m) { const v = parseFloat(m[1].replace(/[_ ]/g, '')); if (isFinite(v)) { (lastByDay[id] = lastByDay[id] || {})[date] = v; } break; }
+      }
+    }
+  }
+  const series = {};
+  for (const [id, byDay] of Object.entries(lastByDay)) {
+    const obs = [];
+    for (const d of Object.keys(byDay).sort()) {
+      if (obs.length === 0 || obs[obs.length - 1].native !== byDay[d]) obs.push({ date: d, native: byDay[d] });
+    }
+    series[id] = obs;
+  }
+  return series;
+}
+const CASH_OBS = gitCashObservations();
+console.log('[cash-git]', Object.keys(CASH_OBS).length, 'comptes,',
+  Object.values(CASH_OBS).reduce((s, o) => s + o.length, 0), 'observations (commits data.js)');
+const cashAt = (id, d) => { let v = null; for (const o of CASH_OBS[id] || []) { if (o.date <= d) v = o.native; else break; } return v; };
+// V5 : la dernière observation de chaque compte doit égaler la valeur HEAD de data.js
+const HEAD_CHECK = { mashreq: PORTFOLIO.amine.uae.mashreq, wio_savings: PORTFOLIO.amine.uae.wioSavings, attijari_amine: PORTFOLIO.amine.maroc.attijari };
+for (const [id, expect] of Object.entries(HEAD_CHECK)) {
+  const obs = CASH_OBS[id] || [];
+  const lastV = obs.length ? obs[obs.length - 1].native : null;
+  console.log('[V5]', id, 'dernière obs', lastV, 'vs data.js HEAD', expect, lastV === expect ? '✓' : '✗');
+  if (lastV !== expect) { console.error('[V5] ÉCHEC'); process.exit(1); }
+}
+
 // V1 : Σ lots == parts actuelles
 const totA = esppSharesAt(lotsA, '2099-01-01'), totN = esppSharesAt(lotsN, '2099-01-01');
 console.log('[V1] ESPP Amine Σlots', totA, 'vs data.js', PORTFOLIO.amine.espp.shares, '| Nezha Σlots', totN, 'vs', (PORTFOLIO.nezha.espp || {}).shares);
@@ -158,7 +222,9 @@ if (Math.abs(sgtmIpo - 461.95) >= 1) process.exit(1);
 if (excluded.size) console.warn('[backfill] tickers exclus (honnêteté > couverture) :', [...excluded].join(', '));
 
 // ── Dates cibles : hebdo (lundis) < 2026, quotidien ≥ 2026 ; bornes = 1er lot ESPP → hier ──
-const existing = new Set((await (await fetch(SUPA + '/rest/v1/nw_snapshots?select=snap_date', { headers: HDRS })).json()).map(r => r.snap_date));
+// Dates déjà couvertes par un snapshot RÉEL (les lignes backfill sont régénérées, pas sautées)
+const existingRows = await (await fetch(SUPA + '/rest/v1/nw_snapshots?select=snap_date,quality,bf:data->meta->>backfill', { headers: HDRS })).json();
+const existing = new Set(existingRows.filter(r => r.bf !== 'true').map(r => r.snap_date));
 const startISO = [...lotsA.map(l => l.date)].sort()[0];
 const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
 const targets = [];
@@ -195,8 +261,19 @@ for (const d of targets) {
       positions['SGTM.A'] = { eur: stocks.sgtmAmine }; positions['SGTM.N'] = { eur: stocks.sgtmNezha };
     }
   }
-  if (Object.keys(positions).length === 0) continue;
-  rows.push({ snap_date: d, quality: 'partial', data: { schema: 1, stocks, meta: { backfill: true, method: 'parts(J,trades/lots) × clôture(J,store) × FX(J)', appVersion: 'backfill-v391' } } });
+  // Cash observé via l'historique git (escalier entre observations, converti au FX du jour)
+  const accounts = {};
+  for (const [id, spec] of Object.entries(CASH_SPEC)) {
+    const native = cashAt(id, d);
+    if (native == null) continue;
+    const fxv = fxAt(spec.ccy, d);
+    if (!(fxv > 0)) continue;
+    accounts[id] = { eur: Math.round(native / fxv), native, ccy: spec.ccy, owner: spec.owner, est: true };
+  }
+  const data = { schema: 1, stocks, meta: { backfill: true, method: 'parts(J,trades/lots) × clôture(J,store) × FX(J) ; cash = observations git data.js (escalier)', appVersion: 'backfill-v392' } };
+  if (Object.keys(accounts).length > 0) data.cash = { accounts };
+  if (Object.keys(positions).length === 0 && Object.keys(accounts).length === 0) continue;
+  rows.push({ snap_date: d, quality: 'partial', data });
 }
 console.log('[backfill]', rows.length, 'snapshots partiels construits |', Math.round(JSON.stringify(rows).length / 1024), 'Ko total');
 
@@ -219,6 +296,11 @@ async function adminSQL(query) {
   });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 300));
 }
+// Régénération : les lignes backfill (admin-managed) sont supprimées puis ré-insérées
+// enrichies — l'append-only protège l'historique RÉEL (quality live/partial du site),
+// pas les reconstructions admin, régénérables par ce script de façon idempotente.
+await adminSQL(`delete from public.nw_snapshots where quality = 'partial' and data->'meta'->>'backfill' = 'true';`);
+console.log('[backfill] anciennes lignes backfill purgées (régénération)');
 let inserted = 0;
 for (let i = 0; i < rows.length; i += 40) {
   const batch = rows.slice(i, i + 40);
