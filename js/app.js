@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=378';
-import { compute, getGrandTotal } from './engine.js?v=378';
-import { render } from './render.js?v=378';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore } from './api.js?v=378';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=378';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=378';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=378';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=379';
+import { compute, getGrandTotal } from './engine.js?v=379';
+import { render } from './render.js?v=379';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore } from './api.js?v=379';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=379';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=379';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=379';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -523,10 +523,35 @@ window.coupleChartZoomOut = coupleChartZoomOut;
   if (vBadge) vBadge.textContent = APP_VERSION;
 })();
 
+// v379 — RENDU DU GRAPHE HÉROS DÈS L'INIT, depuis le store localStorage, AVANT tout réseau.
+// Le frame de la page s'affiche en <1s mais les prix passent par ~84 fetch CORS-proxy (timeout
+// 10s chacun) → le graphe d'évolution restait vide ~10-18s (« mega lent »). Le store persistant
+// (v376) contient déjà l'historique : on dessine le graphe immédiatement (jusqu'à hier ; le point
+// du jour + les prix live se calent quand loadLivePrices aboutit). 1re visite (store vide) → on
+// attend le fetch une fois, comme avant.
+function renderHeroChartFromStore() {
+  try {
+    if (currentView !== 'actions' && currentSubView !== 'actions') return false; // graphe = vue Actions
+    const base = getHistoricalBase(PRICE_SNAPSHOT);
+    if (!base || !base._fromStore) return false; // pas de store → on laisse loadLivePrices fetcher
+    const r = buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, {
+      mode: 'ytd', startingNAV: 209495, includeESPP: true, includeSGTM: true, scope: 'all',
+    });
+    if (r) updateKPIsFromChart(r);
+    buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, { mode: '1y', includeESPP: true, includeSGTM: true, scope: 'all', skipRender: true });
+    update1YKPIFromChart();
+    buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, { mode: 'alltime', includeESPP: true, includeSGTM: true, skipRender: true });
+    renderPortfolioChart();
+    console.log('[v379] Graphe héros rendu depuis le store localStorage AU CHARGEMENT (avant réseau, ' + Object.keys(base.tickers).length + ' tickers)');
+    return true;
+  } catch (e) { console.warn('[v379] rendu héros au chargement échoué (fallback fetch):', e); return false; }
+}
+
 // ---- INIT ----
 restoreFromHash();
 syncNavUI();
 refresh();
+renderHeroChartFromStore(); // v379 — graphe visible immédiatement (2e visite+), sans attendre les proxies
 
 // Hide loading overlay after initial data load
 document.getElementById('loadingOverlay')?.classList.add('hidden');
