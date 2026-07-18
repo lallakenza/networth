@@ -5,6 +5,38 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v377 (18 juillet 2026) — BUG-075
+
+### BUG-075: `ReferenceError: noAPI is not defined` gelait TOUTE la vue Actions (landing page)
+- **Version**: latent depuis v171 (nom `noAPI` jamais défini) ; **déclenché** en pratique par les
+  changements v372/v373 autour de SGTM/`isPositionStatic` — corrigé **v377**.
+- **Sévérité**: **CRITIQUE (P0)** — page d'accueil (#actions) inutilisable : bloquée sur « Chargement
+  des données… », overlay jamais retiré, graphe jamais construit, store jamais sauvé.
+- **Détection**: test live dans le **Chrome réel de l'utilisateur** (l'in-app browser ne complétait
+  jamais l'init à cause des timeouts de fetch → symptôme masqué). Console : `ReferenceError: noAPI is
+  not defined` à `render.js:1583`, stack `renderAllPositions → renderActionsView → render → refresh`.
+  Symptôme rapporté par l'utilisateur : « je ne vois pas le toggle » (en fait toute la page figée).
+- **Symptôme**: `refresh()` (appelé tôt dans l'init, app.js:529) throw dès que la vue Actions est
+  rendue → la séquence d'init casse → `loadingOverlay` (z-index 1000, blanc semi-transparent) reste
+  affiché et grise tout le header (dont le toggle owner). 133 s après nav : toujours rien.
+- **Cause racine**: `render.js:1583` `if (isStatic && !noAPI)` référence `noAPI`, identifiant jamais
+  déclaré (la vraie variable, `isMoroccanNoYahoo`, est définie 100 lignes plus haut dans la même
+  boucle). Le `&&` **court-circuitait** tant qu'aucune position rendue n'était statique (`!noAPI`
+  jamais évalué). Dès que SGTM tombe en statique (`pos._live !== true` → `isPositionStatic=true`,
+  fréquent : fetch TradingView flaky / réseau lent), `!noAPI` est évalué → ReferenceError.
+- **Correctif**: `noAPI` → `isMoroccanNoYahoo` (1 mot ; sémantique inchangée : ne pas griser en
+  « périmé » les marchés Casablanca sans API Yahoo).
+- **Pourquoi passé à travers les filets**: `node --check` (syntaxe seule) et `detect_desyncs.mjs`
+  (moteur Node, ne touche pas render.js runtime) ne peuvent PAS voir une `ReferenceError` derrière un
+  court-circuit. **Vérifié exhaustivement** ensuite via ESLint `no-undef` sur les 8 modules (0
+  violation après fix ; règle validée en réinjectant le bug → bien flaggé). → **Gate recommandé** :
+  ajouter une passe `no-undef` avant chaque déploiement.
+- **Test de non-régression**: charger #actions avec SGTM en statique (couper le réseau ou forcer
+  `pos._live=false`) → la page doit se charger, l'overlay disparaître, le tableau des positions
+  s'afficher (lignes SGTM en gris neutre, PAS d'exception console).
+
+---
+
 ## Audit v340-342 (30 mai 2026) — BUG-064 → BUG-074
 
 Audit complet via `npx skills` (skills `impeccable` + `microsoft/frontend-design-review`) + 4 agents parallèles sur le code métier + calcul réel des ratios de contraste WCAG. **0 bug de Net Worth** (invariants intacts) ; 11 défauts d'affichage/a11y corrigés en 3 sprints (v340 exactitude, v341 accessibilité, v342 charts/sim/polish). Voir `ARCHITECTURE.md §77`.
