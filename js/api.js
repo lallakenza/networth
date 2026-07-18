@@ -279,8 +279,54 @@ export function pickMoroccanPriceAt(series, date, opts = {}) {
   return { priceMAD: chosen.priceMAD, dateUsed: chosen.date, source: chosen.source || '', forwardFilled: chosen.date !== date };
 }
 
+// ── Accumulation d'historique en localStorage (v370, « 0 infra ») ────────────────────────────
+// Sans GitHub Actions, plus personne ne committe le close quotidien. À la place, à chaque visite
+// on enregistre le close du jour (relevé TradingView) dans le localStorage du navigateur, puis on
+// FUSIONNE avec la base committée data/<ticker>_history.json. Le dernier relevé du jour écrase les
+// précédents → close de facto (comme le scraper). Par-navigateur (best-effort), non partagé.
+const MOROCCAN_HISTORY_LS_PREFIX = 'nw_moroccan_history_';
+const MOROCCAN_HISTORY_MAX = 800; // ~3 ans de jours ouvrés — borne anti-gonflement du localStorage
+
+/** Lit la série accumulée en localStorage pour `ticker` (array {date, priceMAD, source}). */
+export function getLocalMoroccanHistory(ticker) {
+  try {
+    const raw = localStorage.getItem(MOROCCAN_HISTORY_LS_PREFIX + String(ticker).toLowerCase());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/** Upsert du close du jour dans le localStorage (remplace l'entrée du jour si déjà présente). */
+export function recordMoroccanDailyClose(ticker, priceMAD, source) {
+  try {
+    const px = Number(priceMAD);
+    if (!(px > 0) || typeof localStorage === 'undefined') return;
+    const key = MOROCCAN_HISTORY_LS_PREFIX + String(ticker).toLowerCase();
+    const today = new Date().toISOString().slice(0, 10);
+    const arr = getLocalMoroccanHistory(ticker);
+    const entry = { date: today, priceMAD: Math.round(px * 100) / 100, source: source || 'tradingview' };
+    const i = arr.findIndex(e => e && e.date === today);
+    if (i >= 0) arr[i] = entry; else arr.push(entry);
+    arr.sort((a, b) => a.date.localeCompare(b.date));
+    if (arr.length > MOROCCAN_HISTORY_MAX) arr.splice(0, arr.length - MOROCCAN_HISTORY_MAX);
+    localStorage.setItem(key, JSON.stringify(arr));
+  } catch (e) {
+    // localStorage plein / désactivé (navigation privée) → non-bloquant
+  }
+}
+
+/** Fusionne série committée (fichier) + accumulation localStorage. Le localStorage gagne à date égale. */
+export function mergeMoroccanHistory(fileSeries, localSeries) {
+  const byDate = {};
+  for (const e of (fileSeries || [])) if (e && e.date && typeof e.priceMAD === 'number') byDate[e.date] = e;
+  for (const e of (localSeries || [])) if (e && e.date && typeof e.priceMAD === 'number') byDate[e.date] = e;
+  return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /**
- * Prix d'une action marocaine `ticker` à la date `date` (fetch + cache de l'historique repo).
+ * Prix d'une action marocaine `ticker` à la date `date` (historique committé ∪ localStorage).
  * @param {string} ticker  ex. 'SGTM' (générique : lit data/<ticker>_history.json)
  * @param {string} date    'YYYY-MM-DD'
  * @param {{exact?:boolean}} [opts]
@@ -294,15 +340,17 @@ export async function getMoroccanPriceAt(ticker, date, opts = {}) {
     try {
       const bust = Math.floor(Date.now() / 3600000);
       const res = await fetchWithTimeout(`./data/${key}_history.json?h=${bust}`, 5000);
-      if (!res.ok) return null;
-      const doc = await res.json();
+      const doc = res.ok ? await res.json() : {};
       cached = { series: Array.isArray(doc.series) ? doc.series : [], currency: doc.currency || 'MAD', _ts: Date.now() };
       _moroccanHistoryCache[key] = cached;
     } catch (e) {
-      return null;
+      cached = { series: [], currency: 'MAD', _ts: Date.now() }; // fichier KO : on garde le localStorage seul
+      _moroccanHistoryCache[key] = cached;
     }
   }
-  const hit = pickMoroccanPriceAt(cached.series, date, opts);
+  // Fusion base committée ∪ accumulation localStorage (v370)
+  const merged = mergeMoroccanHistory(cached.series, getLocalMoroccanHistory(key));
+  const hit = pickMoroccanPriceAt(merged, date, opts);
   if (!hit) return null;
   return {
     ticker: String(ticker).toUpperCase(),
@@ -366,6 +414,9 @@ async function fetchSGTMPrice() {
   const fromTV = await fetchMoroccanStockFromTradingView('GTM');
   if (fromTV) {
     console.log('[api] SGTM TradingView (direct, CORS): ' + fromTV.price + ' MAD');
+    // Accumulation « 0 infra » : on enregistre le close du jour en localStorage (fusionné avec
+    // la base committée pour le graphique + getMoroccanPriceAt). Remplace le rôle du GitHub Action.
+    recordMoroccanDailyClose('sgtm', fromTV.price, 'tradingview');
     return { price: fromTV.price, source: 'tradingview' };
   }
 

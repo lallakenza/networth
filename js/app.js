@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=370';
-import { compute, getGrandTotal } from './engine.js?v=370';
-import { render } from './render.js?v=370';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt } from './api.js?v=370';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=370';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=370';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=370';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=371';
+import { compute, getGrandTotal } from './engine.js?v=371';
+import { render } from './render.js?v=371';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getMoroccanPriceAt, pickMoroccanPriceAt, getLocalMoroccanHistory, mergeMoroccanHistory } from './api.js?v=371';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=371';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=371';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=371';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1125,14 +1125,15 @@ async function loadStockPrices(forceRefresh) {
         // via ce fichier same-origin (fetch sans CORS).
         try {
           const sgtmHistResp = await fetch('./data/sgtm_history.json?h=' + new Date().getHours());
-          if (sgtmHistResp.ok) {
-            const sgtmHist = await sgtmHistResp.json();
-            if (Array.isArray(sgtmHist.series) && sgtmHist.series.length > 0) {
-              historicalData.sgtmHistory = sgtmHist.series;
-              const first = sgtmHist.series[0].date;
-              const last = sgtmHist.series[sgtmHist.series.length - 1].date;
-              console.log('[app] SGTM history loaded: ' + sgtmHist.series.length + ' days (' + first + ' → ' + last + ')');
-            }
+          const fileSeries = sgtmHistResp.ok ? ((await sgtmHistResp.json()).series || []) : [];
+          // v370 — fusion base committée ∪ accumulation localStorage (« 0 infra », sans GitHub Actions).
+          // Le localStorage grossit à chaque visite via recordMoroccanDailyClose (relevé TradingView).
+          const merged = mergeMoroccanHistory(fileSeries, getLocalMoroccanHistory('sgtm'));
+          if (merged.length > 0) {
+            historicalData.sgtmHistory = merged;
+            console.log('[app] SGTM history: ' + fileSeries.length + ' committés + '
+              + getLocalMoroccanHistory('sgtm').length + ' localStorage = ' + merged.length + ' jours ('
+              + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
           }
         } catch (e) {
           console.warn('[app] SGTM history fetch failed (non-blocking):', e);
