@@ -943,6 +943,9 @@ function saveHistCache(data) {
 //  ce store n'expire jamais et accumule.
 // ════════════════════════════════════════════════════════════════════
 const HIST_STORE_KEY = 'nw_hist_store_v1';
+// v382 — plage du backfill initial (1re visite / nouvelle position). 5Y couvre la vie complète
+// de toutes nos positions (la plus ancienne = ESPP Accenture 2023) avec marge. Ensuite : gap-only.
+const HIST_BACKFILL_RANGE = '5y';
 
 function _todayISO() {
   const d = new Date();
@@ -960,16 +963,29 @@ export function loadHistStore() {
   } catch (e) { return null; }
 }
 
+// v382 — borne dure de la taille du store (garde les N derniers jours par série).
+// 1800 jours ≈ 7 ans > le backfill 5Y → aucune perte en pratique, mais empêche le blob
+// localStorage de grossir sans limite (quota ~5 Mo).
+const MAX_STORE_DAYS = 1800;
+function _trimSeries(d) {
+  if (!d || !d.dates || d.dates.length <= MAX_STORE_DAYS) return d;
+  return { dates: d.dates.slice(-MAX_STORE_DAYS), closes: d.closes.slice(-MAX_STORE_DAYS) };
+}
+
 /** Persiste le store accumulé (best-effort ; silencieux si quota dépassé). */
 export function saveHistStore(data) {
   try {
     if (!data || !data.tickers) return;
+    const tickers = {}, fx = {};
+    for (const [t, d] of Object.entries(data.tickers)) tickers[t] = _trimSeries(d);
+    for (const [k, d] of Object.entries(data.fx || {})) fx[k] = _trimSeries(d);
     const s = {
       v: 1,
-      tickers: data.tickers,
-      fx: data.fx || {},
+      tickers,
+      fx,
       _updated: _todayISO(),
       _lastDate: getLastDate(data),
+      _backfilled: !!data._backfilled, // v382 — historique complet déjà chargé ⇒ delta-only ensuite
     };
     if (data.sgtmHistory && data.sgtmHistory.length) s.sgtmHistory = data.sgtmHistory;
     localStorage.setItem(HIST_STORE_KEY, JSON.stringify(s));
@@ -990,8 +1006,20 @@ export function getHistoricalBase(snapshot) {
   base._snapshotDate = store ? (store._lastDate || '1900-01-01') : ((snapshot && snapshot._snapshotDate) || '1900-01-01');
   base._fromStore = !!store;
   base._storeUpdated = store ? store._updated : null;
+  base._backfilled = store ? !!store._backfilled : false; // v382 — historique complet déjà chargé ?
   if (store && store.sgtmHistory) base.sgtmHistory = store.sgtmHistory.map(x => ({ ...x }));
   return base;
+}
+
+// v382 — union de deux séries {dates,closes} par date (triée, dédupliquée ; le delta
+// GAGNE sur les dates en conflit → un jour re-fetché voit sa clôture provisoire remplacée
+// par la définitive). Gère indifféremment le préfixe (backfill), l'ajout (gap) et le remplacement.
+function unionSeries(base, delta) {
+  const map = new Map();
+  if (base && base.dates) for (let i = 0; i < base.dates.length; i++) map.set(base.dates[i], base.closes[i]);
+  if (delta && delta.dates) for (let i = 0; i < delta.dates.length; i++) map.set(delta.dates[i], delta.closes[i]);
+  const dates = [...map.keys()].sort();
+  return { dates, closes: dates.map(d => map.get(d)) };
 }
 
 /**
@@ -1000,9 +1028,18 @@ export function getHistoricalBase(snapshot) {
  * @param {string} [range='ytd'] - Range: 'ytd' or '1y'
  * @returns {{ dates: string[], closes: number[] } | null}
  */
-async function fetchTickerHistory(symbol, range) {
-  range = range || 'ytd';
-  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=' + range + '&interval=1d';
+async function fetchTickerHistory(symbol, rangeOrOpts) {
+  // v382 — accepte soit une plage nommée ('ytd','5y',…), soit une fenêtre précise
+  // { period1, period2 } (timestamps unix) pour ne récupérer QUE le delta depuis la
+  // dernière visite (« l'API n'est appelée que pour les données futures »).
+  let qs;
+  if (rangeOrOpts && typeof rangeOrOpts === 'object' && rangeOrOpts.period1) {
+    const p2 = rangeOrOpts.period2 || Math.floor(Date.now() / 1000);
+    qs = 'period1=' + Math.floor(rangeOrOpts.period1) + '&period2=' + Math.floor(p2) + '&interval=1d';
+  } else {
+    qs = 'range=' + (rangeOrOpts || 'ytd') + '&interval=1d';
+  }
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?' + qs;
   const attempts = [];
 
   for (const proxy of PROXIES) {
@@ -1082,43 +1119,45 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   // L'historique daily ne bouge pas en intraday ; le prix « aujourd'hui » vient des
   // quotes live (unifyPrices côté app.js), pas d'ici. Évite 16+ requêtes redondantes
   // sur les visites répétées du même jour → chargement instantané.
-  if (result._fromStore && result._storeUpdated === _todayISO()) {
-    console.log('[hist] Store déjà à jour (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + getLastDate(result));
+  // v382 — on ne skip que si le store est frais ET déjà entièrement backfillé (sinon on doit
+  // d'abord charger l'historique complet, même si le store a été touché aujourd'hui).
+  if (result._fromStore && result._storeUpdated === _todayISO() && result._backfilled) {
+    console.log('[hist] Store à jour + complet (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + getLastDate(result));
     return result;
   }
 
-  // ── Step 2: Check delta cache ──
-  const cached = loadHistCache();
-  if (cached && cached.tickers && cached.fx) {
-    const missing = tickers.filter(t => !cached.tickers[t] && !result.tickers[t]);
-    if (missing.length === 0) {
-      // Merge cached delta into snapshot
-      mergeInto(result, cached, snapshotDate);
-      saveHistStore(result); // v376 — persiste le store accumulé
-      console.log('[hist] Delta from cache, merged. Total coverage → ' + getLastDate(result));
-      return result;
-    }
-  }
-
-  // ── Step 3: Fetch delta (YTD range — covers Jan 1 → today) ──
-  // YTD range is sufficient: snapshot already has data back to ~1 year ago.
-  // Any new tickers not in snapshot will get full YTD data.
+  // ── Step 2 (v382): fetch CIBLÉ par série ──
+  // • BACKFILL 5Y — 1re visite du navigateur (store jamais complété) OU nouvelle position
+  //   absente du store → on charge l'historique complet une seule fois.
+  // • GAP seul — sinon, on ne récupère QUE [dernière date connue → aujourd'hui]. On ne
+  //   re-télécharge jamais une donnée déjà en base ⇒ « l'API n'est appelée que pour le futur ».
   const fxPairs = [
     { symbol: 'EURUSD=X', key: 'usd' },
     { symbol: 'EURJPY=X', key: 'jpy' },
     { symbol: 'EURMAD=X', key: 'mad' },
   ];
   const total = tickers.length + fxPairs.length;
-  let loaded = 0;
+  let loaded = 0, backfills = 0, gaps = 0;
   const delta = { tickers: {}, fx: {} };
   const allPromises = [];
+  const nowUnix = Math.floor(Date.now() / 1000);
+
+  function _fetchArgs(existing) {
+    const hasData = existing && existing.dates && existing.dates.length > 0;
+    if (!result._backfilled || !hasData) return { mode: 'backfill', arg: HIST_BACKFILL_RANGE };
+    // Gap : depuis (dernière date − 7 j de marge, pour recaler d'éventuelles clôtures
+    // provisoires) jusqu'à maintenant. L'union dédoublonne ; le delta gagne sur les conflits.
+    const last = existing.dates[existing.dates.length - 1];
+    const p1 = Math.floor(new Date(last + 'T00:00:00Z').getTime() / 1000) - 7 * 86400;
+    return { mode: 'gap', arg: { period1: p1, period2: nowUnix } };
+  }
 
   for (const ticker of tickers) {
+    const fa = _fetchArgs(result.tickers[ticker]);
+    fa.mode === 'backfill' ? backfills++ : gaps++;
     allPromises.push(
-      getStockHistory({ ticker }, 'ytd').then(data => {
+      getStockHistory({ ticker }, fa.arg).then(data => {
         loaded++;
-        // v372 — ne garder que {dates,closes} (le provider renvoie aussi market/series, inutiles ici
-        // et qui gonfleraient le blob de cache nw_hist_*).
         if (data) delta.tickers[ticker] = { dates: data.dates, closes: data.closes };
         if (onProgress) onProgress(loaded, total, ticker + (data ? ' ✓' : ' ✗'));
       })
@@ -1126,8 +1165,10 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   }
 
   for (const { symbol, key } of fxPairs) {
+    const fa = _fetchArgs(result.fx[key]);
+    fa.mode === 'backfill' ? backfills++ : gaps++;
     allPromises.push(
-      getStockHistory({ ticker: symbol }, 'ytd').then(data => {
+      getStockHistory({ ticker: symbol }, fa.arg).then(data => {
         loaded++;
         if (data) delta.fx[key] = { dates: data.dates, closes: data.closes };
         if (onProgress) onProgress(loaded, total, symbol + (data ? ' ✓' : ' ✗'));
@@ -1136,16 +1177,19 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   }
 
   await Promise.all(allPromises);
-  saveHistCache(delta);
 
-  // ── Step 4: Merge delta into snapshot ──
-  mergeInto(result, delta, snapshotDate);
-  saveHistStore(result); // v376 — persiste le store accumulé (grandit à chaque visite)
+  // ── Step 3 (v382): fusion par UNION de dates (backfill = préfixe, gap = ajout) + persistance ──
+  for (const [t, d] of Object.entries(delta.tickers)) result.tickers[t] = unionSeries(result.tickers[t], d);
+  for (const [k, d] of Object.entries(delta.fx)) result.fx[k] = unionSeries(result.fx[k], d);
+  result._backfilled = true; // le store est désormais complet → visites suivantes = gap-only
+  saveHistStore(result);
 
   const loadedCount = Object.keys(delta.tickers).length;
   const fxStatus = Object.keys(delta.fx).map(k => k.toUpperCase() + ': ' + (delta.fx[k] ? '✓' : '✗')).join(', ');
-  console.log('[hist] Fetched delta: ' + loadedCount + '/' + tickers.length + ' tickers + FX (' + fxStatus + ')');
-  console.log('[hist] Merged snapshot+delta → coverage ' + getFirstDate(result) + ' → ' + getLastDate(result));
+  console.log('[hist] v382 : ' + backfills + ' backfill(' + HIST_BACKFILL_RANGE + ') + ' + gaps + ' gap → '
+    + loadedCount + '/' + tickers.length + ' tickers + FX (' + fxStatus + ')');
+  console.log('[hist] Store fusionné → coverage ' + getFirstDate(result) + ' → ' + getLastDate(result)
+    + ' (' + ((result.tickers[tickers[0]] && result.tickers[tickers[0]].dates.length) || 0) + ' j sur ' + tickers[0] + ')');
 
   return result;
 }
