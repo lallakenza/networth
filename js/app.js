@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=384';
-import { compute, getGrandTotal } from './engine.js?v=384';
-import { render } from './render.js?v=384';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore } from './api.js?v=384';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=384';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=384';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=384';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=385';
+import { compute, getGrandTotal } from './engine.js?v=385';
+import { render } from './render.js?v=385';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory } from './api.js?v=385';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=385';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=385';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=385';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1309,18 +1309,29 @@ async function loadStockPrices(forceRefresh) {
         // via la couche harmonisée (fichier committé data/sgtm_history.json ∪ localStorage).
         try {
           const sgtmHist = await getStockHistory('SGTM', 'ytd');
-          const merged = sgtmHist ? sgtmHist.series : [];
+          const localSeries = sgtmHist ? sgtmHist.series : [];
+          // v385 — UNION L2 (déjà dans historicalData.sgtmHistory via fetchHistoricalPrices) ∪ source
+          // locale (fichier repo committé ∪ localStorage). Par date, la source locale gagne (plus
+          // fraîche : elle contient la clôture live du jour). Ainsi la 1re machine qui charge SGTM
+          // alimente L2, et les machines suivantes le lisent de nos serveurs.
+          const byDate = new Map();
+          for (const e of (historicalData.sgtmHistory || [])) if (e && e.date) byDate.set(e.date, e);
+          for (const e of localSeries) if (e && e.date) byDate.set(e.date, e);
+          const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
           if (merged.length > 0) {
             historicalData.sgtmHistory = merged;
-            console.log('[app] SGTM history (harmonisé): ' + merged.length + ' jours ('
+            console.log('[app] SGTM history (L2 ∪ local): ' + merged.length + ' jours ('
               + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
           }
         } catch (e) {
           console.warn('[app] SGTM history fetch failed (non-blocking):', e);
         }
 
-        // v376 — re-persiste le store AVEC sgtmHistory (pour le rendu instantané suivant)
+        // v376/v385 — re-persiste AVEC sgtmHistory : L1 (localStorage) toujours ; L2 (Supabase)
+        // seulement si un fetch a eu lieu (pas sur un skip same-day) → le blob L2 est COMPLET
+        // (tickers + FX + SGTM), uploadé une seule fois, en background.
         try { saveHistStore(historicalData); } catch (e) { /* best effort */ }
+        if (historicalData._didFetch) saveServerHistory(historicalData);
         if (ytdProgress) ytdProgress.style.display = 'none';
 
         // Legacy aliases for backward compatibility (utilisés par le bind owner-bar plus bas)
