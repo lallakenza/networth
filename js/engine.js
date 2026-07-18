@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=387';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=388';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4656,7 +4656,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 // ════════════════════════════════════════════════════════════════════════════
 
 // Labels d'affichage (cashView) → ids stables. Fallback : slugify + warn (rename à mapper).
-const CASH_ACCOUNT_IDS = {
+// Exporté (v388) : l'explorateur de séries inverse ce mapping pour afficher les labels FR.
+export const CASH_ACCOUNT_IDS = {
   'Mashreq NEO+': 'mashreq', 'Wio Savings': 'wio_savings', 'Wio Current': 'wio_current',
   'Wio Business (Bairok)': 'wio_business', 'Revolut EUR': 'revolut_amine',
   'Banque Populaire': 'banque_populaire', 'Binance USDT': 'binance',

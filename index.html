@@ -3973,6 +3973,15 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="chart-container" style="min-height:300px;"><canvas id="nwHistTotalChart"></canvas></div>
   <h3 style="margin-top:22px;">Par cat&eacute;gorie &mdash; Actions / Cash / Immo / Autres</h3>
   <div class="chart-container" style="min-height:280px;"><canvas id="nwHistCatsChart"></canvas></div>
+
+  <h3 style="margin-top:26px;">&#x1F50D; Explorateur de s&eacute;ries</h3>
+  <p style="color:#718096;font-size:12px;margin:2px 0 10px;">L'historique de n'importe quelle s&eacute;rie suivie : chaque compte cash, chaque appartement (equity brute/nette, valeur, CRD), chaque position, cr&eacute;ances, KPIs&hellip;</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 10px;">
+    <select id="histSerieSelect" style="padding:6px 10px;border:1px solid #cbd5e0;border-radius:6px;font-size:13px;max-width:320px;"></select>
+    <select id="histSerieCompare" style="padding:6px 10px;border:1px solid #cbd5e0;border-radius:6px;font-size:13px;max-width:320px;"></select>
+    <span id="histSerieDelta" style="font-size:12.5px;font-weight:600;"></span>
+  </div>
+  <div class="chart-container" style="min-height:280px;"><canvas id="nwHistSerieChart"></canvas></div>
 </div>
 
 <div class="card hidden" data-view="budget">
@@ -4379,7 +4388,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=387"></script>
+<script type="module" src="js/app.js?v=388"></script>
 
 </body>
 </html>
