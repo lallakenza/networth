@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=391';
-import { IMMO_CONSTANTS } from './data.js?v=391';
+import { fmt, fmtAxis } from './render.js?v=393';
+import { IMMO_CONSTANTS } from './data.js?v=393';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
