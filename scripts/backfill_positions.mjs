@@ -294,7 +294,57 @@ const bankExactAt = (id, d) => {
   return v;
 };
 const factAt = (path, d) => { let v = null; for (const o of FACT_OBS[path] || []) { if (o.date <= d) v = o.native; else break; } return v; };
+const firstFactDate = (path) => { const o = FACT_OBS[path] || []; return o.length ? o[0].date : null; };
 console.log('[facts-git]', Object.keys(FACT_OBS).length, 'séries de faits bruts (immo/créances/tva/factu/véhicules/montres)');
+
+// ── v401 : CRD immo PRÉ-GIT par tableaux d'amortissement (FINANCIAL_DATA_EXTRACTION.md §2) ──
+// Le CRD d'un prêt annuité est DÉTERMINISTE : crd(k) = P(1+r)^k − m·((1+r)^k−1)/r, k = mensualités payées.
+// Le modèle ne s'applique que STRICTEMENT AVANT la 1ère observation git (2026-03-07) — le git garde la main après.
+// Anchors durs (data.js 31/03/2026, "CRD mis à jour" depuis les vrais tableaux) :
+//   Rueil  CM  251 200 @ 1,20 %/300, 1ère mens. déc 2019 (acte 05/11/2019) → crd(76) = 194 501 À L'EURO avec la mensualité théorique 969,62.
+//   Vitry  AL   40 000 @ 1,00 %/300, 1ère mens. déc 2022 (acte 16/01/2023) → m fitté pour crd(40) = 35 208 (théorique 150,75 → fit ≈ 151,2).
+//   Vitry  PTZ  60 000 @ 0 %, différé total → constant 60 000 (confirmé : encore 60 000 au 31/03/2026).
+//   Vitry  BP  175 000 @ 2,10 %/300, amortissement dès déc 2025 (VEFA : intercalaires avant) → m fitté pour crd(4) = 172 853 (doc ~840 → fit ≈ 841,5).
+// Valeurs : ancres réelles uniquement — Rueil interpolation géométrique prix d'achat 240 000 (11/2019) → 1ère obs git 272 000 (03/2026) ;
+//           Vitry flat 293 000 (= 1ère obs git) depuis la livraison 07/2025. AVANT livraison : non émis (VEFA 100 % financée,
+//           équité ≈ 0, échéancier d'appels de fonds intraçable — on n'invente pas).
+const AMORT = (() => {
+  const mIdx = (y, mo) => y * 12 + mo - 1;
+  const kPaid = (d, y0, m0, payDay = 5) => Math.max(0, mIdx(+d.slice(0, 4), +d.slice(5, 7)) - mIdx(y0, m0) + (+d.slice(8, 10) >= payDay ? 1 : 0));
+  const annuity = (P, annual, months) => { const r = annual / 12; return P * r * (1 + r) ** months / ((1 + r) ** months - 1); };
+  const crdK = (P, annual, months, m, k) => { const r = annual / 12; if (k <= 0) return P; if (k >= months) return 0; return r === 0 ? P - m * k : P * (1 + r) ** k - m * ((1 + r) ** k - 1) / r; };
+  const mCM = annuity(251200, 0.012, 300);                                      // 969,62 — validé à l'euro sur k=76
+  const mAL = (40000 * (1 + 0.01 / 12) ** 40 - 35208) * (0.01 / 12) / ((1 + 0.01 / 12) ** 40 - 1);   // fit exact sur l'anchor 31/03/2026
+  const mBP = (175000 * (1 + 0.021 / 12) ** 4 - 172853) * (0.021 / 12) / ((1 + 0.021 / 12) ** 4 - 1); // fit exact (≈ 841,5 ; doc "~840")
+  const geo = (d, d0, v0, d1, v1) => { // interpolation géométrique entre deux ancres datées (jours)
+    const t = (Date.parse(d) - Date.parse(d0)) / (Date.parse(d1) - Date.parse(d0));
+    return v0 * (v1 / v0) ** Math.min(1, Math.max(0, t));
+  };
+  return {
+    mAL, mBP, mCM, crdK,
+    rueil(d) {
+      if (d < '2019-11-05') return null;                                        // acte notarié
+      const crd = crdK(251200, 0.012, 300, mCM, kPaid(d, 2019, 12));
+      const value = geo(d, '2019-11-05', 240000, '2026-03-07', 272000);
+      return { value, crd };
+    },
+    vitry(d) {
+      if (d < '2025-07-01') return null;                                        // livraison VEFA — avant : équité ≈ 0, non émis
+      const crd = 60000 + crdK(40000, 0.01, 300, mAL, kPaid(d, 2022, 12)) + crdK(175000, 0.021, 300, mBP, kPaid(d, 2025, 12));
+      return { value: 293000, crd };
+    },
+  };
+})();
+// [V7] anchors du modèle : reproduire les CRD data.js du 31/03/2026 à ± 1 €
+{
+  const r31 = AMORT.crdK(251200, 0.012, 300, AMORT.mCM, 76);
+  const v31 = 60000 + AMORT.crdK(40000, 0.01, 300, AMORT.mAL, 40) + AMORT.crdK(175000, 0.021, 300, AMORT.mBP, 4);
+  console.log('[V7] amort Rueil crd(76) =', Math.round(r31), 'vs 194501', Math.abs(r31 - 194501) < 1 ? '✓' : '✗');
+  console.log('[V7] amort Vitry Σcrd(31/03) =', Math.round(v31), 'vs 268061', Math.abs(v31 - 268061) < 1 ? '✓' : '✗');
+  if (Math.abs(r31 - 194501) >= 1 || Math.abs(v31 - 268061) >= 1) { console.error('[V7] ÉCHEC — modèle amortissement décalé'); process.exit(1); }
+  const jr = AMORT.rueil('2026-03-06'), jv = AMORT.vitry('2026-03-06');
+  console.log('[V7] jonction 06/03/2026 : rueil', Math.round(jr.value) + '/' + Math.round(jr.crd), '→ git 07/03 272000/196516 | vitry', Math.round(jv.value) + '/' + Math.round(jv.crd), '→ git 293000/268903');
+}
 const _creKeys = [...new Set(Object.keys(FACT_OBS).filter(k => k.startsWith('cre.')).map(k => k.split('.')[1]))];
 console.log('[facts-git] clés créances découvertes :', _creKeys.join(', '));
 
@@ -466,9 +516,15 @@ for (const d of targets) {
   // Faits bruts observés via git (v393) : immo, autres actifs, créances — escalier
   const properties = {};
   for (const pid of ['vitry', 'rueil', 'villejuif']) {
-    const value = factAt(pid + '.value', d), crd = factAt(pid + '.crd', d);
+    let value = factAt(pid + '.value', d), crd = factAt(pid + '.crd', d);
+    let amortModel = false;
+    if (value == null && crd == null && AMORT[pid]) {
+      const am = AMORT[pid](d);                     // pré-git uniquement (factAt null ⇔ d < 1ère obs git)
+      if (am) { value = am.value; crd = am.crd; amortModel = true; }
+    }
     if (value == null && crd == null) continue;
     const p = { est: true };
+    if (amortModel) p.model = 'amort';
     if (value != null) p.value = Math.round(value);
     if (crd != null) p.crd = Math.round(crd);
     if (pid === 'villejuif') {
