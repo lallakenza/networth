@@ -11,6 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=402';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1414,3 +1415,130 @@ function getFirstDate(data) {
 // ── Legacy aliases (backward compat during transition) ──
 export const fetchHistoricalPricesYTD = fetchHistoricalPrices;
 export const fetchHistoricalPrices1Y = fetchHistoricalPrices;
+
+// ════════════════════════════════════════════════════════════════════
+//  RÉFÉRENTIEL IMMOBILIER (v402) — Supabase = source de vérité éditable
+//  Tables : immo_properties (+ immo_loans embarqués via FK). Lecture anon,
+//  écriture admin uniquement (RLS). data.js reste le fallback statique :
+//  si ce fetch échoue (offline / Supabase down), le site tourne à l'identique.
+//  Cache localStorage « dernier bon connu » pour démarrage hors-ligne.
+// ════════════════════════════════════════════════════════════════════
+const IMMO_REF_CACHE_KEY = 'nw_immo_ref_v1';
+
+/**
+ * Charge le référentiel immo (propriétés + prêts).
+ * @returns {Promise<{properties: Array, source: 'supabase'|'cache'}|null>} null ⇒ fallback data.js
+ */
+export async function loadImmoRef() {
+  if (!_serverConfigured()) return null;
+  try {
+    const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/immo_properties'
+      + '?select=*,immo_loans(*)&order=id.asc';
+    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(6000) });
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length >= 3) {
+        try { localStorage.setItem(IMMO_REF_CACHE_KEY, JSON.stringify({ at: Date.now(), rows })); } catch (_) {}
+        console.log('[immo-ref] Supabase OK —', rows.length, 'propriétés,',
+          rows.reduce((s, p) => s + (p.immo_loans || []).length, 0), 'prêts');
+        return { properties: rows, source: 'supabase' };
+      }
+    }
+    console.warn('[immo-ref] réponse invalide (HTTP ' + res.status + ') → cache/fallback');
+  } catch (e) { console.warn('[immo-ref] fetch échoué (' + (e && e.message) + ') → cache/fallback'); }
+  try {
+    const c = JSON.parse(localStorage.getItem(IMMO_REF_CACHE_KEY) || 'null');
+    if (c && Array.isArray(c.rows) && c.rows.length >= 3) {
+      console.log('[immo-ref] cache local (du ' + new Date(c.at).toLocaleDateString('fr-FR') + ')');
+      return { properties: c.rows, source: 'cache' };
+    }
+  } catch (_) {}
+  return null; // → data.js statique
+}
+
+/**
+ * Applique le référentiel immo Supabase sur les structures data.js (OVERLAY, v402).
+ * Mutation ciblée des read-paths que l'engine consomme — si le référentiel est
+ * incomplet ou invalide, on n'applique RIEN (fallback data.js intégral).
+ * Périmètre : valeurs/CRD/loyers/charges/prêts/VEFA/fiscalité/appréciation/caution.
+ * HORS périmètre (restent dans data.js) : adresses & détails de lots (privacy),
+ * barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS,
+ * IMMO_MAROC_FEES).
+ * @returns {boolean} true si appliqué
+ */
+export function applyImmoRef(ref) {
+  try {
+    if (!ref || !Array.isArray(ref.properties)) return false;
+    const by = {}; for (const p of ref.properties) by[p.id] = p;
+    const v = by.vitry, r = by.rueil, j = by.villejuif;
+    if (!v || !r || !j) { console.warn('[immo-ref] propriété manquante → fallback data.js'); return false; }
+    const L = {}; for (const p of ref.properties) for (const l of (p.immo_loans || [])) L[l.id] = l;
+    const need = ['vitry_al', 'vitry_ptz', 'vitry_bp', 'rueil_cm', 'villejuif_lcl1', 'villejuif_lcl2'];
+    if (need.some(id => !L[id])) { console.warn('[immo-ref] prêt manquant → fallback data.js'); return false; }
+    const fin = (x) => { const n = +x; if (!isFinite(n)) throw new Error('valeur non numérique: ' + x); return n; };
+    const mapLoan = (l) => ({
+      name: l.name, principal: fin(l.principal), rate: fin(l.annual_rate), startDate: l.start_date,
+      durationMonths: l.duration_months,
+      ...(l.monthly_payment != null ? { monthlyPayment: fin(l.monthly_payment) } : {}),
+      ...(l.periods ? { periods: l.periods } : {}),
+      insuranceMonthly: l.insurance_monthly != null ? fin(l.insurance_monthly) : 0,
+      ...(l.ira_exempt ? { iraExempt: true } : {}),
+      ...(l.taeg != null ? { taeg: fin(l.taeg) } : {}),
+      ...(l.total_interest_ref != null ? { totalInterestRef: fin(l.total_interest_ref) } : {}),
+      ...(l.deferred_interest_ref != null ? { deferredInterestRef: fin(l.deferred_interest_ref) } : {}),
+    });
+
+    // ── PORTFOLIO.*.immo (read-paths NW + immoView) ──
+    Object.assign(PORTFOLIO.amine.immo.vitry, {
+      value: fin(v.value), valueDate: v.value_date, crd: fin(v.crd_snapshot),
+      loyerHC: fin(v.rent.loyerHC), loyerDeclare: fin(v.rent.loyerDeclare),
+      chargesLocataire: fin(v.rent.chargesLocataire), parking: fin(v.rent.parking),
+      loyerTotalCC: fin(v.rent.loyerTotalCC), loyerDeclareCC: fin(v.rent.loyerDeclareCC),
+    });
+    Object.assign(PORTFOLIO.nezha.immo.rueil, {
+      value: fin(r.value), valueDate: r.value_date, crd: fin(r.crd_snapshot),
+      loyerHC: fin(r.rent.loyerHC), chargesLocataire: fin(r.rent.chargesLocataire),
+    });
+    if (r.rent.cautionRecue != null) PORTFOLIO.nezha.cautionRueil = fin(r.rent.cautionRecue);
+    const jf = j.vefa || {};
+    Object.assign(PORTFOLIO.nezha.immo.villejuif, {
+      value: fin(j.value), valueDate: j.value_date, crd: fin(j.crd_snapshot),
+      loyerHC: fin(j.rent.loyerHC), signed: !!j.signed,
+      reservationFees: jf.reservationFees != null ? fin(jf.reservationFees) : 0,
+      underConstruction: !!jf.underConstruction,
+      appelsPayes: jf.appelsPayes != null ? fin(jf.appelsPayes) : 0,
+      drawnToDate: jf.drawnToDate != null ? fin(jf.drawnToDate) : 0,
+      contractPrice: jf.contractPrice != null ? fin(jf.contractPrice) : 0,
+    });
+
+    // ── IMMO_CONSTANTS (charges, prêts, assurances, VEFA, fiscalité, appréciation) ──
+    for (const [key, p] of [['vitry', v], ['rueil', r], ['villejuif', j]]) {
+      if (p.charges) IMMO_CONSTANTS.charges[key] = { pret: fin(p.charges.pret), assurance: fin(p.charges.assurance), pno: fin(p.charges.pno), tf: fin(p.charges.tf), copro: fin(p.charges.copro) };
+      if (p.fiscal && IMMO_CONSTANTS.fiscalite) IMMO_CONSTANTS.fiscalite[key] = { ...p.fiscal };
+      if (p.appreciation && IMMO_CONSTANTS.properties && IMMO_CONSTANTS.properties[key]) {
+        IMMO_CONSTANTS.properties[key].appreciation = fin(p.appreciation.rate);
+        if (Array.isArray(p.appreciation.phases)) IMMO_CONSTANTS.properties[key].appreciationPhases = p.appreciation.phases;
+      }
+    }
+    if (v.loan_end_year) IMMO_CONSTANTS.prets.vitryEnd = v.loan_end_year;
+    if (r.loan_end_year) IMMO_CONSTANTS.prets.rueilEnd = r.loan_end_year;
+    if (j.loan_end_year) IMMO_CONSTANTS.prets.villejuifEnd = j.loan_end_year;
+    IMMO_CONSTANTS.loans.vitryLoans = [mapLoan(L.vitry_al), mapLoan(L.vitry_ptz), mapLoan(L.vitry_bp)]; // ORDRE significatif : [0] = AL
+    IMMO_CONSTANTS.loans.villejuifLoans = [mapLoan(L.villejuif_lcl1), mapLoan(L.villejuif_lcl2)];
+    const cm = L.rueil_cm;
+    IMMO_CONSTANTS.loans.rueil = { principal: fin(cm.principal), rate: fin(cm.annual_rate), startDate: cm.start_date, durationMonths: cm.duration_months, monthlyPayment: fin(cm.monthly_payment), insurance: cm.insurance_monthly != null ? fin(cm.insurance_monthly) : 0 };
+    if (v.insurance_global) {
+      if (v.insurance_global.aprilMensuel != null) IMMO_CONSTANTS.loans.vitryInsurance = fin(v.insurance_global.aprilMensuel);
+      IMMO_CONSTANTS.loans.vitryInsuranceAPRIL = { annualTTC: v.insurance_global.annualTTC, breakdown: v.insurance_global.breakdown };
+    }
+    IMMO_CONSTANTS.loans.villejuifInsurance = Math.round(((L.villejuif_lcl1.insurance_monthly || 0) * 1 + (L.villejuif_lcl2.insurance_monthly || 0) * 1) * 100) / 100;
+    if (jf.franchiseMonths != null) IMMO_CONSTANTS.loans.villejuifFranchise = { months: jf.franchiseMonths, startDate: null, loanDisbursed: !!jf.loanDisbursed, fraisDossier: jf.fraisDossier != null ? jf.fraisDossier : null };
+    if (jf.startMonth != null) IMMO_CONSTANTS.villejuifStartMonth = jf.startMonth;
+
+    if (typeof window !== 'undefined') window._immoSource = ref.source;
+    console.log('[immo-ref] appliqué (source=' + ref.source + ') — vitry ' + v.value + '/' + v.crd_snapshot
+      + ' · rueil ' + r.value + '/' + r.crd_snapshot + ' · villejuif ' + j.value + '/' + j.crd_snapshot
+      + ' · ' + need.length + ' prêts');
+    return true;
+  } catch (e) { console.warn('[immo-ref] application échouée → fallback data.js :', e && e.message); return false; }
+}

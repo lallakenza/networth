@@ -51,6 +51,20 @@ Where:
 - Facturation receivables (positive amounts like Augustin) are injected into `activeItems` for display
 - KPIs computed AFTER injection so totals include facturation items
 
+### Référentiel immo Supabase (v402)
+- Tables `immo_properties` (valeurs, loyers, charges, VEFA, fiscal, appréciation) + `immo_loans`
+  (6 prêts, paliers `periods` JSONB) + `immo_crd_obs` (observations datées). RLS : anon SELECT
+  uniquement, écriture via Management API (admin).
+- `api.js :: loadImmoRef()` (fetch + cache localStorage `nw_immo_ref_v1`) puis
+  `applyImmoRef(ref)` : OVERLAY qui mute les read-paths (`PORTFOLIO.*.immo.*`,
+  `IMMO_CONSTANTS.{charges,loans,fiscalite,prets,properties[].appreciation*,villejuifStartMonth}`,
+  `cautionRueil`) AVANT recompute. Échec fetch ⇒ data.js intégral (zéro régression).
+- `IMMO_CONSTANTS.loans.vitryLoans[0]` DOIT rester Action Logement (l'engine lit `[0]`).
+- HORS base (privacy/stabilité) : adresses & lots, EXIT_COSTS, VITRY_CONSTRAINTS,
+  VILLEJUIF_REGIMES, IMMO_PRESETS, IMMO_MAROC_FEES.
+- Éditer une valeur : SQL admin sur Supabase puis hard-refresh ; garder data.js en phase
+  (c'est le fallback ET la source du test d'équivalence).
+
 ### Facturation localStorage bridge
 - Same origin: `lallakenza.github.io` → facturation site writes `localStorage.facturation_positions`
 - Schema: `{ augustin: { mad }, benoit: { dh }, combined: { mad }, updatedAt }`
@@ -159,7 +173,7 @@ schémas détaillés + exemples, voir `ARCHITECTURE.md §11 "Data Model Referenc
 | **Annuelle (janvier)** | `DATA_LAST_UPDATE` + version badge | `DATA_LAST_UPDATE` | footer, header badge |
 | **Événementiel** | Nouvelle créance / remboursement | `PORTFOLIO.amine.creances.items` | créances view, NW (si statut ≠ recouvré) |
 | **Événementiel** | Facturation (Augustin/Benoit) | `PORTFOLIO.amine.facturation` OR localStorage | `amineFacturationNet`, créances view |
-| **Événementiel** | Nouveau prêt immo / modification CRD | `IMMO_CONSTANTS.charges` | immo view, NW, budget |
+| **Événementiel** | Nouveau prêt immo / modification CRD | **Supabase `immo_properties`/`immo_loans`** (v402, admin SQL) — `data.js` = fallback à garder en phase | immo view, NW, budget |
 | **Événementiel** | Nouveau projet immo (preset) | `IMMO_PRESETS` (prix, devise, feesPct, apportRatio) | Module Financement (v306+) |
 | **Mensuelle** | Facturation / salaires (cash-flow) | `MONTHLY_INCOMES` | Budget view, Alertes (v308+) |
 | **Semestrielle** | Taux margin IBKR (suivi BCE/Fed) | `MARGIN_RATES` (EUR/USD/JPY) | Module Financement scénarios C/D |

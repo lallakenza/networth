@@ -4874,6 +4874,29 @@ Le pipeline CI-scrape + repo JSON + fallback runtime est le pattern canonique po
 
 ---
 
+
+### v398–v402 — Historique bancaire exact + Référentiel immo Supabase (19 juillet 2026)
+
+**v398-v400 (données)** : historique quotidien EXACT de 7 comptes via relevés (BANK_EXACT) —
+Revolut (CSV par poche, pic 103 k€ 06/2025), Banque Populaire (scroll espace client, 26 mois,
+pic 39,9 k€), Wio courant/épargne/business (CSV multi-comptes, espaces épargne = comptes à part
+entière ; épargne = Σ espaces actifs/jour, pic 633 kAED), Mashreq (2 PDF pdftotext, pic 533 kAED).
+Ancres 0 pour les comptes prouvés vides avant ouverture. Corrections : wioCurrent 810→18,
+wioBusiness 3000→3144 (le relevé fait foi). Chaque lot vérifié par workflow adversarial multi-agents.
+
+**v401** : backfill CRD immo par tableaux d'amortissement (annuité fermée, guard [V7] ±1 € sur
+les anchors 31/03/2026) — Rueil dès déc 2019 (équité initiale NÉGATIVE −10 849 €, financement
+104 %), Vitry dès la livraison 07/2025 ; pré-git uniquement, flag `model:'amort'`.
+
+**v402** : référentiel immo Supabase — tables `immo_properties`/`immo_loans`/`immo_crd_obs`
+(RLS anon SELECT only, écriture admin). `loadImmoRef()`+`applyImmoRef()` (api.js) : overlay des
+read-paths engine (PORTFOLIO.*.immo, IMMO_CONSTANTS.charges/loans/fiscalite/prets/appréciation,
+cautionRueil) avant recompute, fallback data.js intégral si fetch KO, cache localStorage.
+Test d'équivalence headless : compute() avant/après overlay = 0 différence (seed ≡ data.js).
+Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répliqué à l'identique
+du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
+IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
+
 ## §77 — v340-342 : Audit frontend (npx skills) + 3 sprints de correctifs (30 mai 2026)
 
 **Contexte** : audit complet du dashboard via deux skills installés avec `npx skills` (`impeccable` — audit a11y/perf/theming/responsive/anti-patterns, et `microsoft/frontend-design-review`), combiné à 4 agents parallèles auditant le code métier (engine, charts, render+app, data+simulators, ~28k lignes) et un calcul réel des ratios de contraste WCAG. Résultat : **0 bug de Net Worth** (les invariants tiennent), mais ~14 défauts d'affichage et d'accessibilité. Corrigés en 3 sprints (un déploiement chacun). Détail bug-par-bug dans `BUG_TRACKER.md` (BUG-064 → BUG-074).
