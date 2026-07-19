@@ -51,7 +51,7 @@ export const PORTFOLIO = {
       wioSavings: 389000,   // Wio Personal Savings (~6% rendement) — MAJ 14/07/2026 (+100k AED viré depuis Wio Business)
       wioCurrent: 810,      // Wio Personal Current (0% rendement) — MAJ 12/07/2026
       wioBusiness: 3000,    // Wio Business (Bairok Consulting LLC, 0%) — MAJ 14/07/2026 (100k salaire balayé vers Wio Savings à 6%)
-      revolutEUR: 883,      // Revolut EUR (compte français, déjà en EUR) — MAJ 12/07/2026
+      revolutEUR: 833,      // Revolut TOTAL toutes poches en EUR (EUR 112,58 + USD 825,73≈720,40) — MAJ 19/07/2026 (app.revolut.com live)
       banquePopulaire: 1968,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/07/2026 (espace client live, solde 1 967,60)
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
       _lastUpdate: '2026-07-12',
@@ -1213,7 +1213,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '16/07/2026';
-export const APP_VERSION = 'v396';
+export const APP_VERSION = 'v397';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
