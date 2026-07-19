@@ -131,3 +131,46 @@ Puis bump `?v=N` + commit + push (déploiement GitHub Pages ~60 s).
   étant déterministes, les blobs convergent (last-write-wins acceptable en mono-utilisateur).
 - Blob borné à ~1800 j/série (`_trimSeries`) → quelques centaines de Ko, très en dessous du
   free tier Supabase (500 Mo).
+
+---
+
+## Référentiel immobilier (v402) — `immo_properties` / `immo_loans` / `immo_crd_obs`
+
+Source de vérité éditable des données appartements, consommée par le site au chargement
+(`loadImmoRef()` → `applyImmoRef()`, fallback intégral data.js si fetch KO).
+RLS : anon SELECT uniquement — toute écriture passe par la Management API (admin).
+
+### Éditer une valeur (exemples)
+
+```sql
+-- MAJ valeur de marché Vitry (nouvelle estimation)
+update immo_properties set value = 305000, value_date = '2026-09', updated_at = now()
+where id = 'vitry';
+
+-- MAJ CRD snapshot après réception d'un tableau d'amortissement
+update immo_properties set crd_snapshot = 266000, crd_snapshot_date = '2026-09-30', updated_at = now()
+where id = 'vitry';
+insert into immo_crd_obs (property_id, loan_id, obs_date, crd, source)
+values ('vitry', 'vitry_bp', '2026-09-30', 170500, 'tableau BP sept 2026');
+
+-- MAJ loyer Rueil (nouveau bail)
+update immo_properties set rent = rent || '{"loyerHC":1350}', updated_at = now()
+where id = 'rueil';
+
+-- Avancement VEFA Villejuif (nouvel appel de fonds)
+update immo_properties
+set vefa = vefa || '{"appelsPayes":165000,"drawnToDate":150000}', updated_at = now()
+where id = 'villejuif';
+```
+
+### Règles
+
+1. **Garder `data.js` en phase** : c'est le fallback offline ET la baseline du test
+   d'équivalence. Toute édition Supabase se réplique dans data.js (même valeur).
+2. **`vitryLoans[0]` = Action Logement** — l'ordre AL, PTZ, BP est significatif
+   (l'engine lit `[0]` pour l'assurance AL). Idem villejuif : LCL1 puis LCL2.
+3. **Jamais en base** : adresses postales, lots/étages, noms (locataires, banquiers,
+   notaires), numéros de dossier/compte. Ils restent hors DB (ou data.js seulement).
+4. **Vérifier après édition** : hard-refresh du site → console `[immo-ref] appliqué
+   (source=supabase)` avec les nouvelles valeurs ; les invariants engine doivent
+   rester verts (`[engine] Catégories cohérentes ✓`).
