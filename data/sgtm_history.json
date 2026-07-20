@@ -1,1315 +1,1320 @@
 {
- "ticker": "SGTM",
- "currency": "MAD",
- "granularity": "daily-ohlc",
- "note": "OHLCV quotidien depuis l'IPO via le websocket TradingView (scripts/tv_history.mjs). priceMAD = close. Backfill à la demande — le live runtime reste le scanner HTTP + localStorage.",
- "lastBackfill": "2026-07-17",
- "source": "tradingview-ws",
- "series": [
-  {
-   "date": "2025-12-16",
-   "priceMAD": 461.95,
-   "source": "tradingview",
-   "o": 461.95,
-   "h": 461.95,
-   "l": 461.95,
-   "v": 7352
-  },
-  {
-   "date": "2025-12-17",
-   "priceMAD": 508.1,
-   "source": "tradingview",
-   "o": 508.1,
-   "h": 508.1,
-   "l": 508.1,
-   "v": 5041
-  },
-  {
-   "date": "2025-12-18",
-   "priceMAD": 558.9,
-   "source": "tradingview",
-   "o": 558.9,
-   "h": 558.9,
-   "l": 558.9,
-   "v": 12213
-  },
-  {
-   "date": "2025-12-19",
-   "priceMAD": 614.7,
-   "source": "tradingview",
-   "o": 614.7,
-   "h": 614.7,
-   "l": 614.7,
-   "v": 57921
-  },
-  {
-   "date": "2025-12-22",
-   "priceMAD": 676.1,
-   "source": "tradingview",
-   "o": 676.1,
-   "h": 676.1,
-   "l": 676.1,
-   "v": 93136
-  },
-  {
-   "date": "2025-12-23",
-   "priceMAD": 743.7,
-   "source": "tradingview",
-   "o": 743.7,
-   "h": 743.7,
-   "l": 743.7,
-   "v": 289299
-  },
-  {
-   "date": "2025-12-24",
-   "priceMAD": 818,
-   "source": "tradingview",
-   "o": 818,
-   "h": 818,
-   "l": 818,
-   "v": 506005
-  },
-  {
-   "date": "2025-12-25",
-   "priceMAD": 899.7,
-   "source": "tradingview",
-   "o": 899.7,
-   "h": 899.7,
-   "l": 899.7,
-   "v": 635778
-  },
-  {
-   "date": "2025-12-26",
-   "priceMAD": 809.8,
-   "source": "tradingview",
-   "o": 989,
-   "h": 989,
-   "l": 809.8,
-   "v": 2040632
-  },
-  {
-   "date": "2025-12-29",
-   "priceMAD": 760,
-   "source": "tradingview",
-   "o": 770,
-   "h": 798,
-   "l": 734,
-   "v": 1879668
-  },
-  {
-   "date": "2025-12-30",
-   "priceMAD": 835.9,
-   "source": "tradingview",
-   "o": 790,
-   "h": 835.9,
-   "l": 781,
-   "v": 490620
-  },
-  {
-   "date": "2025-12-31",
-   "priceMAD": 915,
-   "source": "tradingview",
-   "o": 861.2,
-   "h": 915,
-   "l": 861.2,
-   "v": 379094
-  },
-  {
-   "date": "2026-01-02",
-   "priceMAD": 940,
-   "source": "tradingview",
-   "o": 910,
-   "h": 940,
-   "l": 882,
-   "v": 161689
-  },
-  {
-   "date": "2026-01-05",
-   "priceMAD": 950,
-   "source": "tradingview",
-   "o": 930,
-   "h": 960,
-   "l": 930,
-   "v": 250529
-  },
-  {
-   "date": "2026-01-06",
-   "priceMAD": 943,
-   "source": "tradingview",
-   "o": 931,
-   "h": 953,
-   "l": 931,
-   "v": 125376
-  },
-  {
-   "date": "2026-01-07",
-   "priceMAD": 929,
-   "source": "tradingview",
-   "o": 943,
-   "h": 960,
-   "l": 921.2,
-   "v": 188982
-  },
-  {
-   "date": "2026-01-08",
-   "priceMAD": 905.1,
-   "source": "tradingview",
-   "o": 923,
-   "h": 930,
-   "l": 900,
-   "v": 68188
-  },
-  {
-   "date": "2026-01-09",
-   "priceMAD": 915,
-   "source": "tradingview",
-   "o": 903.2,
-   "h": 915,
-   "l": 891.1,
-   "v": 76354
-  },
-  {
-   "date": "2026-01-12",
-   "priceMAD": 899.9,
-   "source": "tradingview",
-   "o": 905.5,
-   "h": 920,
-   "l": 894.6,
-   "v": 37193
-  },
-  {
-   "date": "2026-01-13",
-   "priceMAD": 886,
-   "source": "tradingview",
-   "o": 885.3,
-   "h": 899.9,
-   "l": 885.3,
-   "v": 61282
-  },
-  {
-   "date": "2026-01-15",
-   "priceMAD": 878.5,
-   "source": "tradingview",
-   "o": 880,
-   "h": 885,
-   "l": 863.5,
-   "v": 34906
-  },
-  {
-   "date": "2026-01-16",
-   "priceMAD": 875,
-   "source": "tradingview",
-   "o": 870,
-   "h": 875,
-   "l": 860.1,
-   "v": 47971
-  },
-  {
-   "date": "2026-01-19",
-   "priceMAD": 851,
-   "source": "tradingview",
-   "o": 866,
-   "h": 870,
-   "l": 850.3,
-   "v": 21741
-  },
-  {
-   "date": "2026-01-20",
-   "priceMAD": 848.9,
-   "source": "tradingview",
-   "o": 849,
-   "h": 849,
-   "l": 822,
-   "v": 48152
-  },
-  {
-   "date": "2026-01-21",
-   "priceMAD": 824.2,
-   "source": "tradingview",
-   "o": 830.2,
-   "h": 838.9,
-   "l": 822.3,
-   "v": 19763
-  },
-  {
-   "date": "2026-01-22",
-   "priceMAD": 832,
-   "source": "tradingview",
-   "o": 820,
-   "h": 864,
-   "l": 820,
-   "v": 38724
-  },
-  {
-   "date": "2026-01-23",
-   "priceMAD": 839,
-   "source": "tradingview",
-   "o": 836,
-   "h": 842,
-   "l": 835,
-   "v": 19875
-  },
-  {
-   "date": "2026-01-26",
-   "priceMAD": 818,
-   "source": "tradingview",
-   "o": 832.1,
-   "h": 838,
-   "l": 806,
-   "v": 31565
-  },
-  {
-   "date": "2026-01-27",
-   "priceMAD": 809.1,
-   "source": "tradingview",
-   "o": 806.1,
-   "h": 819.9,
-   "l": 805,
-   "v": 35106
-  },
-  {
-   "date": "2026-01-28",
-   "priceMAD": 881,
-   "source": "tradingview",
-   "o": 825,
-   "h": 881,
-   "l": 825,
-   "v": 54578
-  },
-  {
-   "date": "2026-01-29",
-   "priceMAD": 860,
-   "source": "tradingview",
-   "o": 888,
-   "h": 892,
-   "l": 855.1,
-   "v": 36050
-  },
-  {
-   "date": "2026-01-30",
-   "priceMAD": 848,
-   "source": "tradingview",
-   "o": 846,
-   "h": 870,
-   "l": 840.1,
-   "v": 12743
-  },
-  {
-   "date": "2026-02-02",
-   "priceMAD": 835.1,
-   "source": "tradingview",
-   "o": 840,
-   "h": 841,
-   "l": 800,
-   "v": 15663
-  },
-  {
-   "date": "2026-02-03",
-   "priceMAD": 825,
-   "source": "tradingview",
-   "o": 824,
-   "h": 838,
-   "l": 820.3,
-   "v": 13774
-  },
-  {
-   "date": "2026-02-04",
-   "priceMAD": 819,
-   "source": "tradingview",
-   "o": 817.1,
-   "h": 830,
-   "l": 817.1,
-   "v": 21009
-  },
-  {
-   "date": "2026-02-05",
-   "priceMAD": 816,
-   "source": "tradingview",
-   "o": 815,
-   "h": 830,
-   "l": 815,
-   "v": 32861
-  },
-  {
-   "date": "2026-02-06",
-   "priceMAD": 835,
-   "source": "tradingview",
-   "o": 805,
-   "h": 835,
-   "l": 795,
-   "v": 56015
-  },
-  {
-   "date": "2026-02-09",
-   "priceMAD": 827,
-   "source": "tradingview",
-   "o": 826,
-   "h": 832,
-   "l": 816,
-   "v": 9098
-  },
-  {
-   "date": "2026-02-10",
-   "priceMAD": 818,
-   "source": "tradingview",
-   "o": 811,
-   "h": 824.5,
-   "l": 808,
-   "v": 32279
-  },
-  {
-   "date": "2026-02-11",
-   "priceMAD": 820,
-   "source": "tradingview",
-   "o": 810,
-   "h": 820,
-   "l": 810,
-   "v": 7372
-  },
-  {
-   "date": "2026-02-12",
-   "priceMAD": 845,
-   "source": "tradingview",
-   "o": 820,
-   "h": 845,
-   "l": 810.5,
-   "v": 23890
-  },
-  {
-   "date": "2026-02-13",
-   "priceMAD": 850,
-   "source": "tradingview",
-   "o": 832.1,
-   "h": 850,
-   "l": 826,
-   "v": 43753
-  },
-  {
-   "date": "2026-02-16",
-   "priceMAD": 848,
-   "source": "tradingview",
-   "o": 840,
-   "h": 848,
-   "l": 830.1,
-   "v": 225511
-  },
-  {
-   "date": "2026-02-17",
-   "priceMAD": 830,
-   "source": "tradingview",
-   "o": 840,
-   "h": 845,
-   "l": 830,
-   "v": 10114
-  },
-  {
-   "date": "2026-02-18",
-   "priceMAD": 830.1,
-   "source": "tradingview",
-   "o": 830,
-   "h": 835,
-   "l": 830,
-   "v": 6865
-  },
-  {
-   "date": "2026-02-19",
-   "priceMAD": 835,
-   "source": "tradingview",
-   "o": 830,
-   "h": 835,
-   "l": 820.1,
-   "v": 11457
-  },
-  {
-   "date": "2026-02-20",
-   "priceMAD": 838,
-   "source": "tradingview",
-   "o": 829,
-   "h": 838,
-   "l": 823.1,
-   "v": 13245
-  },
-  {
-   "date": "2026-02-23",
-   "priceMAD": 825,
-   "source": "tradingview",
-   "o": 826.1,
-   "h": 830,
-   "l": 825,
-   "v": 19532
-  },
-  {
-   "date": "2026-02-24",
-   "priceMAD": 828,
-   "source": "tradingview",
-   "o": 820,
-   "h": 829.5,
-   "l": 820,
-   "v": 25145
-  },
-  {
-   "date": "2026-02-25",
-   "priceMAD": 830,
-   "source": "tradingview",
-   "o": 822.2,
-   "h": 833,
-   "l": 822,
-   "v": 8289
-  },
-  {
-   "date": "2026-02-26",
-   "priceMAD": 825,
-   "source": "tradingview",
-   "o": 829,
-   "h": 830,
-   "l": 821.4,
-   "v": 8758
-  },
-  {
-   "date": "2026-02-27",
-   "priceMAD": 820,
-   "source": "tradingview",
-   "o": 834.9,
-   "h": 835,
-   "l": 820,
-   "v": 97861
-  },
-  {
-   "date": "2026-03-02",
-   "priceMAD": 757,
-   "source": "tradingview",
-   "o": 759,
-   "h": 780,
-   "l": 742,
-   "v": 230544
-  },
-  {
-   "date": "2026-03-03",
-   "priceMAD": 700.1,
-   "source": "tradingview",
-   "o": 735,
-   "h": 740,
-   "l": 683,
-   "v": 106748
-  },
-  {
-   "date": "2026-03-04",
-   "priceMAD": 700,
-   "source": "tradingview",
-   "o": 699,
-   "h": 720,
-   "l": 689,
-   "v": 192870
-  },
-  {
-   "date": "2026-03-05",
-   "priceMAD": 745,
-   "source": "tradingview",
-   "o": 714.9,
-   "h": 745,
-   "l": 714,
-   "v": 44153
-  },
-  {
-   "date": "2026-03-06",
-   "priceMAD": 730,
-   "source": "tradingview",
-   "o": 760,
-   "h": 764,
-   "l": 720,
-   "v": 53853
-  },
-  {
-   "date": "2026-03-09",
-   "priceMAD": 700,
-   "source": "tradingview",
-   "o": 700,
-   "h": 715,
-   "l": 695,
-   "v": 25355
-  },
-  {
-   "date": "2026-03-10",
-   "priceMAD": 700,
-   "source": "tradingview",
-   "o": 732,
-   "h": 758.9,
-   "l": 700,
-   "v": 30574
-  },
-  {
-   "date": "2026-03-11",
-   "priceMAD": 702,
-   "source": "tradingview",
-   "o": 707,
-   "h": 724.9,
-   "l": 702,
-   "v": 20978
-  },
-  {
-   "date": "2026-03-12",
-   "priceMAD": 701,
-   "source": "tradingview",
-   "o": 705,
-   "h": 709.7,
-   "l": 701,
-   "v": 26778
-  },
-  {
-   "date": "2026-03-13",
-   "priceMAD": 690,
-   "source": "tradingview",
-   "o": 704.9,
-   "h": 705,
-   "l": 690,
-   "v": 501623
-  },
-  {
-   "date": "2026-03-16",
-   "priceMAD": 696,
-   "source": "tradingview",
-   "o": 695,
-   "h": 700,
-   "l": 690,
-   "v": 18685
-  },
-  {
-   "date": "2026-03-17",
-   "priceMAD": 700,
-   "source": "tradingview",
-   "o": 695,
-   "h": 707,
-   "l": 690.1,
-   "v": 20716
-  },
-  {
-   "date": "2026-03-18",
-   "priceMAD": 730,
-   "source": "tradingview",
-   "o": 723,
-   "h": 733,
-   "l": 718.5,
-   "v": 37247
-  },
-  {
-   "date": "2026-03-19",
-   "priceMAD": 720,
-   "source": "tradingview",
-   "o": 723,
-   "h": 724.9,
-   "l": 708.1,
-   "v": 15901
-  },
-  {
-   "date": "2026-03-24",
-   "priceMAD": 713.1,
-   "source": "tradingview",
-   "o": 725,
-   "h": 730,
-   "l": 711,
-   "v": 14900
-  },
-  {
-   "date": "2026-03-25",
-   "priceMAD": 730,
-   "source": "tradingview",
-   "o": 713,
-   "h": 730,
-   "l": 711,
-   "v": 45788
-  },
-  {
-   "date": "2026-03-26",
-   "priceMAD": 717.6,
-   "source": "tradingview",
-   "o": 729,
-   "h": 729,
-   "l": 716.2,
-   "v": 21447
-  },
-  {
-   "date": "2026-03-27",
-   "priceMAD": 720,
-   "source": "tradingview",
-   "o": 720.1,
-   "h": 725,
-   "l": 720,
-   "v": 8829
-  },
-  {
-   "date": "2026-03-30",
-   "priceMAD": 701.6,
-   "source": "tradingview",
-   "o": 720,
-   "h": 720,
-   "l": 701,
-   "v": 13593
-  },
-  {
-   "date": "2026-03-31",
-   "priceMAD": 717.5,
-   "source": "tradingview",
-   "o": 705,
-   "h": 719,
-   "l": 702,
-   "v": 19926
-  },
-  {
-   "date": "2026-04-01",
-   "priceMAD": 725.1,
-   "source": "tradingview",
-   "o": 720,
-   "h": 730,
-   "l": 720,
-   "v": 9967
-  },
-  {
-   "date": "2026-04-02",
-   "priceMAD": 720,
-   "source": "tradingview",
-   "o": 718.4,
-   "h": 726,
-   "l": 710.5,
-   "v": 15962
-  },
-  {
-   "date": "2026-04-03",
-   "priceMAD": 710,
-   "source": "tradingview",
-   "o": 712.5,
-   "h": 720,
-   "l": 710,
-   "v": 43456
-  },
-  {
-   "date": "2026-04-06",
-   "priceMAD": 717,
-   "source": "tradingview",
-   "o": 706,
-   "h": 718.9,
-   "l": 700.1,
-   "v": 22030
-  },
-  {
-   "date": "2026-04-07",
-   "priceMAD": 701,
-   "source": "tradingview",
-   "o": 709.5,
-   "h": 709.5,
-   "l": 700.1,
-   "v": 47356
-  },
-  {
-   "date": "2026-04-08",
-   "priceMAD": 741.5,
-   "source": "tradingview",
-   "o": 726,
-   "h": 744.9,
-   "l": 725,
-   "v": 68156
-  },
-  {
-   "date": "2026-04-09",
-   "priceMAD": 731.5,
-   "source": "tradingview",
-   "o": 743,
-   "h": 743,
-   "l": 726.2,
-   "v": 5871
-  },
-  {
-   "date": "2026-04-10",
-   "priceMAD": 746,
-   "source": "tradingview",
-   "o": 732,
-   "h": 750,
-   "l": 731,
-   "v": 21038
-  },
-  {
-   "date": "2026-04-13",
-   "priceMAD": 732.1,
-   "source": "tradingview",
-   "o": 725,
-   "h": 736,
-   "l": 722,
-   "v": 30227
-  },
-  {
-   "date": "2026-04-14",
-   "priceMAD": 780,
-   "source": "tradingview",
-   "o": 735,
-   "h": 780,
-   "l": 730,
-   "v": 66669
-  },
-  {
-   "date": "2026-04-15",
-   "priceMAD": 785.1,
-   "source": "tradingview",
-   "o": 790,
-   "h": 800,
-   "l": 780,
-   "v": 39773
-  },
-  {
-   "date": "2026-04-16",
-   "priceMAD": 776,
-   "source": "tradingview",
-   "o": 799,
-   "h": 799,
-   "l": 775,
-   "v": 14768
-  },
-  {
-   "date": "2026-04-17",
-   "priceMAD": 826,
-   "source": "tradingview",
-   "o": 776.1,
-   "h": 826,
-   "l": 776.1,
-   "v": 133467
-  },
-  {
-   "date": "2026-04-20",
-   "priceMAD": 819,
-   "source": "tradingview",
-   "o": 790,
-   "h": 820,
-   "l": 790,
-   "v": 19192
-  },
-  {
-   "date": "2026-04-21",
-   "priceMAD": 820.6,
-   "source": "tradingview",
-   "o": 808,
-   "h": 826,
-   "l": 808,
-   "v": 17702
-  },
-  {
-   "date": "2026-04-22",
-   "priceMAD": 809,
-   "source": "tradingview",
-   "o": 818.7,
-   "h": 820,
-   "l": 809,
-   "v": 25797
-  },
-  {
-   "date": "2026-04-23",
-   "priceMAD": 797.2,
-   "source": "tradingview",
-   "o": 801,
-   "h": 807,
-   "l": 790.1,
-   "v": 26439
-  },
-  {
-   "date": "2026-04-24",
-   "priceMAD": 785.1,
-   "source": "tradingview",
-   "o": 790.2,
-   "h": 797.2,
-   "l": 783,
-   "v": 17619
-  },
-  {
-   "date": "2026-04-27",
-   "priceMAD": 779.9,
-   "source": "tradingview",
-   "o": 785.2,
-   "h": 795,
-   "l": 779.9,
-   "v": 8465
-  },
-  {
-   "date": "2026-04-28",
-   "priceMAD": 773,
-   "source": "tradingview",
-   "o": 770,
-   "h": 780,
-   "l": 770,
-   "v": 5548
-  },
-  {
-   "date": "2026-04-29",
-   "priceMAD": 765.2,
-   "source": "tradingview",
-   "o": 757,
-   "h": 773,
-   "l": 757,
-   "v": 23070
-  },
-  {
-   "date": "2026-04-30",
-   "priceMAD": 755.1,
-   "source": "tradingview",
-   "o": 758,
-   "h": 761,
-   "l": 750.1,
-   "v": 11835
-  },
-  {
-   "date": "2026-05-04",
-   "priceMAD": 770.1,
-   "source": "tradingview",
-   "o": 780,
-   "h": 785,
-   "l": 770,
-   "v": 9302
-  },
-  {
-   "date": "2026-05-05",
-   "priceMAD": 770,
-   "source": "tradingview",
-   "o": 765,
-   "h": 770,
-   "l": 760.2,
-   "v": 6852
-  },
-  {
-   "date": "2026-05-06",
-   "priceMAD": 795,
-   "source": "tradingview",
-   "o": 781,
-   "h": 801.5,
-   "l": 780,
-   "v": 10668
-  },
-  {
-   "date": "2026-05-07",
-   "priceMAD": 794,
-   "source": "tradingview",
-   "o": 795.1,
-   "h": 808,
-   "l": 794,
-   "v": 8149
-  },
-  {
-   "date": "2026-05-08",
-   "priceMAD": 786,
-   "source": "tradingview",
-   "o": 785,
-   "h": 788,
-   "l": 780.1,
-   "v": 3245
-  },
-  {
-   "date": "2026-05-11",
-   "priceMAD": 772.1,
-   "source": "tradingview",
-   "o": 780.1,
-   "h": 782,
-   "l": 770,
-   "v": 15071
-  },
-  {
-   "date": "2026-05-12",
-   "priceMAD": 772,
-   "source": "tradingview",
-   "o": 770,
-   "h": 775,
-   "l": 765,
-   "v": 12830
-  },
-  {
-   "date": "2026-05-13",
-   "priceMAD": 763,
-   "source": "tradingview",
-   "o": 763,
-   "h": 767.9,
-   "l": 762.1,
-   "v": 4225
-  },
-  {
-   "date": "2026-05-14",
-   "priceMAD": 760,
-   "source": "tradingview",
-   "o": 764,
-   "h": 772,
-   "l": 760,
-   "v": 8184
-  },
-  {
-   "date": "2026-05-15",
-   "priceMAD": 760,
-   "source": "tradingview",
-   "o": 760,
-   "h": 765,
-   "l": 758.6,
-   "v": 11161
-  },
-  {
-   "date": "2026-05-18",
-   "priceMAD": 748,
-   "source": "tradingview",
-   "o": 750,
-   "h": 760,
-   "l": 745,
-   "v": 7151
-  },
-  {
-   "date": "2026-05-19",
-   "priceMAD": 746,
-   "source": "tradingview",
-   "o": 746.1,
-   "h": 767.7,
-   "l": 746,
-   "v": 20493
-  },
-  {
-   "date": "2026-05-20",
-   "priceMAD": 731,
-   "source": "tradingview",
-   "o": 749.9,
-   "h": 749.9,
-   "l": 731,
-   "v": 6799
-  },
-  {
-   "date": "2026-05-21",
-   "priceMAD": 734,
-   "source": "tradingview",
-   "o": 734,
-   "h": 756,
-   "l": 734,
-   "v": 4997
-  },
-  {
-   "date": "2026-05-22",
-   "priceMAD": 735,
-   "source": "tradingview",
-   "o": 734.1,
-   "h": 750,
-   "l": 734.1,
-   "v": 5680
-  },
-  {
-   "date": "2026-05-25",
-   "priceMAD": 750,
-   "source": "tradingview",
-   "o": 760,
-   "h": 774.9,
-   "l": 750,
-   "v": 13769
-  },
-  {
-   "date": "2026-05-26",
-   "priceMAD": 731,
-   "source": "tradingview",
-   "o": 745,
-   "h": 750,
-   "l": 731,
-   "v": 17649
-  },
-  {
-   "date": "2026-06-01",
-   "priceMAD": 735,
-   "source": "tradingview",
-   "o": 732.6,
-   "h": 745,
-   "l": 731.5,
-   "v": 7183
-  },
-  {
-   "date": "2026-06-02",
-   "priceMAD": 730,
-   "source": "tradingview",
-   "o": 732,
-   "h": 740,
-   "l": 728,
-   "v": 5154
-  },
-  {
-   "date": "2026-06-03",
-   "priceMAD": 724,
-   "source": "tradingview",
-   "o": 730,
-   "h": 740,
-   "l": 724,
-   "v": 4833
-  },
-  {
-   "date": "2026-06-04",
-   "priceMAD": 730.2,
-   "source": "tradingview",
-   "o": 726,
-   "h": 741,
-   "l": 725,
-   "v": 4372
-  },
-  {
-   "date": "2026-06-05",
-   "priceMAD": 730,
-   "source": "tradingview",
-   "o": 735,
-   "h": 739.8,
-   "l": 730,
-   "v": 5685
-  },
-  {
-   "date": "2026-06-08",
-   "priceMAD": 735,
-   "source": "tradingview",
-   "o": 728,
-   "h": 735,
-   "l": 722,
-   "v": 5162
-  },
-  {
-   "date": "2026-06-09",
-   "priceMAD": 726.2,
-   "source": "tradingview",
-   "o": 725,
-   "h": 738.9,
-   "l": 725,
-   "v": 1876
-  },
-  {
-   "date": "2026-06-10",
-   "priceMAD": 722.9,
-   "source": "tradingview",
-   "o": 720.1,
-   "h": 725,
-   "l": 720,
-   "v": 6263
-  },
-  {
-   "date": "2026-06-11",
-   "priceMAD": 708,
-   "source": "tradingview",
-   "o": 720,
-   "h": 720.1,
-   "l": 707,
-   "v": 10570
-  },
-  {
-   "date": "2026-06-12",
-   "priceMAD": 726.1,
-   "source": "tradingview",
-   "o": 724.8,
-   "h": 730,
-   "l": 716.1,
-   "v": 16255
-  },
-  {
-   "date": "2026-06-15",
-   "priceMAD": 766.1,
-   "source": "tradingview",
-   "o": 745,
-   "h": 766.1,
-   "l": 740,
-   "v": 16932
-  },
-  {
-   "date": "2026-06-16",
-   "priceMAD": 760,
-   "source": "tradingview",
-   "o": 766.1,
-   "h": 768,
-   "l": 740,
-   "v": 13725
-  },
-  {
-   "date": "2026-06-18",
-   "priceMAD": 742,
-   "source": "tradingview",
-   "o": 757,
-   "h": 760,
-   "l": 740.1,
-   "v": 9214
-  },
-  {
-   "date": "2026-06-19",
-   "priceMAD": 733.1,
-   "source": "tradingview",
-   "o": 740.1,
-   "h": 745,
-   "l": 730,
-   "v": 1405
-  },
-  {
-   "date": "2026-06-22",
-   "priceMAD": 725.2,
-   "source": "tradingview",
-   "o": 721.1,
-   "h": 729.9,
-   "l": 721.1,
-   "v": 2053
-  },
-  {
-   "date": "2026-06-23",
-   "priceMAD": 727,
-   "source": "tradingview",
-   "o": 728,
-   "h": 732,
-   "l": 721,
-   "v": 3417
-  },
-  {
-   "date": "2026-06-24",
-   "priceMAD": 725,
-   "source": "tradingview",
-   "o": 721,
-   "h": 729,
-   "l": 712.1,
-   "v": 3362
-  },
-  {
-   "date": "2026-06-25",
-   "priceMAD": 715.1,
-   "source": "tradingview",
-   "o": 715.1,
-   "h": 728,
-   "l": 715.1,
-   "v": 3158
-  },
-  {
-   "date": "2026-06-26",
-   "priceMAD": 715,
-   "source": "tradingview",
-   "o": 718.9,
-   "h": 718.9,
-   "l": 708,
-   "v": 2898
-  },
-  {
-   "date": "2026-06-29",
-   "priceMAD": 713,
-   "source": "tradingview",
-   "o": 717,
-   "h": 720,
-   "l": 707.3,
-   "v": 3425
-  },
-  {
-   "date": "2026-06-30",
-   "priceMAD": 714.9,
-   "source": "tradingview",
-   "o": 710,
-   "h": 714.9,
-   "l": 708,
-   "v": 5327
-  },
-  {
-   "date": "2026-07-01",
-   "priceMAD": 710.5,
-   "source": "tradingview",
-   "o": 710,
-   "h": 714.9,
-   "l": 708.2,
-   "v": 3080
-  },
-  {
-   "date": "2026-07-02",
-   "priceMAD": 713.9,
-   "source": "tradingview",
-   "o": 708,
-   "h": 715,
-   "l": 707.1,
-   "v": 2064
-  },
-  {
-   "date": "2026-07-03",
-   "priceMAD": 726,
-   "source": "tradingview",
-   "o": 708,
-   "h": 726,
-   "l": 707,
-   "v": 5025
-  },
-  {
-   "date": "2026-07-06",
-   "priceMAD": 720,
-   "source": "tradingview",
-   "o": 725,
-   "h": 725,
-   "l": 715.1,
-   "v": 6280
-  },
-  {
-   "date": "2026-07-07",
-   "priceMAD": 709,
-   "source": "tradingview",
-   "o": 712,
-   "h": 717.8,
-   "l": 708.1,
-   "v": 2680
-  },
-  {
-   "date": "2026-07-08",
-   "priceMAD": 707,
-   "source": "tradingview",
-   "o": 708,
-   "h": 712.9,
-   "l": 705,
-   "v": 3727
-  },
-  {
-   "date": "2026-07-09",
-   "priceMAD": 709,
-   "source": "tradingview",
-   "o": 703,
-   "h": 720,
-   "l": 703,
-   "v": 5103
-  },
-  {
-   "date": "2026-07-10",
-   "priceMAD": 707,
-   "source": "tradingview",
-   "o": 705.4,
-   "h": 710,
-   "l": 705,
-   "v": 4169
-  },
-  {
-   "date": "2026-07-13",
-   "priceMAD": 703.1,
-   "source": "tradingview",
-   "o": 700,
-   "h": 707,
-   "l": 700,
-   "v": 3619
-  },
-  {
-   "date": "2026-07-14",
-   "priceMAD": 699.9,
-   "source": "tradingview",
-   "o": 690,
-   "h": 706,
-   "l": 690,
-   "v": 16229
-  },
-  {
-   "date": "2026-07-15",
-   "priceMAD": 696,
-   "source": "tradingview",
-   "o": 694.1,
-   "h": 699,
-   "l": 692,
-   "v": 2639
-  },
-  {
-   "date": "2026-07-16",
-   "priceMAD": 696.1,
-   "source": "tradingview",
-   "o": 693,
-   "h": 698.6,
-   "l": 692.5,
-   "v": 7174
-  },
-  {
-   "date": "2026-07-17",
-   "priceMAD": 695,
-   "source": "tradingview",
-   "o": 692.5,
-   "h": 696,
-   "l": 692,
-   "v": 19612
-  }
- ]
+  "ticker": "SGTM",
+  "currency": "MAD",
+  "granularity": "daily-ohlc",
+  "note": "OHLCV quotidien depuis l'IPO via le websocket TradingView (scripts/tv_history.mjs). priceMAD = close. Backfill à la demande — le live runtime reste le scanner HTTP + localStorage.",
+  "lastBackfill": "2026-07-17",
+  "source": "tradingview-ws",
+  "series": [
+    {
+      "date": "2025-12-16",
+      "priceMAD": 461.95,
+      "source": "tradingview",
+      "o": 461.95,
+      "h": 461.95,
+      "l": 461.95,
+      "v": 7352
+    },
+    {
+      "date": "2025-12-17",
+      "priceMAD": 508.1,
+      "source": "tradingview",
+      "o": 508.1,
+      "h": 508.1,
+      "l": 508.1,
+      "v": 5041
+    },
+    {
+      "date": "2025-12-18",
+      "priceMAD": 558.9,
+      "source": "tradingview",
+      "o": 558.9,
+      "h": 558.9,
+      "l": 558.9,
+      "v": 12213
+    },
+    {
+      "date": "2025-12-19",
+      "priceMAD": 614.7,
+      "source": "tradingview",
+      "o": 614.7,
+      "h": 614.7,
+      "l": 614.7,
+      "v": 57921
+    },
+    {
+      "date": "2025-12-22",
+      "priceMAD": 676.1,
+      "source": "tradingview",
+      "o": 676.1,
+      "h": 676.1,
+      "l": 676.1,
+      "v": 93136
+    },
+    {
+      "date": "2025-12-23",
+      "priceMAD": 743.7,
+      "source": "tradingview",
+      "o": 743.7,
+      "h": 743.7,
+      "l": 743.7,
+      "v": 289299
+    },
+    {
+      "date": "2025-12-24",
+      "priceMAD": 818,
+      "source": "tradingview",
+      "o": 818,
+      "h": 818,
+      "l": 818,
+      "v": 506005
+    },
+    {
+      "date": "2025-12-25",
+      "priceMAD": 899.7,
+      "source": "tradingview",
+      "o": 899.7,
+      "h": 899.7,
+      "l": 899.7,
+      "v": 635778
+    },
+    {
+      "date": "2025-12-26",
+      "priceMAD": 809.8,
+      "source": "tradingview",
+      "o": 989,
+      "h": 989,
+      "l": 809.8,
+      "v": 2040632
+    },
+    {
+      "date": "2025-12-29",
+      "priceMAD": 760,
+      "source": "tradingview",
+      "o": 770,
+      "h": 798,
+      "l": 734,
+      "v": 1879668
+    },
+    {
+      "date": "2025-12-30",
+      "priceMAD": 835.9,
+      "source": "tradingview",
+      "o": 790,
+      "h": 835.9,
+      "l": 781,
+      "v": 490620
+    },
+    {
+      "date": "2025-12-31",
+      "priceMAD": 915,
+      "source": "tradingview",
+      "o": 861.2,
+      "h": 915,
+      "l": 861.2,
+      "v": 379094
+    },
+    {
+      "date": "2026-01-02",
+      "priceMAD": 940,
+      "source": "tradingview",
+      "o": 910,
+      "h": 940,
+      "l": 882,
+      "v": 161689
+    },
+    {
+      "date": "2026-01-05",
+      "priceMAD": 950,
+      "source": "tradingview",
+      "o": 930,
+      "h": 960,
+      "l": 930,
+      "v": 250529
+    },
+    {
+      "date": "2026-01-06",
+      "priceMAD": 943,
+      "source": "tradingview",
+      "o": 931,
+      "h": 953,
+      "l": 931,
+      "v": 125376
+    },
+    {
+      "date": "2026-01-07",
+      "priceMAD": 929,
+      "source": "tradingview",
+      "o": 943,
+      "h": 960,
+      "l": 921.2,
+      "v": 188982
+    },
+    {
+      "date": "2026-01-08",
+      "priceMAD": 905.1,
+      "source": "tradingview",
+      "o": 923,
+      "h": 930,
+      "l": 900,
+      "v": 68188
+    },
+    {
+      "date": "2026-01-09",
+      "priceMAD": 915,
+      "source": "tradingview",
+      "o": 903.2,
+      "h": 915,
+      "l": 891.1,
+      "v": 76354
+    },
+    {
+      "date": "2026-01-12",
+      "priceMAD": 899.9,
+      "source": "tradingview",
+      "o": 905.5,
+      "h": 920,
+      "l": 894.6,
+      "v": 37193
+    },
+    {
+      "date": "2026-01-13",
+      "priceMAD": 886,
+      "source": "tradingview",
+      "o": 885.3,
+      "h": 899.9,
+      "l": 885.3,
+      "v": 61282
+    },
+    {
+      "date": "2026-01-15",
+      "priceMAD": 878.5,
+      "source": "tradingview",
+      "o": 880,
+      "h": 885,
+      "l": 863.5,
+      "v": 34906
+    },
+    {
+      "date": "2026-01-16",
+      "priceMAD": 875,
+      "source": "tradingview",
+      "o": 870,
+      "h": 875,
+      "l": 860.1,
+      "v": 47971
+    },
+    {
+      "date": "2026-01-19",
+      "priceMAD": 851,
+      "source": "tradingview",
+      "o": 866,
+      "h": 870,
+      "l": 850.3,
+      "v": 21741
+    },
+    {
+      "date": "2026-01-20",
+      "priceMAD": 848.9,
+      "source": "tradingview",
+      "o": 849,
+      "h": 849,
+      "l": 822,
+      "v": 48152
+    },
+    {
+      "date": "2026-01-21",
+      "priceMAD": 824.2,
+      "source": "tradingview",
+      "o": 830.2,
+      "h": 838.9,
+      "l": 822.3,
+      "v": 19763
+    },
+    {
+      "date": "2026-01-22",
+      "priceMAD": 832,
+      "source": "tradingview",
+      "o": 820,
+      "h": 864,
+      "l": 820,
+      "v": 38724
+    },
+    {
+      "date": "2026-01-23",
+      "priceMAD": 839,
+      "source": "tradingview",
+      "o": 836,
+      "h": 842,
+      "l": 835,
+      "v": 19875
+    },
+    {
+      "date": "2026-01-26",
+      "priceMAD": 818,
+      "source": "tradingview",
+      "o": 832.1,
+      "h": 838,
+      "l": 806,
+      "v": 31565
+    },
+    {
+      "date": "2026-01-27",
+      "priceMAD": 809.1,
+      "source": "tradingview",
+      "o": 806.1,
+      "h": 819.9,
+      "l": 805,
+      "v": 35106
+    },
+    {
+      "date": "2026-01-28",
+      "priceMAD": 881,
+      "source": "tradingview",
+      "o": 825,
+      "h": 881,
+      "l": 825,
+      "v": 54578
+    },
+    {
+      "date": "2026-01-29",
+      "priceMAD": 860,
+      "source": "tradingview",
+      "o": 888,
+      "h": 892,
+      "l": 855.1,
+      "v": 36050
+    },
+    {
+      "date": "2026-01-30",
+      "priceMAD": 848,
+      "source": "tradingview",
+      "o": 846,
+      "h": 870,
+      "l": 840.1,
+      "v": 12743
+    },
+    {
+      "date": "2026-02-02",
+      "priceMAD": 835.1,
+      "source": "tradingview",
+      "o": 840,
+      "h": 841,
+      "l": 800,
+      "v": 15663
+    },
+    {
+      "date": "2026-02-03",
+      "priceMAD": 825,
+      "source": "tradingview",
+      "o": 824,
+      "h": 838,
+      "l": 820.3,
+      "v": 13774
+    },
+    {
+      "date": "2026-02-04",
+      "priceMAD": 819,
+      "source": "tradingview",
+      "o": 817.1,
+      "h": 830,
+      "l": 817.1,
+      "v": 21009
+    },
+    {
+      "date": "2026-02-05",
+      "priceMAD": 816,
+      "source": "tradingview",
+      "o": 815,
+      "h": 830,
+      "l": 815,
+      "v": 32861
+    },
+    {
+      "date": "2026-02-06",
+      "priceMAD": 835,
+      "source": "tradingview",
+      "o": 805,
+      "h": 835,
+      "l": 795,
+      "v": 56015
+    },
+    {
+      "date": "2026-02-09",
+      "priceMAD": 827,
+      "source": "tradingview",
+      "o": 826,
+      "h": 832,
+      "l": 816,
+      "v": 9098
+    },
+    {
+      "date": "2026-02-10",
+      "priceMAD": 818,
+      "source": "tradingview",
+      "o": 811,
+      "h": 824.5,
+      "l": 808,
+      "v": 32279
+    },
+    {
+      "date": "2026-02-11",
+      "priceMAD": 820,
+      "source": "tradingview",
+      "o": 810,
+      "h": 820,
+      "l": 810,
+      "v": 7372
+    },
+    {
+      "date": "2026-02-12",
+      "priceMAD": 845,
+      "source": "tradingview",
+      "o": 820,
+      "h": 845,
+      "l": 810.5,
+      "v": 23890
+    },
+    {
+      "date": "2026-02-13",
+      "priceMAD": 850,
+      "source": "tradingview",
+      "o": 832.1,
+      "h": 850,
+      "l": 826,
+      "v": 43753
+    },
+    {
+      "date": "2026-02-16",
+      "priceMAD": 848,
+      "source": "tradingview",
+      "o": 840,
+      "h": 848,
+      "l": 830.1,
+      "v": 225511
+    },
+    {
+      "date": "2026-02-17",
+      "priceMAD": 830,
+      "source": "tradingview",
+      "o": 840,
+      "h": 845,
+      "l": 830,
+      "v": 10114
+    },
+    {
+      "date": "2026-02-18",
+      "priceMAD": 830.1,
+      "source": "tradingview",
+      "o": 830,
+      "h": 835,
+      "l": 830,
+      "v": 6865
+    },
+    {
+      "date": "2026-02-19",
+      "priceMAD": 835,
+      "source": "tradingview",
+      "o": 830,
+      "h": 835,
+      "l": 820.1,
+      "v": 11457
+    },
+    {
+      "date": "2026-02-20",
+      "priceMAD": 838,
+      "source": "tradingview",
+      "o": 829,
+      "h": 838,
+      "l": 823.1,
+      "v": 13245
+    },
+    {
+      "date": "2026-02-23",
+      "priceMAD": 825,
+      "source": "tradingview",
+      "o": 826.1,
+      "h": 830,
+      "l": 825,
+      "v": 19532
+    },
+    {
+      "date": "2026-02-24",
+      "priceMAD": 828,
+      "source": "tradingview",
+      "o": 820,
+      "h": 829.5,
+      "l": 820,
+      "v": 25145
+    },
+    {
+      "date": "2026-02-25",
+      "priceMAD": 830,
+      "source": "tradingview",
+      "o": 822.2,
+      "h": 833,
+      "l": 822,
+      "v": 8289
+    },
+    {
+      "date": "2026-02-26",
+      "priceMAD": 825,
+      "source": "tradingview",
+      "o": 829,
+      "h": 830,
+      "l": 821.4,
+      "v": 8758
+    },
+    {
+      "date": "2026-02-27",
+      "priceMAD": 820,
+      "source": "tradingview",
+      "o": 834.9,
+      "h": 835,
+      "l": 820,
+      "v": 97861
+    },
+    {
+      "date": "2026-03-02",
+      "priceMAD": 757,
+      "source": "tradingview",
+      "o": 759,
+      "h": 780,
+      "l": 742,
+      "v": 230544
+    },
+    {
+      "date": "2026-03-03",
+      "priceMAD": 700.1,
+      "source": "tradingview",
+      "o": 735,
+      "h": 740,
+      "l": 683,
+      "v": 106748
+    },
+    {
+      "date": "2026-03-04",
+      "priceMAD": 700,
+      "source": "tradingview",
+      "o": 699,
+      "h": 720,
+      "l": 689,
+      "v": 192870
+    },
+    {
+      "date": "2026-03-05",
+      "priceMAD": 745,
+      "source": "tradingview",
+      "o": 714.9,
+      "h": 745,
+      "l": 714,
+      "v": 44153
+    },
+    {
+      "date": "2026-03-06",
+      "priceMAD": 730,
+      "source": "tradingview",
+      "o": 760,
+      "h": 764,
+      "l": 720,
+      "v": 53853
+    },
+    {
+      "date": "2026-03-09",
+      "priceMAD": 700,
+      "source": "tradingview",
+      "o": 700,
+      "h": 715,
+      "l": 695,
+      "v": 25355
+    },
+    {
+      "date": "2026-03-10",
+      "priceMAD": 700,
+      "source": "tradingview",
+      "o": 732,
+      "h": 758.9,
+      "l": 700,
+      "v": 30574
+    },
+    {
+      "date": "2026-03-11",
+      "priceMAD": 702,
+      "source": "tradingview",
+      "o": 707,
+      "h": 724.9,
+      "l": 702,
+      "v": 20978
+    },
+    {
+      "date": "2026-03-12",
+      "priceMAD": 701,
+      "source": "tradingview",
+      "o": 705,
+      "h": 709.7,
+      "l": 701,
+      "v": 26778
+    },
+    {
+      "date": "2026-03-13",
+      "priceMAD": 690,
+      "source": "tradingview",
+      "o": 704.9,
+      "h": 705,
+      "l": 690,
+      "v": 501623
+    },
+    {
+      "date": "2026-03-16",
+      "priceMAD": 696,
+      "source": "tradingview",
+      "o": 695,
+      "h": 700,
+      "l": 690,
+      "v": 18685
+    },
+    {
+      "date": "2026-03-17",
+      "priceMAD": 700,
+      "source": "tradingview",
+      "o": 695,
+      "h": 707,
+      "l": 690.1,
+      "v": 20716
+    },
+    {
+      "date": "2026-03-18",
+      "priceMAD": 730,
+      "source": "tradingview",
+      "o": 723,
+      "h": 733,
+      "l": 718.5,
+      "v": 37247
+    },
+    {
+      "date": "2026-03-19",
+      "priceMAD": 720,
+      "source": "tradingview",
+      "o": 723,
+      "h": 724.9,
+      "l": 708.1,
+      "v": 15901
+    },
+    {
+      "date": "2026-03-24",
+      "priceMAD": 713.1,
+      "source": "tradingview",
+      "o": 725,
+      "h": 730,
+      "l": 711,
+      "v": 14900
+    },
+    {
+      "date": "2026-03-25",
+      "priceMAD": 730,
+      "source": "tradingview",
+      "o": 713,
+      "h": 730,
+      "l": 711,
+      "v": 45788
+    },
+    {
+      "date": "2026-03-26",
+      "priceMAD": 717.6,
+      "source": "tradingview",
+      "o": 729,
+      "h": 729,
+      "l": 716.2,
+      "v": 21447
+    },
+    {
+      "date": "2026-03-27",
+      "priceMAD": 720,
+      "source": "tradingview",
+      "o": 720.1,
+      "h": 725,
+      "l": 720,
+      "v": 8829
+    },
+    {
+      "date": "2026-03-30",
+      "priceMAD": 701.6,
+      "source": "tradingview",
+      "o": 720,
+      "h": 720,
+      "l": 701,
+      "v": 13593
+    },
+    {
+      "date": "2026-03-31",
+      "priceMAD": 717.5,
+      "source": "tradingview",
+      "o": 705,
+      "h": 719,
+      "l": 702,
+      "v": 19926
+    },
+    {
+      "date": "2026-04-01",
+      "priceMAD": 725.1,
+      "source": "tradingview",
+      "o": 720,
+      "h": 730,
+      "l": 720,
+      "v": 9967
+    },
+    {
+      "date": "2026-04-02",
+      "priceMAD": 720,
+      "source": "tradingview",
+      "o": 718.4,
+      "h": 726,
+      "l": 710.5,
+      "v": 15962
+    },
+    {
+      "date": "2026-04-03",
+      "priceMAD": 710,
+      "source": "tradingview",
+      "o": 712.5,
+      "h": 720,
+      "l": 710,
+      "v": 43456
+    },
+    {
+      "date": "2026-04-06",
+      "priceMAD": 717,
+      "source": "tradingview",
+      "o": 706,
+      "h": 718.9,
+      "l": 700.1,
+      "v": 22030
+    },
+    {
+      "date": "2026-04-07",
+      "priceMAD": 701,
+      "source": "tradingview",
+      "o": 709.5,
+      "h": 709.5,
+      "l": 700.1,
+      "v": 47356
+    },
+    {
+      "date": "2026-04-08",
+      "priceMAD": 741.5,
+      "source": "tradingview",
+      "o": 726,
+      "h": 744.9,
+      "l": 725,
+      "v": 68156
+    },
+    {
+      "date": "2026-04-09",
+      "priceMAD": 731.5,
+      "source": "tradingview",
+      "o": 743,
+      "h": 743,
+      "l": 726.2,
+      "v": 5871
+    },
+    {
+      "date": "2026-04-10",
+      "priceMAD": 746,
+      "source": "tradingview",
+      "o": 732,
+      "h": 750,
+      "l": 731,
+      "v": 21038
+    },
+    {
+      "date": "2026-04-13",
+      "priceMAD": 732.1,
+      "source": "tradingview",
+      "o": 725,
+      "h": 736,
+      "l": 722,
+      "v": 30227
+    },
+    {
+      "date": "2026-04-14",
+      "priceMAD": 780,
+      "source": "tradingview",
+      "o": 735,
+      "h": 780,
+      "l": 730,
+      "v": 66669
+    },
+    {
+      "date": "2026-04-15",
+      "priceMAD": 785.1,
+      "source": "tradingview",
+      "o": 790,
+      "h": 800,
+      "l": 780,
+      "v": 39773
+    },
+    {
+      "date": "2026-04-16",
+      "priceMAD": 776,
+      "source": "tradingview",
+      "o": 799,
+      "h": 799,
+      "l": 775,
+      "v": 14768
+    },
+    {
+      "date": "2026-04-17",
+      "priceMAD": 826,
+      "source": "tradingview",
+      "o": 776.1,
+      "h": 826,
+      "l": 776.1,
+      "v": 133467
+    },
+    {
+      "date": "2026-04-20",
+      "priceMAD": 819,
+      "source": "tradingview",
+      "o": 790,
+      "h": 820,
+      "l": 790,
+      "v": 19192
+    },
+    {
+      "date": "2026-04-21",
+      "priceMAD": 820.6,
+      "source": "tradingview",
+      "o": 808,
+      "h": 826,
+      "l": 808,
+      "v": 17702
+    },
+    {
+      "date": "2026-04-22",
+      "priceMAD": 809,
+      "source": "tradingview",
+      "o": 818.7,
+      "h": 820,
+      "l": 809,
+      "v": 25797
+    },
+    {
+      "date": "2026-04-23",
+      "priceMAD": 797.2,
+      "source": "tradingview",
+      "o": 801,
+      "h": 807,
+      "l": 790.1,
+      "v": 26439
+    },
+    {
+      "date": "2026-04-24",
+      "priceMAD": 785.1,
+      "source": "tradingview",
+      "o": 790.2,
+      "h": 797.2,
+      "l": 783,
+      "v": 17619
+    },
+    {
+      "date": "2026-04-27",
+      "priceMAD": 779.9,
+      "source": "tradingview",
+      "o": 785.2,
+      "h": 795,
+      "l": 779.9,
+      "v": 8465
+    },
+    {
+      "date": "2026-04-28",
+      "priceMAD": 773,
+      "source": "tradingview",
+      "o": 770,
+      "h": 780,
+      "l": 770,
+      "v": 5548
+    },
+    {
+      "date": "2026-04-29",
+      "priceMAD": 765.2,
+      "source": "tradingview",
+      "o": 757,
+      "h": 773,
+      "l": 757,
+      "v": 23070
+    },
+    {
+      "date": "2026-04-30",
+      "priceMAD": 755.1,
+      "source": "tradingview",
+      "o": 758,
+      "h": 761,
+      "l": 750.1,
+      "v": 11835
+    },
+    {
+      "date": "2026-05-04",
+      "priceMAD": 770.1,
+      "source": "tradingview",
+      "o": 780,
+      "h": 785,
+      "l": 770,
+      "v": 9302
+    },
+    {
+      "date": "2026-05-05",
+      "priceMAD": 770,
+      "source": "tradingview",
+      "o": 765,
+      "h": 770,
+      "l": 760.2,
+      "v": 6852
+    },
+    {
+      "date": "2026-05-06",
+      "priceMAD": 795,
+      "source": "tradingview",
+      "o": 781,
+      "h": 801.5,
+      "l": 780,
+      "v": 10668
+    },
+    {
+      "date": "2026-05-07",
+      "priceMAD": 794,
+      "source": "tradingview",
+      "o": 795.1,
+      "h": 808,
+      "l": 794,
+      "v": 8149
+    },
+    {
+      "date": "2026-05-08",
+      "priceMAD": 786,
+      "source": "tradingview",
+      "o": 785,
+      "h": 788,
+      "l": 780.1,
+      "v": 3245
+    },
+    {
+      "date": "2026-05-11",
+      "priceMAD": 772.1,
+      "source": "tradingview",
+      "o": 780.1,
+      "h": 782,
+      "l": 770,
+      "v": 15071
+    },
+    {
+      "date": "2026-05-12",
+      "priceMAD": 772,
+      "source": "tradingview",
+      "o": 770,
+      "h": 775,
+      "l": 765,
+      "v": 12830
+    },
+    {
+      "date": "2026-05-13",
+      "priceMAD": 763,
+      "source": "tradingview",
+      "o": 763,
+      "h": 767.9,
+      "l": 762.1,
+      "v": 4225
+    },
+    {
+      "date": "2026-05-14",
+      "priceMAD": 760,
+      "source": "tradingview",
+      "o": 764,
+      "h": 772,
+      "l": 760,
+      "v": 8184
+    },
+    {
+      "date": "2026-05-15",
+      "priceMAD": 760,
+      "source": "tradingview",
+      "o": 760,
+      "h": 765,
+      "l": 758.6,
+      "v": 11161
+    },
+    {
+      "date": "2026-05-18",
+      "priceMAD": 748,
+      "source": "tradingview",
+      "o": 750,
+      "h": 760,
+      "l": 745,
+      "v": 7151
+    },
+    {
+      "date": "2026-05-19",
+      "priceMAD": 746,
+      "source": "tradingview",
+      "o": 746.1,
+      "h": 767.7,
+      "l": 746,
+      "v": 20493
+    },
+    {
+      "date": "2026-05-20",
+      "priceMAD": 731,
+      "source": "tradingview",
+      "o": 749.9,
+      "h": 749.9,
+      "l": 731,
+      "v": 6799
+    },
+    {
+      "date": "2026-05-21",
+      "priceMAD": 734,
+      "source": "tradingview",
+      "o": 734,
+      "h": 756,
+      "l": 734,
+      "v": 4997
+    },
+    {
+      "date": "2026-05-22",
+      "priceMAD": 735,
+      "source": "tradingview",
+      "o": 734.1,
+      "h": 750,
+      "l": 734.1,
+      "v": 5680
+    },
+    {
+      "date": "2026-05-25",
+      "priceMAD": 750,
+      "source": "tradingview",
+      "o": 760,
+      "h": 774.9,
+      "l": 750,
+      "v": 13769
+    },
+    {
+      "date": "2026-05-26",
+      "priceMAD": 731,
+      "source": "tradingview",
+      "o": 745,
+      "h": 750,
+      "l": 731,
+      "v": 17649
+    },
+    {
+      "date": "2026-06-01",
+      "priceMAD": 735,
+      "source": "tradingview",
+      "o": 732.6,
+      "h": 745,
+      "l": 731.5,
+      "v": 7183
+    },
+    {
+      "date": "2026-06-02",
+      "priceMAD": 730,
+      "source": "tradingview",
+      "o": 732,
+      "h": 740,
+      "l": 728,
+      "v": 5154
+    },
+    {
+      "date": "2026-06-03",
+      "priceMAD": 724,
+      "source": "tradingview",
+      "o": 730,
+      "h": 740,
+      "l": 724,
+      "v": 4833
+    },
+    {
+      "date": "2026-06-04",
+      "priceMAD": 730.2,
+      "source": "tradingview",
+      "o": 726,
+      "h": 741,
+      "l": 725,
+      "v": 4372
+    },
+    {
+      "date": "2026-06-05",
+      "priceMAD": 730,
+      "source": "tradingview",
+      "o": 735,
+      "h": 739.8,
+      "l": 730,
+      "v": 5685
+    },
+    {
+      "date": "2026-06-08",
+      "priceMAD": 735,
+      "source": "tradingview",
+      "o": 728,
+      "h": 735,
+      "l": 722,
+      "v": 5162
+    },
+    {
+      "date": "2026-06-09",
+      "priceMAD": 726.2,
+      "source": "tradingview",
+      "o": 725,
+      "h": 738.9,
+      "l": 725,
+      "v": 1876
+    },
+    {
+      "date": "2026-06-10",
+      "priceMAD": 722.9,
+      "source": "tradingview",
+      "o": 720.1,
+      "h": 725,
+      "l": 720,
+      "v": 6263
+    },
+    {
+      "date": "2026-06-11",
+      "priceMAD": 708,
+      "source": "tradingview",
+      "o": 720,
+      "h": 720.1,
+      "l": 707,
+      "v": 10570
+    },
+    {
+      "date": "2026-06-12",
+      "priceMAD": 726.1,
+      "source": "tradingview",
+      "o": 724.8,
+      "h": 730,
+      "l": 716.1,
+      "v": 16255
+    },
+    {
+      "date": "2026-06-15",
+      "priceMAD": 766.1,
+      "source": "tradingview",
+      "o": 745,
+      "h": 766.1,
+      "l": 740,
+      "v": 16932
+    },
+    {
+      "date": "2026-06-16",
+      "priceMAD": 760,
+      "source": "tradingview",
+      "o": 766.1,
+      "h": 768,
+      "l": 740,
+      "v": 13725
+    },
+    {
+      "date": "2026-06-18",
+      "priceMAD": 742,
+      "source": "tradingview",
+      "o": 757,
+      "h": 760,
+      "l": 740.1,
+      "v": 9214
+    },
+    {
+      "date": "2026-06-19",
+      "priceMAD": 733.1,
+      "source": "tradingview",
+      "o": 740.1,
+      "h": 745,
+      "l": 730,
+      "v": 1405
+    },
+    {
+      "date": "2026-06-22",
+      "priceMAD": 725.2,
+      "source": "tradingview",
+      "o": 721.1,
+      "h": 729.9,
+      "l": 721.1,
+      "v": 2053
+    },
+    {
+      "date": "2026-06-23",
+      "priceMAD": 727,
+      "source": "tradingview",
+      "o": 728,
+      "h": 732,
+      "l": 721,
+      "v": 3417
+    },
+    {
+      "date": "2026-06-24",
+      "priceMAD": 725,
+      "source": "tradingview",
+      "o": 721,
+      "h": 729,
+      "l": 712.1,
+      "v": 3362
+    },
+    {
+      "date": "2026-06-25",
+      "priceMAD": 715.1,
+      "source": "tradingview",
+      "o": 715.1,
+      "h": 728,
+      "l": 715.1,
+      "v": 3158
+    },
+    {
+      "date": "2026-06-26",
+      "priceMAD": 715,
+      "source": "tradingview",
+      "o": 718.9,
+      "h": 718.9,
+      "l": 708,
+      "v": 2898
+    },
+    {
+      "date": "2026-06-29",
+      "priceMAD": 713,
+      "source": "tradingview",
+      "o": 717,
+      "h": 720,
+      "l": 707.3,
+      "v": 3425
+    },
+    {
+      "date": "2026-06-30",
+      "priceMAD": 714.9,
+      "source": "tradingview",
+      "o": 710,
+      "h": 714.9,
+      "l": 708,
+      "v": 5327
+    },
+    {
+      "date": "2026-07-01",
+      "priceMAD": 710.5,
+      "source": "tradingview",
+      "o": 710,
+      "h": 714.9,
+      "l": 708.2,
+      "v": 3080
+    },
+    {
+      "date": "2026-07-02",
+      "priceMAD": 713.9,
+      "source": "tradingview",
+      "o": 708,
+      "h": 715,
+      "l": 707.1,
+      "v": 2064
+    },
+    {
+      "date": "2026-07-03",
+      "priceMAD": 726,
+      "source": "tradingview",
+      "o": 708,
+      "h": 726,
+      "l": 707,
+      "v": 5025
+    },
+    {
+      "date": "2026-07-06",
+      "priceMAD": 720,
+      "source": "tradingview",
+      "o": 725,
+      "h": 725,
+      "l": 715.1,
+      "v": 6280
+    },
+    {
+      "date": "2026-07-07",
+      "priceMAD": 709,
+      "source": "tradingview",
+      "o": 712,
+      "h": 717.8,
+      "l": 708.1,
+      "v": 2680
+    },
+    {
+      "date": "2026-07-08",
+      "priceMAD": 707,
+      "source": "tradingview",
+      "o": 708,
+      "h": 712.9,
+      "l": 705,
+      "v": 3727
+    },
+    {
+      "date": "2026-07-09",
+      "priceMAD": 709,
+      "source": "tradingview",
+      "o": 703,
+      "h": 720,
+      "l": 703,
+      "v": 5103
+    },
+    {
+      "date": "2026-07-10",
+      "priceMAD": 707,
+      "source": "tradingview",
+      "o": 705.4,
+      "h": 710,
+      "l": 705,
+      "v": 4169
+    },
+    {
+      "date": "2026-07-13",
+      "priceMAD": 703.1,
+      "source": "tradingview",
+      "o": 700,
+      "h": 707,
+      "l": 700,
+      "v": 3619
+    },
+    {
+      "date": "2026-07-14",
+      "priceMAD": 699.9,
+      "source": "tradingview",
+      "o": 690,
+      "h": 706,
+      "l": 690,
+      "v": 16229
+    },
+    {
+      "date": "2026-07-15",
+      "priceMAD": 696,
+      "source": "tradingview",
+      "o": 694.1,
+      "h": 699,
+      "l": 692,
+      "v": 2639
+    },
+    {
+      "date": "2026-07-16",
+      "priceMAD": 696.1,
+      "source": "tradingview",
+      "o": 693,
+      "h": 698.6,
+      "l": 692.5,
+      "v": 7174
+    },
+    {
+      "date": "2026-07-17",
+      "priceMAD": 695,
+      "source": "tradingview",
+      "o": 692.5,
+      "h": 696,
+      "l": 692,
+      "v": 19612
+    },
+    {
+      "date": "2026-07-20",
+      "priceMAD": 693.0,
+      "source": "casablanca-bourse.com"
+    }
+  ]
 }
