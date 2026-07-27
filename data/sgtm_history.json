@@ -1335,6 +1335,11 @@
       "date": "2026-07-24",
       "priceMAD": 680.0,
       "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-07-27",
+      "priceMAD": 681.0,
+      "source": "casablanca-bourse.com"
     }
   ]
 }
