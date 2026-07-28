@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=402';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=403';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1275,8 +1275,46 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   // sur les visites répétées du même jour → chargement instantané.
   // v382 — on ne skip que si le store est frais ET déjà entièrement backfillé (sinon on doit
   // d'abord charger l'historique complet, même si le store a été touché aujourd'hui).
+  // v403 (BUG-076) — le garde-fou ci-dessus était GLOBAL (un unique timestamp de store) alors
+  // que la couverture est PAR SÉRIE. Un ticker dont le fetch échouait était quand même estampillé
+  // « à jour » (saveHistStore est appelé même si une série a échoué) ⇒ réseau coupé pour le reste
+  // de la journée ⇒ la série restait gelée, et repartait gelée le lendemain si l'échec se répétait.
+  // Symptôme vécu : ACN figé au 23/07 pendant que tout le reste allait au 28/07 → la valeur ESPP
+  // du graphe restait plate et le bond ACN (+6,9 %) DISPARAISSAIT du P&L Daily (delta ESPP = 0).
+  // On compare donc chaque série à la couverture globale et on rattrape les retardataires.
+  const _coverage = getLastDate(result);
+  const _lastOf = (t) => {
+    const d = result.tickers[t];
+    return (d && d.dates && d.dates.length) ? d.dates[d.dates.length - 1] : null;
+  };
+  // Tolérance : une série peut légitimement avoir une séance de retard (fuseaux — Tokyo/Europe/US
+  // ne clôturent pas le même jour, jour férié local). Au-delà de 4 jours calendaires (week-end +
+  // 1 séance), c'est une dérive anormale à rattraper.
+  const _lagging = tickers.filter(t => {
+    const last = _lastOf(t);
+    return last && last < _coverage && (Date.parse(_coverage) - Date.parse(last)) > 4 * 86400000;
+  });
+
   if (result._fromStore && result._storeUpdated === _todayISO() && result._backfilled) {
-    console.log('[hist] Store à jour + complet (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + getLastDate(result));
+    if (_lagging.length === 0) {
+      console.log('[hist] Store à jour + complet (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + _coverage);
+      return result;
+    }
+    // Rattrapage CIBLÉ : le reste du store est à jour, on ne redemande que les retardataires.
+    console.warn('[hist] Store frais MAIS ' + _lagging.length + ' série(s) en retard sur ' + _coverage
+      + ' → rattrapage ciblé : ' + _lagging.map(t => t + ' (' + _lastOf(t) + ')').join(', '));
+    const healed = [];
+    await Promise.all(_lagging.map(t => {
+      const p1 = Math.floor(new Date(_lastOf(t) + 'T00:00:00Z').getTime() / 1000) - 7 * 86400;
+      return getStockHistory({ ticker: t }, { period1: p1, period2: Math.floor(Date.now() / 1000) })
+        .then(d => { if (d) { result.tickers[t] = unionSeries(result.tickers[t], d); healed.push(t); } })
+        .catch(() => {}); // échec ⇒ on retentera au prochain chargement (plus de gel silencieux)
+    }));
+    if (healed.length) {
+      saveHistStore(result);
+      result._didFetch = true; // pousse la correction vers L2 (app.js, après fusion SGTM)
+      console.log('[hist] Rattrapage OK : ' + healed.join(', ') + ' → coverage ' + getLastDate(result));
+    }
     return result;
   }
 

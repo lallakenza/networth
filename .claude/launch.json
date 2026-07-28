@@ -12,6 +12,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8766", "--directory", "/Users/amine/facturation"],
       "port": 8766
+    },
+    {
+      "name": "audiolik",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8791", "--directory", "/Users/amine/audiolik"],
+      "port": 8791
     }
   ]
 }
