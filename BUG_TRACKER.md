@@ -5,6 +5,42 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v403 (29 juillet 2026) — BUG-077
+
+### BUG-077: Séries de prix gelées → des positions entières disparaissaient du P&L Daily
+- **Version**: présent depuis le garde-fou de fraîcheur v376/v382 — corrigé **v403**.
+- **Sévérité**: 🔴 Majeure (P1) — chiffre de performance faux, et **plausible** donc indétectable
+  à l'œil (les erreurs se compensent partiellement).
+- **Détection**: rapport utilisateur — « Accenture a fait +5% aujourd'hui mais on le voit pas
+  dans le P&L daily ». Repro Chrome sur la prod + comparaison engine vs graphe.
+- **Symptôme**: le 28/07/2026 ACN bondit de +6,9 % (154,06 → 164,66 $). Le KPI P&L Daily affiche
+  **+2 764 €** au lieu de **+3 738 €** (engine). Manquent : ACN **+1 928 €**, IBIT **−664 €**,
+  ETHA **−213 €**, 4911.T **−64 €** (net : −974 €).
+- **Cause racine**: le KPI est écrasé par le graphe (`updateKPIsFromChart` = `plSeries[n-1] −
+  plSeries[n-2]`), qui lit l'historique du store. Or la **fraîcheur du store est GLOBALE** (un
+  unique `_updated` + `getLastDate()` = max TOUTES séries confondues) alors que la **couverture
+  est PAR SÉRIE**. Console : `[hist] Store à jour + complet (maj 2026-07-29) → skip réseau,
+  coverage → 2026-07-28` — le max venait des valeurs européennes, pendant que **6 séries étaient
+  restées au 23/07** (ACN, IBIT, ETHA, 4911.T, QQQM, DG.PA). Une série dont le fetch échoue est
+  quand même estampillée « à jour » (`saveHistStore` est appelé même en cas d'échec partiel, et
+  aussi par `app.js` après la fusion SGTM) ⇒ **gel silencieux**, reconduit tant que l'échec se
+  répète. Le graphe forward-fill la dernière clôture connue ⇒ delta = 0 ⇒ la position
+  **disparaît** du P&L au lieu d'être signalée.
+- **Correctif** (`api.js :: fetchHistoricalPrices`): la décision de skip ne repose plus sur
+  l'horodatage seul mais sur la **couverture réelle par série**. Toute série en retard de plus de
+  4 jours calendaires sur la couverture globale (tolérance week-end + 1 séance, pour ne pas
+  thrasher sur les décalages Tokyo/Europe/US) déclenche un **rattrapage ciblé** : gap-fetch des
+  seules retardataires, `unionSeries`, persistance L1 + push L2. Un échec n'est plus définitif —
+  il est retenté au chargement suivant.
+- **Tests de non-régression**:
+  1. Store frais + séries alignées → log `skip réseau` conservé (perf v376 intacte, pas de thrash).
+  2. Tronquer une série dans `nw_hist_store_v1` → log `rattrapage ciblé` puis série recalée.
+  3. **Invariant**: carte KPI P&L Daily (graphe) == `periodPL.daily.total` (engine). Toute
+     divergence = une série gelée ou un scope désaligné.
+  4. Une position à forte variation du jour doit apparaître dans le détail Daily.
+
+---
+
 ## v378-v379 (18 juillet 2026) — BUG-076 + perf
 
 ### BUG-076: Le toggle owner ne filtrait pas le treemap / donuts géo+secteur (vue Actions)
