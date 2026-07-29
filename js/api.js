@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=405';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=406';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -974,17 +974,29 @@ function _trimSeries(d) {
 }
 
 /** Persiste le store accumulé (best-effort ; silencieux si quota dépassé). */
-export function saveHistStore(data) {
+export function saveHistStore(data, opts) {
   try {
     if (!data || !data.tickers) return;
     const tickers = {}, fx = {};
     for (const [t, d] of Object.entries(data.tickers)) tickers[t] = _trimSeries(d);
     for (const [k, d] of Object.entries(data.fx || {})) fx[k] = _trimSeries(d);
+    // v406 (BUG-080) — `_updated` signifie « TOUTES les séries ont été rafraîchies ce jour-là »,
+    // car c'est lui qui autorise le skip réseau. Une écriture PARTIELLE (rattrapage ciblé v403)
+    // ou une simple re-persistance (app.js, ajout de sgtmHistory) ne doit donc PAS l'avancer :
+    // sinon le réseau est coupé pour la journée et les bars PROVISOIRES de la veille (Yahoo
+    // publie en séance un bar égal à la clôture précédente) ne sont JAMAIS corrigés.
+    let _updated = _todayISO();
+    if (opts && opts.preserveFreshness) {
+      try {
+        const _prev = JSON.parse(localStorage.getItem(HIST_STORE_KEY) || 'null');
+        if (_prev && _prev._updated) _updated = _prev._updated;
+      } catch (_) { /* store illisible → on repart sur aujourd'hui */ }
+    }
     const s = {
       v: 1,
       tickers,
       fx,
-      _updated: _todayISO(),
+      _updated,
       _lastDate: getLastDate(data),
       _backfilled: !!data._backfilled, // v382 — historique complet déjà chargé ⇒ delta-only ensuite
     };
@@ -1311,7 +1323,9 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
         .catch(() => {}); // échec ⇒ on retentera au prochain chargement (plus de gel silencieux)
     }));
     if (healed.length) {
-      saveHistStore(result);
+      // Rafraîchissement PARTIEL ⇒ on n'avance pas l'horodatage : le prochain chargement doit
+      // pouvoir faire le gap-fetch complet (et corriger les bars provisoires des autres séries).
+      saveHistStore(result, { preserveFreshness: true });
       result._didFetch = true; // pousse la correction vers L2 (app.js, après fusion SGTM)
       console.log('[hist] Rattrapage OK : ' + healed.join(', ') + ' → coverage ' + getLastDate(result));
     }

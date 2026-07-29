@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=405';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=405';
-import { render, applySnapshotDeltas } from './render.js?v=405';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=405';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=405';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=405';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=405';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=406';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=406';
+import { render, applySnapshotDeltas } from './render.js?v=406';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=406';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=406';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=406';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=406';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1378,7 +1378,9 @@ async function loadStockPrices(forceRefresh) {
         // v376/v385 — re-persiste AVEC sgtmHistory : L1 (localStorage) toujours ; L2 (Supabase)
         // seulement si un fetch a eu lieu (pas sur un skip same-day) → le blob L2 est COMPLET
         // (tickers + FX + SGTM), uploadé une seule fois, en background.
-        try { saveHistStore(historicalData); } catch (e) { /* best effort */ }
+        // v406 — si aucun fetch n'a eu lieu (skip same-day), cette re-persistance ne doit pas
+        // faire croire que les séries ont été rafraîchies aujourd'hui (cf. BUG-080).
+        try { saveHistStore(historicalData, { preserveFreshness: !historicalData._didFetch }); } catch (e) { /* best effort */ }
         if (historicalData._didFetch) saveServerHistory(historicalData);
         if (ytdProgress) ytdProgress.style.display = 'none';
 

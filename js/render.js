@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=405';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=405';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=406';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=406';
 
 // ---- Generic table sort utility ----
 /**
@@ -1555,7 +1555,9 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
 
     // Cell renderers per column key
     // Use chart-derived start value when available (single source of truth)
-    const cbPeriodKey = { daily: 'daily', mtd: 'mtd', oneMonth: 'oneMonth', ytd: 'ytd' }[_posPeriod];
+    // v406 — pas de 'daily' ici non plus : sur une séance, la « valeur début » du graphe peut
+    // provenir d'un bar provisoire. Le fallback ci-dessous (previousClose) est la bonne réf.
+    const cbPeriodKey = { mtd: 'mtd', oneMonth: 'oneMonth', ytd: 'ytd' }[_posPeriod];
     const cbItem = cbPeriodKey && window._chartBreakdown?.[cbPeriodKey]?.breakdown?.find(
       b => !b._isCost && b.ticker === pos.ticker
     );
@@ -2167,8 +2169,10 @@ function renderActionsView(state) {
   const cb = window._chartBreakdown;
   if (cb) {
     // Build per-ticker maps for each period: ticker → { pl, pct, startVal, endVal }
+    // v406 — 'daily' RETIRÉ de l'override : sur une seule séance, la ventilation du graphe
+    // dépend de la qualité du dernier bar du store (souvent provisoire) et vaut alors 0.
+    // Le daily reste celui de l'engine (previousClose live), cohérent avec la carte et le widget.
     const periodKeys = [
-      { cbKey: 'daily',    plField: 'dailyPL',    pctField: 'dailyPct' },
       { cbKey: 'mtd',      plField: 'mtdPL',      pctField: 'mtdPct' },
       { cbKey: 'oneMonth', plField: 'oneMonthPL',  pctField: 'oneMonthPct' },
       { cbKey: 'ytd',      plField: 'ytdPL',      pctField: 'ytdPct' },
@@ -2892,18 +2896,12 @@ function setupKPIDetailPanels(state) {
   const detailGenerators = {
     // ── Period P&L panels ──
     detailPLDaily: function() {
-      // Prefer chart-computed breakdown (same prices as KPI cards)
-      const cb = window._chartBreakdown?.daily;
-      if (cb?.hasData) {
-        const items = cb.breakdown;
-        const losers = items.filter(i => i.pl < 0);
-        const gainers = items.filter(i => i.pl > 0);
-        let footer = 'Top perte : ' + (losers[0]?.label || '--') + ' (' + fmt(Math.round(losers[0]?.pl || 0)) + ')';
-        const best = gainers[0];
-        if (best) footer += ' | Top gain : ' + best.label + ' (+' + fmt(Math.round(best.pl)) + ')';
-        return renderPLBreakdown(items, cb.total, footer);
-      }
-      // Fallback to engine.js static-price breakdown
+      // v406 (BUG-080) — le DAILY vient de l'engine, PAS du graphe (comme la carte depuis v405).
+      // La ventilation du graphe se calcule sur la dernière marche de sa série : quand le store
+      // contient un bar PROVISOIRE (Yahoo publie en séance un bar égal à la clôture de la veille),
+      // le delta vaut 0 et la position est purement ABSENTE du widget — c'est ainsi que toutes les
+      // valeurs européennes ont disparu le 29/07. L'engine utilise previousClose (API live) et
+      // liste donc toujours l'intégralité des positions.
       const d = av.periodPL?.daily;
       if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données daily non disponibles</div>';
       const items = d.breakdown;
@@ -7102,7 +7100,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=405').then(m => {
+  import('./charts.js?v=406').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

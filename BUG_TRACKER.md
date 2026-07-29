@@ -5,6 +5,47 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v406 (29 juillet 2026) — BUG-080
+
+### BUG-080: le widget Daily n'affichait plus aucune action européenne
+- **Version**: le widget lisait le graphe depuis toujours ; devenu visible après v405 — corrigé **v406**.
+- **Sévérité**: 🔴 Majeure (P1) — 9 positions sur 14 absentes du détail, et total faux (1 000 € au
+  lieu de −1 279 €).
+- **Détection**: rapport utilisateur — « y a un bug dans le widget daily, aujourd'hui il n'affiche
+  plus les actions européennes ».
+- **Symptôme**: `window._chartBreakdown.daily` ne contenait que 5 lignes (IBIT, ETHA, 4911.T, SGTM,
+  ACN). Toutes les européennes (AIR, BN, RMS, OR, MC, SAP, FGR, SAN, P911) manquaient, alors que
+  `periodPL.daily` de l'engine en listait bien 14. **La carte (engine, v405) affichait −1 279 €
+  et son propre widget 1 000 €.**
+- **Cause racine**: v405 avait basculé la CARTE sur l'engine mais le WIDGET lisait toujours en
+  priorité la ventilation du graphe. Or celle-ci se calcule sur la dernière marche de la série :
+  mesure du store le 29/07 → `AIR.PA 2026-07-27:208.90` **et** `2026-07-28:208.90` (bar provisoire
+  dupliqué ; vraie clôture 212). Delta = 0 ⇒ la ligne est **omise** de la ventilation. Les seuls
+  tickers présents étaient ceux rattrapés par v403 (vrai close) — d'où un widget ne montrant que
+  crypto/Japon/ACN/SGTM.
+  **Cause seconde (pourquoi le bar provisoire n'a jamais été corrigé)** : le gap-fetch re-télécharge
+  les 7 derniers jours et corrige ces bars, mais il ne tournait plus — `_updated` avait été avancé
+  à aujourd'hui par une écriture PARTIELLE (rattrapage ciblé v403) et par la re-persistance SGTM
+  d'`app.js`, deux opérations qui ne rafraîchissent pourtant pas toutes les séries.
+- **Correctif**:
+  - `render.js` — le daily vient de l'engine **partout** : widget `detailPLDaily` (branche graphe
+    supprimée), override chart du tableau (`periodKeys` sans `daily`), et « valeur début »
+    (`cbPeriodKey` sans `daily`, fallback `previousClose` = la bonne réf). MTD/1M/YTD/1Y restent
+    au graphe.
+  - `api.js` — `saveHistStore(data, {preserveFreshness})` : une écriture partielle n'avance plus
+    `_updated`, donc le gap-fetch complet retourne corriger les bars provisoires au chargement
+    suivant. Appliqué au rattrapage ciblé v403 et à la re-persistance SGTM (`app.js`) quand aucun
+    fetch n'a eu lieu.
+- **Tests de non-régression**:
+  1. **Invariant** (déjà posé en v405, désormais vrai pour le widget aussi) : carte P&L Daily ==
+     total du widget == `periodPL.daily.total`, et le widget liste TOUTES les positions.
+  2. Un bar provisoire dans le store ne doit plus faire disparaître une ligne du daily.
+  3. `_updated` ne doit être avancé que par un rafraîchissement COMPLET (sinon les bars provisoires
+     se figent pour la journée).
+  4. MTD/1M/YTD/1Y continuent d'utiliser la ventilation du graphe.
+
+---
+
 ## v405 (29 juillet 2026) — BUG-079
 
 ### BUG-079: le P&L Daily de la carte venait du graphe, dont le dernier bar est souvent provisoire
