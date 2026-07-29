@@ -5,6 +5,39 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v405 (29 juillet 2026) — BUG-079
+
+### BUG-079: le P&L Daily de la carte venait du graphe, dont le dernier bar est souvent provisoire
+- **Version**: présent depuis l'override chart des KPI — corrigé **v405**.
+- **Sévérité**: 🔴 Majeure (P1) — même famille que BUG-077, mais **cause distincte et résiduelle** :
+  BUG-077 corrigeait les séries *en retard*, celui-ci les séries *à jour mais avec un dernier
+  bar faux*.
+- **Détection**: en validant BUG-077/078, la carte affichait +999 € contre +3 738 € côté engine.
+- **Symptôme**: `delta_ibkr` du graphe = **−942 €** (seules les valeurs crypto/Japon comptaient)
+  alors que l'engine donnait **+1 809 €**. Mesure du store : `AIR.PA 2026-07-27:208.90` et
+  `2026-07-28:208.90` — le bar du 28 est un **doublon provisoire** de la veille, alors que la
+  vraie clôture est 212 (= prix live). Idem OR.PA (375,55 vs 382,90). Delta de la dernière
+  marche = 0 ⇒ ces positions **disparaissent** du daily. Les tickers rattrapés par v403
+  (IBIT, 4911.T) avaient eux le vrai close ⇒ seul leur mouvement (négatif) subsistait.
+- **Cause racine**: Yahoo publie en séance un bar du jour provisoire, parfois égal à la clôture
+  de la veille. Le store le persiste tel quel. Or `updateKPIsFromChart` calcule le daily comme
+  `plSeries[n-1] − plSeries[n-2]` : à l'échelle d'UNE séance, la qualité du dernier bar est
+  décisive. À l'échelle MTD/YTD, elle est négligeable — d'où un bug invisible sur les autres
+  cartes.
+- **Correctif**: la carte **P&L Daily n'est plus écrasée par le graphe** ; elle vient de l'engine
+  (`periodPL.daily`), qui utilise la source canonique du daily : `previousClose` de l'API live
+  vs prix live — exactement ce qu'affiche un courtier, et déjà la source du panneau de détail
+  ⇒ **carte == détail par construction**. `updateKPIsFromChart` n'écrit plus `kpiPLDaily` et
+  `kpiPLDaily` sort de `chartOverriddenKPIs` (render.js). Les périodes plus longues restent au
+  graphe (NAV, dépôts pris en compte), là où il est le plus juste.
+- **Tests de non-régression**:
+  1. **Invariant**: carte P&L Daily == `periodPL.daily.total` == somme des lignes du détail.
+  2. Un bar provisoire dans le store ne doit plus influencer le daily (il n'est plus lu).
+  3. MTD/1M/YTD/1Y restent alimentés par le graphe (valeurs inchangées).
+  4. Une position à forte variation du jour apparaît dans la carte ET dans le détail.
+
+---
+
 ## v404 (29 juillet 2026) — BUG-078
 
 ### BUG-078: SGTM absent du P&L Daily → carte KPI ≠ panneau de détail
