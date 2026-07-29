@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=403';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=404';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1345,6 +1345,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     sgtmAmineShares: portfolio.amine.sgtm.shares,
     sgtmNezhaShares: portfolio.nezha.sgtm.shares,
     sgtmPriceMAD: m.sgtmPriceMAD,
+    sgtmPreviousClose: m.sgtmPreviousClose || null, // v404 — clôture de la séance précédente (colonne Daily)
     sgtmCostBasisEUR: m.sgtmCostBasisMAD ? sgtmCostEUR_hist : null,
     sgtmFxPL,
     // ACN reference prices for period change columns
@@ -1435,6 +1436,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
       const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
 
+      // v404 — P&L Daily SGTM : variation de la dernière séance de Casablanca.
+      // `m.sgtmPreviousClose` est posé par app.js depuis l'avant-dernière entrée de
+      // l'historique quotidien (pipeline scraper v330+). Avant v404 le daily EXCLUAIT SGTM
+      // (« pas de données intraday Casablanca » — hypothèse devenue fausse), alors que la
+      // carte KPI issue du graphe l'incluait ⇒ divergence carte/détail croissante avec les
+      // positions marocaines. Sans référence de veille ⇒ null ⇒ comportement d'avant conservé.
+      const sgtmDailyPL = (m.sgtmPreviousClose > 0 && sgtmShares > 0 && m.sgtmPriceMAD > 0)
+        ? toEUR(sgtmShares * (m.sgtmPriceMAD - m.sgtmPreviousClose), 'MAD', fx)
+        : null;
+
       // IBKR cash FX P&L (daily) — v368 (BUG-073), même racine que prevFxRate ci-dessus :
       // FX_STATIC (31/03/2026) n'est PAS la clôture FX de la veille. Sur le short JPY, ça
       // affichait des mois de dérive EUR/JPY (183.15 statique vs live) comme « Impact FX
@@ -1458,8 +1469,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         const ibkrPL = sumField(field);
         // 2. ESPP (Amine + Nezha)
         const esppPL = esppPeriodPL(acnRefPrice) + nezhaEsppPeriodPL(acnRefPrice);
-        // 3. SGTM — only in total when we have a period ref price
-        const sgtmPL = opts.sgtmInTotal ? sgtmUnrealizedPL : 0;
+        // 3. SGTM — daily : variation de séance (opts.sgtmPeriodPL) ; autres périodes : plus-value
+        //    latente totale, comptée dans le total seulement si on a un prix de référence de période.
+        const sgtmPL = opts.sgtmPeriodPL != null ? opts.sgtmPeriodPL : (opts.sgtmInTotal ? sgtmUnrealizedPL : 0);
         // 4. Degiro
         const degPL = opts.degiroPL || 0;
         // 5. Cash FX effect (daily only)
@@ -1474,11 +1486,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         });
         if (esppPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
         // SGTM in breakdown (greyed out if not in total)
-        if (opts.sgtmInBreakdown && sgtmUnrealizedPL !== 0) {
+        // v404 — sur le daily, la ligne affichée est la variation de séance et elle EST dans le
+        // total (pas d'astérisque) ; sur les autres périodes, la PV latente, grisée si hors total.
+        const sgtmShown = opts.sgtmPeriodPL != null ? opts.sgtmPeriodPL : sgtmUnrealizedPL;
+        const sgtmCounted = opts.sgtmPeriodPL != null || !!opts.sgtmInTotal;
+        if ((opts.sgtmInBreakdown || opts.sgtmPeriodPL != null) && sgtmShown !== 0) {
           items.push({
-            label: 'SGTM (x' + sgtmShares + ')' + (opts.sgtmInTotal ? '' : ' *'),
-            ticker: 'SGTM', pl: sgtmUnrealizedPL, valEUR: amineSgtm + nezhaSgtm,
-            _notInTotal: !opts.sgtmInTotal,
+            label: 'SGTM (x' + sgtmShares + ')' + (sgtmCounted ? '' : ' *'),
+            ticker: 'SGTM', pl: sgtmShown, valEUR: amineSgtm + nezhaSgtm,
+            _notInTotal: !sgtmCounted,
           });
         }
         if (closedPL !== 0) {
@@ -1517,7 +1533,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       //   - MTD/1M/YTD: SGTM in breakdown ONLY (no period-start ref price available)
       //   - 1Y: SGTM in total + breakdown (IPO was Dec 2025, within 1Y window)
       return {
-        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL }), // previousClose = live API, jamais périmé
+        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL, sgtmPeriodPL: sgtmDailyPL }), // previousClose = live API, jamais périmé ; SGTM = variation de séance (v404)
         mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true, refStale: refStale.mtd }),
         ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true, refStale: refStale.ytd }),
         oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true, refStale: refStale.oneMonth }),

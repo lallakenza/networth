@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=403';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=403';
-import { render, applySnapshotDeltas } from './render.js?v=403';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=403';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=403';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=403';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=403';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=404';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=404';
+import { render, applySnapshotDeltas } from './render.js?v=404';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=404';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=404';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=404';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=404';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1342,6 +1342,16 @@ async function loadStockPrices(forceRefresh) {
             historicalData.sgtmHistory = merged;
             console.log('[app] SGTM history (L2 ∪ local): ' + merged.length + ' jours ('
               + merged[0].date + ' → ' + merged[merged.length - 1].date + ')');
+            // v404 — clôture SGTM de la séance PRÉCÉDENTE (avant-dernière entrée de l'historique).
+            // Jusqu'ici l'engine n'avait aucune référence de veille pour Casablanca ⇒ le P&L Daily
+            // excluait SGTM, alors que la carte KPI (alimentée par le graphe) l'incluait : carte et
+            // panneau de détail divergeaient (12 € aujourd'hui, proportionnel aux positions ensuite).
+            // On expose EXACTEMENT les 2 points que le graphe utilise pour son delta → carte == détail.
+            // Posé AVANT buildChartsFromHist() (qui appelle refresh()) pour être pris en compte.
+            const _prevSession = merged[merged.length - 2];
+            if (_prevSession && typeof _prevSession.priceMAD === 'number' && _prevSession.priceMAD > 0) {
+              PORTFOLIO.market.sgtmPreviousClose = _prevSession.priceMAD;
+            }
           }
         } catch (e) {
           console.warn('[app] SGTM history fetch failed (non-blocking):', e);
