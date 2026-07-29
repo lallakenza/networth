@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=403';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=403';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=404';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=404';
 
 // ---- Generic table sort utility ----
 /**
@@ -2100,14 +2100,18 @@ function renderActionsView(state) {
     ticker: 'SGTM',
     shares: sgtmShares,
     price: av.sgtmPriceMAD,
-    previousClose: null,
+    previousClose: av.sgtmPreviousClose,
     priceLabel: av.sgtmPriceMAD + ' DH',
     costEUR: sgtmCostBasis,
     valEUR: sgtmTotalVal,
     unrealizedPL: sgtmPL,
     pctPL: sgtmCostBasis > 0 ? (sgtmPL / sgtmCostBasis * 100) : null,
-    dailyPL: null,
-    dailyPct: null,
+    // v404 — variation de la dernière séance de Casablanca (colonne Daily du tableau).
+    // Dérivée de la valeur EUR déjà filtrée par propriétaire → pas besoin du FX ici.
+    dailyPL: (av.sgtmPreviousClose > 0 && av.sgtmPriceMAD > 0 && sgtmTotalVal > 0)
+      ? sgtmTotalVal * (av.sgtmPriceMAD - av.sgtmPreviousClose) / av.sgtmPriceMAD
+      : null,
+    dailyPct: pctFromRef(av.sgtmPriceMAD, av.sgtmPreviousClose),
     weight: totalAllVal > 0 ? (sgtmTotalVal / totalAllVal * 100) : 0,
     sector: 'materials',
     geo: 'morocco',
@@ -7095,7 +7099,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=403').then(m => {
+  import('./charts.js?v=404').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

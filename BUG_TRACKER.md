@@ -5,6 +5,43 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v404 (29 juillet 2026) — BUG-078
+
+### BUG-078: SGTM absent du P&L Daily → carte KPI ≠ panneau de détail
+- **Version**: présent depuis l'introduction du P&L Daily — corrigé **v404**.
+- **Sévérité**: Faible aujourd'hui (12 €), **croissante** avec les positions marocaines.
+- **Détection**: relevé pendant la vérification de BUG-077, puis priorisé par l'utilisateur
+  (« corrige aussi SGTM comme ça si on achète plus d'actions marocaines on aura plus de
+  discrepancy »).
+- **Symptôme**: la carte P&L Daily affichait **3 750 €** (valeur du graphe, qui inclut la
+  variation SGTM) alors que le panneau de détail totalisait **3 738 €** (engine, SGTM exclu).
+  Cliquer la carte donnait donc un total qui ne correspondait pas au chiffre de la carte.
+- **Cause racine**: l'engine excluait volontairement SGTM du daily — commentaire
+  « Daily: no SGTM (too short, no Casablanca intraday data) ». Hypothèse **devenue fausse**
+  depuis le pipeline de scraping v330+ : `data/sgtm_history.json` fournit une clôture
+  quotidienne (154 séances). Il manquait simplement une **référence de veille** exposée à
+  l'engine, l'équivalent de `acnPreviousClose` pour Accenture.
+- **Correctif**:
+  - `app.js` — après la fusion de l'historique SGTM (L2 ∪ local), pose
+    `PORTFOLIO.market.sgtmPreviousClose` = avant-dernière séance, soit **exactement les 2 points
+    que le graphe utilise pour son delta** ⇒ carte == détail par construction. Posé avant
+    `buildChartsFromHist()` (qui déclenche `refresh()`).
+  - `engine.js` — `sgtmDailyPL = parts × (prix − clôture veille)` converti en EUR ; nouvelle
+    option `opts.sgtmPeriodPL` de `fullPeriodPL` (le daily montre la variation de séance et la
+    compte dans le total, sans astérisque ; les autres périodes gardent la PV latente).
+    **Sans référence de veille ⇒ `null` ⇒ comportement d'avant conservé** (aucune régression si
+    l'historique marocain est indisponible).
+  - `render.js` — la ligne SGTM du tableau des positions expose enfin `dailyPL` / `dailyPct`
+    (colonne Daily vide auparavant), dérivés de la valeur EUR déjà filtrée par propriétaire.
+- **Tests de non-régression**:
+  1. **Invariant**: carte KPI P&L Daily == `periodPL.daily.total` (engine). Vérifié : 3 750 == 3 750.
+  2. Sans `sgtmPreviousClose` (historique marocain KO) → SGTM absent du daily, total inchangé.
+  3. La ligne SGTM du daily n'a PAS d'astérisque (elle est dans le total) ; sur MTD/YTD elle
+     garde l'astérisque (PV latente hors total).
+  4. Généralise à tout nouveau ticker marocain (CSR/LHM/IAM…) dès qu'il alimente le même pipeline.
+
+---
+
 ## v403 (29 juillet 2026) — BUG-077
 
 ### BUG-077: Séries de prix gelées → des positions entières disparaissaient du P&L Daily
