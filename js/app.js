@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=404';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=404';
-import { render, applySnapshotDeltas } from './render.js?v=404';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=404';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=404';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=404';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=404';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=405';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=405';
+import { render, applySnapshotDeltas } from './render.js?v=405';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=405';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=405';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=405';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=405';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -792,7 +792,13 @@ function updateKPIsFromChart(chartData) {
   const depMTD = depositsInIdxRange(prevMtdIdx, n - 1);
   const dep1M = depositsInIdxRange(prevIdx1M, n - 1);
   const depYTD = depositsInIdxRange(0, n - 1);
-  updateKPI('kpiPLDaily', plDaily, prevNAV + depDaily);
+  // v405 (BUG-079) — le DAILY n'est plus écrasé par le graphe. Sa série dépend du dernier bar
+  // du store, qui est souvent PROVISOIRE en cours de séance (Yahoo renvoie un bar du jour égal à
+  // la clôture de la veille) ⇒ le delta de la dernière marche valait 0 pour ces valeurs et la
+  // position disparaissait du chiffre. L'engine, lui, dispose de la source canonique du daily :
+  // `previousClose` (API live) vs prix live — exactement ce qu'affiche un courtier — et c'est
+  // aussi ce qu'affiche le panneau de détail ⇒ carte == détail par construction.
+  // Les autres périodes restent au graphe (NAV, dépôts pris en compte).
   updateKPI('kpiPLMTD', plMTD, navBeforeMTD + depMTD);
   updateKPI('kpiPL1M', pl1M, navBefore1M + dep1M);
   updateKPI('kpiPLYTD', plYTD, ytdStartNAV + depYTD);
@@ -1348,9 +1354,21 @@ async function loadStockPrices(forceRefresh) {
             // panneau de détail divergeaient (12 € aujourd'hui, proportionnel aux positions ensuite).
             // On expose EXACTEMENT les 2 points que le graphe utilise pour son delta → carte == détail.
             // Posé AVANT buildChartsFromHist() (qui appelle refresh()) pour être pris en compte.
-            const _prevSession = merged[merged.length - 2];
-            if (_prevSession && typeof _prevSession.priceMAD === 'number' && _prevSession.priceMAD > 0) {
-              PORTFOLIO.market.sgtmPreviousClose = _prevSession.priceMAD;
+            // Référence = avant-dernière SÉANCE de la timeline du dashboard (dates des tickers),
+            // et NON l'avant-dernière entrée de l'historique SGTM : celui-ci accumule aussi des
+            // relevés intra-journaliers (même prix, date du jour) qui décaleraient la référence
+            // d'une séance et donneraient un delta nul. `pickMoroccanPriceAt` forward-fill →
+            // robuste aux jours fériés de Casablanca.
+            let _refDates = [];
+            for (const _td of Object.values(historicalData.tickers || {})) {
+              if (_td && _td.dates && _td.dates.length > _refDates.length) _refDates = _td.dates;
+            }
+            const _prevSessionDate = _refDates.length >= 2 ? _refDates[_refDates.length - 2] : null;
+            const _prevPick = _prevSessionDate ? pickMoroccanPriceAt(merged, _prevSessionDate) : null;
+            if (_prevPick && _prevPick.priceMAD > 0) {
+              PORTFOLIO.market.sgtmPreviousClose = _prevPick.priceMAD;
+              console.log('[app] SGTM clôture veille (' + _prevPick.dateUsed + ') : '
+                + _prevPick.priceMAD + ' MAD → P&L Daily SGTM activé');
             }
           }
         } catch (e) {

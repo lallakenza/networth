@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=404';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=404';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=405';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=405';
 
 // ---- Generic table sort utility ----
 /**
@@ -1979,7 +1979,10 @@ function renderActionsView(state) {
     // Show placeholder '–' until chart data arrives. Once chart has set values via
     // updateKPIsFromChart (app.js), those values are saved in _chartKPIOverrides
     // and reused here on re-render (e.g. when switching tabs).
-    const chartOverriddenKPIs = new Set(['kpiPLDaily', 'kpiPLMTD', 'kpiPL1M', 'kpiPLYTD', 'kpiPL1Y']);
+    // v405 (BUG-079) — 'kpiPLDaily' RETIRÉ : le daily vient désormais de l'engine
+    // (previousClose live vs prix live), seule source fiable à l'échelle d'une séance et
+    // identique au panneau de détail. Le graphe reste maître des périodes plus longues.
+    const chartOverriddenKPIs = new Set(['kpiPLMTD', 'kpiPL1M', 'kpiPLYTD', 'kpiPL1Y']);
     [
       { id: 'kpiPLDaily', data: av.periodPL.daily },
       { id: 'kpiPLMTD', data: av.periodPL.mtd },
@@ -7099,7 +7102,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=404').then(m => {
+  import('./charts.js?v=405').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
