@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=410';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=410';
-import { render, applySnapshotDeltas } from './render.js?v=410';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=410';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=410';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=410';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=410';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=411';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=411';
+import { render, applySnapshotDeltas } from './render.js?v=411';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=411';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=411';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=411';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=411';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1414,16 +1414,18 @@ async function loadStockPrices(forceRefresh) {
             // relevés intra-journaliers (même prix, date du jour) qui décaleraient la référence
             // d'une séance et donneraient un delta nul. `pickMoroccanPriceAt` forward-fill →
             // robuste aux jours fériés de Casablanca.
-            let _refDates = [];
-            for (const _td of Object.values(historicalData.tickers || {})) {
-              if (_td && _td.dates && _td.dates.length > _refDates.length) _refDates = _td.dates;
-            }
-            const _prevSessionDate = _refDates.length >= 2 ? _refDates[_refDates.length - 2] : null;
-            const _prevPick = _prevSessionDate ? pickMoroccanPriceAt(merged, _prevSessionDate) : null;
-            if (_prevPick && _prevPick.priceMAD > 0) {
-              PORTFOLIO.market.sgtmPreviousClose = _prevPick.priceMAD;
-              console.log('[app] SGTM clôture veille (' + _prevPick.dateUsed + ') : '
-                + _prevPick.priceMAD + ' MAD → P&L Daily SGTM activé');
+            // v410 — référence = dernière séance STRICTEMENT antérieure à aujourd'hui.
+            // v405 prenait l'avant-dernière date de la timeline des tickers, mais celle-ci est
+            // lue AVANT que unifyPrices n'y ajoute le jour courant : la référence retardait donc
+            // d'une séance et le P&L Daily SGTM rejouait le mouvement de la VEILLE (mesuré le
+            // 30/07 : référence 680 = clôture du 28/07 au lieu de 670,10 = clôture du 29/07,
+            // soit −59 € affichés alors que le graphe, lui, donnait 0).
+            const _prevEntry = [...merged].reverse().find(e =>
+              e && e.date < todayStr && typeof e.priceMAD === 'number' && e.priceMAD > 0);
+            if (_prevEntry) {
+              PORTFOLIO.market.sgtmPreviousClose = _prevEntry.priceMAD;
+              console.log('[app] SGTM clôture veille (' + _prevEntry.date + ') : '
+                + _prevEntry.priceMAD + ' MAD → P&L Daily SGTM activé');
             }
           }
         } catch (e) {
