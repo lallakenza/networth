@@ -1271,6 +1271,20 @@ async function loadStockPrices(forceRefresh) {
             if (!(live > 0)) return;
             if (td.dates[lastIdx] === todayStr) { td.closes[lastIdx] = live; _overridden++; }
             else { td.dates.push(todayStr); td.closes.push(live); _appended++; }
+            // v407 — la séance PRÉCÉDENTE est recalée sur previousClose (clôture OFFICIELLE de
+            // l'API live), exactement la référence qu'utilise le moteur pour le P&L Daily.
+            // Indispensable : en séance, Yahoo sert un bar quotidien PROVISOIRE (= le cours du
+            // moment) que le store fige comme s'il s'agissait d'une clôture. Mesuré le 30/07 :
+            // store 29/07 RMS.PA = 1 695,50 alors que la clôture officielle est 1 508,50
+            // (187 € × 10 parts = 1 870 € d'erreur sur la seule dernière marche du graphe).
+            // Avec ce recalage, dernière marche du graphe == carte P&L Daily PAR CONSTRUCTION.
+            const prevIdx = td.dates.length - 2;
+            const prevClose = (ticker === 'ACN')
+              ? PORTFOLIO.market.acnPreviousClose
+              : (pos && pos.previousClose);
+            if (prevIdx >= 0 && prevClose > 0 && td.dates[prevIdx] < todayStr) {
+              td.closes[prevIdx] = prevClose;
+            }
           });
           if (_appended) {
             console.log('[unify] ' + _appended + ' série(s) prolongée(s) au ' + todayStr
