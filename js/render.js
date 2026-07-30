@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=413';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=413';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=414';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=414';
 
 // ---- Generic table sort utility ----
 /**
@@ -240,6 +240,36 @@ export { fmt };
  *   - Shows/hides sections based on view type
  *   - Initializes interactive elements (sort, tooltips, collapsible panels)
  */
+// v413 (BUG-082) — PORTÉE PROPRIÉTAIRE DU P&L DE PÉRIODE : fonction UNIQUE, partagée par la
+// carte KPI et le widget de détail. Auparavant seul le widget filtrait ; depuis v405 la carte
+// lisait le total MOTEUR (niveau couple) et affichait donc le MÊME chiffre pour Couple, Amine
+// et Nezha (mesuré : −2 620 € pour les trois, alors que Nezha ne fait que −454 €).
+// Le P&L de période est du pur mark-to-market (Δprix × parts) : répartir ACN/SGTM au prorata
+// des parts est EXACT. IBKR, coûts et P/L réalisé = 100 % Amine (Nezha ne trade pas).
+function scopePeriodPLByOwner(data, av) {
+  const items = (data && data.breakdown) || [];
+  const _o = window._activeOwner || 'both';
+  if (_o === 'both' || !items.length) return { items, total: data ? data.total : 0 };
+  const esppTot = (av.esppShares || 0) + (av.nezhaEsppShares || 0);
+  const sgtmTot = (av.sgtmAmineShares || 0) + (av.sgtmNezhaShares || 0);
+  const esppRatio = esppTot > 0 ? (_o === 'amine' ? av.esppShares : (av.nezhaEsppShares || 0)) / esppTot : 0;
+  const sgtmRatio = sgtmTot > 0 ? (_o === 'amine' ? av.sgtmAmineShares : av.sgtmNezhaShares) / sgtmTot : 0;
+  const scoped = [];
+  for (const it of items) {
+    const tk = it.ticker || '';
+    if (tk === 'ACN') { const pl = it.pl * esppRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
+    else if (tk === 'SGTM') { const pl = it.pl * sgtmRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
+    else if (_o === 'amine') { scoped.push(it); }
+    // nezha : on saute IBKR, coûts et réalisé (elle ne trade pas)
+  }
+  // Effet FX du cash IBKR : 100 % Amine, et sans ligne dédiée (il ne vit que dans le total).
+  const cfx = (_o === 'amine' && data && data.cashFxPL) ? data.cashFxPL : 0;
+  // Total = Σ des lignes RÉELLEMENT comptées (cf. `_notInTotal`, v413) — même convention que
+  // le moteur, sinon les coûts affichés « pour info » gonfleraient le total en vue filtrée.
+  return { items: scoped, total: scoped.filter(i => !i._notInTotal).reduce((s, i) => s + i.pl, 0) + cfx };
+}
+
+
 export function render(state, view, currency) {
   _fx = state.fx;
   _currency = currency;
@@ -2014,7 +2044,7 @@ function renderActionsView(state) {
       }
       if (!p.data.hasData) { el.textContent = '--'; return; }
       // v413 (BUG-082) — même portée propriétaire que le widget (fonction partagée).
-      const _scoped = scopePeriodPLByOwner(p.data);
+      const _scoped = scopePeriodPLByOwner(p.data, av);
       const v = Math.round(_scoped.total);
       const sign = v >= 0 ? '+' : '';
       el.textContent = sign + fmt(v);
@@ -2717,39 +2747,10 @@ function setupKPIDetailPanels(state) {
   }
 
   // Helper: render a P&L breakdown in two columns (losers | gainers)
-  // v413 (BUG-082) — PORTÉE PROPRIÉTAIRE DU P&L DE PÉRIODE : fonction UNIQUE, partagée par la
-  // carte KPI et le widget de détail. Auparavant seul le widget filtrait ; depuis v405 la carte
-  // lisait le total MOTEUR (niveau couple) et affichait donc le MÊME chiffre pour Couple, Amine
-  // et Nezha (mesuré : −2 620 € pour les trois, alors que Nezha ne fait que −454 €).
-  // Le P&L de période est du pur mark-to-market (Δprix × parts) : répartir ACN/SGTM au prorata
-  // des parts est EXACT. IBKR, coûts et P/L réalisé = 100 % Amine (Nezha ne trade pas).
-  function scopePeriodPLByOwner(data) {
-    const items = (data && data.breakdown) || [];
-    const _o = window._activeOwner || 'both';
-    if (_o === 'both' || !items.length) return { items, total: data ? data.total : 0 };
-    const esppTot = (av.esppShares || 0) + (av.nezhaEsppShares || 0);
-    const sgtmTot = (av.sgtmAmineShares || 0) + (av.sgtmNezhaShares || 0);
-    const esppRatio = esppTot > 0 ? (_o === 'amine' ? av.esppShares : (av.nezhaEsppShares || 0)) / esppTot : 0;
-    const sgtmRatio = sgtmTot > 0 ? (_o === 'amine' ? av.sgtmAmineShares : av.sgtmNezhaShares) / sgtmTot : 0;
-    const scoped = [];
-    for (const it of items) {
-      const tk = it.ticker || '';
-      if (tk === 'ACN') { const pl = it.pl * esppRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
-      else if (tk === 'SGTM') { const pl = it.pl * sgtmRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
-      else if (_o === 'amine') { scoped.push(it); }
-      // nezha : on saute IBKR, coûts et réalisé (elle ne trade pas)
-    }
-    // Effet FX du cash IBKR : 100 % Amine, et sans ligne dédiée (il ne vit que dans le total).
-    const cfx = (_o === 'amine' && data && data.cashFxPL) ? data.cashFxPL : 0;
-    // Total = Σ des lignes RÉELLEMENT comptées (cf. `_notInTotal`, v413) — même convention que
-    // le moteur, sinon les coûts affichés « pour info » gonfleraient le total en vue filtrée.
-    return { items: scoped, total: scoped.filter(i => !i._notInTotal).reduce((s, i) => s + i.pl, 0) + cfx };
-  }
-
   function renderPLBreakdown(items, total, footer) {
     const _o = window._activeOwner || 'both';
     if (_o !== 'both' && items && items.length) {
-      const _sc = scopePeriodPLByOwner({ breakdown: items, total, cashFxPL: 0 });
+      const _sc = scopePeriodPLByOwner({ breakdown: items, total, cashFxPL: 0 }, av);
       items = _sc.items;
       total = _sc.total;
     }
@@ -7120,7 +7121,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=413').then(m => {
+  import('./charts.js?v=414').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
