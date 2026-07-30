@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=412';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=413';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1520,19 +1520,24 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         // ── Cost items (FTT, commissions, interest, dividends) ──
         // Included in breakdown for display, NOT in total (costs are separate from position P&L)
         // Each item carries _detail array for expandable per-trade/per-month detail
+        // v413 — `_isCost` ne suffisait PAS à dire « hors total » : la ligne « P/L Réalisé
+        // (fermées) » le porte aussi alors qu'elle EST comptée. Les vrais coûts (affichés
+        // pour information, hors total) sont donc marqués explicitement `_notInTotal`, comme
+        // SGTM. Un consommateur peut ainsi recalculer le total = Σ(lignes sans _notInTotal)
+        // et retrouver exactement le total du moteur (au cashFxPL près, qui n'a pas de ligne).
         if (periodCosts) {
           if (periodCosts.interestEUR && Math.abs(periodCosts.interestEUR) >= 1) {
-            items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: periodCosts.interestEUR, _isCost: true, _detail: periodCosts.interestItems });
+            items.push({ label: 'Intérêts marge', ticker: '_INTEREST', pl: periodCosts.interestEUR, _isCost: true, _notInTotal: true, _detail: periodCosts.interestItems });
           }
           if (periodCosts.fttEUR && Math.abs(periodCosts.fttEUR) >= 1) {
-            items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: periodCosts.fttEUR, _isCost: true, _detail: periodCosts.fttItems });
+            items.push({ label: 'Taxe transactions (FTT)', ticker: '_FTT', pl: periodCosts.fttEUR, _isCost: true, _notInTotal: true, _detail: periodCosts.fttItems });
           }
           if (periodCosts.commissionsEUR && Math.abs(periodCosts.commissionsEUR) >= 1) {
-            items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: periodCosts.commissionsEUR, _isCost: true, _detail: periodCosts.commissionsItems });
+            items.push({ label: 'Commissions IBKR', ticker: '_COMM', pl: periodCosts.commissionsEUR, _isCost: true, _notInTotal: true, _detail: periodCosts.commissionsItems });
           }
           if (periodCosts.dividendsEUR && Math.abs(periodCosts.dividendsEUR) >= 1) {
             const divDetail = [...(periodCosts.ibkrDivItems || []), ...(periodCosts.acnDivItems || []), ...(periodCosts.degiroDivItems || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: periodCosts.dividendsEUR, _isCost: true, _detail: divDetail });
+            items.push({ label: 'Dividendes nets', ticker: '_DIV', pl: periodCosts.dividendsEUR, _isCost: true, _notInTotal: true, _detail: divDetail });
           }
         }
 
