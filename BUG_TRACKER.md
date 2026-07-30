@@ -17,6 +17,49 @@ indisponible ⇒ repli sur le taux courant ⇒ comportement v368 strictement con
 
 ---
 
+## v413-v414 (30 juillet 2026) — BUG-082
+
+### BUG-082: la carte P&L affichait le MÊME chiffre pour Couple, Amine et Nezha
+- **Version**: régression introduite par **v405**, corrigée **v413** puis réparée **v414**.
+- **Sévérité**: 🔴 Majeure (P1) — Nezha se voyait attribuer le P&L du couple.
+- **Détection**: audit exhaustif de la page Actions demandé par l'utilisateur.
+- **Symptôme** (30/07, bascule Couple / Amine / Nezha) :
+  `carte : −2 620 / −2 620 / −2 620` (identique, donc faux) contre
+  `widget : −4 980 / −4 526 / −454` (correctement filtré).
+- **Cause racine**: v405 avait basculé la carte Daily du GRAPHE (qui applique
+  `ownerScopedSeries`) vers le MOTEUR (qui calcule au niveau couple). La portée par
+  propriétaire n'existait plus que dans `renderPLBreakdown` — le widget — et pas dans la
+  carte. C'est la famille BUG-005/006/018 signalée dans CLAUDE.md : *« les séries sont
+  filtrées par propriétaire, les métadonnées restent couple-level »*.
+- **Correctif (unification)**:
+  - `render.js` — `scopePeriodPLByOwner(data, av)` factorise la logique qui n'existait que
+    dans le widget ; **la carte et le widget appellent la MÊME fonction** ⇒ divergence
+    impossible par construction.
+  - `engine.js` — les 4 lignes de COÛTS portent désormais `_notInTotal: true`. `_isCost`
+    ne suffisait pas à dire « hors total » : la ligne « P/L Réalisé (fermées) » le porte
+    aussi alors qu'elle EST comptée. Sans ce marqueur, le total recalculé en vue filtrée
+    incluait les coûts et divergeait du moteur.
+  - Le **%** sous la carte est masqué en vue filtrée (`av.totalStocks` reste couple-level :
+    la base serait fausse). Mieux vaut pas de pourcentage qu'un pourcentage faux.
+- **⚠ v413 a livré un build CASSÉ** (quelques minutes en prod) : `scopePeriodPLByOwner`
+  était définie dans le scope de `renderPLBreakdown` mais appelée depuis
+  `renderActionsView` ⇒ `ReferenceError` à chaque rendu, les 5 cartes bloquées sur « -- ».
+  **`node --check` ne voit que la SYNTAXE** — angle mort déjà documenté par le BUG-075.
+  v414 remonte la fonction au niveau module (avec `av` en paramètre) et la validation est
+  faite avec le BON outil : **ESLint `no-undef` sur les 8 modules → 0 message**, plus un
+  test témoin (variable volontairement indéfinie) correctement signalé pour prouver que le
+  lint tourne réellement.
+- **Tests de non-régression**:
+  1. **Invariant d'additivité**: carte Couple == carte Amine + carte Nezha
+     (vérifié : −2 620 == −2 166 + −454).
+  2. **Invariant carte/widget**: pour chaque propriétaire, carte == total du widget.
+  3. **Invariant de somme**: Σ(lignes sans `_notInTotal`) + `cashFxPL` == total du moteur,
+     pour les 5 périodes (vérifié : Δ=0 partout).
+  4. **Toujours lancer ESLint `no-undef`** avant de déployer render.js/app.js — `node --check`
+     ne suffit pas.
+
+---
+
 ## v407 (30 juillet 2026) — BUG-081
 
 ### BUG-081: le graphe montait pendant que le P&L Daily baissait (deux périodes différentes)
