@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=406';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=406';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=406';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=406';
-import { loadSnapshots } from './api.js?v=406'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=406'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=407';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=407';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=407';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=407';
+import { loadSnapshots } from './api.js?v=407'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=407'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3359,6 +3359,20 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   Object.values(historicalData.tickers).forEach(td => {
     if (td.dates.length > refDates.length) refDates = td.dates;
   });
+  // v407 (BUG-081) — la série la plus LONGUE n'est pas forcément la plus RÉCENTE : un ticker
+  // VENDU peut avoir plus d'historique qu'une position vivante et faire perdre au graphe la
+  // ou les dernières séances (le graphe montrait alors hier, pendant que le P&L Daily montrait
+  // aujourd'hui). On complète donc la queue avec toute date plus récente vue ailleurs.
+  {
+    const _last = refDates[refDates.length - 1];
+    const _tail = new Set();
+    if (_last) {
+      Object.values(historicalData.tickers).forEach(td => {
+        for (let i = td.dates.length - 1; i >= 0 && td.dates[i] > _last; i--) _tail.add(td.dates[i]);
+      });
+    }
+    if (_tail.size) refDates = refDates.concat([..._tail].sort());
+  }
   refDates = refDates.filter(d => d >= START_DATE && d <= todayStr);
   if (refDates.length === 0) { console.warn('[ytd-chart] No dates'); return; }
 

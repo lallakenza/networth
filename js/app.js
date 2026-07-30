@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=406';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=406';
-import { render, applySnapshotDeltas } from './render.js?v=406';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=406';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=406';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=406';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=406';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=407';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=407';
+import { render, applySnapshotDeltas } from './render.js?v=407';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=407';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=407';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=407';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=407';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1250,21 +1250,32 @@ async function loadStockPrices(forceRefresh) {
         const todayStr = new Date().toISOString().slice(0, 10);
         function unifyPrices(histData) {
           if (!histData?.tickers) return;
-          // Inject live stock prices
+          // v407 (BUG-081) — UNIFICATION graphe ⇄ moteur.
+          // Avant : on n'écrasait que si la dernière date du store ÉTAIT aujourd'hui, sinon on ne
+          // faisait RIEN. Or Yahoo ne publie pas toujours le bar quotidien en séance : le store
+          // s'arrêtait à hier, le graphe affichait donc l'état d'HIER pendant que la carte P&L
+          // Daily (moteur, prix live) mesurait AUJOURD'HUI ⇒ le graphe pouvait monter quand le
+          // P&L du jour était négatif. On AJOUTE désormais le point du jour quand il manque :
+          // le dernier point du graphe vaut alors exactement la valorisation live du moteur.
+          let _appended = 0, _overridden = 0;
           Object.entries(histData.tickers).forEach(([ticker, td]) => {
             const lastIdx = td.dates.length - 1;
             if (lastIdx < 0) return;
-            if (td.dates[lastIdx] !== todayStr) return; // only override today
-            // Find live price: IBKR positions have .price set by applyTickerToPortfolio
+            if (td.dates[lastIdx] > todayStr) return; // garde-fou : jamais de point futur
+            // Prix live du ticker (positions IBKR, ou ACN pour l'ESPP). Un ticker VENDU n'a pas
+            // de prix live → on n'invente rien, getClose() forward-fill sa dernière clôture.
+            let live = 0;
             const pos = PORTFOLIO.amine.ibkr.positions.find(p => p.ticker === ticker);
-            if (pos && pos._live && pos.price > 0) {
-              td.closes[lastIdx] = pos.price;
-            }
-            // ACN (ESPP)
-            if (ticker === 'ACN' && PORTFOLIO.market._acnLive && PORTFOLIO.market.acnPriceUSD > 0) {
-              td.closes[lastIdx] = PORTFOLIO.market.acnPriceUSD;
-            }
+            if (pos && pos._live && pos.price > 0) live = pos.price;
+            if (ticker === 'ACN' && PORTFOLIO.market._acnLive && PORTFOLIO.market.acnPriceUSD > 0) live = PORTFOLIO.market.acnPriceUSD;
+            if (!(live > 0)) return;
+            if (td.dates[lastIdx] === todayStr) { td.closes[lastIdx] = live; _overridden++; }
+            else { td.dates.push(todayStr); td.closes.push(live); _appended++; }
           });
+          if (_appended) {
+            console.log('[unify] ' + _appended + ' série(s) prolongée(s) au ' + todayStr
+              + ' avec les prix live (' + _overridden + ' écrasée(s)) — le graphe se cale sur le moteur');
+          }
           // Inject live FX rates (USD, JPY, MAD)
           const fxPairs = [
             { key: 'usd', rate: currentFX.USD },
@@ -1272,12 +1283,15 @@ async function loadStockPrices(forceRefresh) {
             { key: 'mad', rate: currentFX.MAD },
           ];
           for (const { key, rate } of fxPairs) {
-            if (histData.fx?.[key] && rate > 0) {
-              const lastIdx = histData.fx[key].dates.length - 1;
-              if (lastIdx >= 0 && histData.fx[key].dates[lastIdx] === todayStr) {
-                histData.fx[key].closes[lastIdx] = rate;
-              }
-            }
+            const fd = histData.fx?.[key];
+            if (!fd || !(rate > 0)) continue;
+            const lastIdx = fd.dates.length - 1;
+            if (lastIdx < 0 || fd.dates[lastIdx] > todayStr) continue;
+            // v407 — même correctif que pour les prix : on PROLONGE au jour courant si le FX
+            // s'arrête avant, sinon le point du jour serait converti au taux de la veille alors
+            // que le moteur, lui, utilise le taux live ⇒ écart graphe/carte sur les lignes non-EUR.
+            if (fd.dates[lastIdx] === todayStr) fd.closes[lastIdx] = rate;
+            else { fd.dates.push(todayStr); fd.closes.push(rate); }
           }
         }
 
