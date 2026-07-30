@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=409';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=409';
-import { render, applySnapshotDeltas } from './render.js?v=409';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=409';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=409';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=409';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=409';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=410';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=410';
+import { render, applySnapshotDeltas } from './render.js?v=410';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=410';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=410';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=410';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=410';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1314,7 +1314,24 @@ async function loadStockPrices(forceRefresh) {
             // carte sur toute position non-EUR (mesuré : ESPP −87, SGTM −83, IBKR −152).
             // On expose donc un taux DATÉ et RÉEL — jamais FX_STATIC, la cause du BUG-073.
             const p = fd.dates.length - 2;
-            if (p >= 0 && fd.dates[p] < todayStr && fd.closes[p] > 0) _prevFX[key.toUpperCase()] = fd.closes[p];
+            if (p >= 0 && fd.dates[p] < todayStr && fd.closes[p] > 0) {
+              // GARDE-FOU anti-BUG-073 : une variation > 2 % sur UNE séance est, pour ces paires,
+              // quasi toujours un ARTEFACT — série Yahoo illiquide/décalée, ou écart de niveau
+              // entre le taux live (open.er-api) et l'historique (Yahoo). Mesuré le 30/07 :
+              // EURMAD Yahoo 10,3178 au 29/07 contre 10,68 en live, soit +3,4 % « en une séance »
+              // (USD +0,30 % et JPY +0,18 % sur la même journée : eux sont plausibles).
+              // Dans le doute on n'invente AUCUN effet de change : repli sur le taux courant.
+              const move = Math.abs(fd.closes[p] / rate - 1);
+              if (move <= 0.02) {
+                _prevFX[key.toUpperCase()] = fd.closes[p];
+              } else {
+                // On aligne aussi le point du graphe : sinon la dernière marche de la courbe
+                // porterait l'artefact que la carte, elle, aurait écarté (carte ≠ graphe).
+                fd.closes[p] = rate;
+                console.warn('[unify] variation FX ' + key.toUpperCase() + ' implausible sur une séance ('
+                  + (move * 100).toFixed(1) + ' %) → effet de change du jour ignoré (graphe + carte)');
+              }
+            }
           }
           if (Object.keys(_prevFX).length) PORTFOLIO.market.prevFX = _prevFX;
         }
