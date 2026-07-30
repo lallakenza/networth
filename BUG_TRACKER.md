@@ -3,6 +3,18 @@
 Ce document recense tous les bugs détectés, leur cause racine, le mode de détection, et le correctif appliqué.
 Il sert de base pour le plan de tests de non-régression.
 
+
+#### Complément v408/v409 — unification de l'effet de CHANGE (TODO de v368 levé)
+Après le recalage des points, il restait un écart **structurel** de ~328 € entre la dernière
+marche du graphe et la carte : le graphe valorise chaque date à son **taux daté**, le moteur
+valorisait les deux bornes au **taux courant** (effet FX = 0, choix assumé en v368 faute de
+clôture FX de la veille). Décomposition mesurée le 30/07 : IBKR −152, ESPP −87, SGTM −83.
+`app.js` expose désormais `market.prevFX` — la clôture FX **datée** de la séance précédente,
+lue des séries EURUSD=X / EURJPY=X / EURMAD=X (Yahoo). Le moteur l'utilise pour la borne de
+début du daily : positions (`prevFxRate`), cash IBKR (`cashFxPL`, dont le short JPY), ESPP
+(`prevFxUSD`) et SGTM (`prevFX.MAD`). **Ce n'est JAMAIS `FX_STATIC`** (la cause du BUG-073) :
+indisponible ⇒ repli sur le taux courant ⇒ comportement v368 strictement conservé.
+
 ---
 
 ## v407 (30 juillet 2026) — BUG-081
