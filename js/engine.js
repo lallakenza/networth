@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=408';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=409';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -137,7 +137,13 @@ function computeIBKRPositions(portfolio, fx) {
     // bornes au taux courant ⇒ le P&L Daily est un pur mouvement de PRIX à FX constant.
     // TODO (effet FX daily réel) : exposer la clôture FX de la veille — les paires
     // EURUSD=X/EURJPY=X ont un previousClose via le endpoint chart utilisé par api.js.
-    const prevFxRate = curFxRate;
+    // v408 — le TODO ci-dessus est LEVÉ : app.js expose désormais `market.prevFX`, la clôture
+    // FX DATÉE de la séance précédente, lue des séries EURUSD=X/EURJPY=X/EURMAD=X (Yahoo).
+    // C'est une vraie clôture de veille, pas FX_STATIC (la cause du BUG-073) : le P&L Daily
+    // intègre donc l'effet de change RÉEL et rejoint la valorisation du graphe.
+    // Indisponible ⇒ repli sur le taux courant ⇒ comportement v368 (effet FX nul) conservé.
+    const _pfx = portfolio.market && portfolio.market.prevFX;
+    const prevFxRate = (_pfx && _pfx[pos.currency] > 0) ? _pfx[pos.currency] : curFxRate;
     const trades = tradesByTicker[pos.ticker] || [];
 
     // ── FX P&L decomposition ──
@@ -1425,13 +1431,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       function hasField(field) { return ibkrPositions.some(p => p[field] !== null && p[field] !== undefined); }
 
       // ESPP period P&L (ACN price change × shares)
-      function esppPeriodPL(refPrice) {
+      // v408 — `prevFxUSD` (optionnel, daily uniquement) : valorise la borne de DÉBUT au taux
+      // de la veille ⇒ l'effet de change sur l'ESPP entre dans le P&L Daily, comme dans le
+      // graphe. Non fourni (MTD/YTD/1M/1Y, dont les prix de réf sont figés) ⇒ taux courant.
+      function esppPeriodPL(refPrice, prevFxUSD) {
         if (!refPrice || refPrice <= 0) return 0;
-        return esppCurrentVal - (espp.shares * refPrice / (fx.USD || 1));
+        return esppCurrentVal - (espp.shares * refPrice / (prevFxUSD > 0 ? prevFxUSD : (fx.USD || 1)));
       }
-      function nezhaEsppPeriodPL(refPrice) {
+      function nezhaEsppPeriodPL(refPrice, prevFxUSD) {
         if (!refPrice || refPrice <= 0 || nezhaEsppShares <= 0) return 0;
-        return nezhaEsppCurrentVal - (nezhaEsppShares * refPrice / (fx.USD || 1));
+        return nezhaEsppCurrentVal - (nezhaEsppShares * refPrice / (prevFxUSD > 0 ? prevFxUSD : (fx.USD || 1)));
       }
 
       const sgtmShares = (portfolio.amine.sgtm?.shares || 0) + (portfolio.nezha.sgtm?.shares || 0);
@@ -1442,8 +1451,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       // (« pas de données intraday Casablanca » — hypothèse devenue fausse), alors que la
       // carte KPI issue du graphe l'incluait ⇒ divergence carte/détail croissante avec les
       // positions marocaines. Sans référence de veille ⇒ null ⇒ comportement d'avant conservé.
+      // v408 — borne de début valorisée au MAD de la veille (market.prevFX) ⇒ l'effet de change
+      // marocain entre dans le daily, comme dans le graphe. Repli = taux courant (effet nul).
+      const _prevMad = (m.prevFX && m.prevFX.MAD > 0) ? m.prevFX.MAD : (fx.MAD || 1);
       const sgtmDailyPL = (m.sgtmPreviousClose > 0 && sgtmShares > 0 && m.sgtmPriceMAD > 0)
-        ? toEUR(sgtmShares * (m.sgtmPriceMAD - m.sgtmPreviousClose), 'MAD', fx)
+        ? (toEUR(sgtmShares * m.sgtmPriceMAD, 'MAD', fx) - (sgtmShares * m.sgtmPreviousClose / _prevMad))
         : null;
 
       // IBKR cash FX P&L (daily) — v368 (BUG-073), même racine que prevFxRate ci-dessus :
@@ -1453,8 +1465,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       // Faute de FX datée côté engine, on valorise les deux bornes au taux courant ⇒ effet
       // FX daily = 0 (non calculable) plutôt qu'un chiffre faux de plusieurs milliers.
       // Même TODO : exposer la clôture FX de la veille pour un effet FX daily réel.
-      const jpyPrevFx = fx.JPY;
-      const usdPrevFx = fx.USD;
+      // v408 — clôtures FX datées de la veille (cf. market.prevFX) : l'effet de change sur le
+      // cash IBKR (dont le short JPY) est enfin calculable pour UNE séance. Repli = taux courant
+      // (effet nul), jamais FX_STATIC.
+      const jpyPrevFx = (m.prevFX && m.prevFX.JPY > 0) ? m.prevFX.JPY : fx.JPY;
+      const usdPrevFx = (m.prevFX && m.prevFX.USD > 0) ? m.prevFX.USD : fx.USD;
       const cashFxPL = (toEUR(ibkr.cashJPY, 'JPY', fx) - ibkr.cashJPY / jpyPrevFx)
                       + (toEUR(ibkr.cashUSD, 'USD', fx) - ibkr.cashUSD / usdPrevFx);
 
@@ -1468,7 +1483,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         // 1. IBKR open positions
         const ibkrPL = sumField(field);
         // 2. ESPP (Amine + Nezha)
-        const esppPL = esppPeriodPL(acnRefPrice) + nezhaEsppPeriodPL(acnRefPrice);
+        const esppPL = esppPeriodPL(acnRefPrice, opts.prevFxUSD) + nezhaEsppPeriodPL(acnRefPrice, opts.prevFxUSD);
         // 3. SGTM — daily : variation de séance (opts.sgtmPeriodPL) ; autres périodes : plus-value
         //    latente totale, comptée dans le total seulement si on a un prix de référence de période.
         const sgtmPL = opts.sgtmPeriodPL != null ? opts.sgtmPeriodPL : (opts.sgtmInTotal ? sgtmUnrealizedPL : 0);
@@ -1533,7 +1548,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       //   - MTD/1M/YTD: SGTM in breakdown ONLY (no period-start ref price available)
       //   - 1Y: SGTM in total + breakdown (IPO was Dec 2025, within 1Y window)
       return {
-        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL, sgtmPeriodPL: sgtmDailyPL }), // previousClose = live API, jamais périmé ; SGTM = variation de séance (v404)
+        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL, sgtmPeriodPL: sgtmDailyPL, prevFxUSD: (m.prevFX && m.prevFX.USD) || 0 }), // previousClose = live API, jamais périmé ; SGTM = variation de séance (v404) ; FX daté de la veille (v408)
         mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true, refStale: refStale.mtd }),
         ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true, refStale: refStale.ytd }),
         oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true, refStale: refStale.oneMonth }),
