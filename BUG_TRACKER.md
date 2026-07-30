@@ -5,6 +5,46 @@ Il sert de base pour le plan de tests de non-régression.
 
 ---
 
+## v407 (30 juillet 2026) — BUG-081
+
+### BUG-081: le graphe montait pendant que le P&L Daily baissait (deux périodes différentes)
+- **Version**: présent depuis l'unification des prix live (v376) — corrigé **v407**.
+- **Sévérité**: Critique (P0) — les deux chiffres phares de la page se contredisaient.
+- **Détection**: rapport utilisateur — « le graph montre que la valeur a augmenté d'hier à ajd
+  mais le p&l daily montre le contraire ».
+- **Symptôme** (30/07, marché US ouvert) : graphe **+1 597 €** (235 330 → 236 927) contre carte
+  P&L Daily **−2 973 €**. Écart ~4 570 €.
+- **Cause racine**: **le graphe et la carte mesuraient des périodes différentes.** Les 19 séries
+  du store s'arrêtaient au **29/07** (Yahoo ne publie pas toujours le bar quotidien en séance),
+  donc la dernière marche du graphe valait 28/07→29/07 (le gain d'HIER), tandis que la carte
+  (moteur, `previousClose` vs prix live) mesurait 29/07→30/07 (la baisse d'AUJOURD'HUI — ACN
+  173,17 → 160,18, soit −7,5 %). Le mécanisme censé réconcilier les deux, `unifyPrices()`
+  (app.js), était neutralisé par sa garde :
+  `if (td.dates[lastIdx] !== todayStr) return; // only override today`
+  — il n'écrasait le dernier point QUE s'il portait déjà la date du jour, et ne faisait **rien**
+  quand le store était en retard. Même défaut sur l'injection FX.
+  **Fragilité aggravante** : `refDates` (charts.js) prend la série la plus LONGUE comme timeline.
+  Or la plus longue n'est pas la plus RÉCENTE — un ticker VENDU peut avoir plus d'historique
+  qu'une position vivante et amputer le graphe de la dernière séance.
+- **Correctif (UNIFICATION, demandée par l'utilisateur)**:
+  - `app.js :: unifyPrices` — **prolonge** désormais chaque série au jour courant avec le prix
+    live quand le store est en retard (au lieu de ne rien faire), et écrase si la date est déjà
+    là. Idem pour le FX (sinon le point du jour serait converti au taux de la veille alors que
+    le moteur utilise le taux live). Un ticker vendu (sans prix live) n'est jamais prolongé —
+    on n'invente rien, `getClose()` forward-fill. Log `[unify] N série(s) prolongée(s)`.
+  - `charts.js :: refDates` — la timeline est complétée par toute date plus récente vue sur une
+    autre série (garde-fou « la plus longue ≠ la plus récente »).
+  - **Effet** : le dernier point du graphe vaut exactement la valorisation live du moteur ⇒ la
+    dernière marche du graphe == le P&L Daily de la carte **par construction**.
+- **Tests de non-régression**:
+  1. **Invariant**: dernière marche du graphe (scope Tous) == carte P&L Daily == total du widget.
+  2. Store en retard d'une séance (cas nominal en séance) → le graphe doit quand même afficher
+     le point du jour (log `[unify] … prolongée(s)`).
+  3. Le signe du graphe sur la dernière marche doit toujours coïncider avec celui du P&L Daily.
+  4. Aucun point futur ne doit être créé (garde `td.dates[lastIdx] > todayStr`).
+
+---
+
 ## v406 (29 juillet 2026) — BUG-080
 
 ### BUG-080: le widget Daily n'affichait plus aucune action européenne
