@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=429';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=429';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=430';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=430';
 
 // ---- Generic table sort utility ----
 /**
@@ -5772,7 +5772,11 @@ function _sectionOpen(titre, ouvertParDefaut, sousTitre) {
   return '<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin-bottom:14px;overflow:hidden;background:var(--surface,#fff);">'
     + '<button type="button" aria-expanded="' + (ouvertParDefaut ? 'true' : 'false') + '" aria-controls="' + id + '"'
     + ' onclick="var d=document.getElementById(\'' + id + '\');var o=d.style.display===\'none\';d.style.display=o?\'block\':\'none\';'
-    + 'this.setAttribute(\'aria-expanded\',o?\'true\':\'false\');this.querySelector(\'.chev\').textContent=o?\'\\u25B2\':\'\\u25BC\';"'
+    // v430 — redimensionnement explicite des Chart.js internes à l'ouverture : un chart
+    // construit dans un conteneur display:none a une taille nulle, et l'événement resize
+    // seul ne suffit pas (vérifié en prod sur le treemap Actions, largeur 0).
+    + 'this.setAttribute(\'aria-expanded\',o?\'true\':\'false\');this.querySelector(\'.chev\').textContent=o?\'\\u25B2\':\'\\u25BC\';'
+    + 'if(o){window.dispatchEvent(new Event(\'resize\'));d.querySelectorAll(\'canvas\').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}"'
     + ' style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;'
     + 'background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;">'
     + '<span style="display:flex;flex-direction:column;gap:2px;">'
@@ -7324,7 +7328,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=429').then(m => {
+  import('./charts.js?v=430').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

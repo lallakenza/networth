@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=429';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=429';
-import { render, applySnapshotDeltas } from './render.js?v=429';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=429';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=429';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=429';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=429';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=430';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=430';
+import { render, applySnapshotDeltas } from './render.js?v=430';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=430';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=430';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=430';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=430';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
