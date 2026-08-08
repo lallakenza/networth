@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v420';
+export const APP_VERSION = 'v421';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1819,6 +1819,14 @@ export const IMMO_CONSTANTS = {
   properties: {
     vitry: {
       address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
+      // v421 — la rue a été RENOMMÉE (ancien nom : rue Jardin / des Jardins). C'est la
+      //   raison pour laquelle les recherches ADEME et DVF sur « Nathalie Lemel » ne
+      //   renvoient rien : les diagnostics et mutations antérieurs au changement sont
+      //   déposés sous l'ancien libellé. Pour toute recherche en base ouverte, chercher
+      //   les DEUX noms — ou passer par les coordonnées (48.78028, 2.40640) plutôt que
+      //   par l'adresse. Vérifié : « rue des Jardins » à Vitry ne contient que du bâti
+      //   1900-1925 en E/F/G, donc ce n'est pas la même voie ; le DPE de livraison de
+      //   notre immeuble n'est vraisemblablement pas encore publié en open data.
       surface: 67.14,           // m²
       purchasePrice: 275000,    // prix d'achat TTC (VEFA)
       purchaseDate: '2023-01',  // acte notarié 16 janvier 2023
@@ -1856,7 +1864,14 @@ export const IMMO_CONSTANTS = {
         program: 'ZAC Gare des Ardoines (84 logements)',
         norm: 'RE2020',
         heating: 'Chauffage collectif',
-        dpe: 'A',
+        dpe: 'B',   // v421 — corrigé de A à B. Le 'A' ne citait aucune source et venait
+                    //   vraisemblablement de la plaquette promoteur. Faisceau en faveur de B :
+                    //   sur les logements NEUFS construits 2022-2024 à Vitry (base ADEME,
+                    //   jeu « DPE Logements neufs », 846 diagnostics) la répartition est
+                    //   A:25 B:277 C:98 ; restreinte aux T3 de 60-75 m² (134 diagnostics)
+                    //   elle devient A:5 B:112 C:17 — soit 84% de B et seulement 4% de A.
+                    //   ⚠️ À confirmer par le certificat DPE de livraison, non retrouvé :
+                    //   le descriptif de lot (3302.pdf) est un plan scanné sans texte.
         rooms: [
           { name: 'Entrée', surface: 5.85 },
           { name: 'Séjour', surface: 21.28 },
