@@ -1080,24 +1080,30 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      rueil:     { value: 250000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
-      // v416 — value CORRIGÉE 280K → 250K. Le 280K (5 030 €/m²) CONTREDISAIT la source citée
-      //   quelques lignes plus bas dans ce même fichier : « MeilleursAgents 4 445 €/m² allée
-      //   des Glycines ». On valorisait 13% au-dessus de notre propre référence.
-      // Relevé juillet 2026 — quartier Fouilleuse : 4 384 €/m² pour les appartements
-      //   (fourchette 3 275-6 617), quartier global 4 601 €/m², ville 6 038 €/m².
-      //   Le quartier est ~27% sous la moyenne communale : cohérent avec la note historique.
-      // Et le bien cumule les facteurs DÉPRÉCIATIFS, pas appréciatifs :
-      //   - rez-de-chaussée (décote usuelle 5-10%)
-      //   - pas de parking (pénalisant à Rueil)
-      //   - immeuble 1949-1974
-      //   - DPE INCONNU → risque réglementaire non quantifié (cf. ci-dessous)
-      //   Les 15 K€ de travaux justifient une prime, pas un positionnement au-dessus du quartier.
-      // 250K = 55,66 × ~4 490 €/m², soit légèrement au-dessus de la moyenne quartier pour tenir
-      //   compte des travaux réalisés, et en dessous de la moyenne « quartier global ».
-      // ⚠️ À FAIRE : récupérer le DPE. Immeuble des années 1950-70, classement probable D-F.
-      //   Un F ou G déclencherait le calendrier d'interdiction de location et imposerait une
-      //   décote supplémentaire + des travaux. C'est le principal risque non chiffré du bien.
+      rueil:     { value: 280000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      // v417 — value MAINTENUE à 280K (5 030 €/m²) après un aller-retour documenté.
+      //
+      // v416 l'avait baissée à 250K en s'appuyant sur la moyenne du quartier Fouilleuse
+      // (4 384 €/m² pour les appartements, relevé juillet 2026 ; quartier global 4 601 ;
+      // ville 6 038). C'était une ERREUR DE MÉTHODE : cette moyenne agrège le parc social
+      // et les grands ensembles qui dominent le secteur nord de Rueil. Elle ne décrit pas
+      // ce bien-ci.
+      //
+      // Ce qui justifie le positionnement HAUT dans la fourchette du quartier (3 275-6 617) :
+      //   - résidence FERMÉE avec espaces verts importants
+      //   - ravalement de façade + fenêtres refaits récemment
+      //   - DPE attendu B ou C après travaux (à confirmer par le certificat)
+      // Prime de « valeur verte » mesurée par les Notaires de France sur les transactions
+      // 2024 : un appartement A-B se vend jusqu'à +16% au-dessus du marché, et l'écart
+      // A/B/C contre D atteint 20% selon le secteur. Notre +15% sur la moyenne quartier
+      // rentre dans cette fourchette AVANT même de compter la résidence fermée et les jardins.
+      //
+      // Facteurs déprécatifs qui compensent en partie : rez-de-chaussée (décote usuelle
+      // 5-10%), pas de parking. D'où un positionnement à +15% et non au plafond du quartier.
+      //
+      // ⚠️ À FAIRE : récupérer le certificat DPE post-travaux et l'attacher au dossier.
+      //   C'est la pièce qui JUSTIFIE la prime retenue ici. Tant qu'elle manque, les 280K
+      //   reposent sur une estimation de classe, pas sur un document.
       // value: 280K = estimation sept 2025, 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
@@ -1244,7 +1250,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v416';
+export const APP_VERSION = 'v417';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
