@@ -1080,8 +1080,42 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      rueil:     { value: 280000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
-      // v417 — value MAINTENUE à 280K (5 030 €/m²) après un aller-retour documenté.
+      rueil:     { value: 245000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      // v418 — value 280K → 245K sur TRANSACTIONS NOTARIÉES RÉELLES (base DVF/Etalab).
+      //
+      // C'est la première fois qu'on dispose des ventes de la résidence elle-même, et non
+      // d'estimations algorithmiques. Les 4 voies de la résidence Montbrison, ventes
+      // d'appartements depuis 2024 (35 transactions) :
+      //     Allée des Glycines    79 m   3 910 €/m² (n=6)
+      //     Rue des Mazurières   102 m   3 750 €/m² (n=9)
+      //     Rue Paul Gimont      110 m   3 970 €/m² (n=9)
+      //     Allée des Charmes    133 m   4 200 €/m² (n=11)
+      //   → médiane résidence ≈ 3 950 €/m²
+      //
+      // Deux lots quasi identiques au nôtre au 21 allée des Glycines (54 m², T3) :
+      //     déc. 2021  244 000 €  = 4 519 €/m²
+      //     févr. 2023 218 000 €  = 4 037 €/m²
+      // Et la tendance de la résidence est BAISSIÈRE : ~4 500 €/m² en 2021-22,
+      // ~3 900 €/m² en 2025. Environ -13% en quatre ans.
+      //
+      // Fait notable : les rues voisines HORS résidence transactent PLUS HAUT
+      // (all. de la Cascade 5 263, av. du Dix-Huit-Juin 5 203, rue Henri Dunant 5 000).
+      // La résidence est donc décotée par rapport à son environnement immédiat — l'inverse
+      // de l'hypothèse d'une prime « résidence fermée ».
+      //
+      // 245K = 55,66 × ~4 400 €/m². On retient un positionnement AU-DESSUS de la médiane
+      // résidence (3 950) pour tenir compte de trois éléments réels :
+      //   - unité plus petite que les comparables (55,66 vs 63-67 m²) → prime au m² usuelle
+      //   - 15 K€ de travaux intérieurs réalisés
+      //   - ravalement de façade + fenêtres récents, DPE attendu B/C
+      // ⚠️ Ce dernier point n'est PAS ENCORE VISIBLE dans les transactions : aucune vente
+      //   postérieure aux travaux ne le confirme. Si le DPE B/C se vérifie et que le marché
+      //   le price, la valeur pourra remonter. En attendant, 280K supposait une prime de
+      //   +27% sur la résidence, non étayée par une seule vente.
+      //
+      // Historique de la ligne (à ne pas re-litiger) : 280K → 250K en v416 sur moyenne de
+      // quartier (méthode critiquable, la moyenne agrège le parc social) → retour à 280K en
+      // v417 sur l'argument résidence fermée/DPE → 245K en v418 sur transactions réelles.
       //
       // v416 l'avait baissée à 250K en s'appuyant sur la moyenne du quartier Fouilleuse
       // (4 384 €/m² pour les appartements, relevé juillet 2026 ; quartier global 4 601 ;
@@ -1250,7 +1284,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v417';
+export const APP_VERSION = 'v418';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
