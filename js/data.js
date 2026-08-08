@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v421';
+export const APP_VERSION = 'v422';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1585,9 +1585,28 @@ export const IMMO_CONSTANTS = {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     // Vitry : prêt lissé → charges ~constantes quelle que soit la période
     // P2 (2026-2028): AL 145 + BP 1021 + PTZ 0 = 1166 | P3 (2029-2043): AL 145 + BP 688 + PTZ 333 = 1166
-    vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 150 },  // ass: APRIL 17.48€/mois ≈ 17
-    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 67, copro: 250 },  // pret: 969.62, ass: 17.99 (2026), copro: 250 dont 150 refacturé locataire
-    villejuif: { pret: 1698, assurance: 51, pno: 15, tf: 83, copro: 110 }, // v347 — mensualité LCL réelle 1 697,78€ (P1 1 572,79 + P2 124,99), pas le 1669 du financement CA indicatif
+    // v422 — copro et TF recalées sur les APPELS DE FONDS ET BILANS DE CHARGES RÉELS
+    //   (dossier iCloud 04 - Perso/Immobilier). Jusqu'ici c'étaient des estimations rondes.
+    vitry:     { pret: 1166, assurance: 17, pno: 15, tf: 75, copro: 143 },  // ass: APRIL 17.48€/mois ≈ 17
+    // copro Vitry 150 → 143 : budget syndic LAMY 1 719,47 €/an sur un exercice 01/07 → 30/06
+    //   (NON calendaire — attention aux régularisations à cheval sur deux années civiles).
+    //   Dont chauffage COLLECTIF 415,04 €/an (24% de la quote-part, clé 69/10000) : ce poste
+    //   est le facteur de volatilité du bien, comme à Rueil.
+    //   Second lot rattaché : stationnement 000586 (bât. BA001, place n°87), 127,10 €/an de
+    //   charges — il génère les 70 €/mois de loyer parking mais n'est PAS valorisé dans les 300K.
+    //   Tantièmes : 71/10000 clé 0003 · bât.3 257/10000 · ascenseur 241/10000 · chauffage 69/10000.
+    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 55, copro: 269 },  // pret: 969.62, ass: 17.99 (2026)
+    // copro Rueil 250 → 269 : 3 225,72 €/an d'appels 2024 (dont 143,24 de fonds travaux ALUR).
+    // tf Rueil 67 → 55 : avis 2023 réel 658 €/an (base 2 469, taux communal 21,54%).
+    //   ⚠️ L'avis porte sur un local « 17 allée des Glycines » alors que l'acte dit 21 —
+    //   à vérifier sur impots.gouv.fr avant de considérer ce montant comme définitif.
+    // Charge NETTE propriétaire réelle ≈ 593 €/an (450 non récupérables + 143 fonds travaux),
+    //   contre ~1 200 €/an implicites auparavant. Le chauffage collectif (récupérable à 99%)
+    //   a varié de 1 800,74 € (2022) à 645,72 € (2023) : -64% en un an. Une année type 2022
+    //   coûte ~1 155 € de trésorerie de plus, refacturables mais avec un an de décalage.
+    // Tantièmes 249 → 253/100000 (lot 894 + caves 924 et 954 à 2/100000 chacune).
+    villejuif: { pret: 1698, assurance: 53.57, pno: 15, tf: 83, copro: 110 }, // v347 — mensualité LCL réelle 1 697,78€ (P1 1 572,79 + P2 124,99), pas le 1669 du financement CA indicatif
+    // v422 — assurance emprunteur 51 → 53,57 €/mois (montant contractuel, 12 858,14 € sur la durée).
   },
   prets: {
     vitryEnd: 2048,      // Année fin du prêt
@@ -1819,14 +1838,18 @@ export const IMMO_CONSTANTS = {
   properties: {
     vitry: {
       address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
-      // v421 — la rue a été RENOMMÉE (ancien nom : rue Jardin / des Jardins). C'est la
-      //   raison pour laquelle les recherches ADEME et DVF sur « Nathalie Lemel » ne
-      //   renvoient rien : les diagnostics et mutations antérieurs au changement sont
-      //   déposés sous l'ancien libellé. Pour toute recherche en base ouverte, chercher
-      //   les DEUX noms — ou passer par les coordonnées (48.78028, 2.40640) plutôt que
-      //   par l'adresse. Vérifié : « rue des Jardins » à Vitry ne contient que du bâti
-      //   1900-1925 en E/F/G, donc ce n'est pas la même voie ; le DPE de livraison de
-      //   notre immeuble n'est vraisemblablement pas encore publié en open data.
+      // v422 — ANNOTATION v421 RETIRÉE (elle était fausse). L'hypothèse d'une rue renommée
+      //   « rue Jardin → rue Nathalie Lemel » ne tient pas : les documents de copropriété
+      //   montrent que la résidence porte PLUSIEURS adresses simultanées.
+      // Copropriété réelle : SDC « VILLAGE HARMONIE », siège 93 rue Léon Geffroy,
+      //   94400 Vitry-sur-Seine. Les bâtiments sont aussi adressés 7/9/11/19 rue Nathalie
+      //   Lemel et 12 rue Blanche Lefebvre. Notre lot est au 19 rue Nathalie Lemel.
+      // C'est la vraie raison des recherches ADEME/DVF infructueuses : la voie est récente
+      //   (ZAC Gare des Ardoines) et le bâti n'y est pas encore référencé. Chercher plutôt
+      //   par coordonnées (48.78028, 2.40640) ou par « Léon Geffroy » — les DPE neufs de
+      //   cette rue voisine, tous en B, sont d'ailleurs ceux du même programme.
+      syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte copropriétaire CP1710061',
+      copropriete: 'SDC Village Harmonie, 93 rue Léon Geffroy, 94400 Vitry-sur-Seine',
       surface: 67.14,           // m²
       purchasePrice: 275000,    // prix d'achat TTC (VEFA)
       purchaseDate: '2023-01',  // acte notarié 16 janvier 2023
@@ -2303,6 +2326,80 @@ export const VITRY_CONSTRAINTS = {
 // de LIQUIDITÉ, pas une dépréciation — le bien n'est pas destiné à la revente
 // avant l'échéance. Elle est documentée ici pour ne pas être oubliée à la décision.
 // ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// PASSIFS ET LITIGES IMMOBILIERS DOCUMENTÉS (v422)
+//
+// Découverts en dépouillant le dossier iCloud 04 - Perso/Immobilier.
+// ⚠️ AUCUN de ces montants n'est encore branché dans le calcul du patrimoine :
+// leur statut à ce jour n'est pas établi par un document. Ils sont consignés ici
+// pour décision. Voir la règle CLAUDE.md §3 : brancher un passif oblige à le
+// déclarer dans autreTotal, les deux tables de breakdown, le treemap, les insights
+// ET les trois cartes views.*.other, puis à revérifier les invariants.
+// ════════════════════════════════════════════════════════════
+export const IMMO_PASSIFS_DOCUMENTES = {
+  rueilCopro: {
+    bien: 'rueil',
+    nature: 'Dette de charges de copropriété, en recouvrement',
+    syndic: 'Foncia Seine Ouest — client 004142524, immeuble 501308296, compte 102151753',
+    // Chronologie établie par pièces, toutes dans Nezha Foncia/ :
+    //   24/11/2023  solde 20 993,32   (le saut de +19 150 depuis le 01/10/2023 n'est
+    //                                  couvert par AUCUNE pièce du dossier ; les courriels
+    //                                  indiquent qu'il s'agit de la quote-part des travaux
+    //                                  de rénovation énergétique)
+    //   01/01/2024  21 622,65
+    //   01/04/2024  22 429,08
+    //   01/07/2024  22 730,73   ← appel T3 2024, montant exigible
+    //   09/10/2024  dossier transmis à huissier (436 € de frais)
+    //   21/10/2024  Nezha règle 3 754,88 €
+    //   17/12/2024  Foncia ramène le solde à 20 329,30 €
+    //   14/03/2025  « DERNIÈRE RELANCE AVANT POURSUITES JUDICIAIRES »
+    dernierMontantConnu: 20329.30,
+    dernierMontantDate: '2024-12-17',
+    fraisRecouvrement: 629.38,   // mise en demeure 54 + intérêts de retard 95,38 + relance 44 + huissier 436
+    conteste: true,
+    // Nezha conteste les pénalités ET la quote-part travaux, au motif qu'elle n'a jamais
+    // reçu les documents nécessaires à sa demande d'éco-PTZ. Litige déclaré à sa protection
+    // juridique le 18/07/2025 contre Foncia Seine Ouest.
+    statutAujourdhui: 'INCONNU — aucune pièce postérieure au 14/03/2025',
+    // ⚠️ LIEN AVEC LA VALORISATION : les 265 K€ retenus pour Rueil intègrent une majoration
+    // de ~13% justifiée par la fin des travaux énergétiques et le passage du DPE en C.
+    // Or c'est précisément la quote-part de CES travaux qui reste impayée. La plus-value
+    // est donc réelle, mais elle a une contrepartie au passif. Comptabiliser l'une sans
+    // l'autre surévalue le patrimoine de Nezha d'environ 20 K€.
+  },
+  vitryCopro: {
+    bien: 'vitry',
+    nature: 'Impayé de charges courantes',
+    syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte CP1710061',
+    montant: 716.10,
+    date: '2025-12-01',
+    // Colonne VERSEMENTS à 0,00 € depuis le 01/08/2025 — cinq appels mensuels non réglés,
+    // alors qu'un mandat SEPA est actif (RUM MYN5859101, IBAN Revolut FR76 2823 3000 0147 7575).
+    // Signature typique d'un rejet de prélèvement récurrent : à vérifier côté Revolut.
+    statutAujourdhui: 'INCONNU — aucune pièce postérieure au 01/12/2025',
+  },
+  // Créance en sens inverse, elle aussi non branchée :
+  vitryAvanceTresorerie: {
+    bien: 'vitry', nature: 'Avance de trésorerie détenue par le syndicat, restituable à la vente',
+    montant: 142.00, sens: 'actif',
+  },
+  // NE PAS traiter en actif : le fonds travaux ALUR reste acquis au syndicat en cas de vente
+  // (art. 14-2 loi 1965, confirmé par la résolution 21 de l'AG Vitry du 13/03/2026).
+  // Rueil : ~640,94 € fin 2024. C'est un argument de négociation, pas une créance.
+  litiges: [
+    { bien: 'vitry', partiesAdverses: 'Nexity (vendeur) et Fermatic',
+      objet: 'Inexécution de l\'obligation de livraison conforme et garantie de parfait achèvement ; défaut de pré-équipement IRVE',
+      source: 'Résolutions 16 et 27, convocation AG du 13/03/2026',
+      effet: 'Frais de procédure imputés aux charges communes, non chiffrés et non provisionnés',
+      statut: 'Ouvert — le PV de cette AG ne figure pas au dossier' },
+    { bien: 'rueil', partiesAdverses: 'Foncia Seine Ouest',
+      objet: 'Manquement du syndic ayant empêché la demande d\'éco-PTZ ; demande d\'annulation des pénalités (629,38 €) et de dédommagement',
+      source: 'Déclaration de litige à la protection juridique du 18/07/2025',
+      effet: 'Créance conditionnelle, non chiffrable — ne rien inscrire à l\'actif',
+      statut: 'Ouvert' },
+  ],
+};
+
 export const VILLEJUIF_CONSTRAINTS = {
   summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
   constraints: [
