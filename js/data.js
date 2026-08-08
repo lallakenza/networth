@@ -1080,8 +1080,53 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      rueil:     { value: 245000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
-      // v418 — value 280K → 245K sur TRANSACTIONS NOTARIÉES RÉELLES (base DVF/Etalab).
+      rueil:     { value: 265000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      // v420 — value 245K → 265K. Les transactions DVF restent la bonne base, mais elles
+      //   étaient MAL DATÉES par rapport au bien : la résidence a engagé des travaux
+      //   énergétiques en 2024, ACHEVÉS EN 2026. Les ventes 2024-2025 relevées ci-dessous
+      //   se sont donc faites PENDANT le chantier — période qui déprime structurellement
+      //   les prix (nuisances, incertitude sur le coût final, appels de fonds à la charge
+      //   du vendeur). Elles décrivent la résidence d'avant, pas celle d'aujourd'hui.
+      //
+      // Construction de la valeur :
+      //   base résidence pendant travaux (médiane 4 voies, 2024-25)   3 950 €/m²
+      //   + fin des travaux : ravalement, fenêtres, DPE CONFIRMÉ C         ~ +13%
+      //       DPE vérifié sur la base ADEME (dataset dpe03existant, 40 diagnostics
+      //       allée des Glycines) : répartition A:1 B:1 C:16 D:17 E:5, et les 19
+      //       diagnostics établis DEPUIS 2024 sont quasi tous en C — dont un au n°19
+      //       daté du 09/03/2026, 54,4 m², construction 1963, soit le jumeau du lot.
+      //       Les D et E sont les diagnostics d'avant travaux. Le +13% couvre donc
+      //       à la fois le saut de classe (D/E → C ≈ +4-8% selon les Notaires) ET la
+      //       disparition de la décote « chantier en cours » (5-10%).
+      //       (Notaires de France, transactions 2024 : chaque classe DPE
+      //        perdue coûte -4% sur un appartement ; un A-B se vend
+      //        jusqu'à +16% au-dessus du marché. Gagner 2-3 classes ≈ +8-12%.)
+      //   + 20 K€ de travaux intérieurs par Nezha (cuisine récente,
+      //     salles de bain et douches à l'italienne) — récupération
+      //     usuelle 50-80% du coût                                     ~ +230 €/m²
+      //   = environ 4 760 €/m² → 265 000 € pour 55,66 m²
+      //
+      // Contrôle de cohérence par le rendement : loué MEUBLÉ 1 450 € CC (1 300 HC),
+      //   soit 15 600 €/an. À 265 K€ le rendement brut ressort à 5,9% sur le loyer
+      //   meublé. Corrigé de la prime du meublé (~15-20% vs nu), l'équivalent nu donne
+      //   ~5,0% — élevé pour Rueil mais cohérent pour ce quartier, qui se traite
+      //   nettement sous la moyenne communale. À 245 K€ le rendement montait à 6,4%,
+      //   ce qui était le signe que la valeur était trop basse.
+      //
+      // Repère de plafond : les rues voisines HORS résidence transactent à 5 000-5 263 €/m²
+      //   (Henri Dunant, Dix-Huit-Juin, la Cascade). Une résidence fermée rénovée avec
+      //   jardins peut raisonnablement converger vers ces niveaux, pas les dépasser.
+      //   265 K€ = 4 762 €/m², soit encore ~7% sous ses voisines.
+      //
+      // ⚠️ NE PAS remonter aussi le taux d'appréciation pour « la revalorisation post-travaux » :
+      //   elle est déjà dans le NIVEAU ci-dessus. La compter deux fois est exactement
+      //   l'erreur corrigée sur Villejuif en v415.
+      //
+      // Historique de la ligne : 280K → 250K (v416, moyenne de quartier) → 280K (v417,
+      //   argument résidence rénovée) → 245K (v418, transactions DVF) → 265K (v420,
+      //   transactions DVF RECADRÉES sur le calendrier des travaux).
+      //
+      // Détail des transactions DVF, résidence Montbrison, 2024-2025 (PENDANT travaux) :
       //
       // C'est la première fois qu'on dispose des ventes de la résidence elle-même, et non
       // d'estimations algorithmiques. Les 4 voies de la résidence Montbrison, ventes
@@ -1106,7 +1151,7 @@ export const PORTFOLIO = {
       // 245K = 55,66 × ~4 400 €/m². On retient un positionnement AU-DESSUS de la médiane
       // résidence (3 950) pour tenir compte de trois éléments réels :
       //   - unité plus petite que les comparables (55,66 vs 63-67 m²) → prime au m² usuelle
-      //   - 15 K€ de travaux intérieurs réalisés
+      //   - 20 K€ de travaux intérieurs réalisés (cuisine, salles de bain, douches à l'italienne)
       //   - ravalement de façade + fenêtres récents, DPE attendu B/C
       // ⚠️ Ce dernier point n'est PAS ENCORE VISIBLE dans les transactions : aucune vente
       //   postérieure aux travaux ne le confirme. Si le DPE B/C se vérifie et que le marché
@@ -1138,7 +1183,7 @@ export const PORTFOLIO = {
       // ⚠️ À FAIRE : récupérer le certificat DPE post-travaux et l'attacher au dossier.
       //   C'est la pièce qui JUSTIFIE la prime retenue ici. Tant qu'elle manque, les 280K
       //   reposent sur une estimation de classe, pas sur un document.
-      // value: 280K = estimation sept 2025, 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
+      // value: voir bloc v420 ci-dessus — 265K = 55.66m² × ~4 760€/m² (résidence rénovée 2024-2026, 20K€ travaux intérieurs)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
@@ -1284,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v419';
+export const APP_VERSION = 'v420';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
