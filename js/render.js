@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=427';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=427';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=428';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=428';
 
 // ---- Generic table sort utility ----
 /**
@@ -309,6 +309,7 @@ export function render(state, view, currency) {
   if (view === 'plan-fiscal') renderPlanFiscalView(state);          // v311 + v312
 
   // v309 — Alertes proactives (affichées uniquement sur vue Couple)
+  if (view === 'couple') renderDecisionCockpit(state);
   if (view === 'couple') renderAlertsPanel(state);
 
   // Per-apartment views
@@ -1351,6 +1352,33 @@ export function applySnapshotDeltas(s) {
     apply('kpiCoupleNzNW', s.nezha.nw, base.data.total.nezha);
     apply('kpiAmNW', s.amine.nw, base.data.total.amine);
     apply('kpiNzNW', s.nezha.nw, base.data.total.nezha);
+
+    // ── v428 — tuiles croissance du cockpit décideur (30 j / 1 an) ──
+    // Même source que les chips « vs hier » : le point le plus récent AVANT la date
+    // cible, jamais après — sinon un trou de capture ferait comparer à un point trop
+    // frais et sous-estimerait la croissance.
+    const remplirCroissance = (id, jours) => {
+      const cible = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' })
+        .format(new Date(Date.now() - jours * 864e5));
+      const ligne = [...cache].reverse().find(r =>
+        r.date <= cible && r.data && r.data.total && r.data.total.couple != null);
+      const dst = document.getElementById(id);
+      if (!dst) return;
+      if (!ligne) {
+        dst.innerHTML = '<span style="font-size:13px;color:#a0aec0;">historique insuffisant</span>';
+        return;
+      }
+      const d = s.couple.nw - ligne.data.total.couple;
+      const pct = d / Math.abs(ligne.data.total.couple) * 100;
+      const couleur = d >= 0 ? '#16a34a' : '#dc2626';
+      const signe = d >= 0 ? '+' : '';
+      dst.innerHTML = '<span style="color:' + couleur + ';">' + signe + fmt(d) + '</span>'
+        + ' <span style="font-size:13px;color:' + couleur + ';">(' + signe + pct.toFixed(1) + '%)</span>';
+      const ctx = dst.nextElementSibling;
+      if (ctx) ctx.textContent = 'depuis le ' + ligne.date.slice(8, 10) + '/' + ligne.date.slice(5, 7) + '/' + ligne.date.slice(0, 4);
+    };
+    remplirCroissance('ckpD30', 30);
+    remplirCroissance('ckpD365', 365);
   } catch (e) { /* non-bloquant */ }
 }
 
@@ -7296,7 +7324,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=427').then(m => {
+  import('./charts.js?v=428').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7495,6 +7523,56 @@ function renderImmoFinComparisonTable(result) {
 // /green), title, msg, optional action + view.
 //
 // Si aucune alerte : panneau masqué (ne pollue pas l'UI).
+/**
+ * Cockpit décideur (v428) — en tête de la vue d'entrée.
+ *
+ * Répond aux questions qu'un décideur se pose en ouvrant le dashboard, dans l'ordre
+ * où il se les pose : ça grandit de combien ? j'épargne combien ? il me reste combien
+ * à rembourser ? Le patrimoine lui-même vit déjà dans les cartes KPI au-dessus — le
+ * cockpit ne le répète pas, il donne les réponses qui manquaient à l'écran.
+ *
+ * Quatre tuiles maximum : c'est un plafond délibéré (charge cognitive), pas un début.
+ * Les deltas 30 j / 1 an dépendent du cache de snapshots chargé en asynchrone : les
+ * tuiles rendent un placeholder, applySnapshotDeltas les remplit quand le cache arrive
+ * — même mécanique que les chips « vs hier » des cartes KPI.
+ */
+function renderDecisionCockpit(state) {
+  const el = document.getElementById('decisionCockpit');
+  if (!el) return;
+
+  let cf = null;
+  try { cf = computeCashFlow(state, state.portfolio, state._fx || state.fx); } catch (e) { /* tuile épargne masquée */ }
+
+  const props = (state.immoView && state.immoView.properties) || [];
+  const crdTotal = props.reduce((somme, p) => somme + (p.crd || 0), 0);
+  const equiteImmo = state.views && state.views.couple ? state.views.couple.immo : null;
+
+  const tuile = (question, valeurHtml, contexte, idValeur) =>
+    '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
+    + '<div style="font-size:11.5px;color:#718096;margin-bottom:6px;">' + question + '</div>'
+    + '<div' + (idValeur ? ' id="' + idValeur + '"' : '') + ' style="font-size:20px;font-weight:700;color:#1a202c;">' + valeurHtml + '</div>'
+    + (contexte ? '<div style="font-size:11px;color:#a0aec0;margin-top:4px;">' + contexte + '</div>' : '')
+    + '</div>';
+
+  const attente = '<span style="font-size:13px;color:#a0aec0;">chargement…</span>';
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">';
+  html += tuile('Croissance — 30 jours', attente, 'depuis les snapshots quotidiens', 'ckpD30');
+  html += tuile('Croissance — 1 an', attente, 'depuis les snapshots quotidiens', 'ckpD365');
+  if (cf && typeof cf.netSavings === 'number') {
+    const n = cf.netSavings;
+    const couleur = n >= 0 ? '#16a34a' : '#dc2626';
+    const signe = n >= 0 ? '+' : '';
+    html += tuile('Épargne nette / mois',
+      '<span style="color:' + couleur + ';">' + signe + fmt(n) + '</span>',
+      'entrées ' + fmt(cf.incomeMonthly) + ' − sorties ' + fmt(cf.expensesMonthly)
+        + (typeof cf.savingsRate === 'number' ? ' · taux ' + Math.round(cf.savingsRate) + '%' : ''));
+  }
+  html += tuile('Reste à rembourser (immo)', fmt(crdTotal),
+    equiteImmo != null ? 'équité nette ' + fmt(equiteImmo) + ' sur 3 biens' : '3 biens');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function renderAlertsPanel(state) {
   const el = document.getElementById('alertsPanel');
   if (!el) return;
