@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES } from './data.js?v=423';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=423';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=424';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=424';
 
 // ---- Generic table sort utility ----
 /**
@@ -5074,6 +5074,14 @@ function renderPropertyInfoCard(details) {
   if (details.cave !== null && details.cave !== undefined) {
     pills.push({ text: details.cave ? 'Cave' : 'Pas de cave', bg: details.cave ? '#c6f6d5' : '#fed7d7' });
   }
+  // v424 — champs présents dans le référentiel mais qui n'atteignaient pas l'écran.
+  // Le chauffage collectif est un facteur de volatilité des charges (jusqu'à -64% d'une
+  // année sur l'autre à Rueil) : il mérite d'être visible, pas seulement dans les données.
+  if (details.heating) pills.push({ text: '♨ ' + details.heating, bg: '#feebc8' });
+  // (pas de pill « tantièmes » : la section Informations supplémentaires les porte déjà)
+  if (details.lotStationnement) {
+    pills.push({ text: 'Stationnement n°' + details.lotStationnement.place + ' (2e lot)', bg: '#c6f6d5' });
+  }
 
   if (pills.length > 0) {
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
@@ -5613,6 +5621,111 @@ function renderVEFATimeline(container, prop) {
 // ════════════════════════════════════════════════════════════
 // PER-APARTMENT VIEW
 // ════════════════════════════════════════════════════════════
+/**
+ * Bandeau « points d'attention documentés » en tête d'une fiche appartement (v424).
+ *
+ * Rend les passifs, litiges et annexes issus du dépouillement documentaire. Ces montants
+ * sont VOLONTAIREMENT hors du calcul du patrimoine (voir IMMO_PASSIFS_DOCUMENTES) : la
+ * page doit donc le dire explicitement, sinon un lecteur croira qu'ils sont déjà déduits.
+ *
+ * @param {string} loanKey - 'vitry' | 'rueil' | 'villejuif'
+ * @returns {string} HTML, chaîne vide si le bien n'a rien à signaler
+ */
+function renderAptAlerts(loanKey) {
+  const P = IMMO_PASSIFS_DOCUMENTES || {};
+  const eur = (n) => Math.round(n).toLocaleString('fr-FR') + ' €';
+  const items = [];
+
+  // ── Passifs ──
+  if (loanKey === 'rueil' && P.rueilCopro) {
+    const d = P.rueilCopro;
+    items.push({
+      ton: 'rouge', titre: 'Dette de copropriété en recouvrement',
+      montant: eur(d.dernierMontantConnu),
+      corps: 'Dernier montant connu au ' + d.dernierMontantDate.split('-').reverse().join('/')
+        + ', après un règlement partiel. Huissier saisi, dernière relance avant poursuites en mars 2025. '
+        + 'Frais de recouvrement : ' + eur(d.fraisRecouvrement) + '. Contestée par la propriétaire.',
+      note: 'Elle recouvre la quote-part des travaux énergétiques — ceux-là mêmes qui justifient '
+        + 'la majoration de valeur du bien. Compter la plus-value sans cette contrepartie surévalue le patrimoine.',
+      statut: d.statutAujourdhui,
+    });
+  }
+  if (loanKey === 'vitry' && P.vitryCopro) {
+    const d = P.vitryCopro;
+    items.push({
+      ton: 'ambre', titre: 'Impayé de charges courantes',
+      montant: eur(d.montant),
+      corps: 'Au ' + d.date.split('-').reverse().join('/') + '. Cinq appels sans versement depuis août 2025, '
+        + 'alors qu\'un mandat SEPA est actif — signature typique d\'un rejet de prélèvement récurrent.',
+      statut: d.statutAujourdhui,
+    });
+  }
+  if (loanKey === 'villejuif' && P.villejuifCautionCreditLogement) {
+    const d = P.villejuifCautionCreditLogement;
+    items.push({
+      ton: 'neutre', titre: 'Caution Crédit Logement (coût d\'acquisition)',
+      montant: eur(d.montantPaye),
+      corps: 'Payée à la mise en place du prêt. La part restituable en fin de crédit n\'est indiquée '
+        + 'dans aucun document : rien n\'est inscrit à l\'actif sans attestation.',
+    });
+  }
+
+  // ── Litiges ──
+  for (const l of (P.litiges || [])) {
+    if (l.bien !== loanKey) continue;
+    items.push({
+      ton: 'ambre', titre: 'Litige — ' + l.partiesAdverses, montant: 'non chiffré',
+      corps: l.objet, note: l.effet, statut: l.statut,
+    });
+  }
+
+  // ── Annexe non valorisée (Vitry) ──
+  const stat = loanKey === 'vitry'
+    && (IMMO_CONSTANTS.properties && IMMO_CONSTANTS.properties.vitry
+        && IMMO_CONSTANTS.properties.vitry.details
+        && IMMO_CONSTANTS.properties.vitry.details.lotStationnement);
+  if (stat) {
+    items.push({
+      ton: 'neutre', titre: 'Second lot non valorisé — stationnement n°' + stat.place,
+      montant: 'valeur inconnue',
+      corps: 'Lot ' + stat.lot + ' (bât. ' + stat.batiment + '), livré avec le logement. '
+        + 'Il porte ' + stat.chargesAnnuelles.toFixed(2).replace('.', ',') + ' € de charges par an et '
+        + 'génère déjà 70 € de loyer mensuel.',
+      note: 'Sa valeur vénale n\'est chiffrée par aucun document : l\'estimation du bien ne couvre que le logement.',
+    });
+  }
+
+  if (!items.length) return '';
+
+  const TONS = {
+    rouge:  { bord: '#fca5a5', fond: '#fef2f2', texte: '#991b1b', puce: '#dc2626' },
+    ambre:  { bord: '#fcd34d', fond: '#fffbeb', texte: '#92400e', puce: '#d97706' },
+    neutre: { bord: '#cbd5e0', fond: '#f7fafc', texte: '#2d3748', puce: '#718096' },
+  };
+
+  let html = '<div style="margin-bottom:24px;">'
+    + '<h3 style="margin:0 0 6px;font-size:15px;color:#2d3748;">Points d\'attention documentés</h3>'
+    + '<p style="margin:0 0 12px;font-size:12px;color:#718096;line-height:1.5;">'
+    + 'Issus du dépouillement des pièces justificatives. '
+    + '<strong>Ces montants ne sont pas déduits du patrimoine affiché</strong> — leur statut à ce jour '
+    + 'n\'est pas établi par un document récent.</p>';
+
+  for (const it of items) {
+    const t = TONS[it.ton] || TONS.neutre;
+    html += '<div style="border:1px solid ' + t.bord + ';background:' + t.fond + ';border-left:4px solid ' + t.puce
+      + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;">'
+      + '<span style="font-weight:600;font-size:14px;color:' + t.texte + ';">' + it.titre + '</span>'
+      + '<span style="font-weight:700;font-size:15px;color:' + t.texte + ';white-space:nowrap;">' + it.montant + '</span>'
+      + '</div>'
+      + '<div style="margin-top:6px;font-size:12.5px;color:#4a5568;line-height:1.55;">' + it.corps + '</div>'
+      + (it.note ? '<div style="margin-top:6px;font-size:12px;color:' + t.texte + ';line-height:1.5;"><em>' + it.note + '</em></div>' : '')
+      + (it.statut ? '<div style="margin-top:8px;font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.03em;">Statut : ' + it.statut + '</div>' : '')
+      + '</div>';
+  }
+  return html + '</div>';
+}
+
 function renderAptView(state, loanKey) {
   const iv = state.immoView;
   const prop = iv.properties.find(p => p.loanKey === loanKey);
@@ -5627,6 +5740,9 @@ function renderAptView(state, loanKey) {
   const ec = prop.exitCosts || {};
 
   let html = '';
+
+  // ── Section -1: points d'attention documentés (v424) — en tête, avant tout chiffre ──
+  html += renderAptAlerts(loanKey);
 
   // ── Section 0: Property Info Card (detailed plan info) ──
   const details = meta.details || null;
@@ -5655,7 +5771,17 @@ function renderAptView(state, loanKey) {
     + '<div><span style="color:#718096;">Date achat</span><br><strong>' + date + '</strong></div>'
     + '<div><span style="color:#718096;">Appréciation</span><br><strong>' + appreciation + '</strong></div>'
     + '<div><span style="color:#718096;">LTV</span><br><strong>' + prop.ltv.toFixed(1) + '%</strong></div>'
-    + '</div></div>';
+    + '</div>'
+    // v424 — copropriété et syndic : présents au référentiel mais jamais affichés.
+    // Utile concrètement (c'est l'interlocuteur à contacter) et lève l'ambiguïté sur
+    // l'adresse de Vitry, dont la résidence porte plusieurs voies.
+    + ((meta.copropriete || meta.syndic)
+        ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.6;">'
+          + (meta.copropriete ? '<div><span style="color:#718096;">Copropriété</span><br><strong>' + meta.copropriete + '</strong></div>' : '')
+          + (meta.syndic ? '<div style="margin-top:6px;"><span style="color:#718096;">Syndic</span><br><strong>' + meta.syndic + '</strong></div>' : '')
+          + '</div>'
+        : '')
+    + '</div>';
 
   // Right: Exit costs summary
   html += '<div style="background:#fff5f5;border-radius:12px;padding:16px;">'
@@ -7121,7 +7247,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=423').then(m => {
+  import('./charts.js?v=424').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
