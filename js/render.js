@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=432';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=432';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=433';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=433';
 
 // ---- Generic table sort utility ----
 /**
@@ -6264,12 +6264,27 @@ function renderAptView(state, loanKey) {
   }
 
   // Exit projection chart (after DOM ready)
+  // v433 — construction PARESSEUSE du graphique de projection : le construire dans la
+  // section repliée donne un canvas à largeur nulle que ni l'événement resize ni un
+  // resize() manuel ne réparent (vérifié en prod, instance présente, parent à 1268 px).
+  // On le construit donc à la PREMIÈRE ouverture de sa section — taille correcte
+  // d'emblée, et buildExitProjectionChart détruit toute instance précédente.
   const _exitChartId = 'aptExitProjectionChart_' + loanKey;
-  setTimeout(() => {
+  const _construire = () => {
     if (typeof window.buildExitProjectionChart === 'function') {
       window.buildExitProjectionChart(state, prop, _exitChartId);
     }
-  }, 50);
+  };
+  const _secBtn = Array.from(container.querySelectorAll('button[aria-controls]')).find(b => {
+    const d = document.getElementById(b.getAttribute('aria-controls'));
+    return d && d.querySelector('[id^="aptExitProjectionChart"]');
+  });
+  if (_secBtn) {
+    const _lazy = () => { setTimeout(_construire, 60); _secBtn.removeEventListener('click', _lazy); };
+    _secBtn.addEventListener('click', _lazy);
+  } else {
+    setTimeout(_construire, 50);   // pas de section repliée trouvée : comportement d'origine
+  }
 }
 
 // Lightweight exit cost computation for simulation table (mirrors engine logic)
@@ -7357,7 +7372,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=432').then(m => {
+  import('./charts.js?v=433').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
