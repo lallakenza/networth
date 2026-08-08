@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=425';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=425';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=426';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=426';
 
 // ---- Generic table sort utility ----
 /**
@@ -5726,6 +5726,37 @@ function renderAptAlerts(loanKey) {
   return html + '</div>';
 }
 
+/**
+ * Sections repliables des fiches appartement (v426).
+ *
+ * Une fiche empilait 9 à 11 sections, toutes dépliées, au même niveau visuel : aucune
+ * priorité de lecture. On garde ouvert ce qu'on consulte à chaque visite (chiffres clés,
+ * cash-flow) et on replie ce qu'on consulte ponctuellement (échéancier de prêt, contraintes,
+ * projection de sortie). Aucune information n'est retirée — elle est à un clic.
+ *
+ * Réutilise le motif de repli déjà présent dans renderPropertyInfoCard plutôt que d'en
+ * introduire un second : même chevron, même transition, même vocabulaire visuel.
+ */
+let _aptSecSeq = 0;
+function _sectionOpen(titre, ouvertParDefaut, sousTitre) {
+  const id = 'aptsec' + (++_aptSecSeq);
+  const chev = ouvertParDefaut ? '\u25B2' : '\u25BC';
+  return '<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin-bottom:14px;overflow:hidden;background:var(--surface,#fff);">'
+    + '<button type="button" aria-expanded="' + (ouvertParDefaut ? 'true' : 'false') + '" aria-controls="' + id + '"'
+    + ' onclick="var d=document.getElementById(\'' + id + '\');var o=d.style.display===\'none\';d.style.display=o?\'block\':\'none\';'
+    + 'this.setAttribute(\'aria-expanded\',o?\'true\':\'false\');this.querySelector(\'.chev\').textContent=o?\'\\u25B2\':\'\\u25BC\';"'
+    + ' style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;'
+    + 'background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;">'
+    + '<span style="display:flex;flex-direction:column;gap:2px;">'
+    + '<span style="font-size:14px;font-weight:600;color:#2d3748;">' + titre + '</span>'
+    + (sousTitre ? '<span style="font-size:11.5px;color:#718096;font-weight:400;">' + sousTitre + '</span>' : '')
+    + '</span>'
+    + '<span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">' + chev + '</span>'
+    + '</button>'
+    + '<div id="' + id + '" style="display:' + (ouvertParDefaut ? 'block' : 'none') + ';padding:16px;border-top:1px solid var(--border,#e7e5e4);">';
+}
+function _sectionClose() { return '</div></div>'; }
+
 function renderAptView(state, loanKey) {
   const iv = state.immoView;
   const prop = iv.properties.find(p => p.loanKey === loanKey);
@@ -5826,9 +5857,15 @@ function renderAptView(state, loanKey) {
   html += '</div>';
   html += '</div>';
 
-  // ── Section 2: Détail des prêts ──
-  html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
-  html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Détail des prêts</h3>';
+  // ── Section 2: Détail des prêts ── (repliée v426 — consultée ponctuellement, pas à chaque visite)
+  // Le sous-titre porte l'essentiel (nombre de prêts, capital restant dû) pour qu'on n'ait
+  // pas à déplier juste pour savoir où on en est.
+  {
+    const nbPrets = (prop.loanDetails || []).length;
+    const resume = (nbPrets ? nbPrets + (nbPrets > 1 ? ' prêts' : ' prêt') : 'Échéancier')
+      + (prop.crd != null ? ' · capital restant dû ' + fmt(prop.crd) : '');
+    html += _sectionOpen('Détail des prêts', false, resume);
+  }
   if (prop.loanDetails && prop.loanDetails.length > 0) {
     // v327 — min-width pour forcer scroll horizontal sur mobile
     html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.82rem;width:100%;min-width:620px;">'
@@ -5868,7 +5905,7 @@ function renderAptView(state, loanKey) {
         + '<strong>&#9888; Franchise :</strong> ' + franchiseNote + '</div>';
     }
   }
-  html += '</div>';
+  html += _sectionClose();
 
   // ── Section 3: Cash Flow détaillé ──
   const cfSign = prop.cf >= 0 ? '+' : '';
@@ -6113,9 +6150,10 @@ function renderAptView(state, loanKey) {
     html += '</div>'; // close warning banner
   }
 
-  // ── Section 5: Exit projection chart + table ──
-  html += '<div style="background:#f7fafc;border-radius:12px;padding:16px;margin-bottom:24px;">';
-  html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Projection frais de sortie par année</h3>';
+  // ── Section 5: Exit projection ── (repliée v426 — graphique + tableau consultés
+  // au moment d'arbitrer une vente, pas à chaque ouverture de la fiche)
+  html += _sectionOpen('Projection frais de sortie par année', false,
+    'Graphique et tableau année par année');
   const exitChartId = 'aptExitProjectionChart_' + loanKey;
   html += '<div class="chart-container" style="height:340px;margin-bottom:16px;"><canvas id="' + exitChartId + '"></canvas></div>';
   html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente au prix actuel (' + fmt(prop.value) + ') à différentes dates. Les abattements PV augmentent avec la durée de détention.</p>';
@@ -6150,7 +6188,7 @@ function renderAptView(state, loanKey) {
       + '</tr>';
   }
   html += '</tbody></table></div>';
-  html += '</div>';
+  html += _sectionClose();
 
   container.innerHTML = html;
 
@@ -7258,7 +7296,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=425').then(m => {
+  import('./charts.js?v=426').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
