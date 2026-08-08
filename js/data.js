@@ -1085,7 +1085,18 @@ export const PORTFOLIO = {
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
-      villejuif: { value: 370000, valueDate: '2025-09', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363,
+      villejuif: { value: 415000, valueDate: '2026-08', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363,
+                   // v415 — value RÉÉVALUÉE 370K → 415K sur comparables du MÊME immeuble.
+                   //   Les T3 encore commercialisés par Fair' Promotion (13 lots, 2e-8e étage, 63,64-67,15 m²)
+                   //   s'affichent 400 000-438 000 € TTC, soit 6 280-6 530 €/m² (relevé 08/2026).
+                   //   Notre lot A27 fait 68,92 m² — plus grand que tous les T3 en vente — acheté 336 330 €
+                   //   soit 4 880 €/m². Décote d'environ 25% obtenue comme condition de la Ville de Villejuif.
+                   //   415K = 68,92 × ~6 020 €/m², prix affichés minorés d'une marge de négociation et du
+                   //   positionnement en 2e étage (bas de la fourchette des lots disponibles).
+                   // ⚠️ PLUS-VALUE NON RÉALISABLE AVANT ~MI-2033 : clause de restitution des avantages
+                   //   (acte 05/06/2026, p.18-19). Voir CLAUSE_SADEV94 plus bas. Choix assumé de valoriser
+                   //   au marché malgré tout : le bien n'est pas destiné à être vendu avant l'échéance,
+                   //   la valeur sert d'indication patrimoniale, pas de valeur de liquidation.
                    // v357 — VEFA « asset under construction » : tant que non livré (Q3 2028), Villejuif est
                    // valorisé au COÛT réellement engagé, pas à la valeur livrée. equity = appelsPayes − drawnToDate.
                    //   appelsPayes = appels de fonds payés au promoteur (acte 05/06/2026 : 34% = 5% résa + 29% acte)
@@ -1216,7 +1227,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v414';
+export const APP_VERSION = 'v415';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1718,15 +1729,21 @@ export const IMMO_CONSTANTS = {
       // 2033+ : 1.5%/an — effet GPE digéré, croissance IDF standard
       // Moyenne lissée sur 10 ans ≈ 1.5%/an
       appreciation: 0.015,       // 1.5%/an (moyenne lissée, GPE Ligne 15 Les Ardoines)
+      // v415 — fenêtre de rattrapage DÉCALÉE DE 2 ANS : la ligne 15 Sud n'ouvre pas en 2025
+      //   mais à l'AUTOMNE 2027 (calendrier repoussé 6 fois : 2024 JO → été 2025 → fin 2025
+      //   → été 2026 → avril 2027 → automne 2027). Le rattrapage ne peut pas précéder l'ouverture.
+      // Moyenne pondérée 2026-2040 : (4×1.0 + 5×2.0 + 6×1.5)/15 = 1.53%/an ≈ appreciation ci-dessus.
       appreciationPhases: [
-        { start: 2026, end: 2028, rate: 0.010, note: 'Quartier en chantier, gare en travaux, offre abondante' },
-        { start: 2029, end: 2032, rate: 0.020, note: 'Gare L15 ouverte, ZAC livrée, rattrapage modéré' },
-        { start: 2033, end: 2040, rate: 0.015, note: 'Effet GPE digéré, croissance IDF standard' },
+        { start: 2026, end: 2029, rate: 0.010, note: 'Quartier en chantier, gare en travaux (L15 Sud reportée à automne 2027), offre abondante' },
+        { start: 2030, end: 2034, rate: 0.020, note: 'Gare L15 ouverte depuis fin 2027, ZAC livrée, rattrapage modéré' },
+        { start: 2035, end: 2040, rate: 0.015, note: 'Effet GPE digéré, croissance IDF standard' },
       ],
       type: 'T3 — Location nue',
       loyerObjectif: 1270,      // loyer total CC réel perçu : 1050 HC + 150 charges + 70 parking
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
-      ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2025 },
+      // v415 — opening corrigé 2025 → 2027 (automne). Source : Société des grands projets,
+      //   ouverture L15 Sud repoussée d'avril 2027 à l'automne 2027.
+      ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2027 },
       details: {
         lot: '3302',
         floor: 'R+3 (4ème étage)',
@@ -1770,9 +1787,14 @@ export const IMMO_CONSTANTS = {
       // 2030+ : 1.5%/an — si L15 Ouest ouvre, effet indirect (station à 15-20 min à pied)
       // Moyenne lissée sur 10 ans ≈ 1.0%/an
       appreciation: 0.01,        // 1.0%/an (moyenne lissée, effet L15 indirect et tardif)
+      // v415 — phase 2 ramenée 1.5% → 1.0% : à 15-20 min à pied (~1,2-1,6 km), le bien est
+      //   HORS du périmètre de capture de valeur. Les Notaires du Grand Paris mesurent la prime
+      //   de proximité sur un rayon de 800 m ; la zone 800 m-1,5 km leur sert justement de
+      //   RÉFÉRENCE DE COMPARAISON. Il n'y a donc pas d'effet gare à capter ici.
+      // Moyenne pondérée 2026-2040 : (4×0.5 + 11×1.0)/15 = 0.87%/an.
       appreciationPhases: [
         { start: 2026, end: 2029, rate: 0.005, note: 'Marché plat, L15 Ouest pas avant 2030-2032' },
-        { start: 2030, end: 2040, rate: 0.015, note: 'L15 Ouest ouvre, effet indirect à 15-20 min à pied' },
+        { start: 2030, end: 2040, rate: 0.010, note: 'L15 Ouest ouvre mais bien hors rayon 800m — pas de prime de proximité' },
       ],
       type: 'T3 meublé — LMNP',
       ligne15: { station: 'Rueil-Suresnes', distance: '15-20 min à pied', opening: '2030-2032' },
@@ -1827,13 +1849,22 @@ export const IMMO_CONSTANTS = {
       // 2028-2040 : 1.5%/an — post-livraison, L15 opérationnelle, effet digéré
       //   cohérent avec inflation immobilière IDF long-terme
       // Moyenne lissée sur 15 ans ≈ 1.7%/an
-      appreciation: 0.017,       // 1.7%/an (moyenne lissée, hub L14+L15, pôle santé)
+      // v415 — phase 1 ramenée 2.0% → 0.5%. Le 2.0% CONTREDISAIT son propre argumentaire :
+      //   on ne peut pas écrire « marché en tassement, effet déjà pricé » puis appliquer le taux
+      //   le plus élevé des trois biens à la période la plus proche. S'y ajoutent deux faits :
+      //   (a) Louis Aragon est un TERMINUS M7 EXISTANT — cette connectivité est capitalisée depuis
+      //       des décennies, la L15 n'ajoute qu'une correspondance ;
+      //   (b) le bien est « au pied du métro » (<250 m), bande où la littérature relève une
+      //       DÉCOTE de 10-15% pour nuisances, pas une prime (optimum vers 500 m).
+      // Moyenne pondérée 2025-2040 : (3×0.5 + 13×1.5)/16 = 1.31%/an → appreciation ajustée à 0.013.
+      appreciation: 0.013,       // 1.3%/an (moyenne lissée des phases ci-dessous)
       appreciationPhases: [
-        { start: 2025, end: 2027, rate: 0.020, note: 'Anticipation L15 (avril 2027) + L14, marché en tassement, effet déjà pricé' },
-        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison bien Q3 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
+        { start: 2025, end: 2027, rate: 0.005, note: 'Terminus M7 déjà capitalisé, marché local en tassement (-1,17% sur 2 ans), effet L15 déjà pricé' },
+        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison Q3 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
       ],
       type: 'T3 — VEFA — LMNP',
-      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-04' },
+      // v415 — opening corrigé 2027-04 → 2027-10 (report annoncé par la Société des grands projets).
+      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-10' },
       details: {
         lot: 'A27',
         floor: '2ème étage',
@@ -2139,6 +2170,60 @@ export const VITRY_CONSTRAINTS = {
 //   - Meublé : +3 000€ de mobilier initial + +100€ de loyer/mois
 //   - Nue (JEANBRUN) : pas de frais mobilier, loyer de base
 // ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// CONTRAINTES VILLEJUIF (v415) — clause de restitution des avantages
+//
+// Découverte en lisant l'acte authentique du 05/06/2026 (p.18-19). Elle était
+// ABSENTE du modèle alors que c'est la contrainte la plus lourde du bien.
+//
+// Pourquoi elle existe : le lot A27 a été acquis ~25% sous le prix du même
+// immeuble (336 330 € soit 4 880 €/m², contre 400 000-438 000 € / 6 280-6 530 €/m²
+// pour les T3 encore commercialisés en 08/2026). Cette décote est une condition
+// de la Ville de Villejuif ; la clause en est la contrepartie.
+//
+// ⚠️ NON MODÉLISÉE dans le calcul patrimonial : choix explicite de valoriser au
+// marché (voir PORTFOLIO.nezha.immo.villejuif.value). La clause est une contrainte
+// de LIQUIDITÉ, pas une dépréciation — le bien n'est pas destiné à la revente
+// avant l'échéance. Elle est documentée ici pour ne pas être oubliée à la décision.
+// ════════════════════════════════════════════════════════════
+export const VILLEJUIF_CONSTRAINTS = {
+  summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
+  constraints: [
+    {
+      dispositif: 'Restitution des avantages en cas de revente anticipée',
+      reference: 'Acte authentique 05/06/2026, p.18-19',
+      beneficiaire: 'SADEV 94 (aménageur ZAC Aragon), à la demande de la commune de Villejuif',
+      obligation: 'Reverser l\'intégralité de la plus-value en cas de revente dans les 5 ans suivant l\'achèvement',
+      dateDebut: '2028-06',      // achèvement contractuel au plus tard le 30/06/2028
+      dateFin: '2033-06',        // + 5 ans
+      penalite: 'Restitution de 100% de la plus-value, versée sous 15 jours',
+      details: [
+        'Plus-value = prix de revente TTC − prix d\'achat TTC réindexé sur l\'indice INSEE du coût de la construction',
+        'Indice de base : dernier connu au jour de la signature — indice de révision : dernier publié au jour de la revente',
+        'Déductions admises : travaux non inclus dans le prix, frais d\'acquisition, impôt sur la plus-value acquitté',
+        'Si aucune plus-value constatée, l\'obligation s\'éteint de plein droit',
+        'Le notaire chargé de la revente doit être informé de l\'existence de la clause',
+        'CONSÉQUENCE : avant mi-2033, seule compte la revalorisation à l\'indice de la construction — tout gain de marché au-delà est reversé',
+      ],
+      exonerations: [
+        'Mobilité ou mutation professionnelle justifiée à plus de 30 km',
+        'Chômage de l\'acquéreur, de son conjoint ou de son partenaire',
+        'Modification grave de la situation familiale (décès, divorce, séparation, dissolution de PACS)',
+        'Incapacité ou invalidité permanente',
+        'Naissance gémellaire',
+      ],
+      // La portée de ce type de clause est parfois discutée. Ce n'est pas un point
+      // à trancher ici : question pour un notaire ou un avocat le moment venu.
+      reserve: 'Portée juridique parfois contestée — à faire qualifier par un professionnel avant toute décision de revente',
+      status: 'actif',
+    },
+  ],
+  // Droit de préemption : VÉRIFIÉ ET ÉCARTÉ. L'acte précise que la mutation n'entre
+  // pas dans le champ du droit de préemption urbain (Code de l'urbanisme, art. L 213-1 b,
+  // vente d'immeuble à construire), et le vendeur déclare aucun droit non purgé (p.42).
+  preemption: null,
+};
+
 export const VILLEJUIF_REGIMES = {
   // Données de base (identiques pour tous les régimes)
   base: {
