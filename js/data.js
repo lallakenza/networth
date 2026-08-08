@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v422';
+export const APP_VERSION = 'v423';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1878,7 +1878,18 @@ export const IMMO_CONSTANTS = {
       //   ouverture L15 Sud repoussée d'avril 2027 à l'automne 2027.
       ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2027 },
       details: {
+        // v423 — DOUBLE NUMÉROTATION : l'acte notarié dit « lot 3302 », le syndic LAMY dit
+        //   « 000219 ». Même bien, deux référentiels — ne pas croire à une incohérence.
         lot: '3302',
+        lotSyndic: '000219',
+        // v423 — SECOND LOT, invisible du modèle jusqu'ici alors qu'il produit déjà du revenu :
+        //   stationnement 000586, bâtiment BA001, place n°87, livré le 02/07/2025 en même temps
+        //   que le logement (télécommande n°1471475000 remise au PV). Il porte 127,10 €/an de
+        //   charges et génère les 70 €/mois de loyer parking déjà comptés dans loyerObjectif.
+        //   ⚠️ Sa VALEUR VÉNALE n'est chiffrée par AUCUN document : les 300 000 € retenus ne
+        //   couvrent que le logement. Un box en petite couronne vaut couramment 12-18 K€, mais
+        //   c'est un ordre de grandeur non documenté — ne pas l'inscrire sans référence réelle.
+        lotStationnement: { lot: '000586', batiment: 'BA001', place: 87, chargesAnnuelles: 127.10 },
         floor: 'R+3 (4ème étage)',
         building: 'Bâtiment 3',
         type: 'T3',
@@ -1965,7 +1976,10 @@ export const IMMO_CONSTANTS = {
         parking: false,
         cave: true,
         caveLots: ['924 (cave)', '954 (séchoir)'],
-        tantiemes: '249/100000',
+        // v423 — 249 → 253/100000 : l'appel de fonds travaux 2024 détaille le lot principal 894
+        //   PLUS les deux caves, 924 et 954, à 2/100000 chacune. Écart de +1,6% sur toute
+        //   quote-part de charges ou de travaux.
+        tantiemes: '253/100000',
         exposure: null,
       },
     },
@@ -2377,6 +2391,26 @@ export const IMMO_PASSIFS_DOCUMENTES = {
     // alors qu'un mandat SEPA est actif (RUM MYN5859101, IBAN Revolut FR76 2823 3000 0147 7575).
     // Signature typique d'un rejet de prélèvement récurrent : à vérifier côté Revolut.
     statutAujourdhui: 'INCONNU — aucune pièce postérieure au 01/12/2025',
+  },
+  // v423 — Passif FISCAL documenté, lui aussi hors calcul.
+  pvMobiliereDegiro2025: {
+    nature: 'Plus-value de cession de valeurs mobilières, exercice 2025',
+    assiette: 43446.96,   // PROUVÉ : rapport fiscal Degiro 2025, « Gains de cessions 43446,96 EUR »
+                          // Détail : NVIDIA +41 354,50 · ADR Infosys +1 234,46 · Spotify +940,57 · Disney -82,56
+    impotEstime: 13034,   // DÉDUIT : PFU 30% — ce n'est pas un montant lu, c'est un calcul
+    // ⚠️ DOUBLE CONDITION avant toute inscription :
+    //   1. la résidence fiscale d'Amine en 2025. S'il est non-résident français, cette
+    //      plus-value mobilière n'est pas imposable en France et le passif tombe à zéro.
+    //   2. l'impôt a peut-être déjà été acquitté — vérifier l'avis 2026 sur revenus 2025.
+    statut: 'NON BRANCHÉ — conditionné à la résidence fiscale et au paiement éventuel',
+  },
+  // v423 — Coût de garantie Villejuif, à ne pas confondre avec un actif :
+  villejuifCautionCreditLogement: {
+    bien: 'villejuif', nature: 'Caution Crédit Logement (garantie du prêt)',
+    montantPaye: 4170.05,   // 3 498,03 + 672,02
+    // La part restituable en fin de prêt n'est indiquée NULLE PART. Ne rien inscrire
+    // à l'actif sans attestation Crédit Logement.
+    sens: 'coût d\'acquisition',
   },
   // Créance en sens inverse, elle aussi non branchée :
   vitryAvanceTresorerie: {
