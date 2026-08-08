@@ -1639,6 +1639,25 @@
     #gridCounter.is-loading { animation: none !important; }
   }
 </style>
+<!-- ── PWA (v426) : rend le dashboard installable sur l'écran d'accueil ──
+     Garde l'URL, GitHub Pages et le pont localStorage avec le site de facturation
+     (même origine), contrairement à une application native. -->
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1a202c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Patrimoine">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<script>
+  // Enregistré après le chargement pour ne pas concurrencer le premier rendu.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+        console.warn('[pwa] service worker non enregistré :', e && e.message);
+      });
+    });
+  }
+</script>
 </head>
 <body>
 
@@ -4392,7 +4411,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=425"></script>
+<script type="module" src="js/app.js?v=426"></script>
 
 </body>
 </html>
