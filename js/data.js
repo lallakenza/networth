@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v424';
+export const APP_VERSION = 'v425';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1926,6 +1926,12 @@ export const IMMO_CONSTANTS = {
     },
     rueil: {
       address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
+      // v425 — copropriété et syndic, pour parité d'affichage avec Vitry.
+      //   L'appel de fonds Foncia donne la composition exacte de la résidence : elle occupe
+      //   QUATRE voies, ce qui explique pourquoi une recherche par une seule rue sous-estime
+      //   le nombre de transactions comparables (cf. scripts/dvf_comparables.py).
+      copropriete: 'Résidence Montbrison — 1/3 rue des Charmes, 1/21 allée des Glycines, 2/22 rue P. Gimont, 92/94 rue des Mazurières',
+      syndic: 'Foncia Seine Ouest — client 004142524, immeuble 501308296, compte 102151753',
       surface: 55.66,           // m²
       purchasePrice: 240000,    // prix d'achat acte notarié (5 nov 2019) — hors frais notaire
       purchaseDate: '2019-11',  // acte notarié 5 novembre 2019

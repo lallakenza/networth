@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=424';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=424';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=425';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=425';
 
 // ---- Generic table sort utility ----
 /**
@@ -5765,7 +5765,18 @@ function renderAptView(state, loanKey) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">'
     + '<div><span style="color:#718096;">Surface</span><br><strong>' + surface + '</strong></div>'
     + '<div><span style="color:#718096;">Prix d\'achat</span><br><strong>' + price + '</strong></div>'
-    + '<div><span style="color:#718096;">Valeur actuelle</span><br><strong>' + fmt(prop.value) + '</strong></div>'
+    // v425 — un bien en VEFA est porté au COÛT ENGAGÉ tant qu'il n'est pas livré, pas à sa
+    // valeur de marché. Afficher « Valeur actuelle » sans le dire laissait croire à une
+    // divergence avec le référentiel (415 000 € pour Villejuif contre ~141 000 € affichés).
+    // On nomme donc ce qui est montré, et on rappelle la valeur de marché à côté.
+    + '<div><span style="color:#718096;">'
+      + (meta.underConstruction || (meta.value && Math.abs(meta.value - prop.value) > 1000)
+          ? 'Valeur au coût engagé' : 'Valeur actuelle')
+      + '</span><br><strong>' + fmt(prop.value) + '</strong>'
+      + (meta.value && Math.abs(meta.value - prop.value) > 1000
+          ? '<br><span style="font-size:11px;color:#718096;">marché estimé ' + fmt(meta.value) + '</span>'
+          : '')
+      + '</div>'
     + '<div><span style="color:#718096;">Equity brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
     + '<div><span style="color:#718096;">Type</span><br><strong>' + type + '</strong></div>'
     + '<div><span style="color:#718096;">Date achat</span><br><strong>' + date + '</strong></div>'
@@ -7247,7 +7258,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=424').then(m => {
+  import('./charts.js?v=425').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
