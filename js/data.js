@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v427';
+export const APP_VERSION = 'v428';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3046,7 +3046,14 @@ export const MONTHLY_INCOMES = [
 ];
 
 export const BUDGET_EXPENSES = [
-  { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
+  // v428 — 145 000 → 143 000 : montant CONTRACTUEL du bail Ejari 0120251011002074,
+  //   en vigueur depuis le 10/11/2025 (dépouillement iCloud v423). L'ancien 145 000
+  //   était une estimation.
+  { label: 'Loyer Dubai',     amount: 143000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
+  // v428 — flux ABSENT du budget alors que documenté : bail de la résidence en France
+  //   (17 rue du Champtier) depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
+  //   l'épargne nette mensuelle était surestimée de 1 300 €.
+  { label: 'Loyer France (résidence)', amount: 1300, currency: 'EUR', freq: 'monthly', zone: 'France', type: 'Logement' },
   { label: 'Électricité',     amount: 840,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
   { label: 'Fibre Internet',  amount: 360,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
   { label: 'Gaz',             amount: 120,    currency: 'AED', freq: 'quarterly', zone: 'Dubai',   type: 'Utilities' },
