@@ -564,7 +564,7 @@ export const PORTFOLIO = {
     //   3. loyers: vérifier LRAR + encaissements mensuels
     // ──────────────────────────────────────────────────────
     immo: {
-      vitry: { value: 300000, valueDate: '2025-09', crd: 268061, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 }, // CRD mis à jour 31/03/2026 (AL 35208 + PTZ 60000 + BP 172853)
+      vitry: { value: 300000, valueDate: '2026-08', crd: 268061, loyerHC: 1050, loyerDeclare: 600, chargesLocataire: 150, parking: 70, loyerTotalCC: 1270, loyerDeclareCC: 600 }, // CRD mis à jour 31/03/2026 (AL 35208 + PTZ 60000 + BP 172853)
       // value: 300K = estimation sept 2025, 67.14m² × ~4 470€/m² (VEFA neuf RE2020, livré 2023)
       // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
       // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
@@ -1284,7 +1284,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v418';
+export const APP_VERSION = 'v419';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
