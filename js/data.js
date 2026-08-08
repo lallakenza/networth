@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v426';
+export const APP_VERSION = 'v427';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2442,6 +2442,12 @@ export const IMMO_PASSIFS_DOCUMENTES = {
 
 export const VILLEJUIF_CONSTRAINTS = {
   summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
+  // v427 — hypothèse d'indexation, LUE PAR LE MOTEUR (computeExitCosts).
+  // L'acte réindexe le prix d'achat sur l'indice INSEE du coût de la construction. Cet
+  // indice futur est inconnu : 2%/an est une hypothèse de long terme, pas une donnée.
+  // Elle joue en NOTRE faveur dans le calcul (plus l'ICC est haut, moins on restitue),
+  // donc la retenir basse est le choix prudent. À réviser si l'ICC réel s'en écarte.
+  iccAnnuelHypothese: 0.02,
   constraints: [
     {
       dispositif: 'Restitution des avantages en cas de revente anticipée',

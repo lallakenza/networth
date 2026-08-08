@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=426';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=427';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2518,8 +2518,33 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     }
   }
 
+  // ── v427 : clause de restitution SADEV 94 (Villejuif) ──
+  // Jusqu'à ~mi-2033, toute plus-value de revente revient à l'aménageur. La projection
+  // de sortie l'ignorait et affichait donc un gain qui ne serait jamais encaissé.
+  // Calcul conforme à l'acte : plus-value = prix de revente moins prix d'achat RÉINDEXÉ
+  // sur l'indice INSEE du coût de la construction. L'ICC futur étant inconnu, on retient
+  // une hypothèse explicite plutôt que de l'ignorer — l'ignorer surestimerait la
+  // restitution en traitant l'inflation de la construction comme un gain.
+  result.restitutionSADEV = 0;
+  result.clauseSADEVActive = false;
+  if (loanKey === 'villejuif' && VILLEJUIF_CONSTRAINTS && Array.isArray(VILLEJUIF_CONSTRAINTS.constraints)) {
+    const cl = VILLEJUIF_CONSTRAINTS.constraints[0];
+    const fin = cl && cl.dateFin;                       // '2033-06'
+    const moisVente = targetDate ? String(targetDate).slice(0, 7) : null;
+    if (fin && moisVente && moisVente < fin) {
+      result.clauseSADEVActive = true;
+      const icc = (VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese != null)
+        ? VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese : 0.02;
+      const prixIndexe = purchasePrice * Math.pow(1 + icc, Math.max(0, holdingYears));
+      // Déductions admises par l'acte : frais d'acquisition et impôt de plus-value acquitté.
+      result.restitutionSADEV = Math.max(0, Math.round(
+        salePrice - prixIndexe - fraisAcquisition - result.totalTaxPV
+      ));
+    }
+  }
+
   // Total frais de sortie
-  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.ira + result.tvaClawback;
+  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.ira + result.tvaClawback + result.restitutionSADEV;
 
   // Produit net = prix de vente - frais de sortie - CRD restant
   result.netProceeds = salePrice - result.totalExitCosts;
