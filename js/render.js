@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=430';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=430';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES } from './data.js?v=431';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=431';
 
 // ---- Generic table sort utility ----
 /**
@@ -310,6 +310,7 @@ export function render(state, view, currency) {
 
   // v309 — Alertes proactives (affichées uniquement sur vue Couple)
   if (view === 'couple') renderDecisionCockpit(state);
+  if (view === 'couple') renderPerfClasses(state);
   if (view === 'couple') renderAlertsPanel(state);
 
   // Per-apartment views
@@ -2009,6 +2010,34 @@ function renderActionsView(state) {
   const showAmine = owner !== 'nezha';
   const showNezha = owner !== 'amine';
   // KPIs — cross-platform
+  // ── v431 : top movers — les 5 positions qui ont le plus bougé aujourd'hui ──
+  // Répond à « qu'est-ce qui a bougé ? » AVANT le tableau de 52 lignes. dailyPL est
+  // calculé par le moteur depuis previousClose ; null quand les refs sont périmées
+  // (le garde PRICE_REFS_AS_OF) — dans ce cas la bande s'efface plutôt que mentir.
+  const tmEl = document.getElementById('topMovers');
+  if (tmEl) {
+    const bouge = (av.ibkrPositions || []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
+    if (!bouge.length) { tmEl.innerHTML = ''; }
+    else {
+      const top = [...bouge].sort((a, b) => Math.abs(b.dailyPL) - Math.abs(a.dailyPL)).slice(0, 5);
+      let html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px;">';
+      for (const p of top) {
+        const pos = p.dailyPL >= 0;
+        const coul = pos ? '#16a34a' : '#dc2626';
+        const pct = p.valEUR - p.dailyPL !== 0 ? (p.dailyPL / Math.abs(p.valEUR - p.dailyPL) * 100) : 0;
+        html += '<div style="flex:1;min-width:130px;background:' + (pos ? 'rgba(22,163,74,.06)' : 'rgba(220,38,38,.06)')
+          + ';border:1px solid ' + (pos ? 'rgba(22,163,74,.25)' : 'rgba(220,38,38,.25)')
+          + ';border-radius:10px;padding:8px 12px;">'
+          + '<div style="font-size:11px;color:#718096;">' + (p.ticker || p.label || '?') + '</div>'
+          + '<div style="font-size:14px;font-weight:700;color:' + coul + ';">'
+          + (pos ? '+' : '') + fmt(p.dailyPL)
+          + ' <span style="font-size:11px;font-weight:500;">(' + (pos ? '+' : '') + pct.toFixed(1) + '%)</span></div>'
+          + '</div>';
+      }
+      tmEl.innerHTML = html + '</div>';
+    }
+  }
+
   setEur('kpiActionsTotal', av.totalStocks);
   const plCls = av.combinedUnrealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
   const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
@@ -7328,7 +7357,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=430').then(m => {
+  import('./charts.js?v=431').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7574,6 +7603,54 @@ function renderDecisionCockpit(state) {
   html += tuile('Reste à rembourser (immo)', fmt(crdTotal),
     equiteImmo != null ? 'équité nette ' + fmt(equiteImmo) + ' sur 3 biens' : '3 biens');
   html += '</div>';
+  el.innerHTML = html;
+}
+
+/**
+ * Performance par classe d'actifs (v431) — répond à « bon investissement ou pas ? ».
+ *
+ * Trois classes, trois logiques de mesure — et c'est voulu qu'elles diffèrent :
+ *   Actions : P&L latent vs capital net déployé (les chiffres du cockpit Actions)
+ *   Immo    : création de richesse décomposée — capital amorti + appréciation
+ *             (l'équité seule mélangerait l'apport initial avec le gain)
+ *   Cash    : rendement moyen pondéré (un stock ne « performe » pas, il rapporte)
+ * Aucun chiffre nouveau : tout vient de l'état déjà calculé par le moteur.
+ */
+function renderPerfClasses(state) {
+  const el = document.getElementById('perfClasses');
+  if (!el) return;
+  const av = state.actionsView, iv = state.immoView, cv = state.cashView, vues = state.views;
+  if (!av || !iv || !cv || !vues) { el.innerHTML = ''; return; }
+
+  const ligne = (classe, valeur, perf, commentaire) =>
+    '<tr><td style="font-weight:600;">' + classe + '</td>'
+    + '<td class="num">' + fmt(valeur) + '</td>'
+    + '<td class="num">' + perf + '</td>'
+    + '<td style="font-size:11.5px;color:#718096;">' + commentaire + '</td></tr>';
+
+  const pl = av.combinedUnrealizedPL || 0;
+  const dep = av.totalDeposits || 0;
+  const plPct = dep > 0 ? (pl / dep * 100) : null;
+  const cp = (n) => (n >= 0 ? '+' : '') + fmt(n);
+  const coulSpan = (n, txt) => '<span style="color:' + (n >= 0 ? '#16a34a' : '#dc2626') + ';font-weight:600;">' + txt + '</span>';
+
+  const wb = iv.totalWealthBreakdown || {};
+  const richesseImmo = (wb.capitalAmorti || 0) + (wb.appreciation || 0);
+
+  let html = '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
+    + '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Bon investissement ? — performance par classe</div>'
+    + '<div class="table-wrap"><table style="font-size:12.5px;width:100%;">'
+    + '<thead><tr><th>Classe</th><th class="num">Valeur</th><th class="num">Performance</th><th>Lecture</th></tr></thead><tbody>';
+  html += ligne('Actions &amp; crypto', av.totalStocks || 0,
+    coulSpan(pl, cp(pl) + (plPct != null ? ' (' + (pl >= 0 ? '+' : '') + plPct.toFixed(1) + '%)' : '')),
+    'P&amp;L latent vs ' + fmt(dep) + ' déployés');
+  html += ligne('Immobilier', vues.couple.immo || 0,
+    coulSpan(richesseImmo, cp(richesseImmo)),
+    'capital amorti ' + fmt(wb.capitalAmorti || 0) + ' + appréciation ' + fmt(wb.appreciation || 0));
+  html += ligne('Cash', cv.totalCash || 0,
+    '<span style="font-weight:600;">' + ((cv.weightedAvgYield || 0) * 100).toFixed(1) + '%/an</span>',
+    'rendement moyen pondéré des comptes');
+  html += '</tbody></table></div></div>';
   el.innerHTML = html;
 }
 

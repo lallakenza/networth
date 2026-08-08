@@ -1032,7 +1032,16 @@
       overflow-x: auto;
       justify-content: flex-start;
       scrollbar-width: none;
+      /* v431 — la barre de 14 vues défilait mal au pouce : accroche par bouton
+         (scroll-snap), inertie iOS, et barre COLLANTE pour changer de vue sans
+         remonter toute la page. */
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+      position: sticky;
+      top: 0;
+      z-index: 50;
     }
+    .view-btn { scroll-snap-align: start; }
     .view-switcher::-webkit-scrollbar { display: none; }
     .view-btn {
       padding: 10px 12px;
@@ -3420,6 +3429,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <!-- v428 — Cockpit décideur : répond aux questions d'entrée (croissance, épargne, CRD)
      AVANT le détail. Le NW lui-même vit déjà dans les cartes KPI au-dessus. -->
 <div id="decisionCockpit" data-view="couple" style="margin:24px 0 0;"></div>
+<!-- v431 : la question 3 du décideur — bon investissement ou pas, par classe -->
+<div id="perfClasses" data-view="couple" style="margin:16px 0 0;"></div>
 <div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
 
 <!-- SIMULATEUR AMINE -->
@@ -3488,6 +3499,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <!-- ============ VUE ACTIONS ============ -->
 <div class="card hidden" data-view="actions">
   <h2><span class="section-icon" style="background: var(--accent);">&#x1F4C8;</span>Cockpit Actions & Crypto</h2>
+<!-- v431 : les 5 lignes qui ont bougé aujourd’hui, avant le tableau de 52 -->
+<div id="topMovers"></div>
+
 
   <!-- ════════════════════════════════════════════════════════════
        PORTFOLIO EVOLUTION CHART — displayed first for immediate visual context
@@ -4456,7 +4470,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=430"></script>
+<script type="module" src="js/app.js?v=431"></script>
 
 </body>
 </html>
