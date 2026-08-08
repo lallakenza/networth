@@ -1080,7 +1080,24 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      rueil:     { value: 280000, valueDate: '2025-09', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      rueil:     { value: 250000, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      // v416 — value CORRIGÉE 280K → 250K. Le 280K (5 030 €/m²) CONTREDISAIT la source citée
+      //   quelques lignes plus bas dans ce même fichier : « MeilleursAgents 4 445 €/m² allée
+      //   des Glycines ». On valorisait 13% au-dessus de notre propre référence.
+      // Relevé juillet 2026 — quartier Fouilleuse : 4 384 €/m² pour les appartements
+      //   (fourchette 3 275-6 617), quartier global 4 601 €/m², ville 6 038 €/m².
+      //   Le quartier est ~27% sous la moyenne communale : cohérent avec la note historique.
+      // Et le bien cumule les facteurs DÉPRÉCIATIFS, pas appréciatifs :
+      //   - rez-de-chaussée (décote usuelle 5-10%)
+      //   - pas de parking (pénalisant à Rueil)
+      //   - immeuble 1949-1974
+      //   - DPE INCONNU → risque réglementaire non quantifié (cf. ci-dessous)
+      //   Les 15 K€ de travaux justifient une prime, pas un positionnement au-dessus du quartier.
+      // 250K = 55,66 × ~4 490 €/m², soit légèrement au-dessus de la moyenne quartier pour tenir
+      //   compte des travaux réalisés, et en dessous de la moyenne « quartier global ».
+      // ⚠️ À FAIRE : récupérer le DPE. Immeuble des années 1950-70, classement probable D-F.
+      //   Un F ou G déclencherait le calendrier d'interdiction de location et imposerait une
+      //   décote supplémentaire + des travaux. C'est le principal risque non chiffré du bien.
       // value: 280K = estimation sept 2025, 55.66m² × ~5 030€/m² (ancien rénové, 15K€ travaux réalisés)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
       // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
@@ -1227,7 +1244,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v415';
+export const APP_VERSION = 'v416';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
