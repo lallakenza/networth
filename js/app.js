@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=448';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=448';
-import { render, applySnapshotDeltas } from './render.js?v=448';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=448';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=448';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=448';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=448';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=449';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=449';
+import { render, applySnapshotDeltas } from './render.js?v=449';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=449';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=449';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=449';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=449';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -564,7 +564,7 @@ loadSnapshots().then(rows => {
     try {
       const cv = document.getElementById('nwHistoryChart');
       const card = cv && cv.closest('.card');
-      const totalises = rows.filter(r => r.data && ((r.data.total && r.data.total.couple != null) || (r.data.totalReconstitue && r.data.totalReconstitue.couple != null)));
+      const totalises = rows.filter(r => r.data && ((r.data.total && r.data.total.couple != null) || (r.data.totalReconstitue && r.data.totalReconstitue.amine != null)));
       if (card && totalises.length >= 2) { card.style.display = ''; window.buildNWHistoryChart && window.buildNWHistoryChart(); }
       // v445 (P3) — même logique pour l'évolution d'allocation (remplace le donut)
       window.buildCoupleAllocEvolution && window.buildCoupleAllocEvolution();
