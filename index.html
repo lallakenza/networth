@@ -3067,14 +3067,17 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
      insights et le simulateur pour ne pas monopoliser le haut de page. -->
 
 <!-- KPIs COUPLE -->
-<div id="kpi-couple" class="kpi-strip" style="grid-template-columns: repeat(7, 1fr);">
-  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0">--</div><div class="label">Net Worth Combine *</div></div>
+<!-- v445 (P8) : hero hiérarchisé — le NW combiné domine (avec MTD/YTD), Amine/Nezha en
+     second rang. Les 4 cartes catégories (immo/cash/actions/autre) sont retirées : la
+     répartition vit dans le treemap et les cartes « Patrimoine par Catégorie ». -->
+<div id="kpi-couple" class="kpi-strip" style="grid-template-columns: 2fr 1fr 1fr;">
+  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0" style="font-size:34px;">--</div><div class="label">Net Worth Combine *</div>
+    <div style="display:flex;gap:14px;justify-content:center;margin-top:6px;font-size:11.5px;flex-wrap:wrap;">
+      <span id="kpiCoupleNWMTD" style="color:#718096;">MTD —</span>
+      <span id="kpiCoupleNWYTD" style="color:#718096;">YTD —</span>
+    </div></div>
   <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
   <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
-  <div class="kpi green"><div class="value" id="kpiCoupleImmo" data-eur="0">--</div><div class="label" id="kpiCoupleImmoLabel">&Eacute;quit&eacute; immo *</div></div>
-  <div class="kpi"><div class="value" id="kpiCoupleCash" data-eur="0">--</div><div class="label">Cash Total</div></div>
-  <div class="kpi green"><div class="value" id="kpiCoupleActions" data-eur="0">--</div><div class="label">Actions Total</div></div>
-  <div class="kpi"><div class="value" id="kpiCoupleAutre" data-eur="0">--</div><div class="label">Autre (Véhicules, Créances)</div></div>
 </div>
 <div class="kpi-insight-bar" id="insight-couple"></div>
 
@@ -4496,7 +4499,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=444"></script>
+<script type="module" src="js/app.js?v=445"></script>
 
 </body>
 </html>
