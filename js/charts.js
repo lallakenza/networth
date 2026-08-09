@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=437';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=437';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=437';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=437';
-import { loadSnapshots } from './api.js?v=437'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=437'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=438';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=438';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=438';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=438';
+import { loadSnapshots } from './api.js?v=438'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=438'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -326,7 +326,7 @@ function buildNezhaDonut(state) {
   charts.nezhaAlloc = new Chart(document.getElementById('nezhaAllocChart'), {
     type: 'doughnut',
     data: {
-      labels: ['Equity Rueil','Equity Villejuif','Cash France','Cash Maroc (100K MAD)','SGTM (actions)','Creance Omar (40K MAD)'],
+      labels: ['\u00c9quit\u00e9 Rueil','\u00c9quit\u00e9 Villejuif','Cash France','Cash Maroc (100K MAD)','SGTM (actions)','Creance Omar (40K MAD)'],
       datasets: [{ data: [n.rueilEquity, n.villejuifEquity, n.cashFrance, n.cashMaroc, n.sgtm, n.recvOmar], backgroundColor: ['#2b6cb0','#2c7a7b','#48bb78','#9ae6b4','#ed8936','#cbd5e0'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
@@ -395,7 +395,7 @@ function buildImmoEquityBar(state) {
       datasets: [{ label: 'Equity', data: [state.amine.vitryEquity, state.nezha.rueilEquity, state.nezha.villejuifEquity], backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
     },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
+      plugins: { legend: { display: false }, title: { display: true, text: '\u00c9quit\u00e9 par bien', font: { size: 14 } },
         tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
       scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
   });
@@ -794,10 +794,10 @@ function buildImmoViewEquityBar(state) {
     type: 'bar',
     data: {
       labels: props.map(p => p.name + ' (' + p.owner + ')'),
-      datasets: [{ label: 'Equity', data: props.map(p => p.equity), backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
+      datasets: [{ label: '\u00c9quit\u00e9', data: props.map(p => p.equity), backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
     },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: false }, title: { display: true, text: 'Equity par bien', font: { size: 14 } },
+      plugins: { legend: { display: false }, title: { display: true, text: '\u00c9quit\u00e9 par bien', font: { size: 14 } },
         tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
       scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
   });

@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=437';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=437';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=438';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=438';
 
 // ---- Generic table sort utility ----
 /**
@@ -1103,9 +1103,9 @@ function renderCoupleTable(state) {
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash + s.nezha.brokerCash],
-    ['Equity Immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
-    ['Equity Immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
-    ['Equity Immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
+    ['\u00c9quit\u00e9 immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
+    ['\u00c9quit\u00e9 immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
+    ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
     ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
@@ -1150,7 +1150,7 @@ function renderNezhaTable(state, view) {
   const sgtmLabel = p.nezha.sgtm.shares + ' actions SGTM @ ' + p.market.sgtmPriceMAD + ' DH';
   const esppLabel = (p.nezha.espp ? p.nezha.espp.shares : 0) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0);
   const rows = [
-    ['Equity Rueil-Malmaison', s.nezha.rueilEquity],
+    ['\u00c9quit\u00e9 Rueil-Malmaison', s.nezha.rueilEquity],
     ['ESPP Accenture (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.esppForActions],
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
@@ -1164,7 +1164,7 @@ function renderNezhaTable(state, view) {
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
     ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (réf. 278271-0004)', s.nezha.rolexDatejust]] : []),
     ...(s.nezha.villejuifSigned
-      ? (s.nezha.villejuifEquity > 0 ? [['Equity Villejuif VEFA (asset under construction)', s.nezha.villejuifEquity]] : [])
+      ? (s.nezha.villejuifEquity > 0 ? [['\u00c9quit\u00e9 Villejuif VEFA (asset under construction)', s.nezha.villejuifEquity]] : [])
       : (s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : [])),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
@@ -1241,8 +1241,8 @@ function renderImmoKPIs(state) {
   setEur('kpiImmoCRD', state.couple.immoCRD);
   // Dynamic label with nb biens
   const nb = state.couple.nbBiens || 3;
-  setText('kpiCoupleImmoLabel', 'Equity Nette Immo (' + nb + ' biens) *');
-  setText('kpiImmoEqLabel', 'Equity Nette (' + nb + ' biens)');
+  setText('kpiCoupleImmoLabel', '\u00c9quit\u00e9 nette immo (' + nb + ' biens) *');
+  setText('kpiImmoEqLabel', '\u00c9quit\u00e9 nette (' + nb + ' biens)');
   // Wealth creation from immoView — with breakdown
   if (state.immoView) {
     const wc = state.immoView.totalWealthCreation;
@@ -4055,6 +4055,100 @@ function renderImmoView(state) {
   setText('kpiImmoViewWealth', '+' + fmt(fTotalWealthCreation) + '/mois');
   setText('kpiImmoViewLTV', fAvgLTV.toFixed(1) + '%');
 
+  // ── v438 (P1) : flux bruts consolidés — entrées vs sorties, pas seulement le net ──
+  // Biens NON conditionnels seulement (Villejuif VEFA hors flux, règle v347).
+  const fTotalLoyers = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (p.totalRevenue || 0)), 0);
+  const fTotalCharges = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (Math.round(p.charges) || 0)), 0);
+  setText('kpiImmoViewLoyers', '+' + fmt(Math.round(fTotalLoyers)) + '/mois');
+  setText('kpiImmoViewCharges', '−' + fmt(Math.round(fTotalCharges)) + '/mois');
+
+  // ── v438 (P1) : passifs documentés — consignés hors calcul, mais VISIBLES depuis
+  // la consolidation. Sans ce KPI, la page générale avait l'air saine alors que les
+  // fiches portaient ~21 K€ de passifs en attente de statut. ──
+  try {
+    const P = IMMO_PASSIFS_DOCUMENTES || {};
+    const passifs = (P.rueilCopro ? (P.rueilCopro.dernierMontantConnu || 0) : 0)
+      + (P.vitryCopro ? (P.vitryCopro.montant || 0) : 0);
+    setText('kpiImmoViewPassifs', passifs > 0 ? fmt(Math.round(passifs)) : '—');
+  } catch (e) { /* KPI laissé à -- */ }
+
+  // ── v438 (P1) : prochaine échéance tous biens confondus, depuis les contraintes
+  // datées — la donnée de pilotage qui n'était agrégée nulle part. ──
+  try {
+    const cands = [];
+    ((VITRY_CONSTRAINTS && VITRY_CONSTRAINTS.constraints) || []).forEach(c => {
+      if (c.dateFin) cands.push({ d: c.dateFin, l: 'Vitry — ' + (c.dispositif || 'obligation') });
+    });
+    ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.constraints) || []).forEach(c => {
+      if (c.dateFin) cands.push({ d: c.dateFin, l: 'Villejuif — fin clause SADEV 94' });
+    });
+    const vjl = (IMMO_CONSTANTS.loans.villejuifLoans || [])[0];
+    if (vjl && vjl.startDate && vjl.periods && vjl.periods[0]) {
+      const [y, m] = vjl.startDate.split('-').map(Number);
+      const tot = y * 12 + (m - 1) + vjl.periods[0].months;
+      cands.push({ d: Math.floor(tot / 12) + '-' + String((tot % 12) + 1).padStart(2, '0'),
+                   l: 'Villejuif — fin de franchise, mensualités démarrent' });
+    }
+    const auj = new Date().toISOString().slice(0, 7);
+    const prochaines = cands.filter(c => c.d > auj).sort((a, b) => a.d.localeCompare(b.d));
+    if (prochaines.length) {
+      const p0 = prochaines[0];
+      setText('kpiImmoViewEcheance', p0.d.split('-').reverse().join('/'));
+      const sub = document.getElementById('kpiImmoViewEcheanceSub');
+      if (sub) sub.textContent = p0.l;
+      // ── v438 (P5) : bloc échéances — les 3 prochaines, avec dispositif ──
+      const ech = document.getElementById('immoEcheances');
+      if (ech) {
+        let ehtml = '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:12px 16px;">'
+          + '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Prochaines échéances — tous biens</div>'
+          + '<div style="display:flex;gap:16px;flex-wrap:wrap;">';
+        prochaines.slice(0, 3).forEach(c => {
+          ehtml += '<div style="min-width:180px;"><span style="font-weight:700;font-size:13px;">'
+            + c.d.split('-').reverse().join('/') + '</span>'
+            + '<span style="font-size:11.5px;color:#4a5568;display:block;">' + c.l + '</span></div>';
+        });
+        ech.innerHTML = ehtml + '</div></div>';
+      }
+    }
+  } catch (e) { /* bloc absent plutôt que faux */ }
+
+  // ── v438 (P6) : LA table de consolidation — une ligne par bien, cliquable ──
+  try {
+    const pb = document.getElementById('immoParBien');
+    if (pb) {
+      const em = '—';
+      let rows = '';
+      fp.forEach(p => {
+        const cond = !!p.conditional;
+        rows += '<tr style="cursor:pointer;" onclick="location.hash=\'#apt_' + p.loanKey + '\'">'
+          + '<td style="font-weight:600;">' + p.name
+          + (cond ? ' <span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 5px;border-radius:4px;">VEFA</span>' : '') + '</td>'
+          + '<td class="num">' + fmt(p.value) + '</td>'
+          + '<td class="num">' + fmt(p.crd) + '</td>'
+          + '<td class="num" style="font-weight:600;">' + fmt(p.equity) + '</td>'
+          + '<td class="num">' + p.ltv.toFixed(0) + '%</td>'
+          + '<td class="num">' + (cond ? em : '+' + fmt(Math.round(p.totalRevenue || 0))) + '</td>'
+          + '<td class="num ' + ((p.cf || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">'
+          + (cond ? em : ((p.cf >= 0 ? '+' : '') + fmt(Math.round(p.cf)))) + '</td>'
+          + '<td class="num">' + (cond || !Number.isFinite(p.yieldNet) ? em : p.yieldNet.toFixed(1) + '%') + '</td>'
+          + '</tr>';
+      });
+      const tRev = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (p.totalRevenue || 0)), 0);
+      rows += '<tr style="font-weight:700;background:#edf2f7;"><td>Total</td>'
+        + '<td class="num">' + fmt(fTotalValue) + '</td><td class="num">' + fmt(fTotalCRD) + '</td>'
+        + '<td class="num">' + fmt(fTotalEquity) + '</td><td class="num">' + fAvgLTV.toFixed(0) + '%</td>'
+        + '<td class="num">+' + fmt(Math.round(tRev)) + '</td>'
+        + '<td class="num ' + (fTotalCF >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (fTotalCF >= 0 ? '+' : '') + fmt(Math.round(fTotalCF)) + '</td>'
+        + '<td class="num">' + em + '</td></tr>';
+      pb.innerHTML = '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:12px 16px;">'
+        + '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Vue par bien — cliquer une ligne ouvre sa fiche</div>'
+        + '<div class="table-wrap"><table style="font-size:12.5px;width:100%;min-width:640px;">'
+        + '<thead><tr><th>Bien</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Équité</th>'
+        + '<th class="num">LTV</th><th class="num">Loyer /mois</th><th class="num">CF /mois</th><th class="num">Rdt net</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div></div>';
+    }
+  } catch (e) { /* table absente plutôt que fausse */ }
+
   // v362 — Sous-note « dont Villejuif VEFA » sur les KPI de BILAN (valeur/equity/CRD).
   // Choix utilisateur : Villejuif (VEFA en construction) reste inclus dans ces totaux pour
   // que la vue immo reconcilie avec la part immo du NW ; on l'annote pour transparence.
@@ -5262,6 +5356,19 @@ function renderPropertyDetail(state, prop) {
   // Title
   const titleEl = document.getElementById('propDetailTitle');
   if (titleEl) titleEl.textContent = prop.name + (meta.address ? ' — ' + meta.address : '');
+  // v438 (P4) — ce panneau est un SECOND renderer de la fiche bien (double maintenance,
+  // famille des BUG-056/057/058). En attendant la déduplication complète, le lien met
+  // la fiche canonique à un clic.
+  if (titleEl) {
+    // idempotent : le panneau se rouvre à chaque clic, le lien ne doit exister qu'une fois
+    let lien = document.getElementById('propDetailFicheLink');
+    if (!lien) {
+      titleEl.insertAdjacentHTML('afterend',
+        '<a id="propDetailFicheLink" href="#" style="font-size:12px;color:var(--accent);white-space:nowrap;">Ouvrir la fiche compl\u00e8te \u2192</a>');
+      lien = document.getElementById('propDetailFicheLink');
+    }
+    if (lien) lien.setAttribute('href', '#apt_' + prop.loanKey);
+  }
 
   // ── Section 0: Property Info Card (Details) ──
   const infoCardEl = document.getElementById('propDetailInfo');
@@ -5883,11 +5990,20 @@ function renderAptView(state, loanKey) {
           ? '<br><span style="font-size:11px;color:#718096;">marché estimé ' + fmt(meta.value) + '</span>'
           : '')
       + '</div>'
-    + '<div><span style="color:#718096;">Equity brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
+    + '<div><span style="color:#718096;">\u00c9quit\u00e9 brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
     + '<div><span style="color:#718096;">Type</span><br><strong>' + type + '</strong></div>'
     + '<div><span style="color:#718096;">Date achat</span><br><strong>' + date + '</strong></div>'
     + '<div><span style="color:#718096;">Appréciation</span><br><strong>' + appreciation + '</strong></div>'
     + '<div><span style="color:#718096;">LTV</span><br><strong>' + prop.ltv.toFixed(1) + '%</strong></div>'
+    // v438 (P3) — les KPIs du bien LUI-MÊME, calculés par le moteur mais jamais
+    // affichés sur sa propre fiche (ils ne vivaient que dans les tables consolidées).
+    + '<div><span style="color:#718096;">Loyer HC</span><br><strong>'
+      + (prop.loyerHC ? fmt(prop.loyerHC) + '/mois' : '\u2014') + '</strong></div>'
+    + '<div><span style="color:#718096;">Rdt net</span><br><strong>'
+      + (Number.isFinite(prop.yieldNet) && !prop.conditional ? prop.yieldNet.toFixed(1) + '%/an' : '\u2014') + '</strong></div>'
+    + (Number.isFinite(prop.yieldNetFiscal) && !prop.conditional
+        ? '<div><span style="color:#718096;">Rdt net fiscal</span><br><strong>' + prop.yieldNetFiscal.toFixed(1) + '%/an</strong></div>'
+        : '')
     + '</div>'
     // v424 — copropriété et syndic : présents au référentiel mais jamais affichés.
     // Utile concrètement (c'est l'interlocuteur à contacter) et lève l'ambiguïté sur
@@ -7100,7 +7216,7 @@ function attachKPIInsights(state, view) {
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
   const _vitryProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'vitry') : null;
   const _vitryWealth = _vitryProp ? Math.round(_vitryProp.wealthCreation || 0) : '?';
-  insights['kpiAmVitry'] = 'Equity Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac' + _vitryWealth + '/mois.';
+  insights['kpiAmVitry'] = '\u00c9quit\u00e9 Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac' + _vitryWealth + '/mois.';
 
   // ── Nezha view ──
   const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
@@ -7386,7 +7502,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=437').then(m => {
+  import('./charts.js?v=438').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
