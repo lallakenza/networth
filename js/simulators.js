@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=445';
-import { IMMO_CONSTANTS } from './data.js?v=445';
+import { fmt, fmtAxis } from './render.js?v=446';
+import { IMMO_CONSTANTS } from './data.js?v=446';
 
 const IC = IMMO_CONSTANTS;
 let simCharts = {};
@@ -1075,7 +1075,16 @@ function runOpportunityCostSim() {
 }
 
 // ============ INIT SIMULATORS ============
+let _simLastState = null;   // v446 — retenu pour la reconstruction paresseuse (repli fermé au 1er rendu)
+
 export function initSimulators(state) {
+  _simLastState = state;
+  // v446 — un chart construit dans le repli fermé (display:none) a une largeur 0
+  // irrécupérable (même cas que aptExitProjectionChart, v433) : le repli le
+  // reconstruit à la première ouverture via ce hook.
+  window._rebuildCoupleSim = function () {
+    try { if (_simLastState) runCoupleSimulator(_simLastState); } catch (e) { /* non-bloquant */ }
+  };
   runCoupleSimulator(state);
   runAmineSimulator(state);
   runNezhaSimulator(state);
