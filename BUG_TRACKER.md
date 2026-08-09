@@ -1999,3 +1999,60 @@ l'audit) contre les 4 bases du référentiel Notion « Patrimoine — Control To
 Les KPIs purement runtime (prix live, FX du jour, deltas de snapshots) ne sont
 pas comparables à Notion par construction — Notion n'en garde pas. Leur cohérence
 interne est couverte par les invariants engine et les contrôles v405/v413.
+
+---
+
+## Audit justesse pages immobilier (v440-v441, 9 août 2026)
+
+Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne source, avec le bon
+état du monde ? » — déclenché par 4 anomalies relevées par Amine sur la fiche Villejuif.
+
+### BUG-085 — Clause SADEV jamais appliquée aux projections annuelles (String(Date) non ISO)
+- **Version** : introduit v427, corrigé v441. **Sévérité : HAUTE** (silencieux, faussait un montant de décision).
+- **Détection** : vérification prod v440 — la tranche « Restitution SADEV » restait absente du graphique de sortie.
+- **Symptôme** : avant mi-2033, le montant restituable à l'aménageur était compté dans « Net (ce que tu gardes) ».
+- **Cause racine** : `computeExitCostsAtYear` passe `targetDate` en objet `Date` ; `computeExitCosts`
+  comparait `String(targetDate).slice(0,7)` (= « Mon Jun… ») à `'2033-06'` — lexicographiquement
+  toujours supérieur → `clauseSADEVActive = false` sur toutes les années projetées.
+- **Fix** : normalisation `'YYYY-MM'` quand `targetDate instanceof Date` (engine.js ~2533).
+- **Régression** : graphe sortie Villejuif → tranche violette > 0 pour 2027-2032, = 0 dès 2033 ;
+  tableau annuel colonne « Restit. SADEV » renseignée avant 2033, « — » après.
+
+### BUG-086 — Projection de sortie VEFA basée sur le coût engagé, pas sur un prix de vente
+- **Version** : corrigé v440. **Sévérité : HAUTE**.
+- **Symptôme** : « prix de vente estimé » 2041 ≈ 200 K€ < montant d'opération (336 K€) ; Net écrasé
+  à 0, barres réduites au CRD décroissant.
+- **Cause racine** : pour un bien `underConstruction`, `prop.value` est la valorisation HYBRIDE
+  (appels payés + PV reconnue ≈ 141 K€) — un COÛT ENGAGÉ, pas un prix de cession. Le graphique et
+  le tableau l'appréciaient comme s'il s'agissait de la valeur du bien, contre un CRD de prêt PLEIN.
+- **Fix** : base de projection = `prop.deliveredValue` (valeur marché livrée, 415 K€), déjà exposée
+  par l'engine v357 précisément pour cet usage. Légende du tableau explicite (« valeur livrée estimée »).
+
+### BUG-087 — `computeExitCostsSim` : doublon local de render.js ignorant IRA et clause SADEV
+- **Version** : corrigé v440. **Sévérité : MOYENNE** (règle d'or n°1 : ne jamais dupliquer un calcul).
+- **Symptôme** : le tableau « frais de sortie par année » divergeait du graphique (pas d'IRA, pas de
+  SADEV) et estimait le CRD LINÉAIREMENT (ignorait franchise et paliers → CRD Villejuif faux de ~40 K€).
+- **Fix** : suppression du doublon ; le tableau passe par `computeExitCostsAtYear` (engine) et lit le
+  CRD dans `iv.amortSchedules[loanKey].schedule`. Colonnes CRD et Restit. SADEV ajoutées.
+
+### BUG-088 — Timeline VEFA « en attente de déblocage » alors que le prêt est tiré depuis l'acte
+- **Version** : corrigé v440 (données + affichage). **Sévérité : MOYENNE** (état du monde périmé).
+- **Cause racine** : 3 sources figées sur l'état pré-acte : `vefa.franchiseStart` absent de Supabase,
+  le mapping `applyImmoRef` écrasait `startDate` à `null` EN DUR, et les prêts LCL restaient ancrés
+  sur l'hypothèse de l'offre (`2025-08`, jamais tirée). Or la franchise contractuelle court depuis le
+  1ER déblocage (acte 05/06/2026, ~93 K€) — binaire `loanDisbursed` insuffisant pour un VEFA à tranches.
+- **Fix** : Supabase (`vefa.franchiseStart='2026-06'`, `start_date` des 2 prêts, `loan_end_year=2053`),
+  api.js (mapping `franchiseStart`), data.js en phase. Nouvel état d'affichage « débloqué par
+  tranches » (montant tiré / % du prêt), intercalaires CAPITALISÉS (l'ancien texte disait « payés »).
+- **Effets en cascade recalés** : fin de franchise 2028-08 → 2029-06 (1re mensualité), fin de prêts
+  2052 → août 2053, trajectoire de désendettement et CRD projetés décalés d'~10 mois.
+
+### Corrections mineures du même audit (v440)
+- 5 concaténations de floats moteur sans arrondi (CF brut « −259.56999… € » fiche + panneau,
+  insight CF, carte prop-kpi, Total revenus ×2).
+- Dispositif Jeanbrun retiré partout (non retenu : plafond 1 215 € vs 1 700 € marché) : section
+  fiche, `computeVillejuifRegimeComparison`, `VILLEJUIF_REGIMES`, commentaires.
+- Timeline Villejuif : fin franchise/fin de prêts recalées, mentions Jeanbrun purgées.
+- Question ouverte (à trancher sur relevé bancaire) : l'assurance ACM (51 €/mois) est-elle
+  réellement prélevée pendant la franchise ? L'offre dit « débute à la première échéance » mais le
+  budget la compte payée. Sans impact NW (Villejuif conditional exclu des flux).
