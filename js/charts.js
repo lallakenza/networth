@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=435';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=435';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=435';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=435';
-import { loadSnapshots } from './api.js?v=435'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=435'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=436';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=436';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=436';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=436';
+import { loadSnapshots } from './api.js?v=436'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=436'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3657,6 +3657,44 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   }
   function esppSharesAtDateNezha(date) {
     return nezhaLots.filter(lot => lot.date <= date).reduce((sum, lot) => sum + lot.shares, 0);
+  }
+
+  // ── v436 : détection automatique des splits / regroupements d'actions ──
+  // Un regroupement (Worldline ~1:10) fait diverger le journal de trades (unités
+  // d'AVANT) de la série Yahoo (ajustée RÉTROACTIVEMENT) : shares × close ajusté
+  // valorisait la position ×10 pendant la détention, puis la vente au prix du
+  // journal cristallisait une perte fictive (−46 150 € affichés pour Worldline).
+  // Principe : pour chaque buy/sell, comparer le prix du journal au close ajusté du
+  // MÊME jour. Un ratio proche d'un facteur entier (2…100, ou son inverse) signe un
+  // split — on normalise l'événement (qty ÷ f, prix × f) vers la base de la série.
+  // La valeur de l'événement est préservée (cost/proceeds inchangés), et chaque
+  // événement est corrigé individuellement : les trades postérieurs au split ont un
+  // ratio ≈ 1 et ne bougent pas, quelle que soit la date du regroupement.
+  // Tolérance 25 % : le plus petit facteur étant 2, un écart close-vs-exécution
+  // normal (< 10 %) ne peut jamais déclencher de faux positif.
+  {
+    const SPLIT_FACTORS = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 50, 100];
+    const _splitAjuste = {};
+    for (const e of allEvents) {
+      if (e.eventType !== 'buy' && e.eventType !== 'sell') continue;
+      if (!(e.price > 0) || !(e.qty > 0)) continue;
+      const close = getClose(e.ticker, e.date, true);
+      if (close == null || !(close > 0)) continue;
+      const r = close / e.price;
+      let f = 1;
+      for (const cand of SPLIT_FACTORS) {
+        if (Math.abs(r - cand) / cand < 0.25) { f = cand; break; }          // regroupement
+        if (Math.abs(r - 1 / cand) * cand < 0.25) { f = 1 / cand; break; }  // split
+      }
+      if (f !== 1) {
+        e.qty = e.qty / f;
+        e.price = e.price * f;
+        _splitAjuste[e.ticker] = (_splitAjuste[e.ticker] || 0) + 1;
+      }
+    }
+    if (Object.keys(_splitAjuste).length) {
+      console.log('[v436] splits/regroupements détectés et normalisés (événements ajustés par ticker) :', _splitAjuste);
+    }
   }
 
   // ── Snapshot storage for per-period breakdown computation ──
