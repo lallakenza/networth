@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=444';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=444';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=445';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=445';
 
 // ---- Generic table sort utility ----
 /**
@@ -1359,6 +1359,30 @@ export function applySnapshotDeltas(s) {
     };
     remplirCroissance('ckpD30', 30);
     remplirCroissance('ckpD365', 365);
+
+    // v445 (P8) — chips MTD / YTD de la carte NW majeure. Référence = dernier relevé
+    // totalisé AVANT le début de période ; fallback « depuis le JJ/MM » (début du
+    // suivi live) tant que l'historique ne couvre pas la période — converge seul.
+    const remplirPeriode = (id, avantDate, prefixe) => {
+      const dst2 = document.getElementById(id);
+      if (!dst2) return;
+      let ref = [...cache].reverse().find(r => r.date < avantDate && r.data && r.data.total && r.data.total.couple != null);
+      let debutSuivi = false;
+      if (!ref) {
+        ref = cache.find(r => r.data && r.data.total && r.data.total.couple != null);
+        debutSuivi = true;
+      }
+      if (!ref || ref.date >= todayParis) { dst2.textContent = prefixe + ' —'; return; }
+      const d2 = s.couple.nw - ref.data.total.couple;
+      const pct2 = d2 / Math.abs(ref.data.total.couple) * 100;
+      const coul2 = d2 >= 0 ? '#16a34a' : '#dc2626';
+      const s2 = d2 >= 0 ? '+' : '';
+      dst2.innerHTML = prefixe + ' <span style="color:' + coul2 + ';font-weight:600;">' + s2 + fmt(d2)
+        + ' (' + s2 + pct2.toFixed(1) + '%)</span>'
+        + (debutSuivi ? ' <span style="color:#a0aec0;">dep. ' + ref.date.slice(8, 10) + '/' + ref.date.slice(5, 7) + '</span>' : '');
+    };
+    remplirPeriode('kpiCoupleNWMTD', todayParis.slice(0, 8) + '01', 'MTD');
+    remplirPeriode('kpiCoupleNWYTD', todayParis.slice(0, 4) + '-01-01', 'YTD');
   } catch (e) { /* non-bloquant */ }
 }
 
@@ -7364,7 +7388,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=444').then(m => {
+  import('./charts.js?v=445').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

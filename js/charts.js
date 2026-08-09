@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=444';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=444';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=444';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=444';
-import { loadSnapshots } from './api.js?v=444'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=444'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=445';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=445';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=445';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=445';
+import { loadSnapshots } from './api.js?v=445'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=445'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -75,7 +75,7 @@ export function rebuildAllCharts(state, view) {
   view = view || 'couple';
 
   if (PERSON_VIEWS.includes(view)) {
-    buildCoupleDrillDown(state);
+    if (!buildCoupleAllocEvolution()) buildCoupleDrillDown(state);   // v445 (P3)
     buildAmineDonut(state);
     buildNezhaDonut(state);
     buildGeoChart(state);
@@ -144,6 +144,51 @@ export function rebuildAllCharts(state, view) {
  *   - Stores chart in charts.coupleAlloc for later destruction
  *   - Updates global coupleSelectedCat to remember selected category
  */
+// v445 (P3) — évolution de l'allocation depuis les snapshots quotidiens (aires
+// empilées Actions/Cash/Immo/Autres). Remplace le donut statique quand l'historique
+// live existe : la dimension TEMPS (dérive d'allocation) n'était montrée nulle part,
+// alors que la répartition instantanée l'était quatre fois. Le drill-down de
+// navigation vit déjà dans les cartes « Patrimoine par Catégorie ». Fallback donut
+// si moins de 2 relevés totalisés (cache absent, 1re visite hors-ligne).
+function buildCoupleAllocEvolution() {
+  const el = document.getElementById('coupleAllocChart');
+  if (!el) return false;
+  const rows = (window._nwSnapCache || []).filter(r => r.data && r.data.views && r.data.views.couple && r.data.views.couple.stocks != null);
+  if (rows.length < 2) return false;
+  if (charts.coupleAlloc) { charts.coupleAlloc.destroy(); delete charts.coupleAlloc; }
+  const titleEl = document.getElementById('coupleChartTitle');
+  if (titleEl) titleEl.textContent = 'Évolution de l\u2019allocation — suivi quotidien';
+  const backBtn = document.getElementById('coupleChartBack');
+  if (backBtn) backBtn.style.display = 'none';
+  const hintEl = document.getElementById('coupleChartHint');
+  if (hintEl) hintEl.textContent = 'Aires empilées — chaque relevé quotidien depuis le ' + rows[0].date.split('-').reverse().join('/');
+  const labels = rows.map(r => r.date.slice(8, 10) + '/' + r.date.slice(5, 7));
+  const serie = (k) => rows.map(r => r.data.views.couple[k] || 0);
+  const ds = [
+    { label: 'Actions', data: serie('stocks'), backgroundColor: 'rgba(44,82,130,0.70)', borderColor: '#2c5282' },
+    { label: 'Cash', data: serie('cash'), backgroundColor: 'rgba(56,161,105,0.60)', borderColor: '#38a169' },
+    { label: 'Immobilier', data: serie('immo'), backgroundColor: 'rgba(214,158,46,0.60)', borderColor: '#d69e2e' },
+    { label: 'Autres', data: serie('other'), backgroundColor: 'rgba(159,122,234,0.50)', borderColor: '#9f7aea' },
+  ].map(d => ({ ...d, fill: true, tension: 0.25, pointRadius: 0, borderWidth: 1.5 }));
+  charts.coupleAlloc = new Chart(el, {
+    type: 'line',
+    data: { labels, datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+        tooltip: { mode: 'index', intersect: false, callbacks: {
+          label: c => c.dataset.label + ': ' + fmt(c.parsed.y),
+          footer: items => 'Total : ' + fmt(items.reduce((s2, i) => s2 + i.parsed.y, 0)),
+        } },
+      },
+      scales: { y: { stacked: true, ticks: { callback: v => fmtAxis(v) } } },
+    }
+  });
+  return true;
+}
+window.buildCoupleAllocEvolution = buildCoupleAllocEvolution;   // rappel post-chargement snapshots
+
 export function buildCoupleDrillDown(state, clickedIdx) {
   _state = state || _state;
   const s = _state;
