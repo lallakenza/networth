@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=447';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=447';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=447';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=447';
-import { loadSnapshots } from './api.js?v=447'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=447'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=448';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=448';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=448';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=448';
+import { loadSnapshots } from './api.js?v=448'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=448'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1236,10 +1236,25 @@ function buildNWHistoryChart() {
   if (!el) return;
   if (charts.nwHistory) { charts.nwHistory.destroy(); delete charts.nwHistory; }
 
-  const rows = (window._nwSnapCache || []).filter(r => r.data && r.data.total && r.data.total.couple != null);
+  // v448 — deux régimes de données : totaux RECONSTITUÉS (somme des composants exacts
+  // par jour, avril → 17 juillet 2026, biais documenté ~1 %) en pointillés, puis totaux
+  // LIVE (capture quotidienne du moteur, depuis le 18/07/2026) en trait plein. La
+  // provenance est stockée ligne à ligne (totalReconstitue.modele/manque, append-only).
+  const cache = window._nwSnapCache || [];
+  const rows = cache
+    .map(r => {
+      const live = r.data && r.data.total && r.data.total.couple != null ? r.data.total : null;
+      const rec = !live && r.data && r.data.totalReconstitue && r.data.totalReconstitue.couple != null ? r.data.totalReconstitue : null;
+      if (live) return { date: r.date, couple: live.couple, amine: live.amine, nezha: live.nezha, live: true };
+      if (rec) return { date: r.date, couple: rec.couple, amine: null, nezha: null, live: false };
+      return null;
+    })
+    .filter(Boolean);
   if (rows.length < 2) return;
 
   const labels = rows.map(r => r.date.slice(8, 10) + '/' + r.date.slice(5, 7));
+  const premierLive = rows.find(r => r.live);
+  const idxLive = premierLive ? rows.indexOf(premierLive) : rows.length;
   const premiere = rows[0].date.split('-').reverse().join('/');
 
   charts.nwHistory = new Chart(el, {
@@ -1247,18 +1262,21 @@ function buildNWHistoryChart() {
     data: {
       labels,
       datasets: [
-        { label: 'Couple', data: rows.map(r => r.data.total.couple), borderColor: '#276749',
-          backgroundColor: 'rgba(39,103,73,0.08)', fill: true, tension: 0.25, borderWidth: 2.5, pointRadius: rows.length > 60 ? 0 : 2 },
-        { label: 'Amine', data: rows.map(r => r.data.total.amine != null ? r.data.total.amine : null), borderColor: '#3182ce',
-          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3] },
-        { label: 'Nezha', data: rows.map(r => r.data.total.nezha != null ? r.data.total.nezha : null), borderColor: '#d69e2e',
-          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3] },
+        { label: 'Couple', data: rows.map(r => r.couple), borderColor: '#276749',
+          backgroundColor: 'rgba(39,103,73,0.08)', fill: true, tension: 0.25, borderWidth: 2.5,
+          pointRadius: rows.length > 60 ? 0 : 2,
+          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
+        { label: 'Amine (live)', data: rows.map(r => r.amine), borderColor: '#3182ce',
+          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3], spanGaps: false },
+        { label: 'Nezha (live)', data: rows.map(r => r.nezha), borderColor: '#d69e2e',
+          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3], spanGaps: false },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Suivi quotidien du Net Worth — depuis le ' + premiere + ' (' + rows.length + ' relevés)', font: { size: 13 } },
+        title: { display: true, text: 'Net Worth quotidien — reconstitué (pointillés) depuis le ' + premiere
+          + (premierLive ? ', live depuis le ' + premierLive.date.split('-').reverse().join('/') : '') + ' (' + rows.length + ' relevés)', font: { size: 13 } },
         legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
         tooltip: {
           mode: 'index', intersect: false,
@@ -1273,6 +1291,11 @@ function buildNWHistoryChart() {
                 pctChange = ' (' + (val > prev ? '+' : '') + pct + '% vs relevé précédent)';
               }
               return c.dataset.label + ': ' + fmt(val) + pctChange;
+            },
+            afterBody: items => {
+              const idx = items[0] && items[0].dataIndex;
+              return idx != null && idx < idxLive
+                ? ['Total reconstitué (somme des composants exacts — biais ~1 %, provenance en base)'] : [];
             },
           }
         }
