@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=449';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=449';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=449';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=449';
-import { loadSnapshots } from './api.js?v=449'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=449'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=450';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=450';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=450';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=450';
+import { loadSnapshots } from './api.js?v=450'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=450'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1255,7 +1255,7 @@ function buildNWHistoryChart() {
     .filter(Boolean);
   if (rows.length < 2) return;
 
-  const labels = rows.map(r => r.date.slice(8, 10) + '/' + r.date.slice(5, 7));
+  const labels = rows.map(r => r.date);   // v450 — ISO, formaté par les callbacks (plusieurs années au même axe)
   const premierLive = rows.find(r => r.live);
   const idxLive = premierLive ? rows.indexOf(premierLive) : rows.length;
   const premiere = rows[0].date.split('-').reverse().join('/');
@@ -1286,6 +1286,10 @@ function buildNWHistoryChart() {
         tooltip: {
           mode: 'index', intersect: false,
           callbacks: {
+            title: items => {
+              const d = items[0] && items[0].label;
+              return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : '';
+            },
             label: c => {
               const val = c.parsed.y;
               if (val == null) return null;
@@ -1305,7 +1309,22 @@ function buildNWHistoryChart() {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => fmtAxis(v) } } }
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: false, maxRotation: 45, minRotation: 45,
+            // v450 — une étiquette par CHANGEMENT DE MOIS : « janv. 2024 » … lisible sur 2,5 ans
+            callback: function (v, i) {
+              const d = labels[i];
+              if (!d) return null;
+              if (i > 0 && labels[i - 1].slice(0, 7) === d.slice(0, 7)) return null;
+              const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+              return mois[parseInt(d.slice(5, 7), 10) - 1] + ' ' + d.slice(0, 4);
+            },
+          },
+        },
+        y: { ticks: { callback: v => fmtAxis(v) } },
+      }
     }
   });
 }
