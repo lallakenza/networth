@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=443';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=443';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=444';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=444';
 
 // ---- Generic table sort utility ----
 /**
@@ -310,6 +310,7 @@ export function render(state, view, currency) {
 
   // v309 — Alertes proactives (affichées uniquement sur vue Couple)
   if (view === 'couple') renderDecisionCockpit(state);
+  if (view === 'couple') renderTopMoversCouple(state);   // v444 (B2/P5)
   if (view === 'couple') renderPerfClasses(state);
   if (view === 'couple') renderAlertsPanel(state);
 
@@ -328,15 +329,14 @@ export function render(state, view, currency) {
     vjNote.style.display = showVjViews.includes(view) ? '' : 'none';
   }
 
-  // Hide NW History chart container if NW_HISTORY is empty
+  // v444 (P2) — la carte « Évolution du Net Worth » est branchée sur les SNAPSHOTS
+  // quotidiens (elle attendait NW_HISTORY, vide depuis v86, donc restait invisible —
+  // LA question n°1 du décideur n'avait aucun graphique sur la page principale).
   const nwHistCanvas = document.getElementById('nwHistoryChart');
   if (nwHistCanvas) {
     const container = nwHistCanvas.closest('.card');
-    if (container && (!state.nwHistory || state.nwHistory.length < 2 || !state.nwHistory.some(h => h.coupleNW))) {
-      container.style.display = 'none';
-    } else if (container) {
-      container.style.display = '';
-    }
+    const snaps = (window._nwSnapCache || []).filter(r => r.data && r.data.total && r.data.total.couple != null);
+    if (container) container.style.display = snaps.length >= 2 ? '' : 'none';
   }
 }
 
@@ -724,48 +724,16 @@ function renderExpandSubs(state, view, options = {}) {
       setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + vjStatusNote);
     }
 
-    // ── Dynamic Résumé Immobilier table ──
-    const immoTbody = document.getElementById('immoSummaryTbody');
-    if (immoTbody) {
-      let html = '';
-      const propMeta = {
-        vitry: { owner: 'Amine', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749' },
-        rueil: { owner: 'Nezha', status: 'Loue', statusBg: '#c6f6d5', statusColor: '#276749', rowBg: 'background:#f0f5ff' },
-        villejuif: vjSigned
-          ? { desc: 'Signe \u2014 livraison 2028', owner: 'Nezha', status: 'Sign\u00e9', statusBg: '#c6f6d5', statusColor: '#276749', descColor: '#276749' }
-          : { desc: 'Conditionnel \u2014 acte non signe', owner: 'Nezha', status: 'Conditionnel', statusBg: '#fef3c7', statusColor: '#92400e', descColor: '#92400e' },
-      };
-      iv.properties.forEach(prop => {
-        const meta = propMeta[prop.loanKey] || {};
-        const rowStyle = meta.rowBg ? ' style="' + meta.rowBg + '"' : '';
-        const descStyle = meta.descColor ? 'color:' + meta.descColor : 'color:var(--gray)';
-        // Build desc dynamically from property data (single source of truth)
-        let dynDesc = meta.desc || '';
-        if (!dynDesc && !prop.conditional) {
-          const surf = prop.propertyMeta?.surface || '';
-          const parts = [];
-          if (surf) parts.push(Math.round(surf) + ' m2');
-          if (prop.loyerHC > 0) parts.push('loyer ' + prop.loyerHC + ' HC');
-          if (prop.chargesLoc > 0) parts.push(prop.chargesLoc + ' charges');
-          if (prop.parking > 0) parts.push(prop.parking + ' parking');
-          dynDesc = parts.join(' \u2014 ');
-        }
-        const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
-        const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
-        const cfStyle = prop.conditional ? 'color:var(--gray)' : '';
-        // Use net equity (after exit costs, floored at 0) instead of brute equity
-        const netEquity = prop.exitCosts ? Math.max(0, prop.exitCosts.netEquityAfterExit) : Math.max(0, prop.equity);
-        html += '<tr' + rowStyle + '>'
-          + '<td><strong>' + prop.name + '</strong><br><span style="font-size:12px;' + descStyle + '">' + dynDesc + '</span></td>'
-          + '<td>' + (meta.owner || prop.owner) + '</td>'
-          + '<td class="num" data-eur="' + Math.round(prop.value) + '">--</td>'
-          + '<td class="num" data-eur="' + Math.round(prop.crd) + '">--</td>'
-          + '<td class="num pos" data-eur="' + Math.round(netEquity) + '" title="après frais de sortie">--</td>'
-          + '<td class="num ' + cfClass + '"' + (cfStyle ? ' style="' + cfStyle + '"' : '') + '>' + cfText + '</td>'
-          + '<td><span style="background:' + (meta.statusBg || '#e2e8f0') + ';padding:2px 8px;border-radius:10px;font-size:12px;color:' + (meta.statusColor || '#2d3748') + '">' + (meta.status || '') + '</span></td>'
-          + '</tr>';
-      });
-      immoTbody.innerHTML = html;
+    // v444 (P7) — le tableau par bien du résumé couple faisait doublon avec la page
+    // Immobilier retravaillée (v438-v439) : remplacé par la prochaine échéance + lien.
+    const echEl = document.getElementById('immoNextEcheanceCouple');
+    if (echEl) {
+      try {
+        const pe = _prochainesEcheancesImmo();
+        echEl.innerHTML = pe.length
+          ? '<strong>Prochaine échéance :</strong> ' + pe[0].d.split('-').reverse().join('/') + ' — ' + pe[0].l
+          : '';
+      } catch (e) { echEl.innerHTML = ''; }
     }
 
     // ── Dynamic insight texts ──
@@ -1365,18 +1333,29 @@ export function applySnapshotDeltas(s) {
         r.date <= cible && r.data && r.data.total && r.data.total.couple != null);
       const dst = document.getElementById(id);
       if (!dst) return;
-      if (!ligne) {
+      // v444 (B1) — le NW total n'existe dans les snapshots que depuis le début du suivi
+      // live (18/07/2026) : les cibles 30 j / 1 an ne trouvaient AUCUNE ligne (le backfill
+      // historique est par-compte, sans total). Fallback : la plus ANCIENNE ligne totalisée,
+      // étiquetée honnêtement — la tuile convergera d'elle-même vers sa vraie période.
+      let refLigne = ligne;
+      if (!refLigne) {
+        refLigne = cache.find(r => r.data && r.data.total && r.data.total.couple != null);
+        if (refLigne && refLigne.date >= todayParis) refLigne = null;
+      }
+      if (!refLigne) {
         dst.innerHTML = '<span style="font-size:13px;color:#a0aec0;">historique insuffisant</span>';
         return;
       }
-      const d = s.couple.nw - ligne.data.total.couple;
-      const pct = d / Math.abs(ligne.data.total.couple) * 100;
+      const ligneRef = refLigne;
+      const d = s.couple.nw - ligneRef.data.total.couple;
+      const pct = d / Math.abs(ligneRef.data.total.couple) * 100;
       const couleur = d >= 0 ? '#16a34a' : '#dc2626';
       const signe = d >= 0 ? '+' : '';
       dst.innerHTML = '<span style="color:' + couleur + ';">' + signe + fmt(d) + '</span>'
         + ' <span style="font-size:13px;color:' + couleur + ';">(' + signe + pct.toFixed(1) + '%)</span>';
       const ctx = dst.nextElementSibling;
-      if (ctx) ctx.textContent = 'depuis le ' + ligne.date.slice(8, 10) + '/' + ligne.date.slice(5, 7) + '/' + ligne.date.slice(0, 4);
+      if (ctx) ctx.textContent = 'depuis le ' + ligneRef.date.slice(8, 10) + '/' + ligneRef.date.slice(5, 7) + '/' + ligneRef.date.slice(0, 4)
+        + (ligne ? '' : ' — début du suivi live');
     };
     remplirCroissance('ckpD30', 30);
     remplirCroissance('ckpD365', 365);
@@ -4075,22 +4054,7 @@ function renderImmoView(state) {
   // ── v438 (P1) : prochaine échéance tous biens confondus, depuis les contraintes
   // datées — la donnée de pilotage qui n'était agrégée nulle part. ──
   try {
-    const cands = [];
-    ((VITRY_CONSTRAINTS && VITRY_CONSTRAINTS.constraints) || []).forEach(c => {
-      if (c.dateFin) cands.push({ d: c.dateFin, l: 'Vitry — ' + (c.dispositif || 'obligation') });
-    });
-    ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.constraints) || []).forEach(c => {
-      if (c.dateFin) cands.push({ d: c.dateFin, l: 'Villejuif — fin clause SADEV 94' });
-    });
-    const vjl = (IMMO_CONSTANTS.loans.villejuifLoans || [])[0];
-    if (vjl && vjl.startDate && vjl.periods && vjl.periods[0]) {
-      const [y, m] = vjl.startDate.split('-').map(Number);
-      const tot = y * 12 + (m - 1) + vjl.periods[0].months;
-      cands.push({ d: Math.floor(tot / 12) + '-' + String((tot % 12) + 1).padStart(2, '0'),
-                   l: 'Villejuif — fin de franchise, mensualités démarrent' });
-    }
-    const auj = new Date().toISOString().slice(0, 7);
-    const prochaines = cands.filter(c => c.d > auj).sort((a, b) => a.d.localeCompare(b.d));
+    const prochaines = _prochainesEcheancesImmo();   // v444 — factorisé (aussi utilisé page principale)
     if (prochaines.length) {
       const p0 = prochaines[0];
       setText('kpiImmoViewEcheance', p0.d.split('-').reverse().join('/'));
@@ -7400,7 +7364,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=443').then(m => {
+  import('./charts.js?v=444').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7612,6 +7576,27 @@ function renderImmoFinComparisonTable(result) {
  * tuiles rendent un placeholder, applySnapshotDeltas les remplit quand le cache arrive
  * — même mécanique que les chips « vs hier » des cartes KPI.
  */
+// v444 (P7) — prochaines échéances immo tous biens confondus, factorisé depuis
+// renderImmoView (v438 P1) pour servir aussi le résumé de la page principale.
+function _prochainesEcheancesImmo() {
+  const cands = [];
+  ((VITRY_CONSTRAINTS && VITRY_CONSTRAINTS.constraints) || []).forEach(c => {
+    if (c.dateFin) cands.push({ d: c.dateFin, l: 'Vitry — ' + (c.dispositif || 'obligation') });
+  });
+  ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.constraints) || []).forEach(c => {
+    if (c.dateFin) cands.push({ d: c.dateFin, l: 'Villejuif — fin clause SADEV 94' });
+  });
+  const vjl = (IMMO_CONSTANTS.loans.villejuifLoans || [])[0];
+  if (vjl && vjl.startDate && vjl.periods && vjl.periods[0]) {
+    const [y, m] = vjl.startDate.split('-').map(Number);
+    const tot = y * 12 + (m - 1) + vjl.periods[0].months;
+    cands.push({ d: Math.floor(tot / 12) + '-' + String((tot % 12) + 1).padStart(2, '0'),
+                 l: 'Villejuif — fin de franchise, mensualités démarrent' });
+  }
+  const auj = new Date().toISOString().slice(0, 7);
+  return cands.filter(c => c.d > auj).sort((a, b) => a.d.localeCompare(b.d));
+}
+
 function renderDecisionCockpit(state) {
   const el = document.getElementById('decisionCockpit');
   if (!el) return;
@@ -7650,6 +7635,11 @@ function renderDecisionCockpit(state) {
     equiteImmo != null ? 'équité nette ' + fmt(equiteImmo) + ' sur 3 biens' : '3 biens');
   html += '</div>';
   el.innerHTML = html;
+  // v444 (B1) — se remplir soi-même : les passes de re-render tardives (prix live,
+  // overlay immo) recréaient les tuiles « chargement… » APRÈS le dernier
+  // applySnapshotDeltas, qui ne revenait jamais. Le cockpit se remplit désormais
+  // à chaque rendu dès que le cache snapshots est là.
+  try { if (window._nwSnapCache) applySnapshotDeltas(state); } catch (e) { /* non-bloquant */ }
 }
 
 /**
@@ -7667,6 +7657,32 @@ function renderDecisionCockpit(state) {
  *   - totalWealthBreakdown est MENSUEL : etiquete /mois, annualise x12 seulement
  *     pour les taux (CoC, ROE).
  */
+// v444 (B2/P5) — top movers du jour sur la page principale. Le bandeau existait
+// mais ne vivait que sur la vue Actions (hauteur 0 ailleurs). Version compacte :
+// une ligne de chips, mêmes données moteur (dailyPL depuis previousClose ; refs
+// périmées => bande vide plutôt que mensonge, même règle que la vue Actions).
+function renderTopMoversCouple(state) {
+  const el = document.getElementById('topMoversCouple');
+  if (!el) return;
+  const av = state.actionsView;
+  const bouge = ((av && av.ibkrPositions) || []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
+  if (!bouge.length) { el.innerHTML = ''; return; }
+  const top = [...bouge].sort((a, b) => Math.abs(b.dailyPL) - Math.abs(a.dailyPL)).slice(0, 5);
+  let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 0;">'
+    + '<span style="font-size:11.5px;color:#718096;">Aujourd\u2019hui :</span>';
+  for (const p of top) {
+    const pos = p.dailyPL >= 0;
+    const coul = pos ? '#16a34a' : '#dc2626';
+    html += '<span style="font-size:12px;padding:3px 10px;border-radius:999px;background:'
+      + (pos ? 'rgba(22,163,74,.07)' : 'rgba(220,38,38,.07)') + ';border:1px solid '
+      + (pos ? 'rgba(22,163,74,.25)' : 'rgba(220,38,38,.25)') + ';color:#1a202c;">'
+      + '<strong>' + p.ticker + '</strong> <span style="color:' + coul + ';font-weight:600;">'
+      + (pos ? '+' : '') + fmt(Math.round(p.dailyPL)) + '</span></span>';
+  }
+  html += '<a href="#actions" style="font-size:11.5px;color:var(--accent,#3182ce);margin-left:4px;">toutes les positions \u2192</a></div>';
+  el.innerHTML = html;
+}
+
 function renderPerfClasses(state) {
   const el = document.getElementById('perfClasses');
   if (!el) return;
@@ -7767,26 +7783,35 @@ function renderAlertsPanel(state) {
   };
 
   // v323 — migré var(--card-bg, white) → var(--surface) (token officiel de la charte).
-  let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--surface);">';
-  html += '<h3 style="margin:0 0 10px 0;font-size:15px;color:var(--text);">Alertes & insights actionnables <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + alerts.length + ')</span></h3>';
-
+  // v444 (P4) — les 3 plus critiques visibles, le reste replié : 8 alertes en pied de
+  // page n'étaient jamais lues ; 3 en tête le seront. L'ordre de sévérité fait le tri.
+  const blocs = [];
   sevOrder.forEach(sev => {
     const items = alerts.filter(a => a.severity === sev);
-    if (items.length === 0) return;
     const meta = sevMeta[sev];
     items.forEach(a => {
-      html += '<div style="display:flex;gap:12px;padding:10px 12px;margin-top:8px;background:' + meta.bg + ';border-left:3px solid ' + meta.border + ';border-radius:6px;align-items:flex-start;">';
-      html += '<div style="flex:1;font-size:13px">';
-      html += '<div style="font-weight:600;color:' + meta.border + ';margin-bottom:2px">' + a.title + '</div>';
-      html += '<div style="color:var(--text-muted);font-size:12px;line-height:1.5">' + a.msg + '</div>';
-      html += '</div>';
+      let b = '<div style="display:flex;gap:12px;padding:10px 12px;margin-top:8px;background:' + meta.bg + ';border-left:3px solid ' + meta.border + ';border-radius:6px;align-items:flex-start;">';
+      b += '<div style="flex:1;font-size:13px">';
+      b += '<div style="font-weight:600;color:' + meta.border + ';margin-bottom:2px">' + a.title + '</div>';
+      b += '<div style="color:var(--text-muted);font-size:12px;line-height:1.5">' + a.msg + '</div>';
+      b += '</div>';
       if (a.action && a.view) {
-        html += '<button data-alert-view="' + a.view + '" type="button" style="padding:6px 12px;background:' + meta.border + ';color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;">' + a.action + '</button>';
+        b += '<button data-alert-view="' + a.view + '" type="button" style="padding:6px 12px;background:' + meta.border + ';color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;">' + a.action + '</button>';
       }
-      html += '</div>';
+      b += '</div>';
+      blocs.push(b);
     });
   });
 
+  let html = '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--surface);">';
+  html += '<h3 style="margin:0 0 10px 0;font-size:15px;color:var(--text);">Synthèse & actions <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + alerts.length + ' alertes)</span></h3>';
+  html += blocs.slice(0, 3).join('');
+  if (blocs.length > 3) {
+    html += '<button type="button" onclick="var d=document.getElementById(\'alertsReste\');var o=d.style.display===\'none\';d.style.display=o?\'block\':\'none\';this.textContent=o?\'masquer les autres alertes \u25B2\':\'+ ' + (blocs.length - 3) + ' autres alertes \u25BC\';"'
+      + ' style="margin-top:10px;padding:7px 14px;background:#f7fafc;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;color:#4a5568;">+ '
+      + (blocs.length - 3) + ' autres alertes \u25BC</button>';
+    html += '<div id="alertsReste" style="display:none;">' + blocs.slice(3).join('') + '</div>';
+  }
   html += '</div>';
   el.innerHTML = html;
 
