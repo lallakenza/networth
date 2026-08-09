@@ -4935,6 +4935,26 @@ mensuel (loyers → copro → TF+PNO → assurances → prêts → CF net). P10 
 page consolidée, Synthèse prêts rétrogradée en repli, projection équité fusionnée dans
 Richesse. Audit KPIs site vs Notion : 38/40 alignés, 2 corrections côté Notion (BUG-083/084).
 
+### v440–v441 — Audit justesse immobilier : VEFA débloqué, projection de sortie, SADEV (9 août 2026)
+
+Audit « bonne source, bon état du monde » sur les 4 pages immobilier (BUG-085 → BUG-088).
+**v440** : (1) sélecteur d'année sur Structure du capital (équité/CRD projetés par bien —
+CRD du tableau d'amortissement réel, valeur appréciée ; un VEFA bascule en valeur LIVRÉE +
+CRD plein pour toute année future) ; (2) la franchise Villejuif court depuis le 1er déblocage
+(acte 05/06/2026, ~93 K€ tirés) : Supabase `vefa.franchiseStart` + `start_date` des prêts LCL
+2025-08→2026-06 + `loan_end_year` 2053, mapping api.js (écrasait `startDate` à null en dur),
+data.js en phase — 1re mensualité juin 2029, timeline « débloqué par tranches » avec montant
+tiré/% ; (3) projection de sortie basée sur `deliveredValue` (415 K€) et non `prop.value`
+(coût engagé VEFA 141 K€ → prix 2041 ~200 K€ absurde) ; (4) suppression du doublon
+`computeExitCostsSim` (render) qui ignorait IRA/SADEV et estimait le CRD linéairement — le
+tableau passe par `computeExitCostsAtYear` + schedule réel ; (5) dispositif Jeanbrun retiré
+(section fiche, `computeVillejuifRegimeComparison`, `VILLEJUIF_REGIMES`) ; (6) 5 floats
+non arrondis (CF brut −259.56999…€), échéancier 2052→2053, wording périmé.
+**v441** : la clause SADEV ne s'appliquait JAMAIS aux projections annuelles depuis v427 —
+`String(Date)` n'est pas ISO, donc `moisVente < '2033-06'` toujours faux ; normalisation
+'YYYY-MM'. Nouvelle tranche « Restitution SADEV » dans le graphe de sortie (sans elle, le
+montant restituable était compté comme net encaissé avant mi-2033).
+
 ## §77 — v340-342 : Audit frontend (npx skills) + 3 sprints de correctifs (30 mai 2026)
 
 **Contexte** : audit complet du dashboard via deux skills installés avec `npx skills` (`impeccable` — audit a11y/perf/theming/responsive/anti-patterns, et `microsoft/frontend-design-review`), combiné à 4 agents parallèles auditant le code métier (engine, charts, render+app, data+simulators, ~28k lignes) et un calcul réel des ratios de contraste WCAG. Résultat : **0 bug de Net Worth** (les invariants tiennent), mais ~14 défauts d'affichage et d'accessibilité. Corrigés en 3 sprints (un déploiement chacun). Détail bug-par-bug dans `BUG_TRACKER.md` (BUG-064 → BUG-074).
