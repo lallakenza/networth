@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=450';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=450';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=450';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=450';
-import { loadSnapshots } from './api.js?v=450'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=450'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=451';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=451';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=451';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=451';
+import { loadSnapshots } from './api.js?v=451'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=451'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1231,20 +1231,18 @@ function _drawSerieExplorer(rows, all, labels) {
 // version lisait state.nwHistory (NW_HISTORY, vide depuis v86) et la carte restait
 // invisible. Le NW total n'existe que depuis le début du suivi live (18/07/2026) —
 // la courbe s'allonge d'elle-même chaque jour. JAMAIS seedé depuis EQUITY_HISTORY.
+let _nwHistPeriode = 'MAX';   // v451 — période sélectionnée (pills)
+
 function buildNWHistoryChart() {
   const el = document.getElementById('nwHistoryChart');
   if (!el) return;
   if (charts.nwHistory) { charts.nwHistory.destroy(); delete charts.nwHistory; }
 
-  // v448 — deux régimes de données : totaux RECONSTITUÉS (somme des composants exacts
-  // par jour, avril → 17 juillet 2026, biais documenté ~1 %) en pointillés, puis totaux
-  // LIVE (capture quotidienne du moteur, depuis le 18/07/2026) en trait plein. La
-  // provenance est stockée ligne à ligne (totalReconstitue.modele/manque, append-only).
+  // v449 — reconstitué PAR PERSONNE ; v451 — axe TEMPOREL homogène (x = jours réels,
+  // échelle linéaire : une semaine de 2024 occupe 7x la largeur d'un jour, plus la
+  // même) + sélecteur de période. Pointillés = reconstitué, plein = live.
   const cache = window._nwSnapCache || [];
-  // v449 — reconstitué PAR PERSONNE : Amine remonte au 01/01/2024 (Degiro reconstruit
-  // depuis les trades, validé ±1,5 % sur les rapports annuels), Nezha + Couple depuis
-  // mi-mars 2026 (apparition de ses comptes dans le suivi exact).
-  const rows = cache
+  const tous = cache
     .map(r => {
       const live = r.data && r.data.total && r.data.total.couple != null ? r.data.total : null;
       const rec = !live && r.data && r.data.totalReconstitue && r.data.totalReconstitue.amine != null ? r.data.totalReconstitue : null;
@@ -1253,79 +1251,121 @@ function buildNWHistoryChart() {
       return null;
     })
     .filter(Boolean);
+  if (tous.length < 2) return;
+
+  // ── coupure de période ──
+  const auj = new Date();
+  const coupures = {
+    '1M': () => { const d = new Date(auj); d.setMonth(d.getMonth() - 1); return d; },
+    '3M': () => { const d = new Date(auj); d.setMonth(d.getMonth() - 3); return d; },
+    '6M': () => { const d = new Date(auj); d.setMonth(d.getMonth() - 6); return d; },
+    'YTD': () => new Date(auj.getFullYear(), 0, 1),
+    '1A': () => { const d = new Date(auj); d.setFullYear(d.getFullYear() - 1); return d; },
+    '2A': () => { const d = new Date(auj); d.setFullYear(d.getFullYear() - 2); return d; },
+    'MAX': () => null,
+  };
+  const coupe = (coupures[_nwHistPeriode] || coupures.MAX)();
+  const rows = coupe ? tous.filter(r => new Date(r.date + 'T00:00:00') >= coupe) : tous;
   if (rows.length < 2) return;
 
-  const labels = rows.map(r => r.date);   // v450 — ISO, formaté par les callbacks (plusieurs années au même axe)
-  const premierLive = rows.find(r => r.live);
-  const idxLive = premierLive ? rows.indexOf(premierLive) : rows.length;
+  const jour = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / 864e5);
+  const isoDe = (j) => new Date(j * 864e5).toISOString().slice(0, 10);
+  const serie = (cle) => rows.filter(r => r[cle] != null).map(r => ({ x: jour(r.date), y: r[cle], live: r.live }));
+  const dash = { borderDash: ctx => (ctx.p1 && ctx.p1.raw && ctx.p1.raw.live === false ? [5, 4] : undefined) };
+  const sCouple = serie('couple'), sAmine = serie('amine'), sNezha = serie('nezha');
   const premiere = rows[0].date.split('-').reverse().join('/');
+  const premierLive = rows.find(r => r.live);
+
+  const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const etendueJours = jour(rows[rows.length - 1].date) - jour(rows[0].date);
+  const fmtTick = (j) => {
+    const iso = isoDe(j);
+    return etendueJours <= 95
+      ? iso.slice(8, 10) + '/' + iso.slice(5, 7)
+      : MOIS[parseInt(iso.slice(5, 7), 10) - 1] + ' ' + iso.slice(0, 4);
+  };
 
   charts.nwHistory = new Chart(el, {
     type: 'line',
     data: {
-      labels,
       datasets: [
-        { label: 'Couple', data: rows.map(r => r.couple), borderColor: '#276749',
-          backgroundColor: 'rgba(39,103,73,0.08)', fill: true, tension: 0.25, borderWidth: 2.5,
-          pointRadius: rows.length > 60 ? 0 : 2,
-          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
-        { label: 'Amine', data: rows.map(r => r.amine), borderColor: '#3182ce',
-          fill: false, tension: 0.25, borderWidth: 1.8, pointRadius: 0, spanGaps: false,
-          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
-        { label: 'Nezha', data: rows.map(r => r.nezha), borderColor: '#d69e2e',
-          fill: false, tension: 0.25, borderWidth: 1.8, pointRadius: 0, spanGaps: false,
-          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
+        { label: 'Couple', data: sCouple, borderColor: '#276749', backgroundColor: 'rgba(39,103,73,0.08)',
+          fill: true, tension: 0.25, borderWidth: 2.5, pointRadius: 0, segment: dash },
+        { label: 'Amine', data: sAmine, borderColor: '#3182ce', fill: false, tension: 0.25,
+          borderWidth: 1.8, pointRadius: 0, segment: dash },
+        { label: 'Nezha', data: sNezha, borderColor: '#d69e2e', fill: false, tension: 0.25,
+          borderWidth: 1.8, pointRadius: 0, segment: dash },
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, parsing: false, normalized: true,
       plugins: {
-        title: { display: true, text: 'Net Worth quotidien — Amine reconstitué (pointillés) depuis le ' + premiere
-          + (premierLive ? ', live depuis le ' + premierLive.date.split('-').reverse().join('/') : '') + ' (' + rows.length + ' relevés)', font: { size: 13 } },
+        title: { display: true, text: 'Net Worth quotidien — reconstitué en pointillés (Amine depuis le ' + premiere + ')'
+          + (premierLive ? ' · live depuis le ' + premierLive.date.split('-').reverse().join('/') : '') + ' · ' + rows.length + ' relevés', font: { size: 13 } },
         legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
         tooltip: {
-          mode: 'index', intersect: false,
+          mode: 'nearest', axis: 'x', intersect: false,
           callbacks: {
             title: items => {
-              const d = items[0] && items[0].label;
-              return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : '';
+              const j = items[0] && items[0].raw && items[0].raw.x;
+              if (j == null) return '';
+              const iso = isoDe(j);
+              return iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
             },
-            label: c => {
-              const val = c.parsed.y;
-              if (val == null) return null;
-              const prev = c.dataIndex > 0 ? c.dataset.data[c.dataIndex - 1] : null;
-              let pctChange = '';
-              if (prev && prev > 0) {
-                const pct = ((val - prev) / prev * 100).toFixed(2);
-                pctChange = ' (' + (val > prev ? '+' : '') + pct + '% vs relevé précédent)';
-              }
-              return c.dataset.label + ': ' + fmt(val) + pctChange;
-            },
-            afterBody: items => {
-              const idx = items[0] && items[0].dataIndex;
-              return idx != null && idx < idxLive
-                ? ['Total reconstitué (somme des composants exacts — biais ~1 %, provenance en base)'] : [];
-            },
+            label: c => c.dataset.label + ': ' + fmt(c.raw.y) + (c.raw.live === false ? ' (reconstitué)' : ''),
           }
         }
       },
       scales: {
         x: {
-          ticks: {
-            autoSkip: false, maxRotation: 45, minRotation: 45,
-            // v450 — une étiquette par CHANGEMENT DE MOIS : « janv. 2024 » … lisible sur 2,5 ans
-            callback: function (v, i) {
-              const d = labels[i];
-              if (!d) return null;
-              if (i > 0 && labels[i - 1].slice(0, 7) === d.slice(0, 7)) return null;
-              const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-              return mois[parseInt(d.slice(5, 7), 10) - 1] + ' ' + d.slice(0, 4);
-            },
+          type: 'linear',
+          ticks: { maxRotation: 45, minRotation: 45, callback: v => fmtTick(v), autoSkip: true, maxTicksLimit: 26,
+            stepSize: etendueJours <= 95 ? 7 : Math.max(28, Math.round(etendueJours / 24)) },
+          afterBuildTicks: (scale) => {
+            // v451 — ticks aux DÉBUTS DE MOIS (ou lundis si période courte) plutôt que des valeurs arbitraires
+            const debut = scale.min, fin = scale.max;
+            const t = [];
+            if (etendueJours <= 95) {
+              for (let j = debut; j <= fin; j++) { if (new Date(j * 864e5).getUTCDay() === 1) t.push({ value: j }); }
+            } else {
+              const d0 = new Date(debut * 864e5);
+              let y = d0.getUTCFullYear(), m = d0.getUTCMonth();
+              for (;;) {
+                m += 1; if (m > 11) { m = 0; y += 1; }
+                const j = Math.round(Date.UTC(y, m, 1) / 864e5);
+                if (j > fin) break;
+                t.push({ value: j });
+              }
+              // sauter 1 mois sur 2 si trop dense
+              if (t.length > 26) { const t2 = t.filter((_, k) => k % 2 === 0); t.length = 0; t.push(...t2); }
+            }
+            if (t.length) scale.ticks = t;
           },
         },
         y: { ticks: { callback: v => fmtAxis(v) } },
       }
     }
+  });
+
+  // ── pills de période, idempotentes, au-dessus du conteneur ──
+  const wrap = el.parentElement;
+  let ctl = document.getElementById('nwHistPeriodCtl');
+  if (!ctl) {
+    ctl = document.createElement('div');
+    ctl.id = 'nwHistPeriodCtl';
+    ctl.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin:2px 0 6px;';
+    wrap.parentElement.insertBefore(ctl, wrap);
+  }
+  ctl.innerHTML = '';
+  ['1M', '3M', '6M', 'YTD', '1A', '2A', 'MAX'].forEach(p => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = p;
+    const actif = p === _nwHistPeriode;
+    b.style.cssText = 'padding:3px 10px;border-radius:999px;border:1px solid var(--border,#e2e8f0);background:'
+      + (actif ? '#edf2f7' : '#fff') + ';font-size:11.5px;cursor:pointer;color:#4a5568;font-weight:' + (actif ? '600' : '400') + ';';
+    b.onclick = () => { _nwHistPeriode = p; buildNWHistoryChart(); };
+    ctl.appendChild(b);
   });
 }
 window.buildNWHistoryChart = buildNWHistoryChart;   // rappel post-chargement des snapshots (app.js)
