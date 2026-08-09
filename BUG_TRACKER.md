@@ -2046,6 +2046,14 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
   tranches » (montant tiré / % du prêt), intercalaires CAPITALISÉS (l'ancien texte disait « payés »).
 - **Effets en cascade recalés** : fin de franchise 2028-08 → 2029-06 (1re mensualité), fin de prêts
   2052 → août 2053, trajectoire de désendettement et CRD projetés décalés d'~10 mois.
+- **CORRECTION v442 (9 août 2026)** : le recalage sur le 1er déblocage était la lettre de l'offre,
+  mais PAS la pratique de la banque. Amine confirme (relevés) que LCL a activé la franchise à la
+  SIGNATURE DE L'OFFRE (août 2025) et prélève l'assurance depuis cette date — corroboré par les
+  tableaux d'amortissement LCL émis en 06/2026 (post-acte) qui courent toujours de 08/2025 à 2052.
+  Ancrage remis sur août 2025 : franchise → juillet 2028, 1re mensualité août 2028 (~2 mois AVANT
+  les premiers loyers), fin de prêts octobre 2052. L'état « débloqué par tranches » de la timeline
+  (v440) reste, avec le wording corrigé (franchise ≠ 1er tirage). Leçon : sur un calendrier bancaire,
+  le document d'exécution (tableau d'amortissement émis) prime la clause de l'offre.
 
 ### Corrections mineures du même audit (v440)
 - 5 concaténations de floats moteur sans arrondi (CF brut « −259.56999… € » fiche + panneau,
@@ -2060,6 +2068,9 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
   une échéance à 0 € est bien une échéance, et la FISE intègre le coût total (ASCAC 11 660,16 €).
   Pratique de marché standard en VEFA (cotisation due dès le 1er déblocage, différé total = assurance
   seule). L'annotation data.js « débute à la première échéance, pas pendant franchise » était un
-  contresens (première échéance = première mensualité d'amortissement). À corriger au prochain ship :
-  l'assureur est CACI (groupe Crédit Agricole/LCL), pas ACM comme noté dans data.js. Levier possible :
-  délégation loi Lemoine calculée sur capital débloqué/CRD (~30 % du prêt tiré pendant 3 ans de franchise).
+  contresens (première échéance = première mensualité d'amortissement). Assureur : CACI (groupe
+  Crédit Agricole/LCL), pas ACM — corrigé v442. Confirmation Amine (v442) : prélèvements dès la
+  SIGNATURE DE L'OFFRE (août 2025), avant tout déblocage — soit ~10 mois × 51,29 € ≈ 513 € payés
+  avant le 1er tirage, cohérent avec un contrat groupe à cotisation constante prenant effet à
+  l'acceptation de l'offre. Levier : délégation loi Lemoine calculée sur capital débloqué/CRD
+  (~30 % du prêt tiré pendant la franchise) — devis à faire.

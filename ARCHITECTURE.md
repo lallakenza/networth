@@ -4954,6 +4954,15 @@ non arrondis (CF brut −259.56999…€), échéancier 2052→2053, wording pé
 `String(Date)` n'est pas ISO, donc `moisVente < '2033-06'` toujours faux ; normalisation
 'YYYY-MM'. Nouvelle tranche « Restitution SADEV » dans le graphe de sortie (sans elle, le
 montant restituable était compté comme net encaissé avant mi-2033).
+**v442** : contre-ordre factuel sur l'ancrage v440 — Amine confirme (relevés) que LCL a
+activé la franchise à la SIGNATURE DE L'OFFRE (août 2025), pas au 1er déblocage, et prélève
+l'assurance (51,29 €/mois, CACI — pas ACM) depuis cette date ; corroboré par les tableaux
+d'amortissement LCL émis post-acte (08/2025 → 2052). Ancrage remis : franchise → juillet
+2028, 1re mensualité août 2028 (~2 mois avant les loyers), fin de prêts octobre 2052
+(Supabase + data.js + wording timeline). Leçon : le document d'exécution bancaire prime la
+clause de l'offre. Question assurance TRANCHÉE : prélèvement conforme au contrat (échéancier
+proposition « 0,00 € hors assurance / 51,29 € assurance comprise », cotisation constante) ;
+levier restant = délégation loi Lemoine sur capital débloqué.
 
 ## §77 — v340-342 : Audit frontend (npx skills) + 3 sprints de correctifs (30 mai 2026)
 

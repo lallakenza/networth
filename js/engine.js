@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=441';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=442';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3568,8 +3568,8 @@ function computeBudgetView(portfolio, fx) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
-  // Villejuif: charges décalées — franchise totale 36 mois depuis le 1er déblocage (acte juin 2026),
-  // 1re mensualité juin 2029 ; loyers dès la livraison Q3 2028 (avant les mensualités).
+  // Villejuif: charges décalées — franchise totale 36 mois activée à la signature de l'offre
+  // (août 2025, pratique LCL confirmée v442) : 1re mensualité août 2028, ~2 mois avant les loyers (oct 2028).
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
   // Villejuif : acte signé, prêt débloqué PAR TRANCHES, intérêts intercalaires capitalisés.

@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v441';
+export const APP_VERSION = 'v442';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1580,7 +1580,7 @@ export const CURRENCY_CONFIG = {
 // Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (base ABSOLUE des simulateurs). Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). NB v440 : la franchise des prêts court jusqu'à mai 2029 (1er déblocage juin 2026), soit APRÈS la livraison — les loyers démarrent avant les mensualités.
+  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (base ABSOLUE des simulateurs). Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). NB v442 : franchise août 2025 → juillet 2028 (activée à la signature de l'offre, pratique LCL confirmée) — les mensualités (août 2028) démarrent ~2 mois AVANT les premiers loyers (oct 2028).
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     // Vitry : prêt lissé → charges ~constantes quelle que soit la période
@@ -1611,7 +1611,7 @@ export const IMMO_CONSTANTS = {
   prets: {
     vitryEnd: 2048,      // Année fin du prêt
     rueilEnd: 2044,
-    villejuifEnd: 2053,  // v440 — 1er déblocage juin 2026 (acte) + 327 mois → août 2053
+    villejuifEnd: 2052,  // v442 — franchise activée signature offre (août 2025) + 327 mois → octobre 2052 (tableaux LCL)
   },
   // ──────────────────────────────────────────────────────
   // PRÊTS — Paramètres complets pour tableau d'amortissement
@@ -1746,20 +1746,22 @@ export const IMMO_CONSTANTS = {
       // Taux nominal 3.27% — TAEG 3.73% (avec assurance)
       // Franchise totale 36 mois (intérêts capitalisés, pas de mensualité)
       // Puis amortissement 291 mois à 1 572.79€
-      // Assurance ACM : 46.10€/mois (débute à la première échéance, pas pendant franchise)
+      // Assurance CACI (groupe LCL/Crédit Agricole, pas ACM) : 46.10€/mois — v442 : cotisation
+      // constante prélevée DÈS LA SIGNATURE DE L'OFFRE, y compris pendant la franchise (confirmé
+      // relevés + échéancier proposition « 0,00€ hors assurance / 51,29€ assurance comprise »)
       // Coût total intérêts : 142 199€ (offre de prêt, pour référence)
       // Intérêts différés pendant franchise : 19 055€
       {
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
         rate: 0.0327,          // 3.27% taux nominal fixe
-        startDate: '2026-06',  // v440 — franchise 36 mois DEPUIS LE 1ER DÉBLOCAGE = acte 05/06/2026 (~93 129€ tirés). L'offre visait août 2025, jamais tiré.
+        startDate: '2025-08',  // v442 — CONFIRMÉ (Amine, 09/08/2026) : LCL a activé la franchise à la SIGNATURE DE L'OFFRE (août 2025), pas au 1er déblocage (acte juin 2026). Corroboré par ses tableaux d'amortissement émis en 06/2026 : 08/2025 → 2052.
         durationMonths: 327,   // 36 mois franchise + 291 mois amortissement
         periods: [
-          { months: 36, payment: 0 },       // P1 : franchise totale (juin 2026 – mai 2029)
-          { months: 291, payment: 1572.79 }, // P2 : amortissement constant (juin 2029 – août 2053)
+          { months: 36, payment: 0 },       // P1 : franchise totale (août 2025 – juillet 2028)
+          { months: 291, payment: 1572.79 }, // P2 : amortissement constant (août 2028 – octobre 2052)
         ],
-        insuranceMonthly: 46.10,            // ACM assurance
+        insuranceMonthly: 46.10,            // assurance CACI (v442 — prélevée dès signature offre)
         taeg: 0.0373,                       // Taux annuel effectif global
         totalInterestRef: 142199,  // coût total intérêts (offre de prêt, pour référence)
         deferredInterestRef: 19055,         // intérêts capitalisés pendant 36 mois franchise
@@ -1773,13 +1775,13 @@ export const IMMO_CONSTANTS = {
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
         rate: 0.009,           // 0.90% taux nominal fixe
-        startDate: '2026-06',  // v440 — 1er déblocage à l'acte 05/06/2026 (31 800€ tirés en totalité)
+        startDate: '2025-08',  // v442 — franchise activée à la signature de l'offre (août 2025) ; 1er tirage à l'acte 06/2026 (31 800€ en totalité)
         durationMonths: 327,
         periods: [
           { months: 36, payment: 0 },       // P1 : franchise totale
           { months: 291, payment: 124.99 },  // P2 : amortissement constant
         ],
-        insuranceMonthly: 5.19,             // ACM assurance
+        insuranceMonthly: 5.19,             // assurance CACI (v442 — prélevée dès signature offre)
         taeg: 0.0139,                       // Taux annuel effectif global
         totalInterestRef: 3791,             // coût total intérêts
         deferredInterestRef: 575,           // intérêts capitalisés pendant franchise
@@ -1788,14 +1790,16 @@ export const IMMO_CONSTANTS = {
     // ── Franchise des prêts LCL — déblocage + calendrier ──
     // v347 — ACTE SIGNÉ 05/06/2026 : Nezha a signé définitivement. Déblocage VEFA PAR TRANCHES
     // (appels de fonds) : ~93 129€ tirés à l'acte (34% appelés), solde jusqu'à livraison Q3 2028.
-    // v440 — la franchise court DEPUIS LE 1ER DÉBLOCAGE (contrat) : juin 2026 → mai 2029,
-    // 1re mensualité juin 2029. Intérêts intercalaires CAPITALISÉS (franchise totale), pas payés.
+    // v442 — CONFIRMÉ (Amine, relevés) : LCL a activé la franchise À LA SIGNATURE DE L'OFFRE
+    // (août 2025), pas au 1er déblocage — et prélève l'assurance (51,29€/mois, CACI) depuis la
+    // signature, avant tout tirage. Franchise : août 2025 → juillet 2028, 1re mensualité août 2028.
+    // Intérêts intercalaires CAPITALISÉS (franchise totale), pas payés.
     // loanDisbursed reste `false` = pas INTÉGRALEMENT débloqué (tranches en cours) ; la timeline
     // s'appuie sur startDate (franchise démarrée) + drawnToDate (portion tirée).
     // Frais de dossier LCL : 1 200€ (FDOSS, déjà débités à l'acte — cf. échéancier apport).
     villejuifFranchise: {
       months: 36,
-      startDate: '2026-06',    // v440 — 1er déblocage = acte 05/06/2026 (≈93 129€ LCL)
+      startDate: '2025-08',    // v442 — signature de l'offre (pratique LCL confirmée), PAS le 1er déblocage
       loanDisbursed: false,    // Prêt pas intégralement débloqué (tranches VEFA en cours)
       fraisDossier: 1200,      // v347 — FDOSS LCL réel 1 200€ (acte), pas 1 500 estimé
     },
@@ -2192,11 +2196,11 @@ export const EXIT_COSTS = {
       { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
       { date: '2028-09', event: 'Livraison VEFA + remise des clés (Q3 2028 — acte : max 30/06/2028)', icon: 'key' },
       { date: '2028-10', event: 'Début location (LMNP)', icon: 'home' },
-      { date: '2029-06', event: 'Fin franchise → 1re mensualité (1 698€/mois) — 36 mois depuis le 1er déblocage (acte juin 2026)', icon: 'money' },
+      { date: '2028-08', event: 'Fin franchise → 1re mensualité (1 698€/mois) — 36 mois depuis la signature de l\'offre (août 2025, pratique LCL confirmée)', icon: 'money' },
       { date: '2028-01', event: 'Choix régime fiscal (LMNP vs foncier nu) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2030-03', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
       { date: '2035-06', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
-      { date: '2053-08', event: 'Fin prêts LCL (Prêt 1 + Prêt 2) — 327 mois depuis le 1er déblocage (juin 2026)', icon: 'check' },
+      { date: '2052-10', event: 'Fin prêts LCL (Prêt 1 + Prêt 2) — 327 mois depuis la signature de l\'offre (août 2025)', icon: 'check' },
       { date: '2055-06', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
     ],
   },
