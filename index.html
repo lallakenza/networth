@@ -3410,7 +3410,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--green);">&#x1F3AF;</span>Simulateur — Net Worth Couple</h2>
 <!-- v444 : section repliée -->
-<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secSimCouple" onclick="var d=document.getElementById('secSimCouple');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Projection 20 ans — hypothèses ajustables</span><span style="font-size:11.5px;color:#718096;font-weight:400;">trajectoire simulée du NW couple (épargne, rendements, immo) — déplier pour ajuster</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secSimCouple" style="display:none;padding:0 16px 16px;">
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secSimCouple" onclick="var d=document.getElementById('secSimCouple');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});var sc=document.getElementById('cplSimChart');var sg=sc&&Chart.getChart(sc);if((!sg||sg.width===0)&&window._rebuildCoupleSim)window._rebuildCoupleSim();}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Projection 20 ans — hypothèses ajustables</span><span style="font-size:11.5px;color:#718096;font-weight:400;">trajectoire simulée du NW couple (épargne, rendements, immo) — déplier pour ajuster</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secSimCouple" style="display:none;padding:0 16px 16px;">
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha).<br>
   <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
   <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
@@ -4499,7 +4499,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=445"></script>
+<script type="module" src="js/app.js?v=446"></script>
 
 </body>
 </html>
