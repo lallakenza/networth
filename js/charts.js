@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=451';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=451';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=451';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=451';
-import { loadSnapshots } from './api.js?v=451'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=451'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=452';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=452';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=452';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=452';
+import { loadSnapshots } from './api.js?v=452'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=452'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1319,8 +1319,9 @@ function buildNWHistoryChart() {
       scales: {
         x: {
           type: 'linear',
-          ticks: { maxRotation: 45, minRotation: 45, callback: v => fmtTick(v), autoSkip: true, maxTicksLimit: 26,
-            stepSize: etendueJours <= 95 ? 7 : Math.max(28, Math.round(etendueJours / 24)) },
+          // v452 — autoSkip DÉSACTIVÉ : il écrasait les ticks posés par afterBuildTicks
+          // (1 seul survivait) ; la densité est déjà gérée là-bas (mois, ou 1/2 mois).
+          ticks: { maxRotation: 45, minRotation: 45, callback: v => fmtTick(v), autoSkip: false },
           afterBuildTicks: (scale) => {
             // v451 — ticks aux DÉBUTS DE MOIS (ou lundis si période courte) plutôt que des valeurs arbitraires
             const debut = scale.min, fin = scale.max;
