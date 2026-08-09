@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=447';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=447';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=448';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=448';
 
 // ---- Generic table sort utility ----
 /**
@@ -335,7 +335,8 @@ export function render(state, view, currency) {
   const nwHistCanvas = document.getElementById('nwHistoryChart');
   if (nwHistCanvas) {
     const container = nwHistCanvas.closest('.card');
-    const snaps = (window._nwSnapCache || []).filter(r => r.data && r.data.total && r.data.total.couple != null);
+    const snaps = (window._nwSnapCache || []).filter(r => r.data && ((r.data.total && r.data.total.couple != null)
+      || (r.data.totalReconstitue && r.data.totalReconstitue.couple != null)));   // v448 — reconstitué compte aussi
     if (container) container.style.display = snaps.length >= 2 ? '' : 'none';
   }
 }
@@ -7388,7 +7389,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=447').then(m => {
+  import('./charts.js?v=448').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
