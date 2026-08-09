@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=452';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=452';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=452';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=452';
-import { loadSnapshots } from './api.js?v=452'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=452'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=453';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=453';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=453';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=453';
+import { loadSnapshots } from './api.js?v=453'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=453'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1319,8 +1319,10 @@ function buildNWHistoryChart() {
       scales: {
         x: {
           type: 'linear',
-          // v452 — autoSkip DÉSACTIVÉ : il écrasait les ticks posés par afterBuildTicks
-          // (1 seul survivait) ; la densité est déjà gérée là-bas (mois, ou 1/2 mois).
+          // v453 — bornes ÉPINGLÉES aux données : sans min/max explicites, l'échelle
+          // linéaire arrondissait à des bornes « rondes » (18000→22000 jours, soit
+          // mai 2019→mars 2030) et les ticks mensuels balayaient des années fantômes.
+          min: jour(rows[0].date), max: jour(rows[rows.length - 1].date),
           ticks: { maxRotation: 45, minRotation: 45, callback: v => fmtTick(v), autoSkip: false },
           afterBuildTicks: (scale) => {
             // v451 — ticks aux DÉBUTS DE MOIS (ou lundis si période courte) plutôt que des valeurs arbitraires
