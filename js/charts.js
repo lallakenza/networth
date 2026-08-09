@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=439';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=439';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=439';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=439';
-import { loadSnapshots } from './api.js?v=439'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=439'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=440';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=440';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=440';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=440';
+import { loadSnapshots } from './api.js?v=440'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=440'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -790,25 +790,87 @@ function buildImmoViewEquityBar(state) {
   const el = document.getElementById('immoViewEquityChart');
   if (!el) return;
   if (charts.immoViewEq) { charts.immoViewEq.destroy(); delete charts.immoViewEq; }
-  const props = state.immoView.properties; // v346 — Villejuif toujours inclus (acte signé)
-  // v439 (P7) — barres EMPILÉES Équité + CRD : un seul regard donne la taille de
-  // chaque bien, le levier, et la part qui nous appartient. L'ancienne version
-  // (équité seule, 1 série) était trois nombres déguisés en graphique.
-  charts.immoViewEq = new Chart(el, {
-    type: 'bar',
-    data: {
-      labels: props.map(p => p.name + ' (' + p.owner + ')'),
-      datasets: [
-        { label: '\u00c9quit\u00e9', data: props.map(p => p.equity), backgroundColor: '#12b886', borderRadius: 4 },
-        { label: 'CRD (dette)', data: props.map(p => p.crd), backgroundColor: '#cbd5e0', borderRadius: 4 }
-      ]
-    },
-    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: true, position: 'bottom' },
-        title: { display: true, text: 'Structure du capital \u2014 Valeur = \u00c9quit\u00e9 + CRD', font: { size: 14 } },
-        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.x) } } },
-      scales: { x: { stacked: true, ticks: { callback: v => fmtAxis(v) } }, y: { stacked: true } } }
+  const iv = state.immoView;
+  const props = iv.properties; // v346 — Villejuif toujours inclus (acte signé)
+
+  // v440 — sélecteur d'année : projette la structure Équité/CRD à la date choisie.
+  // CRD lu dans le tableau d'amortissement réel ; valeur = valeur actuelle appréciée
+  // (hypothèses par bien). Pour un bien VEFA, toute année future utilise la valeur
+  // LIVRÉE et le CRD plein — le modèle « coût engagé » n'a de sens qu'aujourd'hui.
+  const anneeCourante = new Date().getFullYear();
+  const projeter = (annee) => props.map(p => {
+    if (annee == null) return { equity: Math.round(p.equity), crd: Math.round(p.crd) };
+    const sched = (iv.amortSchedules[p.loanKey] || {}).schedule || [];
+    let crd = 0;
+    if (sched.length) {
+      const cle = annee + '-06';
+      if (cle < sched[0].date) crd = sched[0].remainingCRD + (sched[0].principal || 0);
+      else { for (const r of sched) { if (r.date <= cle) crd = r.remainingCRD; else break; } }
+    }
+    const meta = p.propertyMeta || {};
+    const phases = meta.appreciationPhases || [];
+    const defaut = meta.appreciation || 0.01;
+    let val = p.deliveredValue || p.value;
+    for (let y = anneeCourante; y < annee; y++) {
+      let taux = defaut;
+      for (const ph of phases) { if (y >= ph.start && y <= ph.end) { taux = ph.rate; break; } }
+      val *= (1 + taux);
+    }
+    return { equity: Math.max(0, Math.round(val - crd)), crd: Math.round(crd) };
   });
+
+  const construire = (annee) => {
+    const d = projeter(annee);
+    const titre = annee == null
+      ? 'Structure du capital — Valeur = Équité + CRD (aujourd’hui)'
+      : 'Structure du capital — projetée en ' + annee + ' (valeur appréciée − CRD du tableau d’amortissement)';
+    if (charts.immoViewEq) {
+      charts.immoViewEq.data.datasets[0].data = d.map(x => x.equity);
+      charts.immoViewEq.data.datasets[1].data = d.map(x => x.crd);
+      charts.immoViewEq.options.plugins.title.text = titre;
+      charts.immoViewEq.update();
+      return;
+    }
+    charts.immoViewEq = new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: props.map(p => p.name + ' (' + p.owner + ')'),
+        datasets: [
+          { label: 'Équité', data: d.map(x => x.equity), backgroundColor: '#12b886', borderRadius: 4 },
+          { label: 'CRD (dette)', data: d.map(x => x.crd), backgroundColor: '#cbd5e0', borderRadius: 4 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: true, position: 'bottom' },
+          title: { display: true, text: titre, font: { size: 14 } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.x) } } },
+        scales: { x: { stacked: true, ticks: { callback: v => fmtAxis(v) } }, y: { stacked: true } } }
+    });
+  };
+
+  // Pills année, idempotentes, insérées au-dessus du conteneur du chart
+  const wrap = el.parentElement;
+  let ctl = document.getElementById('equityYearCtl');
+  if (!ctl) {
+    ctl = document.createElement('div');
+    ctl.id = 'equityYearCtl';
+    ctl.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:4px 0 6px;';
+    wrap.parentElement.insertBefore(ctl, wrap);
+  }
+  ctl.innerHTML = '';
+  [null, 2030, 2035, 2040, 2045, 2050].forEach((annee, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = annee == null ? 'Aujourd’hui' : String(annee);
+    b.style.cssText = 'padding:4px 10px;border-radius:999px;border:1px solid var(--border,#e2e8f0);background:' + (i === 0 ? '#edf2f7' : '#fff') + ';font-size:11.5px;cursor:pointer;color:#4a5568;font-weight:' + (i === 0 ? '600' : '400') + ';';
+    b.onclick = () => {
+      Array.prototype.forEach.call(ctl.children, c => { c.style.background = '#fff'; c.style.fontWeight = '400'; });
+      b.style.background = '#edf2f7'; b.style.fontWeight = '600';
+      construire(annee);
+    };
+    ctl.appendChild(b);
+  });
+  construire(null);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1722,7 +1784,11 @@ export function buildExitProjectionChart(state, prop, canvasId) {
 
   const IC = IMMO_CONSTANTS;
   const propMeta = prop.propertyMeta || {};
-  const purchasePrice = prop.purchasePrice || propMeta.purchasePrice || propMeta.totalOperation || prop.value;
+  // v440 — pour un bien VEFA, prop.value est le COÛT ENGAGÉ (appels payés + PV reconnue),
+  // pas un prix de vente : projeter dessus donnait un prix 2041 ~200K < montant d'opération.
+  // La vente en année X (post-livraison) se simule sur la valeur de marché LIVRÉE.
+  const baseValue = prop.deliveredValue || prop.value;
+  const purchasePrice = prop.purchasePrice || propMeta.purchasePrice || propMeta.totalOperation || baseValue;
   const phases = propMeta.appreciationPhases || [];
   const defaultRate = propMeta.appreciation || 0.01;
   const sched = amort.schedule;
@@ -1747,11 +1813,11 @@ export function buildExitProjectionChart(state, prop, canvasId) {
   for (let y = currentYear + 1; y <= currentYear + 15; y++) projYears.push(y);
 
   const dataNet = [], dataTaxes = [], dataCosts = [], dataCRD = [];
-  const dataTVA = [], dataIRA = [];
+  const dataTVA = [], dataIRA = [], dataSADEV = [];
 
   for (const year of projYears) {
     // Projected value with appreciation
-    let projValue = prop.value;
+    let projValue = baseValue;
     for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
 
     // CRD at target year
@@ -1795,8 +1861,9 @@ export function buildExitProjectionChart(state, prop, canvasId) {
       dataIRA.push(ira);
       dataCosts.push(otherCosts);
       dataCRD.push(Math.round(crd));
+      dataSADEV.push(ec.restitutionSADEV || 0);
     } catch (e) {
-      dataNet.push(0); dataTaxes.push(0); dataTVA.push(0); dataIRA.push(0); dataCosts.push(0); dataCRD.push(0);
+      dataNet.push(0); dataTaxes.push(0); dataTVA.push(0); dataIRA.push(0); dataCosts.push(0); dataCRD.push(0); dataSADEV.push(0);
     }
   }
 
@@ -1809,6 +1876,9 @@ export function buildExitProjectionChart(state, prop, canvasId) {
         { label: 'Impôts PV', data: dataTaxes, backgroundColor: '#c53030', stack: 'breakdown' },
         // TVA clawback only relevant for Vitry — hide if all zeros
         ...(dataTVA.some(v => v > 0) ? [{ label: 'TVA clawback', data: dataTVA, backgroundColor: '#dd6b20', stack: 'breakdown' }] : []),
+        // v440 — restitution SADEV 94 (Villejuif, clause anti-spéculative jusqu'à ~mi-2033) :
+        // sans cette tranche, la barre totale sous-estimait le prix de vente du montant restitué
+        ...(dataSADEV.some(v => v > 0) ? [{ label: 'Restitution SADEV', data: dataSADEV, backgroundColor: '#805ad5', stack: 'breakdown' }] : []),
         { label: 'IRA + frais', data: dataIRA.map((v, i) => v + dataCosts[i]), backgroundColor: '#d69e2e', stack: 'breakdown' },
         { label: 'CRD restant', data: dataCRD, backgroundColor: '#a0aec0', stack: 'breakdown' },
       ]
@@ -1824,7 +1894,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
             afterBody: function(items) {
               if (!items.length) return '';
               const idx = items[0].dataIndex;
-              const total = dataNet[idx] + dataTaxes[idx] + dataTVA[idx] + dataIRA[idx] + dataCosts[idx] + dataCRD[idx];
+              const total = dataNet[idx] + dataTaxes[idx] + dataTVA[idx] + dataIRA[idx] + dataCosts[idx] + dataCRD[idx] + dataSADEV[idx];
               return '\nPrix de vente estimé: ' + fmt(Math.round(total))
                 + '\nTu récupères: ' + fmt(dataNet[idx]);
             }

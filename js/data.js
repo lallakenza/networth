@@ -1329,7 +1329,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '30/07/2026';
-export const APP_VERSION = 'v439';
+export const APP_VERSION = 'v440';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1580,7 +1580,7 @@ export const CURRENCY_CONFIG = {
 // Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026. Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). Cohérent avec fin de franchise prêts (~août 2028).
+  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (base ABSOLUE des simulateurs). Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). NB v440 : la franchise des prêts court jusqu'à mai 2029 (1er déblocage juin 2026), soit APRÈS la livraison — les loyers démarrent avant les mensualités.
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     // Vitry : prêt lissé → charges ~constantes quelle que soit la période
@@ -1611,7 +1611,7 @@ export const IMMO_CONSTANTS = {
   prets: {
     vitryEnd: 2048,      // Année fin du prêt
     rueilEnd: 2044,
-    villejuifEnd: 2052,
+    villejuifEnd: 2053,  // v440 — 1er déblocage juin 2026 (acte) + 327 mois → août 2053
   },
   // ──────────────────────────────────────────────────────
   // PRÊTS — Paramètres complets pour tableau d'amortissement
@@ -1732,7 +1732,7 @@ export const IMMO_CONSTANTS = {
     },
     // ── VILLEJUIF — 2 prêts LCL (318 469€ total) ──
     // Propriétaire : Nezha
-    // Source : offres de prêt LCL signées 2025, pas encore débloquées
+    // Source : offres de prêt LCL signées 2025 — v440 : partiellement débloquées (1er tirage à l'acte, juin 2026)
     // Bien financé : T3 VEFA — Bd Gorki, Villejuif (68.92m² + parking)
     // Prix contrat réservation : 336 330€ TTC (TVA 20%), signé 20/06/2025
     // Livraison estimée : Q3 2028 (construction en cours)
@@ -1753,11 +1753,11 @@ export const IMMO_CONSTANTS = {
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
         rate: 0.0327,          // 3.27% taux nominal fixe
-        startDate: '2025-08',  // début franchise août 2025 (pas encore débloqué)
+        startDate: '2026-06',  // v440 — franchise 36 mois DEPUIS LE 1ER DÉBLOCAGE = acte 05/06/2026 (~93 129€ tirés). L'offre visait août 2025, jamais tiré.
         durationMonths: 327,   // 36 mois franchise + 291 mois amortissement
         periods: [
-          { months: 36, payment: 0 },       // P1 : franchise totale (août 2025 – juillet 2028)
-          { months: 291, payment: 1572.79 }, // P2 : amortissement constant (août 2028 – déc 2051)
+          { months: 36, payment: 0 },       // P1 : franchise totale (juin 2026 – mai 2029)
+          { months: 291, payment: 1572.79 }, // P2 : amortissement constant (juin 2029 – août 2053)
         ],
         insuranceMonthly: 46.10,            // ACM assurance
         taeg: 0.0373,                       // Taux annuel effectif global
@@ -1773,7 +1773,7 @@ export const IMMO_CONSTANTS = {
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
         rate: 0.009,           // 0.90% taux nominal fixe
-        startDate: '2025-08',  // début franchise août 2025 (pas encore débloqué)
+        startDate: '2026-06',  // v440 — 1er déblocage à l'acte 05/06/2026 (31 800€ tirés en totalité)
         durationMonths: 327,
         periods: [
           { months: 36, payment: 0 },       // P1 : franchise totale
@@ -1788,13 +1788,14 @@ export const IMMO_CONSTANTS = {
     // ── Franchise des prêts LCL — déblocage + calendrier ──
     // v347 — ACTE SIGNÉ 05/06/2026 : Nezha a signé définitivement. Déblocage VEFA PAR TRANCHES
     // (appels de fonds) : ~93 129€ tirés à l'acte (34% appelés), solde jusqu'à livraison Q3 2028.
-    // loanDisbursed reste `false` car le prêt n'est pas INTÉGRALEMENT débloqué (tranches en cours) —
-    // ⚠️ à revoir dans le modèle VEFA cash-basis (le calcul du CRD suppose encore 100% tiré).
-    // Franchise: 36 mois depuis le 1er déblocage (offre : à partir d'août 2025).
+    // v440 — la franchise court DEPUIS LE 1ER DÉBLOCAGE (contrat) : juin 2026 → mai 2029,
+    // 1re mensualité juin 2029. Intérêts intercalaires CAPITALISÉS (franchise totale), pas payés.
+    // loanDisbursed reste `false` = pas INTÉGRALEMENT débloqué (tranches en cours) ; la timeline
+    // s'appuie sur startDate (franchise démarrée) + drawnToDate (portion tirée).
     // Frais de dossier LCL : 1 200€ (FDOSS, déjà débités à l'acte — cf. échéancier apport).
     villejuifFranchise: {
       months: 36,
-      startDate: null,         // v347 — à préciser (1er déblocage) lors du passage au modèle VEFA cash-basis
+      startDate: '2026-06',    // v440 — 1er déblocage = acte 05/06/2026 (≈93 129€ LCL)
       loanDisbursed: false,    // Prêt pas intégralement débloqué (tranches VEFA en cours)
       fraisDossier: 1200,      // v347 — FDOSS LCL réel 1 200€ (acte), pas 1 500 estimé
     },
@@ -2180,7 +2181,7 @@ export const EXIT_COSTS = {
   },
   villejuif: {
     // VEFA en cours — pas encore livré
-    // LMNP ou JEANBRUN selon le choix
+    // LMNP ou foncier nu selon le choix (Jeanbrun non retenu — v440)
     // Si LMNP réel : même règle de réintégration des amortissements
     lmnpAmortReintegration: true,
     note: 'VEFA — choix régime à faire avant livraison (Q3 2028)',
@@ -2190,12 +2191,12 @@ export const EXIT_COSTS = {
       { date: '2026-06', event: 'Acte de vente signé (Me Wysocki, Évry — 34% appelés soit 114 352€)', icon: 'doc', done: true },
       { date: '2027-04', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon', icon: 'metro' },
       { date: '2028-09', event: 'Livraison VEFA + remise des clés (Q3 2028 — acte : max 30/06/2028)', icon: 'key' },
-      { date: '2028-10', event: 'Début location (LMNP ou Jeanbrun)', icon: 'home' },
-      { date: '2028-08', event: 'Fin franchise → début remboursement (1 698€/mois)', icon: 'money' },
-      { date: '2028-01', event: 'Choix régime fiscal (LMNP vs Jeanbrun) — décision avant 1ère mise en location', icon: 'tax' },
+      { date: '2028-10', event: 'Début location (LMNP)', icon: 'home' },
+      { date: '2029-06', event: 'Fin franchise → 1re mensualité (1 698€/mois) — 36 mois depuis le 1er déblocage (acte juin 2026)', icon: 'money' },
+      { date: '2028-01', event: 'Choix régime fiscal (LMNP vs foncier nu) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2030-03', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
       { date: '2035-06', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
-      { date: '2052-08', event: 'Fin prêts LCL (Prêt 1 + Prêt 2)', icon: 'check' },
+      { date: '2053-08', event: 'Fin prêts LCL (Prêt 1 + Prêt 2) — 327 mois depuis le 1er déblocage (juin 2026)', icon: 'check' },
       { date: '2055-06', event: '30 ans détention — exonération totale IR + PS', icon: 'free' },
     ],
   },
@@ -2317,19 +2318,6 @@ export const VITRY_CONSTRAINTS = {
   ],
 };
 
-// ════════════════════════════════════════════════════════════
-// VILLEJUIF — Comparaison JEANBRUN vs LMNP vs LMP
-//
-// Le bien sera livré Q3 2028 (retard annoncé promoteur ; acte 05/06/2026 : T2 2028, max 30/06/2028). Il faut choisir le régime AVANT.
-// 3 options :
-//   1. Dispositif JEANBRUN (neuf, loi 2025) — location nue
-//   2. LMNP réel (meublé) — avec amortissement
-//   3. LMP (si seuil dépassé) — meublé professionnel
-//
-// Paramètres de simulation :
-//   - Meublé : +3 000€ de mobilier initial + +100€ de loyer/mois
-//   - Nue (JEANBRUN) : pas de frais mobilier, loyer de base
-// ════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════
 // CONTRAINTES VILLEJUIF (v415) — clause de restitution des avantages
 //
@@ -2483,141 +2471,9 @@ export const VILLEJUIF_CONSTRAINTS = {
   // vente d'immeuble à construire), et le vendeur déclare aucun droit non purgé (p.42).
   preemption: null,
 };
+// v440 — VILLEJUIF_REGIMES supprimé : dispositif Jeanbrun non retenu (loyer plafonné
+// 1 215€ vs 1 700€ marché), section comparative retirée de la fiche. Historique : git ≤ v439.
 
-export const VILLEJUIF_REGIMES = {
-  // Données de base (identiques pour tous les régimes)
-  base: {
-    loyerNuHC: 1700,          // Loyer HC en location nue
-    loyerMeubleHC: 1800,      // Loyer HC en meublé (+100€)
-    coutMobilier: 3000,        // Investissement mobilier initial
-    renouvellementMobilier: 500, // Renouvellement mobilier annuel moyen
-    chargesProprietaire: 259,  // copro 110 + PNO 15 + TF 83 + assurance 51
-    mensualitePret: 1698,      // v347 — prêt LCL P1+P2 réel (1 572,79 + 124,99 = 1 697,78€)
-    assurancePret: 51,
-    valeurBien: 370000,
-    totalOperation: 336330,
-    surface: 68.92,
-  },
-
-  // ── Option 1 : JEANBRUN (ex-Pinel Denormandie rénové) ──
-  // Dispositif de la loi de finances 2025 pour le neuf
-  // Réduction d'impôt proportionnelle à la durée d'engagement
-  jeanbrun: {
-    nom: 'Dispositif JEANBRUN (Loi 2025)',
-    type: 'nu',       // location nue obligatoire
-    dureeEngagement: [6, 9, 12],  // choix durée
-    reductionImpot: {
-      // Réduction d'impôt calculée sur le prix d'achat plafonné
-      plafondPrix: 300000,      // plafond d'investissement
-      plafondM2: 5500,          // plafond prix/m²
-      taux6ans: 0.09,           // 9% sur 6 ans = 1.5%/an
-      taux9ans: 0.12,           // 12% sur 9 ans = 1.33%/an
-      taux12ans: 0.14,          // 14% sur 12 ans = 1.17%/an
-    },
-    conditions: [
-      'Logement neuf (VEFA) en zone tendue (zone A → Villejuif OK)',
-      'Respect du plafond de loyer : ~17.62€/m² zone A (2025)',
-      'Respect du plafond de ressources du locataire',
-      'Location nue à titre de résidence principale du locataire',
-      'Engagement de location 6, 9 ou 12 ans',
-      'Performance énergétique RE2020 (VEFA → OK automatiquement)',
-    ],
-    plafondLoyer: {
-      zoneA: 17.62,   // €/m²/mois (2025, à actualiser)
-      loyerMaxMensuel: 1215,  // 68.94m² × 17.62 = 1 214€ (arrondi)
-    },
-    avantages: [
-      'Réduction d\'impôt directe (non-résident : imputable sur IR français)',
-      'Pas de mobilier à acheter ni entretenir',
-      'Loyer plafonné mais sécurisé (zone tendue)',
-    ],
-    inconvenients: [
-      'Loyer plafonné à ~1 215€ (vs 1 700€ marché)',
-      'Location NUE uniquement',
-      'Engagement longue durée (6-12 ans)',
-      'Plafond de ressources locataire',
-      'Non cumulable avec LMNP',
-    ],
-  },
-
-  // ── Option 2 : LMNP réel (amortissement) ──
-  lmnp: {
-    nom: 'LMNP Réel (Amortissement)',
-    type: 'meuble',
-    conditions: [
-      'Logement meublé (mobilier minimum défini par décret)',
-      'Recettes locatives < 23 000€/an ET < revenus d\'activité → sinon LMP',
-      'Inscription au greffe du tribunal de commerce (P0i)',
-      'Comptabilité d\'engagement (BIC réel simplifié)',
-    ],
-    fiscalite: {
-      regime: 'reel-simplifie',
-      amortissementBien: 0.02,     // ~2% du bien/an sur 30-50 ans (hors terrain)
-      amortissementMobilier: 0.10, // ~10% du mobilier/an sur 7-10 ans
-      partTerrain: 0.20,           // 20% = terrain (non amortissable)
-      // Charges déductibles : intérêts, assurance, PNO, TF, copro, comptable, CFE
-      fraisComptable: 1200,        // Expert-comptable + adhésion CGA ~1200€/an
-      cfe: 200,                    // Cotisation Foncière des Entreprises ~200€/an
-    },
-    avantages: [
-      'Loyer libre (marché) : 1 800€ HC',
-      'Amortissement du bien → impôt = 0 pendant 15-20 ans',
-      'Charges déductibles (intérêts, travaux, comptable)',
-      'Récupération TVA si neuf (mais pas en non-professionnel simple)',
-    ],
-    inconvenients: [
-      'Coût mobilier initial : 3 000€',
-      'Renouvellement mobilier : ~500€/an',
-      'Frais comptable : ~1 200€/an',
-      'CFE : ~200€/an',
-      'Réintégration amortissements dans PV à la revente (loi 2025)',
-      'Risque de basculement LMP si recettes > 23K€',
-    ],
-  },
-
-  // ── Option 3 : LMP (Loueur Meublé Professionnel) ──
-  lmp: {
-    nom: 'LMP (Loueur Meublé Professionnel)',
-    type: 'meuble',
-    seuils: {
-      recettesMin: 23000,       // Recettes > 23 000€/an
-      // ET recettes > revenus d'activité du foyer fiscal
-      // Non-résident : pas de revenus d'activité en France → condition 2 auto-remplie ?
-      note: 'Attention : non-résident sans revenus FR → potentiellement LMP automatique si > 23K€',
-    },
-    fiscalite: {
-      // Comme LMNP réel mais avec :
-      cotisationsSociales: 0.40, // ~40% de cotisations sociales (SSI) sur le bénéfice
-      plusValuePro: true,        // PV professionnelle (exonération après 5 ans si CA < 90K)
-      deficitImputable: true,    // Déficit imputable sur revenu global (pas juste BIC)
-    },
-    avantages: [
-      'Déficit imputable sur le revenu global',
-      'PV professionnelle : exonération totale si > 5 ans ET CA < 90K€',
-      'Amortissement du bien (comme LMNP)',
-    ],
-    inconvenients: [
-      'Cotisations sociales SSI ~40% sur le bénéfice',
-      'Complexité administrative (déclaration pro)',
-      'Affiliation SSI obligatoire',
-      'Risque : requalification des amortissements passés',
-    ],
-    risque: 'Avec Rueil (1300×12=15600) + Villejuif (1800×12=21600) = 37 200€/an → dépasse le seuil de 23K€. Si pas de revenus d\'activité en France → LMP automatique.',
-  },
-
-  // ── Simulation comparative sur 10 ans ──
-  simulation: {
-    duree: 10,   // années
-    hypotheses: {
-      appreciationAnnuelle: 0.017,  // 1.7%/an (cohérent avec IC.properties.villejuif.appreciation)
-      inflationLoyer: 0.015,         // 1.5%/an (IRL)
-      tauxIR: 0.20,                  // Non-résident
-      tauxPS: 0.172,
-      tauxAmortissement: 0.02,       // 2% du bien/an (hors terrain)
-      partTerrain: 0.20,
-    },
-  },
-};
 
 // ════════════════════════════════════════════════════════════
 // HISTORIQUE PATRIMOINE — Points manuels + dernier point live

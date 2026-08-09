@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_REGIMES, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=439';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=440';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2615,105 +2615,7 @@ export function computePVAbattementSchedule() {
   return schedule;
 }
 
-/**
- * Compute JEANBRUN vs LMNP comparison for Villejuif over N years
- */
-function computeVillejuifRegimeComparison() {
-  const VR = VILLEJUIF_REGIMES;
-  const sim = VR.simulation;
-  const base = VR.base;
-  const years = sim.duree;
-  const h = sim.hypotheses;
-
-  const results = { jeanbrun: [], lmnp: [] };
-  let jCumGain = 0, lCumGain = 0;
-  let jCumTax = 0, lCumTax = 0;
-
-  // JEANBRUN: 9 ans d'engagement (best middle-ground)
-  const jbEngagement = 9;
-  const jbReduction = VR.jeanbrun.reductionImpot;
-  const prixPlafonneJB = Math.min(base.totalOperation, jbReduction.plafondPrix, base.surface * jbReduction.plafondM2);
-  const reductionTotale = prixPlafonneJB * jbReduction.taux9ans;
-  const reductionAnnuelle = reductionTotale / jbEngagement;
-
-  // LMNP: amortissement du bien
-  const valeurAmortissable = base.totalOperation * (1 - h.partTerrain);
-  const amortBienAnnuel = valeurAmortissable * h.tauxAmortissement;
-  const amortMobilierAnnuel = base.coutMobilier * 0.10; // amorti sur 10 ans
-
-  for (let y = 1; y <= years; y++) {
-    const inflationFactor = Math.pow(1 + h.inflationLoyer, y - 1);
-
-    // ── JEANBRUN ──
-    const jLoyer = Math.min(
-      Math.round(base.loyerNuHC * inflationFactor),
-      VR.jeanbrun.plafondLoyer.loyerMaxMensuel
-    );
-    const jRevenuAnnuel = jLoyer * 12;
-    // v347 — assurance emprunteur déjà incluse dans chargesProprietaire (259 = copro 110 + PNO 15
-    // + TF 83 + assurance 51) : ne PAS ré-ajouter base.assurancePret (double-compte de +612€/an).
-    const jChargesAnnuel = (base.chargesProprietaire + base.mensualitePret) * 12;
-    const jCFBrut = jRevenuAnnuel - jChargesAnnuel;
-    // Fiscalité : revenus fonciers imposés au réel
-    const jRevenuImposable = Math.max(0, jRevenuAnnuel - (base.chargesProprietaire * 12)); // simplified
-    const jImpot = Math.round(jRevenuImposable * (h.tauxIR + h.tauxPS));
-    // Réduction d'impôt JEANBRUN
-    const jReduction = y <= jbEngagement ? Math.round(reductionAnnuelle) : 0;
-    const jImpotNet = Math.max(0, jImpot - jReduction);
-    const jCFNet = jCFBrut - jImpotNet;
-    jCumGain += jCFNet;
-    jCumTax += jImpotNet;
-
-    results.jeanbrun.push({
-      year: y, loyer: jLoyer, revenuAnnuel: jRevenuAnnuel,
-      cfBrut: jCFBrut, impot: jImpot, reduction: jReduction,
-      impotNet: jImpotNet, cfNet: jCFNet, cumGain: jCumGain,
-    });
-
-    // ── LMNP ──
-    const lLoyer = Math.round(base.loyerMeubleHC * inflationFactor);
-    const lRevenuAnnuel = lLoyer * 12;
-    const lFraisComptable = VR.lmnp.fiscalite.fraisComptable;
-    const lCFE = VR.lmnp.fiscalite.cfe;
-    const lChargesAnnuel = jChargesAnnuel + lFraisComptable + lCFE + base.renouvellementMobilier;
-    const lCFBrut = lRevenuAnnuel - lChargesAnnuel;
-    // Amortissement couvre le revenu → impôt = 0 tant que amort > revenu net
-    const lRevenuNetComptable = lRevenuAnnuel - (base.chargesProprietaire * 12) - lFraisComptable - lCFE;
-    const lAmortTotal = amortBienAnnuel + amortMobilierAnnuel;
-    const lRevenuImposable = Math.max(0, lRevenuNetComptable - lAmortTotal);
-    const lImpot = Math.round(lRevenuImposable * (h.tauxIR + h.tauxPS));
-    const lCFNet = lCFBrut - lImpot;
-    lCumGain += lCFNet;
-    lCumTax += lImpot;
-
-    // Déduire coût mobilier initial la première année
-    const lCFNetAdj = y === 1 ? lCFNet - base.coutMobilier : lCFNet;
-    if (y === 1) lCumGain -= base.coutMobilier;
-
-    results.lmnp.push({
-      year: y, loyer: lLoyer, revenuAnnuel: lRevenuAnnuel,
-      cfBrut: lCFBrut, amortissement: Math.round(lAmortTotal),
-      impot: lImpot, cfNet: lCFNetAdj, cumGain: lCumGain,
-    });
-  }
-
-  // Summary
-  const delta = lCumGain - jCumGain;
-  results.summary = {
-    jbTotal: jCumGain,
-    lmnpTotal: lCumGain,
-    delta,
-    winner: delta > 0 ? 'LMNP' : 'JEANBRUN',
-    jbReductionTotale: Math.round(reductionTotale),
-    jbReductionAnnuelle: Math.round(reductionAnnuelle),
-    jbLoyerPlafond: VR.jeanbrun.plafondLoyer.loyerMaxMensuel,
-    lmnpAmortAnnuel: Math.round(amortBienAnnuel + amortMobilierAnnuel),
-    lmpRisque: (base.loyerMeubleHC * 12) > VILLEJUIF_REGIMES.lmp.seuils.recettesMin,
-    lmpRecettesTotales: (base.loyerMeubleHC + 1300) * 12, // Villejuif + Rueil
-  };
-
-  return results;
-}
+// v440 — computeVillejuifRegimeComparison supprimé (dispositif Jeanbrun non retenu).
 
 /**
  * Compute immo (real estate) view: property valuations, cash flows, wealth creation, and fiscal impact
@@ -3166,6 +3068,7 @@ function computeImmoView(portfolio, fx) {
         deliveryDate: propMeta.deliveryDate || '2028-09',
         totalOperation: propMeta.totalOperation || 0,
         fraisDossier: franchise.fraisDossier || 0,
+        drawnToDate: Math.round(prop.crd),  // v440 — capital tiré (VEFA : CRD = portion débloquée)
       };
     }
   });
@@ -3198,13 +3101,6 @@ function computeImmoView(portfolio, fx) {
   const totalExitCosts = properties.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
   const totalNetEquityAfterExit = properties.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : 0), 0);
 
-  // Villejuif regime comparison
-  let villejuifRegimeComparison = null;
-  try {
-    villejuifRegimeComparison = computeVillejuifRegimeComparison();
-  } catch (e) {
-    console.warn('Villejuif regime comparison failed:', e);
-  }
 
   // ── Wealth creation projection (through end of 2046) ──
   const projNow = new Date();
@@ -3422,7 +3318,6 @@ function computeImmoView(portfolio, fx) {
     totalCFNetFiscal,
     totalExitCosts,
     totalNetEquityAfterExit,
-    villejuifRegimeComparison,
     vitryConstraints: VITRY_CONSTRAINTS,
     exitCostsConfig: EXIT_COSTS,
     exitCostsByYear,
@@ -3666,11 +3561,13 @@ function computeBudgetView(portfolio, fx) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
-  // Villejuif: charges décalées — début après livraison Q3 2028 (franchise 36 mois depuis août 2025)
+  // Villejuif: charges décalées — franchise totale 36 mois depuis le 1er déblocage (acte juin 2026),
+  // 1re mensualité juin 2029 ; loyers dès la livraison Q3 2028 (avant les mensualités).
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
-  // Villejuif : promesse de vente, prêt pas débloqué. Seule l'assurance prêt est payée (51€/mois).
-  // Les autres charges (prêt, PNO, TF, copro) démarreront après livraison (~Q3 2028).
+  // Villejuif : acte signé, prêt débloqué PAR TRANCHES, intérêts intercalaires capitalisés.
+  // Modèle courant : seule l'assurance prêt est comptée payée (51€/mois) — l'offre dit
+  // « débute à la première échéance » : à trancher sur relevé bancaire. PNO/TF/copro après livraison.
   const villejuifActiveCharges = ['assurance']; // seules charges payées actuellement
 
   const investProperties = [];

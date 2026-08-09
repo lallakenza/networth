@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=439';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=440';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1514,7 +1514,7 @@ export async function loadImmoRef() {
  * incomplet ou invalide, on n'applique RIEN (fallback data.js intégral).
  * Périmètre : valeurs/CRD/loyers/charges/prêts/VEFA/fiscalité/appréciation/caution.
  * HORS périmètre (restent dans data.js) : adresses & détails de lots (privacy),
- * barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS,
+ * barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS,
  * IMMO_MAROC_FEES).
  * @returns {boolean} true si appliqué
  */
@@ -1584,7 +1584,7 @@ export function applyImmoRef(ref) {
       IMMO_CONSTANTS.loans.vitryInsuranceAPRIL = { annualTTC: v.insurance_global.annualTTC, breakdown: v.insurance_global.breakdown };
     }
     IMMO_CONSTANTS.loans.villejuifInsurance = Math.round(((L.villejuif_lcl1.insurance_monthly || 0) * 1 + (L.villejuif_lcl2.insurance_monthly || 0) * 1) * 100) / 100;
-    if (jf.franchiseMonths != null) IMMO_CONSTANTS.loans.villejuifFranchise = { months: jf.franchiseMonths, startDate: null, loanDisbursed: !!jf.loanDisbursed, fraisDossier: jf.fraisDossier != null ? jf.fraisDossier : null };
+    if (jf.franchiseMonths != null) IMMO_CONSTANTS.loans.villejuifFranchise = { months: jf.franchiseMonths, startDate: jf.franchiseStart || null, loanDisbursed: !!jf.loanDisbursed, fraisDossier: jf.fraisDossier != null ? jf.fraisDossier : null };
     if (jf.startMonth != null) IMMO_CONSTANTS.villejuifStartMonth = jf.startMonth;
 
     if (typeof window !== 'undefined') window._immoSource = ref.source;
