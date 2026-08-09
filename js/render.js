@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=433';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=433';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=434';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=434';
 
 // ---- Generic table sort utility ----
 /**
@@ -1471,7 +1471,6 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   if (!tbody || !table) return;
   tbody.innerHTML = '';
   const periodLabels = { all: 'All', daily: 'Daily', mtd: 'MTD', oneMonth: '1M', ytd: 'YTD' };
-  const vis = (k) => _isColVisible(k);
 
   // Column header definitions - vary based on period
   const _hdefs = _posPeriod === 'all' ? {
@@ -1484,6 +1483,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     pl:      { sort: 'unrealizedPL', label: 'P/L', cls: 'num sortable' },
     pctPL:   { sort: 'pctPL', label: '%', cls: 'num sortable' },
     fxPL:    { sort: 'fxPL', label: 'FX P/L', cls: 'num sortable' },
+    evo:     { sort: 'pctPL', label: 'Évolution', cls: 'num' },  // v434 — sparkline : _cells.evo existait, l'en-tête manquait
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
@@ -1497,15 +1497,22 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     pl_periode: { sort: 'pl_periode', label: 'P/L p\u00e9riode', cls: 'num sortable' },
     pctPL_periode: { sort: 'pctPL_periode', label: '% p\u00e9riode', cls: 'num sortable' },
     fxPL:    { sort: 'fxPL', label: 'FX P/L', cls: 'num sortable' },
+    evo:     { sort: 'pctPL', label: 'Évolution', cls: 'num' },  // v434 — sparkline : _cells.evo existait, l'en-tête manquait
     weight:  { sort: 'weight', label: 'Poids', cls: 'num sortable' },
     sector:  { sort: 'sector', label: 'Secteur', cls: 'sortable' },
     geo:     { sort: 'geo', label: 'G\u00e9o', cls: 'sortable' },
   };
 
-  // Adjust column order based on period
-  let colOrder = _posPeriod === 'all' ?
-    ['shares', 'valeur', 'cout', 'pl', 'pctPL', 'fxPL', 'weight', 'sector', 'geo'] :
-    ['shares', 'valeur_debut', 'valeur_actuelle', 'pl_periode', 'pctPL_periode', 'fxPL', 'weight', 'sector', 'geo'];
+  // v434 — colOrder dérive ENFIN de la config des chips (_colOrder + _colConfig).
+  // Depuis le refactor colonnes-par-période, cette liste était codée en dur : les chips
+  // « Colonnes : » togglaient un état (_colConfig) que le constructeur ne lisait plus —
+  // boutons morts, alors que _cells sait rendre TOUTES les colonnes, broker/prix/pru/evo
+  // compris. En mode période, valeur/coût/P&L sont substitués par leurs variantes de
+  // période, en préservant l'ordre (drag & drop) et la visibilité choisis par l'usager.
+  const PERIOD_SUBST = { valeur: 'valeur_actuelle', cout: 'valeur_debut', pl: 'pl_periode', pctPL: 'pctPL_periode' };
+  let colOrder = _colOrder.filter(k => _isColVisible(k))
+    .map(k => _posPeriod === 'all' ? k : (PERIOD_SUBST[k] || k))
+    .filter(k => _hdefs[k]);   // garde-fou : jamais de <th> sans définition d'en-tête
 
   // Rebuild thead dynamically based on colOrder
   const thead = table.querySelector('thead');
@@ -1699,7 +1706,10 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       tr.style.background = '#f7fafc';
 
       const trades = (pos._trades || []).filter(t => t.type === 'buy' || t.type === 'sell');
-      const colSpan = 1 + _colOrder.filter(k => vis(k)).length;
+      // v434 — colSpan aligné sur les colonnes RÉELLEMENT rendues (colOrder dérivé),
+      // pas sur la config brute : les deux divergeaient d'où des lignes de détail
+      // plus larges ou plus étroites que le tableau.
+      const colSpan = 1 + colOrder.length;
       const detailTr = document.createElement('tr');
       detailTr.className = 'trade-detail-row';
       detailTr.style.background = '#f7fafc';
@@ -7372,7 +7382,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=433').then(m => {
+  import('./charts.js?v=434').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
