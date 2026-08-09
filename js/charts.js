@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=448';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=448';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=448';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=448';
-import { loadSnapshots } from './api.js?v=448'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=448'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=449';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=449';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=449';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=449';
+import { loadSnapshots } from './api.js?v=449'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=449'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1241,12 +1241,15 @@ function buildNWHistoryChart() {
   // LIVE (capture quotidienne du moteur, depuis le 18/07/2026) en trait plein. La
   // provenance est stockée ligne à ligne (totalReconstitue.modele/manque, append-only).
   const cache = window._nwSnapCache || [];
+  // v449 — reconstitué PAR PERSONNE : Amine remonte au 01/01/2024 (Degiro reconstruit
+  // depuis les trades, validé ±1,5 % sur les rapports annuels), Nezha + Couple depuis
+  // mi-mars 2026 (apparition de ses comptes dans le suivi exact).
   const rows = cache
     .map(r => {
       const live = r.data && r.data.total && r.data.total.couple != null ? r.data.total : null;
-      const rec = !live && r.data && r.data.totalReconstitue && r.data.totalReconstitue.couple != null ? r.data.totalReconstitue : null;
+      const rec = !live && r.data && r.data.totalReconstitue && r.data.totalReconstitue.amine != null ? r.data.totalReconstitue : null;
       if (live) return { date: r.date, couple: live.couple, amine: live.amine, nezha: live.nezha, live: true };
-      if (rec) return { date: r.date, couple: rec.couple, amine: null, nezha: null, live: false };
+      if (rec) return { date: r.date, couple: rec.couple != null ? rec.couple : null, amine: rec.amine, nezha: rec.nezha != null ? rec.nezha : null, live: false };
       return null;
     })
     .filter(Boolean);
@@ -1266,16 +1269,18 @@ function buildNWHistoryChart() {
           backgroundColor: 'rgba(39,103,73,0.08)', fill: true, tension: 0.25, borderWidth: 2.5,
           pointRadius: rows.length > 60 ? 0 : 2,
           segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
-        { label: 'Amine (live)', data: rows.map(r => r.amine), borderColor: '#3182ce',
-          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3], spanGaps: false },
-        { label: 'Nezha (live)', data: rows.map(r => r.nezha), borderColor: '#d69e2e',
-          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3], spanGaps: false },
+        { label: 'Amine', data: rows.map(r => r.amine), borderColor: '#3182ce',
+          fill: false, tension: 0.25, borderWidth: 1.8, pointRadius: 0, spanGaps: false,
+          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
+        { label: 'Nezha', data: rows.map(r => r.nezha), borderColor: '#d69e2e',
+          fill: false, tension: 0.25, borderWidth: 1.8, pointRadius: 0, spanGaps: false,
+          segment: { borderDash: ctx => (ctx.p1DataIndex <= idxLive ? [5, 4] : undefined) } },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Net Worth quotidien — reconstitué (pointillés) depuis le ' + premiere
+        title: { display: true, text: 'Net Worth quotidien — Amine reconstitué (pointillés) depuis le ' + premiere
           + (premierLive ? ', live depuis le ' + premierLive.date.split('-').reverse().join('/') : '') + ' (' + rows.length + ' relevés)', font: { size: 13 } },
         legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
         tooltip: {
