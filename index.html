@@ -3802,27 +3802,13 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div id="cfSummaryRibbon" style="display:none;margin:10px 0 0;padding:12px 20px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;"></div>
 
   <!-- WEALTH CREATION BREAKDOWN -->
-  <h3 style="margin-top:24px;">Synth&egrave;se Pr&ecirc;ts</h3>
-  <div class="table-wrap" style="--tbl-min: 720px">
-  <table id="immoLoansTable">
-    <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Rdt brut</th><th class="num">Rdt net</th></tr></thead>
-    <tbody id="immoLoansTbody"></tbody>
-  </table>
-  </div>
-
-  <!-- TABLEAU D'AMORTISSEMENT -->
-  
-
-  <div class="grid2" style="margin-top:20px;">
-    <div class="chart-container" style="height: 280px;">
+  <div class="chart-container" style="height: 280px;">
       <canvas id="immoViewEquityChart"></canvas>
     </div>
-    <div class="chart-container" style="height: 280px;">
-      <canvas id="immoViewProjectionChart"></canvas>
-    </div>
-  </div>
-
-  <div id="propDetailPanel" class="prop-detail-panel" style="display:none;">
+    
+<!-- v439 (P8/P10) : trajectoire de désendettement PROMUE en section visible -->
+<div style="margin-top:16px;"><h3>Trajectoire de d&eacute;sendettement</h3><div class="chart-container" style="height: 300px;"><canvas id="amortChart"></canvas></div></div>
+<div id="propDetailPanel" class="prop-detail-panel" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 id="propDetailTitle" style="margin:0;font-size:18px;color:var(--primary);"></h3>
       <button id="propDetailClose" style="background:none;border:1px solid #cbd5e0;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:12px;color:var(--gray);">&#x2715; Fermer</button>
@@ -3849,8 +3835,28 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <!-- VEFA Timeline (Villejuif only) -->
     <div id="propDetailVefa" class="prop-detail-section" style="display:none;"></div>
   </div>
+
+<!-- v439 (P10) : section repliée -->
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secImmoPrets" onclick="var d=document.getElementById('secImmoPrets');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Synthèse prêts</span><span style="font-size:11.5px;color:#718096;font-weight:400;">mensualités, assurances, échéances — détail par prêt</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secImmoPrets" style="display:none;padding:0 16px 16px;"><h3 style="margin-top:24px;">Synth&egrave;se Pr&ecirc;ts</h3>
+  <div class="table-wrap" style="--tbl-min: 720px">
+  <table id="immoLoansTable">
+    <thead><tr><th>Bien</th><th class="num">Mensualit&eacute;</th><th class="num">Assurance</th><th class="num">LTV</th><th class="num">Fin pr&ecirc;t</th><th class="num">Rdt brut</th><th class="num">Rdt net</th></tr></thead>
+    <tbody id="immoLoansTbody"></tbody>
+  </table>
+  </div>
+
+  <!-- TABLEAU D'AMORTISSEMENT -->
+  
+
+  <div class="grid2" style="margin-top:20px;">
+    
+  </div>
+
+  </div></div>
 <!-- v429 : section repliée -->
-<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secImmoRichesse" onclick="var d=document.getElementById('secImmoRichesse');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Création de richesse</span><span style="font-size:11.5px;color:#718096;font-weight:400;">breakdown + projection 20 ans — 2 graphiques</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secImmoRichesse" style="display:none;padding:0 16px 16px;"><div id="wealthBreakdownSection" class="card" style="margin:16px 0;padding:20px;display:none;">
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secImmoRichesse" onclick="var d=document.getElementById('secImmoRichesse');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Création de richesse</span><span style="font-size:11.5px;color:#718096;font-weight:400;">breakdown + projection 20 ans — 2 graphiques</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secImmoRichesse" style="display:none;padding:0 16px 16px;"><div class="chart-container" style="height: 280px;">
+      <canvas id="immoViewProjectionChart"></canvas>
+    </div><div id="wealthBreakdownSection" class="card" style="margin:16px 0;padding:20px;display:none;">
     <h3 style="margin:0 0 16px 0;font-size:16px;color:var(--primary);">Breakdown Cr&eacute;ation de Richesse</h3>
     <div id="wealthBreakdownContent"></div>
   </div>
@@ -3896,7 +3902,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </table>
   </div>
   <div class="grid2" style="margin-top:16px;">
-    <div class="chart-container" style="height: 300px;"><canvas id="amortChart"></canvas></div>
+    
     <div></div>
   </div>
 
@@ -3927,7 +3933,9 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
   <h3 style="margin-top: 24px;">Analyse d'autofinancement — Cash Flow reel</h3>
   <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Revenus = loyer HC + charges locataire + parking. Charges = tout ce que le proprietaire paye (pret, copro, assurance, PNO, TF). Cash flow = revenus - charges.</p>
-  <div id="immoCFTable"></div>
+  <!-- v439 (P9) : cascade du cash-flow mensuel -->
+<div class="chart-container" style="height:300px;margin-bottom:12px;"><canvas id="cfWaterfallChart"></canvas></div>
+<div id="immoCFTable"></div>
   <div class="success" style="margin-top: 14px;" id="immoCFAnalysis"></div>
 
   <!-- HYPOTHESES & SOURCES -->
@@ -4484,7 +4492,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=438"></script>
+<script type="module" src="js/app.js?v=439"></script>
 
 </body>
 </html>
