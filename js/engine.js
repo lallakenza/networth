@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=440';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=441';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2530,7 +2530,14 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
   if (loanKey === 'villejuif' && VILLEJUIF_CONSTRAINTS && Array.isArray(VILLEJUIF_CONSTRAINTS.constraints)) {
     const cl = VILLEJUIF_CONSTRAINTS.constraints[0];
     const fin = cl && cl.dateFin;                       // '2033-06'
-    const moisVente = targetDate ? String(targetDate).slice(0, 7) : null;
+    // v441 — targetDate arrive en objet Date depuis computeExitCostsAtYear : String(Date)
+    // donne « Mon Jun 01… », jamais < '2033-06' → la clause ne s'appliquait JAMAIS aux
+    // projections annuelles (bug silencieux depuis v427). Normaliser en 'YYYY-MM'.
+    const moisVente = targetDate
+      ? (targetDate instanceof Date
+        ? targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0')
+        : String(targetDate).slice(0, 7))
+      : null;
     if (fin && moisVente && moisVente < fin) {
       result.clauseSADEVActive = true;
       const icc = (VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese != null)
