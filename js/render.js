@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=441';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=441';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=442';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=442';
 
 // ---- Generic table sort utility ----
 /**
@@ -5774,8 +5774,7 @@ function renderVEFATimeline(container, prop) {
 
     html += '<div style="padding:12px 16px;background:#ebf8ff;border-radius:8px;border-left:3px solid #2b6cb0;margin-bottom:16px;">'
       + '<div style="font-weight:700;color:#2c5282;margin-bottom:4px;">Prêt débloqué par tranches — franchise en cours</div>'
-      + '<div style="font-size:13px;color:#2a4365;">Premier déblocage à l’acte (' + debutLabel + '). La franchise totale de '
-      + cfg.franchiseMonths + ' mois court depuis cette date : intérêts intercalaires capitalisés (ajoutés au CRD), aucune mensualité avant ' + premiereMensLabel + '.</div>'
+      + '<div style="font-size:13px;color:#2a4365;">Franchise totale de ' + cfg.franchiseMonths + ' mois activée à la signature de l’offre (' + debutLabel + ') — pratique LCL confirmée sur relevés. 1er tirage à l’acte (juin 2026). Intérêts intercalaires capitalisés (ajoutés au CRD), assurance CACI prélevée dès la signature, aucune mensualité avant ' + premiereMensLabel + '.</div>'
       + '</div>';
 
     html += '<div style="position:relative;height:50px;background:#e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden;">'
@@ -5790,7 +5789,7 @@ function renderVEFATimeline(container, prop) {
       + '</div>';
 
     html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + debutLabel + '</div><div style="font-size:11px;color:#718096;">Début franchise (1er déblocage)</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + debutLabel + '</div><div style="font-size:11px;color:#718096;">Début franchise (signature offre)</div></div>'
       + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison prévue</div></div>'
       + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + premiereMensLabel + '</div><div style="font-size:11px;color:#718096;">1re mensualité (fin franchise)</div></div>'
       + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + (tire > 0 ? tire.toLocaleString('fr-FR') + ' €' : '—') + '</div><div style="font-size:11px;color:#718096;">Tiré sur ' + Math.round(loansTotal).toLocaleString('fr-FR') + ' € (' + pctTire + '%)</div></div>'
@@ -7380,7 +7379,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=441').then(m => {
+  import('./charts.js?v=442').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

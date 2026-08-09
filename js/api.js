@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=441';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=442';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
