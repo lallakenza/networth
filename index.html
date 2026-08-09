@@ -3080,6 +3080,23 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 <p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;" id="villejuifNote">* Villejuif VEFA <span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-weight:600;color:#276749;">acte signe</span> — equity comptee dans le NW · livraison Q3 2028 (loyers a venir)</p>
 
+<!-- v444 (P1) : le cockpit décideur, top movers, alertes, constats et perf par classe
+     remontent SOUS le hero — la page répond d'abord, explore ensuite. -->
+<div id="decisionCockpit" data-view="couple" style="margin:24px 0 0;"></div>
+<div id="topMoversCouple" data-view="couple"></div>
+<div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
+<div class="card" data-view="couple" style="padding:0;overflow:hidden;background:transparent;border:none;box-shadow:none;">
+<!-- v444 : section repliée -->
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secConstats" onclick="var d=document.getElementById('secConstats');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Constats détaillés</span><span style="font-size:11.5px;color:#718096;font-weight:400;">points positifs & risques structurels — contexte, non actionnable</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secConstats" style="display:none;padding:0 16px 16px;">
+  <div class="grid2">
+    <div><div class="success" id="coupleInsightsPositive"></div></div>
+    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
+  </div>
+</div></div>
+</div>
+<div id="perfClasses" data-view="couple" style="margin:16px 0 0;"></div>
+
+
 <!-- KPIs AMINE -->
 <div id="kpi-amine" class="kpi-strip hidden" style="grid-template-columns: repeat(5, 1fr);">
   <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
@@ -3306,14 +3323,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
     <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">--</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4"></div></div>
   </div>
 
-  <div class="table-wrap" style="--tbl-min: 680px">
-  <table id="immoTable">
-    <thead>
-      <tr><th>Bien</th><th>Proprietaire</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">EQ. NETTE</th><th class="num">CF /mois</th><th>Statut</th></tr>
-    </thead>
-    <tbody id="immoSummaryTbody"></tbody>
-  </table>
-  </div>
+  <div id="immoNextEcheanceCouple" style="font-size:13px;color:#4a5568;margin-top:4px;"></div>
   <p style="font-size:12px;color:var(--gray);margin-top:6px" id="immoLoanFootnote"></p>
 
   <div class="info" style="margin-top:14px;font-size:13px;text-align:center;">
@@ -3322,13 +3332,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 </div>
 
 <!-- INSIGHTS GLOBAUX -->
-<div class="card" data-view="couple">
-  <h2><span class="section-icon" style="background: var(--green);">&#x1F4A1;</span>Vue d'ensemble & Insights</h2>
-  <div class="grid2">
-    <div><div class="success" id="coupleInsightsPositive"></div></div>
-    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
-  </div>
-</div>
+
 
 <!-- NW HISTORY — supprimé v86 (pas de données historiques réelles) -->
 
@@ -3402,6 +3406,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <!-- SIMULATEUR COUPLE -->
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--green);">&#x1F3AF;</span>Simulateur — Net Worth Couple</h2>
+<!-- v444 : section repliée -->
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secSimCouple" onclick="var d=document.getElementById('secSimCouple');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Projection 20 ans — hypothèses ajustables</span><span style="font-size:11.5px;color:#718096;font-weight:400;">trajectoire simulée du NW couple (épargne, rendements, immo) — déplier pour ajuster</span></span><span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">&#x25BC;</span></button><div id="secSimCouple" style="display:none;padding:0 16px 16px;">
   <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">Projection du patrimoine combine (Amine + Nezha).<br>
   <strong style="color:var(--gold)">Aujourd'hui : l'immobilier represente <span id="cplImmoPct">--</span>% du NW couple (<span id="cplImmoVal">--</span> d'equity sur 3 biens).</strong></p>
   <div class="sim-controls" style="grid-template-columns: repeat(5, 1fr);">
@@ -3421,6 +3427,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
   <div class="chart-container" style="height: 380px;"><canvas id="cplSimChart"></canvas></div>
   <div class="highlight" id="cplSimInsight">--</div>
+</div></div>
 </div>
 
 <!-- v323 — Alertes proactives (fin de vue couple).
@@ -3428,10 +3435,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
      jaune (à surveiller), vert (opportunité). -->
 <!-- v428 — Cockpit décideur : répond aux questions d'entrée (croissance, épargne, CRD)
      AVANT le détail. Le NW lui-même vit déjà dans les cartes KPI au-dessus. -->
-<div id="decisionCockpit" data-view="couple" style="margin:24px 0 0;"></div>
 <!-- v431 : la question 3 du décideur — bon investissement ou pas, par classe -->
-<div id="perfClasses" data-view="couple" style="margin:16px 0 0;"></div>
-<div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
 
 <!-- SIMULATEUR AMINE -->
 <div class="card" data-view="amine">
@@ -4492,7 +4496,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=443"></script>
+<script type="module" src="js/app.js?v=444"></script>
 
 </body>
 </html>

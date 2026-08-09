@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=443';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=443';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=443';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=443';
-import { loadSnapshots } from './api.js?v=443'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=443'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=444';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=444';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=444';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=444';
+import { loadSnapshots } from './api.js?v=444'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=444'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1182,66 +1182,61 @@ function _drawSerieExplorer(rows, all, labels) {
 }
 
 // ============ NW HISTORY LINE CHART ============
-function buildNWHistoryChart(state) {
+// v444 (P2) — branché sur les SNAPSHOTS QUOTIDIENS (window._nwSnapCache) : l'ancienne
+// version lisait state.nwHistory (NW_HISTORY, vide depuis v86) et la carte restait
+// invisible. Le NW total n'existe que depuis le début du suivi live (18/07/2026) —
+// la courbe s'allonge d'elle-même chaque jour. JAMAIS seedé depuis EQUITY_HISTORY.
+function buildNWHistoryChart() {
   const el = document.getElementById('nwHistoryChart');
   if (!el) return;
   if (charts.nwHistory) { charts.nwHistory.destroy(); delete charts.nwHistory; }
 
-  const history = state.nwHistory;
-  if (!history || history.length === 0) return;
+  const rows = (window._nwSnapCache || []).filter(r => r.data && r.data.total && r.data.total.couple != null);
+  if (rows.length < 2) return;
 
-  const labels = history.map(h => {
-    const [y, m] = h.date.split('-');
-    const months = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
-    return months[parseInt(m) - 1] + ' ' + y;
-  });
-
-  const annotations = history.filter(h => h.note).map(h => {
-    const idx = history.indexOf(h);
-    return { idx, note: h.note };
-  });
+  const labels = rows.map(r => r.date.slice(8, 10) + '/' + r.date.slice(5, 7));
+  const premiere = rows[0].date.split('-').reverse().join('/');
 
   charts.nwHistory = new Chart(el, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: 'Couple', data: history.map(h => h.coupleNW), borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,0.1)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#48bb78' },
-        { label: 'Amine', data: history.map(h => h.amineNW), borderColor: '#2b6cb0', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3, borderDash: [5, 3] },
-        { label: 'Nezha', data: history.map(h => h.nezhaNW), borderColor: '#d69e2e', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3, borderDash: [5, 3] },
+        { label: 'Couple', data: rows.map(r => r.data.total.couple), borderColor: '#276749',
+          backgroundColor: 'rgba(39,103,73,0.08)', fill: true, tension: 0.25, borderWidth: 2.5, pointRadius: rows.length > 60 ? 0 : 2 },
+        { label: 'Amine', data: rows.map(r => r.data.total.amine != null ? r.data.total.amine : null), borderColor: '#3182ce',
+          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3] },
+        { label: 'Nezha', data: rows.map(r => r.data.total.nezha != null ? r.data.total.nezha : null), borderColor: '#d69e2e',
+          fill: false, tension: 0.25, borderWidth: 1.5, pointRadius: 0, borderDash: [5, 3] },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Evolution du Net Worth', font: { size: 14 } },
+        title: { display: true, text: 'Suivi quotidien du Net Worth — depuis le ' + premiere + ' (' + rows.length + ' relevés)', font: { size: 13 } },
         legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
         tooltip: {
+          mode: 'index', intersect: false,
           callbacks: {
             label: c => {
               const val = c.parsed.y;
+              if (val == null) return null;
               const prev = c.dataIndex > 0 ? c.dataset.data[c.dataIndex - 1] : null;
               let pctChange = '';
               if (prev && prev > 0) {
-                const pct = ((val - prev) / prev * 100).toFixed(1);
-                pctChange = ' (' + (val > prev ? '+' : '') + pct + '%)';
+                const pct = ((val - prev) / prev * 100).toFixed(2);
+                pctChange = ' (' + (val > prev ? '+' : '') + pct + '% vs relevé précédent)';
               }
               return c.dataset.label + ': ' + fmt(val) + pctChange;
             },
-            afterBody: (items) => {
-              const idx = items[0]?.dataIndex;
-              const h = history[idx];
-              return h && h.note ? [h.note] : [];
-            }
           }
         }
       },
-      scales: {
-        y: { ticks: { callback: v => fmtAxis(v) } }
-      }
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } } }
     }
   });
 }
+window.buildNWHistoryChart = buildNWHistoryChart;   // rappel post-chargement des snapshots (app.js)
 
 // ============ GENERIC TREEMAP BUILDER ============
 function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel) {
