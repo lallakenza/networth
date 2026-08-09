@@ -4897,6 +4897,44 @@ Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répli
 du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
 IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
 
+### v424–v439 — Lecture décideur, cockpit performance, splits, audit immobilier (8-9 août 2026)
+
+**v424-v427** : fiches appartement homogénéisées sur le référentiel Notion (alertes par bien,
+passifs documentés `IMMO_PASSIFS_DOCUMENTES`, contraintes datées) ; PWA installable (manifest +
+sw.js — `VERSION` à bumper à chaque déploiement comme les `?v=N`) ; la projection de sortie
+Villejuif intègre la clause SADEV 94 ; wording « simulation de prêt » → prêt signé.
+
+**v428-v431** : cockpit décideur en tête de la vue d'entrée (NW, croissance /mois et /an,
+CF immo, prochaine échéance) ; réorganisation décision-d'abord de TOUTES les vues par chirurgie
+DOM scriptée (garde-fous d'équilibre `<div>` par bloc, abandon sans écriture si déséquilibre —
+méthode réutilisable, scripts en scratchpad) ; sections secondaires repliées (pattern `repli()` :
+bouton aria-expanded + `resize()` des canvas Chart.js à l'ouverture) ; nav mobile sticky.
+
+**v432-v435** : cockpit performance par classe reconstruit après un premier jet défectueux
+(NaN : `views.couple.immo` est un OBJET `{val, sub}` ; TWR sans période ; richesse mensuelle
+affichée comme totaux). KPIs honnêtes par le canal canonique du P&L période (daily = moteur,
+MTD+ = `_chartKPIOverrides`) : Actions jour/YTD/1an/latent, Immo CF/mois + richesse/mois +
+cash-on-cash + ROE, Cash nominal/réel/productif. Boutons colonnes du tableau positions réparés
+(le builder ignorait la config `_colOrder`/`_isColVisible`).
+
+**v436** : détection automatique des splits/regroupements dans le P&L graphe — avant la boucle
+de simulation, chaque trade compare `e.price` au close ajusté Yahoo du même jour ; ratio ≈
+facteur entier ∈ {2..100} (ou inverse, tolérance 25 %) → qty×f, price÷f (coût/produit
+inchangés). Cas déclencheur : Worldline regroupé ×10 APRÈS clôture de la position → panneau
+affichait −46 150 € au lieu du réel −3 202 € (realizedPL du journal).
+
+**v437-v439** : audit général des 4 pages immobilier (grille : la donnée qui répond à la
+question du décideur est-elle visible sans clic ?) → 10 propositions validées puis livrées.
+P1 : 3 strips KPI consolidés (valeur/CRD/équité/LTV ; loyers/charges/CF/richesse ;
+équité nette/frais sortie/passifs/prochaine échéance). P2 : vocabulaire homogène (Équité, Rdt).
+P3 : loyer + rendements sur la fiche propriété. P4 : lien panneau détail → fiche. P5 : bloc
+échéances. P6 : tableau par bien cliquable (VEFA badgé, flux conditionnels en tirets — règle
+v347). P7 : barres EMPILÉES Équité+CRD (structure du capital). P8 : trajectoire de
+désendettement PROMUE hors du repli + série Total consolidée. P9 : cascade du cash-flow
+mensuel (loyers → copro → TF+PNO → assurances → prêts → CF net). P10 : ordre décideur de la
+page consolidée, Synthèse prêts rétrogradée en repli, projection équité fusionnée dans
+Richesse. Audit KPIs site vs Notion : 38/40 alignés, 2 corrections côté Notion (BUG-083/084).
+
 ## §77 — v340-342 : Audit frontend (npx skills) + 3 sprints de correctifs (30 mai 2026)
 
 **Contexte** : audit complet du dashboard via deux skills installés avec `npx skills` (`impeccable` — audit a11y/perf/theming/responsive/anti-patterns, et `microsoft/frontend-design-review`), combiné à 4 agents parallèles auditant le code métier (engine, charts, render+app, data+simulators, ~28k lignes) et un calcul réel des ratios de contraste WCAG. Résultat : **0 bug de Net Worth** (les invariants tiennent), mais ~14 défauts d'affichage et d'accessibilité. Corrigés en 3 sprints (un déploiement chacun). Détail bug-par-bug dans `BUG_TRACKER.md` (BUG-064 → BUG-074).
