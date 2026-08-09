@@ -1938,3 +1938,64 @@ Audit complet via `npx skills` (skills `impeccable` + `microsoft/frontend-design
 *v314 — 18 avril 2026 (quality fixes post-audit : A5 resync visuel boutons chart mode au premier render, A7 coeff CRD moyen 0.55 sur assurance DI, A8 warn console créances sans dueDate. + ARCHITECTURE.md §54-§62 complétée (v305→v314) + CLAUDE.md mis à jour avec shapes inter-modules en règle d'or #7.)*
 
 *v313 — 18 avril 2026 (audit v305-v312 : BUG-056 cash-flow loyers, BUG-057 fiscalité Vitry table vide, BUG-058 alerte P&L IBKR muette, BUG-059 IR marginal au lieu de flat. + apportRatio data-driven par preset (A6).)*
+
+---
+
+## AUDIT KPIs SITE vs RÉFÉRENTIEL NOTION — 9 août 2026 (v434-v436)
+
+Comparaison systématique de la couche données (data.js + Supabase, qui alimente
+déterministiquement tous les KPIs via l'engine — invariants verts au moment de
+l'audit) contre les 4 bases du référentiel Notion « Patrimoine — Control Tower ».
+
+### Résultat : 38/40 valeurs alignées
+
+| Domaine | Vérifié | Résultat |
+|---|---|---|
+| Biens (valeur, CRD, loyer ×3) | 9 valeurs | ✅ 9/9 identiques |
+| Prêts (capital, taux, CRD ×6) | 6 lignes | ✅ 6/6 identiques |
+| Comptes (soldes natifs) | 20 comptes | ✅ 20/20 identiques |
+| Créances | 11 data.js vs 10 Notion | ⚠️ 1 écart (BUG-083) |
+| Rendements comptes | 20 | ⚠️ 1 écart (BUG-084) |
+
+### BUG-083 — CREN01 (40 000 MAD) absent du référentiel Notion
+- **Sévérité** : moyenne (référentiel incomplet, site correct)
+- **Constat** : data.js porte la créance CREN01 (Omar, 40 000 MAD, en_cours) qui
+  entre dans le NW de Nezha. La base Notion Créances ne la contient pas — elle a
+  été omise lors du peuplement initial (8 août).
+- **Côté faux** : Notion. Le site calcule juste.
+- **Fix** : ajouter la ligne dans la base Notion Créances.
+
+### BUG-084 — Rendement Livret A à 0 dans Notion (réel : 1,5 %)
+- **Sévérité** : basse
+- **Constat** : data.js/CASH_YIELDS documente le Livret A LCL à 1,5 % défiscalisé ;
+  la fiche Notion du compte porte Rendement = 0. Le rendement moyen pondéré affiché
+  par le site (vue Cash, cockpit) inclut le 1,5 % — un lecteur qui recalcule depuis
+  Notion trouvera un écart.
+- **Côté faux** : Notion (champ non rempli au peuplement).
+- **Fix** : Rendement = 0.015 sur la fiche Livret A (LCL).
+
+### Différences de méthode LÉGITIMES (pas des bugs — règle documentée en tête
+### de l'espace Notion)
+1. **Équités immo** : Notion fige le CRD à sa date d'observation ; le site le
+   recalcule quotidiennement par amortissement. Écart attendu de quelques
+   centaines d'euros, croissant entre deux mises à jour Notion.
+2. **Villejuif, deux valeurs** : bilan au coût engagé (~141 K€, méthode VEFA
+   prudente, c'est ce qui entre au NW) vs valeur de marché de référence (415 K€,
+   portée par Notion et affichée en rappel). Libellés explicités depuis v425.
+3. **Créances recouvrées** : data.js garde 5 lignes individuelles (INVSNT001-003,
+   CREB01-02) ; Notion les consolide en une fiche « recouvre_2025 » de 63 212 €
+   — somme vérifiée identique.
+
+### Bugs de RENDU trouvés et corrigés pendant la même passe
+- v434 : chips de colonnes mortes (colOrder codé en dur, config orpheline depuis
+  le refactor période) + en-tête `evo` manquant + colSpan incohérent.
+- v435 : NaN Immobilier au cockpit (views.couple.immo est un objet {val, sub}),
+  TWR affiché sans période, montants mensuels présentés comme totaux.
+- v436 : Worldline −46 150 € dans la répartition P&L (journal pré-regroupement ×
+  série Yahoo ajustée) → détection automatique des splits à l'ingestion des
+  événements de simulation.
+
+### Non couvert par cet audit
+Les KPIs purement runtime (prix live, FX du jour, deltas de snapshots) ne sont
+pas comparables à Notion par construction — Notion n'en garde pas. Leur cohérence
+interne est couverte par les invariants engine et les contrôles v405/v413.
