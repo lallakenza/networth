@@ -2053,6 +2053,13 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - Dispositif Jeanbrun retiré partout (non retenu : plafond 1 215 € vs 1 700 € marché) : section
   fiche, `computeVillejuifRegimeComparison`, `VILLEJUIF_REGIMES`, commentaires.
 - Timeline Villejuif : fin franchise/fin de prêts recalées, mentions Jeanbrun purgées.
-- Question ouverte (à trancher sur relevé bancaire) : l'assurance ACM (51 €/mois) est-elle
-  réellement prélevée pendant la franchise ? L'offre dit « débute à la première échéance » mais le
-  budget la compte payée. Sans impact NW (Villejuif conditional exclu des flux).
+- Question assurance pendant franchise — TRANCHÉE (9 août 2026, lecture des offres archivées) :
+  le prélèvement de 51,29 €/mois pendant la franchise est CONFORME au contrat. L'échéancier de la
+  proposition LCL affiche explicitement les mois de franchise à « 0,00 € hors assurance / 51,29 €
+  assurance comprise » avec « cotisation périodique constante pendant toute la durée du prêt » —
+  une échéance à 0 € est bien une échéance, et la FISE intègre le coût total (ASCAC 11 660,16 €).
+  Pratique de marché standard en VEFA (cotisation due dès le 1er déblocage, différé total = assurance
+  seule). L'annotation data.js « débute à la première échéance, pas pendant franchise » était un
+  contresens (première échéance = première mensualité d'amortissement). À corriger au prochain ship :
+  l'assureur est CACI (groupe Crédit Agricole/LCL), pas ACM comme noté dans data.js. Levier possible :
+  délégation loi Lemoine calculée sur capital débloqué/CRD (~30 % du prêt tiré pendant 3 ans de franchise).
