@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=446';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=447';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5790,6 +5790,37 @@ export function computeSensibilite(state, baseObjectif, opts) {
  *   - Calendrier déclaratif (FR formulaire 2042/2044, MA, UAE)
  *   - Coût rapatriement EUR vers FR (estimation FX spread + wire)
  */
+/**
+ * v447 — Scénario taux → prix immobilier (demande Amine, analyse du 9 août 2026).
+ * Canal de solvabilité : à mensualité constante, +1 pt de taux ≈ −8,5 % de capacité
+ * d'emprunt (20-25 ans). Transmission aux prix observée sur 2022-2024 en zone tendue :
+ * ~60-70 % du choc de solvabilité (le reste passe par les volumes et les délais).
+ * On retient une élasticité prix de ±5,5 %/pt — hypothèse explicite, pas une prévision.
+ * Les CRD étant fixes, tout le choc de valeur passe dans l'équité (levier).
+ */
+export function computeScenarioTauxImmo(state) {
+  const iv = state.immoView;
+  if (!iv || !iv.properties) return null;
+  const props = iv.properties;
+  // valeur de marché : deliveredValue pour un VEFA (la valeur portée est un coût engagé)
+  const valMarche = props.reduce((s, p) => s + (p.deliveredValue || p.value || 0), 0);
+  const equite = props.reduce((s, p) => s + ((p.deliveredValue || p.value || 0) - (p.crd || 0)), 0);
+  const ELASTICITE = 0.055;
+  const scenario = (dTaux) => {
+    const dPrix = -dTaux * ELASTICITE;
+    return {
+      dTaux,
+      dPrix,
+      dSolvabilite: -dTaux * 0.085,
+      dValeur: Math.round(valMarche * dPrix),
+      valeurProjetee: Math.round(valMarche * (1 + dPrix)),
+      dEquitePct: equite > 0 ? (valMarche * dPrix) / equite * 100 : null,
+    };
+  };
+  return { valMarche: Math.round(valMarche), equite: Math.round(equite), elasticite: ELASTICITE,
+           scenarios: [scenario(-1), scenario(-0.5), scenario(0.5), scenario(1)] };
+}
+
 export function computeFiscaliteMRE(state) {
   const result = {
     loyerVitry: null,

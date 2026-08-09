@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=446';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=446';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=447';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=447';
 
 // ---- Generic table sort utility ----
 /**
@@ -7388,7 +7388,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=446').then(m => {
+  import('./charts.js?v=447').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7946,6 +7946,29 @@ function renderPlanFiscalView(state) {
       + 'Lecture : "1.2M€ (120%)" = projeté à 1.2M€ qui dépasse l\'objectif de ' + Math.round(sens.target / 1000) + 'k€ (120 % atteint). '
       + 'Cellule centrale (fond bleu) = scénario base (épargne réelle ' + savBase.toLocaleString('fr-FR') + ' €/m × rendement ' + (sens.baseRendement * 100).toFixed(0) + ' %). '
       + 'Variations : ±2 points de rendement, ±20 % d\'épargne pour cadrer le risque.</p>';
+    // ── v447 — scénario taux → prix immo (canal de solvabilité, élasticité explicite) ──
+    try {
+      const st = computeScenarioTauxImmo(state);
+      if (st) {
+        html += '<h4 style="margin:18px 0 8px;font-size:14px;color:#2d3748;">Scénario taux d\u2019intérêt \u2192 prix immobilier</h4>';
+        html += '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;min-width:480px;">'
+          + '<thead><tr><th>Taux crédit</th><th class="num">Solvabilité acheteur</th><th class="num">Prix (élasticité 5,5%/pt)</th><th class="num">Valeur 3 biens</th><th class="num">Impact équité</th></tr></thead><tbody>';
+        st.scenarios.forEach(sc => {
+          const s2 = sc.dTaux > 0 ? '+' : '';
+          const cPrix = sc.dPrix >= 0 ? '#16a34a' : '#dc2626';
+          html += '<tr><td><strong>' + s2 + sc.dTaux + ' pt</strong></td>'
+            + '<td class="num">' + (sc.dSolvabilite >= 0 ? '+' : '') + (sc.dSolvabilite * 100).toFixed(1) + '%</td>'
+            + '<td class="num" style="color:' + cPrix + ';">' + (sc.dPrix >= 0 ? '+' : '') + (sc.dPrix * 100).toFixed(1) + '%</td>'
+            + '<td class="num">' + fmt(sc.valeurProjetee) + ' <span style="color:' + cPrix + ';font-size:11px;">(' + (sc.dValeur >= 0 ? '+' : '') + fmt(sc.dValeur) + ')</span></td>'
+            + '<td class="num" style="color:' + cPrix + ';font-weight:600;">' + (sc.dEquitePct != null ? (sc.dEquitePct >= 0 ? '+' : '') + sc.dEquitePct.toFixed(1) + '%' : '\u2014') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        html += '<p style="font-size:11px;color:var(--gray);margin-top:6px;font-style:italic">'
+          + 'Base : valeur de marché ' + fmt(st.valMarche) + ' (Villejuif en valeur livrée), équité ' + fmt(st.equite) + '. '
+          + 'Hypothèse : +1 pt de taux \u2248 \u22128,5 % de capacité d\u2019emprunt, transmission prix ~65 % (2022-2024, zone tendue). '
+          + 'Le CRD étant fixe, le choc de valeur passe intégralement dans l\u2019équité (effet levier). Clauses : Vitry bloqué jusqu\u2019à 01/2028, Villejuif jusqu\u2019à ~mi-2033 \u2014 seul Rueil peut capturer un rebond à court terme.</p>';
+      }
+    } catch (e) { /* bloc optionnel */ }
     tblSens.innerHTML = html;
   }
 
