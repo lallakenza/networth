@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=436';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=436';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=437';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=437';
 
 // ---- Generic table sort utility ----
 /**
@@ -4928,10 +4928,14 @@ function renderImmoView(state) {
     const realCRD = totalPrincipal + realInterest;
     const saving = bankInterest - realInterest;
     vilSim.innerHTML =
-      '<strong>Villejuif \u2014 Simulation banque vs estimation realiste :</strong><br>' +
-      'La banque simule un deblocage integral du credit au jour 1. En realite, les fonds VEFA se debloquent progressivement.<br><br>' +
+      '<strong>Villejuif \u2014 Int\u00e9r\u00eats de franchise : tableau bancaire vs tirage progressif r\u00e9el</strong><br>' +
+      // v437 — recadr\u00e9 : les DEUX pr\u00eats LCL sont SIGN\u00c9S (acte du 05/06/2026). Ce bloc ne
+      // compare plus une \u00ab simulation \u00bb \u00e0 une hypoth\u00e8se : il explique pourquoi le tableau
+      // d'amortissement BANCAIRE (d\u00e9blocage int\u00e9gral au jour 1) surestime les int\u00e9r\u00eats
+      // de franchise, alors qu'en VEFA le capital se tire par appels de fonds.
+      'Pr\u00eats LCL sign\u00e9s (acte du 05/06/2026). Le tableau d\u2019amortissement bancaire suppose un d\u00e9blocage int\u00e9gral au jour 1 \u2014 en VEFA, le capital se tire par appels de fonds, les int\u00e9r\u00eats de franchise r\u00e9ellement capitalis\u00e9s seront donc inf\u00e9rieurs.<br><br>' +
       '<table style="font-size:12px;margin:8px 0">' +
-      '<tr><th></th><th class="num">Simulation banque</th><th class="num">Estimation realiste</th><th class="num">Economie</th></tr>' +
+      '<tr><th></th><th class="num">Tableau bancaire (J1)</th><th class="num">Tirage progressif (estim\u00e9)</th><th class="num">\u00c9conomie</th></tr>' +
       '<tr><td>Interets capitalises (' + franchiseM + ' mois)</td><td class="num">' + bankInterest.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realInterest.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + ' (-' + Math.round(saving / bankInterest * 100) + '%)</td></tr>' +
       '<tr><td>CRD apres franchise</td><td class="num">' + bankCRD.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realCRD.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + '</td></tr>' +
       '</table>' +
@@ -7382,7 +7386,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=436').then(m => {
+  import('./charts.js?v=437').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
