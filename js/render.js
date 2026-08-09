@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=434';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=434';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE } from './data.js?v=435';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=435';
 
 // ---- Generic table sort utility ----
 /**
@@ -7382,7 +7382,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=434').then(m => {
+  import('./charts.js?v=435').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7603,7 +7603,10 @@ function renderDecisionCockpit(state) {
 
   const props = (state.immoView && state.immoView.properties) || [];
   const crdTotal = props.reduce((somme, p) => somme + (p.crd || 0), 0);
-  const equiteImmo = state.views && state.views.couple ? state.views.couple.immo : null;
+  // v435 — views.couple.immo est un OBJET { val, sub } : lire .val (le bug NaN du
+  // tableau par classe venait de la meme confusion).
+  const equiteImmo = state.views && state.views.couple && state.views.couple.immo
+    ? state.views.couple.immo.val : null;
 
   const tuile = (question, valeurHtml, contexte, idValeur) =>
     '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
@@ -7632,14 +7635,19 @@ function renderDecisionCockpit(state) {
 }
 
 /**
- * Performance par classe d'actifs (v431) — répond à « bon investissement ou pas ? ».
+ * Cockpit performance par classe (v435) — reconstruit apres le fiasco v432
+ * (Immobilier NaN, TWR -23% sans periode, montants mensuels affiches comme totaux).
  *
- * Trois classes, trois logiques de mesure — et c'est voulu qu'elles diffèrent :
- *   Actions : P&L latent vs capital net déployé (les chiffres du cockpit Actions)
- *   Immo    : création de richesse décomposée — capital amorti + appréciation
- *             (l'équité seule mélangerait l'apport initial avec le gain)
- *   Cash    : rendement moyen pondéré (un stock ne « performe » pas, il rapporte)
- * Aucun chiffre nouveau : tout vient de l'état déjà calculé par le moteur.
+ * Regles dures :
+ *   - CHAQUE chiffre porte sa periode (jour, YTD, 1 an, /mois, /an). Un taux sans
+ *     periode est illisible — c'etait le probleme du TWR.
+ *   - P&L par periode : MEME canal que les cartes KPI Actions (v405/v413) — jour
+ *     depuis le moteur (hasData + portee proprietaire partagee), YTD et 1 an depuis
+ *     les overrides du graphe quand ils existent, placeholder sinon. Jamais une
+ *     troisieme methode de calcul.
+ *   - Number.isFinite avant chaque affichage : une tuile absente vaut mieux qu'un NaN.
+ *   - totalWealthBreakdown est MENSUEL : etiquete /mois, annualise x12 seulement
+ *     pour les taux (CoC, ROE).
  */
 function renderPerfClasses(state) {
   const el = document.getElementById('perfClasses');
@@ -7647,67 +7655,71 @@ function renderPerfClasses(state) {
   const av = state.actionsView, iv = state.immoView, cv = state.cashView, vues = state.views;
   if (!av || !iv || !cv || !vues) { el.innerHTML = ''; return; }
 
-  const ligne = (classe, valeur, perf, commentaire) =>
-    '<tr><td style="font-weight:600;">' + classe + '</td>'
-    + '<td class="num">' + fmt(valeur) + '</td>'
-    + '<td class="num">' + perf + '</td>'
-    + '<td style="font-size:11.5px;color:#718096;">' + commentaire + '</td></tr>';
+  const fin = Number.isFinite;
+  const eur = (n) => (n >= 0 ? '+' : '') + fmt(n);
+  const pctT = (n, d) => (n >= 0 ? '+' : '') + n.toFixed(d == null ? 1 : d) + '%';
+  const coul = (n) => n >= 0 ? '#16a34a' : '#dc2626';
 
-  const pl = av.combinedUnrealizedPL || 0;
-  const dep = av.totalDeposits || 0;
-  const plPct = dep > 0 ? (pl / dep * 100) : null;
-  const cp = (n) => (n >= 0 ? '+' : '') + fmt(n);
-  const coulSpan = (n, txt) => '<span style="color:' + (n >= 0 ? '#16a34a' : '#dc2626') + ';font-weight:600;">' + txt + '</span>';
-  const pctS = (n, dec) => (n >= 0 ? '+' : '') + n.toFixed(dec == null ? 1 : dec) + '%';
+  // mini-KPI : libelle (avec periode) au-dessus, valeur coloree en dessous
+  const kpi = (libelle, valeurHtml) =>
+    '<div style="min-width:104px;">'
+    + '<div style="font-size:10.5px;color:#a0aec0;">' + libelle + '</div>'
+    + '<div style="font-size:14px;font-weight:700;">' + valeurHtml + '</div></div>';
+  const kpiEur = (libelle, n) => fin(n) ? kpi(libelle, '<span style="color:' + coul(n) + ';">' + eur(n) + '</span>') : '';
+  const kpiPct = (libelle, n, d) => fin(n) ? kpi(libelle, '<span style="color:' + coul(n) + ';">' + pctT(n, d) + '</span>') : '';
 
-  // ── v432 : KPIs de gestion de patrimoine par classe ──
-  // Actions : TWR (rendement pondéré par le temps — insensible aux apports/retraits,
-  //   c'est LE taux comparable à un indice), même source que la carte KPI Actions :
-  //   le graphe quand il a calculé, le fallback statique sinon.
-  const twr = (window._chartKPIData && typeof window._chartKPIData.twr === 'number')
-    ? window._chartKPIData.twr : (av.twr || null);
-  // Immo : trois angles complémentaires, calculés sur les biens NON conditionnels
-  //   (Villejuif en VEFA est exclu des flux — règle v347) :
-  //   rendement locatif net  = CF net annuel / valeur des biens
-  //   cash-on-cash sur équité = CF net annuel / équité immobilisée (le cash que
-  //     rapporte chaque euro non retirable du patrimoine immo)
-  //   ROE richesse = (CF + capital amorti + appréciation) annuel / équité — le
-  //     rendement TOTAL de l'équité, loyers ET enrichissement mécanique compris.
-  const equiteImmo = vues.couple.immo || 0;
-  const cfAnnuel = (iv.totalCF || 0) * 12;
-  const valeurFlux = (iv.properties || []).reduce((s2, p) => s2 + (p.conditional ? 0 : (p.value || 0)), 0);
-  const yieldNetImmo = valeurFlux > 0 ? (cfAnnuel / valeurFlux * 100) : null;
-  const cashOnCash = equiteImmo > 0 ? (cfAnnuel / equiteImmo * 100) : null;
-  const roeImmo = equiteImmo > 0 ? ((iv.totalWealthCreation || 0) * 12 / equiteImmo * 100) : null;
+  const carte = (titre, valeur, kpisHtml, note) =>
+    '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;">'
+    + '<span style="font-size:13px;font-weight:600;color:#2d3748;">' + titre + '</span>'
+    + '<span style="font-size:15px;font-weight:700;color:#1a202c;">' + (fin(valeur) ? fmt(valeur) : '\u2013') + '</span></div>'
+    + '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;">' + kpisHtml + '</div>'
+    + (note ? '<div style="font-size:10.5px;color:#a0aec0;margin-top:8px;">' + note + '</div>' : '')
+    + '</div>';
+
+  // ── Actions & crypto — canal partage avec les cartes KPI ──
+  let jour = null;
+  try {
+    const d = av.periodPL && av.periodPL.daily;
+    if (d && d.hasData) { const sc = scopePeriodPLByOwner(d, av); if (fin(sc.total)) jour = Math.round(sc.total); }
+  } catch (e) { /* tuile masquee */ }
+  const ov = window._chartKPIOverrides || {};
+  const ytd = ov.kpiPLYTD && fin(ov.kpiPLYTD.value) ? Math.round(ov.kpiPLYTD.value) : null;
+  const unAn = ov.kpiPL1Y && fin(ov.kpiPL1Y.value) ? Math.round(ov.kpiPL1Y.value) : null;
+  const latent = fin(av.combinedUnrealizedPL) ? av.combinedUnrealizedPL : null;
+  const latentPct = fin(latent) && av.totalDeposits > 0 ? (latent / av.totalDeposits * 100) : null;
+  const kActions = kpiEur('Jour', jour) + kpiEur('YTD', ytd) + kpiEur('1 an', unAn)
+    + (fin(latent) ? kpi('Latent total',
+        '<span style="color:' + coul(latent) + ';">' + eur(latent)
+        + (fin(latentPct) ? ' <span style="font-size:11px;">(' + pctT(latentPct) + ')</span>' : '') + '</span>') : '');
+
+  // ── Immobilier — flux mensuels etiquetes, taux annualises ──
+  const equite = vues.couple && vues.couple.immo ? vues.couple.immo.val : null;
+  const cfMois = fin(iv.totalCF) ? Math.round(iv.totalCF) : null;
+  const richesseMois = fin(iv.totalWealthCreation) ? Math.round(iv.totalWealthCreation) : null;
   const wb = iv.totalWealthBreakdown || {};
-  // Cash : nominal ET réel — 6% à 3% d'inflation n'est pas 6%.
-  const yNom = (cv.weightedAvgYield || 0) * 100;
-  const yReel = yNom - INFLATION_RATE * 100;
+  const valeurFlux = (iv.properties || []).reduce((s2, p) => s2 + (p.conditional ? 0 : (p.value || 0)), 0);
+  const netAn = fin(cfMois) && valeurFlux > 0 ? (cfMois * 12 / valeurFlux * 100) : null;
+  const cocAn = fin(cfMois) && fin(equite) && equite > 0 ? (cfMois * 12 / equite * 100) : null;
+  const roeAn = fin(richesseMois) && fin(equite) && equite > 0 ? (richesseMois * 12 / equite * 100) : null;
+  const kImmo = kpiEur('CF net /mois', cfMois) + kpiEur('Richesse /mois', richesseMois)
+    + kpiPct('Rdt net /an', netAn) + kpiPct('CoC /an', cocAn) + kpiPct('ROE /an', roeAn);
+  const noteImmo = 'Richesse /mois = CF + amorti ' + fmt(wb.capitalAmorti || 0) + ' + appr\u00e9ciation '
+    + fmt(wb.appreciation || 0) + ' \u00b7 CoC = CF\u00d712/\u00e9quit\u00e9 \u00b7 ROE = richesse\u00d712/\u00e9quit\u00e9 \u00b7 Villejuif (VEFA) hors flux';
 
-  let html = '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
-    + '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Bon investissement ? — performance par classe</div>'
-    + '<div class="table-wrap"><table style="font-size:12.5px;width:100%;">'
-    + '<thead><tr><th>Classe</th><th class="num">Valeur</th><th class="num">Renta</th><th>Lecture</th></tr></thead><tbody>';
+  // ── Cash ──
+  const yNom = fin(cv.weightedAvgYield) ? cv.weightedAvgYield * 100 : null;
+  const yReel = fin(yNom) ? yNom - INFLATION_RATE * 100 : null;
+  const productifPct = fin(cv.totalYielding) && cv.totalCash > 0 ? (cv.totalYielding / cv.totalCash * 100) : null;
+  const kCash = kpiPct('Nominal /an', yNom) + kpiPct('R\u00e9el /an', yReel)
+    + (fin(productifPct) ? kpi('Productif', '<span style="color:#2d3748;">' + productifPct.toFixed(0) + '%</span>') : '');
 
-  html += ligne('Actions &amp; crypto', av.totalStocks || 0,
-    (twr != null ? coulSpan(twr, pctS(twr) + ' TWR') + '<br>' : '')
-      + coulSpan(pl, cp(pl) + (plPct != null ? ' (' + pctS(plPct) + ')' : '')),
-    'TWR = rendement hors effet des apports · P&amp;L latent vs ' + fmt(dep) + ' déployés');
-
-  html += ligne('Immobilier', equiteImmo,
-    (yieldNetImmo != null ? '<span style="font-weight:600;">' + pctS(yieldNetImmo) + ' net</span><br>' : '')
-      + (cashOnCash != null ? coulSpan(cashOnCash, pctS(cashOnCash) + ' CoC') : '')
-      + (roeImmo != null ? '<br>' + coulSpan(roeImmo, pctS(roeImmo) + ' ROE') : ''),
-    'net = CF/valeur · CoC = CF/équité · ROE = (CF + amorti ' + fmt(wb.capitalAmorti || 0)
-      + ' + appréciation ' + fmt(wb.appreciation || 0) + ')/équité — Villejuif (VEFA) hors flux');
-
-  html += ligne('Cash', cv.totalCash || 0,
-    '<span style="font-weight:600;">' + pctS(yNom) + ' nominal</span><br>'
-      + coulSpan(yReel, pctS(yReel) + ' réel'),
-    'moyenne pondérée des comptes · réel = après ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation');
-
-  html += '</tbody></table></div></div>';
-  el.innerHTML = html;
+  el.innerHTML = '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Bon investissement ? \u2014 performance par classe</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">'
+    + carte('Actions & crypto', av.totalStocks, kActions, 'Latent = P&L vs ' + fmt(av.totalDeposits || 0) + ' d\u00e9ploy\u00e9s \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
+    + carte('Immobilier (\u00e9quit\u00e9)', equite, kImmo, noteImmo)
+    + carte('Cash', cv.totalCash, kCash, 'moyenne pond\u00e9r\u00e9e \u00b7 r\u00e9el = apr\u00e8s ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation')
+    + '</div>';
 }
 
 function renderAlertsPanel(state) {
