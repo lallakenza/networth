@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=442';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=442';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=443';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=443';
 
 // ---- Generic table sort utility ----
 /**
@@ -5936,7 +5936,10 @@ let _aptSecSeq = 0;
 function _sectionOpen(titre, ouvertParDefaut, sousTitre) {
   const id = 'aptsec' + (++_aptSecSeq);
   const chev = ouvertParDefaut ? '\u25B2' : '\u25BC';
-  return '<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin-bottom:14px;overflow:hidden;background:var(--surface,#fff);">'
+  // v443 — align-self:start : dans une grille 2 colonnes (fiche apt), le repli REPLIÉ était
+  // étiré à la hauteur de la cellule voisine (align-items:stretch par défaut) → grande zone
+  // vide bordée sous le titre. Constaté en prod sur « Détail des prêts » de la fiche Villejuif.
+  return '<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin-bottom:14px;overflow:hidden;background:var(--surface,#fff);align-self:start;">'
     + '<button type="button" aria-expanded="' + (ouvertParDefaut ? 'true' : 'false') + '" aria-controls="' + id + '"'
     + ' onclick="var d=document.getElementById(\'' + id + '\');var o=d.style.display===\'none\';d.style.display=o?\'block\':\'none\';'
     // v430 — redimensionnement explicite des Chart.js internes à l'ouverture : un chart
@@ -5996,20 +5999,21 @@ function renderAptView(state, loanKey) {
     + '<div><span style="color:#718096;">Surface</span><br><strong>' + surface + '</strong></div>'
     + '<div><span style="color:#718096;">Prix d\'achat</span><br><strong>' + price + '</strong></div>'
     // v425 — un bien en VEFA est porté au COÛT ENGAGÉ tant qu'il n'est pas livré, pas à sa
-    // valeur de marché. Afficher « Valeur actuelle » sans le dire laissait croire à une
-    // divergence avec le référentiel (415 000 € pour Villejuif contre ~141 000 € affichés).
-    // On nomme donc ce qui est montré, et on rappelle la valeur de marché à côté.
+    // valeur de marché. v443 — le test v425 lisait meta.underConstruction/meta.value qui
+    // n'existent PAS sur propertyMeta (règle d'or n°7) : le libellé restait « Valeur
+    // actuelle » et la note marché n'apparaissait jamais. Basé désormais sur les champs
+    // réellement exposés par le moteur : prop.conditional et prop.deliveredValue.
     + '<div><span style="color:#718096;">'
-      + (meta.underConstruction || (meta.value && Math.abs(meta.value - prop.value) > 1000)
-          ? 'Valeur au coût engagé' : 'Valeur actuelle')
+      + (prop.conditional ? 'Valeur au coût engagé (VEFA)' : 'Valeur actuelle')
       + '</span><br><strong>' + fmt(prop.value) + '</strong>'
-      + (meta.value && Math.abs(meta.value - prop.value) > 1000
-          ? '<br><span style="font-size:11px;color:#718096;">marché estimé ' + fmt(meta.value) + '</span>'
+      + (prop.deliveredValue && Math.abs(prop.deliveredValue - prop.value) > 1000
+          ? '<br><span style="font-size:11px;color:#718096;">valeur livrée estimée ' + fmt(prop.deliveredValue) + '</span>'
           : '')
       + '</div>'
     + '<div><span style="color:#718096;">\u00c9quit\u00e9 brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
     + '<div><span style="color:#718096;">Type</span><br><strong>' + type + '</strong></div>'
-    + '<div><span style="color:#718096;">Date achat</span><br><strong>' + date + '</strong></div>'
+    + '<div><span style="color:#718096;">' + (prop.conditional ? 'Réservation' : 'Date achat') + '</span><br><strong>' + date
+      + (prop.conditional ? ' <span style="font-weight:400;font-size:11px;color:#718096;">· acte 2026-06</span>' : '') + '</strong></div>'
     + '<div><span style="color:#718096;">Appréciation</span><br><strong>' + appreciation + '</strong></div>'
     + '<div><span style="color:#718096;">LTV</span><br><strong>' + prop.ltv.toFixed(1) + '%</strong></div>'
     // v438 (P3) — les KPIs du bien LUI-MÊME, calculés par le moteur mais jamais
@@ -6061,6 +6065,21 @@ function renderAptView(state, loanKey) {
     const neColor = ec.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
     html += '<div><span style="color:#718096;font-weight:600;">Equity nette après sortie</span><br><strong style="font-size:16px;color:' + neColor + ';">' + fmt(Math.round(ec.netEquityAfterExit)) + '</strong></div>';
     html += '</div>';
+  } else {
+    // v443 — bien VEFA non livré : computeExitCosts ne tourne pas (non cessible en direct)
+    // et la carte restait entièrement VIDE (avec, en prime, le div grille jamais refermé).
+    // On affiche ce qui existe et on explique pourquoi il n'y a pas de frais « aujourd'hui ».
+    const _delivLabel = (prop.vefaConfig && prop.vefaConfig.deliveryDate) || 'Q3 2028';
+    html += '<div><span style="color:#718096;">Équité engagée</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
+      + '<div><span style="color:#718096;">Capital tiré (prêts)</span><br><strong>' + fmt(prop.crd) + '</strong></div>'
+      + '<div><span style="color:#718096;">Frais de sortie aujourd\'hui</span><br><strong>—</strong></div>'
+      + '<div><span style="color:#718096;">Équité nette après sortie</span><br><strong>' + fmt(Math.round(ec.netEquityAfterExit || 0)) + '</strong></div>'
+      + '</div>'
+      + '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;font-size:12.5px;color:#744210;line-height:1.6;">'
+      + '<strong>Bien VEFA non livré</strong> — pas de revente en direct avant la livraison (' + _delivLabel + '). '
+      + 'Et jusqu\'à ~mi-2033, la clause SADEV 94 restituerait à l\'aménageur toute plus-value au-delà du prix d\'achat indexé ICC. '
+      + 'Le scénario post-livraison est dans « Projection frais de sortie par année » (section repliée plus bas).'
+      + '</div>';
   }
   html += '</div>';
   html += '</div>';
@@ -6157,7 +6176,9 @@ function renderAptView(state, loanKey) {
       + '</div>';
   }
   html += '<div style="margin-bottom:24px;">'
-    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel</h3>'
+    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
+    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#b7791f;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
+    + '</h3>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
     // Revenus
     + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
@@ -7379,7 +7400,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=442').then(m => {
+  import('./charts.js?v=443').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
