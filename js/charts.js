@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=438';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=438';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=438';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=438';
-import { loadSnapshots } from './api.js?v=438'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=438'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=439';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=439';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=439';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=439';
+import { loadSnapshots } from './api.js?v=439'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=439'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -102,6 +102,7 @@ export function rebuildAllCharts(state, view) {
     buildImmoViewEquityBar(state);
     buildImmoViewProjection(state);
     buildAmortChart(state);
+    buildCfWaterfallChart(state);   // v439 (P9)
   }
   if (view === 'budget') {
     buildBudgetZoneDonut(state);
@@ -790,16 +791,23 @@ function buildImmoViewEquityBar(state) {
   if (!el) return;
   if (charts.immoViewEq) { charts.immoViewEq.destroy(); delete charts.immoViewEq; }
   const props = state.immoView.properties; // v346 — Villejuif toujours inclus (acte signé)
+  // v439 (P7) — barres EMPILÉES Équité + CRD : un seul regard donne la taille de
+  // chaque bien, le levier, et la part qui nous appartient. L'ancienne version
+  // (équité seule, 1 série) était trois nombres déguisés en graphique.
   charts.immoViewEq = new Chart(el, {
     type: 'bar',
     data: {
       labels: props.map(p => p.name + ' (' + p.owner + ')'),
-      datasets: [{ label: '\u00c9quit\u00e9', data: props.map(p => p.equity), backgroundColor: ['#4c6ef5','#12b886','#f59f00'], borderRadius: 4 }]
+      datasets: [
+        { label: '\u00c9quit\u00e9', data: props.map(p => p.equity), backgroundColor: '#12b886', borderRadius: 4 },
+        { label: 'CRD (dette)', data: props.map(p => p.crd), backgroundColor: '#cbd5e0', borderRadius: 4 }
+      ]
     },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: false }, title: { display: true, text: '\u00c9quit\u00e9 par bien', font: { size: 14 } },
-        tooltip: { callbacks: { label: c => fmt(c.parsed.x) } } },
-      scales: { x: { ticks: { callback: v => fmtAxis(v) } } } }
+      plugins: { legend: { display: true, position: 'bottom' },
+        title: { display: true, text: 'Structure du capital \u2014 Valeur = \u00c9quit\u00e9 + CRD', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ' : ' + fmt(c.parsed.x) } } },
+      scales: { x: { stacked: true, ticks: { callback: v => fmtAxis(v) } }, y: { stacked: true } } }
   });
 }
 
@@ -1331,6 +1339,49 @@ function buildActionsTreemap(state) {
 }
 
 // ============ AMORTIZATION CHART ============
+/**
+ * v439 (P9) — cascade du cash-flow mensuel consolidé.
+ * Répond à « où va l'argent chaque mois » en un visuel : Loyers, puis chaque famille
+ * de sorties, jusqu'au CF net. Barres flottantes [départ, arrivée] — la forme
+ * canonique du waterfall. Biens NON conditionnels seulement (Villejuif hors flux).
+ */
+function buildCfWaterfallChart(state) {
+  const el = document.getElementById('cfWaterfallChart');
+  if (!el) return;
+  if (charts.cfWaterfall) { charts.cfWaterfall.destroy(); delete charts.cfWaterfall; }
+  const props = (state.immoView && state.immoView.properties) || [];
+  const fp = props.filter(p => !p.conditional);
+  const somme = (fn) => Math.round(fp.reduce((s2, p) => s2 + (fn(p) || 0), 0));
+  const loyers = somme(p => p.totalRevenue);
+  const copro = somme(p => p.chargesDetail && p.chargesDetail.copro);
+  const tfpno = somme(p => p.chargesDetail ? (p.chargesDetail.tf || 0) + (p.chargesDetail.pno || 0) : 0);
+  const assur = somme(p => p.chargesDetail && p.chargesDetail.assurance);
+  const prets = somme(p => p.chargesDetail && p.chargesDetail.pret);
+  const net = loyers - copro - tfpno - assur - prets;
+  let cur = loyers;
+  const steps = [
+    { l: 'Loyers', seg: [0, loyers], c: '#12b886' },
+    { l: 'Copropri\u00e9t\u00e9', seg: [cur, cur -= copro], c: '#f59f00' },
+    { l: 'TF + PNO', seg: [cur, cur -= tfpno], c: '#f59f00' },
+    { l: 'Assurances', seg: [cur, cur -= assur], c: '#f59f00' },
+    { l: 'Pr\u00eats', seg: [cur, cur -= prets], c: '#e53e3e' },
+    { l: 'CF net', seg: [0, net], c: net >= 0 ? '#12b886' : '#e53e3e' },
+  ];
+  charts.cfWaterfall = new Chart(el, {
+    type: 'bar',
+    data: { labels: steps.map(x => x.l),
+      datasets: [{ data: steps.map(x => x.seg), backgroundColor: steps.map(x => x.c), borderRadius: 4, borderSkipped: false }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        title: { display: true, text: 'O\u00f9 va l\u2019argent chaque mois \u2014 cascade du cash-flow', font: { size: 14 } },
+        tooltip: { callbacks: { label: c => {
+          const [a, b] = c.raw; const d = b - a;
+          return (d >= 0 ? '+' : '') + fmt(d) + '/mois';
+        } } } },
+      scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
+  });
+}
+
 function buildAmortChart(state) {
   const el = document.getElementById('amortChart');
   if (!el) return;
@@ -1408,13 +1459,22 @@ function buildAmortChart(state) {
     spanGaps: false,
   }));
 
+  // v439 (P8) — la série TOTAL consolidée manquait : c'est elle qui montre la
+  // trajectoire de désendettement du patrimoine (null traité comme 0 : un prêt
+  // pas encore démarré ne doit rien au consolidé).
+  chartDatasets.push({
+    label: 'Total 3 biens',
+    data: labels.map((_, k) => loanKeys.reduce((s2, key) => s2 + (datasets[key][k] || 0), 0)),
+    borderColor: '#1a202c', backgroundColor: 'transparent', borderWidth: 3, pointRadius: 0, tension: 0.2,
+  });
+
   charts.amortChart = new Chart(el, {
     type: 'line',
     data: { labels, datasets: chartDatasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Evolution CRD par pret', font: { size: 14 } },
+        title: { display: true, text: 'Trajectoire de d\u00e9sendettement \u2014 CRD par bien et total', font: { size: 14 } },
         legend: { position: 'bottom', labels: { font: { size: 11 } } },
         tooltip: {
           callbacks: {
