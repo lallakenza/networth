@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=439';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE } from './engine.js?v=439';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=440';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear } from './engine.js?v=440';
 
 // ---- Generic table sort utility ----
 /**
@@ -4516,7 +4516,7 @@ function renderImmoView(state) {
   _setTip('kpiImmoViewCF', fp.map(p => {
     const s = p.cf >= 0 ? '+' : '';
     const c = p.cf >= 0 ? '#68d391' : '#fc8181';
-    return p.name + ' : <b style="color:' + c + '">' + s + p.cf + ' \u20ac</b>';
+    return p.name + ' : <b style="color:' + c + '">' + s + Math.round(p.cf) + ' \u20ac</b>';
   }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
 
   // 5. Valeur Totale — per property with dynamic ref (above)
@@ -4588,7 +4588,7 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity brute</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%' + ltvGauge + '</div><div class="pk-label">LTV</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + prop.cf + '</div><div class="pk-label">CF /mois</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + Math.round(prop.cf) + '</div><div class="pk-label">CF /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyerHC + (prop.parking > 0 ? ' <span style="font-size:11px;color:var(--gray)">+' + prop.parking + ' pkg</span>' : '') + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
@@ -5500,7 +5500,7 @@ function renderPropertyDetail(state, prop) {
       + cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
       + (prop.parking > 0 ? cfBarRow('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBar) : '')
       + (prop.chargesLoc > 0 ? cfBarRow('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBar) : '')
-      + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + prop.totalRevenue + ' €</span></div>'
+      + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
       + '</div>'
       // Charges
       + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
@@ -5514,7 +5514,7 @@ function renderPropertyDetail(state, prop) {
       + '</div></div>';
     // CF KPIs
     html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net</div></div>'
@@ -5738,57 +5738,75 @@ function renderVEFATimeline(container, prop) {
 
   let html = '<h4 style="margin:0 0 12px;font-size:14px;color:#4a5568;">Timeline VEFA — Villejuif</h4>';
 
-  // Check if loan is disbursed
-  if (!cfg.loanDisbursed || !cfg.franchiseStart) {
-    // Loan NOT disbursed yet — show waiting state
+  // v440 — la franchise court depuis le 1er DÉBLOCAGE (pas depuis le déblocage intégral).
+  // Un tirage partiel à l'acte (appels de fonds VEFA) suffit à la démarrer : on affiche la
+  // timeline dès que franchiseStart est connu. loanDisbursed = « intégralement débloqué ».
+  if (!cfg.franchiseStart) {
+    // Aucun déblocage — état d'attente
     html += '<div style="padding:16px;background:#fef3c7;border-radius:8px;border-left:3px solid #d69e2e;margin-bottom:16px;">'
-      + '<div style="font-weight:700;color:#92400e;margin-bottom:4px;">En attente de d\u00e9blocage du pr\u00eat</div>'
-      + '<div style="font-size:13px;color:#744210;">Le pr\u00eat n\u2019a pas encore \u00e9t\u00e9 d\u00e9bloqu\u00e9. La franchise de ' + cfg.franchiseMonths + ' mois d\u00e9butera \u00e0 la date de premier d\u00e9blocage des fonds.</div>'
+      + '<div style="font-weight:700;color:#92400e;margin-bottom:4px;">En attente de déblocage du prêt</div>'
+      + '<div style="font-size:13px;color:#744210;">Le prêt n’a pas encore été débloqué. La franchise de ' + cfg.franchiseMonths + ' mois débutera à la date de premier déblocage des fonds.</div>'
       + '</div>';
 
     html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr;">'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;color:#d69e2e;">En attente</div><div style="font-size:11px;color:#718096;">D\u00e9but franchise</div></div>'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison pr\u00e9vue</div></div>'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Dur\u00e9e franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;color:#d69e2e;">En attente</div><div style="font-size:11px;color:#718096;">Début franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison prévue</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Durée franchise</div></div>'
       + '</div>';
   } else {
-    // Loan disbursed — show full timeline
+    // Franchise démarrée (1er déblocage fait) — timeline sur la durée de la franchise,
+    // avec marqueur livraison (la franchise peut se terminer APRÈS la livraison).
     const [startY, startM] = cfg.franchiseStart.split('-').map(Number);
-    const franchiseEnd = new Date(startY, startM - 1 + cfg.franchiseMonths);
-    const franchiseEndLabel = franchiseEnd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const debutLabel = new Date(startY, startM - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const premiereMens = new Date(startY, startM - 1 + cfg.franchiseMonths);
+    const premiereMensLabel = premiereMens.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-    // Timeline visual
     const now = new Date();
-    const totalMonths = (delY - startY) * 12 + (delM - startM);
+    const moisLivraison = (delY - startY) * 12 + (delM - startM);
+    const span = Math.max(cfg.franchiseMonths, moisLivraison);
     const elapsedMonths = (now.getFullYear() - startY) * 12 + (now.getMonth() + 1 - startM);
-    const pctElapsed = Math.min(100, Math.max(0, elapsedMonths / totalMonths * 100));
-    const pctFranchise = cfg.franchiseMonths / totalMonths * 100;
+    const pctElapsed = Math.min(100, Math.max(0, elapsedMonths / span * 100));
+    const pctLivraison = Math.min(100, Math.max(0, moisLivraison / span * 100));
+
+    const loansTotal = (IMMO_CONSTANTS.loans.villejuifLoans || []).reduce((s, l) => s + (l.principal || 0), 0);
+    const tire = cfg.drawnToDate || 0;
+    const pctTire = loansTotal > 0 ? Math.round(tire / loansTotal * 100) : 0;
+
+    html += '<div style="padding:12px 16px;background:#ebf8ff;border-radius:8px;border-left:3px solid #2b6cb0;margin-bottom:16px;">'
+      + '<div style="font-weight:700;color:#2c5282;margin-bottom:4px;">Prêt débloqué par tranches — franchise en cours</div>'
+      + '<div style="font-size:13px;color:#2a4365;">Premier déblocage à l’acte (' + debutLabel + '). La franchise totale de '
+      + cfg.franchiseMonths + ' mois court depuis cette date : intérêts intercalaires capitalisés (ajoutés au CRD), aucune mensualité avant ' + premiereMensLabel + '.</div>'
+      + '</div>';
 
     html += '<div style="position:relative;height:50px;background:#e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden;">'
-      + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctFranchise + '%;background:#bee3f8;border-right:2px dashed #2b6cb0;"></div>'
+      + '<div style="position:absolute;left:0;top:0;height:100%;width:100%;background:#bee3f8;"></div>'
       + '<div style="position:absolute;left:0;top:0;height:100%;width:' + pctElapsed + '%;background:var(--accent);opacity:0.3;"></div>'
       + '<div style="position:absolute;left:' + pctElapsed + '%;top:0;width:3px;height:100%;background:var(--accent);"></div>'
-      + '<div style="position:absolute;left:4px;top:4px;font-size:10px;font-weight:600;color:#2b6cb0;">Franchise</div>'
-      + '<div style="position:absolute;right:4px;top:4px;font-size:10px;font-weight:600;color:#4a5568;">Livraison</div>'
+      + '<div style="position:absolute;left:' + pctLivraison + '%;top:0;width:2px;height:100%;background:#2b6cb0;border-left:2px dashed #2b6cb0;"></div>'
+      + '<div style="position:absolute;left:4px;top:4px;font-size:10px;font-weight:600;color:#2b6cb0;">Franchise (' + cfg.franchiseMonths + ' mois)</div>'
+      + '<div style="position:absolute;left:' + Math.min(pctLivraison, 88) + '%;bottom:4px;font-size:10px;font-weight:600;color:#2b6cb0;padding-left:4px;">Livraison</div>'
+      + '<div style="position:absolute;right:4px;top:4px;font-size:10px;font-weight:600;color:#4a5568;">1re mensualité</div>'
       + '<div style="position:absolute;left:' + pctElapsed + '%;bottom:4px;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--accent);">Auj.</div>'
       + '</div>';
 
     html += '<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseStart + '</div><div style="font-size:11px;color:#718096;">D\u00e9but franchise</div></div>'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + franchiseEndLabel + '</div><div style="font-size:11px;color:#718096;">Fin franchise</div></div>'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison pr\u00e9vue</div></div>'
-      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + cfg.franchiseMonths + ' mois</div><div style="font-size:11px;color:#718096;">Dur\u00e9e franchise</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + debutLabel + '</div><div style="font-size:11px;color:#718096;">Début franchise (1er déblocage)</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + deliveryLabel + '</div><div style="font-size:11px;color:#718096;">Livraison prévue</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + premiereMensLabel + '</div><div style="font-size:11px;color:#718096;">1re mensualité (fin franchise)</div></div>'
+      + '<div class="detail-metric"><div style="font-size:14px;font-weight:700;">' + (tire > 0 ? tire.toLocaleString('fr-FR') + ' €' : '—') + '</div><div style="font-size:11px;color:#718096;">Tiré sur ' + Math.round(loansTotal).toLocaleString('fr-FR') + ' € (' + pctTire + '%)</div></div>'
       + '</div>';
   }
 
   // Financial summary
   if (cfg.totalOperation) {
     const noteText = cfg.loanDisbursed
-      ? 'Pendant la franchise, seuls les int\u00e9r\u00eats intercalaires sont pay\u00e9s. Les mensualit\u00e9s compl\u00e8tes commencent apr\u00e8s livraison.'
-      : 'Pr\u00eat non d\u00e9bloqu\u00e9 \u2014 aucun int\u00e9r\u00eat intercalaire n\u2019est encore d\u00fb. Pas d\u2019impact sur le cash flow.';
+      ? 'Franchise totale : intérêts intercalaires capitalisés (pas de mensualité). Les mensualités complètes commencent à la fin de la franchise.'
+      : (cfg.franchiseStart
+        ? 'Déblocage par tranches au rythme des appels de fonds — les tranches restantes sont couvertes par le prêt (zéro sortie cash jusqu’à la livraison). Intérêts intercalaires capitalisés pendant la franchise.'
+        : 'Prêt non débloqué — aucun intérêt intercalaire n’est encore dû. Pas d’impact sur le cash flow.');
     html += '<div style="margin-top:12px;padding:12px;background:#f7fafc;border-radius:8px;font-size:13px;">'
-      + '<strong>Montant op\u00e9ration :</strong> ' + cfg.totalOperation.toLocaleString('fr-FR') + ' \u20ac '
-      + (cfg.fraisDossier > 0 ? '| <strong>Frais dossier :</strong> ' + cfg.fraisDossier.toLocaleString('fr-FR') + ' \u20ac' : '')
+      + '<strong>Montant opération :</strong> ' + cfg.totalOperation.toLocaleString('fr-FR') + ' € '
+      + (cfg.fraisDossier > 0 ? '| <strong>Frais dossier :</strong> ' + cfg.fraisDossier.toLocaleString('fr-FR') + ' €' : '')
       + '<br><small style="color:#718096;">' + noteText + '</small>'
       + '</div>';
   }
@@ -6148,7 +6166,7 @@ function renderAptView(state, loanKey) {
     + cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
     + (prop.parking > 0 ? cfBarRowApt('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBarApt) : '')
     + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
-    + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + prop.totalRevenue + ' €</span></div>'
+    + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
     + '</div>'
     // Charges
     + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
@@ -6162,7 +6180,7 @@ function renderAptView(state, loanKey) {
     + '</div></div>';
   // CF KPIs
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + prop.cf + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net</div></div>'
@@ -6226,119 +6244,7 @@ function renderAptView(state, loanKey) {
       html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
     }
 
-    // ── JEANBRUN — All content inside collapsible section ──
-    const jb = VILLEJUIF_REGIMES.jeanbrun;
-    const vBase = VILLEJUIF_REGIMES.base;
-    const plafond = jb.plafondLoyer;
-    const surface = vBase.surface;
-    const loyerMarche = vBase.loyerNuHC;
-    const loyerMeuble = vBase.loyerMeubleHC;
-    const manqueAGagner = loyerMarche - plafond.loyerMaxMensuel;
-
-    const jbCollapsibleId = 'jeanbrun_' + Math.random().toString(36).substr(2, 6);
-
-    // Warning banner + collapsible toggle
-    html += '<div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:12px;padding:12px 16px;margin-bottom:24px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
-    html += '<div style="font-size:13px;color:#c53030;"><strong>⚠️ Dispositif Jeanbrun non retenu</strong> — loyer plafonné trop bas (1 215€ vs 1 700€ marché)</div>';
-    html += '<button onclick="var d=document.getElementById(\'' + jbCollapsibleId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" style="flex-shrink:0;padding:6px 12px;background:#c53030;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">';
-    html += 'Voir les détails ▼</button>';
-    html += '</div>';
-    html += '</div>';
-
-    // Hidden detailed section
-    html += '<div id="' + jbCollapsibleId + '" style="display:none;background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
-    html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes JEANBRUN — Loyer Plafonné & Obligations</h3>';
-
-    // Loyer plafonné calculation
-    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #dd6b20;">';
-    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Calcul du Loyer Plafonné</div>';
-    html += '<div style="font-size:12px;color:#4a5568;line-height:1.6;">';
-    html += 'Zone A (Villejuif) — Plafond 2025 : <strong>' + plafond.zoneA + ' €/m²/mois</strong><br>';
-    html += 'Surface habitable : <strong>' + surface + ' m²</strong><br>';
-    html += 'Loyer max = ' + surface + ' × ' + plafond.zoneA + ' = <strong style="color:#c05621;">' + plafond.loyerMaxMensuel + ' €/mois</strong><br>';
-    html += 'Loyer marché (nu) : <strong>' + loyerMarche + ' €/mois</strong> — Manque à gagner : <strong style="color:#c53030;">' + manqueAGagner + ' €/mois</strong> (' + (manqueAGagner * 12).toLocaleString('fr-FR') + ' €/an)';
-    html += '</div></div>';
-
-    // Réduction d'impôt calculation
-    const ri = jb.reductionImpot;
-    const prixRetenu = Math.min(vBase.totalOperation, ri.plafondPrix, ri.plafondM2 * surface);
-    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #38a169;">';
-    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Réduction d\'Impôt JEANBRUN</div>';
-    html += '<div style="font-size:12px;color:#4a5568;line-height:1.6;">';
-    html += 'Prix d\'achat : ' + vBase.totalOperation.toLocaleString('fr-FR') + ' € — Plafond prix : ' + ri.plafondPrix.toLocaleString('fr-FR') + ' € — Plafond m² : ' + ri.plafondM2.toLocaleString('fr-FR') + ' €/m²<br>';
-    html += 'Assiette retenue : <strong>' + prixRetenu.toLocaleString('fr-FR') + ' €</strong> (min des 3 plafonds)<br>';
-    html += '<div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap;">';
-    jb.dureeEngagement.forEach(d => {
-      const taux = d === 6 ? ri.taux6ans : d === 9 ? ri.taux9ans : ri.taux12ans;
-      const reduction = Math.round(prixRetenu * taux);
-      const annuel = Math.round(reduction / d);
-      html += '<div style="flex:1;min-width:130px;padding:8px;background:#f0fff4;border-radius:6px;text-align:center;">';
-      html += '<div style="font-weight:700;font-size:14px;color:#276749;">' + reduction.toLocaleString('fr-FR') + ' €</div>';
-      html += '<div style="font-size:11px;color:#718096;">' + d + ' ans (' + (taux * 100) + '%) → ' + annuel.toLocaleString('fr-FR') + '€/an</div>';
-      html += '</div>';
-    });
-    html += '</div></div></div>';
-
-    // Conditions list
-    html += '<div style="background:white;border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid #3182ce;">';
-    html += '<div style="font-weight:700;font-size:13px;color:#2d3748;margin-bottom:8px;">Conditions d\'éligibilité</div>';
-    html += '<ul style="margin:0;padding-left:16px;font-size:12px;color:#4a5568;line-height:1.8;">';
-    jb.conditions.forEach(c => { html += '<li>' + c + '</li>'; });
-    html += '</ul></div>';
-
-    // Avantages / Inconvénients
-    html += '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
-    html += '<div style="flex:1;min-width:200px;background:#f0fff4;border-radius:8px;padding:12px;">';
-    html += '<div style="font-weight:700;font-size:12px;color:#276749;margin-bottom:6px;">Avantages</div>';
-    html += '<ul style="margin:0;padding-left:14px;font-size:11px;color:#4a5568;line-height:1.7;">';
-    jb.avantages.forEach(a => { html += '<li>' + a + '</li>'; });
-    html += '</ul></div>';
-    html += '<div style="flex:1;min-width:200px;background:#fff5f5;border-radius:8px;padding:12px;">';
-    html += '<div style="font-weight:700;font-size:12px;color:#c53030;margin-bottom:6px;">Inconvénients</div>';
-    html += '<ul style="margin:0;padding-left:14px;font-size:11px;color:#4a5568;line-height:1.7;">';
-    jb.inconvenients.forEach(i => { html += '<li>' + i + '</li>'; });
-    html += '</ul></div>';
-    html += '</div>';
-
-    // ── JEANBRUN vs LMNP comparison table (inside collapsible) ──
-    const cmp = iv.villejuifRegimeComparison;
-    if (cmp && cmp.summary) {
-      html += '<div style="margin-top:16px;border-top:1px solid #fbd38d;padding-top:16px;">';
-      html += '<h4 style="margin:0 0 12px;font-size:14px;color:#276749;">Comparaison JEANBRUN vs LMNP — 10 ans</h4>';
-      const delta = cmp.summary.delta;
-      const winColor = delta > 0 ? '#276749' : '#c05621';
-      html += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:16px;font-weight:700;color:' + winColor + ';">' + cmp.summary.winner + '</div><div style="font-size:10px;color:#718096;">Recommandé</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;color:' + winColor + ';">' + (delta > 0 ? '+' : '') + fmt(Math.round(delta)) + '</div><div style="font-size:10px;color:#718096;">Avantage 10 ans</div></div>';
-      html += '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:14px;font-weight:700;">' + fmt(cmp.summary.jbReductionTotale) + '</div><div style="font-size:10px;color:#718096;">Réduction JB totale</div></div>';
-      html += '</div>';
-      // v327 — min-width pour forcer scroll horizontal sur mobile (8 colonnes)
-      html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.75rem;width:100%;min-width:780px;">'
-        + '<thead><tr><th>Année</th>'
-        + '<th class="num" style="background:#ebf8ff;">Loyer JB</th><th class="num" style="background:#ebf8ff;">CF net JB</th><th class="num" style="background:#ebf8ff;">Cum. JB</th>'
-        + '<th class="num" style="background:#fff5eb;">Loyer LMNP</th><th class="num" style="background:#fff5eb;">CF net LMNP</th><th class="num" style="background:#fff5eb;">Cum. LMNP</th>'
-        + '<th class="num" style="background:#f0fff4;">\u0394 LMNP-JB</th></tr></thead><tbody>';
-      for (let y = 0; y < cmp.jeanbrun.length; y++) {
-        const jbRow = cmp.jeanbrun[y];
-        const lmRow = cmp.lmnp[y];
-        const d = lmRow.cumGain - jbRow.cumGain;
-        const dColor = d > 0 ? '#276749' : '#c53030';
-        html += '<tr><td><strong>' + jbRow.year + '</strong></td>'
-          + '<td class="num">' + jbRow.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(jbRow.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(jbRow.cumGain)) + '</td>'
-          + '<td class="num">' + lmRow.loyer + '</td>'
-          + '<td class="num">' + fmt(Math.round(lmRow.cfNet)) + '</td>'
-          + '<td class="num">' + fmt(Math.round(lmRow.cumGain)) + '</td>'
-          + '<td class="num" style="font-weight:700;color:' + dColor + ';">' + (d > 0 ? '+' : '') + fmt(Math.round(d)) + '</td></tr>';
-      }
-      html += '</tbody></table></div>';
-      html += '</div>';
-    }
-
-    html += '</div>'; // close collapsible Jeanbrun section
-    html += '</div>'; // close warning banner
+    // v440 — section JEANBRUN supprimée (dispositif non retenu : plafond 1 215€ vs 1 700€ marché)
   }
 
   // ── Section 5: Exit projection ── (repliée v426 — graphique + tableau consultés
@@ -6347,25 +6253,41 @@ function renderAptView(state, loanKey) {
     'Graphique et tableau année par année');
   const exitChartId = 'aptExitProjectionChart_' + loanKey;
   html += '<div class="chart-container" style="height:340px;margin-bottom:16px;"><canvas id="' + exitChartId + '"></canvas></div>';
-  html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente au prix actuel (' + fmt(prop.value) + ') à différentes dates. Les abattements PV augmentent avec la durée de détention.</p>';
+  // v440 — base de prix : valeur de marché LIVRÉE pour un bien VEFA (prop.value = coût
+  // engagé, PAS un prix de vente), valeur actuelle sinon. CRD par année lu dans le VRAI
+  // tableau d'amortissement (l'estimation linéaire ignorait franchise et paliers). Calcul
+  // par l'engine (computeExitCostsAtYear) : abattements datés, IRA, TVA, clause SADEV.
+  const saleBase = Math.round(prop.deliveredValue || prop.value);
+  const estVEFA = !!prop.conditional;
+  html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente '
+    + (estVEFA ? 'à la valeur livrée estimée (' : 'au prix actuel (') + fmt(saleBase)
+    + ') à différentes dates — prix constant, seuls les frais varient. Les abattements PV augmentent avec la durée de détention.</p>';
 
-  const purchasePrice = meta.purchasePrice || meta.totalOperation || prop.value;
-  const [py, pm] = (meta.purchaseDate || '2023-01').split('-').map(Number);
+  const purchasePrice = prop.purchasePrice || meta.purchasePrice || meta.totalOperation || saleBase;
+  const schedRows = (state.immoView.amortSchedules[loanKey] || {}).schedule || [];
+  const crdAtYear = (yr) => {
+    if (!schedRows.length) return Math.round(prop.crd);
+    const cle = yr + '-06';
+    let last = null;
+    for (const r of schedRows) { if (r.date <= cle) last = r; else break; }
+    if (!last) return Math.round(schedRows[0].remainingCRD + (schedRows[0].principal || 0));
+    return Math.round(last.remainingCRD);
+  };
   const fiscType = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[loanKey] ? IMMO_CONSTANTS.fiscalite[loanKey].type : 'nu';
+  const [py2, pm2] = (meta.purchaseDate || '2023-01').split('-').map(Number);
 
   const showTVACol = loanKey === 'vitry'; // TVA clawback only applies to Vitry
-  // v327 — min-width pour forcer scroll horizontal sur mobile (7-8 colonnes)
+  const showSADEVCol = loanKey === 'villejuif'; // clause de restitution SADEV 94
   html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.8rem;width:100%;min-width:720px;">'
     + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
-    + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + '<th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
+    + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + (showSADEVCol ? '<th class="num">Restit. SADEV</th>' : '')
+    + '<th class="num">CRD</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
   for (let yr = 2026; yr <= 2040; yr += 2) {
-    const holdYears = (yr - py) + (6 - pm) / 12;  // approx mid-year
+    const holdYears = Math.max(0, (yr - py2) + (6 - pm2) / 12);  // approx mid-year (affichage)
     const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
-    // Simple CRD estimation: assume linear principal repayment
-    const loanDuration = prop.endYear ? (prop.endYear - py) : 25;
-    const crdEstimate = Math.max(0, prop.crd - (prop.crd / (loanDuration * 12) * (holdYears - ((new Date().getFullYear()) - py)) * 12));
-    const exitSim = computeExitCostsSim(loanKey, prop.value, purchasePrice, holdYears, Math.round(crdEstimate), totalAmort);
+    const crd = crdAtYear(yr);
+    const exitSim = computeExitCostsAtYear(loanKey, yr, saleBase, purchasePrice, crd, totalAmort);
     const neColor = exitSim.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
     html += '<tr>'
       + '<td><strong>' + yr + '</strong></td>'
@@ -6374,6 +6296,8 @@ function renderAptView(state, loanKey) {
       + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
       + '<td class="num">' + fmt(exitSim.totalTaxPV) + '</td>'
       + (showTVACol ? '<td class="num">' + (exitSim.tvaClawback > 0 ? fmt(exitSim.tvaClawback) : '—') + '</td>' : '')
+      + (showSADEVCol ? '<td class="num">' + (exitSim.restitutionSADEV > 0 ? fmt(exitSim.restitutionSADEV) : '—') + '</td>' : '')
+      + '<td class="num">' + fmt(crd) + '</td>'
       + '<td class="num" style="color:#c53030;font-weight:600;">' + fmt(exitSim.totalExitCosts) + '</td>'
       + '<td class="num" style="color:' + neColor + ';font-weight:600;">' + fmt(Math.round(exitSim.netEquityAfterExit)) + '</td>'
       + '</tr>';
@@ -6417,54 +6341,8 @@ function renderAptView(state, loanKey) {
   }
 }
 
-// Lightweight exit cost computation for simulation table (mirrors engine logic)
-function computeExitCostsSim(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmort) {
-  const EC = EXIT_COSTS;
-  const fraisAcq = purchasePrice * 0.075;
-  const amortRe = (EC[loanKey] && EC[loanKey].lmnpAmortReintegration && totalAmort > 0) ? totalAmort : 0;
-  const pvBrute = salePrice - (purchasePrice + fraisAcq) + amortRe;
-  let abattIR = 0, abattPS = 0;
-  const years = Math.floor(holdingYears);
-
-  if (pvBrute > 0) {
-    for (const b of EC.irAbattement) { for (let y = b.fromYear; y <= b.toYear && y <= years; y++) abattIR += b.ratePerYear; }
-    if (years >= 22) abattIR = 1;
-    abattIR = Math.min(1, abattIR);
-    for (const b of EC.psAbattement) { for (let y = b.fromYear; y <= b.toYear && y <= years; y++) abattPS += b.ratePerYear; }
-    if (years >= 30) abattPS = 1;
-    abattPS = Math.min(1, abattPS);
-  }
-
-  const pvNetIR = pvBrute > 0 ? pvBrute * (1 - abattIR) : 0;
-  const pvNetPS = pvBrute > 0 ? pvBrute * (1 - abattPS) : 0;
-  const ir = Math.round(pvNetIR * EC.irRate);
-  const ps = Math.round(pvNetPS * EC.psRate);
-  let surtaxe = 0;
-  if (pvNetIR > 50000) { for (const b of EC.surtaxe) { if (pvNetIR >= b.from) surtaxe = Math.round(pvNetIR * b.rate); } }
-  const totalTaxPV = ir + ps + surtaxe;
-  const agencyFee = 0;  // Vente en direct, pas d'agence
-  const diagnostics = EC.diagnosticsCost;
-  let mainlevee = 0;
-  if (crdAtExit > 0) mainlevee = Math.round(EC.mainleveeFixe + purchasePrice * EC.mainleveePct);
-  let tvaClawback = 0;
-  if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
-    const tva = EC.vitry.tvaReduite;
-    // TVA obligation depuis livraison (07/2025), pas acte (01/2023)
-    // holdingYears = years since purchaseDate (2023-01)
-    // yearsSinceLivraison = holdingYears - (2025.5 - 2023.0) = holdingYears - 2.5
-    const livOffset = 2.5; // offset livraison vs acte en années
-    const yearsSinceLivraison = Math.max(0, holdingYears - livOffset);
-    if (yearsSinceLivraison < tva.dureeEngagement) {
-      const rem = tva.dureeEngagement - Math.max(0, Math.floor(yearsSinceLivraison));
-      tvaClawback = Math.round(tva.prixHTApprox * (tva.tauxNormal - tva.tauxReduit) * rem / tva.dureeEngagement);
-    }
-  }
-  const totalExitCosts = totalTaxPV + agencyFee + diagnostics + mainlevee + tvaClawback;
-  return {
-    pvBrute, abattementIR: abattIR, abattementPS: abattPS, totalTaxPV, agencyFee, tvaClawback, mainlevee,
-    totalExitCosts, netEquityAfterExit: salePrice - totalExitCosts - crdAtExit,
-  };
-}
+// v440 — computeExitCostsSim supprimé : doublon local du moteur qui ignorait IRA et clause
+// SADEV (règle d'or n°1). Le tableau passe par computeExitCostsAtYear (engine).
 
 function renderCreancesView(state) {
   const crv = state.creancesView;
@@ -7502,7 +7380,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=439').then(m => {
+  import('./charts.js?v=440').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
