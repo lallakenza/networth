@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=454';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=455';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -566,7 +566,11 @@ const YahooProvider = {
   async quote(stock) {
     const r = await fetchStockPrice(stock.ticker);                          // v8/v6 Yahoo, race proxies
     if (!r) return null;
-    return { price: r.price, previousClose: r.previousClose, currency: stock.currency || null, source: 'yahoo', market: 'yahoo' };
+    // v454b — propager l'horodatage de séance : ce wrapper reconstruisait l'objet et
+    // PERDAIT lastTradeTs/exchangeTz → le garde « séance du jour » ne s'armait jamais
+    // (IBIT affichait la séance de vendredi le lundi à 13h55, vérifié en prod).
+    return { price: r.price, previousClose: r.previousClose, currency: stock.currency || null, source: 'yahoo', market: 'yahoo',
+             lastTradeTs: r.lastTradeTs || null, exchangeTz: r.exchangeTz || null };
   },
   async history(stock, range) {
     const r = await fetchTickerHistory(stock.ticker, range || 'ytd');       // {dates,closes} | null
