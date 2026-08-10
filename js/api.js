@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=455';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=456';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -660,7 +660,10 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
         loaded++;
         if (onProgress) onProgress(loaded, totalTickers, ticker + ' ✓');
         // If cache is stale (>TTL), also schedule a re-fetch
-        if (!cached._ts || (now - cached._ts) > CACHE_TTL_MS) {
+        // v456 — idem si l'entrée date d'AVANT v454 (pas de lastTradeTs) : sans horodatage
+        // de séance, le garde « P&L jour = 0 marché fermé » reste inactif tout le TTL
+        // (IBIT affichait la séance de vendredi le lundi, cache frais → aucun re-fetch).
+        if (!cached._ts || (now - cached._ts) > CACHE_TTL_MS || cached.lastTradeTs == null) {
           tickersToFetch.push(ticker);
           staleTickers.add(ticker); // already counted, don't re-count
         }
