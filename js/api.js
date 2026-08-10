@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=453';
+import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=454';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -140,7 +140,10 @@ function extractFromChart(d) {
     }
   }
 
-  return { price: p, previousClose: prevClose };
+  // v454 — heure du dernier échange + fuseau de la place : sans eux, impossible de savoir
+  // si la séance du JOUR a eu lieu (un lundi matin, le « jour » affichait vendredi).
+  return { price: p, previousClose: prevClose,
+           lastTradeTs: meta?.regularMarketTime || null, exchangeTz: meta?.exchangeTimezoneName || null };
 }
 
 /** Extract price from Yahoo v6 quote endpoint */
@@ -149,7 +152,8 @@ function extractFromQuote(d) {
   if (!q) return null;
   const p = q.regularMarketPrice;
   if (!p || p <= 0) return null;
-  return { price: p, previousClose: q.regularMarketPreviousClose || null };
+  return { price: p, previousClose: q.regularMarketPreviousClose || null,
+           lastTradeTs: q.regularMarketTime || null, exchangeTz: q.exchangeTimezoneName || null };
 }
 
 /**
@@ -601,6 +605,8 @@ function applyTickerToPortfolio(ticker, priceData, portfolio) {
   if (ticker === 'ACN') {
     portfolio.market.acnPriceUSD = priceData.price;
     portfolio.market.acnPreviousClose = priceData.previousClose;
+    portfolio.market.acnLastTradeTs = priceData.lastTradeTs || null;   // v454
+    portfolio.market.acnExchangeTz = priceData.exchangeTz || null;
     portfolio.market._acnLive = true;
     return;
   }
@@ -608,6 +614,8 @@ function applyTickerToPortfolio(ticker, priceData, portfolio) {
   if (pos) {
     pos.price = priceData.price;
     pos.previousClose = priceData.previousClose;
+    pos.lastTradeTs = priceData.lastTradeTs || null;   // v454
+    pos.exchangeTz = priceData.exchangeTz || null;
     pos._live = true;
   }
 }
@@ -840,11 +848,15 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
         if (pos) {
           pos.price = result.price;
           pos.previousClose = result.previousClose;
+          pos.lastTradeTs = result.lastTradeTs || null;   // v454
+          pos.exchangeTz = result.exchangeTz || null;
           pos._live = true;
         }
         if (ticker === 'ACN') {
           portfolio.market.acnPriceUSD = result.price;
           portfolio.market.acnPreviousClose = result.previousClose;
+          portfolio.market.acnLastTradeTs = result.lastTradeTs || null;   // v454
+          portfolio.market.acnExchangeTz = result.exchangeTz || null;
           portfolio.market._acnLive = true;
         }
         // Update cache
