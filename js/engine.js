@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=453';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=454';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -224,7 +224,9 @@ function computeIBKRPositions(portfolio, fx) {
 
     // previousClose comes from live API only (changes daily).
     // ytdOpen/mtdOpen/oneMonthAgo are stored in data.js (stable reference prices).
-    const dailyPL = periodPL(pos.previousClose, true, todayStr);
+    // v454 — séance du jour pas encore ouverte → P&L jour = 0 (pas la séance d'avant).
+    const dailyPL = sessionOuverteAujourdhui(pos.lastTradeTs, pos.exchangeTz)
+      ? periodPL(pos.previousClose, true, todayStr) : 0;
     const mtdPL = periodPL(pos.mtdOpen, false, mtdStartStr);
     const ytdPL = periodPL(pos.ytdOpen, false, ytdStartStr);
     const oneMonthPL = periodPL(pos.oneMonthAgo, false, oneMonthStr);
@@ -1553,7 +1555,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       //   - MTD/1M/YTD: SGTM in breakdown ONLY (no period-start ref price available)
       //   - 1Y: SGTM in total + breakdown (IPO was Dec 2025, within 1Y window)
       return {
-        daily:    fullPeriodPL('dailyPL',    m.acnPreviousClose, closedDaily,    costsDaily,    { cashFxPL: cashFxPL, sgtmPeriodPL: sgtmDailyPL, prevFxUSD: (m.prevFX && m.prevFX.USD) || 0 }), // previousClose = live API, jamais périmé ; SGTM = variation de séance (v404) ; FX daté de la veille (v408)
+        daily:    fullPeriodPL('dailyPL',    (sessionOuverteAujourdhui(m.acnLastTradeTs, m.acnExchangeTz) ? m.acnPreviousClose : null), closedDaily,    costsDaily,    { cashFxPL: cashFxPL, sgtmPeriodPL: sgtmDailyPL, prevFxUSD: (m.prevFX && m.prevFX.USD) || 0 }), // previousClose = live API, jamais périmé ; SGTM = variation de séance (v404) ; FX daté de la veille (v408)
         mtd:      fullPeriodPL('mtdPL',      m.acnMtdOpen,       closedMtd,      costsMtd,      { sgtmInBreakdown: true, refStale: refStale.mtd }),
         ytd:      fullPeriodPL('ytdPL',      m.acnYtdOpen,       closedYtd,      costsYtd,      { sgtmInBreakdown: true, refStale: refStale.ytd }),
         oneMonth: fullPeriodPL('oneMonthPL',  m.acnOneMonthAgo,   closedOneMonth, costsOneMonth, { sgtmInBreakdown: true, refStale: refStale.oneMonth }),
@@ -3835,6 +3837,19 @@ function computeDividendAnalysis(ibkrPositions, fx) {
  *     ... (additional metadata)
  *   }
  */
+// v454 — un marché qui n'a pas encore coté AUJOURD'HUI (dans SON fuseau) n'a pas de
+// P&L « jour ». Sans ce garde, tant que la séance n'avait pas ouvert (week-end, lundi
+// matin, pré-ouverture US), le « jour » affichait la DERNIÈRE séance (previousClose
+// étant celle d'avant) — signalé par Amine le 10/08/2026. Pas d'info → comportement
+// historique (fallbacks statiques sans heure d'échange).
+export function sessionOuverteAujourdhui(lastTradeTs, exchangeTz) {
+  if (!lastTradeTs || !exchangeTz) return true;
+  try {
+    const f = new Intl.DateTimeFormat('fr-CA', { timeZone: exchangeTz });
+    return f.format(new Date(lastTradeTs * 1000)) === f.format(new Date());
+  } catch (e) { return true; }
+}
+
 export function compute(portfolio, fx, stockSource = 'statique') {
   const p = portfolio;
   const m = p.market;
