@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=456';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=456';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=456';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=456';
-import { loadSnapshots } from './api.js?v=456'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=456'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=457';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=457';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=457';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=457';
+import { loadSnapshots } from './api.js?v=457'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=457'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1610,6 +1610,34 @@ function buildAmortChart(state) {
       allDates.add(row.date);
     }
   }
+
+  // v457 — VEFA : le tableau d'amortissement contractuel suppose 100 % tiré dès le départ.
+  // Réalité (signalée par Amine) : tirage PAR TRANCHES au rythme des appels de fonds —
+  // ~96 K tirés à date sur 318 K. On remplace la portion pré-livraison : 0 avant l'acte,
+  // capital tiré aujourd'hui, montée linéaire vers le principal plein à la livraison
+  // (les appels restants sont couverts par le prêt), puis tableau contractuel.
+  try {
+    const vj = (iv.properties || []).find(p => p.loanKey === 'villejuif');
+    const vjMeta = (vj && vj.propertyMeta) || {};
+    if (vj && vj.conditional && dateMaps.villejuif) {
+      const tire = Math.round(vj.crd || 0);
+      const plein = Math.round(Object.values(dateMaps.villejuif).reduce((m, v) => Math.max(m, v), 0));
+      const acte = '2026-06';
+      const livraison = vjMeta.deliveryDate || '2028-09';
+      const auj = new Date().toISOString().slice(0, 7);
+      const moisIdx = (ym) => { const [y, m] = ym.split('-').map(Number); return y * 12 + (m - 1); };
+      const iAuj = moisIdx(auj), iLiv = moisIdx(livraison);
+      for (const d of Object.keys(dateMaps.villejuif)) {
+        if (d < acte) dateMaps.villejuif[d] = 0;                       // pas encore signé : rien tiré
+        else if (d <= auj) dateMaps.villejuif[d] = tire;                // tiré à date (observé)
+        else if (d < livraison) {
+          const f = (moisIdx(d) - iAuj) / Math.max(1, iLiv - iAuj);     // montée linéaire vers le plein
+          dateMaps.villejuif[d] = Math.round(tire + (plein - tire) * f);
+        }
+        // après livraison : tableau contractuel inchangé (100 % tiré, amortissement)
+      }
+    }
+  } catch (e) { /* modèle VEFA optionnel */ }
 
   // Sort all dates chronologically and sample yearly
   const sortedDates = [...allDates].sort();
