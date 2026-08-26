@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=459';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=460';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3005,6 +3005,8 @@ function computeImmoView(portfolio, fx) {
       chargesDetail: { ...chargesConfig },
       loanKey,
       bail: propData.bail || null,           // v458 — bail réel (dates, dépôt, IRL, option travaux)
+      loyerHCContractuel: propData.loyerHC || 0,          // v460 — pour l'état vide pré-bail (UX)
+      chargesLocContractuel: propData.chargesLocataire || 0,
       bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
       loyerCash: bailActif ? (propData.loyerCashNonDeclare || 0) : 0,  // v458 — suivi interne (risque chiffré)
       loanDetails,

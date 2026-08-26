@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=459';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=459';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=460';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=460';
 
 // ---- Generic table sort utility ----
 /**
@@ -5482,12 +5482,18 @@ function renderPropertyDetail(state, prop) {
         + '</div>';
     }
     let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Cash Flow mensuel</h4>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
       // Revenus
       + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
       + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
-      + cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
-      + (prop.parking > 0 ? cfBarRow('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBar) : '')
+      + (prop.bail && !prop.bailActif
+        ? '<div style="font-size:12px;color:#4a5568;line-height:1.8;">'
+          + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:10.5px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
+          + '<div style="display:flex;justify-content:space-between;"><span>Provisions</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
+          + '</div>'
+        : cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
+          + (prop.loyerCash > 0 ? cfBarRow('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : ''))
+            + (prop.parking > 0 ? cfBarRow('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBar) : '')
       + (prop.chargesLoc > 0 ? cfBarRow('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBar) : '')
       + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
       + '</div>'
@@ -5973,7 +5979,7 @@ function renderAptView(state, loanKey) {
   }
 
   // ── Section 1: Fiche propriété + Exit costs KPIs ──
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:24px;">';
 
   // Left: property info
   const surface = meta.surface ? meta.surface + ' m²' : '—';
@@ -6167,17 +6173,28 @@ function renderAptView(state, loanKey) {
   }
   html += '<div style="margin-bottom:24px;">'
     + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
-    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#b7791f;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
-    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#b7791f;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">occupation à titre gratuit — 700 € CC dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
+    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
+    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">occupation à titre gratuit — 700 € CC dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
     + '</h3>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
     // Revenus
     + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
     + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
-    + cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
-    + (prop.parking > 0 ? cfBarRowApt('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBarApt) : '')
-    + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
-    + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
+    // v460 — état vide PÉDAGOGIQUE : avant la prise d'effet du bail, la boîte semblait
+    // vide (barre à largeur 0, lignes conditionnelles masquées). On montre la composition
+    // contractuelle grisée avec sa date, et le total actuel reste honnêtement à 0.
+    + (prop.bail && !prop.bailActif
+      ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
+        + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:11px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;"><span>Provisions charges</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total CC à venir</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total actuel</span><span>0 € <span style="font-weight:400;font-size:11px;color:#718096;">(occupation à titre gratuit)</span></span></div>'
+        + '</div>'
+      : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
+        + (prop.loyerCash > 0 ? cfBarRowApt('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
+        + (prop.parking > 0 ? cfBarRowApt('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBarApt) : '')
+        + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
+        + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>')
     + '</div>'
     // Charges
     + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
@@ -6242,7 +6259,7 @@ function renderAptView(state, loanKey) {
         + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
         + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
         + (b.optionTravaux && !b.optionTravaux.active
-          ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#a0aec0;">désactivée</span></strong></div>' : '')
+          ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#718096;">désactivée</span></strong></div>' : '')
         + '</div>'
         + ((() => {
             const cashPrevu = ((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
@@ -6275,7 +6292,7 @@ function renderAptView(state, loanKey) {
         + '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;min-width:520px;">'
         + '<thead><tr><th>Année</th><th class="num">Revenus déclarés</th><th class="num">Intérêts</th><th class="num">Total déductions</th><th class="num">Net foncier</th><th class="num">Impôt (37,2 %)</th></tr></thead><tbody>';
       fc.lignes.forEach(l => {
-        html += '<tr><td><strong>' + l.annee + '</strong>' + (l.note ? ' <span style="font-size:10px;color:#a0aec0;">' + l.note + '</span>' : '') + '</td>'
+        html += '<tr><td><strong>' + l.annee + '</strong>' + (l.note ? ' <span style="font-size:10px;color:#718096;">' + l.note + '</span>' : '') + '</td>'
           + '<td class="num">' + l.revenus.toLocaleString('fr-FR') + ' €</td>'
           + '<td class="num">' + l.interets.toLocaleString('fr-FR') + ' €</td>'
           + '<td class="num">' + l.deductions.toLocaleString('fr-FR') + ' €</td>'
@@ -7449,7 +7466,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=459').then(m => {
+  import('./charts.js?v=460').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
