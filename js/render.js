@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=458';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=458';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=459';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=459';
 
 // ---- Generic table sort utility ----
 /**
@@ -5512,12 +5512,12 @@ function renderPropertyDetail(state, prop) {
     cfEl.innerHTML = html;
   }
 
-  // ── Section 5: Fiscal Simulator (Vitry only) ──
+  // ── Section 5 — v459 : « Simulateur fiscal Déclaré vs Cash » supprimé (vestige de
+  // l'ancien scénario ; le prévisionnel calculé de la fiche Vitry le remplace) ──
   const fiscalEl = document.getElementById('propDetailFiscal');
   if (fiscalEl) {
-    if (prop.loanKey === 'vitry' && prop.fiscalSimConfig) {
+    if (false) {
       fiscalEl.style.display = 'block';
-      renderFiscalSimulator(fiscalEl, prop);
     } else {
       fiscalEl.style.display = 'none';
     }
@@ -6008,7 +6008,8 @@ function renderAptView(state, loanKey) {
     // v438 (P3) — les KPIs du bien LUI-MÊME, calculés par le moteur mais jamais
     // affichés sur sa propre fiche (ils ne vivaient que dans les tables consolidées).
     + '<div><span style="color:#718096;">Loyer HC</span><br><strong>'
-      + (prop.loyerHC ? fmt(prop.loyerHC) + '/mois' : '\u2014') + '</strong></div>'
+      + (prop.loyerHC ? fmt(prop.loyerHC) + '/mois'
+        : (prop.bail && !prop.bailActif ? '600 €/mois <span style="font-weight:400;font-size:11px;color:#b7791f;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '\u2014')) + '</strong></div>'
     + '<div><span style="color:#718096;">Rdt net</span><br><strong>'
       + (Number.isFinite(prop.yieldNet) && !prop.conditional ? prop.yieldNet.toFixed(1) + '%/an' : '\u2014') + '</strong></div>'
     + (Number.isFinite(prop.yieldNetFiscal) && !prop.conditional
@@ -6167,6 +6168,7 @@ function renderAptView(state, loanKey) {
   html += '<div style="margin-bottom:24px;">'
     + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
     + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#b7791f;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
+    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#b7791f;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">occupation à titre gratuit — 700 € CC dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
     + '</h3>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
     // Revenus
@@ -6223,8 +6225,9 @@ function renderAptView(state, loanKey) {
     html += renderTimelineHTML(vc.timeline);
     html += '</div>';
 
-    // Fiscal simulator
-    html += '<div id="aptVitryFiscal" style="margin-bottom:24px;"></div>';
+    // v459 — « Simulateur fiscal Déclaré vs Cash » SUPPRIMÉ : vestige de l'ancien scénario
+    // (il comparait 700 € déclarés à… 700 € déclarés, économie 0). Le prévisionnel d'impôt
+    // CALCULÉ (v458) le remplace ; la part espèces est traitée en RISQUE, pas en scénario.
 
     // ── v458 — Bail réel & référence GMBI ──
     if (prop.bail) {
@@ -6378,10 +6381,6 @@ function renderAptView(state, loanKey) {
   container.innerHTML = html;
 
   // Render dynamic sub-sections after DOM insertion
-  if (loanKey === 'vitry' && prop.fiscalSimConfig) {
-    const fiscalEl = document.getElementById('aptVitryFiscal');
-    if (fiscalEl) renderFiscalSimulator(fiscalEl, prop);
-  }
   if (loanKey === 'villejuif' && prop.vefaConfig) {
     const vefaEl = document.getElementById('aptVillejuifVefa');
     if (vefaEl) renderVEFATimeline(vefaEl, prop);
@@ -7450,7 +7449,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=458').then(m => {
+  import('./charts.js?v=459').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
