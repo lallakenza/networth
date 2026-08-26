@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=461';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=461';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=462';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=462';
 
 // ---- Generic table sort utility ----
 /**
@@ -5490,6 +5490,9 @@ function renderPropertyDetail(state, prop) {
         ? '<div style="font-size:12px;color:#4a5568;line-height:1.8;">'
           + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:10.5px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
           + '<div style="display:flex;justify-content:space-between;"><span>Provisions</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
+          + (prop.loyerCashContractuel > 0
+            ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
+            : '')
           + '</div>'
         : cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
           + (prop.loyerCash > 0 ? cfBarRow('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : ''))
@@ -6226,7 +6229,13 @@ function renderAptView(state, loanKey) {
       ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
         + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:11px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
         + '<div style="display:flex;justify-content:space-between;"><span>Provisions charges</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
-        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total CC à venir</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
+        + (prop.loyerCashContractuel > 0
+          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (non déclaré — risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
+          : '')
+        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total CC déclaré à venir</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
+        + (prop.loyerCashContractuel > 0
+          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Total réel attendu</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0) + prop.loyerCashContractuel) + ' € <span style="font-weight:400;font-size:10.5px;">(> plafond PLS 840)</span></strong></div>'
+          : '')
         + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total actuel</span><span>0 € <span style="font-weight:400;font-size:11px;color:#718096;">(occupation à titre gratuit)</span></span></div>'
         + '</div>'
       : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
@@ -7468,7 +7477,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=461').then(m => {
+  import('./charts.js?v=462').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
