@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=462';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=462';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=463';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=463';
 
 // ---- Generic table sort utility ----
 /**
@@ -5098,7 +5098,9 @@ function renderTimelineHTML(timeline) {
   let html = '<h4 style="margin:16px 0 8px;font-size:13px;color:#c05621;">Timeline des échéances</h4>';
   html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">';
   const now = new Date();
-  timeline.forEach(t => {
+  // v463 — tri CHRONOLOGIQUE systématique : les entrées insérées au fil des mises à jour
+  // (ex. bail 2026-10 ajouté après les échéances 2028) sortaient dans l'ordre du tableau.
+  [...timeline].sort((a, b) => String(a.date).localeCompare(String(b.date))).forEach(t => {
     const [ty, tm] = t.date.split('-').map(Number);
     const tDate = new Date(ty, tm - 1);
     const isPast = tDate < now;
@@ -5493,10 +5495,13 @@ function renderPropertyDetail(state, prop) {
           + (prop.loyerCashContractuel > 0
             ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
             : '')
+          + (prop.parking > 0
+            ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Parking voisin (actif ⚠)</span><strong>' + Math.round(prop.parking) + ' €</strong></div>'
+            : '')
           + '</div>'
         : cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
           + (prop.loyerCash > 0 ? cfBarRow('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : ''))
-            + (prop.parking > 0 ? cfBarRow('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBar) : '')
+            + (prop.parking > 0 ? cfBarRow('Parking (voisin, espèces ⚠)', prop.parking, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : '')
       + (prop.chargesLoc > 0 ? cfBarRow('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBar) : '')
       + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
       + '</div>'
@@ -5972,14 +5977,105 @@ function renderAptView(state, loanKey) {
 
   let html = '';
 
-  // ── Section -1: points d'attention documentés (v424) — en tête, avant tout chiffre ──
-  html += renderAptAlerts(loanKey);
-
   // ── Section 0: Property Info Card (detailed plan info) ──
   const details = meta.details || null;
   if (details) {
     html += renderPropertyInfoCard(details);
   }
+
+  // ── Section 3: Cash Flow détaillé ──
+  const cfSign = prop.cf >= 0 ? '+' : '';
+  const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
+  const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
+  const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
+  // ── UX: Visual bar comparison for Revenus vs Charges ──
+  const maxCFBarApt = Math.max(prop.totalRevenue || 0, Math.round(prop.charges) || 0);
+
+  /**
+   * Renders a single revenue/charge line with visual bar (apartment view variant)
+   *
+   * Identical to cfBarRow() but used in apartment-specific views (renderAptView).
+   * Creates a horizontal bar chart row showing:
+   * - Label (left): revenue/charge category name
+   * - Bar (center): proportional width bar (pct = amount/maxRef * 100)
+   * - Amount (right): actual EUR value with font-weight:600
+   *
+   * Visual Style:
+   * - Bar background: #edf2f7 (light gray)
+   * - Bar fill: gradient color provided (e.g., green for revenue, red for charges)
+   * - Responsive: uses flexbox with gap:8px spacing
+   * - Hover title: shows label + amount + percentage
+   *
+   * Used in: renderAptView() for revenue/charge lists
+   *
+   * @param {string} label - Display label (e.g., "Loyer HC", "Prêt")
+   * @param {number} amount - Value in EUR (formatted with toLocaleString)
+   * @param {string} color - CSS color or gradient for bar fill
+   * @param {number} maxRef - Reference maximum (typically maxCFBarApt)
+   * @returns {string} HTML string of one bar row
+   */
+  function cfBarRowApt(label, amount, color, maxRef) {
+    const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;" title="' + label + ' : ' + amount + ' \u20ac (' + pct + '% du max)">'
+      + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
+      + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
+      + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
+      + '</div>'
+      + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' \u20ac</span>'
+      + '</div>';
+  }
+  html += '<div style="margin-bottom:24px;">'
+    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
+    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
+    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">occupation à titre gratuit — 700 € CC dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
+    + '</h3>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
+    // Revenus
+    + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
+    + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
+    // v460 — état vide PÉDAGOGIQUE : avant la prise d'effet du bail, la boîte semblait
+    // vide (barre à largeur 0, lignes conditionnelles masquées). On montre la composition
+    // contractuelle grisée avec sa date, et le total actuel reste honnêtement à 0.
+    + (prop.bail && !prop.bailActif
+      ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
+        + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:11px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;"><span>Provisions charges</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
+        + (prop.loyerCashContractuel > 0
+          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (non déclaré — risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
+          : '')
+        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total CC déclaré à venir</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
+        + (prop.loyerCashContractuel > 0
+          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Total réel attendu</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0) + prop.loyerCashContractuel) + ' € <span style="font-weight:400;font-size:10.5px;">(> plafond PLS 840)</span></strong></div>'
+          : '')
+        + (prop.parking > 0
+          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Parking — voisin, espèces ⚠ <span style="color:#718096;font-size:10.5px;">actif</span></span><strong>' + Math.round(prop.parking) + ' €</strong></div>'
+          : '')
+        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total actuel</span><span>' + Math.round(prop.totalRevenue) + ' € <span style="font-weight:400;font-size:11px;color:#718096;">(logement à titre gratuit' + (prop.parking > 0 ? ' ; parking voisin' : '') + ')</span></span></div>'
+        + '</div>'
+      : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
+        + (prop.loyerCash > 0 ? cfBarRowApt('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
+        + (prop.parking > 0 ? cfBarRowApt('Parking (voisin, espèces ⚠)', prop.parking, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
+        + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
+        + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>')
+    + '</div>'
+    // Charges
+    + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
+    + '<div style="font-weight:700;color:#c53030;margin-bottom:8px;">Charges</div>'
+    + cfBarRowApt('Prêt', Math.round(cd.pret || 0), 'linear-gradient(90deg,#feb2b2,#e53e3e)', maxCFBarApt)
+    + cfBarRowApt('Assurance', Math.round(cd.assurance || 0), 'linear-gradient(90deg,#feb2b2,#fc8181)', maxCFBarApt)
+    + cfBarRowApt('PNO', Math.round(cd.pno || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + cfBarRowApt('TF', Math.round(cd.tf || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + cfBarRowApt('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
+    + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
+    + '</div></div>';
+  // CF KPIs
+  html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
+    + '</div></div>';
 
   // ── Section 1: Fiche propriété + Exit costs KPIs ──
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:24px;">';
@@ -6172,182 +6268,6 @@ function renderAptView(state, loanKey) {
   }
   html += _sectionClose();
 
-  // ── Section 3: Cash Flow détaillé ──
-  const cfSign = prop.cf >= 0 ? '+' : '';
-  const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
-  const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
-  const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
-  // ── UX: Visual bar comparison for Revenus vs Charges ──
-  const maxCFBarApt = Math.max(prop.totalRevenue || 0, Math.round(prop.charges) || 0);
-
-  /**
-   * Renders a single revenue/charge line with visual bar (apartment view variant)
-   *
-   * Identical to cfBarRow() but used in apartment-specific views (renderAptView).
-   * Creates a horizontal bar chart row showing:
-   * - Label (left): revenue/charge category name
-   * - Bar (center): proportional width bar (pct = amount/maxRef * 100)
-   * - Amount (right): actual EUR value with font-weight:600
-   *
-   * Visual Style:
-   * - Bar background: #edf2f7 (light gray)
-   * - Bar fill: gradient color provided (e.g., green for revenue, red for charges)
-   * - Responsive: uses flexbox with gap:8px spacing
-   * - Hover title: shows label + amount + percentage
-   *
-   * Used in: renderAptView() for revenue/charge lists
-   *
-   * @param {string} label - Display label (e.g., "Loyer HC", "Prêt")
-   * @param {number} amount - Value in EUR (formatted with toLocaleString)
-   * @param {string} color - CSS color or gradient for bar fill
-   * @param {number} maxRef - Reference maximum (typically maxCFBarApt)
-   * @returns {string} HTML string of one bar row
-   */
-  function cfBarRowApt(label, amount, color, maxRef) {
-    const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;" title="' + label + ' : ' + amount + ' \u20ac (' + pct + '% du max)">'
-      + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
-      + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
-      + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
-      + '</div>'
-      + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' \u20ac</span>'
-      + '</div>';
-  }
-  html += '<div style="margin-bottom:24px;">'
-    + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
-    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
-    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">occupation à titre gratuit — 700 € CC dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
-    + '</h3>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
-    // Revenus
-    + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
-    + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
-    // v460 — état vide PÉDAGOGIQUE : avant la prise d'effet du bail, la boîte semblait
-    // vide (barre à largeur 0, lignes conditionnelles masquées). On montre la composition
-    // contractuelle grisée avec sa date, et le total actuel reste honnêtement à 0.
-    + (prop.bail && !prop.bailActif
-      ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
-        + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC <span style="color:#718096;font-size:11px;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span></span><strong>' + Math.round(prop.loyerHCContractuel || 0) + ' €</strong></div>'
-        + '<div style="display:flex;justify-content:space-between;"><span>Provisions charges</span><strong>' + Math.round(prop.chargesLocContractuel || 0) + ' €</strong></div>'
-        + (prop.loyerCashContractuel > 0
-          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (non déclaré — risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
-          : '')
-        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total CC déclaré à venir</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
-        + (prop.loyerCashContractuel > 0
-          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Total réel attendu</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0) + prop.loyerCashContractuel) + ' € <span style="font-weight:400;font-size:10.5px;">(> plafond PLS 840)</span></strong></div>'
-          : '')
-        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total actuel</span><span>0 € <span style="font-weight:400;font-size:11px;color:#718096;">(occupation à titre gratuit)</span></span></div>'
-        + '</div>'
-      : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
-        + (prop.loyerCash > 0 ? cfBarRowApt('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
-        + (prop.parking > 0 ? cfBarRowApt('Parking', prop.parking, 'linear-gradient(90deg,#9ae6b4,#48bb78)', maxCFBarApt) : '')
-        + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
-        + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>')
-    + '</div>'
-    // Charges
-    + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
-    + '<div style="font-weight:700;color:#c53030;margin-bottom:8px;">Charges</div>'
-    + cfBarRowApt('Prêt', Math.round(cd.pret || 0), 'linear-gradient(90deg,#feb2b2,#e53e3e)', maxCFBarApt)
-    + cfBarRowApt('Assurance', Math.round(cd.assurance || 0), 'linear-gradient(90deg,#feb2b2,#fc8181)', maxCFBarApt)
-    + cfBarRowApt('PNO', Math.round(cd.pno || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
-    + cfBarRowApt('TF', Math.round(cd.tf || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
-    + cfBarRowApt('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
-    + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
-    + '</div></div>';
-  // CF KPIs
-  html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
-    + '</div></div>';
-
-  // ── Section 4: Vitry-specific — Constraints ──
-  if (loanKey === 'vitry') {
-    const vc = VITRY_CONSTRAINTS;
-    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
-    html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes & Obligations</h3>';
-    html += '<p style="font-size:12px;color:#744210;margin:0 0 12px;">' + vc.summary + '</p>';
-
-    vc.constraints.forEach(c => {
-      const statusColor = c.status === 'actif' ? '#c05621' : '#276749';
-      const yearsLeft = c.yearsRemaining != null ? ' <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:10px;color:#92400e;">' + c.yearsRemaining + ' ans restants</span>' : '';
-      html += '<div style="margin-bottom:16px;padding:12px;background:white;border-radius:8px;border-left:3px solid ' + statusColor + ';">';
-      html += '<div style="font-weight:700;font-size:13px;color:#2d3748;">' + c.dispositif + yearsLeft + '</div>';
-      html += '<div style="font-size:11px;color:#718096;margin:4px 0;">' + c.reference + '</div>';
-      html += '<div style="font-size:12px;color:#4a5568;margin:6px 0;"><strong>Obligation :</strong> ' + c.obligation + '</div>';
-      if (c.dateDebut && c.dateFin) {
-        html += '<div style="font-size:12px;color:#4a5568;"><strong>Période :</strong> ' + c.dateDebut + ' → ' + c.dateFin + '</div>';
-      }
-      html += '<div style="font-size:12px;color:#c53030;margin:4px 0;"><strong>Pénalité :</strong> ' + c.penalite + '</div>';
-      html += '<ul style="margin:6px 0 0;padding-left:16px;font-size:11px;color:#4a5568;">';
-      c.details.forEach(d => { html += '<li style="margin-bottom:2px;">' + d + '</li>'; });
-      html += '</ul></div>';
-    });
-
-    // Timeline
-    html += renderTimelineHTML(vc.timeline);
-    html += '</div>';
-
-    // v459 — « Simulateur fiscal Déclaré vs Cash » SUPPRIMÉ : vestige de l'ancien scénario
-    // (il comparait 700 € déclarés à… 700 € déclarés, économie 0). Le prévisionnel d'impôt
-    // CALCULÉ (v458) le remplace ; la part espèces est traitée en RISQUE, pas en scénario.
-
-    // v461 — blocs Bail & GMBI REMONTÉS juste sous la Fiche propriété (audit UX)
-    // ── v458 — Prévisionnel d'impôt foncier (CALCULÉ par le moteur, pas codé en dur) ──
-    const fc = state.immoView.vitryImpotForecast;
-    if (fc) {
-      html += '<div style="background:#fffaf0;border:1px solid #feebc8;border-radius:12px;padding:16px;margin-bottom:24px;">'
-        + '<h3 style="margin:0 0 10px;font-size:15px;color:#c05621;">Prévisionnel impôt foncier 2026-2029 (calculé)</h3>'
-        + '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;min-width:520px;">'
-        + '<thead><tr><th>Année</th><th class="num">Revenus déclarés</th><th class="num">Intérêts</th><th class="num">Total déductions</th><th class="num">Net foncier</th><th class="num">Impôt (37,2 %)</th></tr></thead><tbody>';
-      fc.lignes.forEach(l => {
-        html += '<tr><td><strong>' + l.annee + '</strong>' + (l.note ? ' <span style="font-size:10px;color:#718096;">' + l.note + '</span>' : '') + '</td>'
-          + '<td class="num">' + l.revenus.toLocaleString('fr-FR') + ' €</td>'
-          + '<td class="num">' + l.interets.toLocaleString('fr-FR') + ' €</td>'
-          + '<td class="num">' + l.deductions.toLocaleString('fr-FR') + ' €</td>'
-          + '<td class="num">' + l.net.toLocaleString('fr-FR') + ' €</td>'
-          + '<td class="num" style="font-weight:600;">' + l.impot.toLocaleString('fr-FR') + ' €</td></tr>';
-      });
-      html += '<tr style="font-weight:700;border-top:2px solid #feebc8;"><td>Cumul</td><td></td><td></td><td></td><td></td><td class="num">' + fc.cumul.toLocaleString('fr-FR') + ' €</td></tr>';
-      html += '</tbody></table></div>'
-        + '<p style="font-size:11px;color:#718096;margin:8px 0 0;font-style:italic;">Calculé depuis les inputs : loyers déclarés (prorata dès le 10/10/2026), intérêts réels du tableau d\'amortissement, '
-        + 'APRIL + assurance AL, PNO, TF nette de TEOM (1 320 € 2026-27 → 1 950 € dès 2028), copro non récupérable (part récupérable estimée 600 €/an — à ajuster au 1er décompte), forfait gestion 20 €. '
-        + 'Audit 26/08/2026 en cohérence sur 2026-27 (−1 %/−3 %) ; 2028-29 plus bas que l\'audit (intérêts décroissants réels, loyers non indexés).</p>'
-        + '</div>';
-    }
-  }
-
-  // ── Section 4: Rueil-specific — Timeline ──
-  if (loanKey === 'rueil') {
-    const ec = EXIT_COSTS.rueil;
-    if (ec && ec.timeline) {
-      html += '<div style="background:#f7fafc;border:1px solid #cbd5e0;border-radius:12px;padding:16px;margin-bottom:24px;">';
-      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Échéances importantes</h3>';
-      html += renderTimelineHTML(ec.timeline);
-      html += '</div>';
-    }
-  }
-
-  // ── Section 4: Villejuif-specific — VEFA Timeline + Regime comparison ──
-  if (loanKey === 'villejuif') {
-    // Timeline from EXIT_COSTS
-    const ec = EXIT_COSTS.villejuif;
-    if (ec && ec.timeline) {
-      html += '<div style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;">';
-      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#0284c7;">Échéances VEFA</h3>';
-      html += renderTimelineHTML(ec.timeline);
-      html += '</div>';
-    }
-    // VEFA Timeline
-    if (prop.vefaConfig) {
-      html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
-    }
-
-    // v440 — section JEANBRUN supprimée (dispositif non retenu : plafond 1 215€ vs 1 700€ marché)
-  }
-
   // ── Section 5: Exit projection ── (repliée v426 — graphique + tableau consultés
   // au moment d'arbitrer une vente, pas à chaque ouverture de la fiche)
   html += _sectionOpen('Projection frais de sortie par année', false,
@@ -6406,6 +6326,104 @@ function renderAptView(state, loanKey) {
   html += '</tbody></table></div>';
   html += _sectionClose();
 
+  // ── Timeline (Vitry) — v463 ──
+  if (loanKey === 'vitry') {
+    const vcT = VITRY_CONSTRAINTS;
+    // v463 — timeline extraite dans sa propre carte (ordre demandé par Amine)
+    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    html += renderTimelineHTML(vcT.timeline);
+    html += '</div>';
+
+    // v459 — « Simulateur fiscal Déclaré vs Cash » SUPPRIMÉ : vestige de l'ancien scénario
+    // (il comparait 700 € déclarés à… 700 € déclarés, économie 0). Le prévisionnel d'impôt
+    // CALCULÉ (v458) le remplace ; la part espèces est traitée en RISQUE, pas en scénario.
+
+    // v461 — blocs Bail & GMBI REMONTÉS juste sous la Fiche propriété (audit UX)
+  }
+  // ── Section 4: Rueil-specific — Timeline ──
+  if (loanKey === 'rueil') {
+    const ec = EXIT_COSTS.rueil;
+    if (ec && ec.timeline) {
+      html += '<div style="background:#f7fafc;border:1px solid #cbd5e0;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Échéances importantes</h3>';
+      html += renderTimelineHTML(ec.timeline);
+      html += '</div>';
+    }
+  }
+
+  // ── Section 4: Villejuif-specific — VEFA Timeline + Regime comparison ──
+  if (loanKey === 'villejuif') {
+    // Timeline from EXIT_COSTS
+    const ec = EXIT_COSTS.villejuif;
+    if (ec && ec.timeline) {
+      html += '<div style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;">';
+      html += '<h3 style="margin:0 0 12px;font-size:15px;color:#0284c7;">Échéances VEFA</h3>';
+      html += renderTimelineHTML(ec.timeline);
+      html += '</div>';
+    }
+    // VEFA Timeline
+    if (prop.vefaConfig) {
+      html += '<div id="aptVillejuifVefa" style="background:#ebf8ff;border-radius:12px;padding:16px;margin-bottom:24px;"></div>';
+    }
+
+    // v440 — section JEANBRUN supprimée (dispositif non retenu : plafond 1 215€ vs 1 700€ marché)
+  }
+
+  // ── Prévisionnel impôts (Vitry) — v463 ──
+  if (loanKey === 'vitry') {
+    // ── v458 — Prévisionnel d'impôt foncier (CALCULÉ par le moteur, pas codé en dur) ──
+    const fc = state.immoView.vitryImpotForecast;
+    if (fc) {
+      html += '<div style="background:#fffaf0;border:1px solid #feebc8;border-radius:12px;padding:16px;margin-bottom:24px;">'
+        + '<h3 style="margin:0 0 10px;font-size:15px;color:#c05621;">Prévisionnel impôt foncier 2026-2029 (calculé)</h3>'
+        + '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;min-width:520px;">'
+        + '<thead><tr><th>Année</th><th class="num">Revenus déclarés</th><th class="num">Intérêts</th><th class="num">Total déductions</th><th class="num">Net foncier</th><th class="num">Impôt (37,2 %)</th></tr></thead><tbody>';
+      fc.lignes.forEach(l => {
+        html += '<tr><td><strong>' + l.annee + '</strong>' + (l.note ? ' <span style="font-size:10px;color:#718096;">' + l.note + '</span>' : '') + '</td>'
+          + '<td class="num">' + l.revenus.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.interets.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.deductions.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.net.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num" style="font-weight:600;">' + l.impot.toLocaleString('fr-FR') + ' €</td></tr>';
+      });
+      html += '<tr style="font-weight:700;border-top:2px solid #feebc8;"><td>Cumul</td><td></td><td></td><td></td><td></td><td class="num">' + fc.cumul.toLocaleString('fr-FR') + ' €</td></tr>';
+      html += '</tbody></table></div>'
+        + '<p style="font-size:11px;color:#718096;margin:8px 0 0;font-style:italic;">Calculé depuis les inputs : loyers déclarés (prorata dès le 10/10/2026), intérêts réels du tableau d\'amortissement, '
+        + 'APRIL + assurance AL, PNO, TF nette de TEOM (1 320 € 2026-27 → 1 950 € dès 2028), copro non récupérable (part récupérable estimée 600 €/an — à ajuster au 1er décompte), forfait gestion 20 €. '
+        + 'Audit 26/08/2026 en cohérence sur 2026-27 (−1 %/−3 %) ; 2028-29 plus bas que l\'audit (intérêts décroissants réels, loyers non indexés).</p>'
+        + '</div>';
+    }
+  }
+
+  // ── v463 : risques & dispositifs regroupés en fin de page ──
+  // ── Section -1: points d'attention documentés (v424) — en tête, avant tout chiffre ──
+  html += renderAptAlerts(loanKey);
+
+  // ── Risques & dispositifs (Vitry) — v463 : en fin de page (ordre décideur) ──
+  if (loanKey === 'vitry') {
+    const vc = VITRY_CONSTRAINTS;
+    html += '<div style="background:#fffaf0;border:1px solid #fbd38d;border-radius:12px;padding:16px;margin-bottom:24px;">';
+    html += '<h3 style="margin:0 0 12px;font-size:15px;color:#c05621;">Contraintes & Obligations</h3>';
+    html += '<p style="font-size:12px;color:#744210;margin:0 0 12px;">' + vc.summary + '</p>';
+
+    vc.constraints.forEach(c => {
+      const statusColor = c.status === 'actif' ? '#c05621' : '#276749';
+      const yearsLeft = c.yearsRemaining != null ? ' <span style="background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:10px;color:#92400e;">' + c.yearsRemaining + ' ans restants</span>' : '';
+      html += '<div style="margin-bottom:16px;padding:12px;background:white;border-radius:8px;border-left:3px solid ' + statusColor + ';">';
+      html += '<div style="font-weight:700;font-size:13px;color:#2d3748;">' + c.dispositif + yearsLeft + '</div>';
+      html += '<div style="font-size:11px;color:#718096;margin:4px 0;">' + c.reference + '</div>';
+      html += '<div style="font-size:12px;color:#4a5568;margin:6px 0;"><strong>Obligation :</strong> ' + c.obligation + '</div>';
+      if (c.dateDebut && c.dateFin) {
+        html += '<div style="font-size:12px;color:#4a5568;"><strong>Période :</strong> ' + c.dateDebut + ' → ' + c.dateFin + '</div>';
+      }
+      html += '<div style="font-size:12px;color:#c53030;margin:4px 0;"><strong>Pénalité :</strong> ' + c.penalite + '</div>';
+      html += '<ul style="margin:6px 0 0;padding-left:16px;font-size:11px;color:#4a5568;">';
+      c.details.forEach(d => { html += '<li style="margin-bottom:2px;">' + d + '</li>'; });
+      html += '</ul></div>';
+    });
+
+    html += '</div>';
+  }
   container.innerHTML = html;
 
   // Render dynamic sub-sections after DOM insertion
@@ -7477,7 +7495,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=462').then(m => {
+  import('./charts.js?v=463').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

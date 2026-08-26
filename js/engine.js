@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=462';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=463';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5736,13 +5736,14 @@ export function computeAlerts(state) {
     const cashA = vdA && vdA.loyerCashNonDeclare;
     if (cashA > 0) {
       const declA = vdA.loyerDeclare || vdA.loyerHC || 0;
+      const parkA = vdA.parkingCashVoisin ? (vdA.parking || 0) : 0;   // v463 — espèces aussi (voisin)
       alerts.push({
         severity: 'red',
-        title: 'Vitry — loyer réel ' + (declA + cashA) + ' €/mois : au-dessus du plafond PLS, part non déclarée',
-        msg: declA + ' € déclarés + ' + cashA + ' € en espèces = ' + (declA + cashA)
-          + ' €/mois, > plafond PLS ~840 € exigé par la location dérogatoire PTZ (contrôle BP en cours). '
-          + 'Exposition : exigibilité PTZ + Action Logement (~95 208 €) et redressement ~'
-          + Math.round(cashA * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
+        title: 'Vitry — ' + (cashA + parkA) + ' €/mois en espèces non déclarés, loyer locataire > plafond PLS',
+        msg: declA + ' € déclarés + ' + cashA + ' € espèces (locataire, dès le bail) + ' + parkA + ' € espèces (parking, voisin, actif). '
+          + 'Loyer locataire réel ' + (declA + cashA) + ' € > plafond PLS ~840 € de la location dérogatoire PTZ (contrôle BP en cours) — '
+          + 'exposition : exigibilité PTZ + Action Logement (~95 208 €). Redressement potentiel ~'
+          + Math.round((cashA + parkA) * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
         action: 'Fiche Vitry', view: 'apt_vitry',
       });
     }
