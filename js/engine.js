@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=468';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=469';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2992,9 +2992,12 @@ function computeImmoView(portfolio, fx) {
       monthlyPret: chargesConfig.pret,
       monthlyAssurance: chargesConfig.assurance,
       loyer, loyerHC, chargesLoc, parking, totalRevenue, cf,
-      yieldGross: (totalRevenue * 12 / _val * 100),
-      yieldNet: (cf * 12 / _val * 100),
-      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / _val * 100) : null,
+      // v469 — bien en VEFA : la rentabilité se calcule sur le PRIX TOTAL de l'opération
+      // (contractPrice), pas sur le coût engagé à date (_val) — 1 700 €/mois rapportés à
+      // 141 K de versements donnaient un « 14,5 % brut » absurde ; sur 336 330 € : ~6,1 %.
+      yieldGross: (totalRevenue * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100),
+      yieldNet: (cf * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100),
+      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100) : null,
       wealthCreation: Math.round(wealthCreationComputed),
       wealthBreakdown: {
         capitalAmorti: Math.round(wealthCapital),
