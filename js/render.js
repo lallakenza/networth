@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=467';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=467';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=468';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=468';
 
 // ---- Generic table sort utility ----
 /**
@@ -5516,8 +5516,8 @@ function renderPropertyDetail(state, prop) {
     html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '') + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.bail && !prop.bailActif ? ' (réel actuel)' : '') + '</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /an</div></div>'
       + '</div>';
     cfEl.innerHTML = html;
@@ -6068,8 +6068,8 @@ function renderAptView(state, loanKey) {
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (réel actuel)' : '') + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
     + '</div></div>';
 
@@ -7491,7 +7491,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=467').then(m => {
+  import('./charts.js?v=468').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
