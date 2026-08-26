@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=475';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=475';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=476';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=476';
 
 // ---- Generic table sort utility ----
 /**
@@ -6167,7 +6167,7 @@ function renderAptView(state, loanKey) {
     const pvEcoColor = pvEco > 0 ? '#276749' : '#c53030';
     const pvColor = ec.pvBrute > 0 ? '#276749' : '#c53030';
     html += '<div><span style="color:#718096;" title="Valeur actuelle − prix d\'achat, avant toute règle fiscale">PV économique</span><br><strong style="color:' + pvEcoColor + ';">' + (pvEco > 0 ? '+' : '') + fmt(Math.round(pvEco)) + '</strong></div>';
-    html += '<div><span style="color:#718096;" title="Assiette fiscale (art. 150 VB) : prix de cession − prix d\'acquisition majoré du forfait frais 7,5 % (soit ' + fmt(Math.round((ec.purchasePrice || 0) * 1.075)) + '). Le forfait réduit l\'impôt : optimal vs frais réels VEFA ~2,5 %.">PV imposable brute (acq. +7,5 %)</span><br><strong style="color:' + pvColor + ';">' + (ec.pvBrute > 0 ? '+' : '') + fmt(Math.round(ec.pvBrute)) + '</strong></div>';
+    html += '<div><span style="color:#718096;" title="Assiette fiscale (art. 150 VB CGI) : prix de cession − prix d\'acquisition majoré du FORFAIT légal de 7,5 % pour frais (option ouverte à tout vendeur, sans justificatif), soit ' + fmt(Math.round((ec.purchasePrice || 0) * 1.075)) + ((ec.amortReintegration || 0) > 0 ? ', + ' + fmt(Math.round(ec.amortReintegration)) + ' d\'amortissements LMNP réintégrés' : '') + '. Le forfait est retenu car supérieur aux frais réels payés — il réduit l\'impôt.">PV imposable brute (acq. +7,5 %)</span><br><strong style="color:' + pvColor + ';">' + (ec.pvBrute > 0 ? '+' : '') + fmt(Math.round(ec.pvBrute)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Détention</span><br><strong>' + ec.holdingYears + ' ans</strong></div>';
     html += '<div><span style="color:#718096;">Abatt. IR (' + Math.round(ec.abattementIR * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementIR)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Abatt. PS (' + Math.round(ec.abattementPS * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementPS)) + '</strong></div>';
@@ -7530,7 +7530,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=475').then(m => {
+  import('./charts.js?v=476').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
