@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=469';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=469';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=470';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=470';
 
 // ---- Generic table sort utility ----
 /**
@@ -4997,32 +4997,51 @@ function renderImmoView(state) {
     cfAnalysis.innerHTML = text;
   }
 
-  // ── Villejuif Simulation table ──
+  // ── Villejuif — intérêts de franchise : calcul FONDÉ (v470) ──
+  // Remplace l'ancienne estimation (taux moyen 3,1 % simple × principal plein, puis
+  // facteur 0,81 codé en dur). Désormais : part TIRÉE = différés EXACTS des tableaux
+  // définitifs LCL (03/07/2026) ; tranches FUTURES = échéancier d'appels de l'acte
+  // (montants contractuels, dates de chantier estimées) × 3,27 % jusqu'à fin de
+  // franchise (janv 2029), intérêts simples (la capitalisation annuelle ajoute ~1-2 %,
+  // négligée et signalée). Comparateur = scénario plein-tirage DE L'OFFRE (19 630 €).
   const vilSim = document.getElementById('villejuifSimulation');
   if (vilSim) {
-    const vilLoans = IMMO_CONSTANTS.loans.villejuifLoans || [];
-    const totalPrincipal = vilLoans.reduce((s, l) => s + l.principal, 0);
-    const franchiseM = vilLoans[0] && vilLoans[0].periods ? vilLoans[0].periods[0].months : 36;
-    // Bank scenario: full disbursement at day 1
-    const bankInterest = Math.round(totalPrincipal * 0.031 * (franchiseM / 12)); // ~3.1% weighted avg
-    const bankCRD = totalPrincipal + bankInterest;
-    // Realistic: ~19% less due to progressive disbursement
-    const realInterest = Math.round(bankInterest * 0.81);
-    const realCRD = totalPrincipal + realInterest;
-    const saving = bankInterest - realInterest;
-    vilSim.innerHTML =
-      '<strong>Villejuif \u2014 Int\u00e9r\u00eats de franchise : tableau bancaire vs tirage progressif r\u00e9el</strong><br>' +
-      // v437 — recadr\u00e9 : les DEUX pr\u00eats LCL sont SIGN\u00c9S (acte du 05/06/2026). Ce bloc ne
-      // compare plus une \u00ab simulation \u00bb \u00e0 une hypoth\u00e8se : il explique pourquoi le tableau
-      // d'amortissement BANCAIRE (d\u00e9blocage int\u00e9gral au jour 1) surestime les int\u00e9r\u00eats
-      // de franchise, alors qu'en VEFA le capital se tire par appels de fonds.
-      'Pr\u00eats LCL sign\u00e9s (acte du 05/06/2026). Le tableau d\u2019amortissement bancaire suppose un d\u00e9blocage int\u00e9gral au jour 1 \u2014 en VEFA, le capital se tire par appels de fonds, les int\u00e9r\u00eats de franchise r\u00e9ellement capitalis\u00e9s seront donc inf\u00e9rieurs.<br><br>' +
-      '<table style="font-size:12px;margin:8px 0">' +
-      '<tr><th></th><th class="num">Tableau bancaire (J1)</th><th class="num">Tirage progressif (estim\u00e9)</th><th class="num">\u00c9conomie</th></tr>' +
-      '<tr><td>Interets capitalises (' + franchiseM + ' mois)</td><td class="num">' + bankInterest.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realInterest.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + ' (-' + Math.round(saving / bankInterest * 100) + '%)</td></tr>' +
-      '<tr><td>CRD apres franchise</td><td class="num">' + bankCRD.toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + realCRD.toLocaleString('fr-FR') + '</td><td class="num pos">~' + saving.toLocaleString('fr-FR') + '</td></tr>' +
-      '</table>' +
-      '<span style="font-size:11px;color:var(--gray)">Hypothese : fondations M0, hors d\'eau M6, hors d\'air M9, achevement M15, livraison M18. Apport utilise en priorite.</span>';
+    try {
+      const vl = IMMO_CONSTANTS.loans.villejuifLoans || [];
+      const meta_vj = IMMO_CONSTANTS.properties.villejuif || {};
+      const tr1 = (vl[0] && vl[0].tableauReel) || {};
+      const tr2 = (vl[1] && vl[1].tableauReel) || {};
+      const exactTire = ((tr1.crdFinFranchise || 0) - (tr1.tirageActe || 0))
+        + ((tr2.crdFinFranchise || 0) - (tr2.tirage || 0));
+      const prix = meta_vj.totalOperation || 336330;
+      const tauxP1 = (vl[0] && vl[0].rate) || 0.0327;
+      const finFr = { y: 2029, m: 1 };   // dernière échéance de différés P1 (tableau : amortissement 02/2029)
+      let futurs = 0;
+      const lignes = [];
+      (meta_vj.appelsRestants || []).forEach(a => {
+        const [y, m] = a.dateEstimee.split('-').map(Number);
+        const n = Math.max(0, (finFr.y - y) * 12 + (finFr.m - m));
+        const montant = prix * a.pct;
+        const it = montant * tauxP1 * n / 12;
+        futurs += it;
+        lignes.push({ label: a.label, montant, date: a.dateEstimee, mois: n, interets: it });
+      });
+      const attendu = exactTire + futurs;
+      const plein = vl.reduce((s, l) => s + (l.deferredInterestRef || 0), 0) || 19630;
+      const principal = vl.reduce((s, l) => s + (l.principal || 0), 0);
+      const eco = plein - attendu;
+      vilSim.innerHTML =
+        '<strong>Villejuif — Intérêts de franchise : plein-tirage (offre) vs tirage réel + appels datés</strong><br>' +
+        'Part déjà tirée : différés <strong>exacts</strong> des tableaux définitifs LCL. Tranches futures : échéancier d\u2019appels de l\u2019acte (66 % du prix, couvert par le prêt) × 3,27 % jusqu\u2019à fin de franchise (janv 2029).<br><br>' +
+        '<table style="font-size:12px;margin:8px 0">' +
+        '<tr><th></th><th class="num">Plein-tirage (offre)</th><th class="num">Attendu (calculé)</th><th class="num">Économie</th></tr>' +
+        '<tr><td>Intérêts capitalisés (franchise)</td><td class="num">' + Math.round(plein).toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + Math.round(attendu).toLocaleString('fr-FR') + '</td><td class="num pos">~' + Math.round(eco).toLocaleString('fr-FR') + ' (−' + Math.round(eco / plein * 100) + '%)</td></tr>' +
+        '<tr><td>CRD fin de franchise</td><td class="num">' + Math.round(principal + plein).toLocaleString('fr-FR') + '</td><td class="num" style="color:var(--green);font-weight:600">~' + Math.round(principal + attendu).toLocaleString('fr-FR') + '</td><td class="num pos">~' + Math.round(eco).toLocaleString('fr-FR') + '</td></tr>' +
+        '</table>' +
+        '<span style="font-size:11px;color:var(--gray)">Décomposition : ' + Math.round(exactTire).toLocaleString('fr-FR') + ' € exacts sur le tiré (tableaux LCL du 03/07/2026) + ~' + Math.round(futurs).toLocaleString('fr-FR') + ' € sur les appels restants. Hypothèses affichées : dates de chantier estimées ('
+        + lignes.map(l => l.label + ' ' + l.date).join(' · ')
+        + ') ; intérêts simples — la capitalisation annuelle (art. 1343-2) ajouterait ~1-2 %, négligés. À recaler à chaque appel de fonds reçu.</span>';
+    } catch (e) { vilSim.innerHTML = ''; }
   }
 
   // ── Immo Strategy ──
@@ -7491,7 +7510,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=469').then(m => {
+  import('./charts.js?v=470').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
