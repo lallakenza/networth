@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=464';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=465';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2757,7 +2757,9 @@ function computeImmoView(portfolio, fx) {
     // v458 — complément perçu en espèces (suivi interne, PLAFONNÉ en data) : compte dans le
     // cash-flow RÉEL, jamais dans la base fiscale déclarée. Imposable en droit — le risque
     // (requalification + dépassement plafond PLS) est chiffré dans VITRY_CONSTRAINTS + alerte.
-    const loyerCash = bailActif ? (propData.loyerCashNonDeclare || 0) : 0;
+    // v465 — AVANT le bail : le locataire en place paie déjà (100 % espèces, montant dédié) ;
+    // APRÈS : la part espèces du schéma cible. Toujours hors base déclarée, toujours en risque.
+    const loyerCash = bailActif ? (propData.loyerCashNonDeclare || 0) : (propData.loyerCashAvantBail || 0);
     const loyer = loyerHC + parking + loyerCash;     // Total rent for display (HC+cash+parking)
     const totalRevenue = loyer + chargesLoc;         // Full revenue including charges provision
 
@@ -5737,13 +5739,16 @@ export function computeAlerts(state) {
     if (cashA > 0) {
       const declA = vdA.loyerDeclare || vdA.loyerHC || 0;
       const parkA = vdA.parkingCashVoisin ? (vdA.parking || 0) : 0;   // v463 — espèces aussi (voisin)
+      const bailA = vdA.bail && vdA.bail.debut && (new Date().toISOString().slice(0, 10) >= vdA.bail.debut);
+      const cashNow = (bailA ? cashA : (vdA.loyerCashAvantBail || 0)) + parkA;   // v465 — 100 % espèces avant le bail
       alerts.push({
         severity: 'red',
-        title: 'Vitry — ' + (cashA + parkA) + ' €/mois en espèces non déclarés, loyer locataire > plafond PLS',
-        msg: declA + ' € déclarés + ' + cashA + ' € espèces (locataire, dès le bail) + ' + parkA + ' € espèces (parking, voisin, actif). '
-          + 'Loyer locataire réel ' + (declA + cashA) + ' € > plafond PLS ~840 € de la location dérogatoire PTZ (contrôle BP en cours) — '
-          + 'exposition : exigibilité PTZ + Action Logement (~95 208 €). Redressement potentiel ~'
-          + Math.round((cashA + parkA) * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
+        title: 'Vitry — ' + cashNow + ' €/mois en espèces non déclarés' + (bailA ? ', loyer locataire > plafond PLS' : ' (100 % du loyer) + GMBI « à titre gratuit »'),
+        msg: (bailA
+          ? declA + ' € déclarés + ' + cashA + ' € espèces (locataire) + ' + parkA + ' € espèces (parking, voisin). Loyer locataire réel ' + (declA + cashA) + ' € > plafond PLS ~840 €'
+          : 'Locataire en place payant ' + (vdA.loyerCashAvantBail || 0) + ' €/mois 100 % en espèces (+ ' + parkA + ' € parking voisin) alors que GMBI enregistre « occupation à titre gratuit » ; bascule 700 € déclarés + 500 € espèces au ' + vdA.bail.debut.split('-').reverse().join('/') + '. Plafond PLS ~840 € dépassé dans les deux schémas')
+          + ' — location dérogatoire PTZ sous contrôle BP : exposition exigibilité PTZ + Action Logement (~95 208 €). Redressement potentiel ~'
+          + Math.round(cashNow * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
         action: 'Fiche Vitry', view: 'apt_vitry',
       });
     }

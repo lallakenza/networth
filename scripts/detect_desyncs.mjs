@@ -73,7 +73,7 @@ else {
 // AC-5 (structure) : vitry pre-bail = 0 revenu ; post-bail = 700 CC (+ part especes suivie)
 const pV = s.immoView && s.immoView.properties && s.immoView.properties.find((p) => p.loanKey === 'vitry');
 if (pV && pV.bail && pV.bail.debut) {
-  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100 + (pV.loyerCash || 0) + (pV.parking || 0)) : (pV.parking || 0);   // v463 — parking voisin actif hors bail
+  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100 + 500 + (pV.parking || 0)) : (1200 + (pV.parking || 0));   // v465 — pré-bail : 1 200 espèces + parking
   chk('AC-5 — totalRevenue vitry conforme au bail', pV.totalRevenue, attendu);
 }
 
