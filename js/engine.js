@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=465';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=466';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3011,7 +3011,7 @@ function computeImmoView(portfolio, fx) {
       loyerCashContractuel: propData.loyerCashNonDeclare || 0,  // v462 — affiché en RISQUE dès aujourd'hui
       chargesLocContractuel: propData.chargesLocataire || 0,
       bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
-      loyerCash: bailActif ? (propData.loyerCashNonDeclare || 0) : 0,  // v458 — suivi interne (risque chiffré)
+      loyerCash,                             // v466 — le const calculé (1 200 avant bail, 500 après) ; le champ restait sur l'ancienne formule → affichait 0
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
