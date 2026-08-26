@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=460';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=460';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=461';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=461';
 
 // ---- Generic table sort utility ----
 /**
@@ -154,7 +154,7 @@ function renderLoanSchedule(loan) {
     if (isCurrent) html += '<span style="width:6px;height:6px;border-radius:50%;background:#3182ce;flex-shrink:0;"></span>';
     html += durLabel + ' × ' + label;
     html += '</span>';
-    if (i < loan.periods.length - 1) html += '<span style="font-size:10px;color:#a0aec0;">→</span>';
+    if (i < loan.periods.length - 1) html += '<span style="font-size:10px;color:#718096;">→</span>';
     cumMonths += p.months;
   });
   html += '</div>';
@@ -1344,7 +1344,7 @@ export function applySnapshotDeltas(s) {
         if (refLigne && refLigne.date >= todayParis) refLigne = null;
       }
       if (!refLigne) {
-        dst.innerHTML = '<span style="font-size:13px;color:#a0aec0;">historique insuffisant</span>';
+        dst.innerHTML = '<span style="font-size:13px;color:#718096;">historique insuffisant</span>';
         return;
       }
       const ligneRef = refLigne;
@@ -1380,7 +1380,7 @@ export function applySnapshotDeltas(s) {
       const s2 = d2 >= 0 ? '+' : '';
       dst2.innerHTML = prefixe + ' <span style="color:' + coul2 + ';font-weight:600;">' + s2 + fmt(d2)
         + ' (' + s2 + pct2.toFixed(1) + '%)</span>'
-        + (debutSuivi ? ' <span style="color:#a0aec0;">dep. ' + ref.date.slice(8, 10) + '/' + ref.date.slice(5, 7) + '</span>' : '');
+        + (debutSuivi ? ' <span style="color:#718096;">dep. ' + ref.date.slice(8, 10) + '/' + ref.date.slice(5, 7) + '</span>' : '');
     };
     remplirPeriode('kpiCoupleNWMTD', todayParis.slice(0, 8) + '01', 'MTD');
     remplirPeriode('kpiCoupleNWYTD', todayParis.slice(0, 4) + '-01-01', 'YTD');
@@ -1718,7 +1718,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
       detailTr.className = 'trade-detail-row';
       detailTr.style.background = '#f7fafc';
       if (trades.length === 0) {
-        detailTr.innerHTML = '<td colspan="' + colSpan + '" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun historique d\'achat disponible</td>';
+        detailTr.innerHTML = '<td colspan="' + colSpan + '" style="padding:8px 16px;font-size:12px;color:#718096;font-style:italic">Aucun historique d\'achat disponible</td>';
       } else {
         // Compute per-trade P/L using position-level EUR price per share
         const eurPerShare = pos.shares > 0 ? pos.valEUR / pos.shares : 0;
@@ -1924,7 +1924,7 @@ function _renderColumnChips(allPositions) {
     container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center';
     tbl.parentNode.insertBefore(container, tbl.nextSibling);
   }
-  container.innerHTML = '<span style="font-size:10px;color:#a0aec0;margin-right:6px;opacity:0.75">Colonnes :</span>';
+  container.innerHTML = '<span style="font-size:10px;color:#718096;margin-right:6px;opacity:0.75">Colonnes :</span>';
   let _dragKey = null;
   _colOrder.forEach(key => {
     const cfg = _colConfig[key];
@@ -2387,7 +2387,7 @@ function renderActionsView(state) {
           detailTr.className = 'closed-detail-row';
           detailTr.style.background = '#f7fafc';
           if (trades.length === 0) {
-            detailTr.innerHTML = '<td colspan="8" style="padding:8px 16px;font-size:12px;color:#a0aec0;font-style:italic">Aucun d\u00e9tail disponible</td>';
+            detailTr.innerHTML = '<td colspan="8" style="padding:8px 16px;font-size:12px;color:#718096;font-style:italic">Aucun d\u00e9tail disponible</td>';
           } else {
             const hp = 'padding:3px 10px';
             let h = '<td colspan="8" style="padding:4px 16px"><table style="width:auto;margin:0;font-size:12px;border-collapse:collapse">'
@@ -2559,10 +2559,10 @@ function renderActionsView(state) {
         ins.positions.forEach(p => {
           const plc = p.pl >= 0 ? 'pl-pos' : 'pl-neg';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #edf2f7;">'
-            + '<span>' + p.label + ' <span style="color:#a0aec0;font-size:11px;">×' + p.shares + '</span></span>'
+            + '<span>' + p.label + ' <span style="color:#718096;font-size:11px;">×' + p.shares + '</span></span>'
             + '<span style="text-align:right;"><strong>' + fmt(Math.round(p.valEUR)) + '</strong> '
             + '<span class="' + plc + '">(' + (p.pl >= 0 ? '+' : '') + fmt(Math.round(p.pl)) + ')</span> '
-            + '<span style="color:#a0aec0;">' + p.pct.toFixed(0) + '%</span></span></div>';
+            + '<span style="color:#718096;">' + p.pct.toFixed(0) + '%</span></span></div>';
         });
       }
 
@@ -2630,7 +2630,7 @@ function renderActionsView(state) {
         costRows.forEach(function(r) {
           if (r[1] > 0) {
             html += '<tr style="border-bottom:1px solid #edf2f7;">';
-            html += '<td style="padding:4px 0;">' + r[0] + ' <span style="font-size:10px;color:#a0aec0;" title="' + r[2] + '">ⓘ</span></td>';
+            html += '<td style="padding:4px 0;">' + r[0] + ' <span style="font-size:10px;color:#718096;" title="' + r[2] + '">ⓘ</span></td>';
             html += '<td style="padding:4px 0;text-align:right;"><strong class="pl-neg">-' + fmt(r[1]) + '</strong></td>';
             html += '</tr>';
           }
@@ -2736,7 +2736,7 @@ function renderActionsView(state) {
           html += '<span style="font-weight:600;color:' + barColor + ';">' + (item.ytd >= 0 ? '+' : '') + item.ytd.toFixed(1) + '%</span></div>';
           html += '<div style="background:#edf2f7;border-radius:3px;height:6px;margin-top:3px;">';
           html += '<div style="width:' + barWidth + '%;height:100%;background:' + barColor + ';border-radius:3px;"></div></div>';
-          html += '<div style="font-size:10px;color:#a0aec0;margin-top:2px;">' + item.note + '</div>';
+          html += '<div style="font-size:10px;color:#718096;margin-top:2px;">' + item.note + '</div>';
           html += '</div>';
         });
         // Summary — use total portfolio for comparison
@@ -2767,7 +2767,7 @@ function renderActionsView(state) {
           var urgColor = d.daysUntil <= 30 ? '#e53e3e' : d.daysUntil <= 60 ? '#dd6b20' : '#718096';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
           html += '<div><strong>' + d.label + '</strong><br><span style="color:' + urgColor + ';">Ex-date : ' + d.exDate + ' (J-' + d.daysUntil + ')</span></div>';
-          html += '<div style="text-align:right;"><span class="pl-neg">WHT \u20ac' + Math.round(d.whtCost) + '</span><br><span style="color:#a0aec0;">' + (d.whtRate * 100).toFixed(0) + '% sur \u20ac' + Math.round(d.grossDivEUR) + '</span></div>';
+          html += '<div style="text-align:right;"><span class="pl-neg">WHT \u20ac' + Math.round(d.whtCost) + '</span><br><span style="color:#718096;">' + (d.whtRate * 100).toFixed(0) + '% sur \u20ac' + Math.round(d.grossDivEUR) + '</span></div>';
           html += '</div>';
         });
       }
@@ -2825,7 +2825,7 @@ function setupKPIDetailPanels(state) {
       items = _sc.items;
       total = _sc.total;
     }
-    if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Pas de données</div>';
+    if (!items || items.length === 0) return '<div style="padding:20px;text-align:center;color:#718096;">Pas de données</div>';
     // Filter out near-zero P&L (e.g. European stocks when market is closed)
     const threshold = 0.5;
     const filtered = items.filter(i => Math.abs(i.pl) >= threshold);
@@ -2849,7 +2849,7 @@ function setupKPIDetailPanels(state) {
     html += '<div style="border-right:1px solid #e2e8f0;padding:12px 16px;">';
     html += '<div style="font-size:11px;font-weight:700;color:#c53030;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #fed7d7;margin-bottom:6px;">';
     html += '📉 Pertes (' + fmt(Math.round(totalLoss)) + ')</div>';
-    if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
+    if (losers.length === 0) { html += '<div style="color:#718096;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
     // Helper: render a single breakdown row (loser or gainer)
     var _detailCounter = 0;
     function renderBreakdownRow(i, maxAbs, isGainer) {
@@ -2861,7 +2861,7 @@ function setupKPIDetailPanels(state) {
       var valueColor = isGainer ? '#276749' : '#c53030';
       var detailId = hasDetail ? 'bd_' + (++_detailCounter) : '';
       var cursor = hasDetail ? 'cursor:pointer;' : '';
-      var chevron = hasDetail ? '<span style="font-size:9px;color:#a0aec0;margin-right:3px;transition:transform .2s;" class="bd-chev">▶</span>' : '';
+      var chevron = hasDetail ? '<span style="font-size:9px;color:#718096;margin-right:3px;transition:transform .2s;" class="bd-chev">▶</span>' : '';
       var row = '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;' + cursor + '"';
       if (hasDetail) row += ' onclick="(function(e){var d=document.getElementById(\'' + detailId + '\');var c=e.currentTarget.querySelector(\'.bd-chev\');if(d.style.display===\'none\'){d.style.display=\'block\';c.style.transform=\'rotate(90deg)\';}else{d.style.display=\'none\';c.style.transform=\'rotate(0deg)\';}})(event)"';
       row += '>';
@@ -2874,7 +2874,7 @@ function setupKPIDetailPanels(state) {
       if (hasDetail) {
         row += '<div id="' + detailId + '" style="display:none;background:#f7fafc;border-bottom:1px solid #e2e8f0;padding:6px 8px 6px 20px;font-size:11px;">';
         i._detail.forEach(function(d) {
-          var dateStr = d.date ? '<span style="color:#a0aec0;margin-right:6px;">' + d.date + '</span>' : '';
+          var dateStr = d.date ? '<span style="color:#718096;margin-right:6px;">' + d.date + '</span>' : '';
           var lbl = d.label || d.ticker || '';
           // For closed positions: show P&L per trade
           if (d.pl != null) {
@@ -2923,12 +2923,12 @@ function setupKPIDetailPanels(state) {
     html += '<div style="padding:12px 16px;">';
     html += '<div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #c6f6d5;margin-bottom:6px;">';
     html += '📈 Gains (+' + fmt(Math.round(totalGain)) + ')</div>';
-    if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
+    if (gainers.length === 0) { html += '<div style="color:#718096;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
     gainers.forEach(function(i) {
       html += renderBreakdownRow(i, maxAbs, true);
     });
     if (losers.length === 0 && gainers.length === 0 && skipped > 0) {
-      html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">' + skipped + ' positions à €0 (marché fermé ?)</div>';
+      html += '<div style="color:#718096;padding:10px 0;font-size:12px;">' + skipped + ' positions à €0 (marché fermé ?)</div>';
     }
     html += '</div>';
 
@@ -2995,7 +2995,7 @@ function setupKPIDetailPanels(state) {
       // valeurs européennes ont disparu le 29/07. L'engine utilise previousClose (API live) et
       // liste donc toujours l'intégralité des positions.
       const d = av.periodPL?.daily;
-      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données daily non disponibles</div>';
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#718096;">Données daily non disponibles</div>';
       const items = d.breakdown;
       let footer = 'Top perte : ' + (items[0]?.label || '--') + ' (' + fmt(Math.round(items[0]?.pl || 0)) + ')';
       const best = items[items.length - 1];
@@ -3012,7 +3012,7 @@ function setupKPIDetailPanels(state) {
         return renderPLBreakdown(items, cb.total, 'Top 3 pertes MTD : ' + worst3);
       }
       const d = av.periodPL?.mtd;
-      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données MTD non disponibles</div>';
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#718096;">Données MTD non disponibles</div>';
       const items = d.breakdown;
       const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
       return renderPLBreakdown(items, d.total, 'Top 3 pertes MTD : ' + worst3);
@@ -3026,7 +3026,7 @@ function setupKPIDetailPanels(state) {
         return renderPLBreakdown(items, cb.total, 'Top 3 pertes 1 mois : ' + worst3);
       }
       const d = av.periodPL?.oneMonth;
-      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1M non disponibles</div>';
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#718096;">Données 1M non disponibles</div>';
       const items = d.breakdown;
       const worst3 = items.slice(0, 3).map(i => i.label + ' (' + fmt(Math.round(i.pl)) + ')').join(', ');
       return renderPLBreakdown(items, d.total, 'Top 3 pertes 1 mois : ' + worst3);
@@ -3050,7 +3050,7 @@ function setupKPIDetailPanels(state) {
         return renderPLBreakdown(items, cb.total, footer);
       }
       const d = av.periodPL?.ytd;
-      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données YTD non disponibles</div>';
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#718096;">Données YTD non disponibles</div>';
       const items = d.breakdown;
       const gainers = items.filter(i => i.pl > 0);
       const losers = items.filter(i => i.pl < 0);
@@ -3079,7 +3079,7 @@ function setupKPIDetailPanels(state) {
         return renderPLBreakdown(items, cb.total, footer);
       }
       const d = av.periodPL?.oneYear;
-      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#a0aec0;">Données 1 An non disponibles</div>';
+      if (!d?.hasData) return '<div style="padding:20px;text-align:center;color:#718096;">Données 1 An non disponibles</div>';
       const items = d.breakdown;
       const gainers = items.filter(i => i.pl > 0);
       const losers = items.filter(i => i.pl < 0);
@@ -3120,12 +3120,12 @@ function setupKPIDetailPanels(state) {
       html += '<div style="border-right:1px solid #e2e8f0;padding:12px 16px;">';
       html += '<div style="font-size:11px;font-weight:700;color:#c53030;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #fed7d7;margin-bottom:6px;">';
       html += '📉 Pertes (' + fmt(Math.round(totalLoss)) + ')</div>';
-      if (losers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
+      if (losers.length === 0) { html += '<div style="color:#718096;padding:10px 0;font-size:12px;">Aucune perte</div>'; }
       losers.forEach(function(p) {
         var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
         var tipText = p.label + ' | P&L: ' + fmt(Math.round(p.unrealizedPL)) + ' \u20ac (' + p.pctPL.toFixed(1) + '%) | Valeur: ' + fmt(Math.round(p.value || 0)) + ' \u20ac';
         html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;cursor:pointer;" title="' + tipText + '">';
-        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">' + p.pctPL.toFixed(1) + '%</span></span>';
+        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#718096;font-size:10px;">' + p.pctPL.toFixed(1) + '%</span></span>';
         html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#c53030;">' + fmt(Math.round(p.unrealizedPL)) + '</span>';
         html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
         html += '<span style="display:block;height:100%;width:' + barW + '%;background:#fc8181;border-radius:3px;"></span></span>';
@@ -3137,12 +3137,12 @@ function setupKPIDetailPanels(state) {
       html += '<div style="padding:12px 16px;">';
       html += '<div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:8px;border-bottom:2px solid #c6f6d5;margin-bottom:6px;">';
       html += '📈 Gains (+' + fmt(Math.round(totalGain)) + ')</div>';
-      if (gainers.length === 0) { html += '<div style="color:#a0aec0;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
+      if (gainers.length === 0) { html += '<div style="color:#718096;padding:10px 0;font-size:12px;">Aucun gain</div>'; }
       gainers.forEach(function(p) {
         var barW = Math.round(Math.abs(p.unrealizedPL) / maxAbs * 100);
         var tipText = p.label + ' | P&L: +' + fmt(Math.round(p.unrealizedPL)) + ' \u20ac (+' + p.pctPL.toFixed(1) + '%) | Valeur: ' + fmt(Math.round(p.value || 0)) + ' \u20ac';
         html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:12px;cursor:pointer;" title="' + tipText + '">';
-        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#a0aec0;font-size:10px;">+' + p.pctPL.toFixed(1) + '%</span></span>';
+        html += '<span style="flex:1;font-weight:500;">' + p.label + ' <span style="color:#718096;font-size:10px;">+' + p.pctPL.toFixed(1) + '%</span></span>';
         html += '<span style="min-width:75px;text-align:right;font-weight:700;color:#276749;">+' + fmt(Math.round(p.unrealizedPL)) + '</span>';
         html += '<span style="flex:0 0 60px;margin-left:8px;height:6px;border-radius:3px;background:#edf2f7;overflow:hidden;">';
         html += '<span style="display:block;height:100%;width:' + barW + '%;background:#48bb78;border-radius:3px;"></span></span>';
@@ -3181,7 +3181,7 @@ function setupKPIDetailPanels(state) {
         const barW = Math.round(Math.abs(t.pl) / maxVal * 100);
         const barColor = t.pl >= 0 ? '#48bb78' : '#fc8181';
         html += '<div class="detail-row">';
-        html += '<span class="ticker-label">' + t.label + ' <span style="color:#a0aec0;font-size:11px;">(' + t.source + ')</span></span>';
+        html += '<span class="ticker-label">' + t.label + ' <span style="color:#718096;font-size:11px;">(' + t.source + ')</span></span>';
         html += '<span class="ticker-pl ' + cls + '">' + sign + fmt(Math.round(t.pl)) + '</span>';
         html += '<span class="ticker-bar"><span class="ticker-bar-fill" style="width:' + barW + '%;background:' + barColor + ';"></span></span>';
         html += '</div>';
@@ -3201,7 +3201,7 @@ function setupKPIDetailPanels(state) {
       html += '<div class="detail-summary">Total investi : ' + fmt(Math.round(totalInvested)) + ' | ROI : ' + (totalPL >= 0 ? '+' : '') + roi + '%</div></div>';
       html += '<div class="detail-body" style="max-height:500px;">';
       // Column headers
-      html += '<div style="display:flex;gap:8px;padding:4px 0 8px;border-bottom:2px solid #e2e8f0;font-size:9px;color:#a0aec0;text-transform:uppercase;letter-spacing:0.5px;">';
+      html += '<div style="display:flex;gap:8px;padding:4px 0 8px;border-bottom:2px solid #e2e8f0;font-size:9px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;">';
       html += '<span style="flex:1;">Date & Description</span>';
       html += '<span style="min-width:85px;text-align:right;">Natif</span>';
       html += '<span style="min-width:75px;text-align:right;">EUR (date)</span>';
@@ -3246,7 +3246,7 @@ function setupKPIDetailPanels(state) {
               var currSym = d.currency === 'EUR' ? '€' : d.currency === 'USD' ? '$' : d.currency === 'MAD' ? 'DH' : d.currency;
               var nativeFmt = Math.round(d.amountNative).toLocaleString('fr-FR');
               html += '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-              html += '<span style="flex:1;">' + d.date + ' <span style="color:#a0aec0;font-size:10px;">' + d.label + '</span></span>';
+              html += '<span style="flex:1;">' + d.date + ' <span style="color:#718096;font-size:10px;">' + d.label + '</span></span>';
               html += '<span style="min-width:85px;text-align:right;font-weight:500;">' + currSym + ' ' + nativeFmt + '</span>';
               html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(d.amountEUR)) + '</span>';
               html += '<span style="min-width:75px;text-align:right;">' + fmt(Math.round(d.currentEUR)) + '</span>';
@@ -3256,7 +3256,7 @@ function setupKPIDetailPanels(state) {
           });
         });
       } else {
-        html += '<div style="text-align:center;color:#a0aec0;padding:10px;">Pas de dépôts enregistrés</div>';
+        html += '<div style="text-align:center;color:#718096;padding:10px;">Pas de dépôts enregistrés</div>';
       }
       html += '</div>';
       var footer = 'Capital investi : ' + fmt(Math.round(totalInvested)) + ' → Valeur actuelle : ' + fmt(Math.round(av.totalStocks));
@@ -3564,11 +3564,11 @@ function renderCashView(state) {
         const rest = accts.slice(MAX_ACCTS);
         shown.forEach(a => {
           h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;">'
-            + '<span>' + a.label + ' <span style="color:#a0aec0;">' + (a.yield * 100).toFixed(a.yield * 100 % 1 ? 2 : 0) + '%</span></span><span>' + fmt(a.valEUR) + ' · ' + pctOf(a.valEUR) + '%</span></div>';
+            + '<span>' + a.label + ' <span style="color:#718096;">' + (a.yield * 100).toFixed(a.yield * 100 % 1 ? 2 : 0) + '%</span></span><span>' + fmt(a.valEUR) + ' · ' + pctOf(a.valEUR) + '%</span></div>';
         });
         if (rest.length > 0) {
           const restTotal = rest.reduce((s, a) => s + a.valEUR, 0);
-          h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;color:#a0aec0;">'
+          h += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;color:#718096;">'
             + '<span>+ ' + rest.length + ' autres</span><span>' + fmt(restTotal) + ' · ' + pctOf(restTotal) + '%</span></div>';
         }
         return h;
@@ -3582,7 +3582,7 @@ function renderCashView(state) {
         + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Aujourd\'hui (' + (fd.real ? 'après inflation' : 'brut') + ')</span><span style="color:' + renduColor + ';font-weight:600;">' + (fd.rendu >= 0 ? '+' : '') + fmt(Math.round(fd.rendu)) + '/an</span></div>'
         + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Potentiel à ' + refPctTxt + '%</span><span style="color:#68d391;font-weight:600;">' + (fd.potentiel >= 0 ? '+' : '') + fmt(Math.round(fd.potentiel)) + '/an</span></div>'
         + '<div style="display:flex;justify-content:space-between;gap:16px;"><span>Manque à gagner</span><span style="color:#f6c453;font-weight:600;">+' + fmt(Math.round(fd.gap)) + '/an</span></div>'
-        + '<div style="color:#a0aec0;font-size:10px;margin-top:3px;text-align:center;">Le manque à gagner est identique avec/sans inflation</div>'
+        + '<div style="color:#718096;font-size:10px;margin-top:3px;text-align:center;">Le manque à gagner est identique avec/sans inflation</div>'
         + '</div>';
       return html;
     }
@@ -3853,7 +3853,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
     const wb = p.wealthBreakdown || {};
     const t = p.wealthCreation || 0;
     const isConditional = p.conditional && t === 0;
-    tableRows += '<tr' + (isConditional ? ' style="color:#a0aec0;font-style:italic"' : '') + '>'
+    tableRows += '<tr' + (isConditional ? ' style="color:#718096;font-style:italic"' : '') + '>'
       + '<td style="font-weight:600;white-space:nowrap">' + p.name + '</td>'
       + '<td class="num" style="color:var(--accent)">' + fmt(wb.capitalAmorti || 0) + '</td>'
       + '<td class="num" style="color:var(--green)">' + fmt(wb.appreciation || 0) + '</td>'
@@ -3940,7 +3940,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
   //
   // Styling (consistent dark theme .kpi-tooltip):
   //   - Background: #1a202c (dark gray-900)
-  //   - Text: white with gray labels (#a0aec0)
+  //   - Text: white with gray labels (#718096)
   //   - Arrow: CSS triangle pointing up (border-left/right transparent, border-bottom solid)
   //   - Shadow: 0 8px 24px rgba(0,0,0,0.25) for depth
   //   - z-index: 100 to float above other content
@@ -3979,7 +3979,7 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
         if (p.conditional && val === 0) return;
         const sign = (type === 'cf' && val >= 0) ? '+' : (type === 'cf' && val < 0 ? '' : '');
         tipHTML += '<div style="display:flex;justify-content:space-between;gap:20px;">'
-          + '<span style="color:#a0aec0">' + p.name + '</span>'
+          + '<span style="color:#718096">' + p.name + '</span>'
           + '<span style="font-weight:600;color:' + cfg.color + '">' + sign + fmt(val) + ' \u20ac</span></div>';
       });
       tipHTML += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
@@ -4283,7 +4283,7 @@ function renderImmoView(state) {
     // Tooltip line helper: label + value aligned right
     function tipLine(label, val, color) {
       return '<div style="display:flex;justify-content:space-between;gap:20px;">'
-        + '<span style="color:#a0aec0">' + label + '</span>'
+        + '<span style="color:#718096">' + label + '</span>'
         + '<span style="font-weight:600;' + (color ? 'color:' + color : '') + '">' + fmt(val) + ' \u20ac</span>'
         + '</div>';
     }
@@ -4333,7 +4333,7 @@ function renderImmoView(state) {
     fp.forEach(p => {
       if (p.conditional) {
         cfTip += '<div style="display:flex;justify-content:space-between;gap:20px;">'
-          + '<span style="color:#a0aec0">' + p.name + '</span>'
+          + '<span style="color:#718096">' + p.name + '</span>'
           + '<span style="color:#718096;font-style:italic">\u2014 (non livr\u00e9)</span></div>';
         return;
       }
@@ -4341,7 +4341,7 @@ function renderImmoView(state) {
       const pSign = pCF >= 0 ? '+' : '';
       const pColor = pCF >= 0 ? '#68d391' : '#fc8181';
       cfTip += '<div style="display:flex;justify-content:space-between;gap:20px;">'
-        + '<span style="color:#a0aec0">' + p.name + '</span>'
+        + '<span style="color:#718096">' + p.name + '</span>'
         + '<span style="font-weight:600;color:' + pColor + '">' + pSign + fmt(pCF) + ' \u20ac</span></div>';
     });
     cfTip += tipDivider();
@@ -4499,25 +4499,25 @@ function renderImmoView(state) {
   _setTip('kpiImmoViewExitCosts', fp.map(p => {
     const ec = p.exitCosts ? p.exitCosts.totalExitCosts : 0;
     return p.name + ' : <b>' + _fmtK(ec) + '</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">IRA + PV immo + frais agence</span>', true);
+  }).join('<br>') + '<br><span style="color:#718096;font-size:11px">IRA + PV immo + frais agence</span>', true);
 
   // 4. CF Net /mois — per property with sign
   _setTip('kpiImmoViewCF', fp.map(p => {
     const s = p.cf >= 0 ? '+' : '';
     const c = p.cf >= 0 ? '#68d391' : '#fc8181';
     return p.name + ' : <b style="color:' + c + '">' + s + Math.round(p.cf) + ' \u20ac</b>';
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
+  }).join('<br>') + '<br><span style="color:#718096;font-size:11px">Loyers - charges - pr\u00eat - assurance</span>', true);
 
   // 5. Valeur Totale — per property with dynamic ref (above)
   _setTip('kpiImmoViewVal', fp.map(p => {
     const ref = p.referenceValue && p.referenceValue !== p.value
-      ? ' <span style="color:#a0aec0">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
+      ? ' <span style="color:#718096">(r\u00e9f ' + _fmtK(p.referenceValue) + ' ' + (p.valueDate || '') + ')</span>' : '';
     return p.name + ' : <b>' + _fmtK(p.value) + '</b>' + ref;
-  }).join('<br>') + '<br><span style="color:#a0aec0;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>', true);
+  }).join('<br>') + '<br><span style="color:#718096;font-size:11px">Estimation dynamique (appr\u00e9ciation mensuelle)</span>', true);
 
   // 6. CRD Total — per property (bottom row → above)
   _setTip('kpiImmoViewCRD', fp.map(p =>
-    p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#a0aec0">(fin ' + p.endYear + ')</span>'
+    p.name + ' : <b>' + _fmtK(p.crd) + '</b> <span style="color:#718096">(fin ' + p.endYear + ')</span>'
   ).join('<br>'), true);
 
   // 7. Création Richesse /mois — breakdown by type (bottom row → above)
@@ -4526,12 +4526,12 @@ function renderImmoView(state) {
     + 'Appr\u00e9ciation : <b>' + fmt(fTotalWealthBreakdown.appreciation || 0) + '</b><br>'
     + 'Cash flow : <b>' + fmt(fTotalWealthBreakdown.cashflow || 0) + '</b>'
     + (fTotalWealthBreakdown.cashflow < 0 ? '<br><span style="color:#fc8181">Effort d\'\u00e9pargne : -' + fmt(Math.abs(fTotalWealthBreakdown.cashflow)) + '</span>' : '')
-    + '<br><span style="color:#a0aec0;font-size:11px">\u00d7 12 = ' + fmt(fTotalWealthCreation * 12) + '/an</span>'
+    + '<br><span style="color:#718096;font-size:11px">\u00d7 12 = ' + fmt(fTotalWealthCreation * 12) + '/an</span>'
   , true);
 
   // 8. LTV Moyen — per property (bottom row → above)
   _setTip('kpiImmoViewLTV', fp.map(p =>
-    p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#a0aec0">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
+    p.name + ' : <b>' + p.ltv.toFixed(0) + '%</b> <span style="color:#718096">(' + _fmtK(p.crd) + ' / ' + _fmtK(p.value) + ')</span>'
   ).join('<br>'), true);
 
   // Property cards with fiscal data — clickable for detail panel
@@ -5082,7 +5082,7 @@ function renderImmoView(state) {
     html += '\u2022 Capaxis / LyBox / ImAvenir \u2014 \u00e9tudes impact Ligne 15 (+8-15% dans rayon 500m)<br>';
     html += '\u2022 Soci\u00e9t\u00e9 des Grands Projets \u2014 calendrier GPE (L15 Sud avril 2027, L15 Ouest 2030-2032)<br>';
     html += '</div>';
-    html += '<div style="margin-top:8px;font-size:11px;color:#a0aec0;">';
+    html += '<div style="margin-top:8px;font-size:11px;color:#718096;">';
     html += '<strong>Hypoth\u00e8ses cl\u00e9s :</strong> VEFA neuf en quartier \u00e9tabli = prime +12-15% vs ancien. VEFA neuf en quartier en chantier (Vitry) = prime limit\u00e9e +5-8% (offre abondante, commerces manquants). R\u00e9novation = prime +10%. ';
     html += 'Vitry : TVA 5.5% sur achat (valeur march\u00e9 sup\u00e9rieure au prix pay\u00e9, mais quartier encore en d\u00e9veloppement). ';
     html += 'Villejuif : remise r\u00e9sident VEFA, quartier d\u00e9j\u00e0 \u00e9tabli (L14 + L15 + p\u00f4le sant\u00e9). ';
@@ -5102,7 +5102,7 @@ function renderTimelineHTML(timeline) {
     const [ty, tm] = t.date.split('-').map(Number);
     const tDate = new Date(ty, tm - 1);
     const isPast = tDate < now;
-    const style = isPast ? 'color:#a0aec0;' : 'color:#2d3748;font-weight:600;';
+    const style = isPast ? 'color:#718096;' : 'color:#2d3748;font-weight:600;';
     const marker = isPast ? '✓' : '▸';
     html += '<div style="' + style + '">' + marker + ' ' + t.date + '</div><div style="' + style + '">' + t.event + '</div>';
   });
@@ -5511,8 +5511,8 @@ function renderPropertyDetail(state, prop) {
     html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /an</div></div>'
       + '</div>';
     cfEl.innerHTML = html;
@@ -5948,7 +5948,7 @@ function _sectionOpen(titre, ouvertParDefaut, sousTitre) {
     + '<span style="font-size:14px;font-weight:600;color:#2d3748;">' + titre + '</span>'
     + (sousTitre ? '<span style="font-size:11.5px;color:#718096;font-weight:400;">' + sousTitre + '</span>' : '')
     + '</span>'
-    + '<span class="chev" aria-hidden="true" style="color:#a0aec0;font-size:11px;">' + chev + '</span>'
+    + '<span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">' + chev + '</span>'
     + '</button>'
     + '<div id="' + id + '" style="display:' + (ouvertParDefaut ? 'block' : 'none') + ';padding:16px;border-top:1px solid var(--border,#e7e5e4);">';
 }
@@ -6080,6 +6080,45 @@ function renderAptView(state, loanKey) {
   html += '</div>';
   html += '</div>';
 
+    // ── v458 — Bail réel & référence GMBI ──
+    if (prop.bail) {
+      const b = prop.bail;
+      const fdate = (d) => d ? d.split('-').reverse().join('/') : '—';
+      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">'
+        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail en cours' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
+        + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
+        + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
+        + '<div><span style="color:#718096;">Loyer</span><br><strong>' + Math.round(prop.loyerHC || 600) + ' € HC + ' + Math.round(prop.chargesLoc != null ? 100 : 100) + ' € prov.</strong></div>'
+        + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
+        + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
+        + (b.optionTravaux && !b.optionTravaux.active
+          ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#718096;">désactivée</span></strong></div>' : '')
+        + '</div>'
+        + ((() => {
+            const cashPrevu = ((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
+              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0;
+            return cashPrevu > 0
+              ? '<div style="margin-top:10px;padding:8px 12px;background:#fff5f5;border-left:3px solid #c53030;border-radius:6px;font-size:12px;color:#742a2a;">'
+                + '<strong>⚠ ' + cashPrevu + ' €/mois en espèces dès le bail (suivi interne, non déclarés)</strong> — imposables en droit ; '
+                + 'loyer réel ' + (600 + cashPrevu) + ' € > plafond PLS ~840 € (PTZ dérogatoire, contrôle BP en cours). '
+                + 'Exposition chiffrée dans le bloc Obligations & risques et en alerte page principale.</div>'
+              : '';
+          })())
+        + '</div>';
+      const g = (prop.propertyMeta || {}).gmbi;
+      if (g) {
+        html += '<div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">'
+          + '<h3 style="margin:0 0 10px;font-size:15px;color:#2d3748;">Référence DGFiP (GMBI)</h3>'
+          + '<div style="font-size:13px;line-height:1.8;color:#4a5568;">'
+          + 'Local n° <strong>' + g.local + '</strong> · parcelle <strong>' + g.parcelle + '</strong> · DPE <strong>' + ((prop.propertyMeta || {}).dpe || '—') + '</strong><br>'
+          + 'Occupation enregistrée : ' + g.occupationEnregistree + '<br>'
+          + '<span style="color:#b7791f;font-weight:600;">À faire :</span> ' + g.aDeclarer
+          + '</div></div>';
+      }
+    }
+
+
   // ── Section 2: Détail des prêts ── (repliée v426 — consultée ponctuellement, pas à chaque visite)
   // Le sous-titre porte l'essentiel (nombre de prêts, capital restant dû) pour qu'on n'ait
   // pas à déplier juste pour savoir où on en est.
@@ -6210,8 +6249,8 @@ function renderAptView(state, loanKey) {
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldGross.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + (prop.bail && !prop.bailActif ? '\u2014' : prop.yieldNet.toFixed(1) + '%') + '</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (dès le bail)' : '') + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
     + '</div></div>';
 
@@ -6246,44 +6285,7 @@ function renderAptView(state, loanKey) {
     // (il comparait 700 € déclarés à… 700 € déclarés, économie 0). Le prévisionnel d'impôt
     // CALCULÉ (v458) le remplace ; la part espèces est traitée en RISQUE, pas en scénario.
 
-    // ── v458 — Bail réel & référence GMBI ──
-    if (prop.bail) {
-      const b = prop.bail;
-      const fdate = (d) => d ? d.split('-').reverse().join('/') : '—';
-      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">'
-        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail en cours' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
-        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
-        + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
-        + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
-        + '<div><span style="color:#718096;">Loyer</span><br><strong>' + Math.round(prop.loyerHC || 600) + ' € HC + ' + Math.round(prop.chargesLoc != null ? 100 : 100) + ' € prov.</strong></div>'
-        + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
-        + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
-        + (b.optionTravaux && !b.optionTravaux.active
-          ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#718096;">désactivée</span></strong></div>' : '')
-        + '</div>'
-        + ((() => {
-            const cashPrevu = ((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
-              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0;
-            return cashPrevu > 0
-              ? '<div style="margin-top:10px;padding:8px 12px;background:#fff5f5;border-left:3px solid #c53030;border-radius:6px;font-size:12px;color:#742a2a;">'
-                + '<strong>⚠ ' + cashPrevu + ' €/mois en espèces dès le bail (suivi interne, non déclarés)</strong> — imposables en droit ; '
-                + 'loyer réel ' + (600 + cashPrevu) + ' € > plafond PLS ~840 € (PTZ dérogatoire, contrôle BP en cours). '
-                + 'Exposition chiffrée dans le bloc Obligations & risques et en alerte page principale.</div>'
-              : '';
-          })())
-        + '</div>';
-      const g = (prop.propertyMeta || {}).gmbi;
-      if (g) {
-        html += '<div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">'
-          + '<h3 style="margin:0 0 10px;font-size:15px;color:#2d3748;">Référence DGFiP (GMBI)</h3>'
-          + '<div style="font-size:13px;line-height:1.8;color:#4a5568;">'
-          + 'Local n° <strong>' + g.local + '</strong> · parcelle <strong>' + g.parcelle + '</strong> · DPE <strong>' + ((prop.propertyMeta || {}).dpe || '—') + '</strong><br>'
-          + 'Occupation enregistrée : ' + g.occupationEnregistree + '<br>'
-          + '<span style="color:#b7791f;font-weight:600;">À faire :</span> ' + g.aDeclarer
-          + '</div></div>';
-      }
-    }
-
+    // v461 — blocs Bail & GMBI REMONTÉS juste sous la Fiche propriété (audit UX)
     // ── v458 — Prévisionnel d'impôt foncier (CALCULÉ par le moteur, pas codé en dur) ──
     const fc = state.immoView.vitryImpotForecast;
     if (fc) {
@@ -6563,7 +6565,7 @@ function renderCreancesView(state) {
     let gTip = crTipArr + '<div style="font-weight:700;color:#68d391;margin-bottom:4px;">Cr\u00e9ances garanties</div>';
     _activeForBar.filter(c => c.guaranteed).forEach(c => {
       gTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
-        + '<span style="color:#a0aec0">' + c.label + '</span>'
+        + '<span style="color:#718096">' + c.label + '</span>'
         + '<span style="font-weight:600;color:#68d391">' + fmt(c.amountEUR) + ' \u20ac</span></div>';
     });
     gTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
@@ -6573,7 +6575,7 @@ function renderCreancesView(state) {
     let uTip = crTipArr + '<div style="font-weight:700;color:#fc8181;margin-bottom:4px;">Cr\u00e9ances incertaines</div>';
     _activeForBar.filter(c => !c.guaranteed).forEach(c => {
       uTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
-        + '<span style="color:#a0aec0">' + c.label + ' <span style="font-size:10px">(' + (c.probability * 100).toFixed(0) + '%)</span></span>'
+        + '<span style="color:#718096">' + c.label + ' <span style="font-size:10px">(' + (c.probability * 100).toFixed(0) + '%)</span></span>'
         + '<span style="font-weight:600;color:#fc8181">' + fmt(c.amountEUR) + ' \u20ac</span></div>';
     });
     uTip += '<div style="border-top:1px solid #2d3748;margin:4px 0;"></div>'
@@ -6822,7 +6824,7 @@ function renderBudgetView(state) {
     bv.investProperties.forEach(prop => {
       if (prop.loyer > 0) {
         greenTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
-          + '<span style="color:#a0aec0">' + prop.name + '</span>'
+          + '<span style="color:#718096">' + prop.name + '</span>'
           + '<span style="font-weight:600;color:#68d391">' + fmt(prop.loyer) + ' \u20ac</span></div>';
       }
     });
@@ -6835,7 +6837,7 @@ function renderBudgetView(state) {
     bv.investProperties.forEach(prop => {
       if (prop.cf < 0) {
         redTip += '<div style="display:flex;justify-content:space-between;gap:16px;">'
-          + '<span style="color:#a0aec0">' + prop.name + '</span>'
+          + '<span style="color:#718096">' + prop.name + '</span>'
           + '<span style="font-weight:600;color:#fc8181">' + fmt(Math.abs(prop.cf)) + ' \u20ac</span></div>';
       }
     });
@@ -6995,7 +6997,7 @@ function renderWHTRows() {
         statusBadge = '<span title="Projection basée sur le DPS et le calendrier de l&#39;an passé — non confirmé officiellement" style="display:inline-block;margin-top:2px;background:#edf2f7;color:#718096;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">⏳ projeté</span>';
       }
       const noteHtml = p.nextExNote
-        ? '<br><span style="font-size:9px;color:#a0aec0;font-style:italic">' + p.nextExNote + '</span>'
+        ? '<br><span style="font-size:9px;color:#718096;font-style:italic">' + p.nextExNote + '</span>'
         : '';
       deadlineHtml = '<span style="' + urgency + '">' + dateStr + '</span>'
         + '<br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + '</span>'
@@ -7466,7 +7468,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=460').then(m => {
+  import('./charts.js?v=461').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7717,10 +7719,10 @@ function renderDecisionCockpit(state) {
     '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;padding:14px 16px;">'
     + '<div style="font-size:11.5px;color:#718096;margin-bottom:6px;">' + question + '</div>'
     + '<div' + (idValeur ? ' id="' + idValeur + '"' : '') + ' style="font-size:20px;font-weight:700;color:#1a202c;">' + valeurHtml + '</div>'
-    + (contexte ? '<div style="font-size:11px;color:#a0aec0;margin-top:4px;">' + contexte + '</div>' : '')
+    + (contexte ? '<div style="font-size:11px;color:#718096;margin-top:4px;">' + contexte + '</div>' : '')
     + '</div>';
 
-  const attente = '<span style="font-size:13px;color:#a0aec0;">chargement…</span>';
+  const attente = '<span style="font-size:13px;color:#718096;">chargement…</span>';
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">';
   html += tuile('Croissance — 30 jours', attente, 'depuis les snapshots quotidiens', 'ckpD30');
   html += tuile('Croissance — 1 an', attente, 'depuis les snapshots quotidiens', 'ckpD365');
@@ -7799,7 +7801,7 @@ function renderPerfClasses(state) {
   // mini-KPI : libelle (avec periode) au-dessus, valeur coloree en dessous
   const kpi = (libelle, valeurHtml) =>
     '<div style="min-width:104px;">'
-    + '<div style="font-size:10.5px;color:#a0aec0;">' + libelle + '</div>'
+    + '<div style="font-size:10.5px;color:#718096;">' + libelle + '</div>'
     + '<div style="font-size:14px;font-weight:700;">' + valeurHtml + '</div></div>';
   const kpiEur = (libelle, n) => fin(n) ? kpi(libelle, '<span style="color:' + coul(n) + ';">' + eur(n) + '</span>') : '';
   const kpiPct = (libelle, n, d) => fin(n) ? kpi(libelle, '<span style="color:' + coul(n) + ';">' + pctT(n, d) + '</span>') : '';
@@ -7810,7 +7812,7 @@ function renderPerfClasses(state) {
     + '<span style="font-size:13px;font-weight:600;color:#2d3748;">' + titre + '</span>'
     + '<span style="font-size:15px;font-weight:700;color:#1a202c;">' + (fin(valeur) ? fmt(valeur) : '\u2013') + '</span></div>'
     + '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;">' + kpisHtml + '</div>'
-    + (note ? '<div style="font-size:10.5px;color:#a0aec0;margin-top:8px;">' + note + '</div>' : '')
+    + (note ? '<div style="font-size:10.5px;color:#718096;margin-top:8px;">' + note + '</div>' : '')
     + '</div>';
 
   // ── Actions & crypto — canal partage avec les cartes KPI ──

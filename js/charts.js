@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=460';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=460';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=460';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=460';
-import { loadSnapshots } from './api.js?v=460'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=460'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=461';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=461';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=461';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=461';
+import { loadSnapshots } from './api.js?v=461'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=461'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -413,10 +413,10 @@ function buildGeoChart(state) {
   // Add SGTM (Morocco)
   geoMap['Maroc (SGTM)'] = (s.amine.sgtm || 0) + (s.nezha.sgtm || 0);
 
-  const colorMap = { 'France': '#2b6cb0', 'Crypto': '#9f7aea', 'Irlande/US (ACN)': '#48bb78', 'Allemagne': '#ed8936', 'Japon': '#e53e3e', 'Maroc (SGTM)': '#d69e2e', 'Autre': '#a0aec0' };
+  const colorMap = { 'France': '#2b6cb0', 'Crypto': '#9f7aea', 'Irlande/US (ACN)': '#48bb78', 'Allemagne': '#ed8936', 'Japon': '#e53e3e', 'Maroc (SGTM)': '#d69e2e', 'Autre': '#718096' };
   const labels = Object.keys(geoMap).filter(k => geoMap[k] > 100);
   const data = labels.map(k => Math.round(geoMap[k]));
-  const colors = labels.map(k => colorMap[k] || '#a0aec0');
+  const colors = labels.map(k => colorMap[k] || '#718096');
 
   charts.geo = new Chart(document.getElementById('geoChart'), {
     type: 'doughnut',
@@ -673,7 +673,7 @@ function buildActionsGeoDonut(state) {
     type: 'doughnut',
     data: {
       labels: entries.map(([k]) => labels[k] || k),
-      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#718096'), borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
@@ -697,7 +697,7 @@ function buildActionsSectorDonut(state) {
     type: 'doughnut',
     data: {
       labels: entries.map(([k]) => labels[k] || k),
-      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#a0aec0'), borderWidth: 1 }]
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([k]) => colors[k] || '#718096'), borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6 } },
@@ -1097,7 +1097,7 @@ function _drawEquityDepthChart() {
   });
   charts.eqHistDepth = new Chart(el, {
     type: 'line',
-    data: { labels, datasets: [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#a0aec0')] },
+    data: { labels, datasets: [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#718096')] },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
@@ -1670,8 +1670,8 @@ function buildAmortChart(state) {
   const chartDatasets = loanKeys.map(key => ({
     label: loanNames[key] || key,
     data: datasets[key],
-    borderColor: loanColors[key] || '#a0aec0',
-    backgroundColor: (loanColors[key] || '#a0aec0') + '20',
+    borderColor: loanColors[key] || '#718096',
+    backgroundColor: (loanColors[key] || '#718096') + '20',
     fill: true,
     tension: 0.3,
     borderWidth: 2,
@@ -2038,7 +2038,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
         // sans cette tranche, la barre totale sous-estimait le prix de vente du montant restitué
         ...(dataSADEV.some(v => v > 0) ? [{ label: 'Restitution SADEV', data: dataSADEV, backgroundColor: '#805ad5', stack: 'breakdown' }] : []),
         { label: 'IRA + frais', data: dataIRA.map((v, i) => v + dataCosts[i]), backgroundColor: '#d69e2e', stack: 'breakdown' },
-        { label: 'CRD restant', data: dataCRD, backgroundColor: '#a0aec0', stack: 'breakdown' },
+        { label: 'CRD restant', data: dataCRD, backgroundColor: '#718096', stack: 'breakdown' },
       ]
     },
     options: {
@@ -3087,17 +3087,17 @@ export function renderPortfolioChart(overrides = {}) {
   if (titleEl) {
     const color = isPositive ? 'var(--green)' : 'var(--red)';
     if (scope === 'degiro') {
-      const degiroColor = '#a0aec0';
+      const degiroColor = '#718096';
       if (displayMode === 'pl') {
         titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
           'P&L Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
           (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>' +
-          ' <small style="color:#a0aec0;font-weight:normal">(compte clôturé — P/L réalisé)</small>';
+          ' <small style="color:#718096;font-weight:normal">(compte clôturé — P/L réalisé)</small>';
       } else {
         titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
           'Evolution Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
           fmt(endVal) + '</span>' +
-          ' <small style="color:#a0aec0;font-weight:normal">(compte clôturé)</small>';
+          ' <small style="color:#718096;font-weight:normal">(compte clôturé)</small>';
       }
     } else if (displayMode === 'pl') {
       const ownerSuffix = owner !== 'both' ? ' (' + (owner === 'amine' ? 'Amine' : 'Nezha') + ')' : '';
@@ -3178,7 +3178,7 @@ export function renderPortfolioChart(overrides = {}) {
     gradient.addColorStop(1, isPositive ? 'rgba(72,187,120,0.01)' : 'rgba(229,62,62,0.01)');
   }
 
-  const lineColor = isDegiro ? '#a0aec0' : (isPositive ? '#48bb78' : '#e53e3e');
+  const lineColor = isDegiro ? '#718096' : (isPositive ? '#48bb78' : '#e53e3e');
 
   const datasets = [
     {
@@ -3209,7 +3209,7 @@ export function renderPortfolioChart(overrides = {}) {
          'NAV 1er jan')
       ) + ' (' + fmt(refValue) + ')'),
       data: mainData.map(() => refValue),
-      borderColor: '#a0aec0',
+      borderColor: '#718096',
       borderWidth: 1,
       borderDash: [6, 4],
       pointRadius: 0,
@@ -3296,11 +3296,11 @@ export function renderPortfolioChart(overrides = {}) {
     const fmtPL = v => (v >= 0 ? '+' : '') + fmt(v);
     const color = v => v >= 0 ? 'var(--green)' : 'var(--red)';
     const eqEntries = data._equityEntries;
-    const note = eqEntries && eqEntries[idx] && eqEntries[idx].note ? ' <small style="color:#a0aec0">(' + eqEntries[idx].note + ')</small>' : '';
+    const note = eqEntries && eqEntries[idx] && eqEntries[idx].note ? ' <small style="color:#718096">(' + eqEntries[idx].note + ')</small>' : '';
 
     let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
       '<strong style="font-size:14px">' + dateLabel + note + '</strong>' +
-      '<span style="cursor:pointer;font-size:16px;color:#a0aec0" onclick="this.parentElement.parentElement.style.display=\'none\'">&times;</span></div>';
+      '<span style="cursor:pointer;font-size:16px;color:#718096" onclick="this.parentElement.parentElement.style.display=\'none\'">&times;</span></div>';
 
     html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
     html += '<tr style="border-bottom:1px solid var(--border);font-weight:600"><td></td><td style="text-align:right;padding:3px 8px">NAV</td><td style="text-align:right;padding:3px 8px">Déposé (net)</td><td style="text-align:right;padding:3px 8px">P&L</td><td style="text-align:right;padding:3px 8px">Rendement</td></tr>';
@@ -3500,7 +3500,7 @@ export function renderPortfolioChart(overrides = {}) {
         const cy = (top + bottom) / 2;
         c.save();
         c.font = '600 14px Inter, system-ui, sans-serif';
-        c.fillStyle = '#a0aec0';
+        c.fillStyle = '#718096';
         c.textAlign = 'center';
         c.fillText('Compte clôturé — P/L réalisé : +' + fmt(data.degiroRealizedPL || 0), cx, cy);
         c.restore();
