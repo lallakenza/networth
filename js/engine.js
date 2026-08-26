@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=463';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=464';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2752,7 +2752,7 @@ function computeImmoView(portfolio, fx) {
     const bailActif = !bailProp || !bailProp.debut || (new Date().toISOString().slice(0, 10) >= bailProp.debut);
     // loyerHC: base rent (excluding tenant charges provision, e.g., "€1200 HC")
     const loyerHC = bailActif ? (propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0)) : 0;
-    const parking = bailActif ? (propData.parking || 0) : 0;  // Parking revenue (if applicable)
+    const parking = propData.parking || 0;  // v463 — INDÉPENDANT du bail : place louée à un voisin (espèces), flux actif dès aujourd'hui
     const chargesLoc = bailActif ? (propData.chargesLocataire || 0) : 0;  // Tenant charges provision
     // v458 — complément perçu en espèces (suivi interne, PLAFONNÉ en data) : compte dans le
     // cash-flow RÉEL, jamais dans la base fiscale déclarée. Imposable en droit — le risque
