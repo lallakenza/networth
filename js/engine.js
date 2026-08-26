@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=473';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=474';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -6048,56 +6048,43 @@ export function computeFiscaliteMRE(state) {
   }
 
   // ── PV immo Vitry si vente aujourd'hui ──
-  // v313 : lit les vrais champs de buildProperty() (purchasePrice, propertyMeta.purchaseDate, value)
-  if (vitry) {
-    const purchasePrice = vitry.purchasePrice || 280000;
-    const purchaseDate = vitry.propertyMeta?.purchaseDate || vitry.purchaseDate || '2019-12-15';
-    const currentValue = vitry.value || 300000;
-    const fraisAcquisition = purchasePrice * 0.075;   // ~7.5% notaire+enregistrement
-    const fraisAgence = currentValue * 0.05;          // ~5% si agence
-    const pvBrute = currentValue - purchasePrice - fraisAcquisition - fraisAgence;
-
-    const today = new Date();
-    const purDate = new Date(purchaseDate + 'T00:00:00');
-    const yearsHeld = (today - purDate) / (365.25 * 86400000);
-
-    // Abattement IR : 6%/an de 6 à 21 ans, 4% à 22 ans, exo à 22 ans
-    let abattIR = 0;
-    if (yearsHeld <= 5) abattIR = 0;
-    else if (yearsHeld <= 21) abattIR = (yearsHeld - 5) * 0.06;
-    else if (yearsHeld <= 22) abattIR = 16 * 0.06 + 0.04;
-    else abattIR = 1.0;
-    abattIR = Math.min(1.0, abattIR);
-
-    // Abattement PS : 1.65%/an de 6 à 21 ans, 1.6% à 22 ans, 9% de 23 à 30
-    let abattPS = 0;
-    if (yearsHeld <= 5) abattPS = 0;
-    else if (yearsHeld <= 21) abattPS = (yearsHeld - 5) * 0.0165;
-    else if (yearsHeld <= 22) abattPS = 16 * 0.0165 + 0.016;
-    else if (yearsHeld <= 30) abattPS = 16 * 0.0165 + 0.016 + (yearsHeld - 22) * 0.09;
-    else abattPS = 1.0;
-    abattPS = Math.min(1.0, abattPS);
-
-    const pvImposableIR = pvBrute > 0 ? pvBrute * (1 - abattIR) : 0;
-    const pvImposablePS = pvBrute > 0 ? pvBrute * (1 - abattPS) : 0;
-
-    const irPV = pvImposableIR * 0.19;       // taux fixe IR sur PV immo
-    const psPV = pvImposablePS * 0.172;
-    const totalImpotPV = irPV + psPV;
-
+  // v474 (BUG-092) — UNIFIÉ sur computeExitCosts (même moteur que la fiche Vitry) :
+  // assiette fiscale = prix de cession − prix d'acquisition majoré du forfait frais
+  // 7,5 % (art. 150 VB), doctrine vente directe sans agence, abattements par barème
+  // EXIT_COSTS. L'ancienne formule locale déduisait en plus 5 % de frais d'agence
+  // hypothétiques et portait des fallbacks hardcodés (280000 / 300000 / purchaseDate
+  // '2019-12-15' — la date de Rueil) : la même vente affichait +7 641 € sur la fiche
+  // et −7 522 € ici. La vente via agence reste disponible comme VARIANTE étiquetée
+  // (frais de cession déductibles du prix de cession, art. 150 VA).
+  if (vitry && vitry.exitCosts && vitry.exitCosts.pvBrute != null) {
+    const ecV = vitry.exitCosts;
+    const purchaseDate = vitry.propertyMeta && vitry.propertyMeta.purchaseDate;
+    const yearsHeld = purchaseDate
+      ? (new Date() - new Date(purchaseDate + '-01T00:00:00')) / (365.25 * 86400000)
+      : ecV.holdingYears;
+    const fraisAgence = ecV.salePrice * (EXIT_COSTS.agencyFeePct || 0.04);
+    const pvBruteAgence = ecV.pvBrute - fraisAgence;
+    const totalAgence = pvBruteAgence > 0
+      ? Math.round(pvBruteAgence * (1 - ecV.abattementIR) * EXIT_COSTS.irRate
+        + pvBruteAgence * (1 - ecV.abattementPS) * EXIT_COSTS.psRate)
+      : 0;
     result.pvVitry = {
-      purchasePrice,
-      currentValue,
-      pvBrute,
+      purchasePrice: ecV.purchasePrice,
+      currentValue: ecV.salePrice,
+      pvBrute: ecV.pvBrute,
       yearsHeld,
-      abattIR,
-      abattPS,
-      pvImposableIR,
-      pvImposablePS,
-      irPV,
-      psPV,
-      total: totalImpotPV,
-      netApresImpot: pvBrute - totalImpotPV,
+      abattIR: ecV.abattementIR,
+      abattPS: ecV.abattementPS,
+      pvImposableIR: ecV.pvNetteIR,
+      pvImposablePS: ecV.pvNettePS,
+      irPV: ecV.ir,
+      psPV: ecV.ps,
+      total: ecV.totalTaxPV,
+      netApresImpot: ecV.pvBrute - ecV.totalTaxPV,
+      // Variante « vente via agence » (frais de cession déduits de l'assiette)
+      fraisAgence: Math.round(fraisAgence),
+      pvBruteAgence: Math.round(pvBruteAgence),
+      totalAgence,
     };
   }
 

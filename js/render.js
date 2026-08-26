@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=473';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=473';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=474';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=474';
 
 // ---- Generic table sort utility ----
 /**
@@ -4801,30 +4801,14 @@ function renderImmoView(state) {
             // LMNP: Calculate amortissements
             const totalAmortLMNP = Math.max(0, purchasePrice * 0.80 * 0.02 * Math.max(0, lmnpYears));
 
-            // LMNP: Plus-value brute = salePrice - (purchasePrice + 7.5%) + amortissements réintégrés
-            const fraisAcquisition = purchasePrice * 0.075;
-            const pvBruteLMNP = projectedValue - (purchasePrice + fraisAcquisition) + totalAmortLMNP;
-
-            // LMNP: Apply abattements
-            let irAbattLMNP = 0, psAbattLMNP = 0;
-            if (holdingYears >= 22) {
-              irAbattLMNP = 1;
-            } else if (holdingYears >= 6) {
-              irAbattLMNP = Math.min(1, (holdingYears - 6) * 0.06 + (holdingYears > 22 ? 0.04 : 0));
-            }
-            if (holdingYears >= 30) {
-              psAbattLMNP = 1;
-            } else if (holdingYears >= 23) {
-              psAbattLMNP = Math.min(1, (holdingYears - 22) * 0.016 + (holdingYears - 23) * 0.09);
-            } else if (holdingYears >= 6) {
-              psAbattLMNP = Math.min(1, (holdingYears - 6) * 0.0165);
-            }
-
-            const pvNetteIRLMNP = pvBruteLMNP * (1 - irAbattLMNP);
-            const pvNettePS = pvBruteLMNP * (1 - psAbattLMNP);
-            const irLMNP = Math.round(pvNetteIRLMNP * 0.19);
-            const psLMNP = Math.round(pvNettePS * 0.172);
-            const taxLMNP = irLMNP + psLMNP;
+            // v474 (BUG-092) — LMNP : PV imposable + taxe via le moteur PARTAGÉ
+            // (computeExitCostsAtYear, crd=0 → on ne garde que la fiscalité PV :
+            // assiette acq. +7,5 % + réintégration amortissements, barème
+            // d'abattements EXIT_COSTS). L'ancienne copie locale divergeait du
+            // barème (off-by-one sur l'entrée en abattement, surtaxe absente).
+            const ecY = computeExitCostsAtYear('rueil', year, projectedValue, purchasePrice, 0, totalAmortLMNP);
+            const pvBruteLMNP = ecY.pvBrute;
+            const taxLMNP = ecY.totalTaxPV;
 
             // LMP: Short-term (amortissements) taxed at 37.2%, Long-term (appreciation) at 30%
             // BUT: Full exemption if > 5 years AND CA < 90K€/an
@@ -6177,8 +6161,13 @@ function renderAptView(state, loanKey) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
 
   if (ec.pvBrute != null) {
+    // v474 (BUG-092) — deux lectures étiquetées : PV économique (enrichissement réel)
+    // vs PV imposable (assiette art. 150 VB : acquisition majorée du forfait 7,5 %).
+    const pvEco = (ec.salePrice || 0) - (ec.purchasePrice || 0);
+    const pvEcoColor = pvEco > 0 ? '#276749' : '#c53030';
     const pvColor = ec.pvBrute > 0 ? '#276749' : '#c53030';
-    html += '<div><span style="color:#718096;">Plus-value brute</span><br><strong style="color:' + pvColor + ';">' + (ec.pvBrute > 0 ? '+' : '') + fmt(Math.round(ec.pvBrute)) + '</strong></div>';
+    html += '<div><span style="color:#718096;" title="Valeur actuelle − prix d\'achat, avant toute règle fiscale">PV économique</span><br><strong style="color:' + pvEcoColor + ';">' + (pvEco > 0 ? '+' : '') + fmt(Math.round(pvEco)) + '</strong></div>';
+    html += '<div><span style="color:#718096;" title="Assiette fiscale (art. 150 VB) : prix de cession − prix d\'acquisition majoré du forfait frais 7,5 % (soit ' + fmt(Math.round((ec.purchasePrice || 0) * 1.075)) + '). Le forfait réduit l\'impôt : optimal vs frais réels VEFA ~2,5 %.">PV imposable brute (acq. +7,5 %)</span><br><strong style="color:' + pvColor + ';">' + (ec.pvBrute > 0 ? '+' : '') + fmt(Math.round(ec.pvBrute)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Détention</span><br><strong>' + ec.holdingYears + ' ans</strong></div>';
     html += '<div><span style="color:#718096;">Abatt. IR (' + Math.round(ec.abattementIR * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementIR)) + '</strong></div>';
     html += '<div><span style="color:#718096;">Abatt. PS (' + Math.round(ec.abattementPS * 100) + '%)</span><br><strong>' + fmt(Math.round(ec.pvBrute * ec.abattementPS)) + '</strong></div>';
@@ -7541,7 +7530,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=473').then(m => {
+  import('./charts.js?v=474').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8155,7 +8144,7 @@ function renderPlanFiscalView(state) {
     let html = '<table style="width:100%;font-size:12px;"><tbody>';
     html += '<tr><td>Prix achat (' + (p.purchasePrice / 1000).toFixed(0) + 'k€)</td><td class="num">' + fmtE(p.purchasePrice) + '</td></tr>';
     html += '<tr><td>Valeur estimée actuelle</td><td class="num">' + fmtE(p.currentValue) + '</td></tr>';
-    html += '<tr><td>Plus-value brute (après frais)</td><td class="num"><strong>' + fmtE(p.pvBrute) + '</strong></td></tr>';
+    html += '<tr><td>PV imposable brute (acq. +7,5 %, vente directe)</td><td class="num"><strong>' + fmtE(p.pvBrute) + '</strong></td></tr>';
     html += '<tr><td>Détention</td><td>' + p.yearsHeld.toFixed(1) + ' ans</td></tr>';
     html += '<tr><td>Abattement IR (' + (p.abattIR * 100).toFixed(0) + '%)</td><td class="num">' + fmtE(p.pvBrute - p.pvImposableIR) + '</td></tr>';
     html += '<tr><td>Abattement PS (' + (p.abattPS * 100).toFixed(0) + '%)</td><td class="num">' + fmtE(p.pvBrute - p.pvImposablePS) + '</td></tr>';
@@ -8163,7 +8152,11 @@ function renderPlanFiscalView(state) {
     html += '<tr style="color:var(--red)"><td>PS (17.2% × imposable)</td><td class="num">−' + fmtE(p.psPV) + '</td></tr>';
     html += '<tr style="background:rgba(239,68,68,0.06);font-weight:600"><td>Total impôt si vente</td><td class="num">' + fmtE(p.total) + '</td></tr>';
     html += '<tr style="background:rgba(34,197,94,0.06);font-weight:600"><td>PV nette après impôt</td><td class="num">' + fmtE(p.netApresImpot) + '</td></tr>';
+    if (p.pvBruteAgence != null) {
+      html += '<tr style="color:var(--gray);font-size:11px;"><td>Variante vente via agence (frais de cession ' + fmtE(p.fraisAgence) + ' déduits de l\'assiette, art. 150 VA)</td><td class="num">PV imposable ' + fmtE(p.pvBruteAgence) + ' → impôt ' + fmtE(p.totalAgence) + '</td></tr>';
+    }
     html += '</tbody></table>';
+    html += '<div style="font-size:10.5px;color:var(--gray);margin-top:6px;">Même moteur que la fiche Vitry (computeExitCosts) : assiette, barème d\'abattements et doctrine vente directe identiques.</div>';
     pvEl.innerHTML = html;
   }
 

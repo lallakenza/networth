@@ -4897,7 +4897,15 @@ Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répli
 du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
 IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
 
-### v473 (26 août 2026) — BUG-091 : audit homogénéité immo (CF réel VEFA, tooltips dérivés, valueDate)
+### v474 (26 août 2026) — BUG-092 : plus-value immobilière unifiée (une assiette, un moteur)
+
+La même vente Vitry affichait +7 641 (fiche, computeExitCosts) et −7 522 (plan fiscal, formule
+locale avec 5 % d'agence implicites + fallbacks hardcodés dont la date d'achat de Rueil).
+Fix : computeFiscaliteMRE lit vitry.exitCosts ; vente via agence = variante étiquetée
+(agencyFeePct) ; table LMNP Rueil sur computeExitCostsAtYear ; fiche : « PV économique »
+et « PV imposable brute (acq. +7,5 %) » côte à côte, tooltips d'assiette. Voir BUG-092.
+
+## v473 (26 août 2026) — BUG-091 : audit homogénéité immo (CF réel VEFA, tooltips dérivés, valueDate)
 
 Fiche Villejuif : projections post-livraison étiquetées + KPI « CF réel aujourd'hui » (assurance
 CACI 51,29 €/mois, `prop.cfReel` engine) inclus dans TOUS les agrégats de flux (totalCF −56 → −107).
