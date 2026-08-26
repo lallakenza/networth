@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=457';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=457';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=458';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=458';
 
 // ---- Generic table sort utility ----
 /**
@@ -6225,6 +6225,67 @@ function renderAptView(state, loanKey) {
 
     // Fiscal simulator
     html += '<div id="aptVitryFiscal" style="margin-bottom:24px;"></div>';
+
+    // ── v458 — Bail réel & référence GMBI ──
+    if (prop.bail) {
+      const b = prop.bail;
+      const fdate = (d) => d ? d.split('-').reverse().join('/') : '—';
+      html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">'
+        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail en cours' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
+        + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
+        + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
+        + '<div><span style="color:#718096;">Loyer</span><br><strong>' + Math.round(prop.loyerHC || 600) + ' € HC + ' + Math.round(prop.chargesLoc != null ? 100 : 100) + ' € prov.</strong></div>'
+        + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
+        + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
+        + (b.optionTravaux && !b.optionTravaux.active
+          ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#a0aec0;">désactivée</span></strong></div>' : '')
+        + '</div>'
+        + ((() => {
+            const cashPrevu = ((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
+              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0;
+            return cashPrevu > 0
+              ? '<div style="margin-top:10px;padding:8px 12px;background:#fff5f5;border-left:3px solid #c53030;border-radius:6px;font-size:12px;color:#742a2a;">'
+                + '<strong>⚠ ' + cashPrevu + ' €/mois en espèces dès le bail (suivi interne, non déclarés)</strong> — imposables en droit ; '
+                + 'loyer réel ' + (600 + cashPrevu) + ' € > plafond PLS ~840 € (PTZ dérogatoire, contrôle BP en cours). '
+                + 'Exposition chiffrée dans le bloc Obligations & risques et en alerte page principale.</div>'
+              : '';
+          })())
+        + '</div>';
+      const g = (prop.propertyMeta || {}).gmbi;
+      if (g) {
+        html += '<div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">'
+          + '<h3 style="margin:0 0 10px;font-size:15px;color:#2d3748;">Référence DGFiP (GMBI)</h3>'
+          + '<div style="font-size:13px;line-height:1.8;color:#4a5568;">'
+          + 'Local n° <strong>' + g.local + '</strong> · parcelle <strong>' + g.parcelle + '</strong> · DPE <strong>' + ((prop.propertyMeta || {}).dpe || '—') + '</strong><br>'
+          + 'Occupation enregistrée : ' + g.occupationEnregistree + '<br>'
+          + '<span style="color:#b7791f;font-weight:600;">À faire :</span> ' + g.aDeclarer
+          + '</div></div>';
+      }
+    }
+
+    // ── v458 — Prévisionnel d'impôt foncier (CALCULÉ par le moteur, pas codé en dur) ──
+    const fc = state.immoView.vitryImpotForecast;
+    if (fc) {
+      html += '<div style="background:#fffaf0;border:1px solid #feebc8;border-radius:12px;padding:16px;margin-bottom:24px;">'
+        + '<h3 style="margin:0 0 10px;font-size:15px;color:#c05621;">Prévisionnel impôt foncier 2026-2029 (calculé)</h3>'
+        + '<div style="overflow-x:auto;"><table style="font-size:0.82rem;width:100%;min-width:520px;">'
+        + '<thead><tr><th>Année</th><th class="num">Revenus déclarés</th><th class="num">Intérêts</th><th class="num">Total déductions</th><th class="num">Net foncier</th><th class="num">Impôt (37,2 %)</th></tr></thead><tbody>';
+      fc.lignes.forEach(l => {
+        html += '<tr><td><strong>' + l.annee + '</strong>' + (l.note ? ' <span style="font-size:10px;color:#a0aec0;">' + l.note + '</span>' : '') + '</td>'
+          + '<td class="num">' + l.revenus.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.interets.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.deductions.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num">' + l.net.toLocaleString('fr-FR') + ' €</td>'
+          + '<td class="num" style="font-weight:600;">' + l.impot.toLocaleString('fr-FR') + ' €</td></tr>';
+      });
+      html += '<tr style="font-weight:700;border-top:2px solid #feebc8;"><td>Cumul</td><td></td><td></td><td></td><td></td><td class="num">' + fc.cumul.toLocaleString('fr-FR') + ' €</td></tr>';
+      html += '</tbody></table></div>'
+        + '<p style="font-size:11px;color:#718096;margin:8px 0 0;font-style:italic;">Calculé depuis les inputs : loyers déclarés (prorata dès le 10/10/2026), intérêts réels du tableau d\'amortissement, '
+        + 'APRIL + assurance AL, PNO, TF nette de TEOM (1 320 € 2026-27 → 1 950 € dès 2028), copro non récupérable (part récupérable estimée 600 €/an — à ajuster au 1er décompte), forfait gestion 20 €. '
+        + 'Audit 26/08/2026 en cohérence sur 2026-27 (−1 %/−3 %) ; 2028-29 plus bas que l\'audit (intérêts décroissants réels, loyers non indexés).</p>'
+        + '</div>';
+    }
   }
 
   // ── Section 4: Rueil-specific — Timeline ──
@@ -7389,7 +7450,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=457').then(m => {
+  import('./charts.js?v=458').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

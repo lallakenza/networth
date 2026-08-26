@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=457';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=458';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2505,7 +2505,9 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
   }
 
   // TVA clawback (Vitry uniquement) — obligation 10 ans depuis LIVRAISON (pas acte)
-  if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite) {
+  // v458 — exception « naissance » acquise (26/08/2026) : plus AUCUN complément de TVA à
+  // provisionner → le clawback disparaît des frais de sortie.
+  if (loanKey === 'vitry' && EC.vitry && EC.vitry.tvaReduite && !EC.vitry.tvaReduite.exceptionAcquise) {
     const tva = EC.vitry.tvaReduite;
     // L'obligation TVA 5.5% court depuis la livraison VEFA, pas depuis l'acte
     const livraisonStr = tva.dateLivraison || '2025-07';
@@ -2732,15 +2734,31 @@ function computeImmoView(portfolio, fx) {
     const _refDate = valueDateStr;
 
     // ── Monthly charges computation ──
+    // v458 — la TF mensuelle vient du BARÈME pluriannuel quand il existe (fiscalite.<bien>.tfSchedule) :
+    // le passage 1 320 → 1 950 €/an en 2028 se fera tout seul au changement d'année.
+    const fcfgProp = IC.fiscalite && IC.fiscalite[loanKey];
+    if (fcfgProp && fcfgProp.tfSchedule) {
+      const tfAn = tfAnnuelleFromSchedule(new Date().getFullYear(), fcfgProp.tfSchedule);
+      if (tfAn != null) chargesConfig = { ...chargesConfig, tf: Math.round(tfAn / 12 * 100) / 100 };
+    }
     // Total charges: loan payment (principal + interest) + insurance + property taxes + transfer tax + copro
     const charges = chargesConfig.pret + chargesConfig.assurance + chargesConfig.pno + chargesConfig.tf + chargesConfig.copro;
 
     // ── Monthly revenue computation ──
+    // v458 — bail pas encore effectif (propData.bail.debut dans le futur) : occupation à titre
+    // gratuit → ZÉRO revenu, charges réelles maintenues (CF négatif honnête). Vitry : bail signé
+    // au 10/10/2026 — avant cette date le bien ne rapporte rien.
+    const bailProp = propData.bail;
+    const bailActif = !bailProp || !bailProp.debut || (new Date().toISOString().slice(0, 10) >= bailProp.debut);
     // loyerHC: base rent (excluding tenant charges provision, e.g., "€1200 HC")
-    const loyerHC = propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0);
-    const parking = propData.parking || 0;           // Parking revenue (if applicable)
-    const chargesLoc = propData.chargesLocataire || 0;  // Tenant charges provision (e.g., "€200 charges")
-    const loyer = loyerHC + parking;                 // Total rent for display (HC+parking)
+    const loyerHC = bailActif ? (propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0)) : 0;
+    const parking = bailActif ? (propData.parking || 0) : 0;  // Parking revenue (if applicable)
+    const chargesLoc = bailActif ? (propData.chargesLocataire || 0) : 0;  // Tenant charges provision
+    // v458 — complément perçu en espèces (suivi interne, PLAFONNÉ en data) : compte dans le
+    // cash-flow RÉEL, jamais dans la base fiscale déclarée. Imposable en droit — le risque
+    // (requalification + dépassement plafond PLS) est chiffré dans VITRY_CONSTRAINTS + alerte.
+    const loyerCash = bailActif ? (propData.loyerCashNonDeclare || 0) : 0;
+    const loyer = loyerHC + parking + loyerCash;     // Total rent for display (HC+cash+parking)
     const totalRevenue = loyer + chargesLoc;         // Full revenue including charges provision
 
     // Monthly cash flow: totalRevenue - charges (can be negative if effort épargne)
@@ -2748,9 +2766,9 @@ function computeImmoView(portfolio, fx) {
     const amort = amortSchedules[loanKey];
 
     // Fiscal: use explicit declared amount if available, else all rent is declared
-    const loyerDeclareAnnuel = propData.loyerDeclare
-      ? propData.loyerDeclare * 12
-      : loyerHC * 12;
+    const loyerDeclareAnnuel = bailActif
+      ? (propData.loyerDeclare ? propData.loyerDeclare * 12 : loyerHC * 12)
+      : 0;   // v458 — pas de bail effectif → rien à déclarer (prorata 2026 : voir vitryImpotForecast)
     const loyerTotalAnnuel = totalRevenue * 12;
 
     // Fiscal calculation
@@ -2758,7 +2776,20 @@ function computeImmoView(portfolio, fx) {
       ? amort.schedule.slice(amort.currentIdx, amort.currentIdx + 12).reduce((s, r) => s + r.interest, 0)
       : 0;
     // Charges déductibles : PNO + TF + copro + assurance emprunteur (pour régime réel)
-    const deductibleCharges = chargesConfig.pno + chargesConfig.tf + chargesConfig.copro + chargesConfig.assurance;
+    let deductibleCharges = chargesConfig.pno + chargesConfig.tf + chargesConfig.copro + chargesConfig.assurance;
+    // v458 — réel foncier Vitry : TF déductible = TF − TEOM (récupérée sur le locataire),
+    // copro limitée à la part NON récupérable (totale − (provisions − TEOM)), + forfait
+    // gestion 20 €/an. Les avances/fonds travaux (284 €/an) restent NON déductibles.
+    if (fcfgProp && fcfgProp.teomAnnuelle != null) {
+      const coproNonRecup = fcfgProp.coproRecuperableAnnuelle != null
+        ? Math.max(0, (fcfgProp.coproAnnuelle || chargesConfig.copro * 12) - fcfgProp.coproRecuperableAnnuelle)
+        : (fcfgProp.coproAnnuelle != null && fcfgProp.provisionsLocataireAnnuelles != null)
+          ? Math.max(0, fcfgProp.coproAnnuelle - Math.max(0, fcfgProp.provisionsLocataireAnnuelles - fcfgProp.teomAnnuelle))
+          : chargesConfig.copro * 12;
+      const assurAL = (IC.loans.vitryLoans && IC.loans.vitryLoans[0] && IC.loans.vitryLoans[0].insuranceMonthly || 0);
+      deductibleCharges = chargesConfig.pno + Math.max(0, chargesConfig.tf - fcfgProp.teomAnnuelle / 12)
+        + coproNonRecup / 12 + chargesConfig.assurance + assurAL + (fcfgProp.gestionForfaitAnnuel || 0) / 12;
+    }
     const fisc = IC.fiscalite && IC.fiscalite[loanKey]
       ? computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, deductibleCharges, IC.fiscalite[loanKey], loanInterestAnnuel)
       : null;
@@ -2973,6 +3004,9 @@ function computeImmoView(portfolio, fx) {
       charges,
       chargesDetail: { ...chargesConfig },
       loanKey,
+      bail: propData.bail || null,           // v458 — bail réel (dates, dépôt, IRL, option travaux)
+      bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
+      loyerCash: bailActif ? (propData.loyerCashNonDeclare || 0) : 0,  // v458 — suivi interne (risque chiffré)
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
@@ -3314,8 +3348,60 @@ function computeImmoView(portfolio, fx) {
     });
   }
 
+  // ── v458 — Prévisionnel d'impôt foncier VITRY, CALCULÉ depuis les inputs (jamais codé
+  // en dur) : loyers déclarés (prorata dès le 10/10/2026) − intérêts réels du tableau
+  // d'amortissement − APRIL − PNO − TF nette de TEOM (barème pluriannuel) − copro non
+  // récupérable − forfait gestion. Non-résident : 37,2 % du net. Les valeurs de l'audit
+  // du 26/08/2026 (75 / 415 / 330 / 450) servent de test de cohérence (±15 %), AC-8 :
+  // l'impôt 2027 doit tomber dans [350 ; 480]. ──
+  let vitryImpotForecast = null;
+  try {
+    const fV = IC.fiscalite && IC.fiscalite.vitry;
+    const amV = amortSchedules.vitry;
+    const vdV = portfolio.amine.immo.vitry || {};
+    if (fV && fV.tfSchedule && amV && vdV.bail) {
+      const chV = IC.charges.vitry;
+      const tauxV = (fV.tmi || 0.20) + (fV.ps || 0.172);
+      const coproNonRecupV = fV.coproRecuperableAnnuelle != null
+        ? Math.max(0, (fV.coproAnnuelle || chV.copro * 12) - fV.coproRecuperableAnnuelle)
+        : Math.max(0, (fV.coproAnnuelle || chV.copro * 12)
+          - Math.max(0, (fV.provisionsLocataireAnnuelles || 0) - (fV.teomAnnuelle || 0)));
+      // assurance emprunteur COMPLÈTE : APRIL (chargesConfig) + Action Logement (dans l'échéance AL)
+      const assurALV = (IC.loans.vitryLoans && IC.loans.vitryLoans[0] && IC.loans.vitryLoans[0].insuranceMonthly || 0) * 12;
+      const intMois = (ym) => { const r = amV.schedule.find(x => x.date === ym); return r ? (r.interest || 0) : 0; };
+      const intAnnee = (an) => amV.schedule.filter(r => r.date.startsWith(String(an))).reduce((s, r) => s + (r.interest || 0), 0);
+      const loyerDeclM = vdV.loyerDeclare || vdV.loyerHC || 0;
+      const lignes = [];
+      for (const an of [2026, 2027, 2028, 2029]) {
+        let revenus, prorata, interets, note;
+        if (an === 2026) {
+          const oct = (vdV.bail.prorataOct2026 && vdV.bail.prorataOct2026.hc) || Math.round(loyerDeclM * 22 / 31 * 100) / 100;
+          revenus = oct + loyerDeclM * 2;                       // 10/10→31/12 : octobre prorata + nov + déc
+          prorata = 83 / 365;
+          interets = intMois('2026-10') * 22 / 31 + intMois('2026-11') + intMois('2026-12');
+          note = 'prorata dès le 10/10 (AC-3 : aucune charge antérieure déduite)';
+        } else {
+          revenus = loyerDeclM * 12;
+          prorata = 1;
+          interets = intAnnee(an);
+          note = an === 2028 ? 'TF base pleine 1 950 € (nette de TEOM)' : '';
+        }
+        const tfDed = Math.max(0, (tfAnnuelleFromSchedule(an, fV.tfSchedule) || 0) - (fV.teomAnnuelle || 0)) * prorata;
+        const deductions = interets + (chV.assurance * 12 + assurALV) * prorata + (chV.pno * 12) * prorata
+          + tfDed + coproNonRecupV * prorata + (fV.gestionForfaitAnnuel || 0);
+        const net = Math.max(0, revenus - deductions);
+        lignes.push({ annee: an, revenus: Math.round(revenus * 100) / 100, interets: Math.round(interets),
+                      deductions: Math.round(deductions), net: Math.round(net),
+                      impot: Math.round(net * tauxV), note });
+      }
+      vitryImpotForecast = { lignes, taux: tauxV, cumul: lignes.reduce((s, l) => s + l.impot, 0),
+                             coherence: { attendus: { 2026: 75, 2027: 415, 2028: 330, 2029: 450 }, tolerancePct: 15 } };
+    }
+  } catch (e) { /* prévisionnel optionnel */ }
+
   return {
     properties,
+    vitryImpotForecast,
     totalEquity, totalValue, totalCRD,
     totalCF, totalWealthCreation, totalWealthBreakdown,
     avgLTV,
@@ -3842,6 +3928,22 @@ function computeDividendAnalysis(ibkrPositions, fx) {
 // matin, pré-ouverture US), le « jour » affichait la DERNIÈRE séance (previousClose
 // étant celle d'avant) — signalé par Amine le 10/08/2026. Pas d'info → comportement
 // historique (fallbacks statiques sans heure d'échange).
+// v458 — barème pluriannuel de taxe foncière (Vitry : avis 2026). 2026-27 : exonération
+// partielle art. 1383 CGI (1 320 €/an) ; base pleine dès 2028 (1 950 €/an), avec options :
+// revalorisation des bases +2 %/an et « réclamation catégorie » (cat. 4 → 5 ≈ 1 700 €/an),
+// toutes deux DÉSACTIVÉES par défaut.
+function tfAnnuelleFromSchedule(annee, s) {
+  if (!s) return null;
+  if (annee <= 2027) {
+    const v = s['y' + annee];
+    return v != null ? v : (s.y2027 != null ? s.y2027 : s.y2026);
+  }
+  let base = (s.reclamationCategorie && s.reclamationCategorie.active && s.reclamationCategorie.tf2028 != null)
+    ? s.reclamationCategorie.tf2028 : s.base2028;
+  if (s.revaloActive && s.revaloAnnuelle) base = base * Math.pow(1 + s.revaloAnnuelle, annee - 2028);
+  return base;
+}
+
 export function sessionOuverteAujourdhui(lastTradeTs, exchangeTz) {
   if (!lastTradeTs || !exchangeTz) return true;
   try {
@@ -5621,6 +5723,27 @@ export function computeAlerts(state) {
       }
     }
   }
+
+  // ── v458 — RISQUE Vitry : complément de loyer non déclaré (enregistrement factuel) ──
+  // L'alerte existe tant que loyerCashNonDeclare > 0 : elle chiffre l'exposition au lieu
+  // de la cacher (requalification fiscale + dépassement du plafond PLS de la location
+  // dérogatoire PTZ, contrôle Banque Populaire en cours).
+  try {
+    const vdA = state.portfolio && state.portfolio.amine && state.portfolio.amine.immo && state.portfolio.amine.immo.vitry;
+    const cashA = vdA && vdA.loyerCashNonDeclare;
+    if (cashA > 0) {
+      const declA = vdA.loyerDeclare || vdA.loyerHC || 0;
+      alerts.push({
+        severity: 'red',
+        title: 'Vitry — loyer réel ' + (declA + cashA) + ' €/mois : au-dessus du plafond PLS, part non déclarée',
+        msg: declA + ' € déclarés + ' + cashA + ' € en espèces = ' + (declA + cashA)
+          + ' €/mois, > plafond PLS ~840 € exigé par la location dérogatoire PTZ (contrôle BP en cours). '
+          + 'Exposition : exigibilité PTZ + Action Logement (~95 208 €) et redressement ~'
+          + Math.round(cashA * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
+        action: 'Fiche Vitry', view: 'apt_vitry',
+      });
+    }
+  } catch (e) { /* alerte optionnelle */ }
 
   return alerts;
 }

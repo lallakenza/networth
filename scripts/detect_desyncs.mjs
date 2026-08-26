@@ -57,6 +57,26 @@ for (const [nm, arr] of [['couple', s.coupleCategories], ['amine', s.amineCatego
   });
 }
 
+// 6. v458 — Critères d'acceptation VITRY (bail réel 26/08/2026)
+//    AC-2 : revenus déclarés 2026 = 425,81 + 600 + 600 = 1 625,81 € (prorata dès le 10/10)
+//    AC-8 : impôt 2027 calculé par le moteur dans [350 ; 480] €
+const fcV = s.immoView && s.immoView.vitryImpotForecast;
+if (!fcV) findings.push({ name: 'AC — vitryImpotForecast absent', a: 0, b: 1, gap: 1 });
+else {
+  const l26 = fcV.lignes.find((l) => l.annee === 2026);
+  const l27 = fcV.lignes.find((l) => l.annee === 2027);
+  if (!l26 || Math.abs(l26.revenus - 1625.81) > 0.02)
+    findings.push({ name: 'AC-2 — revenus déclarés vitry 2026 != 1625.81', a: l26 ? l26.revenus : 0, b: 1625.81, gap: l26 ? l26.revenus - 1625.81 : 1625.81 });
+  if (!l27 || l27.impot < 350 || l27.impot > 480)
+    findings.push({ name: 'AC-8 — impot vitry 2027 hors [350;480]', a: l27 ? l27.impot : 0, b: 415, gap: l27 ? l27.impot - 415 : 415 });
+}
+// AC-5 (structure) : vitry pre-bail = 0 revenu ; post-bail = 700 CC (+ part especes suivie)
+const pV = s.immoView && s.immoView.properties && s.immoView.properties.find((p) => p.loanKey === 'vitry');
+if (pV && pV.bail && pV.bail.debut) {
+  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100 + (pV.loyerCash || 0)) : 0;
+  chk('AC-5 — totalRevenue vitry conforme au bail', pV.totalRevenue, attendu);
+}
+
 console.log('══════ DÉTECTION DE DESYNCS D\'AFFICHAGE ══════\n');
 if (!findings.length) console.log('✅ Aucun desync (agrégats cohérents, tol €' + TOL + ')');
 else { console.log('❌ ' + findings.length + ' DESYNC(S) :'); findings.forEach((x) => console.log('  ✗ ' + x.name + ' → écart ' + f(x.gap) + '€ [' + f(x.a) + ' vs ' + f(x.b) + ']')); }
