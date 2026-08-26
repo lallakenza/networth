@@ -2074,3 +2074,13 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
   avant le 1er tirage, cohérent avec un contrat groupe à cotisation constante prenant effet à
   l'acceptation de l'offre. Levier : délégation loi Lemoine calculée sur capital débloqué/CRD
   (~30 % du prêt tiré pendant la franchise) — devis à faire.
+
+## BUG-089: KPIs P&L MTD/1M/YTD faux — 2 700 Worldline fantômes dans la simulation YTD (splits non appliqués aux start holdings)
+
+- **Version**: détecté v470, corrigé v471 (26 août 2026). Régression silencieuse apparue le 15/06/2026.
+- **Sévérité**: CRITIQUE — 4 fenêtres KPI sur 5 fausses pendant ~10 semaines.
+- **Détection**: Amine — « dans le P&L 1 mois worldline est affiché pourtant je l'ai déjà vendu ».
+- **Symptôme**: WLN vendu le 25/02/2026 apparaissait avec +8 710 € dans la répartition « 1 Mois » ; mesures live (`_chartBreakdown`) : daily-panneau +1 118, MTD +7 949, 1M +8 710, YTD −11 282 de P&L fantôme ; NAV du mode YTD gonflée (~+50 K€ en janvier, +34,9 K€ fin août).
+- **Root cause**: Worldline a fait un regroupement (Yahoo: 1:40 le 15/06/2026, facteur effectif ~×10,3) et Yahoo a réajusté TOUTE la série rétroactivement. La normalisation v436 corrigeait les ÉVÉNEMENTS de simulation (achat 1000→100, 2000→200, vente 3000→300 ✓) mais PAS les start holdings du mode YTD, reconstruits en rétro-déroulant le journal en unités d'origine : 3 000 WLN posés au 2 janvier (valorisés aux prix ajustés ×10), vente normalisée à 300 → 2 700 titres fantômes du 25/02 jusqu'à aujourd'hui. La calibration day1 (`day1PosValue` → `IBKR_EUR_START`) était contaminée aussi. Les invariants v303 ne détectent rien : la simulation est cohérente avec elle-même.
+- **Fix (v471)**: fonction PARTAGÉE `splitUnitFactor(ticker, date, price)` (charts.js, hoistée avant les start holdings) = l'heuristique v436 (ratio close ajusté / prix journal vs facteurs entiers 2…100, tolérance 25 %). Utilisée par (a) la normalisation des événements (ex-bloc v436) et (b) la réversion des start holdings YTD (`t.qty / f`). Seuil de suppression des positions résiduelles: `<= 1e-6` (résidus flottants).
+- **Regression tests**: console `[ytd-chart] Start holdings (YTD)` doit montrer `WLN.PA:300` (pas 3000) ; `_chartBreakdown.mtd/oneMonth/daily` sans entrée Worldline ; `_chartBreakdown.ytd` Worldline ≈ perte réalisée (−3,2 K), pas −11,3 K ; `oneYear` inchangé (−3 033 légitime) ; tout futur split d'un ticker détenu au 1er janvier passe par le même facteur des deux côtés.

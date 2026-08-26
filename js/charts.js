@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=470';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=470';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=470';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=470';
-import { loadSnapshots } from './api.js?v=470'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=470'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=471';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=471';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=471';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=471';
+import { loadSnapshots } from './api.js?v=471'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=471'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3613,6 +3613,31 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     }
   });
 
+  // ── v471 (BUG-089) : facteur d'unités splits/regroupements — PARTAGÉ ──
+  // Compare le prix du journal (unités d'exécution) au close Yahoo ajusté du même
+  // jour : un ratio proche d'un facteur entier (2…100, ou son inverse) signe un
+  // split rétro-ajusté par Yahoo, et les quantités du journal doivent être divisées
+  // par f pour rejoindre la base de la série. Ce calcul DOIT être partagé par la
+  // normalisation des événements de simulation (ex-v436) ET par la reconstruction
+  // des start holdings YTD : quand seuls les événements étaient normalisés, une
+  // position vendue après un regroupement laissait des titres fantômes dans la
+  // simulation (WLN 1:40 du 15/06/2026 → 2 700 titres fantômes, +34,9 K€ de NAV,
+  // KPIs MTD/1M/YTD et panneau Répartition faux). getClose est hoistée plus bas.
+  // Tolérance 25 % : le plus petit facteur étant 2, un écart close-vs-exécution
+  // normal (< 10 %) ne peut jamais déclencher de faux positif.
+  const SPLIT_FACTORS = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 50, 100];
+  function splitUnitFactor(ticker, date, price) {
+    if (!(price > 0)) return 1;
+    const close = getClose(ticker, date, true);
+    if (close == null || !(close > 0)) return 1;
+    const r = close / price;
+    for (const cand of SPLIT_FACTORS) {
+      if (Math.abs(r - cand) / cand < 0.25) return cand;          // regroupement
+      if (Math.abs(r - 1 / cand) * cand < 0.25) return 1 / cand;  // split
+    }
+    return 1;
+  }
+
   // ── Build start-date holdings ──
   // For YTD: reverse 2026 trades to find Jan 1 positions
   // For 1Y: start with empty holdings (account didn't exist before Apr 1, 2025)
@@ -3629,11 +3654,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     [...tradesStock].reverse().forEach(t => {
       const yahoo = reverseMap[t.ticker] || t.ticker;
       if (!startHoldings[yahoo]) startHoldings[yahoo] = { shares: 0, currency: t.currency };
-      if (t.type === 'buy') startHoldings[yahoo].shares -= t.qty;
-      else if (t.type === 'sell') startHoldings[yahoo].shares += t.qty;
+      // v471 (BUG-089) : mêmes unités que la simulation — un trade en unités
+      // pré-split est converti vers la base Yahoo ajustée via le facteur partagé.
+      const f = splitUnitFactor(yahoo, t.date, t.price);
+      if (t.type === 'buy') startHoldings[yahoo].shares -= t.qty / f;
+      else if (t.type === 'sell') startHoldings[yahoo].shares += t.qty / f;
     });
     Object.keys(startHoldings).forEach(k => {
-      if (startHoldings[k].shares <= 0) delete startHoldings[k];
+      if (startHoldings[k].shares <= 1e-6) delete startHoldings[k];
     });
   }
   // For 1Y/alltime: startHoldings remains empty (account opens during the simulation)
@@ -3961,19 +3989,13 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // Tolérance 25 % : le plus petit facteur étant 2, un écart close-vs-exécution
   // normal (< 10 %) ne peut jamais déclencher de faux positif.
   {
-    const SPLIT_FACTORS = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 50, 100];
+    // v471 (BUG-089) : la détection est désormais portée par splitUnitFactor(),
+    // la MÊME fonction que celle des start holdings YTD — un seul calcul partagé.
     const _splitAjuste = {};
     for (const e of allEvents) {
       if (e.eventType !== 'buy' && e.eventType !== 'sell') continue;
       if (!(e.price > 0) || !(e.qty > 0)) continue;
-      const close = getClose(e.ticker, e.date, true);
-      if (close == null || !(close > 0)) continue;
-      const r = close / e.price;
-      let f = 1;
-      for (const cand of SPLIT_FACTORS) {
-        if (Math.abs(r - cand) / cand < 0.25) { f = cand; break; }          // regroupement
-        if (Math.abs(r - 1 / cand) * cand < 0.25) { f = 1 / cand; break; }  // split
-      }
+      const f = splitUnitFactor(e.ticker, e.date, e.price);
       if (f !== 1) {
         e.qty = e.qty / f;
         e.price = e.price * f;

@@ -4897,7 +4897,15 @@ Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répli
 du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
 IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
 
-### v424–v439 — Lecture décideur, cockpit performance, splits, audit immobilier (8-9 août 2026)
+### v471 (26 août 2026) — BUG-089 : splits partagés entre événements et start holdings YTD
+
+Le regroupement Worldline (15/06/2026) réajusté rétroactivement par Yahoo laissait 2 700 titres
+fantômes dans la simulation YTD (start holdings en unités journal, vente normalisée) → KPIs
+MTD/1M/YTD et panneau Répartition faux, NAV YTD gonflée jusqu'à +50 K€. Fix : `splitUnitFactor()`
+partagée (charts.js) appliquée aux DEUX consommateurs — événements de simulation ET réversion
+des start holdings. Voir BUG_TRACKER §BUG-089.
+
+## v424–v439 — Lecture décideur, cockpit performance, splits, audit immobilier (8-9 août 2026)
 
 **v424-v427** : fiches appartement homogénéisées sur le référentiel Notion (alertes par bien,
 passifs documentés `IMMO_PASSIFS_DOCUMENTES`, contraintes datées) ; PWA installable (manifest +
