@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=471';
-import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=471';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=471';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=471';
-import { loadSnapshots } from './api.js?v=471'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=471'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=472';
+import { getGrandTotal, computeExitCostsAtYear } from './engine.js?v=472';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=472';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=472';
+import { loadSnapshots } from './api.js?v=472'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=472'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2440,6 +2440,23 @@ function buildPVAbattementChart(propData, canvasId) {
 window.buildPropertyDetailCharts = buildPropertyDetailCharts;
 window.buildExitProjectionChart = buildExitProjectionChart;
 window.buildWealthProjectionChart = buildWealthProjectionChart;
+
+// v472 (BUG-090) — rebuild ciblé à l'ouverture d'un accordéon immo : un graphe
+// construit pendant que son conteneur est en display:none reste en canvas 0×0
+// (le resize() du onclick inline de l'accordéon ne le récupère pas). app.js
+// écoute les boutons d'accordéon (aria-controls^="secImmo") et rappelle le
+// builder du canvas concerné via cette table. Chaque builder détruit lui-même
+// son instance précédente — l'appel est idempotent.
+window._immoAccordionBuilders = {
+  immoViewProjectionChart: (state) => buildImmoViewProjection(state),
+  wealthProjectionChart: (state) => {
+    const m = document.querySelector('.wealth-proj-btn.active');
+    const g = document.querySelector('.wealth-group-btn.active');
+    buildWealthProjectionChart(state, (m && m.dataset.mode) || 'an', (g && g.dataset.group) || 'type');
+  },
+  cfWaterfallChart: (state) => buildCfWaterfallChart(state),
+  cfProjectionChart: (state) => buildCFProjection(state),
+};
 window.buildPVAbattementChart = buildPVAbattementChart;
 
 // ============ BUDGET DONUTS ============

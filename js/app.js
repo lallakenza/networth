@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=471';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=471';
-import { render, applySnapshotDeltas } from './render.js?v=471';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=471';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=471';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=471';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=471';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=472';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=472';
+import { render, applySnapshotDeltas } from './render.js?v=472';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=472';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=472';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=472';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=472';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -266,6 +266,25 @@ function decorateA11yInteractive() {
     });
   }
 }
+
+// v472 (BUG-090) — les graphes construits dans un accordéon replié (display:none)
+// restent en 0×0 et paraissent « disparus » à l'ouverture. On reconstruit ceux du
+// panneau ouvert via la table window._immoAccordionBuilders (charts.js). Le
+// setTimeout laisse le onclick inline de l'accordéon afficher le panneau d'abord.
+document.addEventListener('click', (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('button[aria-controls^="secImmo"]') : null;
+  if (!btn) return;
+  setTimeout(() => {
+    if (btn.getAttribute('aria-expanded') !== 'true') return;
+    const sec = document.getElementById(btn.getAttribute('aria-controls'));
+    if (!sec || !currentState) return;
+    sec.querySelectorAll('canvas').forEach((c) => {
+      if (c.width > 0) return; // déjà dimensionné : le resize du onclick inline suffit
+      const build = window._immoAccordionBuilders && window._immoAccordionBuilders[c.id];
+      if (build) { try { build(currentState); } catch (e) { console.warn('[accordeon-immo] rebuild', c.id, e); } }
+    });
+  }, 60);
+});
 
 function refresh() {
   currentState = compute(PORTFOLIO, currentFX, stockSource);

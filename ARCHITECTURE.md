@@ -4897,7 +4897,13 @@ Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répli
 du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
 IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
 
-### v471 (26 août 2026) — BUG-089 : splits partagés entre événements et start holdings YTD
+### v472 (26 août 2026) — BUG-090 : graphes des accordéons immo (canvas 0×0)
+
+Les graphes construits dans les accordéons repliés (v429) restaient en 0×0 après ouverture
+(courbe Création de richesse invisible). Fix : `window._immoAccordionBuilders` (charts.js)
++ listener délégué app.js qui reconstruit les canvas à largeur nulle à l'ouverture du panneau.
+
+## v471 (26 août 2026) — BUG-089 : splits partagés entre événements et start holdings YTD
 
 Le regroupement Worldline (15/06/2026) réajusté rétroactivement par Yahoo laissait 2 700 titres
 fantômes dans la simulation YTD (start holdings en unités journal, vente normalisée) → KPIs
