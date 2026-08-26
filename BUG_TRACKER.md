@@ -2094,3 +2094,16 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Root cause**: Chart.js construit les graphes pendant que le conteneur est en `display:none` (le render tourne accordéons repliés) → taille 0 ; le hack `resize()` du onclick inline v429 ne les récupère pas.
 - **Fix (v472)**: table `window._immoAccordionBuilders` (charts.js) canvas→builder + listener délégué (app.js) sur `button[aria-controls^="secImmo"]` : à l'ouverture, tout canvas encore à largeur 0 est reconstruit via son builder (idempotent, les builders s'auto-détruisent).
 - **Regression tests**: ouvrir chaque accordéon immo → canvas avec largeur > 0 et graphe visible ; toggles Par an/Par mois et Par type/Par appart fonctionnels après réouverture ; pas d'erreur « canvas already in use ».
+
+## BUG-091: Audit homogénéité immo — CF VEFA non étiqueté, tooltips hardcodés, valueDate trompeur (lot de 5 anomalies)
+
+- **Version**: audit + fix v473 (26 août 2026), déclenché par Amine (« j'ai l'impression qu'il y a des données hardcodées ou de sources contradictoires »).
+- **Sévérité**: MOYENNE (aucune corruption de calcul ; présentation trompeuse).
+- **Anomalies & fixes**:
+  1. Fiche Villejuif affichait « CF brut /mois −260 € » et « Rend. net −0,9 % » = PROJECTIONS post-livraison (loyer 1 700 − charges pleines 1 960) sans étiquette, alors que le tableau récap affichait « — » (doctrine v347). Fix : labels « CF projeté (post-livraison) », « (projeté post-livraison) » sur les rendements, + nouveau KPI « CF réel aujourd'hui (assurance CACI) ».
+  2. Flux réel VEFA absent partout : l'assurance CACI (46,10 + 5,19 = 51,29 €/mois) est prélevée depuis la signature. Fix : `prop.cfReel` (engine) = −Σ insuranceMonthly des prêts pour les biens conditionnels, inclus dans totalCF/totalCFNetFiscal/fTotalCF/fTotalCharges/ruban CF (total CF immo : −56 → −107 €/mois), ligne tableau annotée « réel ».
+  3. Tooltips hardcodés : kpiAmVitry disait « équité = valeur − CRD » (décrit la brute, la carte affiche la nette) et « +2%/an » (modèle phasé 1→2 %). Idem « (2%/an) » dans subVitryCrdDetail. Fix : helper `_apprLabel(prop)` dérivé de propertyMeta.appreciationPhases + textes nette/brute explicites (kpiAmVitry, kpiNzRueil).
+  4. `valueDate: '2026-08'` de Vitry alors que l'estimation (67,14 m² × ~4 470 €/m²) date de sept 2025. Fix : valueDate '2025-09' (data.js + Supabase) — l'engine capitalise l'appréciation phasée depuis cette date : valeur affichée 300 000 → 303 266, équité nette NW +2 083. Réestimation marché (DVF) recommandée.
+  5. `data-eur="300000"` mort sur subVitryCrdDetail (index.html) → "0" comme les autres placeholders.
+- **Garde-fou ajouté**: console.warn si le CRD retombe sur le snapshot statique data.js/Supabase (fallback silencieux qui daterait du 31/03/2026).
+- **Regression tests**: fiche Villejuif → 3 KPI étiquetés « projeté » + « CF réel aujourd'hui −51 € » ; tableau par bien → ligne Villejuif CF « −51 réel » ; KPI CF immo −107/mois = ruban = tableau ; tooltip Équité Vitry mentionne nette ET brute ; libellé appréciation dérivé (« 1→2%/an (phasé) ») ; valeur Vitry ≈ 303,3 K cohérente tableau/fiche/breakdown.

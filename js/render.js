@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=472';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=472';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=473';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=473';
 
 // ---- Generic table sort utility ----
 /**
@@ -692,7 +692,7 @@ function renderExpandSubs(state, view, options = {}) {
     // Sub-card CRD details
     const vitryP = propMap.vitry;
     if (vitryP) {
-      setHTML('subVitryCrdDetail', fmt(vitryP.value) + ' (2%/an)<br>CRD ' + fmt(vitryP.crd));
+      setHTML('subVitryCrdDetail', fmt(vitryP.value) + ' (' + _apprLabel(vitryP) + ')<br>CRD ' + fmt(vitryP.crd));
       const vBadge = document.getElementById('subVitryCFBadge');
       if (vBadge) {
         const sign = vitryP.cf >= 0 ? '+' : '';
@@ -1248,6 +1248,21 @@ function renderImmoPcts(state) {
   const amPct = (s.amine.vitryEquity / s.amine.nw * 100).toFixed(1);
   setText('amImmoPct', amPct);
   setText('amImmoVal', fmt(s.amine.vitryEquity));
+}
+
+// v473 — libellé d'appréciation dérivé du modèle (fin des '2%/an' hardcodés).
+// Phasé : min→max des taux de phases ; sinon taux constant.
+function _apprLabel(prop) {
+  const m = prop && prop.propertyMeta ? prop.propertyMeta : null;
+  if (!m) return 'n/d';
+  const ph = m.appreciationPhases;
+  if (Array.isArray(ph) && ph.length) {
+    const rates = ph.map(p2 => (p2.rate || 0) * 100);
+    const lo = Math.round(Math.min(...rates) * 10) / 10;
+    const hi = Math.round(Math.max(...rates) * 10) / 10;
+    return lo === hi ? lo + '%/an' : lo + '\u2192' + hi + '%/an (phas\u00e9)';
+  }
+  return Math.round((m.appreciation || 0) * 1000) / 10 + '%/an';
 }
 
 function updateAllDataEur() {
@@ -4039,7 +4054,7 @@ function renderImmoView(state) {
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
   const fTotalValue = fp.reduce((s, p) => s + p.value, 0);
   const fTotalCRD = fp.reduce((s, p) => s + p.crd, 0);
-  const fTotalCF = fp.reduce((s, p) => s + (p.conditional ? 0 : p.cf), 0); // v347 — exclut le CF fictif Villejuif (loyer non perçu avant livraison), comme engine.totalCF
+  const fTotalCF = fp.reduce((s, p) => s + (p.conditional ? (p.cfReel || 0) : p.cf), 0); // v347 : exclut la projection Villejuif ; v473 : inclut son flux réel (assurance CACI), comme engine.totalCF
   const fTotalWealthCreation = fp.reduce((s, p) => s + p.wealthCreation, 0);
   const fTotalWealthBreakdown = {
     capitalAmorti: fp.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
@@ -4062,7 +4077,7 @@ function renderImmoView(state) {
   // ── v438 (P1) : flux bruts consolidés — entrées vs sorties, pas seulement le net ──
   // Biens NON conditionnels seulement (Villejuif VEFA hors flux, règle v347).
   const fTotalLoyers = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (p.totalRevenue || 0)), 0);
-  const fTotalCharges = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (Math.round(p.charges) || 0)), 0);
+  const fTotalCharges = fp.reduce((s2, p) => s2 + (p.conditional ? Math.round(-(p.cfReel || 0)) : (Math.round(p.charges) || 0)), 0); // v473 : + assurance CACI Villejuif (charge réelle en franchise)
   setText('kpiImmoViewLoyers', '+' + fmt(Math.round(fTotalLoyers)) + '/mois');
   setText('kpiImmoViewCharges', '−' + fmt(Math.round(fTotalCharges)) + '/mois');
 
@@ -4117,8 +4132,15 @@ function renderImmoView(state) {
           + '<td class="num" style="font-weight:600;">' + fmt(p.equity) + '</td>'
           + '<td class="num">' + p.ltv.toFixed(0) + '%</td>'
           + '<td class="num">' + (cond ? em : '+' + fmt(Math.round(p.totalRevenue || 0))) + '</td>'
-          + '<td class="num ' + ((p.cf || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">'
-          + (cond ? em : ((p.cf >= 0 ? '+' : '') + fmt(Math.round(p.cf)))) + '</td>'
+          + (function () {
+            // v473 — VEFA : le CF projeté reste hors tableau, mais le flux RÉEL
+            // (assurance CACI prélevée depuis la signature) est affiché, annoté.
+            const cfAff = cond ? (p.cfReel || 0) : (p.cf || 0);
+            if (cond && cfAff === 0) return '<td class="num">' + em + '</td>';
+            const badge = cond ? ' <span title="Flux réel actuel : assurance emprunteur CACI, prélevée depuis la signature de l\'offre (prêt en franchise)" style="font-size:9px;color:#92400e;">réel</span>' : '';
+            return '<td class="num ' + (cfAff >= 0 ? 'pl-pos' : 'pl-neg') + '">'
+              + (cfAff >= 0 ? '+' : '') + fmt(Math.round(cfAff)) + badge + '</td>';
+          })()
           + '<td class="num">' + (cond || !Number.isFinite(p.yieldNet) ? em : p.yieldNet.toFixed(1) + '%') + '</td>'
           + '</tr>';
       });
@@ -5533,10 +5555,11 @@ function renderPropertyDetail(state, prop) {
       + '</div></div>';
     // CF KPIs
     html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '') + '</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.bail && !prop.bailActif ? ' (réel actuel)' : '') + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF projeté (post-livraison) /mois' : 'CF brut /mois') + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
+      + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '')) + '</div></div>'
+      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
       + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /an</div></div>'
       + '</div>';
     cfEl.innerHTML = html;
@@ -6085,10 +6108,11 @@ function renderAptView(state, loanKey) {
     + '</div></div>';
   // CF KPIs
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF brut /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">CF net fiscal /mois</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '') + '</div></div>'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.bail && !prop.bailActif ? ' (réel actuel)' : '') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF projeté (post-livraison) /mois' : 'CF brut /mois') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
+      + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '')) + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
     + '</div></div>';
 
@@ -7224,13 +7248,20 @@ function attachKPIInsights(state, view) {
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
   const _vitryProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'vitry') : null;
   const _vitryWealth = _vitryProp ? Math.round(_vitryProp.wealthCreation || 0) : '?';
-  insights['kpiAmVitry'] = '\u00c9quit\u00e9 Vitry = valeur estim\u00e9e - CRD. Appr\u00e9ciation +2%/an (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac' + _vitryWealth + '/mois.';
+  // v473 — la carte affiche l'équité NETTE (après frais de sortie) : le tooltip
+  // disait « valeur − CRD » (la brute) et « +2%/an » hardcodé (modèle phasé depuis).
+  const _vitryBrute = _vitryProp ? Math.round(_vitryProp.equity) : null;
+  insights['kpiAmVitry'] = '\u00c9quit\u00e9 Vitry NETTE apr\u00e8s frais de sortie'
+    + (_vitryBrute != null ? ' (brute = valeur \u2212 CRD : \u20ac' + f(_vitryBrute) + ')' : '')
+    + '. Appr\u00e9ciation ' + _apprLabel(_vitryProp) + ' (GPE Ligne 15). Cr\u00e9ation de richesse +\u20ac' + _vitryWealth + '/mois.';
 
   // ── Nezha view ──
   const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
   insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
   const _rueilWealth = rueilProp ? Math.round(rueilProp.wealthCreation || 0) : '?';
-  insights['kpiNzRueil'] = 'Equity Rueil = \u20ac' + f(s.nezha.rueilEquity) + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
+  insights['kpiNzRueil'] = '\u00c9quit\u00e9 Rueil NETTE apr\u00e8s frais de sortie = \u20ac' + f(s.nezha.rueilEquity)
+    + (rueilProp ? ' (brute : \u20ac' + f(Math.round(rueilProp.equity)) + ')' : '')
+    + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
   insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison Q3 2028. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
   insights['kpiNzCash'] = 'Cash total \u20ac' + f(s.nezha.cash) + ' dont Livret A \u20ac' + f(s.nezha.livretA) + ' (1.5%) + \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA) + ' dormant (0%). Optimiser : assurance-vie ou SCPI.';
 
@@ -7510,7 +7541,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=472').then(m => {
+  import('./charts.js?v=473').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

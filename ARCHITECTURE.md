@@ -4897,7 +4897,15 @@ Privacy : adresses/lots/noms exclus de la base ; loyer déclaré vs réel répli
 du repo public existant. Barèmes stables (EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_REGIMES,
 IMMO_PRESETS, IMMO_MAROC_FEES) restent dans data.js.
 
-### v472 (26 août 2026) — BUG-090 : graphes des accordéons immo (canvas 0×0)
+### v473 (26 août 2026) — BUG-091 : audit homogénéité immo (CF réel VEFA, tooltips dérivés, valueDate)
+
+Fiche Villejuif : projections post-livraison étiquetées + KPI « CF réel aujourd'hui » (assurance
+CACI 51,29 €/mois, `prop.cfReel` engine) inclus dans TOUS les agrégats de flux (totalCF −56 → −107).
+Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`_apprLabel`). Vitry
+valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
+capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
+
+## v472 (26 août 2026) — BUG-090 : graphes des accordéons immo (canvas 0×0)
 
 Les graphes construits dans les accordéons repliés (v429) restaient en 0×0 après ouverture
 (courbe Création de richesse invisible). Fix : `window._immoAccordionBuilders` (charts.js)

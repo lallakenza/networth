@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=472';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=473';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2819,9 +2819,11 @@ function computeImmoView(portfolio, fx) {
         computedCRD = crdBefore - (crdBefore - crdAfter) * ((dom - 1) / dim);
       } else {
         computedCRD = propData.crd;
+        console.warn('[immo] CRD fallback statique (snapshot data.js/Supabase, potentiellement périmé) pour', name, '- ligne du tableau d\'amortissement introuvable pour le mois courant');
       }
     } else {
       computedCRD = propData.crd;
+      console.warn('[immo] CRD fallback statique (snapshot data.js/Supabase, potentiellement périmé) pour', name, '- tableau d\'amortissement indisponible');
     }
     // v357 — VEFA en construction : CRD = capital réellement débloqué par la banque (appels de fonds),
     // pas le principal plein. Le tableau d'amortissement modélise un déblocage 100% qui n'a pas eu lieu.
@@ -2973,6 +2975,14 @@ function computeImmoView(portfolio, fx) {
     // discount is already captured as `recognizedLatentGain` inside `equity` (balance-sheet), and
     // (2) a unit not yet delivered doesn't accrue realized market appreciation month by month.
     // So zero all three flow components for conditional, consistent with CF/loyer aggregates.
+    // v473 — flux REEL actuel d'un bien conditionnel (VEFA) : pas de loyer ni de
+    // mensualité pendant la franchise, mais l'assurance emprunteur (CACI) est
+    // prélevée depuis la signature de l'offre. Seul flux mensuel réel aujourd'hui,
+    // exposé via cfReel (le cf reste la projection post-livraison, hors agrégats).
+    const cfReel = conditional
+      ? -((IC.loans[loanKey + 'Loans'] || []).reduce((s3, l) => s3 + (l.insuranceMonthly || 0), 0))
+      : cf;
+
     const wealthCF = conditional ? 0 : cf;
     const wealthCapital = conditional ? 0 : capitalAmortiMois;
     const wealthAppreciation = conditional ? 0 : appreciationMois;
@@ -2982,6 +2992,7 @@ function computeImmoView(portfolio, fx) {
 
     return {
       name, owner, conditional: conditional || false,
+      cfReel,
       value: _val, referenceValue: _refValue, valueDate: _refDate,
       deliveredValue: _deliveredValue, // v357 — valeur de marché livrée (= value hors VEFA ; sert à la projection)
       recognizedLatentGain: _recognizedLatentGain, // v358 — PV latente reconnue (VEFA) ; 0 hors construction
@@ -3127,7 +3138,7 @@ function computeImmoView(portfolio, fx) {
   const totalEquity = properties.reduce((s, p) => s + p.equity, 0);
   const totalValue = properties.reduce((s, p) => s + p.value, 0);
   const totalCRD = properties.reduce((s, p) => s + p.crd, 0);
-  const totalCF = properties.reduce((s, p) => s + (p.conditional ? 0 : p.cf), 0); // v347 — pendant manquant du fix v340 : exclut le CF fictif Villejuif (loyer non perçu)
+  const totalCF = properties.reduce((s, p) => s + (p.conditional ? (p.cfReel || 0) : p.cf), 0); // v347 : exclut le CF FICTIF Villejuif (projection) ; v473 : mais inclut son flux RÉEL (assurance CACI prélevée dès signature)
   const totalWealthCreation = properties.reduce((s, p) => s + p.wealthCreation, 0);
   const totalWealthBreakdown = {
     capitalAmorti: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.capitalAmorti : 0), 0),
@@ -3142,7 +3153,7 @@ function computeImmoView(portfolio, fx) {
   // le loyer n'est pas encore perçu. Aligne computeImmoView sur computeBudgetView (3397)
   // et computeCashFlow (4982) qui zéro-tent déjà Villejuif.
   const totalLoyerAnnuel = properties.reduce((s, p) => s + (p.conditional ? 0 : (p.totalRevenue || p.loyer) * 12), 0);
-  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.conditional ? 0 : (p.cfNetFiscal || p.cf)), 0);
+  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.conditional ? (p.cfReel || 0) : (p.cfNetFiscal || p.cf)), 0); // v473 : flux réel CACI inclus
 
   // Amortization totals
   const totalInterestPaid = Object.values(amortSchedules).reduce((s, a) => s + a.interestPaid, 0);
