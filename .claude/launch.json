@@ -2,18 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "factu-net2",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8811",
-        "--directory",
-        "/Users/amine/facturation"
-      ],
-      "port": 8811
-    },
-    {
       "name": "networth",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
