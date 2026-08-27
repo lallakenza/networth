@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=476';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=477';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2388,6 +2388,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
 
     // Autres frais
     agencyFee: 0,
+    representantFiscal: 0,
     diagnostics: EC.diagnosticsCost,
     mainlevee: 0,
     ira: 0, // indemnités remboursement anticipé
@@ -2556,7 +2557,15 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
   }
 
   // Total frais de sortie
-  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.diagnostics + result.mainlevee + result.ira + result.tvaClawback + result.restitutionSADEV;
+  // v477 — représentant fiscal accrédité (non-résident hors EEE, art. 244 bis A IV CGI) :
+  // obligatoire dès que prix > 150K et détention < 30 ans, ~0,7% du prix (barème de place).
+  // Dû même quand l'impôt PV est nul (cas Vitry : PV imposable négative, représentant dû).
+  if (EC.representantFiscal && salePrice > (EC.representantFiscal.seuilPrix || 150000)
+      && holdingYears < (EC.representantFiscal.exemptionDetentionAnnees || 30)) {
+    result.representantFiscal = Math.round(salePrice * (EC.representantFiscal.pct || 0.007));
+  }
+
+  result.totalExitCosts = result.totalTaxPV + result.agencyFee + result.representantFiscal + result.diagnostics + result.mainlevee + result.ira + result.tvaClawback + result.restitutionSADEV;
 
   // Produit net = prix de vente - frais de sortie - CRD restant
   result.netProceeds = salePrice - result.totalExitCosts;

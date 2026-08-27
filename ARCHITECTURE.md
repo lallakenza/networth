@@ -4913,6 +4913,18 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## v477 (27 août 2026) — révision des valorisations (analyses Notion 27/08) + fiscalité de sortie non-résident
+
+Arbitrages d'Amine sur les analyses du 27/08 (DVF Vitry 2 665 mutations + audit facteurs
+externes) : Vitry 300K→**280 000** (4 179 €/m², convergence DVF, valueDate 2026-08), Rueil
+265K→**256 500** (248K rue + ½ prime DPE « hypothèse probable » tant que le certificat du
+lot 894 manque), Villejuif inchangé. Plan locatif Vitry : statu quo site (1 200 cash, bail
+10/10, parking voisin) — la fiche Notion porte une version divergente (gratuit, 01/11,
+parking inclus), arbitrée par Amine. Frais de sortie : **représentant fiscal accrédité**
+(non-résident hors EEE, 0,7 % du prix si > 150K et < 30 ans, dû même à impôt nul) ajouté à
+computeExitCosts ; jeton d'exo non-résident 150 K€ (art. 150 U II 2°) documenté NON appliqué.
+Impact NW ≈ −30 K (équités nettes Vitry 10,4K, Rueil 60,5K). Supabase + fiches Notion synchronisées.
+
 ## v472 (26 août 2026) — BUG-090 : graphes des accordéons immo (canvas 0×0)
 
 Les graphes construits dans les accordéons repliés (v429) restaient en 0×0 après ouverture

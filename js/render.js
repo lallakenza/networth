@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=476';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=476';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=477';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=477';
 
 // ---- Generic table sort utility ----
 /**
@@ -6182,6 +6182,9 @@ function renderAptView(state, loanKey) {
     if (ec.mainlevee > 0) {
       html += '<div><span style="color:#718096;">Mainlevée hypo.</span><br><strong class="pl-neg">' + fmt(ec.mainlevee) + '</strong></div>';
     }
+    if (ec.representantFiscal > 0) {
+      html += '<div><span style="color:#718096;" title="Non-résident hors EEE (art. 244 bis A IV CGI) : représentant fiscal accrédité obligatoire (prix > 150K, détention < 30 ans), ~0,7% du prix. Dû même si l\'impôt PV est nul. À noter : jeton unique d\'exonération non-résident de 150 K€ de PV nette (art. 150 U II 2°) disponible UNE fois — arbitrage à poser entre les 3 biens, non appliqué ici.">Représentant fiscal (non-résident)</span><br><strong class="pl-neg">' + fmt(ec.representantFiscal) + '</strong></div>';
+    }
     html += '</div>';
     html += '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     html += '<div><span style="color:#718096;font-weight:600;">Total frais sortie</span><br><strong class="pl-neg" style="font-size:16px;">' + fmt(ec.totalExitCosts) + '</strong></div>';
@@ -7530,7 +7533,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=476').then(m => {
+  import('./charts.js?v=477').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
