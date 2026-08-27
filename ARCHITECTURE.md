@@ -4913,6 +4913,21 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## v479 (27 août 2026) — graphe NW fusionné : historique + projection ancrée (bande p10-p90)
+
+`projectNW(state, hyp)` (engine, exporté) : prolonge le NW réel du jour PAR DELTAS mensuels
+(jonction exacte au centime) — actions composées par scénario p10/p50/p90
+(`PROJECTION_HYPOTHESES` data.js : 3/7/10 %/an, contributions 8K×36 mois vers Amine),
+immo en équité NETTE recalculée (valeur par phases v478, CRD des vrais tableaux,
+computeExitCostsAtYear : clauses datées incl. SADEV → la livraison Villejuif (09/2028) fait
+BAISSER l'équité nette ~15 K tant que la clause court, relâchée mi-2033), cash-flows immo
+cumulés, reste stable. Graphe « Évolution du NW » : pills +5A/+10A/+20A → passé complet +
+bande p10-p90 + médianes pointillées par personne ; ticks halvés en boucle ; tooltip
+« (projeté) ». Jalons/annotations verticales : évalués puis ABANDONNÉS (choix Amine — les
+deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent dans la
+courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
+tout le NW au taux marché : c'est le gain d'accuracy recherché.
+
 ## Migration données (27 août 2026) — révision RÉTROACTIVE de l'immo dans nw_snapshots
 
 660 lignes réécrites (demande Amine, backup intégral : `~/networth_nw_snapshots_backup_20260827.json`).

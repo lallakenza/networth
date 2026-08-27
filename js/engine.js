@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=478';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=479';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4800,6 +4800,123 @@ export const CASH_ACCOUNT_IDS = {
   'Livret A (LCL)': 'livret_a', 'LCL Compte principal': 'lcl_compte',
   'IBKR (Nezha)': 'ibkr_nezha', 'Attijariwafa (Nezha)': 'attijari_nezha', 'Wio UAE (Nezha)': 'wio_nezha',
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// v479 — PROJECTION DU NW (graphe fusionné passé + futur)
+// Prolonge le NW réel du jour par personne, en DELTAS mensuels (jonction exacte :
+// le point 0 est le NW d'aujourd'hui, rien n'est re-estimé en absolu) :
+//   actions : × (1+r)^(1/12) par scénario p10/p50/p90 + contributions (vers Amine)
+//   immo    : équité NETTE recalculée par computeExitCostsAtYear (valeur projetée
+//             par les phases v478, CRD des vrais tableaux d'amortissement, clauses
+//             datées : SADEV jusqu'à mi-2033, abattements PV, représentant fiscal) ;
+//             Villejuif : équité engagée FLAT jusqu'à la livraison (09/2028) puis
+//             bascule valeur livrée − CRD − frais (le saut est le vrai modèle du site)
+//   cash    : cumul des cash-flows immo mensuels (cf actuels ; villejuif cfReel puis
+//             cf projeté post-livraison) — le reste du cash est stable
+//   other   : stable (créances, véhicules… non projetés)
+export function projectNW(state, hyp = {}) {
+  const H = Object.assign({}, PROJECTION_HYPOTHESES, hyp);
+  const iv = state.immoView;
+  const auj = new Date();
+  const y0 = auj.getFullYear(), m0 = auj.getMonth() + 1; // mois courant (1-12)
+
+  const moisISO = (i) => { // i = mois depuis aujourd'hui (0 = mois courant)
+    const t = (y0 * 12 + (m0 - 1)) + i;
+    return Math.floor(t / 12) + '-' + String((t % 12) + 1).padStart(2, '0');
+  };
+
+  // ── immo : série d'équité nette par bien (indépendante du scénario marché) ──
+  const OWNER = { vitry: 'amine', rueil: 'nezha', villejuif: 'nezha' };
+  const props = (iv.properties || []);
+  const immoDelta = { amine: new Array(H.horizonMois + 1).fill(0), nezha: new Array(H.horizonMois + 1).fill(0) };
+  const cfCumul = { amine: new Array(H.horizonMois + 1).fill(0), nezha: new Array(H.horizonMois + 1).fill(0) };
+
+  props.forEach((p) => {
+    const k = p.loanKey;
+    const owner = OWNER[k] || 'amine';
+    const meta = IMMO_CONSTANTS.properties[k] || {};
+    const phases = meta.appreciationPhases || [];
+    const tauxAnnee = (y) => {
+      for (const ph of phases) { if (y >= ph.start && y <= ph.end) return ph.rate || 0; }
+      return meta.appreciation || 0;
+    };
+    const sched = ((iv.amortSchedules || {})[k] || {}).schedule || [];
+    const crdAuMois = (iso) => {
+      let last = null;
+      for (const r of sched) { if (r.date <= iso) last = r; else break; }
+      if (last) return last.remainingCRD;
+      return sched.length ? sched[0].remainingCRD + (sched[0].principal || 0) : (p.crd || 0);
+    };
+    const purchasePrice = p.purchasePrice || meta.purchasePrice || meta.totalOperation || p.value;
+    const fiscConfig = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[k];
+    const fiscType = fiscConfig ? fiscConfig.type : 'nu';
+    const estVEFA = !!p.conditional;
+    const livraisonISO = estVEFA ? ((meta.deliveryDate || '2028-09').slice(0, 7)) : null;
+    const baseValue = estVEFA ? (p.deliveredValue || meta.deliveredValue || p.value) : p.value;
+
+    // équité nette "modèle" au mois i (recalcul frais de sortie 1×/an, valeur composée mensuellement)
+    let valeur = baseValue;
+    let exitCacheYear = null, exitCacheCosts = 0;
+    const netA = []; // net modèle par mois
+    for (let i = 0; i <= H.horizonMois; i++) {
+      const iso = moisISO(i);
+      const y = parseInt(iso.slice(0, 4), 10);
+      if (i > 0) valeur *= 1 + tauxAnnee(y) / 12;
+      if (estVEFA && iso < livraisonISO) {
+        netA.push(null); // pré-livraison : équité engagée flat (delta 0)
+        continue;
+      }
+      const crd = crdAuMois(iso);
+      if (exitCacheYear !== y) {
+        const yearsHeld = y - parseInt((meta.purchaseDate || '2023-01').slice(0, 4), 10);
+        const totalAmort = fiscType === 'lmnp' ? Math.round(purchasePrice * 0.80 * 0.02 * Math.max(0, yearsHeld)) : 0;
+        const ec = computeExitCostsAtYear(k, y, Math.round(valeur), purchasePrice, crd, totalAmort);
+        exitCacheCosts = ec.totalExitCosts;
+        exitCacheYear = y;
+      }
+      netA.push(Math.max(0, Math.round(valeur - crd - exitCacheCosts)));
+    }
+    // deltas vs point 0 (jonction exacte). VEFA : delta 0 pré-livraison, puis net(i) − équité engagée actuelle.
+    const ancrage = estVEFA ? Math.round(p.equity || 0) : (netA[0] != null ? netA[0] : 0);
+    for (let i = 0; i <= H.horizonMois; i++) {
+      const n = netA[i];
+      immoDelta[owner][i] += (n == null) ? 0 : (n - ancrage);
+    }
+
+    // cash-flow mensuel cumulé
+    for (let i = 1; i <= H.horizonMois; i++) {
+      const iso = moisISO(i);
+      const cf = estVEFA ? (iso < livraisonISO ? (p.cfReel || 0) : (p.cf || 0)) : (p.cf || 0);
+      cfCumul[owner][i] = cfCumul[owner][i - 1] + cf;
+    }
+  });
+
+  // ── actions par scénario + contributions ──
+  const stocks0 = {
+    amine: (state.views.amine.stocks && state.views.amine.stocks.val) || 0,
+    nezha: (state.views.nezha.stocks && state.views.nezha.stocks.val) || 0,
+  };
+  const nw0 = { amine: state.amine.nw, nezha: state.nezha.nw, couple: state.couple.nw };
+  const out = { mois: [], amine: {}, nezha: {}, couple: {}, hyp: H, ancrage: nw0 };
+  for (let i = 0; i <= H.horizonMois; i++) out.mois.push(moisISO(i));
+
+  Object.keys(H.rendements).forEach((sc) => {
+    const rMois = Math.pow(1 + H.rendements[sc], 1 / 12) - 1;
+    const serieA = [], serieN = [], serieC = [];
+    let stA = stocks0.amine, stN = stocks0.nezha, contrib = 0;
+    for (let i = 0; i <= H.horizonMois; i++) {
+      if (i > 0) {
+        stA *= 1 + rMois; stN *= 1 + rMois;
+        if (i <= H.dureeContributionsMois) { stA += H.contributionMensuelle; contrib += H.contributionMensuelle; }
+      }
+      const a = Math.round(nw0.amine + (stA - stocks0.amine) + immoDelta.amine[i] + cfCumul.amine[i]);
+      const n = Math.round(nw0.nezha + (stN - stocks0.nezha) + immoDelta.nezha[i] + cfCumul.nezha[i]);
+      serieA.push(a); serieN.push(n); serieC.push(a + n);
+    }
+    out.amine[sc] = serieA; out.nezha[sc] = serieN; out.couple[sc] = serieC;
+  });
+  return out;
+}
 
 export function buildDailySnapshot(state) {
   const r = (v) => (typeof v === 'number' && isFinite(v)) ? Math.round(v) : null;
