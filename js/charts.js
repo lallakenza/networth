@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=479';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=479';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=479';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=479';
-import { loadSnapshots } from './api.js?v=479'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=479'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=480';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=480';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=480';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=480';
+import { loadSnapshots } from './api.js?v=480'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=480'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2482,6 +2482,13 @@ window.buildWealthProjectionChart = buildWealthProjectionChart;
 // écoute les boutons d'accordéon (aria-controls^="secImmo") et rappelle le
 // builder du canvas concerné via cette table. Chaque builder détruit lui-même
 // son instance précédente — l'appel est idempotent.
+// v480 — l'accordéon « Détail consolidé » (secConsolide) reconstruit le donut/aires
+// de répartition à l'ouverture (construit replié → canvas 0×0, classe BUG-090).
+window._rebuildAllocChart = () => {
+  try { if (!buildCoupleAllocEvolution()) buildCoupleDrillDown(_state); }
+  catch (e) { console.warn('[alloc] rebuild:', e && e.message); }
+};
+
 window._immoAccordionBuilders = {
   immoViewProjectionChart: (state) => buildImmoViewProjection(state),
   wealthProjectionChart: (state) => {

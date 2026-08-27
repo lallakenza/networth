@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=479';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=480';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5764,6 +5764,7 @@ export function computeAlerts(state) {
       if (overdue > 0 && overdue < 9000) {  // filter sentinel dates
         alerts.push({
           severity: 'red',
+          owner: c.owner || 'Amine',  // v480 (audit BI) — badge par personne sur la vue couple
           title: 'Créance en retard : ' + (c.counterparty || c.label || c.id),
           msg: 'Échéance du ' + c.dueDate + ' dépassée de ' + overdue + ' jour' + (overdue > 1 ? 's' : '') + '. Montant : ' + Math.round(c.amount).toLocaleString('fr-FR') + ' ' + (c.currency || 'EUR') + '.',
           action: 'Voir créances',

@@ -2,27 +2,63 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "factu-net2",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8811",
+        "--directory",
+        "/Users/amine/facturation"
+      ],
+      "port": 8811
+    },
+    {
       "name": "networth",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/amine/networth"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "/Users/amine/networth"
+      ],
       "port": 8765
     },
     {
       "name": "facturation",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "/Users/amine/facturation"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "/Users/amine/facturation"
+      ],
       "port": 8766
     },
     {
       "name": "factu-zor",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8781", "--directory", "/Users/amine/facturation"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8781",
+        "--directory",
+        "/Users/amine/facturation"
+      ],
       "port": 8781
     },
     {
       "name": "audiolik",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8791", "--directory", "/Users/amine/audiolik"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8791",
+        "--directory",
+        "/Users/amine/audiolik"
+      ],
       "port": 8791
     }
   ]

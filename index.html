@@ -3071,7 +3071,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
      second rang. Les 4 cartes catégories (immo/cash/actions/autre) sont retirées : la
      répartition vit dans le treemap et les cartes « Patrimoine par Catégorie ». -->
 <div id="kpi-couple" class="kpi-strip" style="grid-template-columns: 2fr 1fr 1fr;">
-  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0" style="font-size:34px;">--</div><div class="label">Net Worth Combine *</div>
+  <div class="kpi green"><div class="value" id="kpiCoupleNW" data-eur="0" style="font-size:34px;">--</div><div class="label">Net Worth Combiné *</div>
     <div style="display:flex;gap:14px;justify-content:center;margin-top:6px;font-size:11.5px;flex-wrap:wrap;">
       <span id="kpiCoupleNWMTD" style="color:#718096;">MTD —</span>
       <span id="kpiCoupleNWYTD" style="color:#718096;">YTD —</span>
@@ -3079,24 +3079,13 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   <div class="kpi gold"><div class="value" id="kpiCoupleAmNW" data-eur="0">--</div><div class="label">Net Worth Amine</div></div>
   <div class="kpi"><div class="value" id="kpiCoupleNzNW" data-eur="0">--</div><div class="label">Net Worth Nezha *</div></div>
 </div>
-<div class="kpi-insight-bar" id="insight-couple"></div>
 
-<p style="font-size:11px;color:var(--gray);text-align:right;margin:-20px 0 12px;" id="villejuifNote">* Villejuif VEFA <span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-weight:600;color:#276749;">acte signe</span> — equity comptee dans le NW · livraison Q3 2028 (loyers a venir)</p>
+<p style="font-size:11px;color:var(--gray);text-align:left;margin:2px 0 12px;" id="villejuifNote">* Villejuif VEFA <span style="background:#c6f6d5;padding:1px 6px;border-radius:4px;font-weight:600;color:#276749;">acte signe</span> — equity comptee dans le NW · livraison Q3 2028 (loyers a venir)</p>
 
 <!-- v444 (P1) : le cockpit décideur, top movers, alertes, constats et perf par classe
      remontent SOUS le hero — la page répond d'abord, explore ensuite. -->
 <div id="decisionCockpit" data-view="couple" style="margin:24px 0 0;"></div>
 <div id="topMoversCouple" data-view="couple"></div>
-<div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
-<div class="card" data-view="couple" style="padding:0;overflow:hidden;background:transparent;border:none;box-shadow:none;">
-<!-- v444 : section repliée -->
-<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secConstats" onclick="var d=document.getElementById('secConstats');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Constats détaillés</span><span style="font-size:11.5px;color:#718096;font-weight:400;">points positifs & risques structurels — contexte, non actionnable</span></span><span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">&#x25BC;</span></button><div id="secConstats" style="display:none;padding:0 16px 16px;">
-  <div class="grid2">
-    <div><div class="success" id="coupleInsightsPositive"></div></div>
-    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
-  </div>
-</div></div>
-</div>
 <div id="perfClasses" data-view="couple" style="margin:16px 0 0;"></div>
 
 
@@ -3121,16 +3110,16 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <div class="kpi-insight-bar hidden" id="insight-nezha"></div>
 
 <!-- INSIGHTS GLOBAUX -->
+<!-- NW HISTORY CHART -->
+<div class="card" data-view="couple">
+  <h2><span class="section-icon" style="background: var(--accent);">📈</span>Évolution du Net Worth</h2>
+  <div class="chart-container" style="height:280px"><canvas id="nwHistoryChart"></canvas></div>
+</div>
+
 <!-- TREEMAP -->
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--accent);">&#x1F5FA;</span>Treemap Patrimonial</h2>
   <div class="chart-container" style="height:380px"><canvas id="coupleTreemap"></canvas></div>
-</div>
-
-<!-- NW HISTORY CHART -->
-<div class="card" data-view="couple">
-  <h2><span class="section-icon" style="background: var(--accent);">📈</span>Evolution du Net Worth</h2>
-  <div class="chart-container" style="height:280px"><canvas id="nwHistoryChart"></canvas></div>
 </div>
 
 <div class="card" data-view="amine">
@@ -3145,7 +3134,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 <!-- NAVIGATION PAR CATEGORIE -->
 <div class="card" id="catNav">
-  <h2>Patrimoine par Categorie</h2>
+  <h2>Patrimoine par Catégorie</h2>
   <div class="cat-grid" id="catGrid">
     <div class="cat-card">
       <div class="cat-pct" id="catPctStocks">--</div>
@@ -3252,7 +3241,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
       <a href="index.html#apt_rueil" class="sub-card">
         <div class="sub-icon">&#x1F3E1;</div>
         <div class="sub-title">Rueil-Malmaison</div>
-        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span id="subRueilCrdDetail" data-eur="280000" data-type="html">--</span></div>
+        <div class="sub-detail">Nezha — 56 m2 — Loue<br>Valeur <span id="subRueilCrdDetail" data-eur="0" data-type="html">--</span></div>
         <div class="sub-equity pos" id="subRueilEq" data-eur="0">--</div>
         <div class="sub-badge" id="subRueilCFBadge">--</div>
       </a>
@@ -3294,34 +3283,11 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 </div>
 
-<!-- COUPLE: PATRIMOINE CONSOLIDE -->
 <div class="card" data-view="couple">
-  <h2><span class="section-icon" style="background: var(--green);">&#x1F46B;</span>Patrimoine Couple — Detail consolide</h2>
-  <div class="grid2">
-    <div>
-      <table id="coupleDetailTable">
-        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div>
-      <div style="text-align:center;margin-bottom:4px;">
-        <span id="coupleChartTitle" style="font-weight:600;font-size:14px;color:var(--primary)">Repartition par categorie</span>
-        <button id="coupleChartBack" onclick="coupleChartZoomOut()" style="display:none;margin-left:8px;font-size:11px;padding:2px 10px;border:1px solid #cbd5e0;border-radius:4px;background:#f7fafc;cursor:pointer;color:var(--accent)">&larr; Retour</button>
-      </div>
-      <div class="chart-container" style="height: 300px;">
-        <canvas id="coupleAllocChart"></canvas>
-      </div>
-      <p id="coupleChartHint" style="font-size:11px;color:var(--gray);text-align:center;margin-top:4px">Cliquez sur une tranche pour voir le detail</p>
-    </div>
-  </div>
-</div>
-
-<div class="card" data-view="couple">
-  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Resume Immobilier</h2>
+  <h2><span class="section-icon" style="background: var(--gold);">&#x1F3E0;</span>Résumé Immobilier</h2>
   <div class="kpi-strip">
     <div class="kpi gold"><div class="value" id="kpiImmoEq" data-eur="0">--</div><div class="label" id="kpiImmoEqLabel">&Eacute;quit&eacute; totale</div></div>
-    <div class="kpi"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimee des biens</div></div>
+    <div class="kpi"><div class="value" id="kpiImmoVal" data-eur="0">--</div><div class="label">Valeur estimée des biens</div></div>
     <div class="kpi"><div class="value" id="kpiImmoCRD" data-eur="0">--</div><div class="label">Capital Restant Du</div></div>
     <div class="kpi green"><div class="value" id="immoWealthVal" style="font-size:22px">--</div><div class="label">Creation de richesse</div><div id="immoWealthProj" style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4"></div></div>
   </div>
@@ -3405,6 +3371,43 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   </div>
 </div>
 
+
+<!-- v480 : ZONE TEXTE — synthèse, constats et détail comptable descendent sous les cartes/graphes (audit BI 27/08) -->
+<div id="alertsPanel" data-view="couple" style="margin:24px 0 8px;"></div>
+<div class="card" data-view="couple" style="padding:0;overflow:hidden;background:transparent;border:none;box-shadow:none;">
+<!-- v444 : section repliée -->
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secConstats" onclick="var d=document.getElementById('secConstats');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Constats détaillés</span><span style="font-size:11.5px;color:#718096;font-weight:400;">points positifs & risques structurels — contexte, non actionnable</span></span><span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">&#x25BC;</span></button><div id="secConstats" style="display:none;padding:0 16px 16px;">
+  <div class="grid2">
+    <div><div class="success" id="coupleInsightsPositive"></div></div>
+    <div><div class="highlight" id="coupleInsightsRisks"></div></div>
+  </div>
+</div></div>
+</div>
+<div class="card" data-view="couple" style="padding:0;overflow:hidden;background:transparent;border:none;box-shadow:none;">
+<!-- v480 : Detail consolide replie — zone texte/detail en bas de page (audit BI 27/08) -->
+<div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);align-self:start;"><button type="button" aria-expanded="false" aria-controls="secConsolide" onclick="var d=document.getElementById('secConsolide');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));var sc=document.getElementById('coupleAllocChart');var sg=window.Chart&&Chart.getChart(sc);if((!sg||sg.width===0)&&window._rebuildAllocChart)window._rebuildAllocChart();}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Patrimoine Couple — Détail consolidé</span><span style="font-size:11.5px;color:#4a5568;font-weight:400;">18 lignes + répartition — la vérité comptable, poste par poste</span></span><span class="chev" aria-hidden="true" style="color:#4a5568;font-size:11px;">&#x25BC;</span></button><div id="secConsolide" style="display:none;padding:12px 16px 16px;">
+<div class="grid2">
+    <div>
+      <table id="coupleDetailTable">
+        <thead><tr><th>Poste</th><th class="num">Montant</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <div style="text-align:center;margin-bottom:4px;">
+        <span id="coupleChartTitle" style="font-weight:600;font-size:14px;color:var(--primary)">Répartition par catégorie</span>
+        <button id="coupleChartBack" onclick="coupleChartZoomOut()" style="display:none;margin-left:8px;font-size:11px;padding:2px 10px;border:1px solid #cbd5e0;border-radius:4px;background:#f7fafc;cursor:pointer;color:var(--accent)">&larr; Retour</button>
+      </div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="coupleAllocChart"></canvas>
+      </div>
+      <p id="coupleChartHint" style="font-size:11px;color:var(--gray);text-align:center;margin-top:4px">Cliquez sur une tranche pour voir le détail</p>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
 <!-- IMMOBILIER -->
 <!-- SIMULATEUR COUPLE -->
 <div class="card" data-view="couple">
@@ -3439,6 +3442,8 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 <!-- v428 — Cockpit décideur : répond aux questions d'entrée (croissance, épargne, CRD)
      AVANT le détail. Le NW lui-même vit déjà dans les cartes KPI au-dessus. -->
 <!-- v431 : la question 3 du décideur — bon investissement ou pas, par classe -->
+
+<div id="trajectoireCouple" data-view="couple"></div>
 
 <!-- SIMULATEUR AMINE -->
 <div class="card" data-view="amine">
@@ -4499,7 +4504,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=479"></script>
+<script type="module" src="js/app.js?v=480"></script>
 
 </body>
 </html>

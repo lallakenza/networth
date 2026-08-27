@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=479';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=479';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=480';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=480';
 
 // ---- Generic table sort utility ----
 /**
@@ -312,6 +312,7 @@ export function render(state, view, currency) {
   if (view === 'couple') renderDecisionCockpit(state);
   if (view === 'couple') renderTopMoversCouple(state);   // v444 (B2/P5)
   if (view === 'couple') renderPerfClasses(state);
+  if (view === 'couple') renderTrajectoireCouple(state); // v480 (audit BI) — clôture peak-end
   if (view === 'couple') renderAlertsPanel(state);
 
   // Per-apartment views
@@ -484,13 +485,24 @@ function renderCategoryPcts(state, view) {
   if (catCards.length < 4) return;
 
   const nwRef = v.nwRef;
-  ['stocks', 'cash', 'immo', 'other'].forEach((key, i) => {
-    const card = catCards[i];
-    if (card.classList.contains('hidden')) return;
-    const amt = v[key].val;
-    const pctEl = card.querySelector('.cat-pct');
-    if (pctEl && nwRef > 0) pctEl.textContent = (amt / nwRef * 100).toFixed(0) + '%';
-  });
+  // v480 (audit BI) — arrondi « largest remainder » : les % affichés somment exactement
+  // à 100 (l'arrondi par carte donnait 99 ou 101). Fallback à l'ancien arrondi si une
+  // catégorie est négative (le procédé n'est défini que sur des parts positives).
+  const visibles = ['stocks', 'cash', 'immo', 'other']
+    .map((k, i) => ({ k, card: catCards[i] }))
+    .filter(x => x.card && !x.card.classList.contains('hidden'));
+  if (nwRef > 0 && visibles.length) {
+    const exacts = visibles.map(x => v[x.k].val / nwRef * 100);
+    if (exacts.some(x => x < 0)) {
+      visibles.forEach((x, j) => { const p = x.card.querySelector('.cat-pct'); if (p) p.textContent = exacts[j].toFixed(0) + '%'; });
+    } else {
+      const bas = exacts.map(Math.floor);
+      let reste = 100 - bas.reduce((s2, x) => s2 + x, 0);
+      exacts.map((x, j) => ({ j, frac: x - Math.floor(x) })).sort((p2, q2) => q2.frac - p2.frac)
+        .forEach(o => { if (reste > 0) { bas[o.j] += 1; reste -= 1; } });
+      visibles.forEach((x, j) => { const p = x.card.querySelector('.cat-pct'); if (p) p.textContent = bas[j] + '%'; });
+    }
+  }
 }
 
 function renderExpandSubs(state, view, options = {}) {
@@ -502,7 +514,7 @@ function renderExpandSubs(state, view, options = {}) {
 
   // ── Titre dynamique du bloc #catNav ──
   const catH2 = document.querySelector('#catNav > h2');
-  if (catH2) catH2.textContent = strict ? 'Patrimoine par Catégorie — Amine' : 'Patrimoine par Categorie';
+  if (catH2) catH2.textContent = strict ? 'Patrimoine par Catégorie — Amine' : 'Patrimoine par Catégorie';
 
   // Sub expand card values
   setEur('subIBKR', s.amine.ibkrForActions);
@@ -1068,10 +1080,11 @@ function renderCoupleTable(state) {
   const p = state.portfolio;
   const rows = [
     ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkrForActions + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm],
-    ['Cash EUR (Nezha France + Revolut Amine)', s.nezha.cashFrance + s.amine.revolutEUR],
+    ['Cash EUR (Nezha France + Revolut + Banque Populaire Amine)', s.nezha.cashFrance + s.amine.revolutEUR + (s.amine.banquePopulaire || 0)], // v480 (audit BI) : BP manquait — écart hero/tableau
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash + s.nezha.brokerCash],
+    ['Binance USDT (Amine)', s.amine.binanceUSDT || 0], // v480 (audit BI) : manquait — écart hero/tableau
     ['\u00c9quit\u00e9 immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['\u00c9quit\u00e9 immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
     ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
@@ -1365,13 +1378,19 @@ export function applySnapshotDeltas(s) {
       const ligneRef = refLigne;
       const d = s.couple.nw - ligneRef.data.total.couple;
       const pct = d / Math.abs(ligneRef.data.total.couple) * 100;
-      const couleur = d >= 0 ? '#16a34a' : '#dc2626';
+      const couleur = d >= 0 ? '#15803d' : '#dc2626';
       const signe = d >= 0 ? '+' : '';
       dst.innerHTML = '<span style="color:' + couleur + ';">' + signe + fmt(d) + '</span>'
         + ' <span style="font-size:13px;color:' + couleur + ';">(' + signe + pct.toFixed(1) + '%)</span>';
       const ctx = dst.nextElementSibling;
       if (ctx) ctx.textContent = 'depuis le ' + ligneRef.date.slice(8, 10) + '/' + ligneRef.date.slice(5, 7) + '/' + ligneRef.date.slice(0, 4)
         + (ligne ? '' : ' — début du suivi live');
+      // v480 (audit BI) — le TITRE de la tuile ment quand la fenêtre est partielle
+      // (« Croissance — 1 an » sur 6 semaines de données) : le retitrer honnêtement.
+      if (!ligne) {
+        const titreEl = dst.previousElementSibling;
+        if (titreEl) titreEl.textContent = 'Croissance — depuis le suivi';
+      }
     };
     remplirCroissance('ckpD30', 30);
     remplirCroissance('ckpD365', 365);
@@ -1391,14 +1410,48 @@ export function applySnapshotDeltas(s) {
       if (!ref || ref.date >= todayParis) { dst2.textContent = prefixe + ' —'; return; }
       const d2 = s.couple.nw - ref.data.total.couple;
       const pct2 = d2 / Math.abs(ref.data.total.couple) * 100;
-      const coul2 = d2 >= 0 ? '#16a34a' : '#dc2626';
+      const coul2 = d2 >= 0 ? '#15803d' : '#dc2626';
       const s2 = d2 >= 0 ? '+' : '';
-      dst2.innerHTML = prefixe + ' <span style="color:' + coul2 + ';font-weight:600;">' + s2 + fmt(d2)
+      // v480 (audit BI) — étiquette HONNÊTE : tant que l'historique ne couvre pas la
+      // période demandée, on n'affiche pas « YTD »/« MTD » (le chiffre serait mémorisé
+      // comme un vrai YTD) mais « Suivi dep. JJ/MM ». Converge seul avec l'historique.
+      dst2.innerHTML = (debutSuivi ? 'Suivi' : prefixe) + ' <span style="color:' + coul2 + ';font-weight:600;">' + s2 + fmt(d2)
         + ' (' + s2 + pct2.toFixed(1) + '%)</span>'
-        + (debutSuivi ? ' <span style="color:#718096;">dep. ' + ref.date.slice(8, 10) + '/' + ref.date.slice(5, 7) + '</span>' : '');
+        + (debutSuivi ? ' <span style="color:#4a5568;">dep. ' + ref.date.slice(8, 10) + '/' + ref.date.slice(5, 7) + '</span>' : '');
     };
     remplirPeriode('kpiCoupleNWMTD', todayParis.slice(0, 8) + '01', 'MTD');
     remplirPeriode('kpiCoupleNWYTD', todayParis.slice(0, 4) + '-01-01', 'YTD');
+
+    // v480 (audit BI) — « qu'est-ce qui a bougé » PARTOUT : deltas vs base sur les
+    // 4 cartes catégories (views du snapshot) et sur l'équité immo du Résumé.
+    try {
+      const bVues = base.data.views && base.data.views.couple;
+      const cartesCat = document.querySelectorAll('#catGrid .cat-card');
+      if (bVues && cartesCat.length >= 4 && s.views && s.views.couple) {
+        ['stocks', 'cash', 'immo', 'other'].forEach((k, i) => {
+          const carte = cartesCat[i];
+          if (!carte) return;
+          let chip = carte.querySelector('.cat-delta');
+          if (!chip) {
+            chip = document.createElement('div');
+            chip.className = 'cat-delta';
+            chip.style.cssText = 'font-size:10.5px;font-weight:600;margin-top:2px;';
+            const amt = carte.querySelector('.cat-amount');
+            if (amt) amt.insertAdjacentElement('afterend', chip); else carte.appendChild(chip);
+          }
+          const cur = s.views.couple[k] && s.views.couple[k].val;
+          const bas = bVues[k];
+          if (typeof cur === 'number' && typeof bas === 'number' && bas && Math.abs(cur - bas) >= 1) {
+            const dC = cur - bas;
+            chip.style.color = dC >= 0 ? '#15803d' : '#dc2626';
+            chip.textContent = (dC >= 0 ? '+' : '') + fmt(dC) + ' ' + label;
+          } else { chip.textContent = ''; }
+        });
+      }
+      if (base.data.immo && typeof base.data.immo.equityNet === 'number') {
+        apply('kpiImmoEq', s.couple.immoEquity, base.data.immo.equityNet);
+      }
+    } catch (eCat) { /* non-bloquant */ }
   } catch (e) { /* non-bloquant */ }
 }
 
@@ -1412,7 +1465,7 @@ function setDelta(id, deltaVal, deltaPct, timeframe) {
   const span = document.createElement('span');
   span.className = 'kpi-delta';
   const sign = deltaVal >= 0 ? '+' : '';
-  const color = deltaVal >= 0 ? '#16a34a' : '#dc2626';
+  const color = deltaVal >= 0 ? '#15803d' : '#dc2626';
   span.textContent = sign + fmt(deltaVal) + ' (' + sign + deltaPct.toFixed(1) + '%) ' + timeframe;
   span.style.cssText = 'display:block;font-size:11px;font-weight:500;margin-top:2px;color:' + color + ';';
   el.insertAdjacentElement('afterend', span);
@@ -2052,7 +2105,7 @@ function renderActionsView(state) {
       let html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px;">';
       for (const p of top) {
         const pos = p.dailyPL >= 0;
-        const coul = pos ? '#16a34a' : '#dc2626';
+        const coul = pos ? '#15803d' : '#dc2626';
         const pct = p.valEUR - p.dailyPL !== 0 ? (p.dailyPL / Math.abs(p.valEUR - p.dailyPL) * 100) : 0;
         html += '<div style="flex:1;min-width:130px;background:' + (pos ? 'rgba(22,163,74,.06)' : 'rgba(220,38,38,.06)')
           + ';border:1px solid ' + (pos ? 'rgba(22,163,74,.25)' : 'rgba(220,38,38,.25)')
@@ -4643,8 +4696,8 @@ function renderImmoView(state) {
         + ' onclick="var d=this.nextElementSibling;d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.lmp-arrow\').textContent=d.style.display===\'none\'?\'▸\':\'▾\'">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;">'
         + '<div style="font-size:13px;color:#1e40af;">'
-        + '<strong>Seuil LMP</strong> — Rueil seul: <span style="color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(rueilLoyer)) + '€/an (' + (isRueilAloneLMP ? 'LMP' : 'LMNP') + ')</span> · '
-        + 'Après Villejuif: <span style="color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + '">' + fmt(Math.round(totalLoyerAnnuel)) + '€/an ' + (isCombinedLMP ? '→ LMP auto' : '') + '</span>'
+        + '<strong>Seuil LMP</strong> — Rueil seul: <span style="color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + '">' + fmt(Math.round(rueilLoyer)) + '€/an (' + (isRueilAloneLMP ? 'LMP' : 'LMNP') + ')</span> · '
+        + 'Après Villejuif: <span style="color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + '">' + fmt(Math.round(totalLoyerAnnuel)) + '€/an ' + (isCombinedLMP ? '→ LMP auto' : '') + '</span>'
         + '</div>'
         + '<span class="lmp-arrow" style="color:#1e40af;font-size:14px;">▸</span>'
         + '</div>'
@@ -4658,13 +4711,13 @@ function renderImmoView(state) {
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
         + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
         + '<div style="font-size:11px;color:#1e40af;">Aujourd\'hui (Rueil seul)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#16a34a') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
+        + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
+        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
         + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
         + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2028)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#16a34a') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
+        + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
+        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
         + '</div>'
         + '</div>'
         + '<div style="font-size:12px;color:#1e3a5f;">'
@@ -4672,8 +4725,8 @@ function renderImmoView(state) {
         + '<ul style="margin:6px 0;padding-left:20px;">'
         + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le b\u00e9n\u00e9fice net (vs 17.2% PS en LMNP)</li>'
         + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> m\u00eame pour non-r\u00e9sident</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">D\u00e9ficit imputable</span> sur le revenu global (avantage)</li>'
-        + '<li><span style="color:#16a34a;font-weight:600;">PV professionnelle</span> : exon\u00e9ration totale si >5 ans ET CA <90K\u20ac</li>'
+        + '<li><span style="color:#15803d;font-weight:600;">D\u00e9ficit imputable</span> sur le revenu global (avantage)</li>'
+        + '<li><span style="color:#15803d;font-weight:600;">PV professionnelle</span> : exon\u00e9ration totale si >5 ans ET CA <90K\u20ac</li>'
         + '</ul>'
         + '</div>'
         + '<div style="background:#e0e7ff;border-radius:6px;padding:10px;font-size:11px;color:#312e81;margin-top:8px;">'
@@ -4743,7 +4796,7 @@ function renderImmoView(state) {
           + '</tr>'
           + '<tr style="background:#fef9c3;">'
           + '<td style="padding:8px;text-align:left;font-weight:600;">Net après impôt</td>'
-          + '<td style="padding:8px;text-align:right;font-weight:600;color:#16a34a;">' + fmt(Math.round(netAfterTaxLMNP)) + '€</td>'
+          + '<td style="padding:8px;text-align:right;font-weight:600;color:#15803d;">' + fmt(Math.round(netAfterTaxLMNP)) + '€</td>'
           + '<td style="padding:8px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(Math.round(netAfterTaxLMP)) + '€</td>'
           + '</tr>'
           + '</table>'
@@ -4834,8 +4887,8 @@ function renderImmoView(state) {
               + '<td style="padding:4px;text-align:center;font-size:10px;">' + detentionStr + '</td>'
               + '<td style="padding:4px;text-align:right;font-size:10px;">' + fmt(Math.round(pvBruteLMNP)) + '€</td>'
               + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:#dc2626;">' + fmt(taxLMNP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (taxLMP === 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(taxLMP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (difference >= 0 ? '#16a34a' : '#dc2626') + ';">' + fmt(difference) + '€</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (taxLMP === 0 ? '#15803d' : '#dc2626') + ';">' + fmt(taxLMP) + '€</td>'
+              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (difference >= 0 ? '#15803d' : '#dc2626') + ';">' + fmt(difference) + '€</td>'
               + '</tr>';
           }
 
@@ -7137,7 +7190,9 @@ function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   const data = rows.map(([label, val]) => { total += val; return { label, val, cond: label.includes('conditionnel') }; });
   // v359 — garde-fou render (BUG-064) : la somme des lignes doit égaler le NW autoritatif.
   // Attrape tout compte ajouté au NW mais oublié dans la liste des lignes de la table (haut ≠ bas).
+  let desyncNW = null;
   if (nwTotal != null && Math.abs(total - nwTotal) > 2) {
+    desyncNW = nwTotal - total;
     console.warn('[render] ⚠ desync table « ' + totalLabel + ' » : Σlignes ' + Math.round(total) + ' ≠ NW ' + Math.round(nwTotal) + ' (écart ' + Math.round(total - nwTotal) + '€ — compte manquant dans les lignes ?)');
   }
   const absTotal = Math.abs(nwTotal || total);
@@ -7154,6 +7209,13 @@ function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   totalRow.style.fontWeight = '700'; totalRow.style.background = '#edf2f7';
   totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td><td class="num"><strong>100%</strong></td>';
   tbody.appendChild(totalRow);
+  // v480 (audit BI) — l'invariant descend À L'ÉCRAN : un écart Σlignes vs NW n'est plus
+  // un warn console que personne ne lit, c'est une ligne rouge dans la table.
+  if (desyncNW != null) {
+    const trDesync = document.createElement('tr');
+    trDesync.innerHTML = '<td colspan="3" style="color:#b91c1c;font-size:11px;background:#fef2f2;padding:6px 8px;">\u26a0 \u00c9cart avec le NW autoritatif : ' + fmt(desyncNW) + ' \u2014 un compte manque dans ces lignes (invariant v480)</td>';
+    tbody.appendChild(trDesync);
+  }
 }
 
 /**
@@ -7551,7 +7613,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=479').then(m => {
+  import('./charts.js?v=480').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7811,7 +7873,7 @@ function renderDecisionCockpit(state) {
   html += tuile('Croissance — 1 an', attente, 'depuis les snapshots quotidiens', 'ckpD365');
   if (cf && typeof cf.netSavings === 'number') {
     const n = cf.netSavings;
-    const couleur = n >= 0 ? '#16a34a' : '#dc2626';
+    const couleur = n >= 0 ? '#15803d' : '#dc2626';
     const signe = n >= 0 ? '+' : '';
     html += tuile('Épargne nette / mois',
       '<span style="color:' + couleur + ';">' + signe + fmt(n) + '</span>',
@@ -7859,7 +7921,7 @@ function renderTopMoversCouple(state) {
     + '<span style="font-size:11.5px;color:#718096;">Aujourd\u2019hui :</span>';
   for (const p of top) {
     const pos = p.dailyPL >= 0;
-    const coul = pos ? '#16a34a' : '#dc2626';
+    const coul = pos ? '#15803d' : '#dc2626';
     html += '<span style="font-size:12px;padding:3px 10px;border-radius:999px;background:'
       + (pos ? 'rgba(22,163,74,.07)' : 'rgba(220,38,38,.07)') + ';border:1px solid '
       + (pos ? 'rgba(22,163,74,.25)' : 'rgba(220,38,38,.25)') + ';color:#1a202c;">'
@@ -7868,6 +7930,33 @@ function renderTopMoversCouple(state) {
   }
   html += '<a href="#actions" style="font-size:11.5px;color:var(--accent,#3182ce);margin-left:4px;">toutes les positions \u2192</a></div>';
   el.innerHTML = html;
+}
+
+// v480 (audit BI) — clôture de page : la TRAJECTOIRE, pas un footer de taux de change.
+// Même moteur que les pills +5A/+20A du graphe (projectNW, médiane p50) : prochains caps
+// ronds et leur date projetée. Peak-end : on termine sur où l'on va.
+function renderTrajectoireCouple(state) {
+  const el = document.getElementById('trajectoireCouple');
+  if (!el) return;
+  try {
+    const proj = projectNW(state, { horizonMois: 120 });
+    const nw = state.couple.nw;
+    const MOIS_FR = ['janv.', 'f\u00e9vr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'ao\u00fbt', 'sept.', 'oct.', 'nov.', 'd\u00e9c.'];
+    const lib = (iso) => MOIS_FR[parseInt(iso.slice(5, 7), 10) - 1] + ' ' + iso.slice(0, 4);
+    const fmtCap = (cap) => cap >= 1e6 ? (cap / 1e6).toLocaleString('fr-FR') + ' M\u20ac' : Math.round(cap / 1000) + ' K\u20ac';
+    const cibles = [];
+    const prochain = Math.ceil((nw + 1) / 50000) * 50000;
+    [prochain, 1000000, 1500000].forEach(cap => {
+      if (cap <= nw || cibles.some(x => x.cap === cap)) return;
+      const i = proj.couple.p50.findIndex(v2 => v2 >= cap);
+      if (i > 0) cibles.push({ cap, iso: proj.mois[i] });
+    });
+    if (!cibles.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="margin:18px 0 6px;padding:14px 18px;background:var(--surface,#fff);border:1px solid var(--border,#e7e5e4);border-radius:12px;font-size:13.5px;color:#2d3748;">'
+      + '<span style="font-weight:700;">Trajectoire</span> \u00b7 '
+      + cibles.map(x => '<strong>' + fmtCap(x.cap) + '</strong> ~' + lib(x.iso)).join(' \u00b7 ')
+      + ' <span style="font-size:11px;color:#4a5568;">(m\u00e9diane p50, m\u00eames hypoth\u00e8ses que le graphe +5A : actions 7 %/an, immo par phases, contributions 8 K \u00d7 36 mois)</span></div>';
+  } catch (e) { el.innerHTML = ''; }
 }
 
 function renderPerfClasses(state) {
@@ -7879,7 +7968,7 @@ function renderPerfClasses(state) {
   const fin = Number.isFinite;
   const eur = (n) => (n >= 0 ? '+' : '') + fmt(n);
   const pctT = (n, d) => (n >= 0 ? '+' : '') + n.toFixed(d == null ? 1 : d) + '%';
-  const coul = (n) => n >= 0 ? '#16a34a' : '#dc2626';
+  const coul = (n) => n >= 0 ? '#15803d' : '#dc2626';
 
   // mini-KPI : libelle (avec periode) au-dessus, valeur coloree en dessous
   const kpi = (libelle, valeurHtml) =>
@@ -7937,9 +8026,14 @@ function renderPerfClasses(state) {
 
   el.innerHTML = '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Bon investissement ? \u2014 performance par classe</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">'
-    + carte('Actions & crypto', av.totalStocks, kActions, 'Latent = P&L vs ' + fmt(av.totalDeposits || 0) + ' d\u00e9ploy\u00e9s \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
+    // v480 (audit BI) — SOURCE UNIQUE : la carte affiche le même total que le treemap
+    // et le tableau (views.couple.stocks) ; le cash courtiers est classé en Cash, dit
+    // explicitement (l'ancien av.totalStocks l'incluait → deux « Actions » divergents).
+    + carte('Actions & crypto', vues.couple && vues.couple.stocks ? vues.couple.stocks.val : av.totalStocks, kActions,
+      'hors cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ', class\u00e9 en Cash) \u00b7 Latent = P&L vs ' + fmt(av.totalDeposits || 0) + ' d\u00e9ploy\u00e9s \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
     + carte('Immobilier (\u00e9quit\u00e9)', equite, kImmo, noteImmo)
-    + carte('Cash', cv.totalCash, kCash, 'moyenne pond\u00e9r\u00e9e \u00b7 r\u00e9el = apr\u00e8s ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation')
+    + carte('Cash', vues.couple && vues.couple.cash ? vues.couple.cash.val : cv.totalCash, kCash,
+      'p\u00e9rim\u00e8tre treemap, incl. cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ') \u00b7 rendement : moyenne pond\u00e9r\u00e9e \u00b7 r\u00e9el = apr\u00e8s ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation')
     + '</div>';
 }
 
@@ -7979,7 +8073,9 @@ function renderAlertsPanel(state) {
     items.forEach(a => {
       let b = '<div style="display:flex;gap:12px;padding:10px 12px;margin-top:8px;background:' + meta.bg + ';border-left:3px solid ' + meta.border + ';border-radius:6px;align-items:flex-start;">';
       b += '<div style="flex:1;font-size:13px">';
-      b += '<div style="font-weight:600;color:' + meta.border + ';margin-bottom:2px">' + a.title + '</div>';
+      b += '<div style="font-weight:600;color:' + meta.border + ';margin-bottom:2px">' + a.title
+        + (a.owner ? ' <span style="font-size:10px;background:rgba(0,0,0,0.07);color:#4a5568;padding:1px 6px;border-radius:4px;vertical-align:middle;">' + a.owner + '</span>' : '')
+        + '</div>';
       b += '<div style="color:var(--text-muted);font-size:12px;line-height:1.5">' + a.msg + '</div>';
       b += '</div>';
       if (a.action && a.view) {
@@ -8118,7 +8214,7 @@ function renderPlanFiscalView(state) {
           + '<thead><tr><th>Taux crédit</th><th class="num">Solvabilité acheteur</th><th class="num">Prix (élasticité 5,5%/pt)</th><th class="num">Valeur 3 biens</th><th class="num">Impact équité</th></tr></thead><tbody>';
         st.scenarios.forEach(sc => {
           const s2 = sc.dTaux > 0 ? '+' : '';
-          const cPrix = sc.dPrix >= 0 ? '#16a34a' : '#dc2626';
+          const cPrix = sc.dPrix >= 0 ? '#15803d' : '#dc2626';
           html += '<tr><td><strong>' + s2 + sc.dTaux + ' pt</strong></td>'
             + '<td class="num">' + (sc.dSolvabilite >= 0 ? '+' : '') + (sc.dSolvabilite * 100).toFixed(1) + '%</td>'
             + '<td class="num" style="color:' + cPrix + ';">' + (sc.dPrix >= 0 ? '+' : '') + (sc.dPrix * 100).toFixed(1) + '%</td>'

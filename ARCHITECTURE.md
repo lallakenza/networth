@@ -4913,6 +4913,21 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## v480 (28 août 2026) — refonte page d'accueil (audit BI dual-agent) : cartes/graphes en haut, texte en bas, un fait = un chiffre
+
+Audit impeccable (dual-agent) + grille BI skills.sh, 10 améliorations livrées. Réorganisation
+vue couple : hero → cockpit → movers → perf-classes → graphe NW → treemap → catégories →
+Résumé immo, puis ZONE TEXTE (Synthèse & actions, Constats, Détail consolidé en accordéon
+`secConsolide` avec rebuild du graphe d'allocation), simulateur, et TRAJECTOIRE de clôture
+(`renderTrajectoireCouple` via projectNW : prochains caps + dates p50). Comptabilité : BUG-093
+(BP + Binance manquants au tableau, écart 5 209 €) + invariant Σ=NW À L'ÉCRAN + perf-classes
+sur source unique views.couple (périmètre cash courtiers écrit) + % catégories en largest
+remainder (=100). Honnêteté : « YTD/MTD » → « Suivi dep. JJ/MM » tant que l'historique ne
+couvre pas ; tuile « Croissance — 1 an » retitrée en fenêtre partielle. Contraste : verts
+deltas #16a34a → #15803d (3,3:1 → ~5:1, AA). Deltas « vs hier » étendus aux 4 cartes
+catégories + équité immo. Badge owner (A/N) sur les alertes créances. Hygiène : accents,
+data-eur morts, note Villejuif à gauche, #insight-couple supprimé.
+
 ## v479 (27 août 2026) — graphe NW fusionné : historique + projection ancrée (bande p10-p90)
 
 `projectNW(state, hyp)` (engine, exporté) : prolonge le NW réel du jour PAR DELTAS mensuels
