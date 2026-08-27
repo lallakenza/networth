@@ -4913,6 +4913,16 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## Migration données (27 août 2026) — révision RÉTROACTIVE de l'immo dans nw_snapshots
+
+660 lignes réécrites (demande Amine, backup intégral : `~/networth_nw_snapshots_backup_20260827.json`).
+Règles : **Vitry 280 000 flat depuis la livraison** (07/2025, DVF 2025 ≈ 4 180 €/m² ; remplace
+293 000 → 300 000 → 303 266) ; **Rueil trajectoire composée 240 000 (acte 11/2019) → 256 500
+(08/2026), 0,981 %/an** (remplace l'ancienne courbe 240 → 281,7 K). Cascade : equityGross ±Δ,
+equityNet = max(0, net+Δ) quand présent, totaux par les règles d'époque (backfill v449 :
+`vitry=0` dans les totaux → Δ rueil seul ; live : Δ net vitry + Δ rueil), views immo/nwRef.
+Vérifié : 26/08 live couple 770 479 → 741 972 ; backfill 05/2026 tr_couple −24 287 (rueil seul) ✓.
+
 ## v478 (27 août 2026) — projections immo recalées sur les mesures du 27/08
 
 Phases d'appréciation recalibrées : Vitry 0 % 2026-27 (94 en baisse −0,4 %, ~4 800 logements
