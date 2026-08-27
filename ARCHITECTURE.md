@@ -4913,6 +4913,18 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## v478 (27 août 2026) — projections immo recalées sur les mesures du 27/08
+
+Phases d'appréciation recalibrées : Vitry 0 % 2026-27 (94 en baisse −0,4 %, ~4 800 logements
+concurrents ZAC, M15 reportée automne 2027) → 1,5 % 2028-29 → 2 % 2030-34 → 1,5 % (lissé
+1,45 %) ; Rueil 1 % 2026-29 (92 seul département en hausse) → 1,5 % 2030-40 (L15 Ouest, lissé
+1,35 %) ; Villejuif inchangé. Table « Projection frais de sortie par année » : prix de vente
+désormais PROJETÉ par les phases (colonne dédiée) au lieu d'un prix constant ; note DMTO 5 %
+(92/94, fenêtre → 31/03/2028). Clause anti-spéculative VITRY (fin 16/01/2028) modélisée dans
+computeExitCosts (même mécanique ICC que SADEV Villejuif — inopérante au prix DVF, datée dans
+les projections). Jalons timeline : M15 Ardoines automne 2027 (Vitry), L15 Villejuif recalée
+2027-10, L15 Ouest Rueil-Suresnes 2030-2032. Supabase appreciation synchronisée.
+
 ## v477 (27 août 2026) — révision des valorisations (analyses Notion 27/08) + fiscalité de sortie non-résident
 
 Arbitrages d'Amine sur les analyses du 27/08 (DVF Vitry 2 665 mutations + audit facteurs

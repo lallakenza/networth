@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=477';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=477';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=478';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo } from './engine.js?v=478';
 
 // ---- Generic table sort utility ----
 /**
@@ -6311,9 +6311,25 @@ function renderAptView(state, loanKey) {
   // par l'engine (computeExitCostsAtYear) : abattements datés, IRA, TVA, clause SADEV.
   const saleBase = Math.round(prop.deliveredValue || prop.value);
   const estVEFA = !!prop.conditional;
+  // v478 — le prix de vente simulé ÉVOLUE selon les phases d'appréciation du bien
+  // (recalées le 27/08/2026 sur DVF + notaires + calendrier M15), au lieu d'un prix constant.
+  const _phasesProj = meta.appreciationPhases || [];
+  const _rateProj = (y) => {
+    for (const ph of _phasesProj) { if (y >= ph.start && y <= ph.end) return ph.rate || 0; }
+    return meta.appreciation || 0;
+  };
+  const _anneeActuelle = new Date().getFullYear();
+  const prixProjete = (yr) => {
+    let v = saleBase;
+    for (let y = _anneeActuelle; y < yr; y++) v *= 1 + _rateProj(y);
+    return Math.round(v);
+  };
   html += '<p style="font-size:11px;color:#718096;margin:0 0 12px;">Simulation de la vente '
     + (estVEFA ? 'à la valeur livrée estimée (' : 'au prix actuel (') + fmt(saleBase)
-    + ') à différentes dates — prix constant, seuls les frais varient. Les abattements PV augmentent avec la durée de détention.</p>';
+    + ' aujourd\'hui), <strong>prix projeté selon les phases d\'appréciation du bien</strong> ('
+    + _apprLabel(prop) + ' — recalées 27/08/2026 : DVF, conjoncture notaires 92/94, calendrier M15). '
+    + 'Les abattements PV augmentent avec la durée de détention ; chaque clause (TVA, anti-spéculation, SADEV, représentant fiscal) s\'éteint à sa date propre.'
+    + '<br>Note : DMTO à 5 % dans le 92/94 jusqu\'au 31/03/2028 (LF 2026) — côté acquéreur, ≈ −0,5 pt de net vendeur sur cette fenêtre, non modélisé.</p>';
 
   const purchasePrice = prop.purchasePrice || meta.purchasePrice || meta.totalOperation || saleBase;
   const schedRows = (state.immoView.amortSchedules[loanKey] || {}).schedule || [];
@@ -6330,8 +6346,8 @@ function renderAptView(state, loanKey) {
 
   const showTVACol = loanKey === 'vitry'; // TVA clawback only applies to Vitry
   const showSADEVCol = loanKey === 'villejuif'; // clause de restitution SADEV 94
-  html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.8rem;width:100%;min-width:720px;">'
-    + '<thead><tr><th>Année</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
+  html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.8rem;width:100%;min-width:780px;">'
+    + '<thead><tr><th>Année</th><th class="num">Prix projeté</th><th class="num">Détention</th><th class="num">Abatt. IR</th><th class="num">Abatt. PS</th>'
     + '<th class="num">Taxe PV</th>' + (showTVACol ? '<th class="num">TVA claw.</th>' : '') + (showSADEVCol ? '<th class="num">Restit. SADEV</th>' : '')
     + '<th class="num">CRD</th><th class="num" style="color:#c53030;">Total frais</th><th class="num" style="color:#276749;">Equity nette</th></tr></thead><tbody>';
 
@@ -6339,10 +6355,12 @@ function renderAptView(state, loanKey) {
     const holdYears = Math.max(0, (yr - py2) + (6 - pm2) / 12);  // approx mid-year (affichage)
     const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
     const crd = crdAtYear(yr);
-    const exitSim = computeExitCostsAtYear(loanKey, yr, saleBase, purchasePrice, crd, totalAmort);
+    const prixYr = prixProjete(yr);
+    const exitSim = computeExitCostsAtYear(loanKey, yr, prixYr, purchasePrice, crd, totalAmort);
     const neColor = exitSim.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
     html += '<tr>'
       + '<td><strong>' + yr + '</strong></td>'
+      + '<td class="num">' + fmt(prixYr) + '</td>'
       + '<td class="num">' + Math.floor(holdYears) + ' ans</td>'
       + '<td class="num">' + Math.round(exitSim.abattementIR * 100) + '%</td>'
       + '<td class="num">' + Math.round(exitSim.abattementPS * 100) + '%</td>'
@@ -7533,7 +7551,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=477').then(m => {
+  import('./charts.js?v=478').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

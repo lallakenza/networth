@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=477';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS } from './data.js?v=478';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2553,6 +2553,24 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
       result.restitutionSADEV = Math.max(0, Math.round(
         salePrice - prixIndexe - fraisAcquisition - result.totalTaxPV
       ));
+    }
+  }
+
+  // v478 — clause anti-spéculative VITRY (acte 16/01/2023, 5 ans → 16/01/2028) : même
+  // mécanique de restitution (plus-value au-delà du prix d'acquisition indexé ICC).
+  // Aujourd'hui inopérante (280 K DVF < prix indexé ~292 K) mais datée correctement
+  // dans les projections de vente antérieures à 2028.
+  if (loanKey === 'vitry' && EXIT_COSTS.vitry && EXIT_COSTS.vitry.clauseAntiSpec) {
+    const clV = EXIT_COSTS.vitry.clauseAntiSpec;
+    const moisVenteV = targetDate
+      ? (targetDate instanceof Date
+        ? targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0')
+        : String(targetDate).slice(0, 7))
+      : new Date().toISOString().slice(0, 7);
+    if (clV.dateFin && moisVenteV < clV.dateFin) {
+      result.clauseSADEVActive = true;   // clause en vigueur, même si la restitution ressort à 0
+      const prixIndexeV = purchasePrice * Math.pow(1 + (clV.iccAnnuelHypothese || 0.02), Math.max(0, holdingYears));
+      result.restitutionSADEV = Math.max(0, Math.round(salePrice - prixIndexeV - fraisAcquisition - result.totalTaxPV));
     }
   }
 
