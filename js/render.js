@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=483';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=483';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=484';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=484';
 
 // ---- Generic table sort utility ----
 /**
@@ -1085,6 +1085,7 @@ function renderCoupleTable(state) {
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash + s.nezha.brokerCash],
     ['Binance USDT (Amine)', s.amine.binanceUSDT || 0], // v480 (audit BI) : manquait — écart hero/tableau
+    ['Cash sociétés (iBanq Bairok + Wise Bridgevale)', (s.amine.ibanqBairok || 0) + (s.amine.bridgevaleWise || 0)], // v484
     ['\u00c9quit\u00e9 immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['\u00c9quit\u00e9 immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
     ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
@@ -1114,6 +1115,8 @@ function renderAmineTable(state) {
     ['Revolut EUR', s.amine.revolutEUR],
     ['Banque Populaire', s.amine.banquePopulaire || 0],
     ['Binance USDT', s.amine.binanceUSDT || 0],
+    ['iBanq (Bairok Consulting)', s.amine.ibanqBairok || 0],
+    ['Wise (Bridgevale Consulting)', s.amine.bridgevaleWise || 0],
     ['Cash Maroc (' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.amine.moroccoCash],
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash],
     ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
@@ -7613,7 +7616,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=483').then(m => {
+  import('./charts.js?v=484').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

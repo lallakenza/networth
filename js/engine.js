@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=483';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=484';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1637,6 +1637,8 @@ function computeCashView(portfolio, fx) {
     { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
     { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine' },
+    { label: 'iBanq (Bairok)', native: p.amine.uae.ibanqBairok || 0, currency: 'EUR', yield: 0, owner: 'Amine' },  // v484
+    { label: 'Wise (Bridgevale)', native: p.amine.uae.bridgevaleWise || 0, currency: 'EUR', yield: 0, owner: 'Amine' },  // v484
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Banque Populaire', native: p.amine.uae.banquePopulaire || 0, currency: 'EUR', yield: CASH_YIELDS.banquePopulaire || 0, owner: 'Amine' },
     { label: 'Binance USDT', native: p.amine.uae.binanceUSDT || 0, currency: 'USD', yield: CASH_YIELDS.binanceUSDT || 0, owner: 'Amine' },
@@ -4017,6 +4019,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // v354 — nouveaux comptes : Banque Populaire (EUR) + Binance USDT (stablecoin ≈ USD)
   const amineBanquePopulaire = p.amine.uae.banquePopulaire || 0;                       // EUR
   const amineBinanceUSDT = toEUR(p.amine.uae.binanceUSDT || 0, 'USD', fx);             // USDT ≈ USD
+  // v484 — comptes sociétés (EUR) : iBanq (Bairok Consulting LLC) + Wise (Bridgevale Consulting UK)
+  const amineIbanqBairok = p.amine.uae.ibanqBairok || 0;
+  const amineBridgevale = p.amine.uae.bridgevaleWise || 0;
   // Weighted average yield for Cash UAE bucket (AED accounts only)
   const amineUaeYield = amineUae > 0
     ? (toEUR(p.amine.uae.mashreq, 'AED', fx) * CASH_YIELDS.mashreq
@@ -4108,7 +4113,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // Cash includes brokerage cash (EUR+USD from IBKR + ESPP) for consistency with cash view
   // Excludes IBKR JPY carry trade (stays with Actions as investment position)
   const amineBrokerCash = amineIbkrCashForCash + amineEsppCash;
-  const amineCashTotal = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash + amineBrokerCash; // v354 — + BP + Binance
+  const amineCashTotal = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash + amineBrokerCash; // v354 + BP/Binance ; v484 + iBanq/Bridgevale
   // Actions = positions-only (broker cash reclassified to Cash above)
   // Math: ibkrForActions + esppShares + cashTotal_new = ibkr + espp + cashTotal_old (identical NW)
   const amineTotalAssets = amineIbkrForActions + amineEsppShares + amineCashTotal + amineSgtm
@@ -4146,6 +4151,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     uaeAED: amineUaeAED,
     revolutEUR: amineRevolutEUR,
     banquePopulaire: amineBanquePopulaire, // v359 — exposé pour la table détail Amine
+    ibanqBairok: amineIbanqBairok,          // v484 — exposé pour les tables détail
+    bridgevaleWise: amineBridgevale,        // v484
     binanceUSDT: amineBinanceUSDT,         // v359
     moroccoCash: amineMoroccoCash,
     moroccoMAD: amineMoroccoMAD,
@@ -4366,7 +4373,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const actionsPool = amineIbkr + amineEspp + amineSgtm; // amineIbkr inclut le cash courtier (EUR/USD/JPY/AED)
   // v359 — cash externe (banques/exchange), hors cash courtier qui est dans actionsPool.
   //   + Banque Populaire + Binance USDT (oubliés → pool cash du simulateur sous-évalué de ~5 250€).
-  const cashPool = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash;
+  const cashPool = amineUae + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash; // v484 + comptes sociétés
   const totalLiquid = actionsPool + cashPool;
   const pctActions = totalLiquid > 0 ? Math.round(actionsPool / totalLiquid * 100) : 0;
 
@@ -4437,7 +4444,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       // The parent `amineUae` / `amineCashTotal` (line 3655) already sums it without guard, so dropping
       // it here when negative broke the treemap invariant (stocks + cash + immo + other = nwRef).
       // wioCurrent is 371 AED today (positive), so this is a safety fix for overdraft scenarios.
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash
         + amineBrokerCash + nezhaBrokerCash
         + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0) + nezhaCashMarocEUR + nezhaCashUAE_EUR,
       sub: [
@@ -4456,6 +4463,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
         ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire (Amine)', val: amineBanquePopulaire, color: '#f472b6', owner: 'Amine — 0%' }] : []), // v359 — était dans le total, manquait aux sous-items
         ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT (Amine)', val: amineBinanceUSDT, color: '#f59e0b', owner: 'Amine — 0%' }] : []), // v359
+        ...(amineIbanqBairok > 0 ? [{ label: 'iBanq (Bairok)', val: amineIbanqBairok, color: '#fb923c', owner: 'Amine — 0%' }] : []), // v484
+        ...(amineBridgevale > 0 ? [{ label: 'Wise (Bridgevale)', val: amineBridgevale, color: '#fdba74', owner: 'Amine — 0%' }] : []), // v484
       ]
     },
     {
@@ -4577,7 +4586,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       // BUG-047 (v297): include wioCurrent unconditionally — same rationale as couple view above
       // v359 (BUG-064): + Banque Populaire + Binance USDT — étaient dans le NW et la vue couple
       //   mais oubliés ici → Σ catégories Amine < amine.nw de ~5 250€ (top vs bas de page).
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineMoroccoCash + amineBrokerCash,
+      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash + amineBrokerCash, // v484 + sociétés
       sub: [
         ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: '0%' }] : []),
         ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
@@ -4586,6 +4595,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: '#f87171', owner: '0%' }] : []),
         ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire', val: amineBanquePopulaire, color: '#f472b6', owner: '0%' }] : []),
         ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT', val: amineBinanceUSDT, color: '#f59e0b', owner: '0%' }] : []),
+        ...(amineIbanqBairok > 0 ? [{ label: 'iBanq (Bairok)', val: amineIbanqBairok, color: '#fb923c', owner: '0%' }] : []),
+        ...(amineBridgevale > 0 ? [{ label: 'Wise (Bridgevale)', val: amineBridgevale, color: '#fdba74', owner: '0%' }] : []),
       ]
     },
     {
@@ -4793,6 +4804,7 @@ export const CASH_ACCOUNT_IDS = {
   'Mashreq NEO+': 'mashreq', 'Wio Savings': 'wio_savings', 'Wio Current': 'wio_current',
   'Wio Business (Bairok)': 'wio_business', 'Revolut EUR': 'revolut_amine',
   'Banque Populaire': 'banque_populaire', 'Binance USDT': 'binance',
+  'iBanq (Bairok)': 'ibanq_bairok', 'Wise (Bridgevale)': 'wise_bridgevale',
   'Attijariwafa': 'attijari_amine', 'Nabd (ex-SOGE)': 'nabd', 'CIH Bank': 'cih',
   'IBKR Cash EUR': 'ibkr_cash_eur', 'IBKR Cash USD': 'ibkr_cash_usd', 'IBKR Cash JPY': 'ibkr_cash_jpy',
   'ESPP Cash (Amine)': 'espp_cash_amine', 'ESPP Cash (Nezha)': 'espp_cash_nezha',
