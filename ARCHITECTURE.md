@@ -4913,6 +4913,17 @@ Tooltips équité nette/brute + libellé d'appréciation dérivés du modèle (`
 valueDate recalé sur la date réelle de l'estimation (2025-09, data.js + Supabase) → valeur
 capitalisée 303 266. Warn si fallback CRD statique. Voir BUG_TRACKER §BUG-091.
 
+## v483 (28 août 2026) — prix de référence auto-rafraîchis au runtime (fin de la maintenance mensuelle BUG-070)
+
+`applyPriceRefs(hist)` (app.js, appelé en tête de buildChartsFromHist) : à chaque chargement,
+ytdOpen/mtdOpen/oneMonthAgo (par position tenue) + refs ACN + oneYearAgoPrices sont recalculés
+depuis les séries Yahoo déjà téléchargées pour le graphe, puis `PRICE_REFS_AS_OF` est muté
+(même module ES que l'engine) → la garde v368 passe et les P&L MTD/1M/YTD/1A du moteur
+redeviennent vivants sans rafraîchissement manuel. Sécurités : tickers VENDUS exclus (Yahoo
+réajuste rétroactivement après splits, unités ≠ journal — cf. WLN), dates déclarées fraîches
+seulement à couverture complète des positions tenues, échec fetch ⇒ refs figées + garde v368
+(zéro régression). data.js reste le fallback hors-ligne.
+
 ## v480 (28 août 2026) — refonte page d'accueil (audit BI dual-agent) : cartes/graphes en haut, texte en bas, un fait = un chiffre
 
 Audit impeccable (dual-agent) + grille BI skills.sh, 10 améliorations livrées. Réorganisation

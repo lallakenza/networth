@@ -4,13 +4,13 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION } from './data.js?v=482';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=482';
-import { render, applySnapshotDeltas } from './render.js?v=482';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=482';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=482';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=482';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=482';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=483';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=483';
+import { render, applySnapshotDeltas } from './render.js?v=483';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=483';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=483';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=483';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=483';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -1369,7 +1369,71 @@ async function loadStockPrices(forceRefresh) {
         // Sert deux fois : (1) rendu INSTANTANÉ depuis le store persistant,
         // (2) rebuild avec le delta réseau frais. Idempotent (refresh() rebuild).
         let chartResultYTD = null;
+        // ── v483 — AUTO-REFRESH des prix de référence (résout BUG-070 à la racine) ──
+        // mtdOpen / oneMonthAgo / oneYearAgo / ytdOpen étaient FIGÉS dans data.js avec un
+        // rafraîchissement mensuel MANUEL (garde v368 : refs périmées ⇒ P&L masqué « -- »).
+        // Ici on les recalcule à CHAQUE chargement depuis les séries Yahoo déjà téléchargées
+        // pour le graphe, puis on mute PRICE_REFS_AS_OF (même module que l'engine) pour que
+        // la garde passe. Périmètre : positions TENUES + ACN uniquement — les tickers vendus
+        // gardent leurs refs figées (piège WLN : Yahoo réajuste rétroactivement les séries
+        // après un regroupement, unités ≠ journal). Échec ou couverture partielle ⇒ refs
+        // figées conservées + garde v368 active : zéro régression.
+        function applyPriceRefs(hist) {
+          try {
+            if (!hist || !hist.tickers) return;
+            const pad = (n) => String(n).padStart(2, '0');
+            const now = new Date();
+            const clampDay = (y, m, d) => { const dim = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(d, dim)); };
+            const iso = (dt) => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+            const borneYtd = now.getFullYear() + '-01-01';
+            const borneMtd = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-01';
+            const borne1M = iso(clampDay(now.getFullYear(), now.getMonth() - 1, now.getDate()));
+            const borne1Y = iso(clampDay(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+            const premiereDes = (s, borne) => { for (let i = 0; i < s.dates.length; i++) { if (s.dates[i] >= borne && s.closes[i] != null) return { date: s.dates[i], close: s.closes[i] }; } return null; };
+            const derniereAvant = (s, borne) => { let r = null; for (let i = 0; i < s.dates.length; i++) { if (s.dates[i] > borne) break; if (s.closes[i] != null) r = { date: s.dates[i], close: s.closes[i] }; } return r; };
+            const datesRef = { ytdOpen: null, mtdOpen: null, oneMonthAgo: null, oneYearAgo: null };
+            const pose = (obj, champ, ref, cle) => {
+              if (!ref) return false;
+              obj[champ] = ref.close;
+              if (!datesRef[cle] || ref.date > datesRef[cle]) datesRef[cle] = ref.date;
+              return true;
+            };
+            let nOk = 0, nTot = 0;
+            PORTFOLIO.amine.ibkr.positions.forEach((p) => {
+              const s = hist.tickers[p.ticker];
+              if (!s || !s.dates || !s.dates.length) return;
+              nTot++;
+              const ok = [
+                pose(p, 'ytdOpen', premiereDes(s, borneYtd), 'ytdOpen'),
+                pose(p, 'mtdOpen', premiereDes(s, borneMtd), 'mtdOpen'),
+                pose(p, 'oneMonthAgo', derniereAvant(s, borne1M), 'oneMonthAgo'),
+              ];
+              const y1 = derniereAvant(s, borne1Y);
+              if (y1) {
+                PORTFOLIO.market.oneYearAgoPrices[p.ticker] = y1.close;
+                if (!datesRef.oneYearAgo || y1.date > datesRef.oneYearAgo) datesRef.oneYearAgo = y1.date;
+              }
+              if (ok.every(Boolean)) nOk++;
+            });
+            const acn = hist.tickers['ACN'];
+            if (acn && acn.dates && acn.dates.length) {
+              pose(PORTFOLIO.market, 'acnYtdOpen', premiereDes(acn, borneYtd), 'ytdOpen');
+              pose(PORTFOLIO.market, 'acnMtdOpen', premiereDes(acn, borneMtd), 'mtdOpen');
+              pose(PORTFOLIO.market, 'acnOneMonthAgo', derniereAvant(acn, borne1M), 'oneMonthAgo');
+              const y1a = derniereAvant(acn, borne1Y);
+              if (y1a) { PORTFOLIO.market.acnOneYearAgo = y1a.close; PORTFOLIO.market.oneYearAgoPrices['ACN'] = y1a.close; }
+            }
+            if (nTot > 0 && nOk === nTot) {
+              ['ytdOpen', 'mtdOpen', 'oneMonthAgo', 'oneYearAgo'].forEach((cle) => { if (datesRef[cle]) PRICE_REFS_AS_OF[cle] = datesRef[cle]; });
+              console.log('[refs] ✓ prix de référence auto-recalculés (' + nTot + ' positions + ACN) :', JSON.stringify(PRICE_REFS_AS_OF));
+            } else {
+              console.warn('[refs] couverture incomplète (' + nOk + '/' + nTot + ') — refs figées conservées, garde v368 active');
+            }
+          } catch (e) { console.warn('[refs] auto-refresh impossible :', e && e.message); }
+        }
+
         function buildChartsFromHist(hist, opts) {
+          applyPriceRefs(hist); // v483 — avant le refresh() que ce build déclenche
           if (!(opts && opts.skipUnify)) unifyPrices(hist);
           // YTD (rendu visible) — scope 'all' (Tous) par défaut
           chartResultYTD = buildPortfolioYTDChart(PORTFOLIO, hist, FX_STATIC, {
