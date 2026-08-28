@@ -4954,6 +4954,18 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v485 (28 août 2026) — tuiles cash DYNAMIQUES + rendement Wio Nezha 6 %
+
+Fin des tuiles treemap en dur : les catégories « Cash Productif / Cash Dormant » des vues
+couple, amine et nezha sont désormais GÉNÉRÉES depuis `cashView.accounts` (helper
+`tuilesCash` dans compute) — classification par rendement ≥ INFLATION_RATE (le même seuil
+que les barres de la vue Cash, v364), libellés % dérivés des vrais taux, tri par montant,
+palettes vert/rouge cycliques. Changer un taux dans CASH_YIELDS reclasse tout automatiquement
+(déclencheur : Wio Nezha passé à 6 % — tous les saving spaces Wio sont à 6 %). Ajout du
+compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l'écart
+cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
+Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
+
 ## Migration données (27 août 2026) — révision RÉTROACTIVE de l'immo dans nw_snapshots
 
 660 lignes réécrites (demande Amine, backup intégral : `~/networth_nw_snapshots_backup_20260827.json`).

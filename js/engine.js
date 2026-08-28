@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=484';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=485';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1652,6 +1652,9 @@ function computeCashView(portfolio, fx) {
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, IBKR_CONFIG.cashThreshold),
       owner: 'Amine' },
+    // v485 — manquait à la liste depuis v351 : c'était l'écart cashView.totalCash vs
+    // catégorie Cash des vues (~2,6K€) relevé par l'audit BI du 27/08.
+    { label: 'IBKR Cash AED', native: p.amine.ibkr.cashAED || 0, currency: 'AED', yield: 0, owner: 'Amine' },
     // IBKR JPY short: taux par tranche (tiered margin rate)
     { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY',
       yield: ibkrJPYBorrowCost(Math.abs(p.amine.ibkr.cashJPY)),
@@ -4383,6 +4386,37 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaCashMarocYield = CASH_YIELDS.nezhaCashMaroc;
 
   // ---- COUPLE CATEGORIES (for drill-down donut) ----
+    // ── v485 — CLASSIFICATION CASH DYNAMIQUE (fin des tuiles en dur) ──────────────
+  // Source unique : cashView.accounts (soldes, devises, rendements, propriétaire).
+  // Un compte est « productif » si son rendement ≥ INFLATION_RATE — le MÊME seuil que
+  // les barres productif/dormant de la vue Cash (v364). Changer un taux dans
+  // CASH_YIELDS reclasse et ré-étiquette automatiquement toutes les tuiles des
+  // treemaps (couple / amine / nezha). La marge JPY (isDebt) reste hors cash
+  // (classée avec Actions), comme avant.
+  const cashView = computeCashView(p, fx);
+  const _VERTS_TUILES = ['#22c55e', '#16a34a', '#15803d', '#4ade80', '#059669', '#86efac'];
+  const _ROUGES_TUILES = ['#ef4444', '#dc2626', '#f87171', '#b91c1c', '#991b1b', '#a855f7', '#8b5cf6', '#c026d3', '#f472b6', '#f59e0b', '#fb923c', '#fdba74', '#fca5a5', '#7c2d12'];
+  const _pctTuile = (a) => ((a.yield || 0) * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + '%';
+  const tuilesCash = (proprietaire, productif, avecProprietaire) => {
+    return cashView.accounts
+      .filter(a => !a.isDebt
+        && (proprietaire ? a.owner === proprietaire : true)
+        && (((a.yield || 0) >= INFLATION_RATE) === productif)
+        && Math.abs(a.valEUR) > 0.5)
+      .sort((x, y) => y.valEUR - x.valEUR)
+      .map((a, i) => ({
+        label: a.label, val: a.valEUR,
+        color: (productif ? _VERTS_TUILES : _ROUGES_TUILES)[i % (productif ? _VERTS_TUILES : _ROUGES_TUILES).length],
+        owner: (avecProprietaire ? a.owner + ' — ' : '') + _pctTuile(a),
+      }));
+  };
+  const totalTuiles = (subs) => subs.reduce((s2, t) => s2 + t.val, 0);
+  const _cashProdCouple = tuilesCash(null, true, true);
+  const _cashDormCouple = tuilesCash(null, false, true);
+  const _cashProdAmine = tuilesCash('Amine', true, false);
+  const _cashDormAmine = tuilesCash('Amine', false, false);
+  const _cashNezha = [...tuilesCash('Nezha', true, false), ...tuilesCash('Nezha', false, false)];
+
   const coupleCategories = [
     {
       label: 'Immobilier', color: '#b7791f',
@@ -4432,40 +4466,16 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Productif', color: '#22c55e',
-      total: toEUR(p.amine.uae.mashreq, 'AED', fx) + toEUR(p.amine.uae.wioSavings, 'AED', fx),
-      sub: [
-        { label: 'Mashreq NEO+', val: toEUR(p.amine.uae.mashreq, 'AED', fx), color: '#22c55e', owner: 'Amine — 6.25%' },
-        { label: 'Wio Savings', val: toEUR(p.amine.uae.wioSavings, 'AED', fx), color: '#16a34a', owner: 'Amine — 6%' },
-      ]
+      // v485 — tuiles GÉNÉRÉES depuis cashView.accounts (seuil : rendement ≥ inflation)
+      total: totalTuiles(_cashProdCouple),
+      sub: _cashProdCouple,
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      // BUG-047 (v297): include wioCurrent unconditionally (was `>0 ? ... : 0`).
-      // The parent `amineUae` / `amineCashTotal` (line 3655) already sums it without guard, so dropping
-      // it here when negative broke the treemap invariant (stocks + cash + immo + other = nwRef).
-      // wioCurrent is 371 AED today (positive), so this is a safety fix for overdraft scenarios.
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash
-        + amineBrokerCash + nezhaBrokerCash
-        + nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0) + nezhaCashMarocEUR + nezhaCashUAE_EUR,
-      sub: [
-        ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: 'Amine — 0%' }] : []),
-        ...(nezhaBrokerCash > 0 ? [{ label: 'Cash ESPP (Nezha)', val: nezhaBrokerCash, color: '#8b5cf6', owner: 'Nezha — 0%' }] : []),
-        ...((nc.ibkrEUR || 0) > 0 ? [{ label: 'IBKR (Nezha)', val: nc.ibkrEUR, color: '#7c2d12', owner: 'Nezha — à investir' }] : []),
-        ...(nc.revolutEUR > 0 ? [{ label: 'Revolut (Nezha)', val: nc.revolutEUR, color: '#ef4444', owner: 'Nezha — 0%' }] : []),
-        ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: 'Nezha — 0%' }] : []),
-        ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: 'Nezha — 1.5%' }] : []),
-        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Compte principal', val: nc.lclCompteDepots, color: '#b91c1c', owner: 'Nezha — 0%' }] : []),
-        ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa (Nezha)', val: nezhaCashMarocEUR, color: '#991b1b', owner: 'Nezha — 0%' }] : []),
-        ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE (Nezha)', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: 'Nezha — 0%' }] : []),
-        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc (Amine)', val: amineMoroccoCash, color: '#f87171', owner: 'Amine — 0%' }] : []),
-        ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#fca5a5', owner: 'Amine — 0%' }] : []),
-        ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: 'Amine — 0%' }] : []),
-        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR (Amine)', val: amineRevolutEUR, color: '#fecaca', owner: 'Amine — 0%' }] : []),
-        ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire (Amine)', val: amineBanquePopulaire, color: '#f472b6', owner: 'Amine — 0%' }] : []), // v359 — était dans le total, manquait aux sous-items
-        ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT (Amine)', val: amineBinanceUSDT, color: '#f59e0b', owner: 'Amine — 0%' }] : []), // v359
-        ...(amineIbanqBairok > 0 ? [{ label: 'iBanq (Bairok)', val: amineIbanqBairok, color: '#fb923c', owner: 'Amine — 0%' }] : []), // v484
-        ...(amineBridgevale > 0 ? [{ label: 'Wise (Bridgevale)', val: amineBridgevale, color: '#fdba74', owner: 'Amine — 0%' }] : []), // v484
-      ]
+      // v485 — dynamique (BUG-047/064 : les totaux étaient recomposés à la main et
+      // chaque nouveau compte devait être ajouté à ~9 endroits ; désormais 1 seul).
+      total: totalTuiles(_cashDormCouple),
+      sub: _cashDormCouple,
     },
     {
       // v328 — renommé "Véhicules & Montres" : inclut voitures Amine + montres Nezha
@@ -4575,29 +4585,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash Productif', color: '#22c55e',
-      total: toEUR(p.amine.uae.mashreq, 'AED', fx) + toEUR(p.amine.uae.wioSavings, 'AED', fx),
-      sub: [
-        { label: 'Mashreq NEO+', val: toEUR(p.amine.uae.mashreq, 'AED', fx), color: '#22c55e', owner: '6.25%' },
-        { label: 'Wio Savings', val: toEUR(p.amine.uae.wioSavings, 'AED', fx), color: '#16a34a', owner: '6%' },
-      ]
+      total: totalTuiles(_cashProdAmine),   // v485 — dynamique
+      sub: _cashProdAmine,
     },
     {
       label: 'Cash Dormant', color: '#ef4444',
-      // BUG-047 (v297): include wioCurrent unconditionally — same rationale as couple view above
-      // v359 (BUG-064): + Banque Populaire + Binance USDT — étaient dans le NW et la vue couple
-      //   mais oubliés ici → Σ catégories Amine < amine.nw de ~5 250€ (top vs bas de page).
-      total: toEUR(p.amine.uae.wioCurrent, 'AED', fx) + toEUR(amineWioBusiness, 'AED', fx) + amineRevolutEUR + amineBanquePopulaire + amineBinanceUSDT + amineIbanqBairok + amineBridgevale + amineMoroccoCash + amineBrokerCash, // v484 + sociétés
-      sub: [
-        ...(amineBrokerCash !== 0 ? [{ label: 'Cash Courtiers (IBKR+ESPP)', val: amineBrokerCash, color: '#a855f7', owner: '0%' }] : []),
-        ...(amineMoroccoCash > 0 ? [{ label: 'Cash Maroc', val: amineMoroccoCash, color: '#ef4444', owner: '0%' }] : []),
-        ...(p.amine.uae.wioCurrent !== 0 ? [{ label: 'Wio Current', val: toEUR(p.amine.uae.wioCurrent, 'AED', fx), color: '#dc2626', owner: '0%' }] : []),
-        ...(amineWioBusiness > 0 ? [{ label: 'Wio Business (Bairok)', val: toEUR(amineWioBusiness, 'AED', fx), color: '#c026d3', owner: '0%' }] : []),
-        ...(amineRevolutEUR > 0 ? [{ label: 'Revolut EUR', val: amineRevolutEUR, color: '#f87171', owner: '0%' }] : []),
-        ...(amineBanquePopulaire > 0 ? [{ label: 'Banque Populaire', val: amineBanquePopulaire, color: '#f472b6', owner: '0%' }] : []),
-        ...(amineBinanceUSDT > 0 ? [{ label: 'Binance USDT', val: amineBinanceUSDT, color: '#f59e0b', owner: '0%' }] : []),
-        ...(amineIbanqBairok > 0 ? [{ label: 'iBanq (Bairok)', val: amineIbanqBairok, color: '#fb923c', owner: '0%' }] : []),
-        ...(amineBridgevale > 0 ? [{ label: 'Wise (Bridgevale)', val: amineBridgevale, color: '#fdba74', owner: '0%' }] : []),
-      ]
+      total: totalTuiles(_cashDormAmine),   // v485 — dynamique
+      sub: _cashDormAmine,
     },
     {
       label: 'Vehicules', color: '#64748b',
@@ -4635,17 +4629,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Cash', color: '#ef4444',
-      total: nezhaCash,
-      sub: [
-        ...(nc.revolutEUR > 0 ? [{ label: 'Revolut EUR', val: nc.revolutEUR, color: '#ef4444', owner: '0%' }] : []),
-        ...(nc.creditMutuelCC > 0 ? [{ label: 'Crédit Mutuel', val: nc.creditMutuelCC, color: '#dc2626', owner: '0%' }] : []),
-        ...(nc.lclLivretA > 0 ? [{ label: 'Livret A (LCL)', val: nc.lclLivretA, color: '#f87171', owner: '1.5%' }] : []),
-        ...(nc.lclCompteDepots > 0 ? [{ label: 'LCL Compte principal', val: nc.lclCompteDepots, color: '#b91c1c', owner: '0%' }] : []),
-        ...((nc.ibkrEUR || 0) > 0 ? [{ label: 'IBKR (Nezha)', val: nc.ibkrEUR, color: '#7c2d12', owner: 'à investir' }] : []),
-        ...(nezhaCashMarocEUR > 0 ? [{ label: 'Attijariwafa', val: nezhaCashMarocEUR, color: '#991b1b', owner: Math.round(nc.attijariwafarMAD).toLocaleString("fr-FR") + ' MAD' }] : []),
-        ...(nezhaCashUAE_EUR > 0 ? [{ label: 'Wio UAE', val: nezhaCashUAE_EUR, color: '#7f1d1d', owner: Math.round(nc.wioAED).toLocaleString("fr-FR") + ' AED' }] : []),
-        ...(nezhaBrokerCash > 0 ? [{ label: 'Cash ESPP (UBS)', val: nezhaBrokerCash, color: '#8b5cf6', owner: '0%' }] : []), // v359 — était dans le total (nezhaCash) mais manquait aux sous-items
-      ]
+      total: totalTuiles(_cashNezha),   // v485 — dynamique (= nezhaCash à l'arrondi près)
+      sub: _cashNezha,
     },
     {
       label: 'Actions', color: '#2b6cb0',
@@ -4717,7 +4702,6 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- NEW ASSET-TYPE VIEWS ----
   const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp);
-  const cashView = computeCashView(p, fx);
   // immoView already computed at top of function (needed for CRDs in NW calculations)
   const creancesView = computeCreancesView(p, fx);
   const budgetView = computeBudgetView(p, fx);
@@ -4807,6 +4791,7 @@ export const CASH_ACCOUNT_IDS = {
   'iBanq (Bairok)': 'ibanq_bairok', 'Wise (Bridgevale)': 'wise_bridgevale',
   'Attijariwafa': 'attijari_amine', 'Nabd (ex-SOGE)': 'nabd', 'CIH Bank': 'cih',
   'IBKR Cash EUR': 'ibkr_cash_eur', 'IBKR Cash USD': 'ibkr_cash_usd', 'IBKR Cash JPY': 'ibkr_cash_jpy',
+  'IBKR Cash AED': 'ibkr_cash_aed',
   'ESPP Cash (Amine)': 'espp_cash_amine', 'ESPP Cash (Nezha)': 'espp_cash_nezha',
   'Revolut EUR (Nezha)': 'revolut_nezha', 'Crédit Mutuel': 'credit_mutuel',
   'Livret A (LCL)': 'livret_a', 'LCL Compte principal': 'lcl_compte',
