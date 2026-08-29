@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=490';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=490';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=490';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=490';
-import { loadSnapshots } from './api.js?v=490'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=490'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=491';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=491';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=491';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=491';
+import { loadSnapshots } from './api.js?v=491'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=491'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -550,25 +550,39 @@ export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
 
   const YEARS = 10;
-  const START_YEAR = 2026;
   const RENT_GROWTH = 0.015;
   const IC = IMMO_CONSTANTS;
+  // v490 (audit) — l'année 0 était bâtie sur des littéraux (loyer Rueil figé à 1 300 € au lieu
+  // des 1 450 € réels, paliers Vitry inventés, Villejuif démarré en 2030 alors que la livraison
+  // est prévue en 09/2028). Cette courbe annonçait −206 €/mois de CF total là où le KPI de la
+  // MÊME page affiche −107. On lit désormais la vue immo, source unique, et la date de livraison
+  // déclarée dans les constantes.
+  const _props = (state && state.immoView && state.immoView.properties) || [];
+  const _p = (k) => _props.find(x => x.loanKey === k) || null;
+  const START_YEAR = new Date().getFullYear();
+  const _vjLivraison = ((IC.properties.villejuif || {}).deliveryDate || '2028-09');
+  const _vjAnneeLivraison = parseInt(_vjLivraison.slice(0, 4), 10);
 
   const labels = [];
   const vitryData = [], rueilData = [], villejuifData = [], totalData = [];
 
-  let vitryLoyer = 1200, vitryParking = 70;
-  let rueilLoyer = 1300;
-  let villejuifLoyer = 1700;
+  // Revenus de départ : ceux que le moteur calcule réellement (gating bail, espèces, parking,
+  // charges locataires), et non des constantes réécrites à la main.
+  const _vitryP = _p('vitry'), _rueilP = _p('rueil'), _vjP = _p('villejuif');
+  let vitryLoyer = _vitryP ? (_vitryP.totalRevenue || 0) : 1270;
+  let rueilLoyer = _rueilP ? (_rueilP.totalRevenue || 0) : 1450;
+  let villejuifLoyer = _vjP ? (_vjP.loyer || _vjP.totalRevenue || 0) : 1700;
+  const vitryParking = 0; // déjà inclus dans totalRevenue
 
   for (let i = 0; i < YEARS; i++) {
     const year = START_YEAR + i;
     labels.push(String(year));
 
-    if (year === 2027) vitryLoyer = 1400;
-    if (year > 2027) vitryLoyer *= (1 + RENT_GROWTH);
-    if (year > 2026) rueilLoyer *= (1 + RENT_GROWTH);
-    if (year > 2030) villejuifLoyer *= (1 + RENT_GROWTH);
+    if (year > START_YEAR) {
+      vitryLoyer *= (1 + RENT_GROWTH);
+      rueilLoyer *= (1 + RENT_GROWTH);
+      if (year > _vjAnneeLivraison) villejuifLoyer *= (1 + RENT_GROWTH);
+    }
 
     // Vitry CF
     const vitryRev = vitryLoyer + vitryParking;
@@ -582,9 +596,9 @@ export function buildCFProjection(state) {
     if (year < IC.prets.rueilEnd) rueilCharges += IC.charges.rueil.pret + IC.charges.rueil.assurance;
     const rueilCF = Math.round(rueilRev - rueilCharges);
 
-    // Villejuif CF
+    // Villejuif CF — à partir de l'année de livraison DÉCLARÉE (et non d'un 2030 codé en dur).
     let villejuifCF = 0;
-    if (year >= 2030) {
+    if (year >= _vjAnneeLivraison) {
       const vjRev = villejuifLoyer;
       let vjCharges = IC.charges.villejuif.pno + IC.charges.villejuif.tf + IC.charges.villejuif.copro;
       if (year < IC.prets.villejuifEnd) vjCharges += IC.charges.villejuif.pret + IC.charges.villejuif.assurance;

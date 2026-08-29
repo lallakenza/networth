@@ -4954,6 +4954,16 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v490 (29 août 2026) — audit, lot 4 : sous-cartes de trésorerie et projection CF dérivées du moteur
+
+BUG-102 : les listes de comptes des sous-cartes UAE et Maroc étaient écrites à la main (Wio Business
+absent, Revolut compté deux fois, CIH absent — 91 885 € invisibles au détail) ; elles sont désormais
+générées depuis `cashView.accounts`, comme les tuiles du treemap depuis v485. `buildCFProjection`
+lit la vue immo et la date de livraison déclarée au lieu de littéraux (loyer Rueil 1 300 → 1 450,
+Villejuif 2030 → 2028-09), ce qui met fin aux −206 €/mois affichés sous un KPI à −107 €.
+Suite BUG-101 : le simulateur couple démarre Villejuif à son capital engagé (écart au NW ramené de
+45 856 € à 1 325 €).
+
 ## v489 (29 août 2026) — audit, lot 3 : simulateurs ancrés sur aujourd'hui
 
 BUG-101 : la base de temps des trois simulateurs était figée au 1er mars 2026 (9 littéraux) —

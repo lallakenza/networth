@@ -2198,3 +2198,14 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Symptôme**: simulateur Couple affichant trois patrimoines initiaux différents sur le même écran (727 547 / 815 808 / 780 279 €) ; simulateur Nezha démarrant 22 726 € au-dessus du chiffre de son propre résumé, celui d'Amine 1 422 € au-dessus.
 - **Fix (v489)**: helper `moisBaseSim(decalage)` ancré sur le mois courant, consommé par les 9 sites ; appréciation composée **mois par mois depuis la base**, si bien qu'à m=0 `projValue === propertyInitialValue`.
 - **Regression tests**: `computeXEquity(0)` ≈ équité nette du moteur pour chaque bien ; la date du palier 1 M€ recule d'un mois à chaque mois écoulé (plus de date figée) ; `grep "new Date(2026, 2" js/simulators.js` → 0.
+
+## BUG-102: Sous-cartes de trésorerie incomplètes et projection de cash-flow écrite en dur
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v490.
+- **Sévérité**: HAUTE — 91 885 € de trésorerie invisibles au détail ; deux cash-flows contradictoires sur la même page.
+- **Root cause (deux foyers, même cause : listes écrites à la main)**:
+  1. **Sous-cartes cash** (render.js) — la liste UAE omettait Wio Business (Bairok) et additionnait Revolut, compte EUR français qui a sa propre carte, au « Sous-total EUR » : le sous-total contredisait le titre de la carte. La liste Maroc omettait CIH Bank (29 276 MAD), pourtant présent dans le titre et dans la vue Cash. Tout nouveau compte restait invisible.
+  2. **Projection cash-flow 10 ans** (charts.js `buildCFProjection`) — l'année 0 était bâtie sur des littéraux : loyer Rueil figé à 1 300 € au lieu des 1 450 € réels, paliers Vitry inventés (1 200 → 1 400 en 2027), Villejuif démarré en 2030 alors que `deliveryDate` déclare 09/2028. Année de départ figée à 2026.
+- **Symptôme**: la carte « Cash » annonce 334 189 € ; l'accordéon n'en détaille que 242 304 €. La projection annonce −206 €/mois de cash-flow immobilier là où le KPI de la même page affiche −107 €.
+- **Fix (v490)**: les deux sous-cartes sont GÉNÉRÉES depuis `cashView.accounts` (filtrage par propriétaire et devise), même principe que les tuiles du treemap depuis v485 — un compte n'existe qu'à un seul endroit. La projection lit `state.immoView.properties[].totalRevenue`, l'année courante et `IMMO_CONSTANTS.properties.villejuif.deliveryDate`.
+- **Regression tests**: Σ des lignes d'une sous-carte === son titre ; ajouter un compte AED le fait apparaître sans toucher render.js ; année 0 de la projection === `immoView.totalCF`.

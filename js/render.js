@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=490';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=490';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=491';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=491';
 
 // ---- Generic table sort utility ----
 /**
@@ -642,19 +642,21 @@ function renderExpandSubs(state, view, options = {}) {
   const fxR = state.fx;
   const uaeBD = document.getElementById('subUAEBreakdown');
   if (uaeBD) {
-    const mashreq = p0.amine.uae.mashreq;
-    const wioS = p0.amine.uae.wioSavings;
-    const revEUR = p0.amine.uae.revolutEUR;
-    const wioC = p0.amine.uae.wioCurrent;
+    // v490 (audit) — cette liste était écrite à la main : Wio Business (Bairok) n'y figurait pas
+    // et Revolut, compte EUR français, était additionné au sous-total UAE alors qu'il a sa propre
+    // carte — le « Sous-total EUR » contredisait donc le titre de la carte, et tout nouveau compte
+    // AED restait invisible. Elle est désormais GÉNÉRÉE depuis cashView.accounts, comme les tuiles
+    // du treemap depuis la v485 : un compte n'existe qu'à un seul endroit.
     const fmtAED = v => 'AED ' + Math.round(v).toLocaleString('fr-FR');
     const fmtEURsm = v => '<span style="color:var(--gray);font-size:11px">(' + Math.round(v / fxR.AED).toLocaleString('fr-FR') + ')</span>';
-    const totalUAE = (mashreq + wioS + wioC) / fxR.AED + revEUR;
-    uaeBD.innerHTML =
-      '<li><span class="bl-label">Mashreq NEO PLUS</span><span class="bl-val">' + fmtAED(mashreq) + ' ' + fmtEURsm(mashreq) + '</span></li>' +
-      '<li><span class="bl-label">Wio Savings</span><span class="bl-val">' + fmtAED(wioS) + ' ' + fmtEURsm(wioS) + '</span></li>' +
-      '<li><span class="bl-label">Revolut (EUR)</span><span class="bl-val">' + Math.round(revEUR).toLocaleString('fr-FR') + '</span></li>' +
-      '<li><span class="bl-label">Wio Current</span><span class="bl-val">' + fmtAED(wioC) + ' ' + fmtEURsm(wioC) + '</span></li>' +
-      '<li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total EUR</span><span class="bl-val">' + Math.round(totalUAE).toLocaleString('fr-FR') + '</span></li>';
+    const comptesUAE = ((state.cashView || {}).accounts || [])
+      .filter(a2 => a2.owner === 'Amine' && a2.currency === 'AED' && !a2.isDebt && !/IBKR/i.test(a2.label));
+    const totalUAE = comptesUAE.reduce((s2, a2) => s2 + (a2.valEUR || 0), 0);
+    uaeBD.innerHTML = comptesUAE
+      .map(a2 => '<li><span class="bl-label">' + a2.label + '</span><span class="bl-val">'
+        + fmtAED(a2.native) + ' ' + fmtEURsm(a2.native) + '</span></li>').join('')
+      + '<li style="border-top:1px solid #cbd5e0;padding-top:4px"><span class="bl-label" style="font-style:italic">Sous-total EUR</span><span class="bl-val">'
+      + Math.round(totalUAE).toLocaleString('fr-FR') + '</span></li>';
   }
   const uaeBadge = document.getElementById('subUAEBadge');
   if (uaeBadge) {
@@ -664,11 +666,14 @@ function renderExpandSubs(state, view, options = {}) {
 
   const marocBD = document.getElementById('subMarocBreakdown');
   if (marocBD) {
-    const att = p0.amine.maroc.attijari;
-    const nabd = p0.amine.maroc.nabd;
-    marocBD.innerHTML =
-      '<li><span class="bl-label">Attijariwafa Courant</span><span class="bl-val">MAD ' + Math.round(att).toLocaleString('fr-FR') + '</span></li>' +
-      '<li><span class="bl-label">BMCE/BOA Cheque</span><span class="bl-val">MAD ' + Math.round(nabd).toLocaleString('fr-FR') + '</span></li>';
+    // v490 (audit) — CIH Bank (29 276 MAD) n'apparaissait sur aucune ligne alors qu'il compte dans
+    // le titre de la carte et dans la vue Cash : deux pages du même dashboard se contredisaient.
+    // Même remède : génération depuis cashView.accounts.
+    const comptesMaroc = ((state.cashView || {}).accounts || [])
+      .filter(a2 => a2.owner === 'Amine' && a2.currency === 'MAD' && !a2.isDebt);
+    marocBD.innerHTML = comptesMaroc
+      .map(a2 => '<li><span class="bl-label">' + a2.label + '</span><span class="bl-val">MAD '
+        + Math.round(a2.native).toLocaleString('fr-FR') + '</span></li>').join('');
   }
 
   // ── Dynamic vehicles & TVA ──
@@ -7636,7 +7641,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=490').then(m => {
+  import('./charts.js?v=491').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
