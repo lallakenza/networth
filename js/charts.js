@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=491';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=491';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=491';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=491';
-import { loadSnapshots } from './api.js?v=491'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=491'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=492';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=492';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=492';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=492';
+import { loadSnapshots } from './api.js?v=492'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=492'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -597,7 +597,9 @@ export function buildCFProjection(state) {
     const rueilCF = Math.round(rueilRev - rueilCharges);
 
     // Villejuif CF — à partir de l'année de livraison DÉCLARÉE (et non d'un 2030 codé en dur).
-    let villejuifCF = 0;
+    // v491 — avant livraison, le flux n'est pas nul : l'assurance emprunteur (CACI) est prélevée
+    // depuis la signature de l'offre. C'est `cfReel` (v473), déjà compté dans le KPI de la page.
+    let villejuifCF = _vjP && year < _vjAnneeLivraison ? Math.round(_vjP.cfReel || 0) : 0;
     if (year >= _vjAnneeLivraison) {
       const vjRev = villejuifLoyer;
       let vjCharges = IC.charges.villejuif.pno + IC.charges.villejuif.tf + IC.charges.villejuif.copro;
