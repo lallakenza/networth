@@ -2187,3 +2187,14 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Fix (v488)**: `startNAV` passe par `window.ownerScopedSeries` (source unique déjà prévue, court-circuit sur « both » = zéro régression) ; `applySnapshotDeltas(s, vue)` indexe snapshot et état sur la même vue et efface les chips quand la vue n'est pas couverte ; les 6 `window.PORTFOLIO` deviennent `PORTFOLIO`.
 - **Note**: (c) était un bug **dormant** — les parts SGTM valent 32/32 aujourd'hui, donc le ratio réel est bien 50/50 ; il se serait manifesté au premier achat déséquilibré.
 - **Regression tests**: en vue Nezha, `startNAV` ≈ `views.nezha.stocks` et non `views.couple.stocks` ; aucun chip de catégorie affiché si le snapshot ne porte pas la vue.
+
+## BUG-101: Simulateurs — base de temps figée au 1er mars 2026 et point de départ décalé
+
+- **Version**: détecté par l'audit du 29/08/2026 (critique de complétude), corrigé v489.
+- **Sévérité**: HAUTE — toutes les dates de franchissement de palier fausses, courbes démarrant au-dessus du net worth annoncé.
+- **Root cause (deux défauts cumulés)**:
+  1. **Base de temps** : `new Date(2026, 2, 1)` écrit en dur à 9 endroits (`js/simulators.js`). Les dates étaient donc décalées du nombre de mois écoulés depuis mars 2026 — « 1 M€ en septembre 2027 » là où le calcul ancré sur aujourd'hui donne février 2028.
+  2. **Point de départ** : `makeComputePropertyEquity` composait l'appréciation depuis **janvier** de l'année en cours, alors que `propertyInitialValue` est la valeur d'aujourd'hui, qui inclut déjà ces mois. À m=0 la fonction renvoyait donc la valeur actuelle majorée de ~7/12 d'année d'appréciation — double comptage.
+- **Symptôme**: simulateur Couple affichant trois patrimoines initiaux différents sur le même écran (727 547 / 815 808 / 780 279 €) ; simulateur Nezha démarrant 22 726 € au-dessus du chiffre de son propre résumé, celui d'Amine 1 422 € au-dessus.
+- **Fix (v489)**: helper `moisBaseSim(decalage)` ancré sur le mois courant, consommé par les 9 sites ; appréciation composée **mois par mois depuis la base**, si bien qu'à m=0 `projValue === propertyInitialValue`.
+- **Regression tests**: `computeXEquity(0)` ≈ équité nette du moteur pour chaque bien ; la date du palier 1 M€ recule d'un mois à chaque mois écoulé (plus de date figée) ; `grep "new Date(2026, 2" js/simulators.js` → 0.

@@ -4954,6 +4954,15 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v489 (29 août 2026) — audit, lot 3 : simulateurs ancrés sur aujourd'hui
+
+BUG-101 : la base de temps des trois simulateurs était figée au 1er mars 2026 (9 littéraux) —
+« 1 M€ en septembre 2027 » au lieu de février 2028 — et `makeComputePropertyEquity` composait
+l'appréciation depuis janvier alors que la valeur de départ inclut déjà les mois écoulés, d'où
+des courbes démarrant au-dessus du net worth annoncé (jusqu'à +22 726 € chez Nezha). Helper
+`moisBaseSim()` + composition mois par mois depuis la base : à m=0, la projection vaut exactement
+le patrimoine réel.
+
 ## v488 (29 août 2026) — audit, lot 2 : Budget/Immo réconciliés, Villejuif à sa valeur livrée, filtre propriétaire complété
 
 BUG-098 : `computeBudgetView` reçoit `immoView` et lit `prop.totalRevenue` au lieu de re-dériver le

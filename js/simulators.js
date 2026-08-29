@@ -3,10 +3,19 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=488';
-import { IMMO_CONSTANTS } from './data.js?v=488';
+import { fmt, fmtAxis } from './render.js?v=489';
+import { IMMO_CONSTANTS } from './data.js?v=489';
 
 const IC = IMMO_CONSTANTS;
+
+// v488 (audit) — la base de temps des trois simulateurs était figée au 1er mars 2026, en dur, à
+// 9 endroits. Toutes les dates de franchissement de palier étaient donc décalées du nombre de mois
+// écoulés depuis : « 1 M€ en septembre 2027 » là où le calcul, ancré sur aujourd'hui, donne
+// février 2028. On calcule le mois courant une fois, et les 9 sites le consomment.
+function moisBaseSim(decalage = 0) {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth() + decalage, 1);
+}
 let simCharts = {};
 
 // ============ GENERIC SIMULATOR ENGINE ============
@@ -36,7 +45,7 @@ function runSimulatorGeneric(config) {
   const stopBanner = document.getElementById(prefix + 'StopBanner');
   const stopYearValEl = document.getElementById(prefix + 'StopYearVal');
   if (stopYears > 0) {
-    const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
+    const stopDate = moisBaseSim(Math.round(stopYears * 12));
     const stopLabel = stopDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     if (stopYearValEl) { stopYearValEl.textContent = stopLabel; stopYearValEl.style.color = 'var(--red)'; }
     if (stopBanner) {
@@ -96,7 +105,7 @@ function runSimulatorGeneric(config) {
     const gainsNow = liquidNow - startLiquidBase - cumContributions - cumRentalCF;
 
     if (true) { // Monthly granularity — every data point
-      const date = new Date(2026, 2 + m, 1);
+      const date = moisBaseSim(m);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
 
       // Compute immo from property sum (ensures consistency with per-property breakdown)
@@ -215,7 +224,7 @@ function runSimulatorGeneric(config) {
   const m1MEl = document.getElementById(prefix + '1M');
   if (m1MEl) {
     if (month1M >= 0) {
-      const d1m = new Date(2026, 2 + month1M, 1);
+      const d1m = moisBaseSim(month1M);
       m1MEl.textContent = d1m.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
       m1MEl.style.color = 'var(--green)';
     } else {
@@ -235,7 +244,7 @@ function runSimulatorGeneric(config) {
   let m1MDateLabel = '';
   let m1MMotivation = '';
   if (month1M >= 0) {
-    const d1mExact = new Date(2026, 2 + month1M, 1);
+    const d1mExact = moisBaseSim(month1M);
     m1MDateLabel = d1mExact.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     const yearsTo1M = (month1M / 12).toFixed(1);
 
@@ -304,7 +313,7 @@ function runSimulatorGeneric(config) {
 
   let insightHtml;
   if (stopYears > 0) {
-    const stopDate = new Date(2026, 2 + Math.round(stopYears * 12), 1);
+    const stopDate = moisBaseSim(Math.round(stopYears * 12));
     const stopLabel = stopDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     const costOfStopping = finalNWns - finalNW;
     insightHtml =
@@ -578,7 +587,7 @@ function makeComputePropertyCRD(iv, loanKey) {
     if (!iv || !iv.amortSchedules || !iv.amortSchedules[loanKey]) return 0;
     const sched = iv.amortSchedules[loanKey].schedule;
     if (!sched || sched.length === 0) return 0;
-    const simBaseDate = new Date(2026, 2, 1); // aligné avec simBaseDate ailleurs
+    const simBaseDate = moisBaseSim(); // v488 — mois courant, plus de date figée
     const targetDate = new Date(simBaseDate);
     targetDate.setMonth(targetDate.getMonth() + m);
     const dateStr = targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0');
@@ -612,7 +621,7 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciati
 
     // Convert simulator month to actual date string (YYYY-MM)
     // Simulator m=0 = March 2026, m=1 = April 2026, etc.
-    const simBaseDate = new Date(2026, 2, 1); // March 1, 2026
+    const simBaseDate = moisBaseSim(); // v488 — mois courant, plus de date figée
     const targetDate = new Date(simBaseDate);
     targetDate.setMonth(targetDate.getMonth() + m);
     const targetYear = targetDate.getFullYear();
@@ -648,17 +657,19 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciati
       return propMeta.appreciation || 0.02;
     }
 
-    // Compound appreciation from current year (propertyInitialValue is already current market value)
+    // v488 (audit) — l'appréciation était composée depuis JANVIER de l'année en cours, alors que
+    // `propertyInitialValue` est la valeur d'AUJOURD'HUI, qui inclut déjà les mois écoulés : à m=0
+    // la fonction renvoyait donc la valeur actuelle majorée de ~7/12 d'année d'appréciation. D'où
+    // trois patrimoines de départ contradictoires sur le même écran (727 547 / 815 808 / 780 279 €),
+    // la courbe démarrant au-dessus du net worth annoncé dans son propre résumé.
+    // On compose désormais mois par mois DEPUIS LA BASE : à m=0, projValue === valeur actuelle.
     let projValue = propertyInitialValue;
-    const startYear = new Date().getFullYear(); // 2026
-    for (let y = startYear; y < targetYear; y++) {
-      projValue *= (1 + getRate(y));
-    }
-
-    // Also apply partial-year appreciation for months within current year
-    const partialMonths = targetMonth - 1; // months elapsed in target year
-    if (partialMonths > 0) {
-      projValue *= Math.pow(1 + getRate(targetYear), partialMonths / 12);
+    {
+      const base = moisBaseSim();
+      for (let k = 0; k < m; k++) {
+        const d = new Date(base.getFullYear(), base.getMonth() + k, 1);
+        projValue *= Math.pow(1 + getRate(d.getFullYear()), 1 / 12);
+      }
     }
 
     const grossEquity = projValue - crd;
@@ -886,7 +897,7 @@ function runNezhaSimulator(state) {
 
   for (let m = 0; m <= months; m++) {
     if (true) { // Monthly granularity — every data point
-      const date = new Date(2026, 2 + m, 1);
+      const date = moisBaseSim(m);
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       const rueilEq = computeRueilEquity(m);
       const villejuifEq = computeVillejuifEquity(m); // v347 — equity possédée dès m=0 (acte signé), plus de marche d'escalier
@@ -1005,7 +1016,7 @@ function runNezhaSimulator(state) {
       id: 'villejuifLine',
       afterDraw(chart) {
         const labels = chart.data.labels;
-        const d = new Date(2026, 2 + IC.villejuifStartMonth, 1);
+        const d = moisBaseSim(IC.villejuifStartMonth);
         const lbl = d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
         let idx = labels.indexOf(lbl);
         if (idx < 0) return;
