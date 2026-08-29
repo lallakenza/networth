@@ -2017,7 +2017,12 @@
   const AnimKit = (function() {
     const TARGET_EUR = 1000000;
     const TARGET_DATE = new Date(2028, 3, 1);  // April 2028 — locked goal
-    const STATIC_EUR = 665970;                 // fallback si API down
+    // Plus de montant de repli. Il y avait ici un patrimoine écrit en dur : servi en clair
+    // dans ce fichier public, il s'affichait sur l'écran VERROUILLÉ à qui n'a pas le mot de
+    // passe — et depuis le chiffrement des données (v496) il s'affichait systématiquement,
+    // le calcul ne pouvant plus aboutir avant déverrouillage. Quand la vraie valeur n'arrive
+    // pas, le compteur reste en attente au lieu d'annoncer un chiffre.
+    const STATIC_EUR = null;
     // v299 observation: on cold-cache page loads, app.js' fetch →
     // chart-build pipeline can take 7-10s before it calls
     // _gridAnimationComplete. A 5s timeout (pre-v299) fired the fallback
@@ -2320,11 +2325,15 @@
       const eurVal = currentRatio * TARGET_EUR;
       const leaderY = placeHiker(eurVal);
       updateVegetationFromHikerY(leaderY);
-      counter.textContent = formatEur(eurVal);
+      // La montée « ambiante » est une animation d'attente, pas une mesure : elle plafonne à
+      // 8 % de l'objectif. L'afficher se lit comme un patrimoine — on ne montre un montant
+      // qu'une fois la vraie valeur reçue (donc après déverrouillage).
+      const valeurReelle = (phase === 'animating' || phase === 'done');
+      counter.textContent = valeurReelle ? formatEur(eurVal) : '—';
       const remaining = Math.max(0, TARGET_EUR - eurVal);
-      remainingEl.textContent = remaining > 0
-        ? formatEur(remaining).replace('€', '€') + ' à gravir'
-        : '🎉 Objectif atteint';
+      remainingEl.textContent = !valeurReelle ? ''
+        : (remaining > 0 ? formatEur(remaining).replace('€', '€') + ' à gravir'
+                         : '🎉 Objectif atteint');
       updateMilestones(eurVal);
 
       rafId = requestAnimationFrame(renderLoop);
@@ -2421,9 +2430,8 @@
 
       setTimeout(function() {
         if ((phase === 'waiting' || phase === 'ambient') && !dataReady) {
-          console.warn('[mountain] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
-          realPortfolioEUR = STATIC_EUR;
-          startFinalAnim(STATIC_EUR);
+          console.warn('[mountain] Données absentes après ' + DATA_TIMEOUT_MS + 'ms — '
+            + 'le compteur reste en attente (aucun montant à afficher sans déverrouillage).');
         }
       }, DATA_TIMEOUT_MS);
     }
@@ -2858,9 +2866,8 @@
 
       setTimeout(function() {
         if (!dataReady) {
-          console.warn('[slot] Data timeout (' + DATA_TIMEOUT_MS + 'ms), fallback STATIC_EUR');
-          realPortfolioEUR = STATIC_EUR;
-          beginLockCascade(STATIC_EUR);
+          console.warn('[slot] Données absentes après ' + DATA_TIMEOUT_MS + 'ms — '
+            + 'les rouleaux ne se figent sur aucun montant (voir STATIC_EUR).');
         }
       }, DATA_TIMEOUT_MS);
     }
@@ -4521,7 +4528,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=497"></script>
+<script type="module" src="js/app.js?v=498"></script>
 
 </body>
 </html>

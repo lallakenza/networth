@@ -4,14 +4,14 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=497';
-import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=497';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=497';
-import { render, applySnapshotDeltas } from './render.js?v=497';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=497';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=497';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=497';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=497';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=498';
+import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=498';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=498';
+import { render, applySnapshotDeltas } from './render.js?v=498';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=498';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=498';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=498';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=498';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -287,7 +287,22 @@ document.addEventListener('click', (ev) => {
   }, 60);
 });
 
+/**
+ * Les données sont-elles là ? Depuis le chiffrement (v496), `PORTFOLIO` est une coquille vide
+ * tant que la phrase n'a pas été saisie. Test volontairement structurel plutôt qu'un drapeau
+ * de déverrouillage : il vaut aussi pour tout autre cas de données manquantes.
+ */
+function donneesPretes() {
+  return !!(PORTFOLIO && PORTFOLIO.amine && PORTFOLIO.amine.ibkr);
+}
+
 function refresh() {
+  // Sans données, compute() plante (computeImmoView lit `portfolio.amine.immo`) et l'exception
+  // interrompait toute la séquence de démarrage. refresh() est appelé de partout — intervalles
+  // FX, retour du référentiel immo, changements de vue — donc le garde est ici plutôt qu'à
+  // chaque appel.
+  if (!donneesPretes()) return;
+
   currentState = compute(PORTFOLIO, currentFX, stockSource);
 
   // Determine the effective view for render
