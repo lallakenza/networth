@@ -4954,6 +4954,18 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v487 (29 août 2026) — correctifs de l'audit complet : assiette fiscale, dettes, insights, pipeline SGTM
+
+Premier lot de l'audit multi-agent du 29/08 (43 trouvailles vérifiées). BUG-094 : l'assiette fiscale
+de Vitry basculait sur le loyer en espèces à cause d'un `||` sur un 0 légitime — 3 365 €/an affichés
+contre 0 € sur la fiche du même bien ; correctif `!= null` + repli sur le loyer contractuel seul.
+BUG-095 : une créance à montant négatif (dette de 100 000 MAD) rejoint les dettes au lieu de se
+soustraire des créances garanties (45 295 → 54 588 €), NW inchangé. BUG-096 : les deux bandeaux
+d'accueil lisent `creancesView` au lieu de re-sommer data.js — fin du recomptage des créances
+encaissées (112 205 → 69 875 €). BUG-097 : `PlaywrightTimeoutError` enfin résolu dans le scraper
+SGTM (23 jours de prix figé, workflow au vert) + garde de fraîcheur 48 h. Identifiants bancaires
+(IBAN, n° de compte) retirés des commentaires de data.js, qui est servi publiquement.
+
 ## v485 (28 août 2026) — tuiles cash DYNAMIQUES + rendement Wio Nezha 6 %
 
 Fin des tuiles treemap en dur : les catégories « Cash Productif / Cash Dormant » des vues

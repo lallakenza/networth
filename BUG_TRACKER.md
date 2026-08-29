@@ -2123,3 +2123,39 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Root cause**: `renderCoupleTable` n'a pas suivi l'ajout des comptes `amine.banquePopulaire` (1 968) et `amine.binanceUSDT` (3 241) au NW (famille BUG-017/064 : composant ajouté au NW mais pas aux lignes).
 - **Fix (v480)**: BP intégré à la ligne Cash EUR, ligne « Binance USDT (Amine) » ajoutée ; l'invariant devient VISIBLE (ligne rouge dans la table quand |Σ − NW| > 2 €, plus seulement console.warn).
 - **Regression tests**: Σ lignes = NW à ±0 (headless ✓) ; aucune ligne rouge d'écart affichée ; tout futur compte oublié déclenche la ligne rouge à l'écran.
+
+## BUG-094: Assiette fiscale de Vitry calculée sur le loyer en espèces (`||` sur un 0 légitime)
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v487.
+- **Sévérité**: HAUTE — chiffre fiscal faux, susceptible d'être recopié dans une déclaration.
+- **Root cause**: `computeFiscaliteMRE` (engine.js) écrivait `vitry.loyerDeclareAnnuel || vitry.totalRevenue * 12`. Depuis v458, `loyerDeclareAnnuel` vaut délibérément **0** tant que le bail n'a pas pris effet ; le `||` traitait ce 0 comme « champ absent » et basculait l'assiette sur `totalRevenue`, qui agrège le loyer en espèces (1 200 €/mois) et le parking. Violation de la règle d'or n°6 du projet (`!= null`, jamais `||`).
+- **Symptôme**: trois impôts fonciers contradictoires pour le même bien le même jour — 0 € (fiche Immo), 404 € (prévisionnel 2027), **3 365 €** (Plan & Fiscalité, sur une base de 15 240 € dont 14 400 € hors base déclarée).
+- **Fix (v487)**: test `!= null` ; le repli ne porte plus que sur le loyer hors charges **contractuel**, jamais sur les encaissements. Vérifié : les deux pages affichent désormais 0 €.
+- **Regression tests**: `computeFiscaliteMRE().loyerVitry.total === immoView.properties[vitry].fiscalite.totalImpot` pour un même état ; la base ne doit jamais inclure `loyerCash*` ni `parking`.
+
+## BUG-095: Une créance à montant négatif (dette) reste rangée parmi les créances actives
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v487.
+- **Sévérité**: MOYENNE-HAUTE — KPI faux et dette invisible dans le tableau des dettes.
+- **Root cause**: v484 a introduit CREP08 (emprunt de 100 000 MAD) en montant négatif dans `creances.items`. `computeCreancesView` n'aiguillait vers `dettes` que la TVA et les positions de facturation négatives : la dette restait dans `activeItems` et se soustrayait de tous les agrégats de créances.
+- **Symptôme**: « Créances garanties » 45 295 € au lieu de 54 588 € ; total nominal 60 582 au lieu de 69 875 ; « Total dettes » amputé de 9 293 € ; ligne affichée en vert à 100 % de probabilité de recouvrement dans le tableau des créances.
+- **Fix (v487)**: les items actifs à `amountEUR < 0` sont versés dans `dettes` (en valeur absolue) et exclus d'`activeItems`. **Le net worth est inchangé** — `compute()` somme les items signés séparément ; on ne déplace que l'affichage.
+- **Regression tests**: `activeItems.every(i => i.amountEUR >= 0)` ; `dettes` contient la dette ; NW couple identique avant/après (vérifié : 780 279 €).
+
+## BUG-096: Bandeaux d'accueil — les créances encaissées sont recomptées (régression BUG-015)
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v487.
+- **Sévérité**: MOYENNE — écart de 70 000 € sur la page d'accueil.
+- **Root cause**: les blocs « Insights Autres » et « Risques couple » (render.js) re-sommaient `p.amine.creances.items` + `p.nezha.creances.items` **bruts** : sept créances déjà encaissées (`status: 'recouvré'`) et la dette négative étaient incluses, et les probabilités ignorées. Le moteur applique ces règles depuis BUG-015 ; ces deux bandeaux ne l'avaient jamais suivi.
+- **Symptôme**: « 112 205 € de créances dont 95 418 € garanties » affiché, contre 69 875 / 54 588 au moteur.
+- **Fix (v487)**: les deux blocs lisent `state.creancesView` (source unique déjà filtrée et pondérée) au lieu de re-dériver depuis data.js.
+- **Regression tests**: les bandeaux d'accueil doivent afficher exactement `creancesView.totalNominal` et `.totalGuaranteed`.
+
+## BUG-097: Collecte du cours SGTM morte 23 jours — `PlaywrightTimeoutError` jamais importé, workflow au vert
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v487.
+- **Sévérité**: HAUTE — prix d'un actif figé sans aucune alerte.
+- **Root cause**: `scripts/scrape_sgtm.py` utilise `PlaywrightTimeoutError` dans les 8 gestionnaires d'erreur de ses 4 scrapers, sans l'avoir jamais importé (l'en-tête n'importe que `Page`, et seulement pour les type-checkers). Au premier délai dépassé, le `except` levait lui-même un `NameError`, les 4 sources tombaient, et `continue-on-error: true` gardait le job au vert.
+- **Symptôme**: `data/sgtm_live.json` figé au 05/08/2026 (673 MAD) pendant 23 jours ; journal du 28/08 : « name 'PlaywrightTimeoutError' is not defined » ×2 puis « Aucune source n'a répondu ».
+- **Fix (v487)**: résolution paresseuse de l'exception (`_timeout_error()`), qui préserve l'import différé voulu (le mode `--backfill` tourne sans Playwright) et retombe sur une sentinelle inerte si Playwright est absent. Étape de workflow ajoutée : échec explicite si le prix dépasse **48 h** (tolérance week-end BVC).
+- **Regression tests**: `PlaywrightTimeoutError` résout vers une classe d'exception ; un prix de plus de 48 h fait échouer le job.

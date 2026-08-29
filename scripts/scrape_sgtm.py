@@ -54,6 +54,26 @@ from pathlib import Path
 if False:  # pragma: no cover — pour les type-checkers uniquement
     from playwright.sync_api import Page  # noqa: F401
 
+# Correctif 29/08/2026 — `PlaywrightTimeoutError` était utilisé dans les 8 gestionnaires
+# d'erreur des 4 scrapers sans avoir jamais été importé : au premier délai dépassé, le
+# `except` levait lui-même un NameError, toutes les sources tombaient, et le workflow
+# restait vert (continue-on-error). Résultat : 23 jours de prix figé sans alerte.
+# On conserve l'import paresseux voulu par l'en-tête ci-dessus : la résolution se fait au
+# premier appel, et retombe sur une classe inerte si Playwright est absent (mode --backfill).
+class _TimeoutIndisponible(Exception):
+    """Sentinelle : ne peut jamais être levée, donc le `except` ne masque rien."""
+
+
+def _timeout_error():
+    try:
+        from playwright.sync_api import TimeoutError as _TE
+        return _TE
+    except ImportError:
+        return _TimeoutIndisponible
+
+
+PlaywrightTimeoutError = _timeout_error()
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = REPO_ROOT / "data" / "sgtm_live.json"
 HISTORY_PATH = REPO_ROOT / "data" / "sgtm_history.json"

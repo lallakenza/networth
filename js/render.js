@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=486';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=486';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=487';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=487';
 
 // ---- Generic table sort utility ----
 /**
@@ -858,10 +858,15 @@ function renderDynamicInsights(state, view) {
   // ── Other insights (expand-other) ──
   const otherIns = document.getElementById('otherInsightsExpand');
   if (otherIns) {
-    const allCreances = (p.amine.creances.items || []).concat(p.nezha.creances.items || []);
-    const totalCreances = allCreances.reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
-    const guarCreances = allCreances.filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
-    const persoCreances = totalCreances - guarCreances;
+    // Correctif 29/08/2026 (audit) — ce bloc re-sommait TOUS les items de data.js, y compris les
+    // sept créances déjà encaissées (« recouvré ») et la dette à montant négatif, et ignorait les
+    // probabilités : 112 205 € annoncés contre 38 454 € réellement comptés au net worth.
+    // C'est la régression de BUG-015, corrigée dans le moteur mais jamais ici. On lit désormais
+    // la vue créances, source unique déjà filtrée et pondérée.
+    const _crv = state.creancesView || {};
+    const totalCreances = _crv.totalNominal || 0;
+    const guarCreances = _crv.totalGuaranteed || 0;
+    const persoCreances = Math.max(0, totalCreances - guarCreances);
     const totalVeh = (p.amine.vehicles.cayenne || 0) + (p.amine.vehicles.mercedes || 0);
     const tvaAbs = Math.abs(p.amine.tva || 0);
     otherIns.innerHTML =
@@ -905,9 +910,12 @@ function renderDynamicInsights(state, view) {
     const aedPct = cashTotal > 0 ? Math.round((s.amine.uae / cashTotal) * 100) : 0; // AUD-004: guard div/0
     const jpyShort = Math.abs(p.amine.ibkr.cashJPY || 0);
     const jpyEUR = Math.round(jpyShort / fx.JPY);
-    const totalCreances = (p.amine.creances.items || []).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
-    const guarCreances = (p.amine.creances.items || []).filter(c => c.guaranteed).reduce((s2, c) => s2 + (c.currency === 'EUR' ? c.amount : c.amount / fx[c.currency]), 0);
-    const persoCreances = totalCreances - guarCreances;
+    // Correctif 29/08/2026 (audit) — même régression de BUG-015 que le bloc « Autres » ci-dessus :
+    // les créances encaissées étaient recomptées. Source unique = la vue créances du moteur.
+    const _crvR = state.creancesView || {};
+    const totalCreances = _crvR.totalNominal || 0;
+    const guarCreances = _crvR.totalGuaranteed || 0;
+    const persoCreances = Math.max(0, totalCreances - guarCreances);
     // Check for overdue créances
     const overdueCreances = (state.creancesView && state.creancesView.items)
       ? state.creancesView.items.filter(c => c.status === 'en_retard')
@@ -7616,7 +7624,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=486').then(m => {
+  import('./charts.js?v=487').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

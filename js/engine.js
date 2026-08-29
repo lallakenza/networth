@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=486';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=487';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3525,12 +3525,26 @@ function computeCreancesView(portfolio, fx) {
   (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => allItems.push(processCreance(c, 'Nezha')));
 
   // Split active vs recouvré
-  const activeItems = allItems.filter(i => i.status !== 'recouvré');
+  // Correctif 29/08/2026 (audit) — une « créance » à montant NÉGATIF est une DETTE (ex. CREP08,
+  // emprunt de 100 000 MAD contracté auprès d'un proche). Elle restait rangée parmi les créances
+  // actives : elle se soustrayait du KPI « Créances garanties » (45 295 € affichés au lieu de
+  // 54 588 €), n'apparaissait pas dans le tableau des dettes, et s'affichait en vert à 100 % de
+  // probabilité de recouvrement. On l'aiguille ici, comme le sont déjà les positions de
+  // facturation négatives. Le net worth ne bouge pas : compute() somme les items signés à part.
+  const activeItems = allItems.filter(i => i.status !== 'recouvré' && (i.amountEUR || 0) >= 0);
   const recoveredItems = allItems.filter(i => i.status === 'recouvré');
-
   // ── Facturation positions → créances (positive) or dettes (negative) ──
   const factuCreances = [];  // receivables from facturation (positive amounts = they owe Amine)
   const dettes = [];
+  // Les items de créances à montant NÉGATIF (voir le commentaire du split plus haut) sont
+  // des dettes : on les verse ici, une fois `dettes` déclaré.
+  allItems
+    .filter(i => i.status !== 'recouvré' && (i.amountEUR || 0) < 0)
+    .forEach(i => dettes.push({
+      label: i.label || i.counterparty || i.id,
+      amount: Math.abs(i.amount), currency: i.currency,
+      amountEUR: Math.abs(i.amountEUR), owner: i.owner, type: i.type || 'perso',
+    }));
   // TVA
   if (portfolio.amine.tva && portfolio.amine.tva < 0) {
     dettes.push({ label: 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(portfolio.amine.tva), owner: 'Amine', type: 'pro' });
@@ -6144,7 +6158,16 @@ export function computeFiscaliteMRE(state) {
   // plus en taux flat.
   const vitry = state?.immoView?.properties?.find(p => p.loanKey === 'vitry');
   if (vitry) {
-    const loyerAnnuel = vitry.loyerDeclareAnnuel || (vitry.totalRevenue || 0) * 12;
+    // Correctif 29/08/2026 (audit) — le `||` traitait un 0 LÉGITIME comme « champ absent » :
+    // tant que le bail n'a pas pris effet, loyerDeclareAnnuel vaut délibérément 0 (v458), et le
+    // repli basculait l'assiette sur totalRevenue, qui agrège le loyer en espèces et le parking.
+    // Cette page imposait donc un revenu que la fiche du bien déclare explicitement à zéro —
+    // 3 365 €/an affichés contre 0 € sur la vue Immobilier, pour le même bien le même jour.
+    // Règle d'or n°6 du projet : `!= null`, jamais `||`. Le repli ne porte plus que sur le
+    // loyer hors charges CONTRACTUEL, jamais sur les encaissements en espèces.
+    const loyerAnnuel = vitry.loyerDeclareAnnuel != null
+      ? vitry.loyerDeclareAnnuel
+      : (vitry.loyerHCContractuel != null ? vitry.loyerHCContractuel : (vitry.loyerHC || 0)) * 12;
     const chargesAnnuelles = vitry.deductibleChargesAnnuel || 0;
     const interetsAnnuels = vitry.loanInterestAnnuel || 0;
 
