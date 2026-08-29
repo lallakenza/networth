@@ -4,14 +4,14 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=498';
-import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=498';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=498';
-import { render, applySnapshotDeltas } from './render.js?v=498';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=498';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=498';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=498';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=498';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=499';
+import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=499';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=499';
+import { render, applySnapshotDeltas } from './render.js?v=499';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=499';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=499';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=499';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=499';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -603,7 +603,16 @@ window._nwDeverrouille = false;
 window.nwUnlock = async (saisie) => {
   if (!(await blobDisponible())) return null;        // pas de chiffrement : ancien comportement
   const ok = await deverrouiller(saisie);
-  if (ok) { window._nwDeverrouille = true; refresh(); renderHeroChartFromStore(); }
+  if (ok) {
+    window._nwDeverrouille = true;
+    refresh();
+    renderHeroChartFromStore();
+    // Les chargements réseau lancés au démarrage ont été sautés faute de données : on les
+    // relance maintenant, sinon la page resterait sur les prix de repli jusqu'au prochain
+    // intervalle (5 min pour le FX, 15 pour les cours).
+    loadStockPrices(false).catch(e => console.warn('[app] cours après déverrouillage :', e));
+    refreshFX(false).catch(e => console.warn('[app] FX après déverrouillage :', e));
+  }
   return ok;
 };
 
@@ -1081,6 +1090,9 @@ let _stockRefreshInProgress = false;
  *                                 false = smart refresh (only fetch tickers missing from today's cache)
  */
 async function loadStockPrices(forceRefresh) {
+  // Sans données, il n'y a aucune position dont chercher le cours : fetchStockPrices lit
+  // PORTFOLIO.amine.ibkr et lèverait. Les cours sont rechargés au déverrouillage.
+  if (!donneesPretes()) return;
   // AUD-011: prevent concurrent stock refresh
   if (_stockRefreshInProgress && !forceRefresh) return;
   _stockRefreshInProgress = true;
