@@ -63,6 +63,9 @@ const deB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
  * @returns {Promise<boolean>} true si les données sont en place, false si la phrase est fausse.
  */
 export async function deverrouiller(phrase) {
+  // Robustesse : un copier-coller depuis un gestionnaire de mots de passe traîne souvent un
+  // espace ou un retour à la ligne. Sans ce nettoyage, la phrase correcte serait rejetée.
+  phrase = String(phrase == null ? '' : phrase).trim();
   if (!(await blobDisponible()) || !DATA_ENC.data) {
     console.warn('[unlock] chiffrement non activé (js/data.enc.js absent) — données en clair');
     return false;

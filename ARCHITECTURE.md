@@ -4954,6 +4954,19 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v496 (30 août 2026) — CHIFFREMENT ACTIVÉ : les données quittent le domaine public
+
+Bascule effective. `js/data.js` passe de 240 989 à 44 811 caractères (81 % retirés) : les 11 blocs
+personnels vivent désormais dans `js/data.enc.js` (130 Ko, AES-256-GCM, PBKDF2-SHA256 250 000
+itérations). La source en clair est hors dépôt (`~/networth-data/data.source.js`), la phrase — 5 mots,
+~80 bits d'entropie — a été générée par tirage cryptographique directement dans un fichier à
+permissions 600, sans transiter par la session. Vérifié : net worth identique au centime après
+déchiffrement (780 331 €), invariants verts, phrase erronée rejetée par l'authentification GCM,
+aucun motif sensible dans le commit.
+
+**Flux de mise à jour désormais** : éditer `~/networth-data/data.source.js`, puis
+`node scripts/build_encrypted_data.mjs`, puis commiter `js/data.enc.js`. Jamais la source.
+
 ## v495 (30 août 2026) — chiffrement : la grille d'accueil devient une vraie serrure
 
 Choix d'Amine : chiffrer plutôt que passer le dépôt en privé (GitHub Pages n'y publie qu'avec un
