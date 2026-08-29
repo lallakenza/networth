@@ -4954,6 +4954,19 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v493 (29 août 2026) — outillage de chiffrement des données (livré, pas encore activé)
+
+Réponse au point critique de l'audit : `js/data.js` est servi publiquement (261 Ko, soldes,
+créances nominatives, GMBI, champs de loyer en espèces) et le dépôt est public. Trois pièces
+livrées, **inertes tant que le blob n'existe pas** : `scripts/build_encrypted_data.mjs` (extrait les
+11 blocs sensibles d'une source gardée hors dépôt, produit `js/data.enc.js` en AES-256-GCM /
+PBKDF2-SHA256 250 000 itérations, phrase jamais écrite ni journalisée, minimum 12 caractères
+imposé) ; `js/unlock.js` (import DYNAMIQUE du blob — sans lui le site fonctionne comme avant ;
+remplit les objets exportés par référence, comme applyImmoRef) ; `scripts/split_data_for_encryption.mjs`
+(vide les blocs de data.js : 81 % du fichier public retiré). Mode d'emploi et points ouverts —
+instantané nocturne, historique git — dans `docs/CHIFFREMENT_DONNEES.md`. Au passage : le
+commentaire `// hash of 'XXXX'` qui donnait le code d'accès en clair dans index.html est retiré.
+
 ## v490 (29 août 2026) — audit, lot 4 : sous-cartes de trésorerie et projection CF dérivées du moteur
 
 BUG-102 : les listes de comptes des sous-cartes UAE et Maroc étaient écrites à la main (Wio Business

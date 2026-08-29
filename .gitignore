@@ -9,3 +9,9 @@ skills-lock.json
 .agents/
 .claude/skills/
 .tmp_snapshot/
+
+# Chiffrement des données (v493) — rien de ce qui suit ne doit atteindre le dépôt public.
+data.source.js
+*.avant-chiffrement
+js/data.js.avant-chiffrement
+.env
