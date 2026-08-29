@@ -11,20 +11,42 @@
 //
 // Auto-suffisant : lit js/data.js + js/engine.js, retire les suffixes de
 // cache-busting `?v=N` (invalides pour un import Node), importe et exécute compute().
+//
+// DEPUIS LE CHIFFREMENT (v496) : `js/data.js` ne contient plus les blocs personnels — ils sont
+// dans `js/data.enc.js`, illisible sans la phrase. Le détecteur lit donc la SOURCE en clair
+// gardée hors du dépôt. Sans elle, il ne peut rien vérifier et le dit au lieu de planter sur
+// un `PORTFOLIO` vide (ce qui se lisait comme une panne du détecteur, pas comme une absence
+// de données). Voir docs/CHIFFREMENT_DONNEES.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SOURCE_CLAIR = process.env.NW_DATA_SOURCE
+  || join(dirname(repoRoot), 'networth-data', 'data.source.js');
+
 const tmp = mkdtempSync(join(tmpdir(), 'nw-desync-'));
 for (const file of ['data.js', 'engine.js']) {
-  const src = readFileSync(join(repoRoot, 'js', file), 'utf8').replace(/\?v=\d+/g, '');
+  // data.js est un fichier coquille depuis le chiffrement : on lui substitue la source en clair.
+  const origine = (file === 'data.js' && existsSync(SOURCE_CLAIR))
+    ? SOURCE_CLAIR
+    : join(repoRoot, 'js', file);
+  const src = readFileSync(origine, 'utf8').replace(/\?v=\d+/g, '');
   writeFileSync(join(tmp, file), src);
 }
 const { PORTFOLIO, FX_STATIC } = await import(pathToFileURL(join(tmp, 'data.js')).href);
 const { compute } = await import(pathToFileURL(join(tmp, 'engine.js')).href);
+
+// Garde-fou : sans données, tous les écarts valent 0 et le détecteur annoncerait « tout
+// concorde » — un faux négatif silencieux, exactement ce qu'il est censé empêcher.
+if (!PORTFOLIO || !PORTFOLIO.amine || !PORTFOLIO.amine.ibkr) {
+  console.error('✗ Données absentes : js/data.js est chiffré et la source en clair est introuvable.');
+  console.error(`  Attendue ici : ${SOURCE_CLAIR}`);
+  console.error('  Renseigne NW_DATA_SOURCE, ou lance ce script depuis une machine qui a la source.');
+  process.exit(2);
+}
 
 const s = compute(PORTFOLIO, { ...FX_STATIC }, 'static');
 const f = (x) => Math.round(x).toLocaleString('fr-FR');

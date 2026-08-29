@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=496';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=496';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=496';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=496';
-import { loadSnapshots } from './api.js?v=496'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=496'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=497';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=497';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=497';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=497';
+import { loadSnapshots } from './api.js?v=497'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=497'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -372,7 +372,9 @@ function buildNezhaDonut(state) {
   charts.nezhaAlloc = new Chart(document.getElementById('nezhaAllocChart'), {
     type: 'doughnut',
     data: {
-      labels: ['\u00c9quit\u00e9 Rueil','\u00c9quit\u00e9 Villejuif','Cash France','Cash Maroc (100K MAD)','SGTM (actions)','Creance Omar (40K MAD)'],
+      // Pas de montant dans les libell\u00e9s : la valeur est d\u00e9j\u00e0 affich\u00e9e par le tooltip, et un
+      // montant \u00e9crit en dur devient faux d\u00e8s que la donn\u00e9e bouge (il l'\u00e9tait : 100K/40K MAD).
+      labels: ['\u00c9quit\u00e9 Rueil','\u00c9quit\u00e9 Villejuif','Cash France','Cash Maroc','SGTM (actions)','Cr\u00e9ance en cours'],
       datasets: [{ data: [n.rueilEquity, n.villejuifEquity, n.cashFrance, n.cashMaroc, n.sgtm, n.recvOmar], backgroundColor: ['#2b6cb0','#2c7a7b','#48bb78','#9ae6b4','#ed8936','#cbd5e0'], borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,

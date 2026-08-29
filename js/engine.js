@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=496';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=497';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3536,11 +3536,11 @@ function computeCreancesView(portfolio, fx) {
   (portfolio.nezha.creances ? portfolio.nezha.creances.items : []).forEach(c => allItems.push(processCreance(c, 'Nezha')));
 
   // Split active vs recouvré
-  // Correctif 29/08/2026 (audit) — une « créance » à montant NÉGATIF est une DETTE (ex. CREP08,
-  // emprunt de 100 000 MAD contracté auprès d'un proche). Elle restait rangée parmi les créances
-  // actives : elle se soustrayait du KPI « Créances garanties » (45 295 € affichés au lieu de
-  // 54 588 €), n'apparaissait pas dans le tableau des dettes, et s'affichait en vert à 100 % de
-  // probabilité de recouvrement. On l'aiguille ici, comme le sont déjà les positions de
+  // Correctif 29/08/2026 (audit) — une « créance » à montant NÉGATIF est une DETTE (un emprunt
+  // saisi dans le même tableau). Elle restait rangée parmi les créances actives : elle se
+  // soustrayait du KPI « Créances garanties » au lieu de s'ajouter aux dettes, n'apparaissait
+  // pas dans le tableau des dettes, et s'affichait en vert à 100 % de probabilité de
+  // recouvrement. On l'aiguille ici, comme le sont déjà les positions de
   // facturation négatives. Le net worth ne bouge pas : compute() somme les items signés à part.
   const activeItems = allItems.filter(i => i.status !== 'recouvré' && (i.amountEUR || 0) >= 0);
   const recoveredItems = allItems.filter(i => i.status === 'recouvré');
