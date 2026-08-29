@@ -2159,3 +2159,31 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Symptôme**: `data/sgtm_live.json` figé au 05/08/2026 (673 MAD) pendant 23 jours ; journal du 28/08 : « name 'PlaywrightTimeoutError' is not defined » ×2 puis « Aucune source n'a répondu ».
 - **Fix (v487)**: résolution paresseuse de l'exception (`_timeout_error()`), qui préserve l'import différé voulu (le mode `--backfill` tourne sans Playwright) et retombe sur une sentinelle inerte si Playwright est absent. Étape de workflow ajoutée : échec explicite si le prix dépasse **48 h** (tolérance week-end BVC).
 - **Regression tests**: `PlaywrightTimeoutError` résout vers une classe d'exception ; un prix de plus de 48 h fait échouer le job.
+
+## BUG-098: Loyer et cash-flow divergents entre la page Budget et la page Immobilier
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v488.
+- **Sévérité**: HAUTE — deux pages du même dashboard, le même bien, la même seconde, deux chiffres.
+- **Root cause**: `computeBudgetView` re-dérivait le loyer depuis data.js avec les seuls champs historiques (`loyerHC + parking + chargesLocataire`), en ignorant les champs ajoutés en v458/v463/v465 : la porte `bail.debut` et la part en espèces. Seul `computeImmoView` avait été câblé. Classe BUG-017/047/064 appliquée aux champs de FLUX au lieu des composants de NW.
+- **Symptôme**: Vitry — loyer 770 €/mois et CF −682 € sur la page Budget, contre 1 270 € et −182 € sur la page Immobilier. Totaux : CF invest −609 vs −107.
+- **Fix (v488)**: `computeBudgetView(portfolio, fx, immoView)` lit `prop.totalRevenue` de la vue immo (source unique), avec repli sur l'ancien calcul si la vue n'est pas disponible. Vérifié : Vitry 1 270/1 270 et −182/−182, Rueil 1 450/1 450 et +126/+126. Villejuif reste volontairement différent (0 en Budget = flux réel, 1 700 en Immo = projeté post-livraison).
+- **Regression tests**: pour tout bien non conditionnel, `budgetView.investProperties[k].loyer === immoView.properties[k].totalRevenue`.
+
+## BUG-099: Villejuif projeté sur sa valeur comptable au lieu de sa valeur livrée
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v488.
+- **Sévérité**: HAUTE — frais de sortie faux d'un facteur 6,5 ; ~75 K€ d'appréciation manquants sur la projection 20 ans.
+- **Root cause**: un bien en VEFA porte `value` (coût engagé, 141 100 €) et `deliveredValue` (valeur de marché livrée, 415 000 €). `projectNW` (v479) utilisait la bonne ; `exitCostsByYear` et `wealthProjection` composaient sur `value`. Sur cette base, le prix simulé restait sous le prix d'acquisition : ni impôt de plus-value, ni clause SADEV, ni représentant fiscal ne se déclenchaient. En prime, `wealthProjection` comptait l'appréciation **avant** la livraison, ce que la décision v362 (BUG-065) exclut explicitement du KPI.
+- **Symptôme**: frais de sortie Villejuif 2028 = 7 228 € (vue Immo) contre 49 585 € (projection) ; graphe de création de richesse démarrant 60 €/mois au-dessus du KPI qu'il illustre.
+- **Fix (v488)**: helper unique `valeurProjetable(prop)` (= `deliveredValue` pour un conditionnel, `value` sinon) employé par les deux boucles ; appréciation gatée par `isOperationalAtM` comme le capital et le cash-flow. Vérifié : frais 2028 = 47 182 €, graphe à 1 788 €/mois contre KPI 1 787 €.
+- **Regression tests**: `exitCostsByYearProp[an].villejuif` du même ordre que `computeExitCostsAtYear` ; premier point de `wealthProjection` ≈ `totalWealthCreation` (±2 €).
+
+## BUG-100: Filtre par propriétaire incomplet — dénominateur du % et chips de variation restés couple-level
+
+- **Version**: détecté par l'audit du 29/08/2026, corrigé v488.
+- **Sévérité**: HAUTE — pourcentage faux d'un facteur 34 en vue Nezha.
+- **Root cause**: troisième récurrence de la classe BUG-005/006/018 (série filtrée, métadonnée non filtrée). Trois foyers : (a) `startNAV` (charts.js), dénominateur du % du titre, lisait les séries brutes `data.*Values[startIdx]` alors que lignes, `refValue`, dépôts et tooltip sont tous filtrés ; (b) les chips « vs hier » des 4 cartes catégories (render.js) lisaient toujours `views.couple`, y compris en vue Amine/Nezha où les cartes affichent les montants de la personne ; (c) `window.PORTFOLIO` (6 lectures dans charts.js) n'a jamais existé — PORTFOLIO est importé en tête de module — donc le ratio SGTM par propriétaire retombait sur le fallback 32/32, figé à 50/50, dans le tooltip, le panneau de clic et la légende.
+- **Symptôme**: vue Nezha, un gain YTD de +700 € affiché « +0,30 % » au lieu de « ~+15 % » ; carte « Actions » à 7 147 € surmontée d'un « −2 400 € vs hier » appartenant au portefeuille d'Amine.
+- **Fix (v488)**: `startNAV` passe par `window.ownerScopedSeries` (source unique déjà prévue, court-circuit sur « both » = zéro régression) ; `applySnapshotDeltas(s, vue)` indexe snapshot et état sur la même vue et efface les chips quand la vue n'est pas couverte ; les 6 `window.PORTFOLIO` deviennent `PORTFOLIO`.
+- **Note**: (c) était un bug **dormant** — les parts SGTM valent 32/32 aujourd'hui, donc le ratio réel est bien 50/50 ; il se serait manifesté au premier achat déséquilibré.
+- **Regression tests**: en vue Nezha, `startNAV` ≈ `views.nezha.stocks` et non `views.couple.stocks` ; aucun chip de catégorie affiché si le snapshot ne porte pas la vue.

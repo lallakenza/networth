@@ -33,8 +33,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=487';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=487';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=488';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=488';
 
 // ---- Generic table sort utility ----
 /**
@@ -391,7 +391,7 @@ function renderKPIs(state, view) {
   }
   // v389 — deltas « vs hier » depuis les snapshots quotidiens Supabase (réveil de setDelta,
   // dormant depuis v150). Réappliqués à chaque render si le cache est chargé.
-  applySnapshotDeltas(s);
+  applySnapshotDeltas(s, view);
 
   setEur('kpiCoupleAmNW', s.amine.nw);
   if (s.amine.nwDelta !== null && s.amine.nwDeltaPct !== null) {
@@ -1340,7 +1340,12 @@ function setSubPct(id, pct) {
 // ── v389 — Deltas NW depuis les snapshots quotidiens (window._nwSnapCache, chargé par app.js) ──
 // Baseline = dernier snapshot AVANT aujourd'hui (Paris). Libellé « vs hier » si J-1, sinon
 // « vs DD/MM ». Comparaison EUR vs EUR (state live vs total figé). Silencieux si <1 baseline.
-export function applySnapshotDeltas(s) {
+// v488 (audit) — `vue` ajoutée : les chips des cartes catégories étaient TOUJOURS calculés sur le
+// couple, y compris en vue Amine ou Nezha où les cartes affichent, elles, les montants de la
+// personne. Une carte « Actions » à 7 147 € (Nezha) pouvait porter « −2 400 € vs hier », le delta
+// du portefeuille d'Amine — un tiers de la valeur de la carte, au signe potentiellement opposé.
+// Classe BUG-005/006/018. Les cartes NW restent couple-level : elles le sont par nature.
+export function applySnapshotDeltas(s, vue) {
   try {
     const cache = window._nwSnapCache;
     if (!cache || !cache.length || !s) return;
@@ -1436,9 +1441,12 @@ export function applySnapshotDeltas(s) {
     // v480 (audit BI) — « qu'est-ce qui a bougé » PARTOUT : deltas vs base sur les
     // 4 cartes catégories (views du snapshot) et sur l'équité immo du Résumé.
     try {
-      const bVues = base.data.views && base.data.views.couple;
+      const _vue = (vue === 'amine' || vue === 'nezha') ? vue : 'couple';
+      const bVues = base.data.views && base.data.views[_vue];
       const cartesCat = document.querySelectorAll('#catGrid .cat-card');
-      if (bVues && cartesCat.length >= 4 && s.views && s.views.couple) {
+      // Snapshot antérieur au schéma par vue : aucun chip plutôt qu'un chip du couple sous une
+      // carte personnelle.
+      if (bVues && cartesCat.length >= 4 && s.views && s.views[_vue]) {
         ['stocks', 'cash', 'immo', 'other'].forEach((k, i) => {
           const carte = cartesCat[i];
           if (!carte) return;
@@ -1450,7 +1458,7 @@ export function applySnapshotDeltas(s) {
             const amt = carte.querySelector('.cat-amount');
             if (amt) amt.insertAdjacentElement('afterend', chip); else carte.appendChild(chip);
           }
-          const cur = s.views.couple[k] && s.views.couple[k].val;
+          const cur = s.views[_vue][k] && s.views[_vue][k].val;
           const bas = bVues[k];
           if (typeof cur === 'number' && typeof bas === 'number' && bas && Math.abs(cur - bas) >= 1) {
             const dC = cur - bas;
@@ -1458,6 +1466,10 @@ export function applySnapshotDeltas(s) {
             chip.textContent = (dC >= 0 ? '+' : '') + fmt(dC) + ' ' + label;
           } else { chip.textContent = ''; }
         });
+      } else {
+        // Vue non couverte par le snapshot : effacer les chips d'un rendu précédent plutôt
+        // que de laisser un delta du couple sous une carte personnelle.
+        cartesCat.forEach(c2 => { const ch = c2.querySelector('.cat-delta'); if (ch) ch.textContent = ''; });
       }
       if (base.data.immo && typeof base.data.immo.equityNet === 'number') {
         apply('kpiImmoEq', s.couple.immoEquity, base.data.immo.equityNet);
@@ -7624,7 +7636,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=487').then(m => {
+  import('./charts.js?v=488').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

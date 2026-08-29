@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=487';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=488';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3238,7 +3238,7 @@ function computeImmoView(portfolio, fx) {
       const [pY2] = purchaseDateStr.split('-').map(Number);
       // Projected value with compound appreciation
       const phases = propMeta.appreciationPhases || [];
-      let projValue = prop.value;
+      let projValue = valeurProjetable(prop);   // v488 — valeur LIVRÉE pour un VEFA
       for (let yy = projStartY; yy < yr; yy++) {
         let rate = appreciationRate;
         for (const ph of phases) { if (yy >= ph.start && yy <= ph.end) { rate = ph.rate; break; } }
@@ -3322,7 +3322,7 @@ function computeImmoView(portfolio, fx) {
 
       // Appreciation: compound year by year using phased rates
       const yearsFromNow = m / 12;
-      let compoundedValue = prop.value;
+      let compoundedValue = valeurProjetable(prop);   // v488 — idem
       let currentRate = defaultRate;
       for (let yr = projStartY; yr < y; yr++) {
         let rate = defaultRate;
@@ -3338,7 +3338,10 @@ function computeImmoView(portfolio, fx) {
         compoundedValue *= Math.pow(1 + rate, partialMonths / 12);
         currentRate = rate;
       }
-      const appreciationM = compoundedValue * currentRate / 12;
+      // v488 (audit) — l'appréciation d'un bien pas encore livré était comptée ici alors que la
+      // décision v362 (BUG-065) l'exclut explicitement du KPI « création de richesse » : le graphe
+      // démarrait 60 €/mois au-dessus de la carte qu'il illustre. Même porte que le capital et le CF.
+      const appreciationM = isOperationalAtM ? (compoundedValue * currentRate / 12) : 0;
 
       // Cash flow: when operational, with IRL rent growth + charge inflation + loan end detection
       let cfM = 0;
@@ -3693,7 +3696,17 @@ function computeCreancesView(portfolio, fx) {
  *                     investment, investmentTotal, investmentByProperty,
  *                     combined, combinedTotal, ... }
  */
-function computeBudgetView(portfolio, fx) {
+// v488 (audit) — SOURCE UNIQUE de la valeur à projeter pour un bien.
+// Un bien en VEFA porte deux valeurs : `value` = coût réellement engagé (appels de fonds payés,
+// ~141 K pour Villejuif) et `deliveredValue` = valeur de marché une fois livré (~415 K). Projeter
+// une appréciation ou un prix de cession sur la première n'a aucun sens : elle mesure ce qui a été
+// décaissé, pas ce que vaut le bien. projectNW (v479) utilisait déjà deliveredValue ; deux autres
+// boucles ne l'ont jamais fait, d'où des frais de sortie 2028 de 7 228 € ici contre 49 585 € là.
+function valeurProjetable(prop) {
+  return (prop && prop.conditional && prop.deliveredValue) ? prop.deliveredValue : (prop ? prop.value : 0);
+}
+
+function computeBudgetView(portfolio, fx, immoView) {
   const IC = IMMO_CONSTANTS;
   const p = portfolio;
 
@@ -3747,17 +3760,29 @@ function computeBudgetView(portfolio, fx) {
       }
     });
 
-    // Get loyer from portfolio data (total revenue including charges provision)
+    // v488 (audit) — SOURCE UNIQUE. Ce bloc re-dérivait le loyer depuis data.js avec les seuls
+    // champs historiques (loyerHC + parking + chargesLocataire), en ignorant les champs ajoutés
+    // en v458/v463/v465 : la porte `bail.debut` et la part en espèces. Résultat : Vitry affichait
+    // 770 €/mois de loyer et −682 € de cash-flow sur la page Budget, contre 1 270 € et −182 € sur
+    // la page Immobilier — deux pages du même dashboard, le même bien, la même seconde.
+    // On lit désormais la propriété déjà calculée par computeImmoView.
+    const _propIV = immoView && immoView.properties
+      ? immoView.properties.find(pr => pr.loanKey === prop)
+      : null;
     let loyer = 0;
-    if (prop === 'vitry' && p.amine && p.amine.immo && p.amine.immo.vitry) {
-      const v = p.amine.immo.vitry;
+    if (_propIV) {
+      // totalRevenue porte la réalité du flux (gating bail, espèces, parking) ; futureLoyer garde
+      // le loyer contractuel plein pour les biens pas encore livrés.
+      loyer = _propIV.totalRevenue || 0;
+    } else if (prop === 'vitry' && p.amine && p.amine.immo && p.amine.immo.vitry) {
+      const v = p.amine.immo.vitry;   // repli si la vue immo n'est pas disponible
       loyer = (v.loyerHC || v.loyer || 0) + (v.parking || 0) + (v.chargesLocataire || 0);
     } else if (p.nezha && p.nezha.immo && p.nezha.immo[prop]) {
       const nz = p.nezha.immo[prop];
       loyer = (nz.loyerHC || nz.loyer || 0) + (nz.parking || 0) + (nz.chargesLocataire || 0);
     }
 
-    // Villejuif: no loyer yet (not delivered)
+    // Villejuif : pas encore de loyer (bien non livré) — cohérent avec la doctrine v347.
     const currentLoyer = isVillejuif ? 0 : loyer;
     const cf = currentLoyer - currentCharges;
     const active = !isVillejuif; // fully active = all charges running
@@ -4718,7 +4743,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp);
   // immoView already computed at top of function (needed for CRDs in NW calculations)
   const creancesView = computeCreancesView(p, fx);
-  const budgetView = computeBudgetView(p, fx);
+  const budgetView = computeBudgetView(p, fx, immoView); // v488 — source unique des loyers (audit)
 
   // ---- DIVIDEND / WHT ANALYSIS ----
   const dividendAnalysis = computeDividendAnalysis(ibkrPositions, fx);

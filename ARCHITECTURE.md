@@ -4954,6 +4954,17 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v488 (29 août 2026) — audit, lot 2 : Budget/Immo réconciliés, Villejuif à sa valeur livrée, filtre propriétaire complété
+
+BUG-098 : `computeBudgetView` reçoit `immoView` et lit `prop.totalRevenue` au lieu de re-dériver le
+loyer sans la porte `bail` ni les espèces (Vitry 770 → 1 270 €, CF −682 → −182 €, identiques à la
+page Immo). BUG-099 : helper `valeurProjetable(prop)` — un VEFA se projette sur `deliveredValue`,
+pas sur le coût engagé (frais de sortie 2028 : 7 228 → 47 182 €) — et l'appréciation d'un bien non
+livré est gatée comme le capital (graphe de richesse aligné sur son KPI à 1 € près). BUG-100 :
+`startNAV` passe par `ownerScopedSeries` (le % du titre valait 1/34 du bon chiffre en vue Nezha),
+`applySnapshotDeltas(s, vue)` indexe les chips sur la vue courante, et les 6 `window.PORTFOLIO`
+inexistants deviennent `PORTFOLIO` (ratio SGTM figé à 50/50 dans les tooltips).
+
 ## v487 (29 août 2026) — correctifs de l'audit complet : assiette fiscale, dettes, insights, pipeline SGTM
 
 Premier lot de l'audit multi-agent du 29/08 (43 trouvailles vérifiées). BUG-094 : l'assiette fiscale

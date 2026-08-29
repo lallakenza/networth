@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=487';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=487';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=487';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=487';
-import { loadSnapshots } from './api.js?v=487'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=487'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=488';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=488';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=488';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=488';
+import { loadSnapshots } from './api.js?v=488'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=488'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -3125,7 +3125,15 @@ export function renderPortfolioChart(overrides = {}) {
   // portfolio → % grossly overstated. v303: always read starting NAV from
   // the NAV series at startIdx (same for P&L AND Valeur modes) so the %
   // denominator is mode-invariant.
+  // v488 (audit) — le dénominateur du % du titre restait COUPLE-LEVEL alors que tout le reste du
+  // pipeline est filtré par propriétaire (lignes, refValue, dépôts depuis BUG-046, tooltip depuis
+  // v285). En vue Nezha, un gain de +700 € était divisé par la NAV du couple : « +0,30 % » affiché
+  // au lieu de « +15 % », un facteur 34. Classe BUG-005/006/018. On passe par la source unique
+  // déjà prévue pour ça — ownerScopedSeries court-circuite sur « both », donc zéro régression.
   const startNAV = (function() {
+    const scoped = (typeof window !== 'undefined' && window.ownerScopedSeries)
+      ? window.ownerScopedSeries(data, scope, owner) : null;
+    if (scoped && scoped.nav) return scoped.nav[startIdx] || 0;
     switch (scope) {
       case 'espp':   return (data.esppValues   || [])[startIdx] || 0;
       case 'maroc':  return (data.sgtmValues   || [])[startIdx] || 0;
@@ -3327,8 +3335,12 @@ export function renderPortfolioChart(overrides = {}) {
     // v276: use per-owner ESPP arrays (not ratios) for true owner-specific data
     let _oIR = 1, _oDR = 1, _oSR = 1;
     if (owner !== 'both') {
-      const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
-      const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+      // v488 (audit) — `window.PORTFOLIO` n'a jamais existé (PORTFOLIO est importé en tête de
+      // module) : les 6 lectures retombaient sur le fallback 32/32, figeant la répartition SGTM
+      // à 50/50 dans le tooltip, le panneau de clic et la légende, alors que les LIGNES du graphe
+      // utilisent le vrai ratio. Affichage et courbe se contredisaient dès que les parts changent.
+      const _asS = PORTFOLIO?.amine?.sgtm?.shares || 32;
+      const _nsS = PORTFOLIO?.nezha?.sgtm?.shares || 32;
       _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
       _oIR = owner === 'amine' ? 1 : 0;
       _oDR = owner === 'amine' ? 1 : 0;
@@ -3430,8 +3442,8 @@ export function renderPortfolioChart(overrides = {}) {
       }
       // v276: Apply owner filter to tooltip values using per-owner ESPP arrays
       if (owner !== 'both') {
-        const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
-        const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+        const _asS = PORTFOLIO?.amine?.sgtm?.shares || 32;
+        const _nsS = PORTFOLIO?.nezha?.sgtm?.shares || 32;
         const _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
         const _oIR = owner === 'amine' ? 1 : 0;
         const _oDR = owner === 'amine' ? 1 : 0;
@@ -3471,8 +3483,8 @@ export function renderPortfolioChart(overrides = {}) {
         // by reading the owner-filtered nav at the period start index.
         let startV = startValueRef || nav;
         if (owner !== 'both') {
-          const _asS = window.PORTFOLIO?.amine?.sgtm?.shares || 32;
-          const _nsS = window.PORTFOLIO?.nezha?.sgtm?.shares || 32;
+          const _asS = PORTFOLIO?.amine?.sgtm?.shares || 32;
+          const _nsS = PORTFOLIO?.nezha?.sgtm?.shares || 32;
           const _oSR = owner === 'amine' ? _asS / (_asS + _nsS) : _nsS / (_asS + _nsS);
           const _oIR = owner === 'amine' ? 1 : 0;
           const _oDR = owner === 'amine' ? 1 : 0;
