@@ -4,13 +4,14 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=494';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=494';
-import { render, applySnapshotDeltas } from './render.js?v=494';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=494';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=494';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=494';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=494';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=495';
+import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=495';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=495';
+import { render, applySnapshotDeltas } from './render.js?v=495';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=495';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=495';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=495';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=495';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -567,6 +568,30 @@ function renderHeroChartFromStore() {
 }
 
 // ---- INIT ----
+// v495 — les données sensibles sont chiffrées (js/data.enc.js). Tant que le blob n'existe pas,
+// `blobDisponible()` répond false et tout se déroule exactement comme avant : ce bloc est inerte.
+// Quand il existe, on tente d'abord un déverrouillage silencieux depuis la session en cours, puis
+// on branche la grille de code de l'accueil sur le déchiffrement — une seule saisie fait les deux.
+window._nwDeverrouille = false;
+(async () => {
+  if (!(await blobDisponible())) return;             // chiffrement pas encore activé
+  window._nwDeverrouille = await deverrouillerDepuisSession();
+  if (window._nwDeverrouille) { refresh(); return; }
+  // Pas encore déverrouillé dans cet onglet : la grille reste affichée, et c'est elle qui
+  // déclenchera le déchiffrement (voir window.nwUnlock ci-dessous, appelée par checkAuth).
+  const gate = document.getElementById('authGate');
+  if (gate) gate.style.display = 'flex';
+})();
+
+// Appelée par checkAuth() dans index.html : tente le déchiffrement avec la saisie de la grille.
+// Retourne true si les données sont en place — checkAuth ne masque la grille que dans ce cas.
+window.nwUnlock = async (saisie) => {
+  if (!(await blobDisponible())) return null;        // pas de chiffrement : ancien comportement
+  const ok = await deverrouiller(saisie);
+  if (ok) { window._nwDeverrouille = true; refresh(); renderHeroChartFromStore(); }
+  return ok;
+};
+
 restoreFromHash();
 syncNavUI();
 refresh();

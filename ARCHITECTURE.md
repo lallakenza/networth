@@ -4954,6 +4954,18 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v495 (30 août 2026) — chiffrement : la grille d'accueil devient une vraie serrure
+
+Choix d'Amine : chiffrer plutôt que passer le dépôt en privé (GitHub Pages n'y publie qu'avec un
+plan payant — le site serait devenu inaccessible). Câblage complet, toujours INERTE tant que
+`js/data.enc.js` n'existe pas : `checkAuth()` appelle `window.nwUnlock(saisie)` qui déchiffre —
+c'est le déchiffrement qui fait foi, plus la comparaison de hash (qui ne protégeait rien, le blob
+étant public) ; app.js tente un déverrouillage silencieux depuis la session, rouvre la grille sinon.
+**Garde-fou critique sur `scripts/daily_snapshot.mjs`** : sur données vides et sans `NW_PASSPHRASE`,
+le cron REFUSE d'écrire et sort en erreur — un `compute({})` aurait inséré un patrimoine à zéro
+dans une table append-only, corrompant l'historique une ligne par nuit. Avec le secret, il déchiffre
+lui-même.
+
 ## v494 (30 août 2026) — audit, lot 5 : trouvailles moyennes et basses
 
 BUG-103 à BUG-110. Données : commission FX en yens saisie en euros (commissions all-time −545 →

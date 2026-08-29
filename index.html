@@ -2971,8 +2971,22 @@ function setCookie(name, value, days) {
   document.cookie = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;SameSite=Strict';
 }
 
-function checkAuth() {
+async function checkAuth() {
   const input = document.getElementById('authInput').value;
+  // v495 — quand les données sont chiffrées, la saisie sert de CLÉ : c'est le déchiffrement qui
+  // fait foi, pas la comparaison de hash (celle-ci ne protégeait rien, le blob étant public).
+  // `nwUnlock` renvoie null tant que le chiffrement n'est pas activé → ancien comportement.
+  if (typeof window.nwUnlock === 'function') {
+    const r = await window.nwUnlock(input);
+    if (r === true) { document.getElementById('authGate').style.display = 'none'; return; }
+    if (r === false) {
+      document.getElementById('authError').style.display = 'block';
+      document.getElementById('authInput').value = '';
+      document.getElementById('authInput').focus();
+      return;
+    }
+    // r === null : chiffrement inactif, on retombe sur la vérification historique ci-dessous.
+  }
   if (hashStr(input) === AUTH_HASH) {
     setCookie(AUTH_COOKIE, AUTH_HASH, 2); // v280: re-prompt every 2 days
     document.getElementById('authGate').style.display = 'none';
@@ -2983,7 +2997,10 @@ function checkAuth() {
   }
 }
 
-// Auto-check cookie on load
+// Auto-check cookie on load.
+// v495 — le cookie ne suffit plus si les données sont chiffrées : il masquerait la grille alors
+// que les données ne seraient pas déchiffrées. app.js rouvre la grille dans ce cas (et la garde
+// fermée s'il a pu déverrouiller depuis la session).
 if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
   document.getElementById('authGate').style.display = 'none';
 }
@@ -4504,7 +4521,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=494"></script>
+<script type="module" src="js/app.js?v=495"></script>
 
 </body>
 </html>

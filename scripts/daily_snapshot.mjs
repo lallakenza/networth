@@ -31,6 +31,61 @@ for (const f of ['data.js', 'engine.js']) {
 const { PORTFOLIO, FX_STATIC } = await import(pathToFileURL(join(tmp, 'data.js')).href);
 const { compute, buildDailySnapshot } = await import(pathToFileURL(join(tmp, 'engine.js')).href);
 
+// ── 1bis. GARDE-FOU CHIFFREMENT (v495) ────────────────────────────────────────────
+// Depuis le chiffrement des données, `js/data.js` ne contient plus que des coquilles vides :
+// les blocs réels vivent dans `js/data.enc.js`, déverrouillés par une phrase que le navigateur
+// demande à l'ouverture. En headless, sans cette phrase, PORTFOLIO est VIDE.
+//
+// Le danger n'est pas l'échec : c'est le SUCCÈS SILENCIEUX. `compute({})` ne lève pas
+// forcément — il produirait un patrimoine proche de zéro, que ce script écrirait dans une table
+// APPEND-ONLY. L'historique patrimonial serait corrompu de façon irréversible, une ligne par nuit.
+//
+// On refuse donc d'écrire tant que les données ne sont pas là. Pour rétablir le cron :
+//   1. ajouter le secret NW_PASSPHRASE dans les paramètres du dépôt,
+//   2. l'exposer au job dans .github/workflows/daily-snapshot.yml (env: NW_PASSPHRASE),
+//   et ce script déchiffrera le blob de lui-même.
+async function garantirDonnees() {
+  const vide = !PORTFOLIO || !PORTFOLIO.amine || Object.keys(PORTFOLIO.amine || {}).length === 0;
+  if (!vide) return;
+
+  const phrase = process.env.NW_PASSPHRASE;
+  if (!phrase) {
+    console.error('[cron-snap] ✗ données chiffrées et NW_PASSPHRASE absent — AUCUNE écriture.');
+    console.error('             Un snapshot calculé sur des données vides corromprait');
+    console.error('             définitivement l\'historique (table append-only).');
+    console.error('             Ajouter le secret NW_PASSPHRASE au workflow pour rétablir le cron.');
+    process.exit(1);
+  }
+  const { webcrypto } = await import('node:crypto');
+  const encSrc = await readFile(join(ROOT, 'js', 'data.enc.js'), 'utf8');
+  await writeFile(join(tmp, 'data.enc.js'), encSrc.replace(/\?v=\d+/g, ''));
+  const { DATA_ENC } = await import(pathToFileURL(join(tmp, 'data.enc.js')).href);
+  const b64 = (s) => Uint8Array.from(Buffer.from(s, 'base64'));
+  const base = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(phrase), 'PBKDF2', false, ['deriveKey']);
+  const cle = await webcrypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64(DATA_ENC.sel), iterations: DATA_ENC.it || 250000, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt'],
+  );
+  let blocs;
+  try {
+    const clair = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(DATA_ENC.iv) }, cle, b64(DATA_ENC.data));
+    blocs = JSON.parse(new TextDecoder().decode(clair));
+  } catch (e) {
+    console.error('[cron-snap] ✗ déchiffrement impossible (phrase erronée ?) — AUCUNE écriture.');
+    process.exit(1);
+  }
+  // Remplissage EN PLACE, comme js/unlock.js côté navigateur : les objets importés par le
+  // moteur sont les mêmes références.
+  const mod = await import(pathToFileURL(join(tmp, 'data.js')).href);
+  for (const [nom, valeur] of Object.entries(blocs)) {
+    const cible = mod[nom];
+    if (Array.isArray(cible) && Array.isArray(valeur)) { cible.length = 0; cible.push(...valeur); }
+    else if (cible && typeof cible === 'object') { for (const k of Object.keys(cible)) delete cible[k]; Object.assign(cible, valeur); }
+  }
+  console.log('[cron-snap] ✓ données déchiffrées (' + Object.keys(blocs).length + ' blocs)');
+}
+await garantirDonnees();
+
 // ── 2. FX live (Yahoo, EUR base) ──
 async function yahooChart(sym) {
   for (const host of ['query1', 'query2']) {
