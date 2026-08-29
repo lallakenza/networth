@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=489';
-import { IMMO_CONSTANTS } from './data.js?v=489';
+import { fmt, fmtAxis } from './render.js?v=490';
+import { IMMO_CONSTANTS } from './data.js?v=490';
 
 const IC = IMMO_CONSTANTS;
 
@@ -748,7 +748,14 @@ function runCoupleSimulator(state) {
   // v347 — Villejuif signé : son equity (value − CRD) est possédée dès m=0, incluse dans le NW.
   // Avant : exclue puis ré-ajoutée à villejuifStartMonth → marche d'escalier de +36K€. Seul le
   // LOYER reste gaté sur la livraison (via cashFlowFn/makeCfFn), pas l'equity.
-  const vjEq0 = computeVillejuifEquity(0);
+  // v489 (audit) — computeVillejuifEquity(0) compose sur la valeur LIVRÉE (415 K) : à m=0 il
+  // renvoyait ~88 K alors que le patrimoine ne porte que le capital ENGAGÉ (44,5 K, appels de
+  // fonds payés − CRD tiré). D'où une courbe démarrant au-dessus du net worth de son propre
+  // résumé. Tant que le bien n'est pas livré, l'équité du simulateur = celle du dashboard.
+  const vjEquiteEngagee = (s.nezha && typeof s.nezha.villejuifEquity === 'number')
+    ? s.nezha.villejuifEquity
+    : computeVillejuifEquity(0);
+  const vjEq0 = vjEquiteEngagee;
   const computedImmo0 = vitryEq0 + rueilEq0 + vjEq0;
 
   // Track previous total immo equity for delta calculation
@@ -798,7 +805,10 @@ function runCoupleSimulator(state) {
       {
         label: 'Villejuif',
         startEquity: 0,
-        growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : 0,
+        // v489 (audit) — renvoyait 0 avant la livraison, en contradiction avec la note v347
+        // juste au-dessus (« l'equity est possédée dès m=0 ») et avec le NW, qui compte bien le
+        // capital engagé. La marche d'escalier que v347 voulait supprimer était revenue par ici.
+        growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : vjEquiteEngagee,
         crdFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifCRD(m) : 0,
         cashFlowFn: makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, IC.villejuifStartMonth),
         _computedEquity: true
