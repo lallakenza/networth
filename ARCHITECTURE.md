@@ -4954,6 +4954,16 @@ deux vraies inflexions, livraison Villejuif et fin des contributions, se lisent 
 courbe elle-même). p50 20 ans ≈ 3,19 M — vs 5,39 M de l'ancien simulateur qui composait
 tout le NW au taux marché : c'est le gain d'accuracy recherché.
 
+## v494 (30 août 2026) — audit, lot 5 : trouvailles moyennes et basses
+
+BUG-103 à BUG-110. Données : commission FX en yens saisie en euros (commissions all-time −545 →
+−227 €), assurance Villejuif alignée sur le constaté. Moteur : retenue à la source déduite du pays
+de SOURCE et non de la place de cotation (Airbus 25 % → 15 %, `whtCountry`), fallback `|| 28000` sur
+la créance Omar retiré, camemberts géo et sectoriel enfin égaux (ESPP Nezha + SGTM classé BTP).
+Rendu : benchmark du manque à gagner unifié sur `cv.refYield`, équité Villejuif de la projection
+Nezha démarrant à son capital engagé, réglages du graphe de richesse mémorisés. Plus l'invariant
+Σ = NW rendu visible sur la table Nezha et 29 268 caractères de code mort supprimés.
+
 ## v493 (29 août 2026) — outillage de chiffrement des données (livré, pas encore activé)
 
 Réponse au point critique de l'audit : `js/data.js` est servi publiquement (261 Ko, soldes,

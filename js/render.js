@@ -12,7 +12,6 @@
 // Key Export Functions:
 //   - render(state, view, currency): Main entry point for all views
 //   - renderImmoView(state): Real estate (immobilier) dashboard
-//   - renderPropertyDetail(state, prop): Single property detail panel (#propDetailCF)
 //   - renderWealthBreakdown(iv, filteredProps, filteredTotals): Wealth creation breakdown
 //   - renderLoanSchedule(loan): Multi-period loan badge display
 //   - renderAptView(state, loanKey): Apartment-specific view (Vitry, Rueil, Villejuif)
@@ -28,13 +27,12 @@
 //   - Consistent .kpi-tooltip styling for immobilier KPI cards
 //
 // Dual Rendering Paths:
-//   1. Property Detail Panel (#propDetailCF): Full layout with all sections via renderPropertyDetail()
 //   2. Apartment Tab: Inline rendering via renderAptView() for apartment-specific views
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=493';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=493';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=494';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=494';
 
 // ---- Generic table sort utility ----
 /**
@@ -121,7 +119,7 @@ let _currency = 'EUR';
  * - Hover title shows full date range (e.g., "jan 2025 → avr 2030")
  * - Periods separated by arrow indicators (→)
  *
- * Used in: renderPropertyDetail() loans table, renderAptView() loan rows
+ * Used in: renderAptView() loan rows
  *
  * @param {Object} loan - Loan object with periods array and startDate
  * @param {Array} loan.periods - Array of {months, payment, ...}
@@ -854,7 +852,7 @@ function renderDynamicInsights(state, view) {
     cashIns.innerHTML =
       '<strong>Insights Cash :</strong><br>' +
       '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
-      '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : ' + fmt(cv.totalNonYielding * 0.05) + '.<br>' +
+      '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : ' + fmt(cv.totalNonYielding * (cv.refYield != null ? cv.refYield : 0.06)) + '.<br>' +   // v493 (audit) : 0,05 était codé en dur ici alors que la vue Cash calcule sur cv.refYield (6 %) — 5 120 € annoncés contre 5 948 €
       (bestAcct.label ? '- Meilleur rendement : ' + bestAcct.label + ' (' + ((bestAcct.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
       (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '') +
       mobBlock;
@@ -1035,13 +1033,18 @@ function renderDynamicInsights(state, view) {
       html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
     });
     html += '</tr>';
-    // Equity Villejuif row (0 before 2028, then growing — livraison Q3 2028)
+    // v493 (audit) — cette ligne affichait 0 sur toutes les colonnes antérieures à 2028, alors que
+    // le capital ENGAGÉ (appels de fonds payés − CRD tiré) appartient déjà au patrimoine et compte
+    // dans le net worth de Nezha. Le total projeté démarrait donc SOUS le patrimoine actuel.
+    // Même doctrine que le simulateur (v490) et que projectNW : engagé jusqu'à la livraison,
+    // puis croissance.
+    const vjEngage = Math.round(s.nezha.villejuifEquity || 0);
     html += '<tr><td>Equity Villejuif</td>';
     years.forEach(y => {
-      if (y < 2028) { html += '<td class="num">0</td>'; }
+      if (y < 2028) { html += '<td class="num">' + N(vjEngage) + '</td>'; }
       else {
         const mSince = (y - 2028) * 12;
-        const eq = vilGrowth * mSince;
+        const eq = vjEngage + vilGrowth * mSince;
         html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
       }
     });
@@ -1178,7 +1181,12 @@ function renderNezhaTable(state, view) {
   });
   // v361 — garde-fou render (BUG-064) : table construite a la main (hors buildDetailTableWithPct),
   // on ajoute le meme controle : Somme des lignes doit egaler le NW autoritatif s.nezha.nw.
+  // v493 (audit) — le fix BUG-093 avait rendu cet écart VISIBLE pour les tables Couple et Amine,
+  // mais pas ici : un compte ajouté au NW de Nezha et oublié dans ces lignes ne se serait vu que
+  // dans la console. On aligne les trois tables.
+  let _desyncNezha = null;
   if (Math.abs(total - s.nezha.nw) > 2) {
+    _desyncNezha = s.nezha.nw - total;
     console.warn('[render] desync table Net Worth Nezha : Slignes ' + Math.round(total) + ' != nezha.nw ' + Math.round(s.nezha.nw) + ' (ecart ' + Math.round(total - s.nezha.nw) + ' EUR - ligne manquante ?)');
   }
   // NW actuel
@@ -1186,6 +1194,11 @@ function renderNezhaTable(state, view) {
   tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
   tr.innerHTML = '<td><strong>Net Worth Nezha (actuel)</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
   tbody.appendChild(tr);
+  if (_desyncNezha != null) {
+    const trD = document.createElement('tr');
+    trD.innerHTML = '<td colspan="2" style="color:#b91c1c;font-size:11px;background:#fef2f2;padding:6px 8px;">\u26a0 \u00c9cart avec le NW autoritatif : ' + fmt(_desyncNezha) + ' \u2014 un compte manque dans ces lignes (invariant v493)</td>';
+    tbody.appendChild(trD);
+  }
 
   // v346 \u2014 Section \u00ab Net Worth avec Villejuif \u00bb supprim\u00e9e : depuis l'acte sign\u00e9 (05/06/2026),
   // l'equity Villejuif est une ligne normale du tableau ci-dessus et fait partie du NW actuel.
@@ -4110,11 +4123,9 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
  *
  * Two-tier Rendering:
  * - Summary view: displays portfolio KPIs and property list in main panel
- * - Detail view: full property breakdown in detail panel (renderPropertyDetail)
  *
  * Key Functions Called:
  *   - renderWealthBreakdown(): Creates wealth creation visualization
- *   - renderPropertyDetail(state, prop): Opens property detail panel
  *   - renderPropertyInfoCard(details): Room breakdown visualization
  *   - cfBarRow(label, amount, color, maxRef): Revenue/charges bars
  *
@@ -4500,14 +4511,34 @@ function renderImmoView(state) {
     projSection.style.display = 'block';
 
     // Current toggle states
-    let wealthProjMode = 'an';
-    let wealthProjGroup = 'type';
+    // v493 (audit) — ces deux variables étaient LOCALES à renderImmoView, qui est rejoué à chaque
+    // rafraîchissement (toutes les 5 min via l'intervalle FX, toutes les 10 min via les prix).
+    // Résultat : l'utilisateur choisissait « Par mois / Par appart », et le graphe revenait seul à
+    // « Par an / Par type » quelques minutes plus tard. On mémorise le choix au niveau du module.
+    if (window._wealthProjMode == null) window._wealthProjMode = 'an';
+    if (window._wealthProjGroup == null) window._wealthProjGroup = 'type';
+    let wealthProjMode = window._wealthProjMode;
+    let wealthProjGroup = window._wealthProjGroup;
 
     function rebuildWealthChart() {
       if (typeof window.buildWealthProjectionChart === 'function') {
         window.buildWealthProjectionChart(state, wealthProjMode, wealthProjGroup);
       }
     }
+
+    // v493 — le choix étant mémorisé, les boutons doivent le REFLÉTER après un re-rendu, sinon
+    // le graphe est en « Par mois » pendant que le bouton « Par an » reste surligné.
+    function synchroniserBoutons(selecteur, cle, valeur) {
+      document.querySelectorAll(selecteur).forEach((b2) => {
+        const actif = b2.dataset[cle] === valeur;
+        b2.style.background = actif ? 'var(--accent)' : '#fff';
+        b2.style.color = actif ? '#fff' : '#4a5568';
+        b2.style.fontWeight = actif ? '600' : '400';
+        b2.classList.toggle('active', actif);
+      });
+    }
+    synchroniserBoutons('.wealth-proj-btn', 'mode', wealthProjMode);
+    synchroniserBoutons('.wealth-group-btn', 'group', wealthProjGroup);
 
     // Build chart (default: annual, par type)
     setTimeout(rebuildWealthChart, 100);
@@ -4518,7 +4549,7 @@ function renderImmoView(state) {
       btn.addEventListener('click', () => {
         toggleBtns.forEach(b => { b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.fontWeight = '400'; b.classList.remove('active'); });
         btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '600'; btn.classList.add('active');
-        wealthProjMode = btn.dataset.mode;
+        wealthProjMode = window._wealthProjMode = btn.dataset.mode;
         rebuildWealthChart();
       });
     });
@@ -4529,7 +4560,7 @@ function renderImmoView(state) {
       btn.addEventListener('click', () => {
         groupBtns.forEach(b => { b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.fontWeight = '400'; b.classList.remove('active'); });
         btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '600'; btn.classList.add('active');
-        wealthProjGroup = btn.dataset.group;
+        wealthProjGroup = window._wealthProjGroup = btn.dataset.group;
         rebuildWealthChart();
       });
     });
@@ -5416,426 +5447,12 @@ function renderPropertyInfoCard(details) {
 }
 
 // ============ PROPERTY DETAIL PANEL ============
-/**
- * Renders complete property detail panel (#propDetailCF)
- *
- * Full-page property breakdown displayed when user clicks a property in immoView.
- * This is the main dual-rendering path for property details (vs inline apartment tabs).
- *
- * Sections Rendered:
- * 1. Property title + address (#propDetailTitle)
- * 2. Info card with room/surface breakdown (#propDetailInfo)
- * 3. Property metadata table (#propDetailFiche): surface, purchase price, current value,
- *    equity, type, purchase date, appreciation rate, LTV
- * 4. Loan details table (#propDetailLoans): per-loan breakdown with multi-period schedules
- * 5. Revenue breakdown (#propDetailRevenue): loyer HC, parking, charges locataires
- * 6. Charges breakdown (#propDetailCharges): prêt, assurance, PNO, TF, copro
- * 7. CF visualizations (#propDetailCF): side-by-side revenue/charges bars with cfBarRow()
- * 8. KPI cards (#propDetailKPIs): monthly CF, annual CF, CAP annual, yield
- * 9. Fiscal details (#propDetailFiscal): if applicable
- * 10. VEFA timeline (#propDetailVEFA): if VEFA property
- * 11. Property simulator (#propDetailSimulator): sensitivity analysis
- *
- * Key Helper Functions Used:
- *   - renderPropertyInfoCard(details): Room breakdown visualization
- *   - renderLoanSchedule(loan): Multi-period loan badge display
- *   - cfBarRow(label, amount, color, maxRef): Revenue/charges bar renderer
- *   - _setTip(elId, html, above): Attach KPI hover tooltips
- *
- * @param {Object} state - Application state with immoView
- * @param {Object} prop - Property object with all calculations
- */
-function renderPropertyDetail(state, prop) {
-  const meta = prop.propertyMeta || {};
-  const cd = prop.chargesDetail || {};
-  const iv = state.immoView;
 
-  // Title
-  const titleEl = document.getElementById('propDetailTitle');
-  if (titleEl) titleEl.textContent = prop.name + (meta.address ? ' — ' + meta.address : '');
-  // v438 (P4) — ce panneau est un SECOND renderer de la fiche bien (double maintenance,
-  // famille des BUG-056/057/058). En attendant la déduplication complète, le lien met
-  // la fiche canonique à un clic.
-  if (titleEl) {
-    // idempotent : le panneau se rouvre à chaque clic, le lien ne doit exister qu'une fois
-    let lien = document.getElementById('propDetailFicheLink');
-    if (!lien) {
-      titleEl.insertAdjacentHTML('afterend',
-        '<a id="propDetailFicheLink" href="#" style="font-size:12px;color:var(--accent);white-space:nowrap;">Ouvrir la fiche compl\u00e8te \u2192</a>');
-      lien = document.getElementById('propDetailFicheLink');
-    }
-    if (lien) lien.setAttribute('href', '#apt_' + prop.loanKey);
-  }
 
-  // ── Section 0: Property Info Card (Details) ──
-  const infoCardEl = document.getElementById('propDetailInfo');
-  if (infoCardEl) {
-    const details = meta.details || null;
-    infoCardEl.innerHTML = renderPropertyInfoCard(details);
-  }
-
-  // ── Section 1: Fiche ──
-  const ficheEl = document.getElementById('propDetailFiche');
-  if (ficheEl) {
-    const surface = meta.surface ? meta.surface + ' m²' : '—';
-    const price = meta.purchasePrice ? meta.purchasePrice.toLocaleString('fr-FR') + ' €' : (meta.totalOperation ? meta.totalOperation.toLocaleString('fr-FR') + ' €' : '—');
-    const date = meta.purchaseDate || '—';
-    const type = meta.type || '—';
-    const appreciation = meta.appreciation ? (meta.appreciation * 100).toFixed(0) + '%/an' : '—';
-    ficheEl.innerHTML = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Fiche propriété</h4>'
-      + '<div class="detail-grid">'
-      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + surface + '</div><div style="font-size:11px;color:#718096;">Surface</div></div>'
-      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + price + '</div><div style="font-size:11px;color:#718096;">Prix d\'achat</div></div>'
-      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;">' + fmt(prop.value) + '</div><div style="font-size:11px;color:#718096;">Valeur actuelle</div></div>'
-      + '<div class="detail-metric"><div style="font-size:18px;font-weight:700;color:var(--green);">' + fmt(prop.equity) + '</div><div style="font-size:11px;color:#718096;">Equity</div></div>'
-      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + type + '</div><div style="font-size:11px;color:#718096;">Type</div></div>'
-      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + date + '</div><div style="font-size:11px;color:#718096;">Date achat</div></div>'
-      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + appreciation + '</div><div style="font-size:11px;color:#718096;">Appréciation</div></div>'
-      + '<div class="detail-metric"><div style="font-size:15px;font-weight:600;">' + prop.ltv.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">LTV</div></div>'
-      + '</div>';
-  }
-
-  // ── Section 2: Prêts ──
-  const loansEl = document.getElementById('propDetailLoans');
-  if (loansEl) {
-    let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Détail des prêts</h4>';
-    if (prop.loanDetails && prop.loanDetails.length > 0) {
-      // v327 — min-width pour forcer scroll horizontal sur mobile (width:100%
-      // seul fait que la table se rétrécit à la largeur du parent, donc jamais
-      // d'overflow).
-      html += '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.82rem;width:100%;min-width:620px;">'
-        + '<thead><tr><th>Prêt</th><th class="num">Capital</th><th class="num">Taux</th><th class="num">Durée</th><th class="num">Mensualité</th><th class="num">Assurance</th></tr></thead><tbody>';
-      let totalMens = 0, totalAss = 0, totalPrincipal = 0;
-      prop.loanDetails.forEach(l => {
-        totalMens += l.monthlyPayment || 0;
-        totalAss += l.insuranceMonthly || 0;
-        totalPrincipal += l.principal || 0;
-        const dur = l.durationMonths ? Math.round(l.durationMonths / 12) + ' ans' : '—';
-        const hasSchedule = l.periods && l.periods.length > 1;
-        const mensLabel = hasSchedule ? '<span title="Mensualité période courante">' + Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €</span>' : Math.round(l.monthlyPayment || 0).toLocaleString('fr-FR') + ' €';
-        html += '<tr>'
-          + '<td>' + l.name + '</td>'
-          + '<td class="num">' + (l.principal || 0).toLocaleString('fr-FR') + ' €</td>'
-          + '<td class="num">' + ((l.rate || 0) * 100).toFixed(2) + '%</td>'
-          + '<td class="num">' + dur + '</td>'
-          + '<td class="num">' + mensLabel + '</td>'
-          + '<td class="num">' + Math.round(l.insuranceMonthly || 0).toLocaleString('fr-FR') + ' €</td>'
-          + '</tr>';
-        // Multi-period schedule row
-        if (hasSchedule) {
-          html += '<tr><td colspan="6" style="padding:0 0 6px 8px;border:none;">' + renderLoanSchedule(l) + '</td></tr>';
-        }
-      });
-      html += '<tr style="font-weight:700;border-top:2px solid #cbd5e0;background:#edf2f7;">'
-        + '<td>Total</td><td class="num">' + Math.round(totalPrincipal).toLocaleString('fr-FR') + ' €</td><td></td><td></td>'
-        + '<td class="num">' + Math.round(totalMens).toLocaleString('fr-FR') + ' €</td>'
-        + '<td class="num">' + Math.round(totalAss).toLocaleString('fr-FR') + ' €</td></tr>';
-      html += '</tbody></table></div>';
-      html += '<div style="margin-top:6px;font-size:12px;color:#718096;">CRD actuel : <strong>' + fmt(prop.crd) + '</strong> | Fin prêt : <strong>' + (prop.endYear || '—') + '</strong></div>';
-      // Show franchise note for deferred loans (VEFA)
-      if (prop.vefaConfig && prop.vefaConfig.franchiseMonths) {
-        const fc = prop.vefaConfig;
-        const franchiseNote = fc.loanDisbursed && fc.franchiseStart
-          ? 'Franchise totale ' + fc.franchiseMonths + ' mois (depuis ' + fc.franchiseStart + '). Intérêts capitalisés.'
-          : 'Franchise totale ' + fc.franchiseMonths + ' mois (en attente de déblocage). Intérêts capitalisés.';
-        html += '<div style="margin-top:4px;font-size:12px;padding:6px 10px;background:#fef3c7;border-radius:6px;color:#92400e;">'
-          + '<strong>&#9888; Franchise :</strong> ' + franchiseNote + '</div>';
-      }
-    } else {
-      html += '<p style="color:#718096;font-size:13px;">Aucun détail de prêt disponible</p>';
-    }
-    loansEl.innerHTML = html;
-  }
-
-  // ── Section 3: Cash Flow ──
-  const cfEl = document.getElementById('propDetailCF');
-  if (cfEl) {
-    const cfSign = prop.cf >= 0 ? '+' : '';
-    const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
-    const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
-    const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
-    // ── UX: Visual bar comparison for Revenus vs Charges ──
-    const maxCFBar = Math.max(prop.totalRevenue, prop.charges);
-
-    /**
-     * Renders a single revenue/charge line with visual bar + hover tooltip
-     *
-     * Creates a horizontal bar chart row showing:
-     * - Label (left): revenue/charge category name
-     * - Bar (center): proportional width bar (pct = amount/maxRef * 100)
-     * - Amount (right): actual EUR value with font-weight:600
-     *
-     * Visual Style:
-     * - Bar background: #edf2f7 (light gray)
-     * - Bar fill: gradient color provided (e.g., green for revenue, red for charges)
-     * - Responsive: uses flexbox with gap:8px spacing
-     * - Hover title: shows label + amount + percentage
-     *
-     * Used in: renderPropertyDetail(), renderAptView() for revenue/charge lists
-     *
-     * @param {string} label - Display label (e.g., "Loyer HC", "Prêt")
-     * @param {number} amount - Value in EUR (formatted with toLocaleString)
-     * @param {string} color - CSS color or gradient for bar fill
-     * @param {number} maxRef - Reference maximum (typically maxCFBar)
-     * @returns {string} HTML string of one bar row
-     */
-    function cfBarRow(label, amount, color, maxRef) {
-      const pct = maxRef > 0 ? Math.round(amount / maxRef * 100) : 0;
-      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;" title="' + label + ' : ' + amount + ' \u20ac (' + pct + '% du max)">'
-        + '<span style="width:110px;font-size:12px;color:#4a5568;text-align:right;flex-shrink:0;">' + label + '</span>'
-        + '<div style="flex:1;height:14px;background:#edf2f7;border-radius:3px;overflow:hidden;position:relative;">'
-        + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.4s;"></div>'
-        + '</div>'
-        + '<span style="width:55px;font-size:12px;font-weight:600;color:#4a5568;text-align:right;flex-shrink:0;">' + amount + ' \u20ac</span>'
-        + '</div>';
-    }
-    let html = '<h4 style="margin:0 0 8px;font-size:14px;color:#4a5568;">Cash Flow mensuel</h4>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
-      // Revenus
-      + '<div style="background:#f0fff4;border-radius:8px;padding:12px;">'
-      + '<div style="font-weight:700;color:#276749;margin-bottom:8px;">Revenus</div>'
-      + (prop.bail && !prop.bailActif
-        ? '<div style="font-size:12px;color:#4a5568;line-height:1.8;">'
-          + '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Aujourd\u2019hui — 100 % espèces ⚠</span><strong>' + Math.round(prop.totalRevenue) + ' €</strong></div>'
-          + '<div style="display:flex;justify-content:space-between;"><span>Dès le ' + prop.bail.debut.split('-').reverse().join('/') + ' : déclaré (virement)</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
-          + (prop.loyerCashContractuel > 0
-            ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>+ espèces (risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel + (prop.parking || 0)) + ' €</strong></div>'
-            : '')
-          + '</div>'
-        : cfBarRow('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBar)
-          + (prop.loyerCash > 0 ? cfBarRow('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : ''))
-            + (prop.parking > 0 ? cfBarRow('Parking (voisin, espèces ⚠)', prop.parking, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBar) : '')
-      + (prop.chargesLoc > 0 ? cfBarRow('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBar) : '')
-      + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
-      + '</div>'
-      // Charges
-      + '<div style="background:#fff5f5;border-radius:8px;padding:12px;">'
-      + '<div style="font-weight:700;color:#c53030;margin-bottom:8px;">Charges</div>'
-      + cfBarRow('Prêt', Math.round(cd.pret || 0), 'linear-gradient(90deg,#feb2b2,#e53e3e)', maxCFBar)
-      + cfBarRow('Assurance', Math.round(cd.assurance || 0), 'linear-gradient(90deg,#feb2b2,#fc8181)', maxCFBar)
-      + cfBarRow('PNO', Math.round(cd.pno || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
-      + cfBarRow('TF', Math.round(cd.tf || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
-      + cfBarRow('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBar)
-      + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
-      + '</div></div>';
-    // CF KPIs
-    html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF projeté (post-livraison) /mois' : 'CF brut /mois') + '</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
-      + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '')) + '</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rendement net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
-      + '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /an</div></div>'
-      + '</div>';
-    cfEl.innerHTML = html;
-  }
-
-  // ── Section 5 — v459 : « Simulateur fiscal Déclaré vs Cash » supprimé (vestige de
-  // l'ancien scénario ; le prévisionnel calculé de la fiche Vitry le remplace) ──
-  const fiscalEl = document.getElementById('propDetailFiscal');
-  if (fiscalEl) {
-    if (false) {
-      fiscalEl.style.display = 'block';
-    } else {
-      fiscalEl.style.display = 'none';
-    }
-  }
-
-  // ── Section 6: VEFA Timeline (Villejuif only) ──
-  const vefaEl = document.getElementById('propDetailVefa');
-  if (vefaEl) {
-    if (prop.loanKey === 'villejuif' && prop.vefaConfig) {
-      vefaEl.style.display = 'block';
-      renderVEFATimeline(vefaEl, prop);
-    } else {
-      vefaEl.style.display = 'none';
-    }
-  }
-
-  // ── Charts (after DOM update) ──
-  setTimeout(() => {
-    if (typeof window.buildPropertyDetailCharts === 'function') {
-      window.buildPropertyDetailCharts(state, prop);
-    }
-    if (typeof window.buildExitProjectionChart === 'function') {
-      window.buildExitProjectionChart(state, prop);
-    }
-    if (typeof window.buildPVAbattementChart === 'function') {
-      window.buildPVAbattementChart(prop, 'pvAbattementChart');
-    }
-  }, 50);
-}
 
 // ── Fiscal Simulator (Vitry) ──
-function renderFiscalSimulator(container, prop) {
-  const cfg = prop.fiscalSimConfig;
-  const yearlyInt = prop.yearlyInterest || {};
-  const defaultTotalCC = cfg.loyerTotalCC;
-  const defaultDeclareCC = cfg.loyerDeclareCC;
-  const maxDeclare = defaultTotalCC;  // can't declare more than total
 
-  let html = '<h4 style="margin:0 0 16px;font-size:15px;color:#2d3748;">Simulateur fiscal — Déclaré vs Cash (régime réel)</h4>';
 
-  // KPI summary cards (updated dynamically)
-  html += '<div id="pdFiscalKPIs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;"></div>';
-
-  // Slider for total rent
-  html += '<div style="margin-bottom:10px;padding:14px 16px;background:linear-gradient(135deg,#fff5eb,#fef3c7);border-radius:10px;border:1px solid #f6e05e;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
-    + '<label style="font-size:13px;font-weight:600;color:#744210;">Loyer total CC :</label>'
-    + '<span style="font-size:20px;font-weight:700;color:#b7791f;"><span id="pdFiscalTotalVal">' + defaultTotalCC + '</span> €/mois</span>'
-    + '</div>'
-    + '<input type="range" id="pdFiscalTotalSlider" min="200" max="2500" value="' + defaultTotalCC + '" step="10" '
-    + 'style="width:100%;accent-color:#b7791f;height:6px;">'
-    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#718096;margin-top:4px;">'
-    + '<span>200 €</span><span>2 500 €</span>'
-    + '</div>'
-    + '</div>';
-
-  // Slider for declared rent
-  html += '<div style="margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#f7fafc,#edf2f7);border-radius:10px;border:1px solid #e2e8f0;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
-    + '<label style="font-size:13px;font-weight:600;color:#2d3748;">Loyer déclaré CC :</label>'
-    + '<span style="font-size:20px;font-weight:700;color:var(--accent);"><span id="pdFiscalSliderVal">' + defaultDeclareCC + '</span> €/mois</span>'
-    + '</div>'
-    + '<input type="range" id="pdFiscalSlider" min="0" max="' + defaultTotalCC + '" value="' + defaultDeclareCC + '" step="10" '
-    + 'style="width:100%;accent-color:var(--accent);height:6px;">'
-    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#718096;margin-top:4px;">'
-    + '<span>0 €</span>'
-    + '<span id="pdFiscalDeclareMax">' + defaultTotalCC + ' €</span>'
-    + '</div>'
-    + '</div>';
-
-  // Tables
-  html += '<div id="pdFiscalTable"></div>';
-
-  container.innerHTML = html;
-
-  const slider = document.getElementById('pdFiscalSlider');
-  const valEl = document.getElementById('pdFiscalSliderVal');
-  const totalSlider = document.getElementById('pdFiscalTotalSlider');
-  const totalValEl = document.getElementById('pdFiscalTotalVal');
-  const declareMaxEl = document.getElementById('pdFiscalDeclareMax');
-
-  function updateFiscalSim() {
-    const loyerTotalCC = parseInt(totalSlider.value);
-    totalValEl.textContent = loyerTotalCC;
-    // Cap declared at total
-    slider.max = loyerTotalCC;
-    declareMaxEl.textContent = loyerTotalCC + ' €';
-    if (parseInt(slider.value) > loyerTotalCC) slider.value = loyerTotalCC;
-    const loyerDeclareCC = parseInt(slider.value);
-    valEl.textContent = loyerDeclareCC;
-    const loyerCashMensuel = loyerTotalCC - loyerDeclareCC;
-
-    let impotDeclareTotal = 0, impotToutDeclareTotal = 0;
-    let cashCumule = 0;
-    const rows = [];
-
-    for (let y = 0; y < cfg.nYears; y++) {
-      const year = cfg.startYear + y;
-      const moisLoyer = year === cfg.startYear ? (12 - cfg.contractStartMonth + 1) : 12;
-      const prorata = moisLoyer / 12;
-
-      // Revenus déclarés (ce que tu déclares)
-      const loyerDeclareAn = loyerDeclareCC * moisLoyer;
-      // Revenus si tu déclarais tout
-      const loyerToutDeclareAn = loyerTotalCC * moisLoyer;
-      // Cash non déclaré
-      const cashAn = loyerCashMensuel * moisLoyer;
-      cashCumule += cashAn;
-
-      // Charges déductibles (régime réel) — identiques dans les 2 cas
-      const tfAnnee = year <= cfg.tfExemptionEndYear ? 0 : cfg.tfAnnuel;
-      const totalInterets = yearlyInt[year] || 0;
-      const assuranceAnnee = cfg.totalAssuranceAnnuel * prorata;
-      const pnoAnnee = cfg.pnoAnnuel * prorata;
-      const deductions = totalInterets + assuranceAnnee + pnoAnnee + tfAnnee;
-
-      // Impôt si tu déclares le montant choisi
-      const revImpDeclare = Math.max(0, loyerDeclareAn - deductions);
-      const deficitDeclare = loyerDeclareAn < deductions ? Math.round(deductions - loyerDeclareAn) : 0;
-      const impotDeclare = Math.round(revImpDeclare * cfg.totalRate);
-
-      // Impôt si tu déclarais tout (scénario "honnête")
-      const revImpTout = Math.max(0, loyerToutDeclareAn - deductions);
-      const impotTout = Math.round(revImpTout * cfg.totalRate);
-
-      // Économie = impôt en moins grâce au cash
-      const economie = impotTout - impotDeclare;
-
-      impotDeclareTotal += impotDeclare;
-      impotToutDeclareTotal += impotTout;
-
-      const moisNote = moisLoyer < 12 ? ' <small style="color:#718096;">(' + moisLoyer + 'm)</small>' : '';
-
-      rows.push('<tr>'
-        + '<td><strong>' + year + '</strong>' + moisNote + '</td>'
-        + '<td class="num">' + Math.round(loyerDeclareAn).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#718096;">' + Math.round(deductions).toLocaleString('fr-FR')
-          + (deficitDeclare > 0 ? ' <small style="color:#276749;">▲</small>' : '') + '</td>'
-        + '<td class="num">' + Math.round(revImpDeclare).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#c53030;">' + impotDeclare.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#718096;">' + Math.round(loyerToutDeclareAn).toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#c53030;">' + impotTout.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="font-weight:700;color:#276749;">' + economie.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num" style="color:#2b6cb0;font-weight:600;">' + cashAn.toLocaleString('fr-FR') + '</td>'
-        + '</tr>');
-    }
-
-    const totalEconomie = impotToutDeclareTotal - impotDeclareTotal;
-    rows.push('<tr style="font-weight:700;border-top:3px solid #2d3748;background:#edf2f7;">'
-      + '<td>TOTAL ' + cfg.nYears + ' ans</td><td></td><td></td><td></td>'
-      + '<td class="num" style="color:#c53030;">' + impotDeclareTotal.toLocaleString('fr-FR') + ' €</td>'
-      + '<td></td>'
-      + '<td class="num" style="color:#c53030;">' + impotToutDeclareTotal.toLocaleString('fr-FR') + ' €</td>'
-      + '<td class="num" style="font-weight:700;color:#276749;">+' + totalEconomie.toLocaleString('fr-FR') + ' €</td>'
-      + '<td class="num" style="color:#2b6cb0;font-weight:700;">' + cashCumule.toLocaleString('fr-FR') + ' €</td>'
-      + '</tr>');
-
-    // v327 — min-width pour forcer scroll horizontal sur mobile (9+ colonnes)
-    document.getElementById('pdFiscalTable').innerHTML = '<div style="overflow-x:auto;max-width:100%;"><table style="font-size:0.78rem;width:100%;min-width:880px;">'
-      + '<thead><tr>'
-      + '<th>Année</th>'
-      + '<th class="num" style="background:#ebf8ff;" colspan="4">Si tu déclares ' + loyerDeclareCC + '€ CC</th>'
-      + '<th class="num" style="background:#fff5eb;" colspan="2">Si tout déclaré (' + loyerTotalCC + '€)</th>'
-      + '<th class="num" style="background:#f0fff4;">Économie</th>'
-      + '<th class="num" style="background:#ebf4ff;">Cash</th>'
-      + '</tr>'
-      + '<tr style="font-size:0.7rem;color:#718096;">'
-      + '<th></th>'
-      + '<th class="num" style="background:#ebf8ff;">Loyer</th>'
-      + '<th class="num" style="background:#ebf8ff;">Déductions</th>'
-      + '<th class="num" style="background:#ebf8ff;">Rev. imp.</th>'
-      + '<th class="num" style="background:#ebf8ff;">Impôt</th>'
-      + '<th class="num" style="background:#fff5eb;">Loyer</th>'
-      + '<th class="num" style="background:#fff5eb;">Impôt</th>'
-      + '<th class="num" style="background:#f0fff4;">Δ impôt</th>'
-      + '<th class="num" style="background:#ebf4ff;">Non décl.</th>'
-      + '</tr></thead>'
-      + '<tbody>' + rows.join('') + '</tbody></table></div>';
-
-    // Update KPI cards
-    const kpiEl = document.getElementById('pdFiscalKPIs');
-    kpiEl.innerHTML = ''
-      + '<div style="padding:12px;background:#f0fff4;border-radius:8px;text-align:center;border:1px solid #c6f6d5;">'
-      + '<div style="font-size:18px;font-weight:700;color:#276749;">+' + totalEconomie.toLocaleString('fr-FR') + ' €</div>'
-      + '<div style="font-size:11px;color:#276749;">Économie impôts ' + cfg.nYears + ' ans</div></div>'
-      + '<div style="padding:12px;background:#ebf4ff;border-radius:8px;text-align:center;border:1px solid #bee3f8;">'
-      + '<div style="font-size:18px;font-weight:700;color:#2b6cb0;">' + cashCumule.toLocaleString('fr-FR') + ' €</div>'
-      + '<div style="font-size:11px;color:#2b6cb0;">Cash cumulé ' + cfg.nYears + ' ans</div></div>'
-      + '<div style="padding:12px;background:#fff5f5;border-radius:8px;text-align:center;border:1px solid #fed7d7;">'
-      + '<div style="font-size:18px;font-weight:700;color:#c53030;">' + impotDeclareTotal.toLocaleString('fr-FR') + ' €</div>'
-      + '<div style="font-size:11px;color:#c53030;">Impôts payés ' + cfg.nYears + ' ans</div></div>'
-      + '<div style="padding:12px;background:#f7fafc;border-radius:8px;text-align:center;border:1px solid #e2e8f0;">'
-      + '<div style="font-size:18px;font-weight:700;color:#4a5568;">' + loyerCashMensuel + ' €/mois</div>'
-      + '<div style="font-size:11px;color:#718096;">Cash mensuel net</div></div>';
-  }
-
-  slider.addEventListener('input', updateFiscalSim);
-  totalSlider.addEventListener('input', updateFiscalSim);
-  updateFiscalSim();
-}
 
 // ── VEFA Timeline (Villejuif) ──
 function renderVEFATimeline(container, prop) {
@@ -7246,72 +6863,8 @@ function buildDetailTableWithPct(tableSelector, rows, totalLabel, nwTotal) {
   }
 }
 
-/**
- * Builds a simple detail table with sortable columns
- *
- * Populates a table tbody with rows of [label, value] pairs and makes headers sortable.
- * Calculates total and adds a bold total row.
- *
- * @param {string} selector - CSS selector for the <tbody> element to populate
- * @param {Array<Array>} rows - Array of [label, value] tuples
- * @param {string} totalLabel - Label for total row (e.g., "Total")
- *
- * Features:
- *   - Marks rows with "conditionnel" in label with italic styling (#92400e)
- *   - Converts negative values to 'neg' class for red styling
- *   - Makes table headers sortable via makeTableSortable
- *   - Total row: bold, light background (#edf2f7), pinned to bottom
- *   - Values formatted via fmt() in current currency
- *
- * DOM Requirements:
- *   - Selector must point to a <tbody> within a <table>
- *   - Headers for sort must have data-sort attribute
- */
-function buildDetailTable(selector, rows, totalLabel) {
-  const tbody = document.querySelector(selector);
-  if (!tbody) return;
-  const table = tbody.closest('table');
-  tbody.innerHTML = '';
-  let total = 0;
 
-  // Convert rows to sortable data objects
-  const data = rows.map(([label, val]) => {
-    total += val;
-    return { label, val, cond: label.includes('conditionnel') };
-  });
 
-  function renderRows(items) {
-    tbody.innerHTML = '';
-    items.forEach(d => {
-      const tr = document.createElement('tr');
-      const cls = d.val < 0 ? 'neg' : '';
-      const cond = d.cond ? ' style="color:#92400e;font-style:italic"' : '';
-      tr.innerHTML = '<td' + cond + '>' + d.label + '</td><td class="num ' + cls + '">' + fmt(d.val) + '</td>';
-      tbody.appendChild(tr);
-    });
-    // Always append total row at the bottom
-    const totalRow = document.createElement('tr');
-    totalRow.style.fontWeight = '700';
-    totalRow.style.background = '#edf2f7';
-    totalRow.innerHTML = '<td><strong>' + totalLabel + '</strong></td><td class="num"><strong>' + fmt(total) + '</strong></td>';
-    tbody.appendChild(totalRow);
-  }
-
-  renderRows(data);
-
-  // Add sort attributes to headers and make sortable
-  if (table) {
-    const ths = table.querySelectorAll('thead th');
-    if (ths.length >= 2) {
-      if (!ths[0].getAttribute('data-sort')) {
-        ths[0].setAttribute('data-sort', 'label');
-        ths[0].setAttribute('data-sort-type', 'string');
-        ths[1].setAttribute('data-sort', 'val');
-      }
-    }
-    makeTableSortable(table, data, renderRows);
-  }
-}
 
 // ============================================================
 // KPI HOVER INSIGHTS — contextual tooltips on KPI cards
@@ -7641,7 +7194,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=493').then(m => {
+  import('./charts.js?v=494').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

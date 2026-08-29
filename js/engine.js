@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=493';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=494';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -333,7 +333,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const sec = p.sector || 'other';
     sectorAllocation[sec] = (sectorAllocation[sec] || 0) + p.valEUR;
   });
-  sectorAllocation.tech = (sectorAllocation.tech || 0) + amineEspp; // ACN = tech/consulting
+  // v493 (audit) — `geoAllocation.us` ajoutait amineEspp + nezhaEspp, mais le secteur n'ajoutait
+  // qu'amineEspp : les deux camemberts affichés côte à côte ne totalisaient pas la même chose
+  // (253 442 € contre 244 097 €), et les 5 140 € d'ESPP de Nezha n'apparaissaient nulle part en
+  // vue Couple alors que la vue Nezha les montre.
+  sectorAllocation.tech = (sectorAllocation.tech || 0) + amineEspp + nezhaEspp; // ACN = tech/consulting
+  // v493 (audit) — le SGTM était absent du camembert sectoriel (« sans secteur ») : les deux
+  // camemberts affichés côte à côte ne totalisaient pas la même chose. SGTM = Société Générale des
+  // Travaux du Maroc : BTP, comme Eiffage.
+  sectorAllocation.industrials = (sectorAllocation.industrials || 0) + amineSgtm + nezhaSgtm;
 
   // v378 — allocations géo/secteur PAR PROPRIÉTAIRE (le toggle owner filtre toute la vue Actions,
   // pas seulement le graphe/tableau). 'both' garde les objets ci-dessus INCHANGÉS (zéro régression) ;
@@ -349,7 +357,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const espp = (inclAmine ? amineEspp : 0) + (inclNezha ? nezhaEspp : 0);
     const sgtm = (inclAmine ? amineSgtm : 0) + (inclNezha ? nezhaSgtm : 0);
     if (espp) { geo.us = (geo.us || 0) + espp; sector.tech = (sector.tech || 0) + espp; }
-    if (sgtm) { geo.morocco = (geo.morocco || 0) + sgtm; } // SGTM sans secteur, comme en 'both'
+    if (sgtm) { geo.morocco = (geo.morocco || 0) + sgtm; sector.industrials = (sector.industrials || 0) + sgtm; } // v493 — BTP, comme en 'both'
     return { geo, sector };
   }
   const _amineActionsAlloc = _scopeActionsAlloc(true, false);
@@ -1267,7 +1275,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       const exDate = new Date(d);
       const daysUntil = Math.round((exDate - today) / 86400000);
       if (daysUntil > 0 && daysUntil <= 90) {
-        const whtRate = WHT_RATES[pos.geo] || 0.30;
+        const whtRate = WHT_RATES[pos.whtCountry || pos.geo] || 0.30;   // v493 — pays de SOURCE
         const grossDiv = pos.shares * cal.dps;
         const grossDivEUR = toEUR(grossDiv, pos.currency, fx);
         const whtCost = grossDivEUR * whtRate;
@@ -3825,7 +3833,10 @@ function computeDividendAnalysis(ibkrPositions, fx) {
 
   const positions = ibkrPositions.map(pos => {
     const divYield = DIV_YIELDS[pos.ticker] || 0;
-    const whtRate = WHT_RATES[pos.geo] || WHT_RATES[pos.geo === 'crypto' ? 'crypto' : 'france'] || 0;
+    // v493 (audit) — la retenue était déduite de la PLACE DE COTATION : Airbus, cotée à Paris mais
+    // néerlandaise, était projetée à 25 % alors que le versement du 23/04/2026 montre 15 %.
+    // `whtCountry` porte le pays de source quand il diffère ; `geo` reste le repli.
+    const whtRate = WHT_RATES[pos.whtCountry || pos.geo] || WHT_RATES[pos.geo === 'crypto' ? 'crypto' : 'france'] || 0;
     const annualDivGross = pos.valEUR * divYield;
     const whtAmount = annualDivGross * whtRate;
     const netDiv = annualDivGross - whtAmount;
@@ -4348,8 +4359,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
           const remaining = c.amount - (c.payments || []).reduce((ps, pay) => ps + pay.amount, 0);
           const prob = c.probability !== undefined ? c.probability : 1;
           return s + (remaining * prob * (c.currency === 'MAD' ? 1 : 0));
-        }, 0) || 28000
-      : 28000,
+        // v493 (audit) — un `|| 28000` se déclenchait sur un total légitimement NUL : le jour où
+        // la créance Omar passe en « recouvré », le tableau consolidé réaffichait 28 000 MAD.
+        }, 0)
+      : 0,
     cash: nezhaCash,
     // v305 — Patrimoine financier mobilisable côté Nezha.
     // Même définition que pour Amine : cash (tous comptes) + positions
