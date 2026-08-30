@@ -2262,3 +2262,47 @@ Corrigés en v494. Chaque point ci-dessous a été vérifié par exécution du m
 - **Leçon** : après un changement qui modifie la **disponibilité** des données, retester le cas
   « données absentes », pas seulement le cas nominal. Une vérification qui ne s'exécute que dans
   l'état favorable ne prouve rien sur l'autre.
+
+## BUG-112 : le tableau de bord était VIDE depuis v496 — deux modules `data.js` au lieu d'un
+
+- **Version** : introduit en v496, détecté et corrigé en v501 (30/08/2026).
+- **Sévérité** : critique — le site ne montrait aucun chiffre, à personne, pendant 5 versions.
+- **Détection** : un agent de la chasse aux régressions, en rejouant le graphe d'imports du
+  navigateur. Aucune vérification existante ne pouvait l'attraper (voir « Leçon »).
+- **Symptôme** : la phrase secrète était acceptée, la grille se fermait, le tableau de bord
+  restait vide. **Aucune erreur en console** — c'est ce qui l'a rendu invisible.
+- **Cause** : `js/unlock.js` importait `'./data.js'` sans suffixe, quand tous les autres modules
+  importent `'./data.js?v=N'`. Les modules ES sont indexés par **URL résolue** : ce sont donc
+  deux modules distincts, donc deux objets `PORTFOLIO` distincts. Le déchiffrement remplissait
+  un orphelin que personne ne lit. Le garde-fou ajouté en v498 (`donneesPretes()`) transformait
+  le plantage qui aurait alerté en page blanche silencieuse.
+- **Défaut jumeau** : `import('./data.enc.js')` sans `?v=` non plus — le blob chiffré n'était
+  jamais invalidé par un bump de version. Il se déchiffre sans erreur avec la même phrase :
+  des soldes périmés se seraient affichés sous des badges « live ».
+- **Correctif** : le même suffixe partout, plus un contrôle textuel dans `detect_desyncs.mjs`
+  qui refuse deux URL différentes pour `data.js` ou tout import de données sans `?v=N`.
+- **Preuve** (rejeu du graphe d'imports, avant/après) :
+  - avant : déchiffrement OK, `appVoitLesDonnees: false`, `clesPortfolio: 0`
+  - après : déchiffrement OK, `appVoitLesDonnees: true`, `clesPortfolio: 3`, 75 lignes d'historique
+- **Tests de non-régression** :
+  - `node scripts/detect_desyncs.mjs` affiche `[check] Module de données unique ✓`.
+  - Retirer le `?v=N` de `unlock.js` doit faire sortir le détecteur en code 1.
+- **Leçon, la plus importante du lot** : la chaîne de vérification headless copie les fichiers
+  **en retirant les `?v=N`** pour pouvoir les importer sous Node. Elle faisait donc disparaître
+  la condition même du défaut. Un test qui normalise l'entrée ne peut pas voir les bugs qui
+  vivent dans ce qu'il normalise — ici, l'identité des modules. Seul le chargement du site
+  publié, dans un navigateur, avec les vraies URL, le montrait.
+
+## BUG-113 : effets collatéraux du chiffrement sur les chargements différés
+
+- **Version** : introduits en v496, corrigés en v501 (30/08/2026). Sévérité haute.
+- **Surcouche immo Supabase perdue** : `loadImmoRef()` partait sans garde ; `applyImmoRef` écrit
+  dans `PORTFOLIO.amine.immo` et levait ; son `try/catch` avalait l'erreur et rendait `false`.
+  Tout le référentiel v402 (valeurs, CRD, loyers, charges, 6 prêts, VEFA, fiscalité) était donc
+  **inappliqué depuis v496**, sans le moindre signe. Il est désormais rejoué au déverrouillage.
+- **Journal mensonger** : la console affirmait « deltas NW appliqués » alors que `currentState`
+  valait `null` et qu'`applySnapshotDeltas` n'avait pas été appelée.
+- **Chips « vs hier » couple sur les vues Amine/Nezha** : les appels depuis `app.js` ne
+  transmettaient pas la vue (constats d'audit 17 et 20). Corrigé aux trois emplacements.
+- **`scripts/backfill_positions.mjs`** lisait la coquille et plantait après deux minutes
+  d'appels Yahoo. Il lit la source en clair et refuse avant tout appel réseau.
