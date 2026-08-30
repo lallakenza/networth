@@ -22,10 +22,10 @@
  */
 
 // LE SUFFIXE ?v=N EST OBLIGATOIRE, PAS DÉCORATIF. Les modules ES sont indexés par URL résolue :
-// './data.js' et './data.js?v=501' sont DEUX modules distincts, donc deux objets PORTFOLIO
+// './data.js' et './data.js?v=502' sont DEUX modules distincts, donc deux objets PORTFOLIO
 // distincts. Sans ce suffixe, le déchiffrement remplissait un orphelin que personne ne lit —
 // le déverrouillage réussissait et le tableau de bord restait vide (v496 à v500).
-import * as DATA from './data.js?v=501';
+import * as DATA from './data.js?v=502';
 
 // Import DYNAMIQUE : tant que `js/data.enc.js` n'existe pas (chiffrement pas encore activé), le
 // site continue de fonctionner exactement comme avant. Cela permet de livrer ce mécanisme sans
@@ -36,7 +36,7 @@ export async function blobDisponible() {
   // ?v=N ici aussi : sans lui le blob chiffré n'est JAMAIS invalidé par un bump de version, et
   // le service worker sert indéfiniment l'ancien. Il se déchiffre sans erreur (même phrase),
   // donc des soldes périmés s'affichent sous des badges « live ».
-  try { DATA_ENC = (await import('./data.enc.js?v=501')).DATA_ENC; return !!DATA_ENC; }
+  try { DATA_ENC = (await import('./data.enc.js?v=502')).DATA_ENC; return !!DATA_ENC; }
   catch (e) { return false; }
 }
 

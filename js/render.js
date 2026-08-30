@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=501';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=501';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=502';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=502';
 
 // ---- Generic table sort utility ----
 /**
@@ -1111,7 +1111,10 @@ function renderCoupleTable(state) {
     ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (Nezha)', s.nezha.rolexDatejust]] : []),
     ['Creances SAP & Tax (garanti, 45j)', s.amine.recvPro],
     ['Creances personnelles Amine (recouvrement incertain)', s.amine.recvPersonal],
-    ['Creance Omar \u2014 Nezha (40K MAD)', s.nezha.recvOmar],
+    // Le libellé annonçait « 40K MAD » (= 3 717 \u20ac) alors que la colonne affiche la valeur
+    // PONDÉRÉE par la probabilité de recouvrement (2 602 \u20ac) : deux chiffres contradictoires
+    // sur la même ligne. Le montant nominal n'a rien à faire dans le libellé.
+    ['Creance Omar \u2014 Nezha (pond\u00e9r\u00e9e)', s.nezha.recvOmar],
     ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
     ['TVA a payer (Amine)', s.amine.tva],
   ];
@@ -6947,8 +6950,21 @@ function attachKPIInsights(state, view) {
     insights['kpiImmoViewCRD'] = 'Capital Restant D\u00fb total. Se r\u00e9duit chaque mois. Fin : 2044 (Rueil), 2048 (Vitry), 2053 (Villejuif). Plus de d\u00e9tails dans la section Sources ci-dessous.';
     const twb = iv.totalWealthBreakdown || {};
     insights['kpiImmoViewWealth'] = '+\u20ac' + f(iv.totalWealthCreation) + '/mois = Capital amorti ' + f(twb.capitalAmorti || 0) + ' + Appr\u00e9ciation ' + f(twb.appreciation || 0) + (twb.cashflow >= 0 ? ' + CF +' + f(twb.cashflow) : ' - Effort ' + f(Math.abs(twb.cashflow || 0))) + '. Soit ~\u20ac' + f(iv.totalWealthCreation * 12) + '/an.';
-    const cfSign = iv.totalCF >= 0 ? '+' : '';
-    insights['kpiImmoViewCF'] = 'CF net = loyers - charges. Rueil +\u20ac209/mois | Vitry -\u20ac317/mois | Villejuif \u00e0 venir (livraison Q3 2028). Total : ' + cfSign + '\u20ac' + f(iv.totalCF) + '/mois.';
+    // Les cash-flows par bien étaient écrits en dur (Rueil +209, Vitry -317) : faux de +83 € et
+    // -135 €, et sans lien avec le total affiché juste à côté, lui correct. On les dérive.
+    // `cfReel` et non `cf` : pour un bien non livré, `cf` est le flux POST-livraison
+    // (Villejuif -257) alors que totalCF somme les `cfReel` (-51). Prendre `cf` afficherait un
+    // détail qui ne fait pas le total imprimé juste à côté.
+    const detailCF = (iv.properties || []).map(pr => {
+      const v = pr.cfReel != null ? pr.cfReel : pr.cf;
+      if (v == null) return pr.name + ' n/d';
+      return pr.name + ' ' + (v >= 0 ? '+' : '\u2212') + '\u20ac' + f(Math.abs(v)) + '/mois';
+    }).join(' | ');
+    // Signe devant le symbole, comme dans le détail : `f()` rend déjà « -107 », ce qui donnait
+    // « €-107/mois ».
+    const signeTotal = iv.totalCF >= 0 ? '+' : '\u2212';
+    insights['kpiImmoViewCF'] = 'CF net = loyers \u2212 charges. ' + detailCF
+      + (detailCF ? '. ' : '') + 'Total : ' + signeTotal + '\u20ac' + f(Math.abs(iv.totalCF)) + '/mois.';
   }
 
   // ── Cr\u00e9ances view ──
@@ -6956,8 +6972,28 @@ function attachKPIInsights(state, view) {
     const crv = s.creancesView;
     insights['kpiCreancesNominal'] = crv.items.length + ' cr\u00e9ances actives. ' + crv.items.filter(c => c.currency === 'EUR').length + ' en EUR, ' + crv.items.filter(c => c.currency === 'MAD').length + ' en MAD. Valeur nominale totale avant probabilit\u00e9.';
     insights['kpiCreancesExpected'] = 'Valeur ajust\u00e9e par probabilit\u00e9 de recouvrement. Garanti (100%) + Incertain (70%) = valeur attendue r\u00e9aliste.';
-    insights['kpiCreancesGuaranteed'] = '100% probabilit\u00e9. SAP sous 45j, Malt sous 30j. Cr\u00e9ances long terme : Kenza + Mehdi (MAD).';
-    insights['kpiCreancesUncertain'] = 'Probabilit\u00e9 ~70%. Abdelkader 55K MAD + Omar 40K MAD + Akram 1.5K EUR. Relances en cours.';
+    // Les noms étaient écrits en dur : l'infobulle citait encore Mehdi — devenu une DETTE en
+    // v487 — et Malt, qui n'existe dans aucune créance. On liste ce que le moteur retient.
+    // `activeItems` et non `items` : ce dernier contient aussi les créances recouvrées et la
+    // dette Mehdi (montant négatif). Et le discriminant du KPI est `guaranteed`, pas
+    // `probability` — les deux divergent (les créances Aby sont à 100 % mais non garanties).
+    const nomsGaranties = (crv.activeItems || []).filter(c => c.guaranteed)
+      .map(c => c.label || c.counterparty || c.id);
+    insights['kpiCreancesGuaranteed'] = 'Probabilit\u00e9 100\u202f%. '
+      + (nomsGaranties.length ? nomsGaranties.join(', ') + '.' : 'Aucune cr\u00e9ance garantie.');
+    // Idem : la liste en dur omettait les créances Aby (42 % du KPI, ajoutées en v484) et
+    // citait Akram, déjà recouvré. Dérivée du moteur, elle ne peut plus se désynchroniser.
+    // Le pourcentage n'est affiché que s'il décote : une créance non garantie mais à 100 %
+    // (les créances Aby) affichait « Aby (100 %) » sous le mot « incertain », ce qui se lit
+    // comme une contradiction. Non garanti et probabilité sont deux notions distinctes ici.
+    const nomsIncertaines = (crv.activeItems || []).filter(c => !c.guaranteed)
+      .map(c => {
+        const pct = Math.round((c.probability != null ? c.probability : 1) * 100);
+        return (c.label || c.counterparty || c.id) + (pct < 100 ? ' (' + pct + '\u202f%)' : '');
+      });
+    insights['kpiCreancesUncertain'] = nomsIncertaines.length
+      ? 'Recouvrement incertain : ' + nomsIncertaines.join(', ') + '. Relances en cours.'
+      : 'Aucune cr\u00e9ance \u00e0 recouvrement incertain.';
     insights['kpiCreancesInflation'] = 'Co\u00fbt d\'opportunit\u00e9 : argent bloqu\u00e9 dans les cr\u00e9ances au lieu d\'\u00eatre investi. Plus le recouvrement tarde, plus la perte est grande.';
   }
 
@@ -7194,7 +7230,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=501').then(m => {
+  import('./charts.js?v=502').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
