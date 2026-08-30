@@ -1506,7 +1506,25 @@
 
   /* v299 audit: gap & padding trimmed slightly to accommodate 8 reels
      on mobile (~288px container @ 360px viewport). */
+  /* État d'attente : sans données déverrouillées, les rouleaux n'ont aucun montant sur lequel
+     se figer. Les laisser tourner indéfiniment donnait une page qui « ne charge jamais » ;
+     les figer sur des chiffres au hasard afficherait un faux patrimoine. On les efface et on
+     montre un tiret, comme la variante montagne. */
+  .slot-display.is-waiting > * { opacity: 0; transition: opacity .45s ease; }
+  .slot-display.is-waiting::after {
+    content: '—';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(253, 230, 138, 0.5);
+    font: 700 clamp(22px, 5vw, 32px) 'DM Sans', sans-serif;
+    letter-spacing: 0.08em;
+  }
+
   .slot-display {
+    position: relative;   /* ancre le tiret d'attente ci-dessus */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2449,7 +2467,9 @@
       if (c) c.style.display = 'none';
     }
 
-    return { init, trigger, hide };
+    // `attendre` : sans valeur la montagne affiche déjà « — » et le randonneur reste en bas ;
+    // rien à interrompre, mais l'interface doit exister pour que le sélecteur soit uniforme.
+    return { init, trigger, hide, attendre: function () {} };
   })();
 
 
@@ -2515,6 +2535,7 @@
     let lastFrameTime = null;
     let lockBeganAt = null;
     let rafId = null;               // v299 audit: track so we can stop rAF when done
+    let attenteDemandee = false;    // l'attente a été demandée avant que le module soit monté
     let reducedMotion = false;      // v299 audit: prefers-reduced-motion snapshot
 
     // DOM refs (resolved in init)
@@ -2852,6 +2873,9 @@
       requestAnimationFrame(function() {
         reels = buildReels();
         lastFrameTime = null;
+        // Attente demandée avant le montage (page verrouillée) : on l'applique maintenant
+        // plutôt que de lancer une rotation qu'il faudrait interrompre juste après.
+        if (attenteDemandee && !dataReady) { entrerEnAttente(); return; }
         rafId = requestAnimationFrame(renderLoop);
 
         // v299 audit: if the user prefers reduced motion AND we already
@@ -2867,15 +2891,46 @@
       setTimeout(function() {
         if (!dataReady) {
           console.warn('[slot] Données absentes après ' + DATA_TIMEOUT_MS + 'ms — '
-            + 'les rouleaux ne se figent sur aucun montant (voir STATIC_EUR).');
+            + 'passage en attente (page verrouillée ou réseau indisponible).');
+          entrerEnAttente();
         }
       }, DATA_TIMEOUT_MS);
+    }
+
+    /**
+     * Arrête la rotation et affiche un tiret. Appelé quand aucune valeur n'arrive : la page est
+     * verrouillée (données chiffrées) ou le réseau ne répond pas. Sans cela les rouleaux
+     * tournaient sans fin et la page paraissait bloquée en chargement.
+     */
+    function entrerEnAttente() {
+      if (dataReady || phase === 'locking' || phase === 'done') return;
+      // Le signal peut précéder init() (app.js sait que la page est verrouillée avant que le
+      // module ne soit monté). On mémorise la demande, et init() la reprendra une fois le
+      // conteneur résolu — sinon elle serait perdue et les rouleaux tourneraient 12 s de plus.
+      attenteDemandee = true;
+      phase = 'attente';
+      if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+      const display = slotContainer && slotContainer.querySelector('.slot-display');
+      if (display) display.classList.add('is-waiting');
+    }
+
+    /** Sort de l'attente quand la vraie valeur arrive enfin (déverrouillage). */
+    function quitterAttente() {
+      attenteDemandee = false;
+      const display = slotContainer && slotContainer.querySelector('.slot-display');
+      if (display) display.classList.remove('is-waiting');
+      if (phase === 'attente') {
+        phase = 'spinning';
+        lastFrameTime = null;
+        if (rafId == null) rafId = requestAnimationFrame(renderLoop);
+      }
     }
 
     function trigger(realValue, velInfo) {
       realPortfolioEUR = realValue;
       velocityInfo = velInfo || null;
       dataReady = true;
+      quitterAttente();   // la valeur arrive après le délai (déverrouillage tardif) : on relance
       // v299 audit: defensive — if trigger is somehow called before init
       // (e.g. selector reorder in a future refactor), init first so the
       // reels exist before we try to lock them.
@@ -2905,7 +2960,9 @@
       if (c) c.style.display = 'none';
     }
 
-    return { init, trigger, hide };
+    // `attendre` : appelée quand la page est verrouillée, pour cesser la rotation tout de suite
+    // au lieu d'attendre l'expiration du délai (la page paraissait bloquée en chargement).
+    return { init, trigger, hide, attendre: entrerEnAttente };
   })();
 
 
@@ -2946,6 +3003,13 @@
       modChosen.trigger(realValue, velInfo);
     };
 
+    // Signal inverse : app.js sait, lui, que la page est verrouillée et qu'aucune valeur ne
+    // viendra tant que la phrase n'est pas saisie. Sans ce signal l'animation tournait jusqu'à
+    // l'expiration du délai (12 s), ce qui se lisait comme un chargement qui n'aboutit pas.
+    window._gridAnimationWaiting = function() {
+      if (modChosen && typeof modChosen.attendre === 'function') modChosen.attendre();
+    };
+
     console.log('[animSelector] v299 chosen variant: ' + chosen);
   })();
 
@@ -2984,10 +3048,40 @@ async function checkAuth() {
   // fait foi, pas la comparaison de hash (celle-ci ne protégeait rien, le blob étant public).
   // `nwUnlock` renvoie null tant que le chiffrement n'est pas activé → ancien comportement.
   if (typeof window.nwUnlock === 'function') {
+    // 1. Le code court. Il ne déchiffre rien : il rejoue la phrase mémorisée sur CE navigateur
+    //    lors d'une première saisie. Sur un appareil jamais appairé il ne peut rien ouvrir —
+    //    c'est ce qui permet de garder un code à 4 chiffres sans affaiblir le blob publié.
+    if (hashStr(input) === AUTH_HASH && typeof window.nwUnlockAppareil === 'function') {
+      const parAppareil = await window.nwUnlockAppareil();
+      if (parAppareil === true) {
+        setCookie(AUTH_COOKIE, AUTH_HASH, 2);
+        document.getElementById('authGate').style.display = 'none';
+        return;
+      }
+      if (parAppareil === false) {
+        // Appareil non appairé : le dire, sinon l'échec est incompréhensible (« mon code
+        // ne marche plus ») alors qu'il suffit de saisir la phrase une fois ici.
+        const err = document.getElementById('authError');
+        err.textContent = 'Ce navigateur n’a pas encore reçu la phrase secrète. '
+          + 'Saisis-la une fois ici : le code à 4 chiffres suffira ensuite sur cet appareil.';
+        err.style.display = 'block';
+        document.getElementById('authInput').value = '';
+        document.getElementById('authInput').focus();
+        return;
+      }
+      // parAppareil === null : chiffrement inactif → on retombe sur le contrôle historique.
+    }
+    // 2. La phrase complète. Elle déchiffre, et appaire l'appareil au passage.
     const r = await window.nwUnlock(input);
-    if (r === true) { document.getElementById('authGate').style.display = 'none'; return; }
+    if (r === true) {
+      setCookie(AUTH_COOKIE, AUTH_HASH, 2);
+      document.getElementById('authGate').style.display = 'none';
+      return;
+    }
     if (r === false) {
-      document.getElementById('authError').style.display = 'block';
+      const err = document.getElementById('authError');
+      err.textContent = 'Phrase incorrecte.';
+      err.style.display = 'block';
       document.getElementById('authInput').value = '';
       document.getElementById('authInput').focus();
       return;
@@ -3008,9 +3102,10 @@ async function checkAuth() {
 // v495 — le cookie ne suffit plus si les données sont chiffrées : il masquerait la grille alors
 // que les données ne seraient pas déchiffrées. app.js rouvre la grille dans ce cas (et la garde
 // fermée s'il a pu déverrouiller depuis la session).
-if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
-  document.getElementById('authGate').style.display = 'none';
-}
+// Ce script s'exécute AVANT le module app.js : `window.nwUnlockAppareil` n'existe pas encore.
+// On se contente donc de poser le constat, et app.js décide — lui seul sait si les données ont
+// pu être déchiffrées. Masquer l'interface ici sans déchiffrer donnerait une page vide.
+window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 </script>
 
 <div id="loadingOverlay" class="loading-overlay">
@@ -4528,7 +4623,7 @@ if (getCookie(AUTH_COOKIE) === AUTH_HASH) {
 
 </div>
 
-<script type="module" src="js/app.js?v=499"></script>
+<script type="module" src="js/app.js?v=500"></script>
 
 </body>
 </html>

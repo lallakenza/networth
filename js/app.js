@@ -4,14 +4,15 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=499';
-import { deverrouiller, deverrouillerDepuisSession, blobDisponible } from './unlock.js?v=499';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=499';
-import { render, applySnapshotDeltas } from './render.js?v=499';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=499';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=499';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=499';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=499';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=500';
+import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
+         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=500';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=500';
+import { render, applySnapshotDeltas } from './render.js?v=500';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=500';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=500';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=500';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=500';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -589,30 +590,69 @@ function renderHeroChartFromStore() {
 // on branche la grille de code de l'accueil sur le déchiffrement — une seule saisie fait les deux.
 window._nwDeverrouille = false;
 (async () => {
-  if (!(await blobDisponible())) return;             // chiffrement pas encore activé
-  window._nwDeverrouille = await deverrouillerDepuisSession();
-  if (window._nwDeverrouille) { refresh(); return; }
-  // Pas encore déverrouillé dans cet onglet : la grille reste affichée, et c'est elle qui
-  // déclenchera le déchiffrement (voir window.nwUnlock ci-dessous, appelée par checkAuth).
   const gate = document.getElementById('authGate');
+  if (!(await blobDisponible())) {
+    // Chiffrement inactif : comportement historique, le cookie seul masque la grille.
+    if (gate && window._nwCookieValide) gate.style.display = 'none';
+    return;
+  }
+  // 1. Même onglet, déjà déverrouillé (F5).
+  window._nwDeverrouille = await deverrouillerDepuisSession();
+  // 2. Sinon, appareil appairé ET ouvert récemment : on rejoue la phrase mémorisée, ce qui
+  //    restitue exactement le confort d'avant le chiffrement (pas de re-saisie pendant 2 jours).
+  if (!window._nwDeverrouille && window._nwCookieValide && appareilAppaire()) {
+    window._nwDeverrouille = await deverrouillerDepuisAppareil();
+  }
+  if (window._nwDeverrouille) {
+    if (gate) gate.style.display = 'none';
+    // Les chargements lancés plus bas au niveau module se sont déjà retirés faute de données
+    // (le déchiffrement est asynchrone) : apresDeverrouillage() les relance.
+    apresDeverrouillage();
+    return;
+  }
+  // 3. Rien de mémorisé : la grille reste affichée et c'est elle qui déclenchera le
+  //    déchiffrement (voir window.nwUnlock / window.nwUnlockAppareil ci-dessous).
   if (gate) gate.style.display = 'flex';
+  // Prévenir l'animation d'accueil : aucune valeur ne viendra tant que la phrase n'est pas
+  // saisie, inutile de la laisser tourner jusqu'à l'expiration de son délai.
+  if (typeof window._gridAnimationWaiting === 'function') window._gridAnimationWaiting();
 })();
 
 // Appelée par checkAuth() dans index.html : tente le déchiffrement avec la saisie de la grille.
 // Retourne true si les données sont en place — checkAuth ne masque la grille que dans ce cas.
+/**
+ * Ouverture par le code court. Le code ne déchiffre rien : il autorise à rejouer la phrase
+ * mémorisée sur CE navigateur lors d'une première saisie. Sur un appareil qui n'a jamais reçu
+ * la phrase, il ne peut rien ouvrir — c'est ce qui permet de garder un code à 4 chiffres sans
+ * affaiblir le blob publié, qu'un code aussi court ne protégerait pas plus de quelques minutes.
+ * Renvoie null si le chiffrement n'est pas actif, false si l'appareil n'est pas appairé.
+ */
+window.nwUnlockAppareil = async () => {
+  if (!(await blobDisponible())) return null;
+  if (!appareilAppaire()) return false;
+  const ok = await deverrouillerDepuisAppareil();
+  if (ok) { apresDeverrouillage(); }
+  return ok;
+};
+
+window.nwOublierAppareil = () => oublierAppareil();
+window.nwAppareilAppaire = () => appareilAppaire();
+
+/** Suites communes à tout déverrouillage réussi. */
+function apresDeverrouillage() {
+  window._nwDeverrouille = true;
+  refresh();
+  renderHeroChartFromStore();
+  // Les chargements réseau lancés au démarrage ont été sautés faute de données : on les relance
+  // maintenant, sinon la page resterait sur les prix de repli jusqu'au prochain intervalle.
+  loadStockPrices(false).catch(e => console.warn('[app] cours après déverrouillage :', e));
+  refreshFX(false).catch(e => console.warn('[app] FX après déverrouillage :', e));
+}
+
 window.nwUnlock = async (saisie) => {
   if (!(await blobDisponible())) return null;        // pas de chiffrement : ancien comportement
   const ok = await deverrouiller(saisie);
-  if (ok) {
-    window._nwDeverrouille = true;
-    refresh();
-    renderHeroChartFromStore();
-    // Les chargements réseau lancés au démarrage ont été sautés faute de données : on les
-    // relance maintenant, sinon la page resterait sur les prix de repli jusqu'au prochain
-    // intervalle (5 min pour le FX, 15 pour les cours).
-    loadStockPrices(false).catch(e => console.warn('[app] cours après déverrouillage :', e));
-    refreshFX(false).catch(e => console.warn('[app] FX après déverrouillage :', e));
-  }
+  if (ok) apresDeverrouillage();   // la phrase vient d'être mémorisée : le code suffira ensuite
   return ok;
 };
 

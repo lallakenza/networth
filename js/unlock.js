@@ -35,6 +35,34 @@ export async function blobDisponible() {
 
 const CLE_SESSION = 'nw_unlocked_v1';
 
+// Appairage de l'appareil. La phrase saisie une fois est conservée dans le localStorage de CE
+// navigateur, ce qui permet ensuite d'ouvrir avec le code court : le code ne déchiffre rien, il
+// autorise à rejouer la phrase déjà présente. Un navigateur qui n'a jamais reçu la phrase ne
+// s'ouvre pas au code, et le blob publié reste protégé par la phrase seule.
+//
+// Ce que cela coûte, dit franchement : la phrase est écrite sur le disque du navigateur et
+// lisible par tout script servi depuis cette origine. Sur un appareil partagé, le code court
+// suffit alors à ouvrir le site — c'est exactement le niveau de protection qu'il offrait avant
+// le chiffrement. `oublierAppareil()` (bouton « oublier cet appareil ») annule l'appairage.
+const CLE_APPAREIL = 'nw_appareil_v1';
+
+export function appareilAppaire() {
+  try { return !!localStorage.getItem(CLE_APPAREIL); } catch (e) { return false; }
+}
+
+export function oublierAppareil() {
+  try { localStorage.removeItem(CLE_APPAREIL); } catch (e) { /* rien à faire */ }
+}
+
+/** Déverrouille en rejouant la phrase mémorisée sur cet appareil. */
+export async function deverrouillerDepuisAppareil() {
+  if (!(await blobDisponible())) return false;
+  let p = null;
+  try { p = localStorage.getItem(CLE_APPAREIL); } catch (e) { return false; }
+  if (!p) return false;
+  return deverrouiller(p);
+}
+
 /** Remplit un objet ou un tableau EXISTANT, sans casser la référence partagée par les imports. */
 function remplirEnPlace(cible, source) {
   if (Array.isArray(cible) && Array.isArray(source)) {
@@ -85,6 +113,8 @@ export async function deverrouiller(phrase) {
     // Confort de session : évite la re-saisie à chaque rechargement de l'onglet. Voir l'en-tête
     // du fichier pour ce que cela implique exactement.
     try { sessionStorage.setItem(CLE_SESSION, phrase); } catch (e) { /* mode privé : confort perdu, rien de plus */ }
+    // Appairage : ce navigateur pourra désormais être ouvert avec le code court.
+    try { localStorage.setItem(CLE_APPAREIL, phrase); } catch (e) { /* idem */ }
     console.log('[unlock] ✓ ' + n + ' blocs de données déverrouillés');
     return true;
   } catch (e) {
