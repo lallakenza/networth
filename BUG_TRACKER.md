@@ -2226,3 +2226,39 @@ Corrigés en v494. Chaque point ci-dessous a été vérifié par exécution du m
 ### Également dans v494
 - **Invariant Σ = NW visible sur la table Nezha** — le fix BUG-093 s'était arrêté aux tables Couple et Amine ; un compte oublié côté Nezha ne se serait vu qu'en console. Les trois tables sont alignées.
 - **Code mort supprimé** (29 268 caractères) : `renderPropertyDetail` (~220 lignes, citée uniquement dans des commentaires qui la décrivaient comme active), `renderFiscalSimulator`, `buildDetailTable` — zéro appel réel, vérifié à l'analyseur statique puis par recherche exhaustive. Les 5 commentaires qui les documentaient encore ont été retirés.
+
+## BUG-111 : l'écran verrouillé annonçait un patrimoine, et le calcul plantait sans données
+
+- **Version** : détecté et corrigé en v498/v499 (30/08/2026), introduit par la bascule au
+  chiffrement des données (v496).
+- **Sévérité** : critique (confidentialité) + haute (page inutilisable avant déverrouillage).
+- **Détection** : chargement du site publié dans un vrai navigateur. Ni `node --check`, ni
+  ESLint, ni le test moteur headless ne pouvaient le voir : le moteur avait été validé avec les
+  données **déchiffrées**, c'est-à-dire dans le seul cas où le défaut n'existe pas.
+- **Symptômes** :
+  1. L'écran de connexion affichait un montant à six chiffres et « … à gravir », avant toute
+     saisie — donc à n'importe quel visiteur.
+  2. Console : `TypeError: Cannot read properties of undefined (reading 'immo')` dans
+     `computeImmoView`, puis `Cannot read properties of undefined (reading 'ibkr')` dans
+     `fetchStockPrices`.
+- **Causes** :
+  1. `index.html` portait `const STATIC_EUR = <montant>`, un patrimoine écrit en dur servant de
+     repli « si l'API est indisponible ». Avant le chiffrement il ne se déclenchait presque
+     jamais ; depuis, le calcul n'aboutit plus avant déverrouillage, donc le repli s'affichait
+     **systématiquement**. La montée « ambiante » du compteur (plafonnée à 8 % de l'objectif)
+     se lisait elle aussi comme un patrimoine.
+  2. `refresh()` était appelé inconditionnellement au démarrage et `compute()` suppose les blocs
+     présents. L'exception interrompait toute la séquence d'initialisation.
+- **Correctifs** : suppression du montant de repli (le compteur affiche `—` tant que la vraie
+  valeur n'est pas reçue) ; garde `donneesPretes()` en tête de `refresh()` et de
+  `loadStockPrices()` ; relance des cours et du FX au déverrouillage. `detect_desyncs.mjs` lit
+  la source hors dépôt et **refuse de conclure** sans elle — sinon tous les écarts valaient 0 et
+  il annonçait « aucun desync », un faux négatif silencieux.
+- **Tests de non-régression** :
+  - Charger le site sans déverrouiller : compteur sur `—`, aucun montant, aucune exception.
+  - Déverrouiller : le net worth apparaît, les cours se rafraîchissent sans attendre 15 min.
+  - `grep -c "STATIC_EUR = [0-9]" index.html` doit rendre 0.
+  - `NW_DATA_SOURCE=/inexistant node scripts/detect_desyncs.mjs` doit sortir en code 2.
+- **Leçon** : après un changement qui modifie la **disponibilité** des données, retester le cas
+  « données absentes », pas seulement le cas nominal. Une vérification qui ne s'exécute que dans
+  l'état favorable ne prouve rien sur l'autre.
