@@ -4,15 +4,15 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=500';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=501';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
-         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=500';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=500';
-import { render, applySnapshotDeltas } from './render.js?v=500';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=500';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=500';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=500';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=500';
+         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=501';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=501';
+import { render, applySnapshotDeltas } from './render.js?v=501';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=501';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=501';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=501';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=501';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -647,6 +647,13 @@ function apresDeverrouillage() {
   // maintenant, sinon la page resterait sur les prix de repli jusqu'au prochain intervalle.
   loadStockPrices(false).catch(e => console.warn('[app] cours après déverrouillage :', e));
   refreshFX(false).catch(e => console.warn('[app] FX après déverrouillage :', e));
+  // La surcouche immo Supabase est arrivée pendant que la page était verrouillée : elle n'a pas
+  // pu s'appliquer (elle écrit dans PORTFOLIO.amine.immo). On la rejoue maintenant, sinon tout
+  // l'immobilier resterait sur le repli data.js sans que rien ne le signale.
+  if (_immoRefCache) appliquerImmoRef(_immoRefCache);
+  else loadImmoRef().then(appliquerImmoRef).catch(() => {});
+  // Idem pour les deltas « vs hier », qui ont été sautés faute de currentState.
+  if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState, currentSubView || currentView);
 }
 
 window.nwUnlock = async (saisie) => {
@@ -666,7 +673,8 @@ renderHeroChartFromStore(); // v379 — graphe visible immédiatement (2e visite
 loadSnapshots().then(rows => {
   if (rows && rows.length) {
     window._nwSnapCache = rows;
-    if (currentState) applySnapshotDeltas(currentState);
+    const deltasAppliques = !!currentState;
+    if (deltasAppliques) applySnapshotDeltas(currentState, currentSubView || currentView);
     // v444 (P2) — la carte « Évolution du Net Worth » dépend du cache snapshots, qui
     // arrive APRÈS le premier rendu (qui l'a masquée) : la réafficher et la construire.
     try {
@@ -677,19 +685,33 @@ loadSnapshots().then(rows => {
       // v445 (P3) — même logique pour l'évolution d'allocation (remplace le donut)
       window.buildCoupleAllocEvolution && window.buildCoupleAllocEvolution();
     } catch (e) { /* non-bloquant */ }
-    console.log('[v389] ' + rows.length + ' snapshot(s) préchargés — deltas NW appliqués');
+    // Le journal disait « deltas NW appliqués » même quand currentState valait null (page
+    // verrouillée) : il annonçait un travail qui n'avait pas eu lieu.
+    console.log('[v389] ' + rows.length + ' snapshot(s) préchargés — deltas NW '
+      + (deltasAppliques ? 'appliqués' : 'EN ATTENTE (données non déverrouillées)'));
   }
 }).catch(() => {});
 
 // v402 — référentiel immo Supabase (source de vérité éditable : valeurs, CRD, loyers,
 // charges, prêts, VEFA, fiscalité, appréciation). Fire-and-forget : si le fetch échoue,
 // data.js reste la source (fallback intégral, zéro régression). Si appliqué → recompute.
-loadImmoRef().then(ref => {
-  if (ref && applyImmoRef(ref)) {
-    refresh();
-    if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState);
-  }
-}).catch(() => {});
+let _immoRefCache = null;   // conservé pour pouvoir réappliquer après déverrouillage
+
+function appliquerImmoRef(ref) {
+  if (!ref) return false;
+  _immoRefCache = ref;
+  // applyImmoRef écrit dans PORTFOLIO.amine.immo : sans données déverrouillées il lève, et son
+  // try/catch avale l'erreur — la surcouche était alors perdue pour de bon, le référentiel
+  // Supabase (valeurs, CRD, loyers, charges, 6 prêts, VEFA, fiscalité) restant inappliqué
+  // jusqu'au prochain chargement de page. On attend donc d'avoir les données.
+  if (!donneesPretes()) return false;
+  if (!applyImmoRef(ref)) return false;
+  refresh();
+  if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState, currentSubView || currentView);
+  return true;
+}
+
+loadImmoRef().then(appliquerImmoRef).catch(() => {});
 
 // Hide loading overlay after initial data load
 document.getElementById('loadingOverlay')?.classList.add('hidden');

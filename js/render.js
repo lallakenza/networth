@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=500';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=500';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=501';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=501';
 
 // ---- Generic table sort utility ----
 /**
@@ -7194,7 +7194,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=500').then(m => {
+  import('./charts.js?v=501').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7469,7 +7469,10 @@ function renderDecisionCockpit(state) {
   // overlay immo) recréaient les tuiles « chargement… » APRÈS le dernier
   // applySnapshotDeltas, qui ne revenait jamais. Le cockpit se remplit désormais
   // à chaque rendu dès que le cache snapshots est là.
-  try { if (window._nwSnapCache) applySnapshotDeltas(state); } catch (e) { /* non-bloquant */ }
+  // 'couple' explicite : ce cockpit n'est rendu que pour cette vue (render.js:310). Sans le
+  // dire, l'appel s'appuyait sur le repli par défaut du paramètre — juste aujourd'hui, faux le
+  // jour où le cockpit serait affiché ailleurs.
+  try { if (window._nwSnapCache) applySnapshotDeltas(state, 'couple'); } catch (e) { /* non-bloquant */ }
 }
 
 /**

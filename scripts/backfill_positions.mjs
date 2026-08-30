@@ -20,6 +20,7 @@
  * Usage : node scripts/backfill_positions.mjs [--dry-run]
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -36,9 +37,21 @@ const TICKER_MAP = { WLN: 'WLN.PA', GLE: 'GLE.PA', NXI: 'NXI.PA', EDEN: 'EDEN.PA
 const SOLD_CCY = { 'QQQM': 'USD', 'WLN.PA': 'EUR', 'GLE.PA': 'EUR', 'NXI.PA': 'EUR', 'EDEN.PA': 'EUR', 'DG.PA': 'EUR' };
 
 // ── Données locales (headless) ──
+// Depuis le chiffrement (v496), js/data.js est une coquille vide : les blocs personnels vivent
+// dans la source en clair gardée hors du dépôt. Sans elle ce script plantait sur
+// `PORTFOLIO.amine.ibkr` — après avoir déjà tiré deux minutes de séries Yahoo.
+const SOURCE_CLAIR = process.env.NW_DATA_SOURCE
+  || join(dirname(ROOT), 'networth-data', 'data.source.js');
+const origineDonnees = existsSync(SOURCE_CLAIR) ? SOURCE_CLAIR : join(ROOT, 'js/data.js');
 const tmp = join(ROOT, '.tmp_snapshot'); await mkdir(tmp, { recursive: true });
-await writeFile(join(tmp, 'data.js'), (await readFile(join(ROOT, 'js/data.js'), 'utf8')).replace(/\?v=\d+/g, ''));
+await writeFile(join(tmp, 'data.js'), (await readFile(origineDonnees, 'utf8')).replace(/\?v=\d+/g, ''));
 const { PORTFOLIO } = await import(pathToFileURL(join(tmp, 'data.js')).href);
+
+if (!PORTFOLIO || !PORTFOLIO.amine || !PORTFOLIO.amine.ibkr) {
+  console.error('✗ Données absentes : js/data.js est chiffré et la source en clair est introuvable.');
+  console.error(`  Attendue ici : ${SOURCE_CLAIR}  (ou renseigne NW_DATA_SOURCE)`);
+  process.exit(2);   // avant le moindre appel réseau
+}
 
 // ── Price store L2 ──
 const blob = (await (await fetch(SUPA + '/rest/v1/price_history?id=eq.singleton&select=data', { headers: HDRS })).json())[0].data;
@@ -113,6 +126,11 @@ const lotsA = (PORTFOLIO.amine.espp.lots || []), lotsN = ((PORTFOLIO.nezha.espp 
 const esppSharesAt = (lots, d) => lots.filter(l => l.date <= d).reduce((s, l) => s + (l.shares || 0), 0);
 
 // ── CASH depuis l'HISTORIQUE GIT de data.js (v392) ──
+// ATTENTION (v497) : la purge d'historique a retiré js/data.js de TOUS les commits. Les
+// observations de soldes datées ne sont donc plus lisibles depuis ce dépôt — cette section
+// rendra des séries vides. L'historique d'avant la purge est conservé dans le bundle
+// ~/networth-data/networth-avant-purge-20260830-0042.bundle : le rejouer dans un clone
+// temporaire est le seul moyen de refaire tourner cette reconstruction.
 // Chaque commit modifiant un solde = une observation datée réelle (« le solde valait X
 // ce jour-là »). Fonction en escalier entre observations (un solde bancaire persiste).
 // Ids stables = ceux des snapshots live (CASH_ACCOUNT_IDS engine). Parsing par section

@@ -99,6 +99,47 @@ if (pV && pV.bail && pV.bail.debut) {
   chk('AC-5 — totalRevenue vitry conforme au bail', pV.totalRevenue, attendu);
 }
 
+// ── Identité du module de données (v501) ──────────────────────────────────────
+// Les modules ES sont indexés par URL RÉSOLUE : './data.js' et './data.js?v=501' sont deux
+// modules distincts, donc deux objets PORTFOLIO distincts. unlock.js importait la première
+// forme et remplissait un orphelin : le déverrouillage réussissait et le tableau de bord
+// restait vide, sans la moindre erreur (v496 → v500). Rien dans la chaîne de vérification ne
+// pouvait l'attraper — les tests headless copient les fichiers en retirant les `?v=N`, ce qui
+// fait justement disparaître le défaut. D'où ce contrôle purement textuel.
+{
+  const { readdirSync } = await import('node:fs');
+  const dossierJs = join(repoRoot, 'js');
+  const specificateurs = new Map();
+  for (const f of readdirSync(dossierJs).filter((x) => x.endsWith('.js'))) {
+    // Les commentaires sont retirés d'abord : l'en-tête de unlock.js cite littéralement
+    // `from './data.js'` en prose pour expliquer le mécanisme, ce qui déclencherait l'alerte
+    // sur un fichier pourtant correct.
+    const src = readFileSync(join(dossierJs, f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/^\s*\/\/.*$/gm, ' ');
+    for (const m of src.matchAll(/(?:from|import\()\s*['"](\.\/data(?:\.enc)?\.js[^'"]*)['"]/g)) {
+      if (!specificateurs.has(m[1])) specificateurs.set(m[1], []);
+      specificateurs.get(m[1]).push(f);
+    }
+  }
+  const versDataJs = [...specificateurs.entries()].filter(([s]) => !s.includes('.enc.'));
+  if (versDataJs.length > 1) {
+    console.error('✗ IDENTITÉ DU MODULE DE DONNÉES ROMPUE — plusieurs URL pour js/data.js :');
+    for (const [spec, fichiers] of versDataJs) console.error(`    ${spec}  ←  ${fichiers.join(', ')}`);
+    console.error('  Ces modules recevront des objets PORTFOLIO DIFFÉRENTS. Le déchiffrement');
+    console.error('  remplira l\'un et les vues liront l\'autre : tableau de bord vide, sans erreur.');
+    console.error('  Corriger : un seul et même suffixe ?v=N partout.');
+    process.exit(1);
+  }
+  const sansVersion = [...specificateurs.keys()].filter((s) => !/\?v=\d+/.test(s));
+  if (sansVersion.length) {
+    console.error('✗ Import de données sans suffixe ?v=N :', sansVersion.join(', '));
+    console.error('  Le cache (service worker inclus) ne sera jamais invalidé pour ce fichier.');
+    process.exit(1);
+  }
+  console.log('[check] Module de données unique ✓ (' + [...specificateurs.keys()].join(' + ') + ')');
+}
+
 console.log('══════ DÉTECTION DE DESYNCS D\'AFFICHAGE ══════\n');
 if (!findings.length) console.log('✅ Aucun desync (agrégats cohérents, tol €' + TOL + ')');
 else { console.log('❌ ' + findings.length + ' DESYNC(S) :'); findings.forEach((x) => console.log('  ✗ ' + x.name + ' → écart ' + f(x.gap) + '€ [' + f(x.a) + ' vs ' + f(x.b) + ']')); }
