@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=505';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=505';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=506';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=506';
 
 // ---- Generic table sort utility ----
 /**
@@ -2313,9 +2313,20 @@ function renderActionsView(state) {
   const esppTotalVal = esppTotalCost + esppTotalPL;          // = parts + cash du compte
   const esppCashLigne = esppTotalVal - esppTotalValParts;    // pour l'annoncer dans le libellé
   // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
+  // Le P&L de période de la ligne ESPP était pris ENTIER quel que soit le propriétaire actif :
+  // en vue Nezha, sa ligne Accenture portait le mouvement des 187 parts d'Amine plus les
+  // siennes. Le P&L de période est du pur mark-to-market (Δprix × parts), donc le prorata des
+  // parts est EXACT — c'est déjà ce que fait `scopePeriodPLByOwner` pour la carte et le widget.
+  const _partsEsppTotal = (av.esppShares || 0) + (av.nezhaEsppShares || 0);
+  const _ratioEspp = _partsEsppTotal > 0
+    ? (owner === 'both' ? 1 : (owner === 'amine' ? (av.esppShares || 0) : (av.nezhaEsppShares || 0)) / _partsEsppTotal)
+    : 0;
   const esppPeriodPL = (period) => {
     const bd = av.periodPL[period]?.breakdown;
-    if (bd) { const acnItems = bd.filter(b => b.ticker === 'ACN'); if (acnItems.length) return acnItems.reduce((s, b) => s + b.pl, 0); }
+    if (bd) {
+      const acnItems = bd.filter(b => b.ticker === 'ACN');
+      if (acnItems.length) return acnItems.reduce((s2, b) => s2 + b.pl, 0) * _ratioEspp;
+    }
     return null;
   };
   if (esppTotalShares > 0) allPositions.push({ // v374 : ne pas afficher une ligne ACN à 0 part (ex. Nezha sans ESPP)
@@ -7319,7 +7330,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=505').then(m => {
+  import('./charts.js?v=506').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
