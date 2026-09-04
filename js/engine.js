@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=503';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=504';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1204,12 +1204,19 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // 7. Benchmark comparison (YTD 2026 — updated 21 mars 2026)
   // Sources : Yahoo Finance (clôture 20/03/2026)
   // Rendements USD convertis en EUR (EUR/USD passé de ~1.08 à 1.1575 = +7.2% appréciation EUR)
+  // Commentaire de marché saisi À LA MAIN (aucune API ne l'alimente). Deux chiffres d'or
+  // contradictoires cohabitaient dans ce fichier : « +61 % YTD, $4 575/oz » ici et « +21 % YTD
+  // 2026, record $5 602 » dans les risques macro ~50 lignes plus bas, écrits à des dates
+  // différentes et jamais réconciliés. Une seule déclaration désormais, utilisée aux deux
+  // endroits — à rafraîchir en même temps que `date`.
+  const OR_XAU = { ytdPct: 21.0, prixUSD: 5602, note: 'record, haven demand (tensions géopolitiques)' };
+
   const benchmarks = {
     date: '21 mars 2026',
     ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' }, // NOTE: twr overridden by window._chartKPIData?.twr in render.js
     total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
     items: [
-      { label: 'Or (XAU/USD)',       ytd: 61.0, note: '$4 575/oz — record, haven demand (Iran, tensions g\u00e9opolitiques)' },
+      { label: 'Or (XAU/USD)',       ytd: OR_XAU.ytdPct, note: '$' + OR_XAU.prixUSD.toLocaleString('fr-FR') + '/oz — ' + OR_XAU.note },
       { label: 'MSCI World (EUR)',    ytd: 7.5,  note: 'URTH +14.7% USD, -7.2% FX = +7.5% en EUR' },
       { label: 'S&P 500',            ytd: -5.4, note: '6 506 pts — correction tech, vol \u00e9lev\u00e9e' },
       { label: 'CAC 40',             ytd: -10.7, note: '7 666 pts — stress g\u00e9opolitique, industrials sous pression' },
@@ -1257,7 +1264,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   macroRisks.push({
     severity: 'low',
     label: 'Z\u00e9ro exposition Or',
-    detail: 'L\u2019or a gagn\u00e9 +21% YTD 2026 (record $5 602). Aucune exposition directe. Consid\u00e9rer GLD ou SGOL (5-10% du portefeuille) comme hedge g\u00e9opolitique.',
+    detail: 'L\u2019or a gagn\u00e9 ' + (OR_XAU.ytdPct >= 0 ? '+' : '') + OR_XAU.ytdPct + '% YTD (record $' + OR_XAU.prixUSD.toLocaleString('fr-FR') + '). Aucune exposition directe. Consid\u00e9rer GLD ou SGOL (5-10% du portefeuille) comme hedge g\u00e9opolitique.',
   });
   insights.push({
     type: 'macro-risks',
