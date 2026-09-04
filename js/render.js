@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=502';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=502';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=503';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=503';
 
 // ---- Generic table sort utility ----
 /**
@@ -735,7 +735,7 @@ function renderExpandSubs(state, view, options = {}) {
       const relevantViews = ['immobilier', 'villejuif', 'apt_villejuif', 'nezha'];
       const vjStatusNote = !relevantViews.includes(view) ? ''
         : (vjSigned
-            ? '<br><span style="font-size:11px;color:#276749">Acte signe \u2014 livraison Q3 2028</span>'
+            ? '<br><span style="font-size:11px;color:#276749">Acte signe \u2014 livraison ' + libelleLivraisonVJ() + '</span>'
             : '<br><span style="font-size:11px;color:#92400e">Acte notarie non signe \u2014 reservation 3K payee</span>');
       setHTML('subVillejuifCrdDetail', fmt(villejuifP.value) + '<br>CRD ' + fmt(villejuifP.crd) + vjStatusNote);
     }
@@ -787,7 +787,13 @@ function renderDynamicInsights(state, view) {
     // Find highest-yield and lowest-yield accounts dynamically
     const posAccounts = cv.accounts.filter(a => !a.isDebt && a.valEUR > 50);
     const bestAcct = posAccounts.reduce((best, a) => (a.yield || 0) > (best.yield || 0) ? a : best, { yield: 0 });
-    const worstBig = posAccounts.filter(a => a.valEUR > 1000).reduce((w, a) => (a.yield || 0) < (w.yield || Infinity) ? a : w, { yield: Infinity });
+    // « Plus gros poste dormant » : le plus GROS montant parmi les comptes qui ne rapportent
+    // rien. La version précédente cherchait le rendement le plus BAS, et portait le piège du
+    // `||` sur un zéro légitime : dès que le candidat retenu était à 0 %, `w.yield || Infinity`
+    // valait Infinity, donc CHAQUE compte suivant l'emportait. Le résultat était simplement le
+    // dernier compte du tableau — le Wio de Nezha, rémunéré 6 %, présenté comme dormant.
+    const comptesDormants = posAccounts.filter(a => a.valEUR > 1000 && (a.yield || 0) <= 0);
+    const worstBig = comptesDormants.reduce((w, a) => (a.valEUR > (w.valEUR || 0) ? a : w), {});
     // v305 — Patrimoine Financier Mobilisable detailed breakdown
     // (Amine / Nezha / Couple) pour répondre directement aux questionnaires
     // "quel est ton patrimoine financier mobilisable ?" sans avoir à
@@ -852,7 +858,12 @@ function renderDynamicInsights(state, view) {
     cashIns.innerHTML =
       '<strong>Insights Cash :</strong><br>' +
       '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
-      '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : ' + fmt(cv.totalNonYielding * (cv.refYield != null ? cv.refYield : 0.06)) + '.<br>' +   // v493 (audit) : 0,05 était codé en dur ici alors que la vue Cash calcule sur cv.refYield (6 %) — 5 120 € annoncés contre 5 948 €
+      // Le manque à gagner vient du moteur (`gapToPotential`), qui est aussi ce qu'affichent la vue
+      // Cash et son graphe. Cet insight le recalculait autrement (non rémunéré × taux de
+      // référence) et annonçait 6 143 € contre 5 948 € deux écrans plus loin. v493 avait aligné
+      // le TAUX mais laissé la formule diverger.
+      '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : '
+      + fmt((cv.coupleFrame && cv.coupleFrame.gapToPotential) || 0) + '.<br>' +   // v493 (audit) : 0,05 était codé en dur ici alors que la vue Cash calcule sur cv.refYield (6 %) — 5 120 € annoncés contre 5 948 €
       (bestAcct.label ? '- Meilleur rendement : ' + bestAcct.label + ' (' + ((bestAcct.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
       (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '') +
       mobBlock;
@@ -1000,7 +1011,7 @@ function renderDynamicInsights(state, view) {
     const vilMens = villejuifP ? Math.round(villejuifP.charges) : 0;
     const totalMens = rueilMens + vilMens;
     nzBox.innerHTML =
-      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison Q3 2028.<br><br>' +
+      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison ' + libelleLivraisonVJ() + '.<br><br>' +
       '<strong>Insights Nezha :</strong><br>' +
       '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont ' + K(rueilP ? rueilP.equity : 0) + ' en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>' +
       '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
@@ -1104,7 +1115,7 @@ function renderCoupleTable(state) {
     ['Cash sociétés (iBanq Bairok + Wise Bridgevale)', (s.amine.ibanqBairok || 0) + (s.amine.bridgevaleWise || 0)], // v484
     ['\u00c9quit\u00e9 immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['\u00c9quit\u00e9 immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
-    ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison Q3 2028]', s.nezha.villejuifEquity],
+    ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison ' + libelleLivraisonVJ() + ']', s.nezha.villejuifEquity],
     ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
@@ -1527,6 +1538,21 @@ let _allSortDir = 'desc';
 
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
+
+/**
+ * Libellé de livraison de Villejuif, dérivé du référentiel (data.js, écrasé par la surcouche
+ * Supabase). Il était écrit en dur « Q3 2028 » à cinq endroits : corriger la date en base ne
+ * changeait donc rien à l'écran.
+ */
+function libelleLivraisonVJ() {
+  const d = ((IMMO_CONSTANTS.properties || {}).villejuif || {}).deliveryDate;
+  if (!d) return 'date \u00e0 confirmer';
+  const m = /^(\d{4})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const mois = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin',
+                'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
+  return mois[parseInt(m[2], 10) - 1] + ' ' + m[1];
+}
 
 // v346 — toggle « Inclure Villejuif » supprimé (acte signé 05/06/2026) : le bien est
 // définitivement acquis, toujours compté. charts.js n'interroge plus window._immoIncludeVillejuif.
@@ -5083,12 +5109,20 @@ function renderImmoView(state) {
     fp.forEach((prop, i) => {
       const cd = prop.chargesDetail || {};
       const rowBg = i === 1 ? ' style="background:#f0f5ff"' : '';
+      // Un bien en VEFA affichait « -- » dans cette colonne alors que le total au-dessus inclut
+      // son flux RÉEL (l'assurance CACI, prélevée depuis la signature — décision v473). Les
+      // lignes visibles totalisaient donc -56 sous un KPI à -107. On montre ce flux réel, en
+      // gris pour dire qu'il ne s'agit pas encore d'une exploitation locative.
+      const cfAffiche = prop.conditional ? (prop.cfReel || 0) : prop.cf;
       const cfClass = prop.conditional ? '' : (prop.cf >= 0 ? 'pos' : 'neg');
-      const cfText = prop.conditional ? '--' : ((prop.cf >= 0 ? '+' : '') + Math.round(prop.cf));
+      const cfText = (cfAffiche >= 0 ? '+' : '') + Math.round(cfAffiche);
       const loyerText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.loyerHC || 0).toLocaleString('fr-FR');
       const revText = prop.conditional ? '<span style="color:var(--gray)">TBD</span>' : Math.round(prop.totalRevenue || 0).toLocaleString('fr-FR');
       const cfStyle = prop.conditional ? ' style="color:var(--gray)"' : ' style="font-weight:700"';
-      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 livraison Q3 2028</span>'
+      // La date de livraison était écrite en dur ici. Elle vient du référentiel.
+      const livr = (prop.propertyMeta && prop.propertyMeta.deliveryDate) || '';
+      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 assurance seule'
+            + (livr ? ', livraison ' + livr : '') + '</span>'
         : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyerHC || 0) + (prop.parking > 0 ? ' + pkg ' + prop.parking : '') + '</span>';
       html += '<tr' + rowBg + '>'
         + '<td><strong>' + prop.name + '</strong><br>' + desc + '</td>'
@@ -5896,7 +5930,7 @@ function renderAptView(state, loanKey) {
     // v443 — bien VEFA non livré : computeExitCosts ne tourne pas (non cessible en direct)
     // et la carte restait entièrement VIDE (avec, en prime, le div grille jamais refermé).
     // On affiche ce qui existe et on explique pourquoi il n'y a pas de frais « aujourd'hui ».
-    const _delivLabel = (prop.vefaConfig && prop.vefaConfig.deliveryDate) || 'Q3 2028';
+    const _delivLabel = (prop.vefaConfig && prop.vefaConfig.deliveryDate) || libelleLivraisonVJ();
     html += '<div><span style="color:#718096;">Équité engagée</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
       + '<div><span style="color:#718096;">Capital tiré (prêts)</span><br><strong>' + fmt(prop.crd) + '</strong></div>'
       + '<div><span style="color:#718096;">Frais de sortie aujourd\'hui</span><br><strong>—</strong></div>'
@@ -6918,7 +6952,7 @@ function attachKPIInsights(state, view) {
   insights['kpiNzRueil'] = '\u00c9quit\u00e9 Rueil NETTE apr\u00e8s frais de sortie = \u20ac' + f(s.nezha.rueilEquity)
     + (rueilProp ? ' (brute : \u20ac' + f(Math.round(rueilProp.equity)) + ')' : '')
     + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
-  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison Q3 2028. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
+  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison ' + libelleLivraisonVJ() + '. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
   insights['kpiNzCash'] = 'Cash total \u20ac' + f(s.nezha.cash) + ' dont Livret A \u20ac' + f(s.nezha.livretA) + ' (1.5%) + \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA) + ' dormant (0%). Optimiser : assurance-vie ou SCPI.';
 
   // ── Actions view ──
@@ -7230,7 +7264,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=502').then(m => {
+  import('./charts.js?v=503').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

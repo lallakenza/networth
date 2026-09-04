@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=502';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=502';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=502';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=502';
-import { loadSnapshots } from './api.js?v=502'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=502'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=503';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=503';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=503';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=503';
+import { loadSnapshots } from './api.js?v=503'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=503'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -384,51 +384,47 @@ function buildNezhaDonut(state) {
 }
 
 // ============ GEO CHART ============
-// BUG-029: Compute geo allocation dynamically from actual IBKR positions
+// Ce graphe recalculait l'allocation à partir des positions brutes, en parallèle de celle que
+// l'engine produit déjà (`actionsView.geoAllocation`) — deux implémentations du même agrégat.
+// Deux défauts en découlaient :
+//   1. le filtre `geoMap[k] > 100` est FAUX pour NaN : une seule position au prix manquant
+//      (échec de récupération d'un cours) faisait disparaître SILENCIEUSEMENT toute sa zone,
+//      et le camembert se réaffichait sur 100 % du reste sans rien signaler ;
+//   2. il excluait le cash ESPP quand l'engine l'inclut, si bien que les deux camemberts
+//      « Allocation Géographique » de la page différaient d'environ 2 100 €.
+// Il lit désormais la même source que l'autre, et dit ce qu'il ne peut pas placer.
 function buildGeoChart(state) {
-  const s = state;
-  const p = state.portfolio;
-  const fx = state.fx;
-  const toEUR = (amt, cur) => cur === 'EUR' ? amt : amt / fx[cur];
+  const el = document.getElementById('geoChart');
+  if (!el) return;
+  const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  const geo = (_o !== 'both' && state.actionsView.geoAllocationOwner && state.actionsView.geoAllocationOwner[_o])
+    || state.actionsView.geoAllocation || {};
 
-  // Aggregate IBKR positions by geo
-  const geoMap = {};
-  if (p && p.amine && p.amine.ibkr && p.amine.ibkr.positions) {
-    p.amine.ibkr.positions.forEach(pos => {
-      const geo = pos.geo || 'other';
-      const val = toEUR(pos.shares * pos.price, pos.currency);
-      // Map geo keys to display categories
-      let cat;
-      if (geo === 'france') cat = 'France';
-      else if (geo === 'crypto') cat = 'Crypto';
-      else if (geo === 'germany') cat = 'Allemagne';
-      else if (geo === 'japan') cat = 'Japon';
-      else cat = 'Autre';
-      geoMap[cat] = (geoMap[cat] || 0) + val;
-    });
+  const labels = { france: 'France', crypto: 'Crypto', us: 'Irlande/US (ACN)', germany: 'Allemagne',
+                   japan: 'Japon', morocco: 'Maroc (SGTM)', other: 'Autre' };
+  const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936',
+                   japan: '#e53e3e', morocco: '#d69e2e', other: '#718096' };
+
+  // Une valeur non finie est une DONNÉE MANQUANTE, pas un zéro : on la signale au lieu de la
+  // faire disparaître dans un camembert qui semblerait complet.
+  const zonesIncompletes = Object.entries(geo).filter(([, v]) => !isFinite(v)).map(([k]) => labels[k] || k);
+  const entries = Object.entries(geo).filter(([, v]) => isFinite(v) && v > 0).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s2, [, v]) => s2 + v, 0);
+  if (zonesIncompletes.length) {
+    console.warn('[geo] zone(s) sans valeur exploitable, absentes du camembert :', zonesIncompletes.join(', '));
   }
-  // Add ESPP (Accenture = Ireland/US)
-  // v347 — parts ESPP SEULES (esppForActions, hors cash UBS) : le cash ESPP appartient à
-  // l'allocation cash, pas à l'exposition géographique actions. Avant : `espp` (total incl. cash)
-  // surévaluait « Irlande/US » de ~2 095€ (le cash y était compté en plus de l'allocation cash).
-  geoMap['Irlande/US (ACN)'] = (s.amine.esppForActions || 0) + (s.nezha.esppForActions || 0);
-  // Add SGTM (Morocco)
-  geoMap['Maroc (SGTM)'] = (s.amine.sgtm || 0) + (s.nezha.sgtm || 0);
 
-  const colorMap = { 'France': '#2b6cb0', 'Crypto': '#9f7aea', 'Irlande/US (ACN)': '#48bb78', 'Allemagne': '#ed8936', 'Japon': '#e53e3e', 'Maroc (SGTM)': '#d69e2e', 'Autre': '#718096' };
-  const labels = Object.keys(geoMap).filter(k => geoMap[k] > 100);
-  const data = labels.map(k => Math.round(geoMap[k]));
-  const colors = labels.map(k => colorMap[k] || '#718096');
-
-  charts.geo = new Chart(document.getElementById('geoChart'), {
+  charts.geo = new Chart(el, {
     type: 'doughnut',
     data: {
-      labels: labels,
-      datasets: [{ data: data, backgroundColor: colors, borderWidth: 1 }]
+      labels: entries.map(([k]) => labels[k] || k),
+      datasets: [{ data: entries.map(([, v]) => Math.round(v)),
+                   backgroundColor: entries.map(([k]) => colors[k] || '#718096'), borderWidth: 1 }]
     },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
-        tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a,b)=>a+b,0); return c.label + ': ' + fmt(c.parsed) + ' (' + (c.parsed/t*100).toFixed(1) + '%)'; } } } } }
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed)
+          + ' (' + (total ? (c.parsed / total * 100).toFixed(1) : '0') + '%)' } } } }
   });
 }
 
