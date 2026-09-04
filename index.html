@@ -3058,6 +3058,15 @@ async function checkAuth() {
         document.getElementById('authGate').style.display = 'none';
         return;
       }
+      if (parAppareil === 'perimee') {
+        const err = document.getElementById('authError');
+        err.textContent = 'La phrase secrète a changé depuis la dernière ouverture sur ce '
+          + 'navigateur. Saisis la NOUVELLE phrase une fois : le code à 4 chiffres refonctionnera ensuite.';
+        err.style.display = 'block';
+        document.getElementById('authInput').value = '';
+        document.getElementById('authInput').focus();
+        return;
+      }
       if (parAppareil === false) {
         // Appareil non appairé : le dire, sinon l'échec est incompréhensible (« mon code
         // ne marche plus ») alors qu'il suffit de saisir la phrase une fois ici.
@@ -4623,7 +4632,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=506"></script>
+<script type="module" src="js/app.js?v=507"></script>
 
 </body>
 </html>

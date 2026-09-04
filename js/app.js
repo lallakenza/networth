@@ -4,15 +4,15 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=506';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=507';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
-         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=506';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=506';
-import { render, applySnapshotDeltas } from './render.js?v=506';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=506';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=506';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=506';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=506';
+         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=507';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=507';
+import { render, applySnapshotDeltas } from './render.js?v=507';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=507';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=507';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=507';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=507';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -602,6 +602,12 @@ window._nwDeverrouille = false;
   //    restitue exactement le confort d'avant le chiffrement (pas de re-saisie pendant 2 jours).
   if (!window._nwDeverrouille && window._nwCookieValide && appareilAppaire()) {
     window._nwDeverrouille = await deverrouillerDepuisAppareil();
+    // Échec alors que l'appareil est appairé = la phrase a changé depuis. On efface la copie
+    // morte ici aussi, sinon elle survivrait jusqu'à ce que l'utilisateur clique « Accéder ».
+    if (!window._nwDeverrouille) {
+      oublierAppareil();
+      console.warn('[unlock] phrase mémorisée périmée au démarrage — appairage effacé');
+    }
   }
   if (window._nwDeverrouille) {
     if (gate) gate.style.display = 'none';
@@ -631,8 +637,13 @@ window.nwUnlockAppareil = async () => {
   if (!(await blobDisponible())) return null;
   if (!appareilAppaire()) return false;
   const ok = await deverrouillerDepuisAppareil();
-  if (ok) { apresDeverrouillage(); }
-  return ok;
+  if (ok) { apresDeverrouillage(); return true; }
+  // Appairé mais le déchiffrement échoue : la phrase a été changée depuis. On efface
+  // l'appairage périmé — sinon le navigateur reste bloqué sur une phrase morte, et le message
+  // d'erreur affirmerait qu'il n'a « jamais reçu » la phrase, ce qui est faux et n'aide pas.
+  oublierAppareil();
+  console.warn('[unlock] la phrase mémorisée sur cet appareil ne déchiffre plus — appairage effacé');
+  return 'perimee';
 };
 
 window.nwOublierAppareil = () => oublierAppareil();
