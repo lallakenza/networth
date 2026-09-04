@@ -2306,3 +2306,37 @@ Corrigés en v494. Chaque point ci-dessous a été vérifié par exécution du m
   transmettaient pas la vue (constats d'audit 17 et 20). Corrigé aux trois emplacements.
 - **`scripts/backfill_positions.mjs`** lisait la coquille et plantait après deux minutes
   d'appels Yahoo. Il lit la source en clair et refuse avant tout appel réseau.
+
+## BUG-114 : page Actions — fuite du filtre propriétaire et six statistiques fausses
+
+- **Versions** : v505 / v506 (5 septembre 2026). Détecté par recoupement manuel dans Chrome.
+- **Sévérité** : haute (chiffres faux affichés, dont des montants qui ne concernent pas la
+  personne sélectionnée).
+
+**Fuite du filtre propriétaire** — même famille que BUG-005/006/018/082. Une liste de positions
+correctement filtrée existait déjà pour le tableau ; quatre consommateurs en construisaient une
+seconde, non filtrée :
+- panneaux de détail des cartes KPI (vue Nezha : carte 8 315 €, détail 253 663 €) ;
+- panneau du P/L réalisé (+60 187 € sur 50 opérations sous une carte à 0 €) ;
+- bande « top movers » (IBIT et ETHA affichés en vue Nezha) ;
+- dénominateur du « Top 3 » (`av.totalStocks`, niveau couple, sous une liste scopée) ;
+- colonne P&L de période de la ligne ESPP (mouvement de toutes les parts, Amine comprises).
+
+**Arithmétique de la ligne ESPP** : la valeur affichait les parts seules quand le P/L de la même
+ligne vaut `parts + cash − coût`. `valeur − coût ≠ P/L` d'un montant exactement égal au cash du
+compte, et la somme des lignes ne faisait pas le KPI. La valeur est désormais dérivée de
+`(coût, P/L)` : l'égalité est vraie par construction.
+
+**Statistiques** :
+- carte benchmark : le même YTD pour « total » et « IBKR », les deux lisant `_chartKPIData.ytd` ;
+- un seul « Données au 21 mars 2026 » coiffant des lignes à jour et des indices saisis à la main ;
+- « Perte latente crypto » via `Math.abs()` : un gain de 3 132 € s'affichait comme une perte ;
+- risques macro citant Vinci (vendu en avril 2026), « 40 %+ » pour une industrie à 22 %, « ~30 % »
+  pour une exposition USD à 37 % ;
+- recommandation crypto sur base IBKR (30 %) contre carte d'allocation sur base portefeuille (26 %) ;
+- « 50 trades » comptant des positions clôturées agrégées par instrument — « meilleur trade » = cumul.
+
+**Leçon** : le filtre propriétaire n'est pas une propriété du moteur mais une discipline de chaque
+consommateur. Toute nouvelle lecture de `av.*` dans la vue Actions doit se demander si la valeur
+est de niveau couple. Le remède durable adopté ici est de **publier la liste déjà filtrée**
+(`window._positionsAffichees`) plutôt que de laisser chaque appelant la reconstruire.
