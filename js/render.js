@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=504';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=504';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=505';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=505';
 
 // ---- Generic table sort utility ----
 /**
@@ -2168,7 +2168,10 @@ function renderActionsView(state) {
   // (le garde PRICE_REFS_AS_OF) — dans ce cas la bande s'efface plutôt que mentir.
   const tmEl = document.getElementById('topMovers');
   if (tmEl) {
-    const bouge = (av.ibkrPositions || []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
+    // IBKR appartient à 100 % à Amine : en vue Nezha, cette bande affichait IBIT et ETHA,
+    // qu'elle ne détient pas. Le filtre propriétaire existait dix lignes plus haut sans lui
+    // être appliqué.
+    const bouge = (showAmine ? (av.ibkrPositions || []) : []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
     if (!bouge.length) { tmEl.innerHTML = ''; }
     else {
       const top = [...bouge].sort((a, b) => Math.abs(b.dailyPL) - Math.abs(a.dailyPL)).slice(0, 5);
@@ -2299,9 +2302,16 @@ function renderActionsView(state) {
   const esppAllTrades = [...(showAmine ? esppLotsAmine : []), ...(showNezha ? esppLotsNezha : [])];
 
   const esppTotalShares = (showAmine ? av.esppShares : 0) + (showNezha ? (av.nezhaEsppShares || 0) : 0);
-  const esppTotalVal = (showAmine ? av.esppCurrentVal : 0) + (showNezha ? (av.nezhaEsppCurrentVal || 0) : 0);
+  // La VALEUR de la ligne ESPP doit inclure le cash du compte, parce que le P/L l'inclut :
+  // `esppUnrealizedPL = parts + cash − coût`. En affichant les parts seules face à ce P/L, la
+  // ligne violait sa propre arithmétique (`valeur − coût ≠ P/L`) d'un montant exactement égal
+  // au cash, et la somme des lignes ne retombait pas sur le KPI « Total ». On dérive donc la
+  // valeur du couple (coût, P/L), ce qui rend l'égalité vraie par construction.
+  const esppTotalValParts = (showAmine ? av.esppCurrentVal : 0) + (showNezha ? (av.nezhaEsppCurrentVal || 0) : 0);
   const esppTotalCost = (showAmine ? av.esppCostBasisEUR : 0) + (showNezha ? (av.nezhaEsppCostBasisEUR || 0) : 0);
   const esppTotalPL = (showAmine ? av.esppUnrealizedPL : 0) + (showNezha ? (av.nezhaEsppUnrealizedPL || 0) : 0);
+  const esppTotalVal = esppTotalCost + esppTotalPL;          // = parts + cash du compte
+  const esppCashLigne = esppTotalVal - esppTotalValParts;    // pour l'annoncer dans le libellé
   // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
   const esppPeriodPL = (period) => {
     const bd = av.periodPL[period]?.breakdown;
@@ -2309,7 +2319,8 @@ function renderActionsView(state) {
     return null;
   };
   if (esppTotalShares > 0) allPositions.push({ // v374 : ne pas afficher une ligne ACN à 0 part (ex. Nezha sans ESPP)
-    label: 'Accenture (' + esppTotalShares + ' ACN)',
+    label: 'Accenture (' + esppTotalShares + ' ACN'
+      + (Math.abs(esppCashLigne) >= 1 ? ' + ' + fmt(Math.round(esppCashLigne)) + ' cash' : '') + ')',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
     shares: esppTotalShares,
@@ -2378,6 +2389,11 @@ function renderActionsView(state) {
   // GATÉ sur owner!=='both' : pour 'both', totalOwnerVal (Σ valEUR des lignes) ≠ av.totalStocks
   // (qui inclut le cash IBKR/ESPP) → on garde les poids d'origine (base av.totalStocks) intacts.
   const totalOwnerVal = allPositions.reduce((s, p) => s + (p.valEUR || 0), 0);
+  // Les panneaux de détail (clic sur une carte KPI) reconstruisaient LEUR PROPRE liste, sans
+  // filtre : la vue Nezha annonçait 8 315 € sur la carte et 253 663 € dans le détail. On leur
+  // donne la liste déjà filtrée plutôt que de laisser deux constructions cohabiter.
+  window._positionsAffichees = allPositions;
+  window._totalPositionsAffichees = totalOwnerVal;
   if (owner !== 'both') {
     allPositions.forEach(p => { p.weight = totalOwnerVal > 0 ? (p.valEUR / totalOwnerVal * 100) : 0; });
   }
@@ -2683,10 +2699,14 @@ function renderActionsView(state) {
       if (ins.type === 'track-record') {
         const winColor = ins.winRate >= 60 ? 'var(--green)' : ins.winRate >= 50 ? '#dd6b20' : '#e53e3e';
         html += '<div style="font-size:28px;font-weight:700;color:' + winColor + ';">' + ins.winRate.toFixed(0) + '% win rate</div>';
-        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">' + ins.winners + ' gagnantes / ' + ins.losers + ' perdantes sur ' + ins.totalTrades + ' trades</div>';
+        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">' + ins.winners + ' gagnantes / ' + ins.losers + ' perdantes sur ' + ins.totalTrades + ' positions cl\u00f4tur\u00e9es</div>';
         html += '<div style="font-size:13px;">Gains : <strong class="pl-pos">+' + fmt(ins.totalWins) + '</strong> | Pertes : <strong class="pl-neg">-' + fmt(ins.totalLosses) + '</strong></div>';
         html += '<div style="font-size:13px;">Profit factor : <strong>' + (ins.profitFactor === Infinity ? '\u221e' : ins.profitFactor.toFixed(1)) + 'x</strong></div>';
-        if (ins.topWin) html += '<div style="font-size:12px;margin-top:6px;color:#718096;">Meilleur trade : ' + ins.topWin.label + ' (+' + fmt(ins.topWin.pl) + ')</div>';
+        // « Meilleur trade » était trompeur : `allClosed` agrège toutes les ventes d'un même
+        // instrument sur une plateforme en UNE ligne. Le montant affiché est donc un cumul,
+        // pas le résultat d'une opération unique — et le win rate compte des positions, pas
+        // des ordres. Les libellés le disent maintenant.
+        if (ins.topWin) html += '<div style="font-size:12px;margin-top:6px;color:#718096;">Meilleure position cl\u00f4tur\u00e9e : ' + ins.topWin.label + ' (+' + fmt(ins.topWin.pl) + ', cumul des ventes)</div>';
         if (ins.topLoss) html += '<div style="font-size:12px;color:#718096;">Pire trade : ' + ins.topLoss.label + ' (' + fmt(ins.topLoss.pl) + ')</div>';
       }
 
@@ -2851,10 +2871,17 @@ function renderActionsView(state) {
         const b = ins.benchmarks;
         // Use chart-computed YTD % if available (accounts for deposits/FX/cash)
         const chartYTD = window._chartKPIData?.ytd;
-        const ibkrYtd = chartYTD ? chartYTD.pct : b.ibkr.ytdPct;
+        // `_chartKPIData.ytd.pct` couvre le portefeuille ENTIER (IBKR + ESPP + SGTM) : l'affecter
+        // aussi à la ligne IBKR faisait afficher le même pourcentage sur les deux lignes, alors
+        // que les deux graphes de la page en montrent deux différents. La ligne IBKR garde donc
+        // le rendement calculé par le moteur sur ce seul périmètre.
         const totalYtd = chartYTD ? chartYTD.pct : b.total.ytdPct;
+        const ibkrYtd = b.ibkr.ytdPct;
         const twr = window._chartKPIData?.twr ?? b.ibkr.twr;
-        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Donn\u00e9es au ' + b.date + '</div>';
+        // Deux dates cohabitent dans cette carte : le portefeuille est à aujourd'hui, les
+        // benchmarks sont saisis à la main et datent de `b.date`. Les annoncer ensemble sous un
+        // seul « Données au … » laissait croire que tout était arrêté à la même date.
+        html += '<div style="font-size:12px;color:#718096;margin-bottom:8px;">Portefeuille au jour le jour</div>';
         // Portfolio Total line
         html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:2px solid var(--accent);">';
         html += '<span style="flex:1;font-size:13px;font-weight:700;">' + b.total.label + '</span>';
@@ -2864,6 +2891,8 @@ function renderActionsView(state) {
         html += '<span style="flex:1;font-size:12px;font-weight:600;color:#4a5568;">' + b.ibkr.label + ' <span style="font-weight:400;font-size:10px;color:#718096;">(TWR ' + (twr >= 0 ? '+' : '') + twr.toFixed(1) + '%)</span></span>';
         html += '<span style="font-size:14px;font-weight:700;color:' + (ibkrYtd >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (ibkrYtd >= 0 ? '+' : '') + ibkrYtd.toFixed(1) + '%</span></div>';
         // Benchmark bars
+        html += '<div style="font-size:11px;color:#718096;margin:10px 0 4px;">Indices \u2014 relev\u00e9 manuel du '
+          + b.date + (b.date ? ', \u00e0 rafra\u00eechir' : '') + '</div>';
         b.items.forEach(function(item) {
           var barColor = item.ytd >= 0 ? '#22c55e' : '#ef4444';
           var barWidth = Math.min(Math.abs(item.ytd) * 2.5, 100);
@@ -2934,7 +2963,19 @@ function setupKPIDetailPanels(state) {
   let activeKPI = window._activeKPI || null;
 
   // Build all positions list for unrealized P&L breakdown
-  const allPos = av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
+  // La liste FILTRÉE par propriétaire est publiée par le rendu du tableau : on la reprend telle
+  // quelle. La reconstruction ci-dessous ne sert plus que de repli (panneau ouvert avant que le
+  // tableau n'ait été rendu une première fois) ; sans elle, le détail affichait les 12 positions
+  // IBKR d'Amine et un total de couple sous une carte scopée sur Nezha.
+  const _scopees = (typeof window !== 'undefined' && window._positionsAffichees) || null;
+  const _ownerPanneau = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  const allPos = _scopees ? _scopees.slice() : av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
+  // Total cohérent avec la liste affichée (le KPI « Total » est lui aussi dérivé de cette somme
+  // dès qu'un propriétaire est sélectionné).
+  const _totalAffiche = _scopees
+    ? (window._totalPositionsAffichees || allPos.reduce((s2, p) => s2 + (p.valEUR || 0), 0))
+    : av.totalStocks;
+  if (!_scopees) {
   // Merge ACN Amine + Nezha into single entry
   const acnTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
   const acnTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
@@ -2954,6 +2995,7 @@ function setupKPIDetailPanels(state) {
       pctPL: av.sgtmCostBasisEUR > 0 ? (sgtmPL / av.sgtmCostBasisEUR * 100) : 0,
     });
   }
+  }   // fin du repli : liste reconstruite faute de liste filtrée disponible
 
   // Helper: render a P&L breakdown in two columns (losers | gainers)
   function renderPLBreakdown(items, total, footer) {
@@ -3235,9 +3277,14 @@ function setupKPIDetailPanels(state) {
         color: '#4299e1',
       }));
       const top3 = items.slice(0, 3);
-      const top3Pct = (top3.reduce((s, i) => s + i.value, 0) / av.totalStocks * 100).toFixed(0);
-      items._footer = 'Top 3 = ' + top3Pct + '% du portefeuille : ' + top3.map(i => i.label.split(' (')[0]).join(', ') + '. Diversification ' + (parseFloat(top3Pct) > 50 ? '⚠ concentrée' : '✓ correcte') + '.';
-      return renderValueBreakdown(items, 'Répartition par position', allPos.length + ' positions | Total ' + fmt(Math.round(av.totalStocks)));
+      // Le dénominateur était `av.totalStocks`, un total de COUPLE incluant le cash des
+      // comptes-titres, alors que les lignes listées sont celles du propriétaire actif : le
+      // pourcentage annoncé ne correspondait ni à la liste au-dessus, ni à la carte cliquée.
+      const base = _totalAffiche || items.reduce((s2, i) => s2 + i.value, 0);
+      const top3Pct = base > 0 ? (top3.reduce((s2, i) => s2 + i.value, 0) / base * 100).toFixed(0) : '0';
+      items._footer = 'Top 3 = ' + top3Pct + '% des positions list\u00e9es : ' + top3.map(i => i.label.split(' (')[0]).join(', ')
+        + '. Diversification ' + (parseFloat(top3Pct) > 50 ? '\u26a0 concentr\u00e9e' : '\u2713 correcte') + '.';
+      return renderValueBreakdown(items, 'R\u00e9partition par position', allPos.length + ' positions | Total ' + fmt(Math.round(base)));
     },
     detailUnrealized: function() {
       const losers = allPos.filter(p => p.unrealizedPL < 0).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
@@ -3296,6 +3343,14 @@ function setupKPIDetailPanels(state) {
       return html;
     },
     detailRealized: function() {
+      // IBKR et Degiro appartiennent à 100 % à Amine (règle de propriété du projet, appliquée
+      // partout ailleurs). En vue Nezha, la carte affichait donc 0 € et le panneau +60 187 €
+      // sur 50 opérations qui ne sont pas les siennes.
+      if (_ownerPanneau === 'nezha') {
+        return '<div class="detail-header"><h4>P/L R\u00e9alis\u00e9</h4></div>'
+          + '<div style="padding:20px;text-align:center;color:#718096;">'
+          + 'Aucune op\u00e9ration cl\u00f4tur\u00e9e pour Nezha \u2014 les comptes IBKR et Degiro sont ceux d\u2019Amine.</div>';
+      }
       // IBKR closed + Degiro closed
       const ibkrClosed = av.closedPositions || [];
       const degiroClosed = av.degiroClosedPositions || [];
@@ -7264,7 +7319,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=504').then(m => {
+  import('./charts.js?v=505').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

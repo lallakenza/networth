@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=504';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=505';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1158,7 +1158,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // i) Crypto allocation check
   const cryptoVal = ibkrPositions.filter(p => (p.sector === 'crypto' || p.ticker === 'IBIT' || p.ticker === 'ETHA')).reduce((s, p) => s + p.valEUR, 0);
-  const cryptoPctPortfolio = totalPositionsVal > 0 ? (cryptoVal / totalPositionsVal * 100) : 0;
+  // Le dénominateur était `totalPositionsVal` (IBKR SEUL) alors que la carte d'allocation
+  // divise par le portefeuille entier : la même position crypto était annoncée à 30 % ici et
+  // 26 % deux cartes plus loin. Même base que l'allocation désormais.
+  const _baseCrypto = Object.values(geoAllocation).reduce((a, b) => a + b, 0) || totalPositionsVal;
+  const cryptoPctPortfolio = _baseCrypto > 0 ? (cryptoVal / _baseCrypto * 100) : 0;
   if (cryptoPctPortfolio > 15) {
     recs.push({ priority: 1, icon: '⚡', title: 'Crypto > 15% du portefeuille (' + cryptoPctPortfolio.toFixed(0) + '%)',
       detail: 'Volatilité extrême. Considérer un rééquilibrage pour limiter le risque crypto à 5-10%.' });
@@ -1232,26 +1236,46 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   });
 
   // 8. Macro risk assessment
+  // Ces encarts citaient des positions et des poids ÉCRITS EN DUR, jamais recalculés : ils
+  // nommaient Vinci (vendu en avril 2026), annonçaient « 40 %+ » pour une industrie qui pèse
+  // 22 %, et « ~30 % » pour une exposition USD qui dépasse 37 %. Tout est dérivé désormais.
   const macroRisks = [];
-  // Middle East conflict / energy
+  const _baseAlloc = Object.values(sectorAllocation).reduce((a, b) => a + b, 0) || 1;
+  const _pctIndus = (sectorAllocation.industrials || 0) / _baseAlloc * 100;
+  const _nomsIndus = ibkrPositions.filter(p => p.sector === 'industrials')
+    .sort((a, b) => b.valEUR - a.valEUR)
+    .map(p => String(p.label || p.ticker).split(' (')[0]);
+  if (amineSgtm + nezhaSgtm > 0) _nomsIndus.push('SGTM');
   macroRisks.push({
-    severity: 'high',
-    label: 'Conflit Iran / \u00c9nergie',
-    detail: 'Frappes US/Isra\u00ebl sur l\u2019Iran, p\u00e9trole en hausse. Risque direct sur industrials (Airbus, Vinci, Eiffage = 40%+ du portefeuille). L\u2019or surperforme \u2014 aucune exposition or dans le portefeuille.',
+    severity: _pctIndus > 35 ? 'high' : 'medium',
+    label: 'Concentration industrielle',
+    detail: 'Les valeurs industrielles p\u00e8sent ' + _pctIndus.toFixed(0) + ' % de l\u2019allocation actions ('
+      + _nomsIndus.join(', ') + '). Elles r\u00e9agissent ensemble au cycle et au prix de l\u2019\u00e9nergie.',
   });
-  // EUR/USD volatility impact on USD assets
+  // Exposition USD : positions libellées en dollars + ESPP (Accenture est en USD).
+  const _valUSD = ibkrPositions.filter(p => p.currency === 'USD').reduce((sum, p) => sum + p.valEUR, 0)
+    + amineEspp + nezhaEspp;
+  const _pctUSD = _valUSD / _baseAlloc * 100;
   macroRisks.push({
-    severity: 'medium',
+    severity: _pctUSD > 35 ? 'high' : 'medium',
     label: 'Volatilit\u00e9 EUR/USD',
-    detail: 'EUR \u00e0 1.16 (+7% depuis d\u00e9but 2025). Les actifs USD (IBIT, ETHA, IBKR cash USD, ESPP) perdent en valeur EUR quand l\u2019euro se renforce. Exposition USD = ~30% du portefeuille actions.',
+    detail: 'Exposition USD = ' + _pctUSD.toFixed(0) + ' % de l\u2019allocation actions (positions en dollars + ESPP). '
+      + 'Un euro qui se renforce fait m\u00e9caniquement baisser leur valeur en EUR, cours inchang\u00e9s.',
   });
   // Crypto drawdown
   if (ibkrPositions.some(p => p.ticker === 'IBIT' || p.ticker === 'ETHA')) {
-    const cryptoLoss = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s, p) => s + p.unrealizedPL, 0);
+    const cryptoPL = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s2, p) => s2 + p.unrealizedPL, 0);
+    const cryptoVal = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s2, p) => s2 + p.valEUR, 0);
+    const pctCrypto = cryptoVal / _baseAlloc * 100;
+    // `Math.abs()` sous le mot « Perte » annonçait une perte même quand la position était en
+    // gain : +3 132 € s'affichaient « Perte latente crypto : 3 132 € ». Le libellé suit le signe.
     macroRisks.push({
-      severity: cryptoLoss < -5000 ? 'high' : 'medium',
-      label: 'Drawdown Crypto',
-      detail: 'BTC -25% YTD, ETH -33% YTD. Perte latente crypto : \u20ac' + Math.abs(Math.round(cryptoLoss)).toLocaleString('fr-FR') + '. Th\u00e8se long-terme intacte mais volatilit\u00e9 extr\u00eame.',
+      severity: pctCrypto > 20 ? 'high' : 'medium',
+      label: 'Exposition Crypto',
+      detail: 'La crypto p\u00e8se ' + pctCrypto.toFixed(0) + ' % de l\u2019allocation actions, avec '
+        + (cryptoPL >= 0 ? 'une plus-value latente de ' : 'une perte latente de ')
+        + '\u20ac' + Math.abs(Math.round(cryptoPL)).toLocaleString('fr-FR')
+        + '. Classe la plus volatile du portefeuille.',
     });
   }
   // JPY carry trade risk (jpyDebtEUR pre-computed above)
