@@ -4,15 +4,16 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=510';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=511';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
-         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=510';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=510';
-import { render, applySnapshotDeltas } from './render.js?v=510';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=510';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=510';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=510';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=510';
+         deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
+         appareilAppaire, oublierAppareil } from './unlock.js?v=511';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=511';
+import { render, applySnapshotDeltas } from './render.js?v=511';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=511';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=511';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=511';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=511';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -616,7 +617,18 @@ window._nwDeverrouille = false;
     apresDeverrouillage();
     return;
   }
-  // 3. Rien de mémorisé : la grille reste affichée et c'est elle qui déclenchera le
+  // 3. Session Supabase encore valide : on récupère la clé sans rien demander. C'est le cas
+  //    normal d'une deuxième visite après connexion — la session dure, le code n'est même pas
+  //    nécessaire.
+  if (!window._nwDeverrouille && window._nwCookieValide) {
+    window._nwDeverrouille = await deverrouillerDepuisServeur();
+    if (window._nwDeverrouille) {
+      if (gate) gate.style.display = 'none';
+      apresDeverrouillage();
+      return;
+    }
+  }
+  // 4. Rien de mémorisé : la grille reste affichée et c'est elle qui déclenchera le
   //    déchiffrement (voir window.nwUnlock / window.nwUnlockAppareil ci-dessous).
   if (gate) gate.style.display = 'flex';
   // Prévenir l'animation d'accueil : aucune valeur ne viendra tant que la phrase n'est pas
@@ -647,6 +659,24 @@ window.nwUnlockAppareil = async () => {
 };
 
 window.nwOublierAppareil = () => oublierAppareil();
+
+/** Connexion par e-mail : appelée par la grille d'accueil. */
+window.nwEnvoyerCode = async (email) => {
+  const auth = await import('./auth.js?v=511');
+  return auth.envoyerCode(email);
+};
+window.nwVerifierCode = async (email, code) => {
+  const auth = await import('./auth.js?v=511');
+  await auth.verifierCode(email, code);
+  const ok = await deverrouillerDepuisServeur();
+  if (ok) apresDeverrouillage();
+  return ok;
+};
+window.nwDeconnecter = async () => {
+  const auth = await import('./auth.js?v=511');
+  auth.deconnecter();
+  oublierAppareil();
+};
 window.nwAppareilAppaire = () => appareilAppaire();
 
 /** Suites communes à tout déverrouillage réussi. */

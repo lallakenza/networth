@@ -1972,6 +1972,34 @@
       Accéder
     </button>
     <div id="authError" style="color:#f87171;font-size:12px;margin-top:8px;display:none;">Mot de passe incorrect</div>
+
+    <!-- Connexion par e-mail. Chemin de PREMIÈRE OUVERTURE sur un appareil : la clé des données
+         n'est plus une phrase à retenir, c'est un secret aléatoire servi après authentification.
+         Une fois obtenu, il est mémorisé sur l'appareil et le code court reprend son rôle. -->
+    <div id="authMailToggle" style="margin-top:18px;">
+      <button type="button" onclick="document.getElementById('authMailBloc').style.display='block';this.style.display='none';document.getElementById('authMail').focus();"
+        style="background:none;border:none;color:rgba(255,255,255,0.55);font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;">
+        Premi&egrave;re ouverture sur cet appareil ? Se connecter par e-mail
+      </button>
+    </div>
+    <div id="authMailBloc" style="display:none;margin-top:14px;text-align:left;">
+      <input id="authMail" type="email" inputmode="email" autocomplete="email" placeholder="ton adresse e-mail"
+        style="width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.08);color:white;font-size:14px;outline:none;box-sizing:border-box;">
+      <button type="button" id="authMailBtn" onclick="envoyerCodeMail()"
+        style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,0.14);color:white;border:1px solid rgba(255,255,255,0.2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+        Recevoir un code
+      </button>
+      <div id="authCodeBloc" style="display:none;margin-top:10px;">
+        <input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="code re&ccedil;u par e-mail"
+          style="width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.08);color:white;font-size:14px;outline:none;box-sizing:border-box;letter-spacing:2px;"
+          onkeydown="if(event.key==='Enter')document.getElementById('authCodeBtn').click()">
+        <button type="button" id="authCodeBtn" onclick="validerCodeMail()"
+          style="width:100%;margin-top:8px;padding:10px;background:white;color:#1e3a5f;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          Valider
+        </button>
+      </div>
+      <div id="authMailMsg" style="color:rgba(255,255,255,0.7);font-size:12px;margin-top:8px;min-height:16px;"></div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════
@@ -3040,6 +3068,47 @@ function setCookie(name, value, days) {
   const d = new Date();
   d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
   document.cookie = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;SameSite=Strict';
+}
+
+// ── Connexion par e-mail ──────────────────────────────────────────────────────
+// Le code arrive par courrier électronique et vaut quelques minutes. Les messages restent
+// factuels : dire « code envoyé » quand l'adresse est inconnue ferait attendre pour rien.
+async function envoyerCodeMail() {
+  const mail = document.getElementById('authMail').value;
+  const msg = document.getElementById('authMailMsg');
+  const btn = document.getElementById('authMailBtn');
+  if (!mail || mail.indexOf('@') < 0) { msg.textContent = 'Adresse incomplète.'; return; }
+  btn.disabled = true; msg.textContent = 'Envoi…';
+  try {
+    await window.nwEnvoyerCode(mail);
+    msg.textContent = 'Code envoyé. Il expire dans quelques minutes.';
+    document.getElementById('authCodeBloc').style.display = 'block';
+    document.getElementById('authCode').focus();
+  } catch (e) {
+    msg.textContent = 'Envoi impossible : ' + (e && e.message ? e.message : 'erreur inconnue');
+  }
+  btn.disabled = false;
+}
+
+async function validerCodeMail() {
+  const mail = document.getElementById('authMail').value;
+  const code = document.getElementById('authCode').value;
+  const msg = document.getElementById('authMailMsg');
+  const btn = document.getElementById('authCodeBtn');
+  btn.disabled = true; msg.textContent = 'Vérification…';
+  try {
+    const ok = await window.nwVerifierCode(mail, code);
+    if (ok) {
+      setCookie(AUTH_COOKIE, AUTH_HASH, 2);
+      document.getElementById('authGate').style.display = 'none';
+      return;
+    }
+    // Code accepté mais aucune clé lisible : le compte existe et n'est pas autorisé.
+    msg.textContent = 'Connecté, mais ce compte n’a pas accès aux données.';
+  } catch (e) {
+    msg.textContent = 'Code refusé : ' + (e && e.message ? e.message : 'réessaie');
+  }
+  btn.disabled = false;
 }
 
 async function checkAuth() {
@@ -4633,7 +4702,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=510"></script>
+<script type="module" src="js/app.js?v=511"></script>
 
 </body>
 </html>
