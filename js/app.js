@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=533';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=534';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=533';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=533';
-import { render, applySnapshotDeltas } from './render.js?v=533';
-import { chargerContratDistant } from './facturation_contract.js?v=533';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=533';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=533';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=533';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=533';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=534';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=534';
+import { render, applySnapshotDeltas } from './render.js?v=534';
+import { chargerContratDistant } from './facturation_contract.js?v=534';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=534';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=534';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=534';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=534';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -694,18 +694,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=533');
+  const auth = await import('./auth.js?v=534');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=533');
+  const auth = await import('./auth.js?v=534');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=533');
+  const auth = await import('./auth.js?v=534');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -726,21 +726,6 @@ function apresDeverrouillage() {
   if (_immoRefCache) appliquerImmoRef(_immoRefCache);
   else loadImmoRef().then(appliquerImmoRef).catch(() => {});
 
-// ── Contrat de facturation publié par 2048 ────────────────────────────────────────────────
-// L'engine est SYNCHRONE : il ne peut pas attendre le réseau. Le contrat est donc récupéré
-// ici, déposé dans le cache local, puis relu par l'engine au prochain calcul — même
-// mécanique que le référentiel immo. Sans ce chargement, le dashboard dépendait de la
-// présence fortuite d'un objet écrit par l'autre site dans CE navigateur.
-chargerContratDistant().then((r) => {
-  if (r.contrat) {
-    console.log('[facturation] contrat ' + r.contrat.schemaVersion + ' — producteur '
-      + r.contrat.producerVersion + ', données au ' + r.contrat.dataAsOf
-      + ' (' + r.contrat.fraicheur + '), net ' + r.contrat.netMAD + ' ' + r.contrat.devise);
-    refresh();
-  } else {
-    console.warn('[facturation] contrat non retenu (' + r.code + ') : ' + r.raison);
-  }
-}).catch((e) => console.warn('[facturation] chargement impossible :', e && e.message));
   // Idem pour les deltas « vs hier », qui ont été sautés faute de currentState.
   if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState, currentSubView || currentView);
 }
@@ -801,6 +786,22 @@ function appliquerImmoRef(ref) {
 }
 
 loadImmoRef().then(appliquerImmoRef).catch(() => {});
+
+// ── Contrat de facturation publié par 2048 ────────────────────────────────────────────────
+// L'engine est SYNCHRONE : il ne peut pas attendre le réseau. Le contrat est donc récupéré
+// ici, déposé dans le cache local, puis relu par l'engine au prochain calcul — même
+// mécanique que le référentiel immo. Sans ce chargement, le dashboard dépendait de la
+// présence fortuite d'un objet écrit par l'autre site dans CE navigateur.
+chargerContratDistant().then((r) => {
+  if (r.contrat) {
+    console.log('[facturation] contrat ' + r.contrat.schemaVersion + ' — producteur '
+      + r.contrat.producerVersion + ', données au ' + r.contrat.dataAsOf
+      + ' (' + r.contrat.fraicheur + '), net ' + r.contrat.netMAD + ' ' + r.contrat.devise);
+    refresh();
+  } else {
+    console.warn('[facturation] contrat non retenu (' + r.code + ') : ' + r.raison);
+  }
+}).catch((e) => console.warn('[facturation] chargement impossible :', e && e.message));
 
 // Hide loading overlay after initial data load
 document.getElementById('loadingOverlay')?.classList.add('hidden');
