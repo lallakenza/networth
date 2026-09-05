@@ -2340,3 +2340,28 @@ compte, et la somme des lignes ne faisait pas le KPI. La valeur est désormais d
 consommateur. Toute nouvelle lecture de `av.*` dans la vue Actions doit se demander si la valeur
 est de niveau couple. Le remède durable adopté ici est de **publier la liste déjà filtrée**
 (`window._positionsAffichees`) plutôt que de laisser chaque appelant la reconstruire.
+
+## BUG-115 : page Cash — sept définitions concurrentes pour cinq notions
+
+- **Version** : v508 (5 septembre 2026). Détecté par recoupement manuel site ↔ Notion.
+- **Sévérité** : moyenne à haute (aucun faux net worth, mais des chiffres qui se contredisent
+  d'un bloc à l'autre et un détail amputé de 21 600 €).
+
+| Notion | Ce qui divergeait | Résolution |
+|---|---|---|
+| Manque à gagner | 3 valeurs : sans plafonnement par compte (−299 € de surplus Mashreq), avec, et avec le coût JPY en plus (+196 €) | une seule, `gapToPotential` = 5 948 € mesurés |
+| Coût inflation | KPI sur le cash sous 3 % ; graphe sur la totalité | KPI renommé, infobulle donnant les deux |
+| Cash productif | KPI ≥ 3 %, graphe > 0 %, texte « > 0 % » — écart = Livret A | KPI renommé « bat l'inflation », écart expliqué |
+| Détail mobilisable | 4 comptes dans le total, absents du détail (~21 600 €) | détail complété, rendu générique, écart signalé en rouge |
+| Potentiel dormant Nezha | 6 % appliqué au brut, puis Livret A recompté plus bas | gain incrémental |
+
+Plus trois défauts d'affichage : arrondi au millier transformant 196 €/an en « 0K » ; seuil
+d'affichage à 50 € retirant des lignes sans les retirer des totaux ; horodatage des devises
+présenté comme la fraîcheur des soldes bancaires (saisis à la main, arrêtés au 28/08/2026).
+
+**Ajout** : la trésorerie des sociétés (Bairok, Bridgevale — 17 224 €) est identifiée comme
+telle. Elle reste dans le net worth, mais n'est pas du cash personnel disponible.
+
+**Leçon** : cinq notions, sept implémentations. Le remède appliqué est le même que pour les
+autres lots — une seule fonction dans le moteur, les vues la consomment — et, quand un détail
+doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
