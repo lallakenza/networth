@@ -1990,12 +1990,13 @@
         Recevoir un code
       </button>
       <div id="authCodeBloc" style="display:none;margin-top:10px;">
-        <input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="code re&ccedil;u par e-mail"
-          style="width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.08);color:white;font-size:14px;outline:none;box-sizing:border-box;letter-spacing:2px;"
-          onkeydown="if(event.key==='Enter')document.getElementById('authCodeBtn').click()">
+        <!-- On demande le LIEN, pas un code : le gabarit d'e-mail de ce projet Supabase est celui
+             de Lalla Kenza et n'affiche pas de code. Le jeton est dans le lien, l'app l'y lit. -->
+        <textarea id="authCode" rows="2" placeholder="colle ici le lien re&ccedil;u par e-mail"
+          style="width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.08);color:white;font-size:12px;outline:none;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
         <button type="button" id="authCodeBtn" onclick="validerCodeMail()"
           style="width:100%;margin-top:8px;padding:10px;background:white;color:#1e3a5f;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
-          Valider
+          Valider le lien
         </button>
       </div>
       <div id="authMailMsg" style="color:rgba(255,255,255,0.7);font-size:12px;margin-top:8px;min-height:16px;"></div>
@@ -3081,7 +3082,7 @@ async function envoyerCodeMail() {
   btn.disabled = true; msg.textContent = 'Envoi…';
   try {
     await window.nwEnvoyerCode(mail);
-    msg.textContent = 'Code envoyé. Il expire dans quelques minutes.';
+    msg.textContent = 'E-mail envoyé. Copie le LIEN qu’il contient (clic droit → copier l’adresse du lien) et colle-le ci-dessous. Ne clique pas dessus : il renverrait vers Lalla Kenza.';
     document.getElementById('authCodeBloc').style.display = 'block';
     document.getElementById('authCode').focus();
   } catch (e) {
@@ -3106,7 +3107,7 @@ async function validerCodeMail() {
     // Code accepté mais aucune clé lisible : le compte existe et n'est pas autorisé.
     msg.textContent = 'Connecté, mais ce compte n’a pas accès aux données.';
   } catch (e) {
-    msg.textContent = 'Code refusé : ' + (e && e.message ? e.message : 'réessaie');
+    msg.textContent = 'Lien refusé : ' + (e && e.message ? e.message : 'réessaie') + '. Un lien ne sert qu’une fois et expire vite — redemande-en un si besoin.';
   }
   btn.disabled = false;
 }
@@ -4702,7 +4703,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=511"></script>
+<script type="module" src="js/app.js?v=512"></script>
 
 </body>
 </html>

@@ -72,12 +72,46 @@ export async function envoyerCode(email) {
   return true;
 }
 
-/** Vérifie le code reçu et ouvre la session. */
-export async function verifierCode(email, code) {
-  const s = await appel('/auth/v1/verify', {
-    method: 'POST',
-    body: JSON.stringify({ email: String(email || '').trim(), token: String(code || '').trim(), type: 'email' }),
-  });
+/**
+ * Extrait le jeton d'un lien de connexion collé par l'utilisateur.
+ *
+ * POURQUOI UN LIEN ET NON UN CODE. Le modèle d'e-mail de ce projet Supabase est celui de
+ * Lalla Kenza : il contient un lien et n'affiche aucun code, parce que son gabarit n'inclut pas
+ * `{{ .Token }}`. Le modifier changerait les e-mails envoyés aux clients du SaaS. Le jeton étant
+ * présent DANS le lien, on le lit là — aucun réglage partagé n'est touché, et la liste des URL de
+ * redirection n'a pas besoin d'accueillir ce site.
+ */
+function jetonDepuisLien(texte) {
+  const brut = String(texte || '').trim();
+  if (!brut) return null;
+  // L'utilisateur peut coller le lien entier, ou seulement le jeton.
+  const url = (brut.match(/https?:\/\/\S+/) || [])[0];
+  if (!url) return brut.length > 20 ? brut : null;
+  try {
+    const u = new URL(url);
+    return u.searchParams.get('token_hash') || u.searchParams.get('token')
+      || new URLSearchParams(u.hash.replace(/^#/, '')).get('token_hash') || null;
+  } catch (e) { return null; }
+}
+
+/** Vérifie le lien (ou le code) reçu par e-mail et ouvre la session. */
+export async function verifierCode(email, saisie) {
+  const jeton = jetonDepuisLien(saisie);
+  if (!jeton) throw new Error('lien ou code illisible');
+  let s;
+  try {
+    // Cas normal : jeton extrait du lien.
+    s = await appel('/auth/v1/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token_hash: jeton, type: 'magiclink' }),
+    });
+  } catch (e1) {
+    // Repli : certains gabarits envoient un code court, vérifiable avec l'adresse.
+    s = await appel('/auth/v1/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email: String(email || '').trim(), token: jeton, type: 'email' }),
+    });
+  }
   ecrireSession({
     access_token: s.access_token,
     refresh_token: s.refresh_token,
