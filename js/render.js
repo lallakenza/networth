@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=517';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=517';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=518';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=518';
 
 // ---- Generic table sort utility ----
 /**
@@ -432,7 +432,9 @@ function renderKPIs(state, view) {
   }
   setEur('kpiNzRueil', s.nezha.rueilEquity);
   setEur('kpiNzVillejuif', s.nezha.villejuifEquity);
-  setEur('kpiNzCash', s.nezha.cash);
+  // La carte s'intitule « Cash + Créances » mais n'affichait que le cash : la créance Omar
+  // (pondérée) en était absente. Soit le libellé mentait, soit le chiffre — on aligne le chiffre.
+  setEur('kpiNzCash', (s.nezha.cash || 0) + (s.nezha.recvOmar || 0));
   setEur('kpiNzActions', s.nezha.esppForActions + s.nezha.sgtm);
 
   // Amine detail KPIs (show positions-only, matching Actions category)
@@ -1053,7 +1055,22 @@ function renderDynamicInsights(state, view) {
     const vilMens = villejuifP ? Math.round(villejuifP.charges) : 0;
     const totalMens = rueilMens + vilMens;
     nzBox.innerHTML =
-      '<strong>Profil :</strong> Patrimoine 100% immobilier + cash. ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). Credit debloque fin 2026, franchise totale 3 ans, livraison ' + libelleLivraisonVJ() + '.<br><br>' +
+      // « 100 % immobilier + cash » ignorait les actions (ESPP + SGTM), la Rolex, la créance
+      // Omar et la caution Rueil. Et « crédit débloqué fin 2026 » était périmé : le tirage est
+      // en cours. Les deux sont dérivés.
+      '<strong>Profil :</strong> ' + (function () {
+        const immoN = (s.nezha.rueilEquity || 0) + (s.nezha.villejuifEquity || 0);
+        const actionsN = (s.nezha.esppForActions || 0) + (s.nezha.sgtm || 0);
+        const autresN = (s.nezha.watches || 0) + (s.nezha.recvOmar || 0) - (s.nezha.cautionRueil || 0);
+        const pc = (x) => s.nezha.nw > 0 ? Math.round(x / s.nezha.nw * 100) : 0;
+        return 'Immobilier ' + pc(immoN) + '%, cash ' + pc(s.nezha.cash) + '%, actions ' + pc(actionsN)
+          + '% (ESPP + SGTM), autres ' + pc(autresN) + '% (montre, cr\u00e9ance, caution).';
+      })() + ' ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). '
+      + (function () {
+        const vj = iv && iv.properties ? iv.properties.find(pr => pr.loanKey === 'villejuif') : null;
+        const tire = vj ? Math.round(vj.crd) : 0;
+        return tire > 0 ? 'Cr\u00e9dit en cours de tirage (' + N(tire) + ' d\u00e9bloqu\u00e9s), ' : 'Cr\u00e9dit non encore d\u00e9bloqu\u00e9, ';
+      })() + 'franchise totale 3 ans, livraison ' + libelleLivraisonVJ() + '.<br><br>' +
       '<strong>Insights Nezha :</strong><br>' +
       '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont ' + K(rueilP ? rueilP.equity : 0) + ' en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>' +
       '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
@@ -7098,13 +7115,21 @@ function attachKPIInsights(state, view) {
 
   // ── Nezha view ──
   const rueilProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'rueil') : null;
-  insights['kpiNzNW'] = 'Patrimoine actuel hors Villejuif VEFA. Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF +\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
+  // « hors Villejuif VEFA » était faux : l'équité engagée sur Villejuif est bien dans ce total
+  // depuis la signature de l'acte. L'infobulle annonçait donc un périmètre que le chiffre ne
+  // respecte pas.
+  insights['kpiNzNW'] = 'Patrimoine actuel, Villejuif INCLUS \u00e0 hauteur du capital engag\u00e9 ('
+    + f(s.nezha.villejuifEquity || 0) + '). Domin\u00e9 par l\'immobilier (Rueil auto-financ\u00e9, CF '
+    + (rueilProp && rueilProp.cf >= 0 ? '+' : '') + '\u20ac' + (rueilProp ? Math.round(rueilProp.cf) : '?') + '/mois).';
   const _rueilWealth = rueilProp ? Math.round(rueilProp.wealthCreation || 0) : '?';
   insights['kpiNzRueil'] = '\u00c9quit\u00e9 Rueil NETTE apr\u00e8s frais de sortie = \u20ac' + f(s.nezha.rueilEquity)
     + (rueilProp ? ' (brute : \u20ac' + f(Math.round(rueilProp.equity)) + ')' : '')
     + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
   insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison ' + libelleLivraisonVJ() + '. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
-  insights['kpiNzCash'] = 'Cash total \u20ac' + f(s.nezha.cash) + ' dont Livret A \u20ac' + f(s.nezha.livretA) + ' (1.5%) + \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA) + ' dormant (0%). Optimiser : assurance-vie ou SCPI.';
+  insights['kpiNzCash'] = 'Cash \u20ac' + f(s.nezha.cash) + ' + cr\u00e9ance Omar \u20ac'
+    + f(s.nezha.recvOmar || 0) + ' (pond\u00e9r\u00e9e). Dont Livret A \u20ac' + f(s.nezha.livretA)
+    + ' (1,5 %) et \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA)
+    + ' dormant (0 %). Optimiser : assurance-vie ou SCPI.';
 
   // ── Actions view ──
   if (s.actionsView) {
@@ -7429,7 +7454,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=517').then(m => {
+  import('./charts.js?v=518').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

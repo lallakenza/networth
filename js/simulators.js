@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=517';
-import { IMMO_CONSTANTS } from './data.js?v=517';
+import { fmt, fmtAxis } from './render.js?v=518';
+import { IMMO_CONSTANTS } from './data.js?v=518';
 
 const IC = IMMO_CONSTANTS;
 
@@ -900,8 +900,37 @@ function runNezhaSimulator(state) {
   // Create property equity computers for Rueil and Villejuif
   const ivNz = s.immoView;
   // v342 — `appreciation` (slider) pilote désormais réellement la projection (4ème arg).
-  const computeRueilEquity = makeComputePropertyEquity(ivNz, 'rueil', ivNz?.properties?.find(p => p.loanKey === 'rueil')?.value || 0, appreciation);
-  const computeVillejuifEquity = makeComputePropertyEquity(ivNz, 'villejuif', ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.deliveredValue || ivNz?.properties?.find(p => p.loanKey === 'villejuif')?.value || 0, appreciation); // v357 — projection = valeur livrée
+  const _rueilP = ivNz?.properties?.find(p => p.loanKey === 'rueil');
+  const _vjP = ivNz?.properties?.find(p => p.loanKey === 'villejuif');
+  const _rueilBrut = makeComputePropertyEquity(ivNz, 'rueil', _rueilP?.value || 0, appreciation);
+  const _vjLivre = makeComputePropertyEquity(ivNz, 'villejuif', _vjP?.deliveredValue || _vjP?.value || 0, appreciation); // v357 — projection = valeur livrée
+
+  // ── Ancrage sur le bilan au mois zéro ────────────────────────────────────────────────────
+  // Le simulateur démarrait 27 750 € sous le net worth affiché dans son propre résumé. Trois
+  // causes distinctes, corrigées séparément plutôt que par un écart forfaitaire :
+  //
+  // 1. VILLEJUIF. La projection part de la valeur LIVRÉE (415 173 €) avec le CRD et les frais
+  //    de sortie d'APRÈS livraison : 33 428 € à m=0, contre 44 590 € au bilan. Avant livraison,
+  //    ce que Nezha possède est le capital ENGAGÉ — c'est déjà la doctrine du simulateur couple
+  //    (v490) et de projectNW. On l'applique ici, puis on bascule sur la projection livrée.
+  // 2. RUEIL. L'interpolation des frais de sortie sur la fraction de mois décale m=0 de ~554 €.
+  //    C'est un biais systématique, pas une différence réelle : on le neutralise par un décalage
+  //    constant, ce qui préserve la forme de la courbe.
+  const _vjLivraison = (_vjP && _vjP.propertyMeta && _vjP.propertyMeta.deliveryDate) || '2028-09';
+  const _vjEngage = s.nezha.villejuifEquity || 0;
+  const _moisISO = (m) => { const d = moisBaseSim(m); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+  const _ecartRueil = (s.nezha.rueilEquity || 0) - _rueilBrut(0);
+  const computeRueilEquity = (m) => Math.max(0, _rueilBrut(m) + _ecartRueil);
+  const computeVillejuifEquity = (m) => (_moisISO(m) < _vjLivraison ? _vjEngage : _vjLivre(m));
+
+  // 3. POSTES ABSENTS. L'ESPP (5 140 €), la Rolex (12 000 €) et la créance Omar (2 602 €)
+  //    n'étaient nulle part, et la caution Rueil (−2 600 €) non plus. Ils sont tenus à PLAT :
+  //    une montre ne capitalise pas, une créance s'encaisse une fois. Les faire croître serait
+  //    inventer un rendement.
+  // `esppForActions` et non `espp` : ce dernier inclut les 96 € de cash du compte UBS, déjà
+  // comptés dans `nezha.cash`. Les additionner double-comptait ce montant.
+  const autresNz = (s.nezha.esppForActions || 0) + (s.nezha.watches || 0)
+    + (s.nezha.recvOmar || 0) - (s.nezha.cautionRueil || 0);
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
@@ -913,8 +942,8 @@ function runNezhaSimulator(state) {
       const villejuifEq = computeVillejuifEquity(m); // v347 — equity possédée dès m=0 (acte signé), plus de marche d'escalier
       dataRueil.push(Math.round(rueilEq));
       dataVillejuif.push(Math.round(villejuifEq));
-      dataCash.push(Math.round(cashNz + sgtmNz));
-      dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz));
+      dataCash.push(Math.round(cashNz + sgtmNz + autresNz));
+      dataTotal.push(Math.round(rueilEq + villejuifEq + cashNz + sgtmNz + autresNz));
     }
     // Update cash and sgtm for next month (BUG-049: use geometric monthly rate)
     cashNz *= (1 + monthlyCashReturn);
