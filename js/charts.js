@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=519';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=519';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=519';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=519';
-import { loadSnapshots } from './api.js?v=519'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=519'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=520';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=520';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=520';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=520';
+import { loadSnapshots } from './api.js?v=520'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=520'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1114,6 +1114,23 @@ function _drawEquityDepthChart() {
   if (!el || !EQUITY_HISTORY || !EQUITY_HISTORY.length) return;
   if (charts.eqHistDepth) charts.eqHistDepth.destroy();
   const rows = EQUITY_HISTORY;
+  // La légende annonçait un historique « jusqu'à aujourd'hui » alors que cette série est
+  // alimentée À LA MAIN, une ligne par mois : elle s'arrête à la dernière saisie. On affiche la
+  // vraie borne, et on signale l'écart quand elle date de plus de deux mois — sinon le graphe
+  // paraît à jour alors qu'il est figé.
+  try {
+    const legende = document.querySelector('#equityHistoryLegend');
+    const fin = rows[rows.length - 1] && rows[rows.length - 1].date;
+    if (legende && fin) {
+      const [fy, fm] = fin.split('-').map(Number);
+      const now = new Date();
+      const retard = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm);
+      legende.innerHTML = 'Série <strong>actions uniquement</strong> (IBKR + ESPP + Degiro, hors cash/immo/créances)'
+        + ' — saisie mensuelle, dernière ligne <strong>' + fin + '</strong>'
+        + (retard >= 2 ? ' <span style="color:#b45309">(' + retard + ' mois de retard — série à compléter)</span>' : '')
+        + '. Volontairement séparée de la courbe NW : le net worth complet n’existe qu’à partir des snapshots quotidiens ci-dessus.';
+    }
+  } catch (e) { /* légende absente : le graphe reste correct */ }
   const labels = rows.map(r => r.date.slice(2, 7)); // 'YY-MM'
   const mk = (label, key, color, fill) => ({
     label, data: rows.map(r => (typeof r[key] === 'number' ? r[key] : null)),

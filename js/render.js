@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=519';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=519';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=520';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=520';
 
 // ---- Generic table sort utility ----
 /**
@@ -6658,7 +6658,11 @@ function renderBudgetView(state) {
       html += '• Emergency Fund : <strong style="color:' + efColor + '">' + cf.emergencyFundRatio.toFixed(1) + ' mois</strong> de d&eacute;penses en cash dormant (recommand&eacute; ≥ 6)<br>';
       const rnColor = cf.runwayMonths >= 24 ? 'var(--green)' :
                        cf.runwayMonths >= 12 ? '#d97706' : 'var(--red)';
-      html += '• Runway si 0 revenu : <strong style="color:' + rnColor + '">' + cf.runwayMonths.toFixed(0) + ' mois</strong> (mobilisable / d&eacute;penses)<br>';
+      // « Runway » se lit comme « combien de temps je tiens ». Le calcul ne porte que sur les
+      // charges FIXES recensees dans BUDGET_EXPENSES : courses, voyages et loisirs n'y sont pas.
+      // Le chiffre est donc un plafond, pas une autonomie reelle — le libelle le dit.
+      html += '• Autonomie sur charges fixes, a 0 revenu : <strong style="color:' + rnColor + '">' + cf.runwayMonths.toFixed(0) + ' mois</strong> '
+        + '<span style="color:var(--gray);font-size:11px">(mobilisable / charges fixes — hors courses, voyages et loisirs, non recens&eacute;s)</span><br>';
       const srColor = cf.savingsRate >= 0.30 ? 'var(--green)' :
                        cf.savingsRate >= 0.20 ? 'var(--green)' :
                        cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
@@ -7454,7 +7458,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=519').then(m => {
+  import('./charts.js?v=520').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

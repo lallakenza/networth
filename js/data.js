@@ -666,15 +666,15 @@ export const PORTFOLIO = {
         { id: 'CREP01', label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
         { id: 'CREP02', label: 'Abdelkader', amount: 55000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
         // Mehdi — 30 000 MAD existant + avance 1 000 EUR du 12/04/2026
-        { id: 'CREP03', label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-09-30', lastContact: '2026-08-28', payments: [], notes: 'Réglé (28/08/2026)' },
-        { id: 'CREP04', label: 'Mehdi — avance', amount: 1000, currency: 'EUR', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-06-30', lastContact: '2026-08-28', payments: [], notes: 'Avance de 1000€ le 12/04/2026 — réglée (28/08/2026)' },
+        { id: 'CREP03', label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-09-30', lastContact: '2026-08-28', payments: [{ amount: 30000, date: '2026-08-28', currency: 'MAD' }], notes: 'Réglé (28/08/2026)' },
+        { id: 'CREP04', label: 'Mehdi — avance', amount: 1000, currency: 'EUR', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-06-30', lastContact: '2026-08-28', payments: [{ amount: 1000, date: '2026-08-28', currency: 'EUR' }], notes: 'Avance de 1000€ le 12/04/2026 — réglée (28/08/2026)' },
         // v484 (28/08/2026) — Aby : « 20k MAD et 4600 euros, c'est tout ce qu'il doit » ; échéance non convenue (placeholder fin d'année)
         { id: 'CREP06', label: 'Aby', amount: 20000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
         { id: 'CREP07', label: 'Aby — EUR', amount: 4600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
         // v484 — DETTE (montant négatif, sommé linéairement dans recvPersonal) : Mehdi a prêté
         // 100K MAD à Amine (« il me les a prêtés et je les ai utilisés ») — à rembourser.
         { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-08-28', payments: [], notes: 'Emprunt utilisé — dette certaine, sans échéance convenue' },
-        { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [], notes: 'Réglé (28/08/2026)' },
+        { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — remboursé le 7 mars 2026 → supprimé
       ],
     },
@@ -1385,7 +1385,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v519';
+export const APP_VERSION = 'v520';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3112,7 +3112,11 @@ export const BUDGET_EXPENSES = [
   // v428 — 145 000 → 143 000 : montant CONTRACTUEL du bail Ejari 0120251011002074,
   //   en vigueur depuis le 10/11/2025 (dépouillement iCloud v423). L'ancien 145 000
   //   était une estimation.
-  { label: 'Loyer Dubai',     amount: 143000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
+  // Logement inclus par l'employeur jusqu'en octobre 2026 (Notion, page Budget) : le poste
+  // ne demarre qu'en novembre, au nouveau montant de 150 000 AED/an. Il etait compte des
+  // aujourd'hui, sur l'ancienne base de 143 000 AED.
+  { label: 'Loyer Dubai',     amount: 150000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement',
+    startDate: '2026-11', note: 'Logement inclus jusqu\'en octobre 2026' },
   // v428 — flux ABSENT du budget alors que documenté : bail de la résidence en France
   //   (17 rue du Champtier) depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
   //   l'épargne nette mensuelle était surestimée de 1 300 €.

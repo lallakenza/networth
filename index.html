@@ -4264,7 +4264,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-strip" id="kpi-historique">
     <div class="kpi" style="border-top-color:#1a365d;"><div class="value" id="kpiHistNW" data-eur="0">--</div><div class="label">NW dernier snapshot</div></div>
     <div class="kpi" style="border-top-color:#48bb78;"><div class="value" id="kpiHistDelta">--</div><div class="label" id="kpiHistDeltaLabel">&Delta; p&eacute;riode</div></div>
-    <div class="kpi"><div class="value" id="kpiHistDays">--</div><div class="label">Jours couverts</div></div>
+    <div class="kpi"><div class="value" id="kpiHistDays">--</div><div class="label">Relev&eacute;s dans l'historique</div></div>
     <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiHistLast" style="font-size:15px;">--</div><div class="label">Derni&egrave;re capture</div></div>
   </div>
   <div id="histPeriodBar" style="display:flex;gap:6px;margin:14px 0 10px;flex-wrap:wrap;">
@@ -4291,7 +4291,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="chart-container" style="min-height:280px;"><canvas id="nwHistSerieChart"></canvas></div>
 
   <h3 style="margin-top:26px;">Actions &mdash; profondeur mensuelle 2020 &rarr; aujourd'hui</h3>
-  <p style="color:#718096;font-size:12px;margin:2px 0 10px;">S&eacute;rie <strong>actions uniquement</strong> (IBKR + ESPP + Degiro, hors cash/immo/cr&eacute;ances) &mdash; historique mensuel v&eacute;rifi&eacute; (EQUITY_HISTORY). Volontairement s&eacute;par&eacute;e de la courbe NW : le net worth complet n'existe qu'&agrave; partir des snapshots quotidiens ci-dessus.</p>
+  <p id="equityHistoryLegend" style="color:#718096;font-size:12px;margin:2px 0 10px;">S&eacute;rie <strong>actions uniquement</strong> (IBKR + ESPP + Degiro, hors cash/immo/cr&eacute;ances) &mdash; historique mensuel v&eacute;rifi&eacute; (EQUITY_HISTORY). Volontairement s&eacute;par&eacute;e de la courbe NW : le net worth complet n'existe qu'&agrave; partir des snapshots quotidiens ci-dessus.</p>
   <div class="chart-container" style="min-height:280px;"><canvas id="eqHistDepthChart"></canvas></div>
 </div>
 
@@ -4496,7 +4496,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
         </label>
         <label>Devise margin IBKR
           <select id="immoFinInputMarginCurrency" style="width:100%;padding:6px 8px;margin-top:3px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
-            <option value="EUR" selected>EUR &mdash; 3.1% (FX safe, MAD pegg&eacute;)</option>
+            <option value="EUR" selected>EUR &mdash; 4,3% (FX safe, MAD pegg&eacute;)</option>
             <option value="USD">USD &mdash; 4.8% (FX mod&eacute;r&eacute;)</option>
             <option value="JPY">JPY &mdash; 1.5% (&#x26A0; FX &eacute;lev&eacute;)</option>
           </select>
@@ -4551,7 +4551,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     
 <!-- v429 : section repliée -->
 <div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secFinScen" onclick="var d=document.getElementById('secFinScen');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Les 4 scénarios en détail</span><span style="font-size:11.5px;color:#718096;font-weight:400;">hypothèses et mécanique de chaque option</span></span><span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">&#x25BC;</span></button><div id="secFinScen" style="display:none;padding:0 16px 16px;"><h3 style="margin:0 0 8px 0;">Les 4 sc&eacute;narios de financement</h3>
-    <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Cliquez sur une carte pour voir le m&eacute;canisme d&eacute;taill&eacute;. Chaque sc&eacute;nario r&eacute;pond diff&eacute;remment au trade-off <strong>liquidit&eacute;</strong> (garder du cash mobilisable) vs <strong>rendement</strong> (maximiser le patrimoine final).</p>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Cliquez sur une carte pour voir le m&eacute;canisme d&eacute;taill&eacute;. Chaque sc&eacute;nario r&eacute;pond diff&eacute;remment au trade-off <strong>liquidit&eacute;</strong> (garder du cash mobilisable) vs <strong>rendement</strong> (maximiser le patrimoine final). La recommandation finale privil&eacute;gie l'horizon du projet Casa ; ce n'est pas une optimisation rendement/risque.</p>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
       <details style="border:1px solid var(--border);border-left:4px solid var(--scen-a);border-radius:8px;padding:12px;background:var(--surface);">
         <summary style="cursor:pointer;list-style:none;">
@@ -4584,7 +4584,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
         </summary>
         <div style="margin-top:10px;font-size:11.5px;color:var(--text);line-height:1.5;">
           <div><strong>M&eacute;canisme :</strong> achat cash (comme A), puis tire 30 % LTV sur portefeuille r&eacute;siduel pour amplifier l'exposition march&eacute;. Int&eacute;r&ecirc;ts seuls, pas d'amortissement.</div>
-          <div style="margin-top:6px;"><strong>Avantages :</strong> taux margin bas (EUR ~3,1 %), flexibilit&eacute; totale (rembours&eacute; quand je veux), pas d'assurance.</div>
+          <div style="margin-top:6px;"><strong>Avantages :</strong> taux margin mod&eacute;r&eacute; (EUR 4,3 %, cf. MARGIN_RATES), flexibilit&eacute; totale (rembours&eacute; quand je veux), pas d'assurance.</div>
           <div style="margin-top:6px;"><strong>Inconv&eacute;nients :</strong> risque de margin call en cas de drawdown &gt;40 %, dette r&eacute;valu&eacute;e tous les jours.</div>
           <div style="margin-top:6px;color:var(--gray);"><strong>Pour qui ?</strong> Horizon long (&gt;10 ans), tol&eacute;rance drawdown, pas de projet court terme concurrent.</div>
         </div>
@@ -4611,7 +4611,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 <!-- v429 : section repliée -->
 <div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secFinStress" onclick="var d=document.getElementById('secFinStress');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Test de stress — liquidité</span><span style="font-size:11.5px;color:#718096;font-weight:400;">scénario de choc sur le projet Casa</span></span><span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">&#x25BC;</span></button><div id="secFinStress" style="display:none;padding:0 16px 16px;"><h3>Test de stress &mdash; Liquidit&eacute; projet Casa</h3>
-    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;">Liquidit&eacute; mobilisable (portefeuille &times; 1,225 via margin safe, SAFETY_COEFF&nbsp;0,75) aux horizons T+6 / T+12 / T+18 mois. La barre = <strong>plancher prudent</strong> (march&eacute; 0 %, &eacute;pargne cash lin&eacute;aire). L'error bar monte jusqu'au <strong>plafond</strong> (march&eacute; +20 %, &eacute;pargne DCA &agrave; +10 %). Ligne rouge = besoin Casa. Vert = plancher couvre, orange = tendu, rouge = insuffisant m&ecirc;me avec upside.</p>
+    <p style="font-size:12px;color:var(--gray);margin:0 0 8px 0;"><strong>Capacit&eacute; de financement</strong> aux horizons T+6 / T+12 / T+18 mois &mdash; ce n'est pas de la liquidit&eacute; disponible : le portefeuille est multipli&eacute; par 1,225, dont <strong>0,225 de dette margin</strong> (LTV cible &times; SAFETY_COEFF&nbsp;0,75). Mobiliser cette part, c'est emprunter.<br>La barre = <strong>plancher</strong> (march&eacute; 0 %, &eacute;pargne lin&eacute;aire). L'error bar monte jusqu'au <strong>plafond</strong> (march&eacute; +20 %). <span style="color:#b45309">Aucun sc&eacute;nario de BAISSE n'est simul&eacute; : un march&eacute; &agrave; &minus;20 % r&eacute;duirait le portefeuille ET d&eacute;clencherait un appel de marge sur la part emprunt&eacute;e. Le &laquo;&nbsp;plancher&nbsp;&raquo; est donc un plancher de RENDEMENT, pas un stress test.</span><br>Ligne rouge = besoin Casa. Vert = plancher couvre, orange = tendu, rouge = insuffisant m&ecirc;me avec upside.</p>
     <div class="chart-container" style="height:340px;position:relative"><canvas id="immoFinStressChart"></canvas></div>
   </div>
 
@@ -4708,7 +4708,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=519"></script>
+<script type="module" src="js/app.js?v=520"></script>
 
 </body>
 </html>

@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=519';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=520';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3777,11 +3777,32 @@ function computeBudgetView(portfolio, fx, immoView) {
   const freqDiv = { monthly: 1, quarterly: 3, yearly: 12 };
 
   // Helper to build an item
+  // Un poste peut n'être PAS ENCORE actif (`startDate`) ou l'être déjà plus (`endDate`).
+  // Sans cette notion, le budget comptait le loyer de Dubai comme s'il courait déjà, alors que
+  // le logement est inclus jusqu'en octobre 2026 : ~2 800 €/mois de charges fixes en trop, et
+  // un futur loyer figé sur l'ancien montant.
+  const _moisCourant = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+  function estActif(e) {
+    if (e.startDate && _moisCourant < e.startDate) return false;
+    if (e.endDate && _moisCourant > e.endDate) return false;
+    return true;
+  }
+
   function makeItem(e) {
     const div = freqDiv[e.freq] || 1;
-    const monthlyNative = e.amount / div;
+    const actif = estActif(e);
+    const monthlyNative = actif ? e.amount / div : 0;
     const monthlyEUR = e.currency === 'EUR' ? monthlyNative : monthlyNative / (fx[e.currency] || 1);
-    return { label: e.label, amountNative: e.amount, currency: e.currency, freq: e.freq, monthlyNative, monthlyEUR, zone: e.zone, type: e.type };
+    // Montant futur conservé même inactif : l'écran doit pouvoir annoncer « à partir de … »
+    // plutôt que de faire disparaître la ligne.
+    const futurNative = e.amount / div;
+    const futurEUR = e.currency === 'EUR' ? futurNative : futurNative / (fx[e.currency] || 1);
+    return {
+      label: e.label, amountNative: e.amount, currency: e.currency, freq: e.freq,
+      monthlyNative, monthlyEUR, zone: e.zone, type: e.type,
+      actif, startDate: e.startDate || null, endDate: e.endDate || null,
+      futurMonthlyEUR: futurEUR, note: e.note || null,
+    };
   }
 
   // ── PERSONAL EXPENSES (from BUDGET_EXPENSES) ──
