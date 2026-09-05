@@ -659,6 +659,18 @@ export const PORTFOLIO = {
         { id: 'INVSNT003', label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-05-01', lastContact: '2026-07-13', payments: [{ amount: 19565, date: '2026-05-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
         // INVSNT006 — SAP & Tax (facture 01/06/2026) — SEULE CRÉANCE PRO EN COURS
         { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-07-01', lastContact: '2026-07-13', payments: [], notes: 'Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
+        // INVSNT007 et INVSNT008 — factures émises, NON ENCAISSÉES.
+        // Elles manquaient au registre : jusqu'ici INVSNT006 était présentée comme la SEULE
+        // créance pro en cours, alors que deux factures postérieures avaient été émises. Le
+        // registre était donc incomplet de 33 215 EUR.
+        // Preuves archivées dans Notion (PDF original, texte extrait, lien e-mail) :
+        //   INVSNT007 : app.notion.com/p/3d20b87c704481ff969af7ff7dda25bd
+        //   INVSNT008 : app.notion.com/p/3d20b87c7044816e9b3bce7581fb0e77
+        // `payments: []` : aucune date de règlement n'est connue, aucune n'est inventée.
+        // Vérifié avant ajout : aucun encaissement de 18 655 ni 14 560 EUR n'existe déjà dans
+        // les données — pas de double comptage avec le cash.
+        { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-09-01', lastContact: '2026-08-01', payments: [], notes: 'Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
+        { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026)', amount: 14560, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-10-01', lastContact: '2026-09-01', payments: [], notes: 'Facture 01/09/2026, échéance 01/10/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
@@ -1385,7 +1397,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v524';
+export const APP_VERSION = 'v525';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2554,8 +2566,19 @@ export const IMMO_PASSIFS_DOCUMENTES = {
     //   21/10/2024  Nezha règle 3 754,88 €
     //   17/12/2024  Foncia ramène le solde à 20 329,30 €
     //   14/03/2025  « DERNIÈRE RELANCE AVANT POURSUITES JUDICIAIRES »
-    dernierMontantConnu: 20329.30,
-    dernierMontantDate: '2024-12-17',
+    //   30/08/2026  situation documentée : montant réclamé porté à 20 461,33 €, litige ACTIF,
+    //               assignation à signifier avant le 25/10/2026
+    //               (source : Notion 3ca0b87c70448195859cda83b705aa76)
+    dernierMontantConnu: 20461.33,
+    dernierMontantDate: '2026-08-30',
+    litigeActif: true,
+    echeanceProcedure: '2026-10-25',   // assignation à signifier avant cette date
+    // NON PROVISIONNÉ, et c'est délibéré : aucun taux de provision n'a été décidé, la somme
+    // étant contestée et faisant l'objet d'une demande reconventionnelle. Ce passif est donc
+    // ÉVENTUEL — il n'est pas déduit du net worth. `scenarioProvision100` sert uniquement à
+    // afficher ce que coûterait une provision intégrale, sans modifier le chiffre officiel.
+    provisionne: false,
+    scenarioProvision100: 20461.33,
     fraisRecouvrement: 629.38,   // mise en demeure 54 + intérêts de retard 95,38 + relance 44 + huissier 436
     conteste: true,
     // Nezha conteste les pénalités ET la quote-part travaux, au motif qu'elle n'a jamais

@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=524';
-import { IMMO_CONSTANTS } from './data.js?v=524';
+import { fmt, fmtAxis } from './render.js?v=525';
+import { IMMO_CONSTANTS } from './data.js?v=525';
 
 const IC = IMMO_CONSTANTS;
 
@@ -1117,7 +1117,10 @@ function runOpportunityCostSim() {
 
   // Insight
   const insight = 'Un achat de <strong>' + fmt(amount) + ' EUR</strong> aujourd\'hui, c\'est <strong style="color:#c53030">'
-    + fmt(Math.round(futureValue)) + ' EUR</strong> de manque a gagner dans ' + horizon + ' ans '
+    // C'est le MANQUE À GAGNER qu'annonce la phrase, pas la valeur future : elle citait
+    // `futureValue`, qui inclut le principal. 10 000 EUR placés devenant 67 275 EUR, le
+    // manque à gagner est 57 275 EUR — la phrase surestimait la perte du principal entier.
+    + fmt(Math.round(lost)) + ' EUR</strong> de manque a gagner dans ' + horizon + ' ans '
     + '(x' + multiplier.toFixed(1) + ') avec un retour de ' + annualReturn.toFixed(1) + '%/an. '
     + 'Chaque euro depense est un euro qui ne compose plus.';
   const insightEl = document.getElementById('oppCostInsight');

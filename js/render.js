@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=524';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=524';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=525';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=525';
 
 // ---- Generic table sort utility ----
 /**
@@ -1081,9 +1081,17 @@ function renderDynamicInsights(state, view) {
         return tire > 0 ? 'Cr\u00e9dit en cours de tirage (' + N(tire) + ' d\u00e9bloqu\u00e9s), ' : 'Cr\u00e9dit non encore d\u00e9bloqu\u00e9, ';
       })() + 'franchise totale 3 ans, livraison ' + libelleLivraisonVJ() + '.<br><br>' +
       '<strong>Insights Nezha :</strong><br>' +
-      '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont ' + K(rueilP ? rueilP.equity : 0) + ' en equity immo Rueil = patrimoine solide et croissant en automatique.</span><br>' +
+      // `equity` est l'équité NETTE (après frais de sortie). Annoncer « 66K » sans dire
+      // laquelle laissait croire que le brut était mobilisable tel quel.
+      '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont '
+        + K(s.nezha.rueilEquityBrute || 0) + ' d\'équité brute Rueil ('
+        + K(rueilP ? rueilP.equity : 0) + ' nette après frais de sortie) = patrimoine solide et croissant en automatique.</span><br>' +
       '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
-      '- Cash total ~' + K(cashFR + cashMA) + ' (' + K(cashFR) + ' France + ' + K(cashMA) + ' Maroc).<br>' +
+      // « Cash total ~56K » n'additionnait que France et Maroc : le Wio UAE de Nezha en
+      // était absent, alors qu'il est bien dans son cash. On lit le total du moteur et on
+      // détaille les trois zones, plutôt que d'en recomposer deux à la main.
+      '- Cash total ' + K(s.nezha.cash) + ' (' + K(cashFR) + ' France + ' + K(cashMA)
+        + ' Maroc + ' + K(Math.max(0, s.nezha.cash - cashFR - cashMA)) + ' UAE).<br>' +
       '- <span style="color:var(--red)">Risque post-livraison :</span> Nezha portera ~' + N(totalMens) + '/mois de mensualites (Rueil ' + N(rueilMens) + ' + Villejuif ~' + N(vilMens) + ').<br>' +
       '- <span style="color:var(--green)">Apres livraison :</span> 2 biens de creation de richesse.';
   }
@@ -5798,11 +5806,19 @@ function renderAptAlerts(loanKey) {
     items.push({
       ton: 'rouge', titre: 'Dette de copropriété en recouvrement',
       montant: eur(d.dernierMontantConnu),
-      corps: 'Dernier montant connu au ' + d.dernierMontantDate.split('-').reverse().join('/')
-        + ', après un règlement partiel. Huissier saisi, dernière relance avant poursuites en mars 2025. '
-        + 'Frais de recouvrement : ' + eur(d.fraisRecouvrement) + '. Contestée par la propriétaire.',
-      note: 'Elle recouvre la quote-part des travaux énergétiques — ceux-là mêmes qui justifient '
-        + 'la majoration de valeur du bien. Compter la plus-value sans cette contrepartie surévalue le patrimoine.',
+      corps: 'Montant réclamé au ' + d.dernierMontantDate.split('-').reverse().join('/')
+        + (d.litigeActif ? ', litige ACTIF' : '')
+        + (d.echeanceProcedure ? ', assignation à signifier avant le ' + d.echeanceProcedure.split('-').reverse().join('/') : '')
+        + '. Frais de recouvrement : ' + eur(d.fraisRecouvrement) + '. Contestée par la propriétaire, '
+        + 'avec demande reconventionnelle.',
+      // Le statut comptable doit être dit, pas déduit : la somme n'est PAS retirée du
+      // patrimoine, faute de taux de provision décidé. L'afficher sans le préciser laisserait
+      // croire soit qu'elle est déjà déduite, soit qu'elle est ignorée.
+      note: 'PASSIF ÉVENTUEL — NON COMPTABILISÉ dans le net worth : aucun taux de provision '
+        + 'n\'a été décidé, la somme étant contestée. À titre indicatif, une provision à 100 % '
+        + 'retirerait ' + eur(d.scenarioProvision100 || d.dernierMontantConnu) + ' du patrimoine couple. '
+        + 'Elle recouvre la quote-part des travaux énergétiques — ceux-là mêmes qui justifient la '
+        + 'majoration de valeur du bien.',
       statut: d.statutAujourdhui,
     });
   }
@@ -7194,7 +7210,20 @@ function attachKPIInsights(state, view) {
   if (s.cashView) {
     const cv = s.cashView;
     insights['kpiCashTotal'] = '\u20ac' + f(cv.totalCash) + ' en cash. Rendement moyen : ' + (cv.weightedAvgYield * 100).toFixed(1) + '%. Cash productif : \u20ac' + f(cv.totalYielding) + ' (' + pct(cv.totalYielding, cv.totalCash) + '%).';
-    insights['kpiCashAvgYield'] = 'Rendement pond\u00e9r\u00e9 de tous les comptes. UAE : 6% (Wio/Mashreq). IBKR EUR : 1.5%. France/Maroc : 0%. Objectif : maximiser le cash \u00e0 6%.';
+    // Deux chiffres circulaient sous le même nom : le moteur pondère les comptes SANS le
+    // coût de l'emprunt JPY, le pied du tableau AVEC. Les deux sont justes, ils ne
+    // répondent pas à la même question — l'infobulle les nomme désormais tous les deux.
+    (function () {
+      const brut = (cv.weightedAvgYield || 0) * 100;
+      const jpy = cv.accounts.find(a => a.isDebt || (a.yield || 0) < 0);
+      const coutJpy = jpy ? Math.abs(jpy.valEUR * jpy.yield) : 0;
+      const net = cv.totalCash > 0 ? brut - (coutJpy / cv.totalCash * 100) : brut;
+      insights['kpiCashAvgYield'] = 'Rendement pond\u00e9r\u00e9 de tous les comptes : '
+        + brut.toFixed(1) + '\u202f% BRUT, ' + net.toFixed(1) + '\u202f% apr\u00e8s le co\u00fbt annuel '
+        + 'de l\'emprunt JPY (' + Math.round(coutJpy).toLocaleString('fr-FR') + '\u202f€). '
+        + 'Le pied du tableau des comptes affiche le second. '
+        + 'UAE : 6\u202f% (Wio/Mashreq). IBKR EUR : 1,5\u202f%. France/Maroc : 0\u202f%.';
+    })();
     // Ce KPI ne porte QUE sur le cash qui ne bat pas l'inflation, alors que le graphe « après
     // inflation » érode la totalité du cash : deux chiffres très différents (255 €/mois contre
     // ~827 €/mois) pour ce qui se lisait comme la même chose. Le libellé et l'infobulle disent
@@ -7501,7 +7530,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=524').then(m => {
+  import('./charts.js?v=525').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

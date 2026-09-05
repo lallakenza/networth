@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=524';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=525';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1898,7 +1898,12 @@ function computeCashView(portfolio, fx) {
   //    Génère les étapes automatiquement à partir des diagnostics
   // ═══════════════════════════════════════════════════════
   const actionSteps = [];
-  const K = v => Math.round(v / 1000) + 'K€'; // local formatter for action steps
+  // Sous 1 000 EUR l'arrondi au millier détruit l'information : 585 EUR/an s'affichait
+  // « 1K€ » et 195 EUR/an « 0K€ ». Le plan d'action porte précisément sur des montants de
+  // cet ordre — c'est là que l'arrondi fait le plus de dégâts.
+  const K = v => (Math.abs(v) < 1000
+    ? Math.round(v).toLocaleString('fr-FR') + '\u202f€'
+    : Math.round(v / 1000) + 'K€');
   // Build steps from dormant accounts detected above
   diagnostics.filter(d => d.category.startsWith('dormant_')).forEach(d => {
     const biggest = d.accounts.sort((a, b) => b.valEUR - a.valEUR)[0];
