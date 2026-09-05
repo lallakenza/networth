@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=535';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=535';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=536';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=536';
 
 // ---- Generic table sort utility ----
 /**
@@ -1637,26 +1637,50 @@ const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'J
  */
 function pontGraphe(r) {
   const navG = (typeof window !== 'undefined' && window._navGraphe) || null;
-  if (!navG || !r || !r.nav) return '';
+  if (!navG || !r || !r.nav) {
+    // Le graphe est construit APRÈS ce panneau : on laisse la place et on la remplit
+    // quand la valeur arrive (voir `window._majPontGraphe`).
+    return '<div id="pontGrapheNav"></div>';
+  }
   const ecart = r.nav - navG;
-  if (Math.abs(ecart) < 1) return '';
+  if (Math.abs(ecart) < 1) {
+    return '<div id="pontGrapheNav" style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;color:#718096;">'
+      + 'NAV du graphe identique \u00e0 la NAV canonique.</div>';
+  }
   const aed = Math.round(r.cashAEDeur || 0);
   const reste = Math.round(ecart) - aed;
   const li = (t, v) => '<div style="display:flex;justify-content:space-between;gap:12px;">'
     + '<span>' + t + '</span><span style="font-variant-numeric:tabular-nums;">'
     + (v < 0 ? '\u2212' : '+') + fmt(Math.abs(Math.round(v))) + '</span></div>';
-  return '<div style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;color:#4a5568;">'
+  return '<div id="pontGrapheNav" style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;color:#4a5568;">'
     + '<div style="font-weight:600;margin-bottom:4px;">Pont avec la NAV du graphe</div>'
     + '<div style="display:flex;justify-content:space-between;gap:12px;"><span>NAV du graphe '
-    + '<span style="color:#a0aec0;">(cash reconstruit depuis les flux EUR/USD/JPY)</span></span>'
+    + '<span style="color:#a0aec0;">(cash reconstruit depuis les flux EUR/USD/JPY, prix de cl\u00f4ture)</span></span>'
     + '<strong style="font-variant-numeric:tabular-nums;">' + fmt(Math.round(navG)) + '</strong></div>'
     + li('Solde AED du compte (conversion interne, hors flux)', aed)
-    + (Math.abs(reste) >= 1 ? li('Arrondis quotidiens et prix de clôture', reste) : '')
+    // Le reste n'est PAS attribué. L'appeler « arrondis » serait une explication inventée :
+    // il vient de deux reconstitutions différentes (prix de clôture de la veille contre prix
+    // du moment, cash rejoué depuis les flux contre solde lu) dont on ne sait pas, ici,
+    // départager les parts. On le nomme pour ce qu'il est.
+    + (Math.abs(reste) >= 1 ? li('Reste non attribu\u00e9 (dates de prix et reconstitution des flux)', reste) : '')
     + '<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e2e8f0;margin-top:4px;padding-top:4px;">'
-    + '<span><strong>= NAV canonique (soldes lus)</strong></span>'
+    + '<span><strong>= NAV canonique (soldes lus, prix du moment)</strong></span>'
     + '<strong style="font-variant-numeric:tabular-nums;">' + fmt(Math.round(r.nav)) + '</strong></div>'
     + '</div>';
 }
+
+// Le graphe publie sa NAV après le rendu du panneau : cette fonction le remplit a posteriori.
+if (typeof window !== 'undefined') {
+  window._majPontGraphe = function () {
+    const el = document.getElementById('pontGrapheNav');
+    const r = window._reconciliationActions;
+    if (!el || !r) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = pontGraphe(r);
+    el.replaceWith(tmp.firstElementChild);
+  };
+}
+
 
 /**
  * Libellé de la ligne « Facturation nette », dérivé du PÉRIMÈTRE RÉEL du calcul.
@@ -2616,6 +2640,7 @@ function renderActionsView(state) {
     const el = document.getElementById('actionsReconciliation');
     if (!el) return;
     const r = av.reconciliation;
+    if (typeof window !== 'undefined') window._reconciliationActions = r;
     if (!r || owner !== 'both') { el.innerHTML = ''; return; }
     const li = (lib, v, note) => '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;">'
       + '<span>' + lib + (note ? ' <span style="color:#a0aec0;">' + note + '</span>' : '') + '</span>'
@@ -7861,7 +7886,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=535').then(m => {
+  import('./charts.js?v=536').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

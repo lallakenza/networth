@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=535';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=535';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=535';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=535';
-import { loadSnapshots } from './api.js?v=535'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=535'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=536';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=536';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=536';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=536';
+import { loadSnapshots } from './api.js?v=536'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=536'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4305,6 +4305,8 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // il est LU au solde du compte. Les deux sont justes ; leur écart doit être écrit.
   if (typeof window !== 'undefined') {
     window._navGraphe = chartValuesTotal.length ? chartValuesTotal[chartValuesTotal.length - 1] : null;
+    // Le panneau de réconciliation est rendu AVANT le graphe : on le complète maintenant.
+    if (typeof window._majPontGraphe === 'function') { try { window._majPontGraphe(); } catch (e) { /* non bloquant */ } }
   }
 
   if (chartLabels.length === 0) return;
