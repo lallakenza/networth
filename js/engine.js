@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=507';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=508';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1675,9 +1675,9 @@ function computeCashView(portfolio, fx) {
     { label: 'Mashreq NEO+', native: p.amine.uae.mashreq, currency: 'AED', yield: CASH_YIELDS.mashreq, owner: 'Amine' },
     { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
-    { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine' },
-    { label: 'iBanq (Bairok)', native: p.amine.uae.ibanqBairok || 0, currency: 'EUR', yield: 0, owner: 'Amine' },  // v484
-    { label: 'Wise (Bridgevale)', native: p.amine.uae.bridgevaleWise || 0, currency: 'EUR', yield: 0, owner: 'Amine' },  // v484
+    { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine', entreprise: 'Bairok' },
+    { label: 'iBanq (Bairok)', native: p.amine.uae.ibanqBairok || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bairok' },  // v484
+    { label: 'Wise (Bridgevale)', native: p.amine.uae.bridgevaleWise || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bridgevale' },  // v484
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Banque Populaire', native: p.amine.uae.banquePopulaire || 0, currency: 'EUR', yield: CASH_YIELDS.banquePopulaire || 0, owner: 'Amine' },
     { label: 'Binance USDT', native: p.amine.uae.binanceUSDT || 0, currency: 'USD', yield: CASH_YIELDS.binanceUSDT || 0, owner: 'Amine' },
@@ -1791,6 +1791,14 @@ function computeCashView(portfolio, fx) {
   const monthlyInflationCost = totalNonYielding * INFLATION_RATE / 12;
   const annualInflationCost = totalNonYielding * INFLATION_RATE;
   const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
+  // Trésorerie détenue par les sociétés (Bairok, Bridgevale) : elle est bien à Amine in fine,
+  // donc elle reste dans le net worth, mais elle n'est pas disponible comme du cash personnel
+  // (distribution, fiscalité, besoins de la société). On l'expose pour pouvoir la distinguer
+  // à l'écran plutôt que de la laisser fondue dans le cash du couple.
+  const tresorerieEntreprise = accounts
+    .filter(a => a.entreprise && !a.isDebt)
+    .map(a => ({ label: a.label, societe: a.entreprise, valEUR: a.valEUR }));
+  const tresorerieEntrepriseEUR = tresorerieEntreprise.reduce((s2, a) => s2 + a.valEUR, 0);
 
   // ── DIAGNOSTICS STRATÉGIQUES ─────────────────────────────
   // Conseils priorisés par impact (manque à gagner annuel)
@@ -1803,9 +1811,13 @@ function computeCashView(portfolio, fx) {
   const jpyCostAnn = jpyAccount ? Math.abs(jpyAccount.valEUR * jpyAccount.yield) : 0;
 
   // --- Manque à gagner total ---
+  // `Math.max(0, …)` par compte : sans ce plafonnement, un compte payé AU-DESSUS de la
+  // référence (Mashreq à 6,25 %) venait retrancher son surplus du manque à gagner — ~299 € en
+  // moins que la même notion calculée par `cashFrameMetrics`, d'où deux chiffres différents sur
+  // la même page. On ne « récupère » pas le surplus d'un compte en déplaçant les autres.
   const totalMissedAnn = accounts
     .filter(a => !a.isDebt && a.valEUR > 0)
-    .reduce((s, a) => s + a.valEUR * (REF_YIELD - (a.yield || 0)), 0);
+    .reduce((s, a) => s + Math.max(0, a.valEUR * (REF_YIELD - (a.yield || 0))), 0);
 
   // ═══════════════════════════════════════════════════════
   // 1. VUE D'ENSEMBLE — Résumé stratégique
@@ -1830,7 +1842,11 @@ function computeCashView(portfolio, fx) {
     const dormant = accounts.filter(a => !a.isDebt && a.owner === owner && a.valEUR > 50 && (a.yield || 0) < PRODUCTIVE_THRESHOLD);
     if (dormant.length === 0) return;
     const totalDormant = dormant.reduce((s, a) => s + a.valEUR, 0);
-    const gainPotentiel = totalDormant * REF_YIELD;
+    // Gain INCRÉMENTAL : `totalDormant × REF_YIELD` appliquait 6 % à des comptes qui rapportent
+    // déjà quelque chose (le Livret A de Nezha à 1,5 %), ce qui surestimait le potentiel de ce
+    // qu'ils versent aujourd'hui — puis ce même Livret A réapparaissait plus bas avec son propre
+    // manque à gagner, compté une seconde fois.
+    const gainPotentiel = dormant.reduce((s, a) => s + a.valEUR * (REF_YIELD - (a.yield || 0)), 0);
     diagnostics.push({
       severity: totalDormant > 20000 ? 'urgent' : 'warning',
       category: 'dormant_' + owner.toLowerCase(),
@@ -1945,6 +1961,7 @@ function computeCashView(portfolio, fx) {
     annualInflationCost,
     byCurrency,
     jpyShortEUR,
+    tresorerieEntreprise, tresorerieEntrepriseEUR,
     diagnostics,
     byOwner,
     coupleFrame,
@@ -4258,9 +4275,18 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     // incertain), TVA (dette). Utilisé pour calibrage "cash war chest" +
     // liquidité mobilisable rapidement si besoin.
     financialMobilisable: amineCashTotal + amineIbkrForActions + amineEsppShares + amineSgtm,
+    // Ce détail DOIT couvrir `financialMobilisable` en entier. Quatre comptes ajoutés en
+    // v354/v484 (Banque Populaire, Binance, iBanq, Bridgevale) entraient dans `amineCashTotal`
+    // sans figurer ici : le détail affiché à l'écran était inférieur de ~21 600 € à son propre
+    // total, sans que rien ne le signale. Le rendu somme désormais ces lignes et alerte si
+    // l'égalité se rompt — ajouter un compte au cash sans l'ajouter ici devient visible.
     financialMobilisableBreakdown: {
       uae: amineUae,                          // Mashreq + Wio × 3
       revolutEUR: amineRevolutEUR,            // Revolut UAE (EUR)
+      banquePopulaire: amineBanquePopulaire,  // Banque Populaire (v354)
+      binanceUSDT: amineBinanceUSDT,          // Binance USDT (v354)
+      ibanqBairok: amineIbanqBairok,          // iBanq — société Bairok (v484)
+      bridgevale: amineBridgevale,            // Wise — société Bridgevale (v484)
       moroccoCash: amineMoroccoCash,          // Attijari
       brokerCash: amineBrokerCash,            // IBKR EUR/USD + ESPP cash
       ibkrPositions: amineIbkrForActions,     // IBKR positions (hors broker cash ré-classé)

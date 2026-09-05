@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=507';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=507';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=508';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=508';
 
 // ---- Generic table sort utility ----
 /**
@@ -773,7 +773,9 @@ function renderDynamicInsights(state, view) {
   const p = state.portfolio;
   const iv = state.immoView;
   const fx = state.fx;
-  const K = v => Math.round(v / 1000) + 'K';
+  // Sous 1 000 €, l'arrondi au millier détruit l'information : 196 €/an s'affichait « 0K » et
+  // 585 €/an « 1K ». On garde le montant exact en dessous du seuil.
+  const K = v => (Math.abs(v) < 1000 ? Math.round(v).toLocaleString('fr-FR') : Math.round(v / 1000) + 'K');
   const N = v => Math.round(v).toLocaleString('fr-FR');
 
   // ── Cash insights (expand-cash) ──
@@ -805,6 +807,28 @@ function renderDynamicInsights(state, view) {
     const bA = state.amine.financialMobilisableBreakdown || {};
     const bN = state.nezha.financialMobilisableBreakdown || {};
     const MAD_RATE = 10.85;
+    // Les lignes étaient énumérées à la main : tout compte ajouté au total sans être ajouté ici
+    // disparaissait du détail en silence (c'est arrivé pour quatre comptes, ~21 600 €). On
+    // parcourt donc le détail fourni par le moteur, et on affiche l'écart s'il en reste un.
+    const ETIQ_MOB = {
+      uae: 'Cash UAE', revolutEUR: 'Cash EUR (Revolut)', banquePopulaire: 'Banque Populaire',
+      binanceUSDT: 'Binance (USDT)', ibanqBairok: 'iBanq — Bairok', bridgevale: 'Wise — Bridgevale',
+      moroccoCash: 'Cash Maroc (Attijari)', brokerCash: 'Broker cash', ibkrPositions: 'IBKR positions',
+      esppShares: 'ESPP', sgtm: 'SGTM',
+      cashFrance: 'Cash France', cashMaroc: 'Cash Maroc', cashUAE: 'Cash UAE (Wio)',
+    };
+    function lignesMobilisable(det, total) {
+      const entrees = Object.entries(det || {}).filter(([, v]) => Math.abs(v || 0) >= 1);
+      let out = entrees.map(([k, v]) => '\u2022 ' + (ETIQ_MOB[k] || k) + ' : ' + fmt(v)).join('<br>');
+      const somme = Object.values(det || {}).reduce((acc, v) => acc + (v || 0), 0);
+      const ecart = (total || 0) - somme;
+      if (Math.abs(ecart) >= 1) {
+        out += '<br><span style="color:#b91c1c">\u26a0 ' + fmt(ecart)
+          + ' non d\u00e9taill\u00e9s \u2014 un compte manque dans cette liste</span>';
+      }
+      return out;
+    }
+
     const mobBlock =
       '<div style="margin-top:14px;padding:12px;background:rgba(128,90,213,0.08);border-left:3px solid #805ad5;border-radius:6px">' +
       '<strong>💼 Patrimoine Financier Mobilisable</strong> <span style="font-size:11px;color:var(--gray)">(cash + positions liquides, hors immo/véhicules/créances/TVA)</span><br>' +
@@ -813,25 +837,14 @@ function renderDynamicInsights(state, view) {
         '<div>' +
           '<div style="font-weight:700;color:var(--accent);margin-bottom:6px">Amine : <span style="color:var(--text)">' + fmt(mobA) + '</span> <span style="color:var(--gray)">(' + (mobA * MAD_RATE / 1_000_000).toFixed(2) + ' MDH)</span></div>' +
           '<div style="color:var(--gray);line-height:1.7">' +
-            '• Cash UAE : ' + fmt(bA.uae || 0) + '<br>' +
-            '• Cash EUR (Revolut) : ' + fmt(bA.revolutEUR || 0) + '<br>' +
-            '• Cash Maroc (Attijari) : ' + fmt(bA.moroccoCash || 0) + '<br>' +
-            '• Broker cash (IBKR+ESPP) : ' + fmt(bA.brokerCash || 0) + '<br>' +
-            '• IBKR positions : ' + fmt(bA.ibkrPositions || 0) + '<br>' +
-            '• ESPP (' + Math.round((bA.esppShares || 0)) + ') : ' + fmt(bA.esppShares || 0) + '<br>' +
-            '• SGTM : ' + fmt(bA.sgtm || 0) +
+            lignesMobilisable(bA, mobA) +
           '</div>' +
         '</div>' +
         // Nezha column
         '<div>' +
           '<div style="font-weight:700;color:var(--gold);margin-bottom:6px">Nezha : <span style="color:var(--text)">' + fmt(mobN) + '</span> <span style="color:var(--gray)">(' + (mobN * MAD_RATE / 1_000_000).toFixed(2) + ' MDH)</span></div>' +
           '<div style="color:var(--gray);line-height:1.7">' +
-            '• Cash France : ' + fmt(bN.cashFrance || 0) + '<br>' +
-            '• Cash Maroc : ' + fmt(bN.cashMaroc || 0) + '<br>' +
-            '• Cash UAE (Wio) : ' + fmt(bN.cashUAE || 0) + '<br>' +
-            '• Broker cash (ESPP) : ' + fmt(bN.brokerCash || 0) + '<br>' +
-            '• ESPP : ' + fmt(bN.esppShares || 0) + '<br>' +
-            '• SGTM : ' + fmt(bN.sgtm || 0) +
+            lignesMobilisable(bN, mobN) +
           '</div>' +
         '</div>' +
         // Couple column
@@ -857,6 +870,11 @@ function renderDynamicInsights(state, view) {
 
     cashIns.innerHTML =
       '<strong>Insights Cash :</strong><br>' +
+      // L'horodatage visible sur la page est celui du rafraîchissement des devises et des cours.
+      // Les soldes bancaires, eux, sont saisis à la main : les présenter sous la même fraîcheur
+      // laissait croire qu'ils venaient d'être relevés.
+      '- <span style="color:var(--gray)">Soldes bancaires saisis manuellement, arr\u00eat\u00e9s au '
+      + (state._dataLastUpdate || '?') + '. Seuls les taux de change sont rafra\u00eechis en continu.</span><br>' +
       '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
       // Le manque à gagner vient du moteur (`gapToPotential`), qui est aussi ce qu'affichent la vue
       // Cash et son graphe. Cet insight le recalculait autrement (non rémunéré × taux de
@@ -865,7 +883,15 @@ function renderDynamicInsights(state, view) {
       '- ' + yieldingPct + '% productif vs ' + dormantPct + '% dormant. Manque \u00e0 gagner annuel : '
       + fmt((cv.coupleFrame && cv.coupleFrame.gapToPotential) || 0) + '.<br>' +   // v493 (audit) : 0,05 était codé en dur ici alors que la vue Cash calcule sur cv.refYield (6 %) — 5 120 € annoncés contre 5 948 €
       (bestAcct.label ? '- Meilleur rendement : ' + bestAcct.label + ' (' + ((bestAcct.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
-      (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).' : '') +
+      (worstBig.label && worstBig.valEUR > 1000 ? '- <span style="color:var(--red)">Plus gros poste dormant :</span> ' + worstBig.label + ' (' + fmt(worstBig.valEUR) + ' \u00e0 ' + ((worstBig.yield || 0) * 100).toFixed(1) + '%).<br>' : '') +
+      // La trésorerie des sociétés est comptée dans le cash du couple — elle appartient bien à
+      // Amine — mais elle n'est pas mobilisable comme du cash personnel : la sortir demande une
+      // distribution, avec sa fiscalité et les besoins de la société. On la distingue.
+      (cv.tresorerieEntrepriseEUR > 0
+        ? '- <span style="color:#805ad5">Dont tr\u00e9sorerie de soci\u00e9t\u00e9s :</span> ' + fmt(cv.tresorerieEntrepriseEUR)
+          + ' (' + (cv.tresorerieEntreprise || []).map(a => a.label).join(', ')
+          + ') \u2014 comprise dans le total, mais distribuable seulement, pas disponible comme cash personnel.'
+        : '') +
       mobBlock;
   }
 
@@ -3560,14 +3586,21 @@ function renderCashView(state) {
     const REF_YIELD = 0.06; // 6% benchmark
 
     // Build enriched flat data for sorting — hide tiny accounts (< 50€)
-    const MIN_DISPLAY_EUR = 50;
+    // Le seuil était à 50 € : les comptes en dessous disparaissaient des lignes mais restaient
+    // dans les sous-totaux et le grand total, qui ne faisaient donc plus la somme de ce qui est
+    // affiché (4 à 5 € d'écart, dus au Wio Current). On descend au niveau où l'affichage arrondit
+    // de toute façon à zéro.
+    const MIN_DISPLAY_EUR = 1;
     const cashData = cv.accounts.map(a => {
       const isDebt = a.isDebt;
       let yieldAnnVal, missed;
       if (isDebt) {
+        // Le coût d'emprunt JPY est un COÛT, pas un manque à gagner : le compter dans cette
+        // colonne l'ajoutait au total et faisait diverger le tableau du graphe et du diagnostic
+        // (196 € d'écart). Il reste visible dans la colonne « rendement annuel », en négatif.
         const costAnn = Math.abs(a.valEUR) * Math.abs(a.yield || 0);
         yieldAnnVal = -costAnn;
-        missed = costAnn;
+        missed = 0;
       } else {
         yieldAnnVal = a.valEUR * (a.yield || 0);
         missed = a.valEUR > 0 ? Math.max(0, a.valEUR * (REF_YIELD - (a.yield || 0))) : 0;
@@ -7038,8 +7071,22 @@ function attachKPIInsights(state, view) {
     const cv = s.cashView;
     insights['kpiCashTotal'] = '\u20ac' + f(cv.totalCash) + ' en cash. Rendement moyen : ' + (cv.weightedAvgYield * 100).toFixed(1) + '%. Cash productif : \u20ac' + f(cv.totalYielding) + ' (' + pct(cv.totalYielding, cv.totalCash) + '%).';
     insights['kpiCashAvgYield'] = 'Rendement pond\u00e9r\u00e9 de tous les comptes. UAE : 6% (Wio/Mashreq). IBKR EUR : 1.5%. France/Maroc : 0%. Objectif : maximiser le cash \u00e0 6%.';
-    insights['kpiCashInflation'] = '-\u20ac' + f(cv.monthlyInflationCost) + '/mois d\'\u00e9rosion (3% inflation). En 1 an = -\u20ac' + f(cv.monthlyInflationCost * 12) + ' de pouvoir d\'achat perdu.';
-    insights['kpiCashProductive'] = 'Cash plac\u00e9 \u00e0 rendement > 0%. Le reste est dormant et perd de la valeur chaque mois. Objectif : 100% productif.';
+    // Ce KPI ne porte QUE sur le cash qui ne bat pas l'inflation, alors que le graphe « après
+    // inflation » érode la totalité du cash : deux chiffres très différents (255 €/mois contre
+    // ~827 €/mois) pour ce qui se lisait comme la même chose. Le libellé et l'infobulle disent
+    // désormais le périmètre, et l'infobulle donne aussi l'érosion totale pour la relier au graphe.
+    insights['kpiCashInflation'] = '-\u20ac' + f(cv.monthlyInflationCost) + '/mois d\'\u00e9rosion sur les '
+      + f(cv.totalNonYielding) + ' qui rapportent moins que l\'inflation (3 %). En 1 an = -\u20ac'
+      + f(cv.monthlyInflationCost * 12) + '. \u00c0 ne pas confondre avec l\'\u00e9rosion de la TOTALIT\u00c9 du cash, '
+      + '-\u20ac' + f((cv.coupleFrame && cv.coupleFrame.inflationErosion || 0) / 12) + '/mois, qui est ce que montre le graphe « apr\u00e8s inflation ».';
+    // Le texte annonçait « rendement > 0 % » alors que le KPI compte les comptes à rendement
+    // ≥ 3 % (le seuil d'inflation). L'écart est exactement le Livret A à 1,5 %, qui rapporte
+    // sans battre l'inflation — et qui apparaissait donc productif dans le graphe et dormant
+    // dans le KPI.
+    insights['kpiCashProductive'] = 'Cash dont le rendement atteint au moins l\'inflation (3 %) : '
+      + f(cv.totalYielding) + '. Un compte qui rapporte un peu sans atteindre ce seuil perd quand '
+      + 'm\u00eame du pouvoir d\'achat \u2014 il compte comme dormant ici, alors que le graphe '
+      + '« sans inflation » le classe parmi les comptes qui rapportent.';
   }
 
   // ── Immo view ──
@@ -7330,7 +7377,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=507').then(m => {
+  import('./charts.js?v=508').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

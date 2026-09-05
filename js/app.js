@@ -4,15 +4,15 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=507';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=508';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
-         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=507';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=507';
-import { render, applySnapshotDeltas } from './render.js?v=507';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=507';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=507';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=507';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=507';
+         deverrouillerDepuisAppareil, appareilAppaire, oublierAppareil } from './unlock.js?v=508';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=508';
+import { render, applySnapshotDeltas } from './render.js?v=508';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=508';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=508';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=508';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=508';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
