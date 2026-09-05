@@ -147,7 +147,9 @@ export function normaliser(c, canal) {
 export function mettreEnCache(c, magasin) {
   try {
     const m = magasin || (typeof localStorage !== 'undefined' ? localStorage : null);
-    if (m) m.setItem(CLE_CACHE, JSON.stringify({ recuLe: Date.now(), contrat: c }));
+    // Le canal d'ORIGINE est mémorisé : sans lui, un contrat reçu à l'instant par HTTP
+    // s'annonçait « cache local » au rendu suivant — indiscernable du repli hors ligne.
+    if (m) m.setItem(CLE_CACHE, JSON.stringify({ recuLe: Date.now(), canal: 'http', contrat: c }));
   } catch (e) { /* mode privé : le cache hors ligne est perdu, rien de plus */ }
 }
 
@@ -169,7 +171,13 @@ export function lireContratEnCache(magasin) {
   const c = enveloppe && enveloppe.contrat;
   const v = validerContrat(c);
   if (!v.ok) return { contrat: null, code: v.code, raison: v.raison };
-  return { contrat: normaliser(c, enveloppe.canal || 'cache'), code: 'ok', raison: null };
+  const n = normaliser(c, enveloppe.canal || 'cache');
+  n.recuLe = enveloppe.recuLe || null;
+  // Un contrat reçu il y a plus d'une journée n'a pas été rafraîchi depuis : la lecture
+  // est alors bien celle du CACHE, pas d'une récupération distante récente.
+  n.canal = (n.canal === 'http' && enveloppe.recuLe && (Date.now() - enveloppe.recuLe) < 86400000)
+    ? 'http' : 'cache';
+  return { contrat: n, code: 'ok', raison: null };
 }
 
 /**

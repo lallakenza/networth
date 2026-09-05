@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=534';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=534';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=534';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=534';
-import { loadSnapshots } from './api.js?v=534'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=534'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=535';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=535';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=535';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=535';
+import { loadSnapshots } from './api.js?v=535'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=535'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;

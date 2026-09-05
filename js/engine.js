@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=534';
-import { lireContratEnCache } from './facturation_contract.js?v=534';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=535';
+import { lireContratEnCache } from './facturation_contract.js?v=535';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4397,7 +4397,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     _factuCounterparts = c.positions.map((x) => x.nom);
     _factuSrc = 'contrat 2048 ' + c.schemaVersion + ' (' + c.canal + ', ' + c.dataAsOf + ')';
     _factuMeta = {
-      canal: c.canal === 'http' ? 'contrat distant (HTTP)' : 'contrat en cache local',
+      canal: c.canal === 'http' ? 'contrat distant (HTTP)' : 'contrat en cache local (r\u00e9seau indisponible)',
       schemaVersion: c.schemaVersion, producerVersion: c.producerVersion,
       dataAsOf: c.dataAsOf, ageJours: c.ageJours, fraicheur: c.fraicheur,
       etat: c.fraicheur, raison: null, netMAD: c.netMAD, positions: c.positions, herite: false,
