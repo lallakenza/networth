@@ -279,8 +279,8 @@ t('les périmètres du couple valent la somme d’Amine et Nezha', () => {
 t('exploitation, portage et régime de croisière sont trois agrégats distincts', () => {
   const t2 = iv.temporel;
   assert.ok(t2, 'agrégats temporels absents');
-  assert.deepEqual(t2.exploitation.biens.sort(), ['rueil', 'vitry']);
-  assert.deepEqual(t2.enConstruction.biens, ['villejuif']);
+  assert.deepEqual(t2.exploitation.biens.slice().sort(), ['Rueil', 'Vitry']);
+  assert.deepEqual(t2.enConstruction.biens, ['Villejuif']);
   // Aujourd’hui = exploitation + le coût de portage, et rien d’autre.
   proche(t2.actuel.cf, t2.exploitation.cf + t2.enConstruction.coutActuel, 0.01, 'CF actuel');
   proche(t2.actuel.charges, t2.exploitation.charges - t2.enConstruction.coutActuel, 0.01, 'charges actuelles');

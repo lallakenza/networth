@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=536';
-import { lireContratEnCache } from './facturation_contract.js?v=536';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=537';
+import { lireContratEnCache } from './facturation_contract.js?v=537';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3398,16 +3398,18 @@ function computeImmoView(portfolio, fx) {
   const _exploites = properties.filter((p) => !p.conditional);
   const _enCours = properties.filter((p) => p.conditional);
   const _som = (arr, f) => arr.reduce((s, p) => s + (f(p) || 0), 0);
+  // Ces objets n'ont pas de `label` : c'est `loanKey` qui les nomme, en minuscules.
+  const _nom = (p) => { const k = String(p.label || p.loanKey || ''); return k.charAt(0).toUpperCase() + k.slice(1); };
   const temporel = {
     exploitation: {
-      biens: _exploites.map((p) => p.label || p.loanKey),
+      biens: _exploites.map(_nom),
       recettes: _som(_exploites, (p) => p.totalRevenue),
       loyerNu: _som(_exploites, (p) => p.loyer),
       charges: _som(_exploites, (p) => p.charges),
       cf: _som(_exploites, (p) => p.cf),
     },
     enConstruction: {
-      biens: _enCours.map((p) => p.label || p.loanKey),
+      biens: _enCours.map(_nom),
       // Ce qui sort du compte AUJOURD'HUI (assurance en franchise), et rien d'autre.
       coutActuel: _som(_enCours, (p) => p.cfReel),
       // Ce qui sortira une fois la franchise terminée : mensualité pleine + charges.
