@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=529';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=529';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=530';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=530';
 
 // ---- Generic table sort utility ----
 /**
@@ -7453,8 +7453,18 @@ function attachKPIInsights(state, view) {
 
   // Bind events on all .kpi cards
   document.querySelectorAll('.kpi-strip').forEach(strip => {
+    // La barre d'infobulle était cherchée par un identifiant DÉRIVÉ de celui de la bande.
+    // Or six bandes n'en ont pas : `'insight-' + ''` donnait « insight- », introuvable, et
+    // la bande entière repartait sans le moindre écouteur. Les cartes de l'Immobilier
+    // (recettes, charges, CF net, création de richesse) n'ont donc jamais eu d'infobulle.
+    // À défaut d'identifiant, on prend la barre de la même section — c'est celle que le
+    // lecteur voit sous ces cartes.
     const barId = 'insight-' + (strip.id || '').replace('kpi-', '');
-    const bar = document.getElementById(barId);
+    let bar = strip.id ? document.getElementById(barId) : null;
+    if (!bar) {
+      let p2 = strip.parentElement;
+      while (p2 && !bar) { bar = p2.querySelector(':scope .kpi-insight-bar'); p2 = p2.parentElement; }
+    }
     if (!bar) return;
 
     strip.querySelectorAll('.kpi').forEach(kpi => {
@@ -7692,7 +7702,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=529').then(m => {
+  import('./charts.js?v=530').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
