@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=521';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=521';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=522';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=522';
 
 // ---- Generic table sort utility ----
 /**
@@ -1185,7 +1185,7 @@ function renderCoupleTable(state) {
     // PONDÉRÉE par la probabilité de recouvrement (2 602 \u20ac) : deux chiffres contradictoires
     // sur la même ligne. Le montant nominal n'a rien à faire dans le libellé.
     ['Creance Omar \u2014 Nezha (pond\u00e9r\u00e9e)', s.nezha.recvOmar],
-    ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
+    [libelleFacturation(s), s.amine.facturationNet],
     ['TVA a payer (Amine)', s.amine.tva],
   ];
   buildDetailTableWithPct('#coupleDetailTable', rows, 'Net Worth Couple', s.couple.nw);
@@ -1212,7 +1212,7 @@ function renderAmineTable(state) {
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ['Creances SAP & Tax (INVSNT006 — 15j + frais, éch. 01/07/2026)', s.amine.recvPro],
     ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
-    ['Facturation net (Augustin \u2212 Benoit)', s.amine.facturationNet],
+    [libelleFacturation(s), s.amine.facturationNet],
     ['TVA a payer', s.amine.tva],
   ];
   buildDetailTableWithPct('#amineDetailTable', rows, 'Net Worth Amine', s.amine.nw);
@@ -1597,6 +1597,18 @@ let _allSortDir = 'desc';
 
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
+
+/**
+ * Libellé de la ligne « Facturation nette », dérivé du PÉRIMÈTRE RÉEL du calcul.
+ * Il annonçait « Augustin − Benoit » alors que le chemin canonique lit `combined.mad`,
+ * qui agrège toutes les contreparties du site de facturation — Bob compris. Un libellé
+ * écrit à la main se désynchronise dès qu'une contrepartie est ajoutée ; celui-ci suit.
+ */
+function libelleFacturation(s) {
+  const cps = (s && s.amine && s.amine.facturationCounterparts) || [];
+  if (!cps.length) return 'Facturation nette';
+  return 'Facturation nette (' + cps.join(' + ') + ')';
+}
 
 /**
  * Bandeau de résidence fiscale. Il annonçait « Résidents fiscaux UAE » au singulier et pour le
@@ -7484,7 +7496,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=521').then(m => {
+  import('./charts.js?v=522').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

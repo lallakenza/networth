@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=521';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=522';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4221,6 +4221,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // homogénéité avec le reste du dashboard (qui est en EUR).
   let amineFacturationNet = 0;
   let _factuSrc = 'data.js';
+  // Périmètre RÉEL du calcul. Le chemin canonique lit `combined.mad`, qui agrège TOUTES
+  // les contreparties du site de facturation — Bob compris — pendant que l'écran annonçait
+  // « Augustin − Benoit ». On collecte les noms pour que le libellé suive le calcul.
+  let _factuCounterparts = [];
   try {
     const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
     if (raw) {
@@ -4228,19 +4232,27 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       // Prefer combined.mad (canonical, "tout au Maroc" scenario, B2 fix)
       if (fp.combined && fp.combined.mad != null) {
         amineFacturationNet = toEUR(fp.combined.mad, 'MAD', fx);
+        _factuCounterparts = fp.counterparts && typeof fp.counterparts === 'object'
+          ? Object.values(fp.counterparts).map((c, i) => (c && c.label) || Object.keys(fp.counterparts)[i])
+          : (fp.combinedLabels || []);
       } else {
         // Legacy schema fallback
         const augustinMAD = fp.augustin && fp.augustin.mad != null ? fp.augustin.mad : 0;
         const benoitDH = fp.benoit && fp.benoit.dh != null ? fp.benoit.dh : 0;
         amineFacturationNet = toEUR(augustinMAD, 'MAD', fx) + toEUR(benoitDH, 'MAD', fx);
+        _factuCounterparts = ['Augustin', 'Benoit'];
       }
       _factuSrc = 'localStorage (' + (fp.updatedAt || '?') + ')';
     }
   } catch(e) { /* localStorage unavailable or parse error */ }
   // Fallback: use hardcoded values from data.js if localStorage was empty
   if (_factuSrc === 'data.js' && p.amine.facturation) {
-    Object.values(p.amine.facturation).forEach(pos => {
+    Object.entries(p.amine.facturation).forEach(([cle, pos]) => {
       amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
+      // La CLÉ est le nom de la contrepartie ; le libellé, lui, décrit le sens de la
+      // position (« Je dois à Benoit… ») et en extraire le premier mot donnait « Je ».
+      const court = String(cle).charAt(0).toUpperCase() + String(cle).slice(1);
+      if (court && _factuCounterparts.indexOf(court) < 0) _factuCounterparts.push(court);
     });
     _factuSrc = 'data.js (fallback)';
   }
@@ -4301,7 +4313,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     recvPro: amineRecvPro,
     recvPersonal: amineRecvPersonal,
     tva: amineTva,
-    facturationNet: amineFacturationNet, // net position from facturation site (Augustin - Benoit)
+    facturationNet: amineFacturationNet, // position nette issue du site de facturation
+    // Périmètre RÉEL du calcul, pour que l'écran cesse d'annoncer « Augustin − Benoit »
+    // pendant que le pont localStorage agrège un nombre arbitraire de contreparties (Bob
+    // compris). Le libellé se dérive d'ici, il ne se réécrit plus à la main.
+    facturationCounterparts: _factuCounterparts,
     totalAssets: amineTotalAssets,
     cashTotal: amineCashTotal,
     // v305 — Patrimoine financier mobilisable = cash (UAE + EUR + Maroc +
