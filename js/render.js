@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=520';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=520';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=521';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=521';
 
 // ---- Generic table sort utility ----
 /**
@@ -1597,6 +1597,28 @@ let _allSortDir = 'desc';
 
 const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
+
+/**
+ * Bandeau de résidence fiscale. Il annonçait « Résidents fiscaux UAE » au singulier et pour le
+ * couple, alors que Nezha est résidente française AUJOURD'HUI et que seules les PROJECTIONS
+ * supposent la non-résidence. Deux régimes coexistent : l'écran doit dire lequel il applique.
+ */
+function bandeauResidenceFiscale() {
+  const R = RESIDENCE_FISCALE || {};
+  const L = (R.libelles || {});
+  const nom = (k) => L[k] || k;
+  const ligne = (qui, r) => {
+    if (!r) return '';
+    const memeRegime = r.actuelle === r.projection;
+    return '<strong>' + qui + '</strong> : ' + nom(r.actuelle) + ' aujourd\'hui'
+      + (memeRegime ? '' : ', ' + nom(r.projection) + ' dans les projections'
+          + (r.transition ? ' (\u00e0 partir de ' + r.transition + ')' : ' (date \u00e0 confirmer)'));
+  };
+  return ligne('Amine', R.amine) + '. ' + ligne('Nezha', R.nezha) + '.'
+    + ' Les chiffres ci-dessous appliquent le bar\u00e8me <strong>non-r\u00e9sident</strong> '
+    + '(taux minimum 20&nbsp;% + PS 17,2&nbsp;%), coh\u00e9rent avec les projections mais '
+    + '<span style="color:#b45309">pas avec la situation actuelle de Nezha</span>.';
+}
 
 /**
  * Libellé de livraison de Villejuif, dérivé du référentiel (data.js, écrasé par la surcouche
@@ -5198,6 +5220,10 @@ function renderImmoView(state) {
   }
 
   // Fiscal table
+  // Bandeau de résidence : rendu ici, au même moment que la table qu'il qualifie.
+  const _bandRes = document.getElementById('fiscalResidenceBandeau');
+  if (_bandRes) _bandRes.innerHTML = bandeauResidenceFiscale();
+
   const fiscTbody = document.getElementById('fiscalTbody');
   if (fiscTbody) {
     fiscTbody.innerHTML = '';
@@ -7458,7 +7484,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=520').then(m => {
+  import('./charts.js?v=521').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

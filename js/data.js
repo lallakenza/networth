@@ -1385,7 +1385,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v520';
+export const APP_VERSION = 'v521';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2977,6 +2977,25 @@ export const IMMO_MAROC_FEES = {
 // v315 (audit) : EUR mis à jour 3.1% → 4.3% (€STR passé à 3.0% en 2025-2026
 // + spread 1.3%). L'ancienne valeur 3.1% supposait un €STR 1.6% (niveau 2024).
 // À vérifier semestriellement contre la courbe €STR BCE.
+// ── Résidence fiscale ────────────────────────────────────────────────────────────────────────
+// Elle était AFFIRMÉE en prose dans le bandeau de la page Immobilier (« Résidents fiscaux UAE »),
+// au singulier et pour le couple entier, alors que la situation diffère par personne ET dans le
+// temps : Nezha est résidente fiscale FRANÇAISE aujourd'hui, et le départ est prévu — c'est
+// pourquoi les projections raisonnent en non-résidence.
+//
+// Deux régimes coexistent donc légitimement : celui d'AUJOURD'HUI et celui des PROJECTIONS. Les
+// confondre était l'erreur ; les déclarer ici permet aux écrans de dire lequel ils appliquent.
+// `transition` reste null tant que la date n'est pas arrêtée : l'afficher « à confirmer » vaut
+// mieux qu'inventer une échéance.
+export const RESIDENCE_FISCALE = {
+  amine: { actuelle: 'non-resident', pays: 'UAE', projection: 'non-resident', transition: null },
+  nezha: { actuelle: 'resident-fr',  pays: 'FR',  projection: 'non-resident', transition: null },
+  libelles: {
+    'resident-fr':   'résidente fiscale française',
+    'non-resident':  'non-résidence fiscale (UAE)',
+  },
+};
+
 export const MARGIN_RATES = {
   EUR: 0.043,    // 4.3% — €STR ~3.0% + spread 1.3%
   USD: 0.048,    // 4.8% — SOFR ~3.3% + spread 1.5%
