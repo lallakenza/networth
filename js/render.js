@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=515';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=515';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=516';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=516';
 
 // ---- Generic table sort utility ----
 /**
@@ -415,6 +415,12 @@ function renderKPIs(state, view) {
   if (s.actionsView) {
     const _amTWR = window._chartKPIData?.twr ?? s.actionsView.twr;
     setText('kpiAmTWR', (_amTWR >= 0 ? '+' : '') + _amTWR.toFixed(1) + '%');
+    // Second emplacement du même indicateur (résumé Actions & Crypto). Il portait un
+    // `data-eur-pct="26.94"` écrit en dur et SANS identifiant : rien ne le mettait à jour, donc
+    // il affichait « -- » en permanence tout en gardant une valeur périmée dans le DOM, alors
+    // que le TWR réel vaut -13,7 %. Une seule source pour les deux.
+    setText('kpiAmTWR2', (_amTWR >= 0 ? '+' : '') + _amTWR.toFixed(1) + '%');
+    document.getElementById('kpiAmTWR2')?.classList.add(_amTWR >= 0 ? 'pl-pos' : 'pl-neg');
   }
 
   // v346 \u2014 Acte sign\u00e9 05/06/2026 : l'equity Villejuif est nativement dans nezha.nw.
@@ -997,7 +1003,10 @@ function renderDynamicInsights(state, view) {
   if (ibkrBox) {
     const chartTWR2 = window._chartKPIData?.twr;
     const twrBox = chartTWR2 != null ? chartTWR2 : (p.amine.ibkr.meta.twr || 0);
-    const ibkrDeps = p.amine.ibkr.deposits.reduce((s2, d) => s2 + d.amount, 0);
+    // Somme des montants NATIFS : 162 004 EUR + 195 000 AED additionnés comme s'il s'agissait
+    // de la même devise, soit 357 004 au lieu de 207 932 €. Le moteur, lui, convertit chaque
+    // dépôt au taux du jour (`fxRateAtDate`) — on lit son résultat.
+    const ibkrDeps = (s.actionsView && s.actionsView.ibkrDepositsTotal) || 0;
     ibkrBox.innerHTML = '<strong>IBKR :</strong> NAV ' + fmt(s.amine.ibkr) + ', dépôts ' + N(ibkrDeps) + '. TWR ' + (twrBox >= 0 ? '+' : '') + twrBox.toFixed(2) + '% YTD.';
   }
 
@@ -1009,17 +1018,24 @@ function renderDynamicInsights(state, view) {
     // Dynamic insights — compute portfolio projections from actual state
     const ibkrNAV = s.amine.ibkr;
     const twr = window._chartKPIData?.twr ?? (p.amine.ibkr.meta.twr || 0);
-    const deposits = p.amine.ibkr.deposits.reduce((s2, d) => s2 + d.amount, 0);
+    const deposits = (s.actionsView && s.actionsView.ibkrDepositsTotal) || 0;
     const plTotal = ibkrNAV - deposits;
     const plPct = deposits > 0 ? (plTotal / deposits * 100).toFixed(1) : '0';
-    // Simple projection: current NAV growing at estimated annual return
-    const annualReturn = deposits > 0 && ibkrNAV > 0 ? (ibkrNAV / deposits - 1) : 0;
-    const proj3y = Math.round(ibkrNAV * Math.pow(1 + Math.min(annualReturn, 0.10), 3));
+    // Le rendement CUMULÉ était utilisé comme s'il était ANNUEL, puis composé sur trois ans.
+    // Combiné aux dépôts non convertis, cela donnait un taux de −38 % et une NAV projetée à
+    // 52 K€. On annualise sur la durée réellement écoulée depuis le premier dépôt.
+    const _dep1 = (p.amine.ibkr.deposits || [])[0];
+    const _ans = _dep1 ? Math.max(0.25, (Date.now() - new Date(_dep1.date).getTime()) / (365.25 * 24 * 3600 * 1000)) : 1;
+    const rendementCumule = deposits > 0 && ibkrNAV > 0 ? (ibkrNAV / deposits - 1) : 0;
+    const annualReturn = rendementCumule > -1 ? Math.pow(1 + rendementCumule, 1 / _ans) - 1 : 0;
+    const proj3y = Math.round(ibkrNAV * Math.pow(1 + annualReturn, 3));
 
     amAct.innerHTML =
       '<strong>Insights Actions :</strong><br>' +
       '- TWR de ' + twr.toFixed(1) + '% (P/L total: ' + (plTotal >= 0 ? '+' : '') + N(Math.round(plTotal)) + ', soit ' + (plTotal >= 0 ? '+' : '') + plPct + '% sur depots).<br>' +
-      '- <span style="color:var(--green)">Projection 3 ans (au rythme actuel) :</span> NAV ~' + K(proj3y) + ' (sans apport supplementaire).<br>' +
+      '- <span style="color:var(--green)">Projection 3 ans :</span> NAV ~' + K(proj3y)
+        + ' en prolongeant le rendement annualise observe (' + (annualReturn * 100).toFixed(1) + '%/an sur '
+        + _ans.toFixed(1) + ' ans d\'historique, sans apport supplementaire).<br>' +
       '- <span style="color:var(--green)">Deleverage JPY :</span> Short JPY reduit a -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR).';
   }
 
@@ -7413,7 +7429,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=515').then(m => {
+  import('./charts.js?v=516').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
