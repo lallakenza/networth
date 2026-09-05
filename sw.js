@@ -19,7 +19,7 @@
  *   Requêtes non-GET, et tout ce qui n'est pas same-origin hors liste → JAMAIS caché.
  */
 
-const VERSION = 'v530';
+const VERSION = 'v531';
 const CACHE_COQUILLE = 'patrimoine-coquille-' + VERSION;
 const CACHE_DONNEES = 'patrimoine-donnees-' + VERSION;
 
@@ -99,8 +99,14 @@ self.addEventListener('fetch', (e) => {
   const estDocument = req.mode === 'navigate' || req.destination === 'document'
     || (req.headers.get('accept') || '').includes('text/html');
   if (estDocument) {
+    // `cache: 'reload'` N'EST PAS DÉCORATIF. GitHub Pages sert index.html avec
+    // `cache-control: max-age=600` : un `fetch(req)` ordinaire est légitimement satisfait
+    // par le cache HTTP du navigateur, et le « réseau d'abord » rendait alors un document
+    // vieux de dix minutes — donc une page nommant les fichiers ?v=N de la version
+    // PRÉCÉDENTE, exactement le symptôme qu'on croyait corrigé. Cette option force le
+    // rafraîchissement auprès du serveur. Le repli hors ligne, lui, reste le cache.
     e.respondWith(
-      fetch(req)
+      fetch(new Request(req.url, { cache: 'reload', credentials: 'same-origin', redirect: 'follow' }))
         .then((rep) => {
           if (rep && rep.ok) {
             const copie = rep.clone();
