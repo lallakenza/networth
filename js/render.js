@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=528';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=528';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=529';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=529';
 
 // ---- Generic table sort utility ----
 /**
@@ -7462,15 +7462,19 @@ function attachKPIInsights(state, view) {
       if (!valueEl) return;
       const id = valueEl.id;
       // Certaines infobulles sont produites par les fonctions de rendu de vue, qui tournent
-      // après cette construction (l'immo décompose loyer nu / provision de charges au moment
-      // où il agrège les biens). Elles se déposent ici plutôt que d'être recalculées.
-      const extra = (typeof window !== 'undefined' && window._insightsExtra) || {};
-      const text = insights[id] || extra[id];
-      if (!text) return;
+      // APRÈS ce câblage (l'immo décompose loyer nu / provision de charges au moment où il
+      // agrège les biens). Le texte est donc résolu au survol, pas ici : le lire maintenant
+      // revenait à ne jamais poser d'écouteur pour ces cartes-là.
+      const texte = () => insights[id]
+        || ((typeof window !== 'undefined' && window._insightsExtra) || {})[id];
 
-      // Remove old listeners (by replacing node — simple approach)
+      // L'écouteur est posé sans condition : une carte sans texte ne fait simplement rien au
+      // survol. Filtrer ici imposerait que TOUTES les infobulles existent déjà, ce qui n'est
+      // pas le cas de celles produites plus tard par les vues.
       kpi.onmouseenter = () => {
-        bar.textContent = text;
+        const t = texte();
+        if (!t) return;
+        bar.textContent = t;
         bar.classList.add('visible');
       };
       kpi.onmouseleave = () => {
@@ -7688,7 +7692,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=528').then(m => {
+  import('./charts.js?v=529').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
