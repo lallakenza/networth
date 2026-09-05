@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=531';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=531';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=532';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=532';
 
 // ---- Generic table sort utility ----
 /**
@@ -4489,12 +4489,15 @@ function renderImmoView(state) {
   // construction (Villejuif) en sont exclus, donc ce n'est pas le régime de croisière — deux
   // horizons que la page laissait se confondre.
   (function () {
-    const enConstruction = fp.filter((p2) => p2.conditional).map((p2) => p2.label || p2.loanKey);
+    // `label` est absent sur ces objets : c'est `loanKey` qui les nomme, en minuscules.
+    const joli = (k) => String(k || '').charAt(0).toUpperCase() + String(k || '').slice(1);
+    const enConstruction = fp.filter((p2) => p2.conditional).map((p2) => joli(p2.label || p2.loanKey));
     const el = document.getElementById('kpiImmoViewLoyersLabel');
     if (el) el.textContent = 'Recettes totales /mois' + (enConstruction.length ? ' (aujourd\u2019hui)' : '');
     window._insightsExtra = window._insightsExtra || {};
-    window._insightsExtra['kpiImmoViewLoyers'] = 'Loyer nu \u20ac' + fmt(Math.round(fLoyerNu))
-      + ' + provision pour charges \u20ac' + fmt(Math.round(fProvCharges))
+    // `fmt()` préfixe déjà le symbole € : en ajouter un donnait « €€ 2 570 ».
+    window._insightsExtra['kpiImmoViewLoyers'] = 'Loyer nu ' + fmt(Math.round(fLoyerNu))
+      + ' + provision pour charges ' + fmt(Math.round(fProvCharges))
       + ' (revers\u00e9e au syndic, pas un revenu). '
       + (enConstruction.length
         ? 'Hors ' + enConstruction.join(', ') + ', encore en construction : ce chiffre d\u00e9crit '
@@ -7702,7 +7705,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=531').then(m => {
+  import('./charts.js?v=532').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
