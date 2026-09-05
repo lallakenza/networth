@@ -31,6 +31,29 @@ Aucun autre fichier ne change : `engine.js`, `render.js` et `charts.js` continue
 déverrouillage remplit — le même mécanisme que la surcouche Supabase (`applyImmoRef`) et les prix
 de référence (`applyPriceRefs`) utilisent déjà.
 
+## Ne pas la perdre
+
+C'est arrivé une fois, et la cause est le fonctionnement normal du script : la phrase est saisie
+en masqué et n'est écrite **nulle part** — ni historique du shell, ni fichier, ni journal. Bon
+pour un secret, irrécupérable si elle n'est notée nulle part ailleurs.
+
+Depuis, le script sait la ranger dans le **trousseau macOS** :
+
+```bash
+node scripts/build_encrypted_data.mjs --keychain --verify
+```
+
+Il la demande une fois, chiffre, puis l'enregistre sous le service `networth-data-passphrase`.
+Les fois suivantes, la même commande la relit toute seule sans rien demander ni afficher. Pour la
+consulter : `security find-generic-password -s networth-data-passphrase -a networth -w`.
+
+> Ce n'est pas une sauvegarde suffisante à elle seule : un trousseau se perd avec la machine.
+> Mets-la aussi dans ton gestionnaire de mots de passe.
+
+**Si elle est perdue malgré tout**, rien n'est détruit : `~/networth-data/data.source.js` contient
+les données en clair. On régénère simplement un blob avec une nouvelle phrase. Le seul coût est
+que chaque navigateur déjà appairé doit ressaisir la nouvelle phrase une fois.
+
 ## Choisir la phrase
 
 C'est **la** décision qui détermine la solidité de l'ensemble : le blob est public, sa seule

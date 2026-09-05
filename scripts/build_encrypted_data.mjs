@@ -19,6 +19,8 @@
  *   node scripts/build_encrypted_data.mjs            # saisie interactive de la phrase
  *   NW_PASSPHRASE='…' node scripts/build_encrypted_data.mjs   # non interactif (CI)
  *   node scripts/build_encrypted_data.mjs --verify   # vérifie que le blob se déchiffre
+ *   node scripts/build_encrypted_data.mjs --keychain # lit/enregistre la phrase dans le
+ *                                                    # trousseau macOS (recommandé)
  *
  * SOLIDITÉ DE LA PHRASE — À LIRE
  *   Le blob étant public, sa seule protection est la phrase. Un code à 4 chiffres (10 000
@@ -30,8 +32,36 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { webcrypto as crypto } from 'node:crypto';
 import { createInterface } from 'node:readline';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// ── Trousseau macOS ───────────────────────────────────────────────────────────
+// La phrase saisie ici n'était écrite NULLE PART, par conception. C'est correct pour un secret,
+// mais cela l'a rendue irrécupérable dès la première fois où elle n'a pas été notée ailleurs :
+// ni l'historique du shell, ni un fichier, ni un gestionnaire ne la contenaient. Le trousseau
+// macOS est le bon endroit — chiffré par le système, déverrouillé par la session, jamais dans
+// le dépôt. `--keychain` l'y enregistre après un chiffrement réussi ; le script la relit ensuite
+// tout seul, sans rien afficher.
+const KC_SERVICE = 'networth-data-passphrase';
+const KC_ACCOUNT = 'networth';
+
+function phraseDepuisTrousseau() {
+  try {
+    return execFileSync('security', ['find-generic-password', '-s', KC_SERVICE, '-a', KC_ACCOUNT, '-w'],
+      { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).replace(/\n$/, '');
+  } catch (e) { return null; }
+}
+
+function enregistrerAuTrousseau(phrase) {
+  try {
+    execFileSync('security', ['add-generic-password', '-U', '-s', KC_SERVICE, '-a', KC_ACCOUNT,
+      '-w', phrase, '-D', 'phrase de chiffrement networth',
+      '-j', 'Ouvre js/data.enc.js. Sans elle, le blob est irrecuperable (la source en clair reste dans ~/networth-data).'],
+      { stdio: ['ignore', 'ignore', 'ignore'] });
+    return true;
+  } catch (e) { return false; }
+}
 
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -55,6 +85,10 @@ const LONGUEUR_MIN = 12;
 
 function demanderPhrase() {
   if (process.env.NW_PASSPHRASE) return Promise.resolve(process.env.NW_PASSPHRASE);
+  if (process.argv.includes('--keychain')) {
+    const kc = phraseDepuisTrousseau();
+    if (kc) { console.log('  (phrase lue depuis le trousseau macOS)'); return Promise.resolve(kc); }
+  }
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     process.stdout.write('Phrase secrète (invisible à la saisie) : ');
@@ -160,6 +194,12 @@ async function principal() {
 // La source en clair vit hors du dépôt ; ce fichier est le seul publié.
 export const DATA_ENC = ${JSON.stringify(blob, null, 2)};
 `, 'utf-8');
+
+  if (process.argv.includes('--keychain') && phraseDepuisTrousseau() !== phrase) {
+    console.log(enregistrerAuTrousseau(phrase)
+      ? `✓ Phrase enregistrée dans le trousseau macOS (service « ${KC_SERVICE} »).`
+      : '✗ Enregistrement au trousseau échoué — note la phrase ailleurs AVANT de fermer ce terminal.');
+  }
 
   const ko = (n) => (n / 1024).toFixed(0);
   console.log(`✓ ${SORTIE}`);
