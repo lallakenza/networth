@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=518';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=519';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -6084,7 +6084,42 @@ export function computeObjectifs(state, opts) {
   // utilisent déjà cette racine (v297) ; on aligne objectifs/sensibilité.
   const r = Math.pow(1 + annualReturn, 1 / 12) - 1;
 
-  return (opts && opts.objectifs ? opts.objectifs : DEFAULT_OBJECTIFS).map(obj => {
+  const listeObj = (opts && opts.objectifs ? opts.objectifs : DEFAULT_OBJECTIFS);
+
+  // ── UN SEUL MOTEUR DE PROJECTION ──────────────────────────────────────────────────────────
+  // Cette fonction faisait croître l'INTÉGRALITÉ du patrimoine à 6 %/an — cash, véhicules,
+  // créances et immobilier compris — puis ajoutait 8 000 €/mois indéfiniment. `projectNW`, lui,
+  // ne fait croître que la poche ACTIONS, arrête les contributions après 36 mois, et modélise
+  // l'immobilier bien par bien (amortissement, frais de sortie, VEFA). Deux réponses
+  // différentes à la même question sur la même page.
+  // Les bases patrimoniales lisent désormais `projectNW`, donc Plan, Historique et le graphe
+  // de projection racontent la même trajectoire par construction.
+  const moisMax = listeObj.reduce((mx, o) => {
+    const t = new Date(o.dateTarget + '-01T00:00:00');
+    return Math.max(mx, (t.getFullYear() - today.getFullYear()) * 12 + (t.getMonth() - today.getMonth()));
+  }, 12);
+  const scenario = (opts && opts.scenario) || 'p50';
+  let proj = null;
+  try { proj = projectNW(state, { horizonMois: Math.min(600, moisMax + 2) }); } catch (e) { proj = null; }
+  const serie = (base) => {
+    if (!proj) return null;
+    if (base === 'couple-NW') return proj.couple && proj.couple[scenario];
+    if (base === 'amine-NW') return proj.amine && proj.amine[scenario];
+    return null;   // `mobilisable-amine` n'est pas une série de projectNW : repli analytique
+  };
+
+  // ── OBJECTIFS SÉQUENTIELS ─────────────────────────────────────────────────────────────────
+  // Chaque objectif était évalué depuis le MÊME capital de départ, indépendamment des autres :
+  // « appart parents » (250 K€ en 2027) et « studio Casa » (400 K€ en 2029) pouvaient être verts
+  // tous les deux, alors que le premier achat consomme le capital du second. On traite donc les
+  // objectifs dans l'ORDRE des échéances, et un objectif atteint prélève sa cible sur le capital
+  // disponible pour les suivants — la ponction capitalisant elle aussi jusqu'à l'échéance suivante.
+  const ordre = listeObj.map((o, i) => ({ o, i })).sort((a, b) =>
+    a.o.dateTarget.localeCompare(b.o.dateTarget) || a.i - b.i);
+  const ponctions = [];   // { mois, montant } des achats déjà engagés
+
+  const resultats = new Array(listeObj.length);
+  for (const { o: obj, i: idxOrigine } of ordre) {
     let currentValue = 0;
     if (obj.basis === 'couple-NW') currentValue = state?.couple?.nw || 0;
     else if (obj.basis === 'amine-NW') currentValue = state?.amine?.nw || 0;
@@ -6094,14 +6129,29 @@ export function computeObjectifs(state, opts) {
     // Months until target date
     const tgt = new Date(obj.dateTarget + '-01T00:00:00');
     const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
-    // Projected value at target = current × (1+r)^n + savings × ((1+r)^n - 1) / r
-    // v317 (C5) — Si r = 0 (annualReturn = 0 %), la formule dégénère :
-    //   projectedValue = currentValue + monthlySavingsEUR × n (juste cumul)
-    // car lim_{r→0} ((1+r)^n − 1) / r = n (dérivée en 0).
     const factor = Math.pow(1 + r, monthsToTarget);
-    const projectedValue = r === 0
-      ? currentValue + monthlySavingsEUR * monthsToTarget
-      : currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
+
+    // Valeur projetée : série du moteur quand elle existe, sinon repli analytique (poche
+    // mobilisable, qui n'est pas une sortie de projectNW).
+    const s2 = serie(obj.basis);
+    let projectedValue;
+    if (s2 && s2.length > monthsToTarget && s2[monthsToTarget] != null) {
+      projectedValue = s2[monthsToTarget];
+    } else {
+      projectedValue = r === 0
+        ? currentValue + monthlySavingsEUR * monthsToTarget
+        : currentValue * factor + monthlySavingsEUR * (factor - 1) / r;
+    }
+
+    // Retrait des achats déjà engagés, capitalisés jusqu'à cette échéance — mais UNIQUEMENT
+    // sur les poches LIQUIDES et de même nature. Un achat immobilier convertit du capital
+    // mobilisable en actif : il vide la poche liquide, il ne réduit pas le patrimoine net.
+    // Le déduire d'une base « NW » ferait disparaître la valeur du bien acheté.
+    const baseLiquide = obj.basis === 'mobilisable-amine';
+    const dejaEngage = !baseLiquide ? 0 : ponctions
+      .filter((p2) => p2.basis === obj.basis)
+      .reduce((acc, p2) => acc + p2.montant * Math.pow(1 + r, Math.max(0, monthsToTarget - p2.mois)), 0);
+    projectedValue -= dejaEngage;
 
     // v316 — Pour horizons longs (>10 ans), la cible nominale cache l'érosion
     // inflation. On expose aussi la cible en pouvoir d'achat 2026 :
@@ -6126,13 +6176,17 @@ export function computeObjectifs(state, opts) {
     // Required monthly to reach target if currently behind (solve for additional savings needed)
     // v317 (C5) — Si r = 0, solve: target = current + (savings + extra) × n
     //   → extra = (target − current) / n − savings
+    // Effort supplémentaire calculé sur l'ÉCART RÉEL (donc après retrait des achats déjà
+    // engagés), et non en repartant du capital de départ comme si rien n'avait été dépensé.
+    const manque = obj.target - projectedValue;
     const requiredMonthly = ratio < 1
-      ? (r === 0
-          ? (obj.target - currentValue) / monthsToTarget - monthlySavingsEUR
-          : ((obj.target - currentValue * factor) * r) / (factor - 1) - monthlySavingsEUR)
+      ? (r === 0 ? manque / monthsToTarget : (manque * r) / (factor - 1))
       : 0;
 
-    return {
+    // Objectif atteint : l'achat prélève sa cible sur le capital disponible pour les suivants.
+    if (ratio >= 1) ponctions.push({ mois: monthsToTarget, montant: obj.target, basis: obj.basis });
+
+    resultats[idxOrigine] = {
       ...obj,
       currentValue,
       projectedValue,
@@ -6148,8 +6202,12 @@ export function computeObjectifs(state, opts) {
       statusColor,
       gap: obj.target - projectedValue,
       requiredAdditionalMonthly: Math.max(0, requiredMonthly),
+      // Traçabilité : ce que les achats antérieurs ont retiré, et d'où vient la projection.
+      dejaEngage,
+      sourceProjection: (serie(obj.basis) ? 'projectNW/' + scenario : 'analytique'),
     };
-  });
+  }
+  return resultats;
 }
 
 /**

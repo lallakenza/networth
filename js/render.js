@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=518';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=518';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=519';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=519';
 
 // ---- Generic table sort utility ----
 /**
@@ -7454,7 +7454,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=518').then(m => {
+  import('./charts.js?v=519').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8002,7 +8002,11 @@ function renderPlanFiscalView(state) {
         + '<td class="num">' + cibleCell + '</td>'
         + '<td class="num">' + projCell + '</td>'
         + '<td class="num">' + (o.ratio * 100).toFixed(0) + '%</td>'
-        + '<td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:' + o.statusColor + ';color:white;font-size:10px;font-weight:600">' + o.statusLabel + '</span></td>'
+        + '<td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:' + o.statusColor + ';color:white;font-size:10px;font-weight:600">' + o.statusLabel + '</span>'
+        // Rendre le séquencement visible : sans cette mention, un objectif dont la projection
+        // baisse à cause d'un achat antérieur paraît inexplicable.
+        + (o.dejaEngage > 0 ? '<br><span style="font-size:10px;color:#b45309">après ' + fmtMoney(o.dejaEngage) + ' déjà engagés</span>' : '')
+        + '</td>'
         + '<td class="num" style="color:var(--red);font-size:11px">' + (o.requiredAdditionalMonthly > 0 ? '+' + Math.round(o.requiredAdditionalMonthly).toLocaleString('fr-FR') + ' €/mois' : '—') + '</td>'
         + '</tr>';
     });
