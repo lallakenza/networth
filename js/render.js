@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=508';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=508';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS } from './data.js?v=509';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=509';
 
 // ---- Generic table sort utility ----
 /**
@@ -4804,8 +4804,12 @@ function renderImmoView(state) {
       const card = document.createElement('div');
       card.className = 'prop-card' + (prop.conditional ? ' conditional' : '');
       card.dataset.loanKey = prop.loanKey;
-      const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
-      const cfSign = prop.cf >= 0 ? '+' : '';
+      // Pour un bien en VEFA, `cf` est le flux POST-LIVRAISON (une projection) alors que le KPI
+      // « Total CF » de la page somme les `cfReel` — d'où une carte à -257 sous un total à -107.
+      // La carte montre donc le flux réellement décaissé aujourd'hui, et le dit.
+      const cfCarte = prop.conditional ? (prop.cfReel || 0) : prop.cf;
+      const cfClass = cfCarte >= 0 ? 'pl-pos' : 'pl-neg';
+      const cfSign = cfCarte >= 0 ? '+' : '';
       const f = prop.fiscalite;
       const fiscLine = f ? '<div class="prop-kpi"><div class="pk-val pl-neg">' + f.monthlyImpot + '</div><div class="pk-label">Impot /mois</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</div><div class="pk-label">Yield net fiscal</div></div>'
@@ -4839,7 +4843,8 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val pl-pos">' + fmt(prop.equity) + '</div><div class="pk-label">Equity brute</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + netEqClass + '">' + fmt(Math.round(netEq)) + '</div><div class="pk-label">Equity nette sortie</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%' + ltvGauge + '</div><div class="pk-label">LTV</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + Math.round(prop.cf) + '</div><div class="pk-label">CF /mois</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + Math.round(cfCarte) + '</div><div class="pk-label">'
+        + (prop.conditional ? 'CF r\u00e9el /mois' : 'CF /mois') + '</div></div>'
         + '<div class="prop-kpi"><div class="pk-val">' + prop.loyerHC + (prop.parking > 0 ? ' <span style="font-size:11px;color:var(--gray)">+' + prop.parking + ' pkg</span>' : '') + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
@@ -4865,14 +4870,22 @@ function renderImmoView(state) {
 
     // Calculate LMP thresholds
     const LMP_THRESHOLD = 23000; // €/an
-    const rueilLoyer = rueilProp ? (rueilProp.loyer * 12) : 0; // Annual rent
-    // For "after Villejuif" projection: use future loyer even if not yet operational
-    const villejuifFutureLoyer = villejuifProp ? ((villejuifProp.loyer || villejuifProp.totalRevenue || 1700) * 12) : 0;
+    // Assiette du seuil LMP = RECETTES ENCAISSÉES, charges comprises (BOFiP, locations
+    // meublées) — pas le loyer hors charges. Rueil était compté 15 600 €/an au lieu de
+    // 17 400 €/an. Le franchissement du seuil ne change pas ici, mais le chiffre affiché si.
+    const rueilLoyer = rueilProp ? ((rueilProp.totalRevenue != null ? rueilProp.totalRevenue : rueilProp.loyer) * 12) : 0;
+    // Projection « après Villejuif » : recettes futures, même assiette.
+    const villejuifFutureLoyer = villejuifProp
+      ? ((villejuifProp.totalRevenue || villejuifProp.loyer || 1700) * 12) : 0;
     const totalLoyerAnnuel = rueilLoyer + villejuifFutureLoyer;
 
     // LMP is triggered when:
     // 1. Recettes meublées > 23,000€/an AND
-    // 2. Recettes > revenus d'activité (auto-met for non-resident Nezha)
+    // 2. Recettes > revenus d'activité du foyer fiscal. Le commentaire précédent tenait ce
+    //    second critère pour automatiquement rempli « pour Nezha non-résidente » : sa résidence
+    //    fiscale n'est pas établie côté données (le brief patrimonial la dit résidente
+    //    française), et ce critère dépend de ses autres revenus. À confirmer avant de conclure.
+    //    Le libellé ci-dessous ne tranche donc plus, il annonce le seuil de recettes seulement.
     const isRueilAloneLMP = rueilLoyer > LMP_THRESHOLD;
     const isCombinedLMP = totalLoyerAnnuel > LMP_THRESHOLD;
 
@@ -5314,7 +5327,15 @@ function renderImmoView(state) {
       '- <strong>Cash flow consolide : ' + (cfTotal >= 0 ? '+' : '') + cfTotal + '/mois</strong> aujourd\'hui (' + Math.abs(cfAnnual).toLocaleString('fr-FR') + '/an).<br>' +
       '- <strong>Creation de richesse : +' + Math.round(wealthTotal).toLocaleString('fr-FR') + '/mois</strong> (' + Math.round(wealthTotal * 12 / 1000) + 'K/an) via le remboursement du capital + appreciation.<br>' +
       '- <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~' + Math.round(totalVal * 0.1 / 1000) + 'K d\'equity.<br>' +
-      '- <span style="color:var(--green)">Trajectoire :</span> A 5 ans, equity immo estimee > ' + Math.round((totalEq + wealthTotal * 60) / 1000) + 'K (vs ' + Math.round(totalEq / 1000) + 'K ajd).';
+      // Cite la courbe de projection quand elle est construite, plutôt qu'une extrapolation
+      // linéaire du rythme du mois : celle-ci fige le rythme actuel et ignore l'entrée en
+      // exploitation de Villejuif, ce qui donnait ~70 K€ de moins que le graphe juste au-dessus.
+      '- <span style="color:var(--green)">Trajectoire :</span> '
+        + (window._immoEquity5Y
+            ? 'En ' + window._immoEquity5YAnnee + ', equity immo projetee ~' + Math.round(window._immoEquity5Y / 1000) + 'K'
+              + ' (vs ' + Math.round(totalEq / 1000) + 'K ajd) — meme calcul que la courbe ci-dessus.'
+            : 'A 5 ans, au rythme actuel et SANS l\'entree en exploitation de Villejuif, equity immo ~'
+              + Math.round((totalEq + wealthTotal * 60) / 1000) + 'K (vs ' + Math.round(totalEq / 1000) + 'K ajd).');
   }
 
   // ── Methodology & Sources panel ──
@@ -5348,7 +5369,11 @@ function renderImmoView(state) {
     });
     // Sources
     html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #cbd5e0;">';
-    html += '<strong>Sources (mars 2026) :</strong><br>';
+    // La date était figée à « mars 2026 » alors que les valorisations ont été recalées sur DVF
+    // en août 2026 : le panneau méthodologique vieillissait tout seul. Il suit maintenant la
+    // date de référence portée par les biens eux-mêmes.
+    const _dateSources = (iv.properties || []).map(p2 => p2.valueDate).filter(Boolean).sort().pop();
+    html += '<strong>Sources' + (_dateSources ? ' (' + _dateSources + ')' : '') + ' :</strong><br>';
     html += '\u2022 MeilleursAgents.com \u2014 prix/m\u00b2 par rue et quartier (f\u00e9vrier 2026)<br>';
     html += '\u2022 efficity.com \u2014 prix/m\u00b2 par adresse (janvier-f\u00e9vrier 2026)<br>';
     html += '\u2022 SeLoger.com \u2014 estimations immobili\u00e8res par ville<br>';
@@ -5841,8 +5866,12 @@ function renderAptView(state, loanKey) {
   }
 
   // ── Section 3: Cash Flow détaillé ──
-  const cfSign = prop.cf >= 0 ? '+' : '';
-  const cfClass = prop.cf >= 0 ? 'pl-pos' : 'pl-neg';
+  // Fiche détaillée : le flux réel d'abord (celui qui alimente le total de la page), la
+  // projection post-livraison ensuite et clairement nommée. Les mélanger faisait qu'aucun
+  // détail ne retombait sur le KPI.
+  const cfFiche = prop.conditional ? (prop.cfReel || 0) : prop.cf;
+  const cfSign = cfFiche >= 0 ? '+' : '';
+  const cfClass = cfFiche >= 0 ? 'pl-pos' : 'pl-neg';
   const cfNetSign = prop.cfNetFiscal >= 0 ? '+' : '';
   const cfNetClass = prop.cfNetFiscal >= 0 ? 'pl-pos' : 'pl-neg';
   // ── UX: Visual bar comparison for Revenus vs Charges ──
@@ -5926,7 +5955,8 @@ function renderAptView(state, loanKey) {
     + '</div></div>';
   // CF KPIs
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF projeté (post-livraison) /mois' : 'CF brut /mois') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(cfFiche) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF réel aujourd\'hui /mois' : 'CF brut /mois') + '</div></div>'
+    + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;color:#718096;">' + (prop.cf >= 0 ? '+' : '') + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF projeté après livraison /mois</div></div>' : '')
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
       + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '')) + '</div></div>'
@@ -6023,7 +6053,11 @@ function renderAptView(state, loanKey) {
     html += '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     html += '<div><span style="color:#718096;font-weight:600;">Total frais sortie</span><br><strong class="pl-neg" style="font-size:16px;">' + fmt(ec.totalExitCosts) + '</strong></div>';
     const neColor = ec.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
-    html += '<div><span style="color:#718096;font-weight:600;">Equity nette après sortie</span><br><strong style="font-size:16px;color:' + neColor + ';">' + fmt(Math.round(ec.netEquityAfterExit)) + '</strong></div>';
+    // Ce montant déduit les frais de sortie mais PAS les passifs de copropriété contestés,
+    // qui sont suivis à part. Le libellé le disait pas : « nette » se lisait comme « tout déduit ».
+    html += '<div><span style="color:#718096;font-weight:600;">Equity nette après sortie</span>'
+      + '<span style="font-size:10px;color:#b45309;display:block;">avant passifs de copro contestés</span>'
+      + '<strong style="font-size:16px;color:' + neColor + ';">' + fmt(Math.round(ec.netEquityAfterExit)) + '</strong></div>';
     html += '</div>';
   } else {
     // v443 — bien VEFA non livré : computeExitCosts ne tourne pas (non cessible en direct)
@@ -6033,7 +6067,9 @@ function renderAptView(state, loanKey) {
     html += '<div><span style="color:#718096;">Équité engagée</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
       + '<div><span style="color:#718096;">Capital tiré (prêts)</span><br><strong>' + fmt(prop.crd) + '</strong></div>'
       + '<div><span style="color:#718096;">Frais de sortie aujourd\'hui</span><br><strong>—</strong></div>'
-      + '<div><span style="color:#718096;">Équité nette après sortie</span><br><strong>' + fmt(Math.round(ec.netEquityAfterExit || 0)) + '</strong></div>'
+      + '<div><span style="color:#718096;">Équité nette après sortie</span>'
+      + '<span style="font-size:10px;color:#b45309;display:block;">avant passifs de copro contestés</span>'
+      + '<strong>' + fmt(Math.round(ec.netEquityAfterExit || 0)) + '</strong></div>'
       + '</div>'
       + '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;font-size:12.5px;color:#744210;line-height:1.6;">'
       + '<strong>Bien VEFA non livré</strong> — pas de revente en direct avant la livraison (' + _delivLabel + '). '
@@ -7377,7 +7413,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=508').then(m => {
+  import('./charts.js?v=509').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

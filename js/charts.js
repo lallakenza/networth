@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=508';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=508';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=508';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=508';
-import { loadSnapshots } from './api.js?v=508'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=508'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=509';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=509';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=509';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=509';
+import { loadSnapshots } from './api.js?v=509'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=509'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -506,6 +506,17 @@ function buildImmoProjection(state) {
       fill: true, tension: 0.3,
     };
   }).filter(Boolean);
+
+  // Le texte stratégique de la page annonçait sa propre trajectoire à 5 ans, par extrapolation
+  // linéaire de la création de richesse du mois (équité + rythme × 60). Ce raccourci fige le
+  // rythme d'aujourd'hui : il ignore l'entrée en exploitation de Villejuif et la déformation du
+  // tableau d'amortissement, d'où ~70 K€ d'écart avec cette courbe. On publie donc la valeur de
+  // la courbe pour que le texte la cite au lieu d'en fabriquer une seconde.
+  const idx5A = projYears.indexOf(currentYear + 5);
+  if (idx5A >= 0) {
+    window._immoEquity5Y = datasets.reduce((somme, d) => somme + (d.data[idx5A] || 0), 0);
+    window._immoEquity5YAnnee = currentYear + 5;
+  }
 
   charts.immoProj = new Chart(el, {
     type: 'line',

@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=508';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=509';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3072,7 +3072,14 @@ function computeImmoView(portfolio, fx) {
       ? -((IC.loans[loanKey + 'Loans'] || []).reduce((s3, l) => s3 + (l.insuranceMonthly || 0), 0))
       : cf;
 
-    const wealthCF = conditional ? 0 : cf;
+    // v508 — le flux d'un bien en VEFA n'est pas nul : l'assurance emprunteur est prélevée
+    // depuis la signature. La mettre à 0 ici alors que `totalCF` compte ce même `cfReel`
+    // (décision v473) faisait diverger les deux agrégats de la page : la création de richesse
+    // annonçait 1 789 €/mois en ignorant 51 €/mois réellement décaissés. On reprend `cfReel`,
+    // qui vaut `cf` pour un bien livré — donc aucun changement pour Vitry et Rueil.
+    // Le capital amorti et l'appréciation restent à zéro : rien n'est remboursé pendant la
+    // franchise, et un lot non livré n'accumule pas d'appréciation de marché (BUG-065).
+    const wealthCF = cfReel;
     const wealthCapital = conditional ? 0 : capitalAmortiMois;
     const wealthAppreciation = conditional ? 0 : appreciationMois;
 
@@ -4110,7 +4117,13 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const immoView = computeImmoView(p, fx);
   // Extract computed CRDs from amort schedules (more accurate than static snapshots)
   const immoCRDs = {};
-  immoView.properties.forEach(prop => { immoCRDs[prop.loanKey] = prop.crd; });
+  // Même principe pour les VALEURS que pour les CRD : `computeImmoView` est l'autorité (c'est
+  // elle que la surcouche Supabase alimente, et elle applique l'appréciation mensuelle depuis
+  // la date de valorisation). Le net worth lisait `p.*.immo.*.value` brut : la page d'accueil
+  // annonçait 677 659 € et la vue détaillée 677 873 €, l'écart étant l'appréciation de Rueil
+  // depuis août. Deux chiffres pour le même patrimoine, dont aucun contrôle ne rendait compte.
+  const immoValues = {};
+  immoView.properties.forEach(prop => { immoCRDs[prop.loanKey] = prop.crd; immoValues[prop.loanKey] = prop.value; });
 
   // ---- AMINE ----
   const amineWioBusiness = p.amine.uae.wioBusiness || 0;
@@ -4149,7 +4162,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineEsppCash = p.amine.espp.cashEUR || 0; // BUG-020: include ESPP account cash in NW
   const amineEspp = amineEsppShares + amineEsppCash;
   const amineVitryCRD = immoCRDs.vitry ?? p.amine.immo.vitry.crd;
-  const amineVitryEquityBrute = p.amine.immo.vitry.value - amineVitryCRD;
+  const amineVitryValue = immoValues.vitry ?? p.amine.immo.vitry.value;
+  const amineVitryEquityBrute = amineVitryValue - amineVitryCRD;
   // Net equity = after exit costs, floored at 0 (if negative → not mature enough to sell)
   const vitryExitCosts = immoView.properties.find(pr => pr.loanKey === 'vitry')?.exitCosts;
   const amineVitryEquity = Math.max(0, vitryExitCosts ? vitryExitCosts.netEquityAfterExit : amineVitryEquityBrute);
@@ -4258,7 +4272,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     moroccoCash: amineMoroccoCash,
     moroccoMAD: amineMoroccoMAD,
     morocco: amineMoroccoCash + amineSgtm,
-    vitryValue: p.amine.immo.vitry.value,
+    vitryValue: amineVitryValue,
     vitryCRD: amineVitryCRD,
     vitryEquity: amineVitryEquity, // net (after exit costs, floored at 0)
     vitryEquityBrute: amineVitryEquityBrute,
@@ -4297,7 +4311,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- NEZHA ----
   const nezhaRueilCRD = immoCRDs.rueil ?? p.nezha.immo.rueil.crd;
-  const nezhaRueilEquityBrute = p.nezha.immo.rueil.value - nezhaRueilCRD;
+  const nezhaRueilValue = immoValues.rueil ?? p.nezha.immo.rueil.value;
+  const nezhaRueilEquityBrute = nezhaRueilValue - nezhaRueilCRD;
   // Net equity = after exit costs, floored at 0
   const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
   const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
@@ -4378,7 +4393,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDeltaTimeframe: nwDeltaTimeframe,
     // v346 — `nwWithVillejuif` supprimé : depuis l'acte signé (05/06/2026), l'equity Villejuif
     // est nativement dans nezhaNW (BUG-044) — la projection alternative n'a plus d'objet.
-    rueilValue: p.nezha.immo.rueil.value,
+    rueilValue: nezhaRueilValue,
     rueilCRD: nezhaRueilCRD,
     rueilEquity: nezhaRueilEquity, // net (after exit costs, floored at 0)
     rueilEquityBrute: nezhaRueilEquityBrute,
