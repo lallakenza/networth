@@ -1992,7 +1992,7 @@
       <div id="authCodeBloc" style="display:none;margin-top:10px;">
         <!-- On demande le LIEN, pas un code : le gabarit d'e-mail de ce projet Supabase est celui
              de Lalla Kenza et n'affiche pas de code. Le jeton est dans le lien, l'app l'y lit. -->
-        <textarea id="authCode" rows="2" placeholder="colle ici le lien re&ccedil;u par e-mail"
+        <textarea id="authCode" rows="2" placeholder="https://lallakenza.co/auth/callback?token_hash=…"
           style="width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.08);color:white;font-size:12px;outline:none;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
         <button type="button" id="authCodeBtn" onclick="validerCodeMail()"
           style="width:100%;margin-top:8px;padding:10px;background:white;color:#1e3a5f;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -3082,7 +3082,12 @@ async function envoyerCodeMail() {
   btn.disabled = true; msg.textContent = 'Envoi…';
   try {
     await window.nwEnvoyerCode(mail);
-    msg.textContent = 'E-mail envoyé. Copie le LIEN qu’il contient (clic droit → copier l’adresse du lien) et colle-le ci-dessous. Ne clique pas dessus : il renverrait vers Lalla Kenza.';
+    // Le lien pointe vers lallakenza.co (gabarit du SaaS) : le CLIQUER le consomme et connecte
+    // à Lalla Kenza, sans rien donner à ce site. D'où une consigne explicite sur le geste.
+    msg.innerHTML = '<strong style="color:#fbbf24">Ne clique pas sur le bouton de l’e-mail</strong> '
+      + '— il te connecterait à Lalla&nbsp;Kenza et le lien serait perdu.<br>'
+      + 'Fais un <strong>clic droit</strong> sur « Se connecter » → <strong>Copier l’adresse du lien</strong>, '
+      + 'puis colle-la ci-dessous.';
     document.getElementById('authCodeBloc').style.display = 'block';
     document.getElementById('authCode').focus();
   } catch (e) {
@@ -4703,7 +4708,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=512"></script>
+<script type="module" src="js/app.js?v=513"></script>
 
 </body>
 </html>
