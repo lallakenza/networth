@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=523';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=523';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=524';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=524';
 
 // ---- Generic table sort utility ----
 /**
@@ -356,8 +356,17 @@ function renderHeader(state, view) {
     // Asset views
     const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel', apt_vitry: 'Vitry-sur-Seine', apt_rueil: 'Rueil-Malmaison', apt_villejuif: 'Villejuif (VEFA)', historique: 'Historique du Patrimoine' };
     const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: '19 Rue Nathalie Lemel — T3 Location nue', apt_rueil: '21 All\u00e9e des Glycines — T3 meubl\u00e9 LMNP', apt_villejuif: '167 Bd Maxime Gorki — T3 VEFA', historique: 'Évolution quotidienne du net worth — snapshots automatiques (type Finary)' };
-    if (titleEl) titleEl.textContent = titles[view] || '';
-    if (subEl) subEl.textContent = subs[view] || '';
+    // v524 — une vue sans entrée dans ces tables laissait l'en-tête VIDE : c'est ce qui
+    // arrive en arrivant par un lien vers une section qui n'est pas une route (Financement
+    // et Plan & Fiscalité sont des sections repliables de la page Immobilier, pas des vues).
+    // Un titre vide ne dit pas où l'on est ; un repli lisible, si — et il signale la route
+    // manquante au lieu de la masquer.
+    const joli = (k) => String(k || '').replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+    if (titleEl) titleEl.textContent = titles[view] || joli(view) || 'Dashboard Patrimonial';
+    if (subEl) {
+      subEl.textContent = subs[view]
+        || (titles[view] ? '' : 'Section sans route déclarée — le titre est déduit de l’adresse');
+    }
   }
 }
 
@@ -1109,36 +1118,32 @@ function renderDynamicInsights(state, view) {
     // Même doctrine que le simulateur (v490) et que projectNW : engagé jusqu'à la livraison,
     // puis croissance.
     const vjEngage = Math.round(s.nezha.villejuifEquity || 0);
+    // v524 — les valeurs sont calculées UNE FOIS et réutilisées pour les lignes ET le
+    // total. La ligne Total les recalculait à sa façon : elle remettait Villejuif à zéro
+    // avant 2028 et le faisait repartir de zéro ensuite, si bien que le total affiché
+    // (126 693 € en janvier 2027) ne faisait pas la somme des lignes juste au-dessus
+    // (171 283 €). Sommer ce qui est affiché rend la divergence impossible.
+    const valVillejuif = years.map(y => y < 2028
+      ? vjEngage
+      : Math.max(0, vjEngage + vilGrowth * ((y - 2028) * 12)));
     html += '<tr><td>Equity Villejuif</td>';
-    years.forEach(y => {
-      if (y < 2028) { html += '<td class="num">' + N(vjEngage) + '</td>'; }
-      else {
-        const mSince = (y - 2028) * 12;
-        const eq = vjEngage + vilGrowth * mSince;
-        html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
-      }
-    });
+    valVillejuif.forEach(v => { html += '<td class="num">' + N(v) + '</td>'; });
     html += '</tr>';
     // Cash row — compute net CF from immo charges dynamically
     const nzMonthlyCF = (rueilP ? rueilP.cf : 0) + (villejuifP ? villejuifP.cf : 0);
     // If CF negative, cash declines; if positive, cash grows
     const nzCashDrift = nzMonthlyCF; // monthly net cash change from immo
-    html += '<tr><td>Cash</td>';
-    years.forEach(y => {
-      const m = monthsFromNow(y);
-      const cash = nzCash + nzCashDrift * m;
-      html += '<td class="num">' + N(Math.max(0, cash)) + '</td>';
-    });
+    // « Cash » agrège en réalité cash, SGTM, ESPP, montre, créance Omar et caution :
+    // l'intitulé promettait moins que son contenu.
+    const valCash = years.map(y => Math.max(0, nzCash + nzCashDrift * monthsFromNow(y)));
+    html += '<tr><td>Cash et autres actifs<br><span style="font-size:10px;color:var(--gray)">cash, SGTM, ESPP, montre, créance, caution</span></td>';
+    valCash.forEach(v => { html += '<td class="num">' + N(v) + '</td>'; });
     html += '</tr>';
     // Total row
     html += '<tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>';
-    years.forEach(y => {
-      const m = monthsFromNow(y);
-      const eqR = rueilP ? rueilP.equity + rueilGrowth * m : 0;
-      let eqV = 0;
-      if (y >= 2028) { eqV = vilGrowth * (y - 2028) * 12; }
-      const cash = Math.max(0, nzCash + nzCashDrift * m);
-      html += '<td class="num"><strong>' + N(eqR + eqV + cash) + '</strong></td>';
+    years.forEach((y, i) => {
+      const eqR = Math.max(0, rueilP ? rueilP.equity + rueilGrowth * monthsFromNow(y) : 0);
+      html += '<td class="num"><strong>' + N(eqR + valVillejuif[i] + valCash[i]) + '</strong></td>';
     });
     html += '</tr></tbody></table>';
     nzProj.innerHTML = html;
@@ -7496,7 +7501,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=523').then(m => {
+  import('./charts.js?v=524').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

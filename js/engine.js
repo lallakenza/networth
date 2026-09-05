@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=523';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=524';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5839,7 +5839,15 @@ export function computeCashFlow(state, portfolio, fx) {
   let expensesMonthly = 0;
 
   // Dépenses fixes (BUDGET_EXPENSES)
+  // v524 — la fenêtre d'activité (`startDate` / `endDate`) était honorée par
+  // `computeBudgetView` mais PAS ici : le loyer de Dubai, qui ne démarre qu'en novembre
+  // 2026, était compté dès aujourd'hui. Deux totaux de dépenses fixes coexistaient sur
+  // le site — 5 018 € dans le cash-flow contre 2 087 € dans le détail — et le taux
+  // d'épargne comme l'autonomie en découlaient faux.
+  const _moisCF = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+  const _actifCF = (e) => !((e.startDate && _moisCF < e.startDate) || (e.endDate && _moisCF > e.endDate));
   for (const exp of (BUDGET_EXPENSES || [])) {
+    if (!_actifCF(exp)) continue;
     const monthlyNative = exp.amount / ({ monthly: 1, quarterly: 3, 'semi-annual': 6, yearly: 12 }[exp.freq] || 1); // v347 — gère quarterly (Gaz) : avant compté ×3 (comme mensuel)
     const monthlyEUR = toEUR(monthlyNative, exp.currency, fx);
     expenseCategories.push({
@@ -5914,15 +5922,19 @@ export function computeAlerts(state) {
         // avertissement en console — invisible pour qui lit le site. Le silence est le
         // pire des deux mondes : la surveillance est désactivée ET personne ne le sait.
         // On produit donc une alerte à part entière, qui dit exactement ce qui manque.
+        // v524 — la version précédente produisait `severity: 'amber'` et `detail`, alors
+        // que le rendu ne connaît que red/yellow/green et lit `msg` : l'alerte était
+        // filtrée EN SILENCE. Le compteur en annonçait 8, six s'affichaient. Une alerte
+        // destinée à rendre un silence visible était elle-même invisible.
         alerts.push({
-          severity: 'amber',
+          severity: 'yellow',
           owner: c.owner || 'Amine',
-          category: 'creance-sans-echeance',
-          title: 'Échéance non renseignée — ' + (c.counterparty || c.label || c.id),
-          detail: 'Cette créance de ' + Math.round(c.amountEUR || 0).toLocaleString('fr-FR')
-            + ' € n’a pas de date d’échéance : aucun retard ne peut être calculé, elle n’est pas '
+          title: 'Échéance non renseignée : ' + (c.counterparty || c.label || c.id),
+          msg: 'Créance de ' + Math.round(c.amountEUR || 0).toLocaleString('fr-FR')
+            + ' € sans date d’échéance : aucun retard ne peut être calculé, elle n’est pas '
             + 'surveillée. Renseigner `dueDate` à la source pour l’activer.',
-          amount: c.amountEUR || 0,
+          action: 'Voir créances',
+          view: 'creances',
         });
         continue;
       }
