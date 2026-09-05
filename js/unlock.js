@@ -22,10 +22,10 @@
  */
 
 // LE SUFFIXE ?v=N EST OBLIGATOIRE, PAS DÉCORATIF. Les modules ES sont indexés par URL résolue :
-// './data.js' et './data.js?v=516' sont DEUX modules distincts, donc deux objets PORTFOLIO
+// './data.js' et './data.js?v=517' sont DEUX modules distincts, donc deux objets PORTFOLIO
 // distincts. Sans ce suffixe, le déchiffrement remplissait un orphelin que personne ne lit —
 // le déverrouillage réussissait et le tableau de bord restait vide (v496 à v500).
-import * as DATA from './data.js?v=516';
+import * as DATA from './data.js?v=517';
 
 // Import DYNAMIQUE : tant que `js/data.enc.js` n'existe pas (chiffrement pas encore activé), le
 // site continue de fonctionner exactement comme avant. Cela permet de livrer ce mécanisme sans
@@ -33,11 +33,20 @@ import * as DATA from './data.js?v=516';
 let DATA_ENC = null;
 export async function blobDisponible() {
   if (DATA_ENC) return true;
-  // ?v=N ici aussi : sans lui le blob chiffré n'est JAMAIS invalidé par un bump de version, et
-  // le service worker sert indéfiniment l'ancien. Il se déchiffre sans erreur (même phrase),
-  // donc des soldes périmés s'affichent sous des badges « live ».
-  try { DATA_ENC = (await import('./data.enc.js?v=516')).DATA_ENC; return !!DATA_ENC; }
-  catch (e) { return false; }
+  // ── CHIFFREMENT DÉSACTIVÉ (v517, à la demande) ────────────────────────────────────────
+  // Les données sont revenues EN CLAIR dans js/data.js, et le code d'accès à 4 chiffres est
+  // redevenu la seule serrure. Conséquence assumée : le fichier est téléchargeable par qui
+  // connaît son adresse, la grille ne masquant que l'interface.
+  //
+  // Rien n'est supprimé : ce module, js/auth.js, js/data.enc.js et le secret rangé dans
+  // Supabase restent en place. Pour rallumer le chiffrement, il suffit de rétablir la ligne
+  // ci-dessous, de vider les 11 blocs de js/data.js (scripts/split_data_for_encryption.mjs) et
+  // de régénérer le blob (scripts/build_encrypted_data.mjs). Le blob publié aujourd'hui est en
+  // revanche PÉRIMÉ dès la première modification de données : il faudra le reconstruire.
+  //
+  // try { DATA_ENC = (await import('./data.enc.js?v=517')).DATA_ENC; return !!DATA_ENC; }
+  // catch (e) { return false; }
+  return false;
 }
 
 const CLE_SESSION = 'nw_unlocked_v1';
@@ -71,7 +80,7 @@ export async function deverrouillerDepuisServeur() {
   if (!(await blobDisponible())) return false;
   let cle = null;
   try {
-    const auth = await import('./auth.js?v=516');
+    const auth = await import('./auth.js?v=517');
     cle = await auth.cleDeDonnees();
   } catch (e) { console.warn('[unlock] module d\'authentification indisponible :', e.message); return false; }
   if (!cle) return false;

@@ -1,5 +1,16 @@
 # Chiffrer les données patrimoniales
 
+> **ÉTAT AU 5 SEPTEMBRE 2026 : DÉSACTIVÉ, à la demande.** `js/data.js` contient de nouveau les
+> données EN CLAIR, et le code à 4 chiffres est la seule serrure — il masque l'interface, il ne
+> protège pas le fichier, qui est téléchargeable par qui connaît son adresse. La purge
+> d'historique reste acquise pour le passé, mais chaque nouveau commit republie les données.
+>
+> Rien n'est supprimé : `js/unlock.js` (import du blob commenté), `js/auth.js`, `js/data.enc.js`
+> et le secret rangé dans Supabase attendent. Pour rallumer, voir « Mise en service » ci-dessous —
+> le blob publié aujourd'hui devra être régénéré, il est périmé dès la première mise à jour de
+> données.
+
+
 ## Le problème
 
 Le site est publié par GitHub Pages depuis un dépôt **public**. Tout fichier du dépôt est

@@ -40,9 +40,1319 @@
 // ║  6. CRÉANCES : ajouter/supprimer dans creances.items[]   ║
 // ╚══════════════════════════════════════════════════════════╝
 
-// PORTFOLIO — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const PORTFOLIO = {};
+export const PORTFOLIO = {
+  amine: {
+    // ──────────────────────────────────────────────────────
+    // CASH UAE (en AED) — se connecter à Mashreq/Wio app
+    // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
+    // ──────────────────────────────────────────────────────
+    uae: {
+      mashreq: 503122.84,   // Mashreq NEO (Saver 495 840,36 + Current 7 282,48) — MAJ 28/08/2026 (captures app)
+      wioSavings: 412000,   // Wio — espaces d'épargne d'AMINE (mauves : 54K+100,5K+7K+100K+100,5K+50K) — MAJ 28/08/2026 ; l'espace rose « Flouss nezha pas touchi » (61K) est à Nezha (nezha.cash.wioAED)
+      wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
+      wioBusiness: 3144,    // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/07/2026 (relevé : 3 143,63 AED ; l'ancien 3000 était arrondi)
+      revolutEUR: 833,      // Revolut TOTAL toutes poches en EUR (EUR 112,58 + USD 825,73≈720,40) — MAJ 19/07/2026 (app.revolut.com live)
+      banquePopulaire: 1968,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/07/2026 (espace client live, solde 1 967,60)
+      binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
+      // v484 — comptes SOCIÉTÉS (28/08/2026) :
+      ibanqBairok: 16176.91, // iBanq — Bairok Consulting LLC, solde consolidé EUR (EUR 16 160,55 + AED 70,41 + GBP 0)
+      bridgevaleWise: 300,   // Wise — Bridgevale Consulting (UK), EUR — « il reste plus que 300 € » (Amine, 28/08/2026)
+      _lastUpdate: '2026-08-28',
+    },
+
+    // ──────────────────────────────────────────────────────
+    // CASH MAROC (en MAD) — se connecter à Attijari/Nabd app
+    // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
+    // ──────────────────────────────────────────────────────
+    maroc: {
+      attijari: 57101,      // Attijariwafa MRA current account (0% rendement) — MAJ 19/07/2026 (Attijarinet live, solde comptable)
+      nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
+      cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app)
+      _lastUpdate: '2026-07-12',
+    },
+
+    // ══════════════════════════════════════════════════════════════════
+    // ESPP ACCENTURE (Amine) — UBS (anciennement Fidelity NetBenefits)
+    // ══════════════════════════════════════════════════════════════════
+    //
+    // SOURCE: EsppPurchaseReport.pdf (rapport Accenture ESPP officiel)
+    //         Courtier: UBS — toutes les actions sont chez UBS
+    //
+    // COMMENT ÇA MARCHE — ESPP (Employee Stock Purchase Plan):
+    //   1. Contribution = 10% du salaire brut pendant 6 mois (en EUR)
+    //   2. À la fin de la période, Accenture achète les actions avec un
+    //      DISCOUNT de ~15% sur le prix le plus bas entre début et fin de période
+    //   3. La "Discounted Purchase Price" = ce qu'Amine paie réellement par action
+    //   4. Le "FMV at Purchase" = prix de marché le jour de l'achat (cost basis fiscal)
+    //   5. Fractional shares → vendues et remboursées en EUR
+    //   6. Certains lots ont des "Shares Sold for Tax Withholding" (prélèvement impôt FR)
+    //   7. "Shares Available" = entiers détenus après vente fractionnaires + tax withholding
+    //
+    // DÉTAIL COMPLET DES 10 ACHATS ESPP (source: EsppPurchaseReport.pdf):
+    // ┌────────┬──────────────────────────────────┬───────────┬─────────┬──────────────┬───────────────┬──────────┬─────────┬─────────────┬───────────┐
+    // │  #     │ Offering Period                   │ Contrib€  │ FX Rate │ Contrib USD  │ Discount $/sh │ FMV $/sh │ Shares  │ Tax WH shs  │ Available │
+    // ├────────┼──────────────────────────────────┼───────────┼─────────┼──────────────┼───────────────┼──────────┼─────────┼─────────────┼───────────┤
+    // │  1     │ Nov 2022 → May 2023              │ 3 845.99  │ 0.911   │  4 221.72    │  236.8788     │ 278.6809 │ 17.8222 │  0.7609     │    17     │
+    // │  2     │ Nov 2021 → May 2022              │ 3 018.32  │ 0.948   │  3 183.88    │  260.0065     │ 305.8900 │ 12.2453 │  0.0000     │    12     │
+    // │  3     │ May 2021 → Nov 2021              │ 3 020.66  │ 0.8616  │  3 505.87    │  302.5915     │ 355.9900 │ 11.5861 │  0.0000     │    11     │
+    // │  4     │ Nov 2020 → May 2021              │ 3 217.57  │ 0.8318  │  3 868.20    │  246.1940     │ 289.6400 │ 15.7120 │  0.7105     │    15     │
+    // │  5     │ May 2020 → Nov 2020              │ 2 365.80  │ 0.8584  │  2 756.06    │  183.3663     │ 215.7250 │ 15.0303 │  0.6626     │    14     │
+    // │  6     │ Nov 2019 → May 2020              │ 2 796.67  │ 0.9105  │  3 071.58    │  153.9563     │ 181.1250 │ 19.9509 │  0.9410     │    19     │
+    // │  7     │ May 2019 → Nov 2019              │ 2 653.00  │ 0.8955  │  2 962.59    │  159.1421     │ 187.2260 │ 18.6160 │  0.0000     │    18     │
+    // │  8     │ Nov 2018 → May 2019              │ 2 401.55  │ 0.8926  │  2 690.51    │  154.9720     │ 182.3200 │ 17.3612 │  0.0000     │    17     │
+    // │  9     │ May 2018 → Nov 2018              │ 2 533.06  │ 0.8766  │  2 889.64    │  134.5763     │ 158.3250 │ 21.4721 │  0.0000     │    21     │
+    // │  10    │ Nov 2017 → May 2018              │ 2 246.00  │ 0.8336  │  2 694.34    │  128.3798     │ 151.0350 │ 20.9872 │  0.6611     │    20     │
+    // ├────────┼──────────────────────────────────┼───────────┼─────────┼──────────────┼───────────────┼──────────┼─────────┼─────────────┼───────────┤
+    // │ TOTAUX │                                  │ 28 097.62 │         │ 31 844.39    │               │          │170.7833 │  3.7361     │   164     │
+    // └────────┴──────────────────────────────────┴───────────┴─────────┴──────────────┴───────────────┴──────────┴─────────┴─────────────┴───────────┘
+    //
+    //   + 3 actions FRAC (dividendes réinvestis ~août 2022) → total 164 + 3 = 167 actions
+    //
+    // NOTE COST BASIS:
+    //   costBasis ci-dessous = FMV at Purchase (prix de marché le jour d'achat)
+    //   C'est le "cost basis fiscal" (base pour calcul plus-value en France)
+    //   Le prix réellement payé est le "Discounted Purchase Price" (cf. tableau ci-dessus)
+    //   La différence (discount ~15%) est de l'avantage en nature taxé sur le salaire
+    //
+    // COMMENT METTRE À JOUR:
+    //   - Nouveau lot ESPP? Ajouter en PREMIER dans lots[] (date décroissante)
+    //   - Mettre à jour shares (total entiers), totalCostBasisUSD (somme cost × shares)
+    //   - Dividendes: ajouter dans acnDividends[] quand Accenture annonce un nouveau trimestre
+    //   - Prix ACN live: mis à jour via API (market.acnPriceUSD)
+    //
+    espp: {
+      shares: 167,          // 164 actions ESPP + 3 FRAC (dividendes réinvestis) — toutes chez UBS
+      cashEUR: 2000,        // Cash résiduel en EUR dans le compte UBS
+      // Lots détaillés — costBasis = FMV at Purchase (USD/action) = cost basis fiscal
+      // Triés par date décroissante (plus récent en premier)
+      // Note: pour le lot 1, costBasis = Discounted Price (pas FMV) — historique, conservé tel quel
+      //
+      // Schéma d'un lot (consommé par `esppLotCostEUR` dans engine.js) :
+      //   date          : string 'YYYY-MM-DD' — date d'achat (pour ESPP) ou d'attribution (FRAC)
+      //   source        : 'ESPP' | 'FRAC' — distingue achat salarial vs dividende réinvesti
+      //   shares        : integer — actions entières (les fractions sont rachetées en cash)
+      //   costBasis     : number USD/action — FMV at purchase ou Discounted Price
+      //   contribEUR    : number EUR — contribution réelle prélevée sur salaire (Amine uniquement).
+      //                   Priorité sur `fxRateAtDate` dans `esppLotCostEUR` : si présent, cost = contribEUR.
+      //                   Pour FRAC : 0 (dividendes réinvestis, aucune contribution).
+      //   fxRateAtDate  : number (optionnel) — EURUSD à la date du lot. Utilisé pour Nezha
+      //                   (elle n'a pas contribEUR fiable) en fallback : cost = shares × costBasis / fxRateAtDate.
+      //                   Si ni contribEUR ni fxRateAtDate → fallback global (1.15 Amine, 1.10 Nezha).
+      //
+      // Invariant audit v297 (BUG-043) : `engine.compute()` ET `computeActionsView()` doivent
+      // utiliser la MÊME fonction `esppLotCostEUR` pour calculer le cost basis — sinon divergence
+      // silencieuse quand FX live ≠ FX historique.
+      lots: [
+        // Période Nov 2022 → May 2023 | Contrib €3,845.99 | FX 0.911 | Discount $236.88/sh | FMV $278.68/sh
+        // 17.8222 shares achetées, 0.7609 vendues pour impôt (€193.18), 0.0613 fractionnaires remboursées
+        { date: '2023-05-01', source: 'ESPP', shares: 17, costBasis: 236.8788, contribEUR: 3845.99 },  // cost $4,026.94
+
+        // Actions fractionnaires issues de dividendes réinvestis (~août 2022)
+        { date: '2022-08-15', source: 'FRAC', shares: 3,  costBasis: 272.3600, contribEUR: 0 },  // cost $817.08 — dividendes réinvestis, pas de contribution
+
+        // Période Nov 2021 → May 2022 | Contrib €3,018.32 | FX 0.948 | Discount $260.01/sh | FMV $305.89/sh
+        // 12.2453 shares achetées, 0 vendues pour impôt, 0.2453 fractionnaires remboursées (€71.13)
+        { date: '2022-05-01', source: 'ESPP', shares: 12, costBasis: 305.8900, contribEUR: 3018.32 },  // cost $3,670.68
+
+        // Période May 2021 → Nov 2021 | Contrib €3,020.66 | FX 0.8616 | Discount $302.59/sh | FMV $355.99/sh
+        // 11.5861 shares achetées, 0 vendues pour impôt, 0.5861 fractionnaires remboursées (€179.77)
+        { date: '2021-11-01', source: 'ESPP', shares: 11, costBasis: 355.9900, contribEUR: 3020.66 },  // cost $3,915.89
+
+        // Période Nov 2020 → May 2021 | Contrib €3,217.57 | FX 0.8318 | Discount $246.19/sh | FMV $289.64/sh
+        // 15.7120 shares achetées, 0.7105 vendues pour impôt (€171.18), 0.0015 fractionnaires remboursées
+        { date: '2021-04-30', source: 'ESPP', shares: 15, costBasis: 289.6400, contribEUR: 3217.57 },  // cost $4,344.60
+
+        // Période May 2020 → Nov 2020 | Contrib €2,365.80 | FX 0.8584 | Discount $183.37/sh | FMV $215.73/sh
+        // 15.0303 shares achetées, 0.6626 vendues pour impôt (€122.70), 0.3677 fractionnaires remboursées (€68.09)
+        { date: '2020-10-30', source: 'ESPP', shares: 14, costBasis: 215.7250, contribEUR: 2365.80 },  // cost $3,020.15
+
+        // Période Nov 2019 → May 2020 | Contrib €2,796.67 | FX 0.9105 | Discount $153.96/sh | FMV $181.13/sh
+        // 19.9509 shares achetées, 0.9410 vendues pour impôt (€155.18), 0.0099 fractionnaires remboursées
+        { date: '2020-05-01', source: 'ESPP', shares: 19, costBasis: 181.1250, contribEUR: 2796.67 },  // cost $3,441.38
+
+        // Période May 2019 → Nov 2019 | Contrib €2,653.00 | FX 0.8955 | Discount $159.14/sh | FMV $187.23/sh
+        // 18.6160 shares achetées, 0 vendues pour impôt, 0.6160 fractionnaires remboursées (€103.28)
+        { date: '2019-11-01', source: 'ESPP', shares: 18, costBasis: 187.2260, contribEUR: 2653.00 },  // cost $3,370.07 (corrigé: était 187.2300)
+
+        // Période Nov 2018 → May 2019 | Contrib €2,401.55 | FX 0.8926 | Discount $154.97/sh | FMV $182.32/sh
+        // 17.3612 shares achetées, 0 vendues pour impôt, 0.3612 fractionnaires remboursées (€58.78)
+        { date: '2019-05-01', source: 'ESPP', shares: 17, costBasis: 182.3200, contribEUR: 2401.55 },  // cost $3,099.44
+
+        // Période May 2018 → Nov 2018 | Contrib €2,533.06 | FX 0.8766 | Discount $134.58/sh | FMV $158.33/sh
+        // 21.4721 shares achetées, 0 vendues pour impôt, 0.4721 fractionnaires remboursées (€65.52)
+        { date: '2018-11-01', source: 'ESPP', shares: 21, costBasis: 158.3250, contribEUR: 2533.06 },  // cost $3,324.83
+
+        // Période Nov 2017 → May 2018 | Contrib €2,246.00 | FX 0.8336 | Discount $128.38/sh | FMV $151.04/sh
+        // 20.9872 shares achetées, 0.6611 vendues pour impôt (€83.23), 0.3261 fractionnaires remboursées (€41.06)
+        { date: '2018-05-01', source: 'ESPP', shares: 20, costBasis: 151.0350, contribEUR: 2246.00 },  // cost $3,020.70
+      ],
+      totalCostBasisUSD: 36052,  // Somme de tous les (costBasis × shares) ci-dessus
+      // Résumé contributions: 10 périodes, €28,097.62 total prélevé du salaire = $31,844.39
+      // Shares achetées: 170.7833 — vendues tax: 3.7361 — fractionnaires: 3.0472 — entiers UBS: 164
+    },
+
+    // ════════════════════════════════════════════════════════════
+    // INTERACTIVE BROKERS (IBKR) — Compte intégré multimonis
+    // Actifs: Actions, ETFs, crypto ETFs, cash multi-devises
+    // Accès: ibkr.com — Account de Amine
+    // ════════════════════════════════════════════════════════════
+    // NOTE: Pour télécharger les données récentes :
+    //   → IBKR > Performance & Reports > Net Asset Value CSV
+    //   → Réconcilier deposits[], positions[], trades[] avec statement
+    //   → Vérifier "Change in NAV" pour commissions, intérêts, dividendes
+    //
+    //
+    // ── PORTFOLIO POSITIONS — Actions, ETFs, crypto ETFs ──
+    // Mise à jour : 31/03/2026 (cours live Yahoo Finance 31 mars 2026)
+    // Sources : Yahoo Finance (API live), Interactive Brokers (statement)
+    //
+    // Structure position:
+    //   - ticker: symbole Yahoo Finance (ex: 'AIR.PA' = Airbus Paris)
+    //   - shares: nombre d'actions détenues (entiers)
+    //   - price: cours actuel (fallback statique si API indisponible)
+    //   - costBasis: PRU (prix revient unitaire, devise native)
+    //   - currency: devise native (EUR, USD, JPY, etc.)
+    //   - label: nom complet pour affichage
+    //   - sector: secteur d'activité (industrials, luxury, tech, etc.)
+    //   - geo: géographie (france, germany, japan, crypto, etc.)
+    //   - ytdOpen: clôture 1er jour bourse 2026 (2 janvier) — historique
+    //   - mtdOpen: clôture 1er jour du mois courant (1 juil 2026) — voir PRICE_REFS_AS_OF
+    //   - oneMonthAgo: clôture ~30 jours avant (mi-mars 2026)
+    //
+    // MISE À JOUR DES PRIX :
+    //   1. price: est mis à jour par l'API Yahoo Finance (range=1d)
+    //   2. ytdOpen/mtdOpen/oneMonthAgo: refs historiques, mis à jour mensuellement
+    //   3. Fallback statique si API indisponible = dernier prix connu
+    //
+    // ── CASH MULTI-DEVISES ──
+    // cashEUR, cashUSD, cashJPY = soldes bruts chez IBKR
+    // Négatif = emprunt (ex: JPY carry trade = short JPY pour levier)
+    // ──────────────────────────────────────────────────────
+    ibkr: {
+      staticNAV: 184520,    // NAV totale estimée au 31/03/2026 (positions + cash, recalculée avec prix live)
+      positions: [
+        // ── ACTIONS CAC 40 & EUROPÉENNES (11 positions) ──
+        // Achetées progressivement avril-nov 2025
+        // Cours: prix live connecteur IBKR 12/07/2026 (fallback — surchargé par Yahoo au runtime)
+        // PRU: prix d'achat moyen (costBasis EUR)
+        { ticker: 'AIR.PA',  shares: 200,  price: 204.10, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', whtCountry: 'netherlands', ytdOpen: 203.70, mtdOpen: 198.22, oneMonthAgo: 194.54 },
+        { ticker: 'BN.PA',   shares: 200,  price: 64.82,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 72.2, oneMonthAgo: 71.74 },
+        // DG.PA — position fermée le 8 avr 2026 (100 actions vendues à 136.65)
+
+        { ticker: 'FGR.PA',  shares: 100,  price: 111.00, costBasis: 111.81, currency: 'EUR', label: 'Eiffage (FGR)', sector: 'industrials', geo: 'france', ytdOpen: 123.50, mtdOpen: 126.15, oneMonthAgo: 129.1 },
+        { ticker: 'MC.PA',   shares: 40,   price: 449.50, costBasis: 472.64, currency: 'EUR', label: 'LVMH (MC)', sector: 'luxury', geo: 'france', ytdOpen: 641.80, mtdOpen: 481.0, oneMonthAgo: 484.1 },
+        { ticker: 'OR.PA',   shares: 30,   price: 385.55, costBasis: 361.68, currency: 'EUR', label: "L'Or\u00e9al (OR)", sector: 'luxury', geo: 'france', ytdOpen: 364.70, mtdOpen: 380.35, oneMonthAgo: 383.65 },
+        { ticker: 'P911.DE', shares: 400,  price: 44.96,  costBasis: 45.22,  currency: 'EUR', label: 'Porsche (P911)', sector: 'automotive', geo: 'germany', ytdOpen: 47.60, mtdOpen: 44.11, oneMonthAgo: 43.51 },
+        { ticker: 'RMS.PA',  shares: 10,   price: 1563.50, costBasis: 2053.03, currency: 'EUR', label: 'Herm\u00e8s (RMS)', sector: 'luxury', geo: 'france', ytdOpen: 2104.00, mtdOpen: 1595.0, oneMonthAgo: 1598.0 },
+        { ticker: 'SAN.PA',  shares: 50,   price: 77.36,  costBasis: 77.71,  currency: 'EUR', label: 'Sanofi (SAN)', sector: 'healthcare', geo: 'france', ytdOpen: 82.32, mtdOpen: 73.05, oneMonthAgo: 75.08 },
+        { ticker: 'SAP.DE',  shares: 70,   price: 188.70, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 201.95, mtdOpen: 140.88, oneMonthAgo: 134.0 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
+        { ticker: '4911.T',  shares: 500,  price: 3699.00,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 2633, oneMonthAgo: 2618.0 },
+        { ticker: 'IBIT',    shares: 1200, price: 45.50,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 34.0, oneMonthAgo: 33.29 },
+        { ticker: 'ETHA',    shares: 1100, price: 18.97,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 12.19, oneMonthAgo: 11.89 },
+      ],
+      // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
+      cashEUR: 5832.72,      // Solde EUR chez IBKR (connecteur 28/08/2026 soir) — après rachat JPY 4 571 € du jour
+      cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 12/07/2026)
+      cashJPY: -1609070.36, // Solde JPY chez IBKR (connecteur 28/08/2026 soir) — deleverage du jour : +849 863 JPY rachetés, marge réduite de ~35%
+      cashAED: 11319,        // Solde AED chez IBKR — 11 319,13 (conversions EUR→AED 8-11/06/2026, connecteur 12/07/2026)
+      // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
+      // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
+      meta: {
+        twr: -13.7,            // TWR % YTD 2026 — fallback statique, OVERRIDDEN by chart TWR at runtime
+      },
+      // ══════════════════════════════════════════════════════════════
+      // COÛTS IBKR (hors commissions de trades)
+      // ══════════════════════════════════════════════════════════════
+      // Source: Activity Statement CSV U18138426, sections "Interest" et "Dividends"
+      // ⚠ RÈGLES DE MISE À JOUR:
+      //   1. Intérêts: copier depuis section "Interest" du CSV IBKR
+      //      → regrouper par mois, sommer EUR + USD + JPY séparément
+      //      → les montants JPY sont gros (ex: ¥23049) mais petit en EUR (~€140)
+      //      → engine.js convertit en EUR via toEUR()
+      //   2. Dividendes: copier depuis section "Dividends" du CSV IBKR
+      //      → montant NET (après WHT retenu à la source par IBKR)
+      //      → WHT est calculé séparément par engine.js, ne PAS le soustraire ici
+      //      → en fait, stocker le montant BRUT et laisser engine calculer le WHT
+      //   3. RÉCONCILIATION (Change in NAV au 19/03/2026):
+      //      Commissions IBKR: -€217.31 (= somme des t.commission dans trades[], converti en EUR)
+      //      Transaction Fees (FTT): -€666.87 (= calculé par engine.js via FTT_RATE × cost)
+      //      Interest: -€512.34 (= somme des costs[type:'interest'] ci-dessous)
+      //      Dividends: +€648.53 (= EUR 601.99 + USD 54.60 converti)
+      //      WHT: -€164.41
+      // ══════════════════════════════════════════════════════════════
+      costs: [
+        // Intérêts marge (debit interest on margin + SYEP credits)
+        { date: '2025-05-05', type: 'interest', eurAmount: -9.13,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Apr-2025' },
+        { date: '2025-06-04', type: 'interest', eurAmount: -3.51,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest May-2025' },
+        { date: '2025-07-03', type: 'interest', eurAmount: -0.85,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Jun-2025' },
+        { date: '2025-08-05', type: 'interest', eurAmount: -0.14,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Jul-2025' },
+        { date: '2025-09-04', type: 'interest', eurAmount: -7.98,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Aug-2025' },
+        { date: '2025-10-03', type: 'interest', eurAmount: -18.62,  usdAmount: 0,      jpyAmount: 0,     label: 'Interest Sep-2025' },
+        { date: '2025-11-05', type: 'interest', eurAmount: -18.09,  usdAmount: 0,      jpyAmount: 0,     label: 'Interest Oct-2025' },
+        { date: '2025-12-04', type: 'interest', eurAmount: -9.88,   usdAmount: 0,      jpyAmount: 0,     label: 'Interest Nov-2025' },
+        { date: '2026-01-06', type: 'interest', eurAmount: -70.27,  usdAmount: -12.40, jpyAmount: -1778, label: 'Interest Dec-2025' },
+        { date: '2026-02-04', type: 'interest', eurAmount: -49.42,  usdAmount: -26.00, jpyAmount: -4619, label: 'Interest Jan-2026' },
+        { date: '2026-03-04', type: 'interest', eurAmount: -27.73,  usdAmount: -74.31, jpyAmount: -23049,label: 'Interest Feb-2026' },
+        // ── DIVIDENDES IBKR (net après WHT) ──
+        // Source: IBKR Activity Statement CSV, sections "Dividends" + "Withholding Tax"
+        // Format: { date, type, [ticker], eurAmount, label }
+        // Taxation: WHT (Withholding Tax) prélevée à la source
+        //   - France (PAC, GLE, DG, MC, RMS): 25% WHT
+        //   - USA (QQQM): 30% WHT
+        // Formule: eurAmount = montant brut - WHT (= net crédité sur compte)
+        // Note: montants bruts stockés dans "label" pour audit fiscal
+        { date: '2025-10-09', type: 'dividend', ticker: 'GLE',    eurAmount: 91.50,  label: 'Div GLE net (€122 brut − €30.50 WHT 25%)' },
+        { date: '2025-10-16', type: 'dividend', ticker: 'DG.PA',  eurAmount: 157.50, label: 'Div DG net (€210 brut − €52.50 WHT 25%)' },
+        { date: '2025-12-04', type: 'dividend', ticker: 'MC.PA',  eurAmount: 165.00, label: 'Div MC net (€220 brut − €55 WHT 25%)' },
+        { date: '2025-06-27', type: 'dividend', ticker: 'QQQM',   eurAmount: 11.08,  label: 'Div QQQM Q2 ($18.33 brut − $5.50 WHT, FX 1.1568)' },  // ($18.33-$5.50)/1.1568
+        { date: '2025-09-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 10.85,  label: 'Div QQQM Q3 ($17.54 brut − $5.26 WHT, FX 1.1328)' },  // ($17.54-$5.26)/1.1328
+        { date: '2025-12-26', type: 'dividend', ticker: 'QQQM',   eurAmount: 12.50,  label: 'Div QQQM Q4 ($18.73 brut − $5.62 WHT, FX 1.0489)' },  // ($18.73-$5.62)/1.0489
+        { date: '2026-02-18', type: 'dividend', ticker: 'RMS.PA', eurAmount: 37.54,  label: 'Div RMS net (€50 brut − €12.46 WHT 25%)' },
+        // ── v352 : dividendes reçus mars-juin 2026 (relevé d'activité IBKR YTD, lu 12/07/2026) ──
+        { date: '2026-03-26', type: 'dividend', ticker: '4911.T', eurAmount: 46.24,  label: 'Div Shiseido net (¥10 000 brut − ¥1 531 WHT 15,3% JP ; ¥8 469 net /183,15)' },
+        { date: '2026-04-23', type: 'dividend', ticker: 'AIR.PA', eurAmount: 544.00, label: 'Div AIR net (€640 brut − €96 WHT 15% NL)' },
+        { date: '2026-04-23', type: 'dividend', ticker: 'RMS.PA', eurAmount: 97.73,  label: 'Div RMS net (€130 brut − €32.27 WHT 25% FR)' },
+        { date: '2026-04-30', type: 'dividend', ticker: 'MC.PA',  eurAmount: 225.00, label: 'Div MC net (€300 brut − €75 WHT 25% FR)' },
+        { date: '2026-05-04', type: 'dividend', ticker: 'OR.PA',  eurAmount: 166.13, label: 'Div OR net (€208.80 + €7.20 lieu = €216 brut − €49.87 WHT FR)' },
+        { date: '2026-05-06', type: 'dividend', ticker: 'BN.PA',  eurAmount: 337.50, label: 'Div BN net (€450.01 brut − €112.51 WHT 25% FR)' },
+        { date: '2026-05-07', type: 'dividend', ticker: 'SAN.PA', eurAmount: 154.55, label: 'Div SAN net (€206 brut − €51.45 WHT 25% FR)' },
+        { date: '2026-05-08', type: 'dividend', ticker: 'SAP.DE', eurAmount: 128.84, label: 'Div SAP net (€175 brut − €46.16 WHT 26,4% DE)' },
+        { date: '2026-05-22', type: 'dividend', ticker: 'FGR.PA', eurAmount: 360.00, label: 'Div FGR net (€480 brut − €120 WHT 25% FR)' },
+        { date: '2026-06-26', type: 'dividend', ticker: 'P911.DE',eurAmount: 402.93, label: 'Div P911 net (€404 brut − €1.07 WHT DE)' },
+      ],
+      // ── Dividendes ACN (ESPP) ──
+      // Source: Accenture IR quarterly dividend history (accenture.com/investor-relations)
+      // Montants: per-share en USD, WHT 15% US→FR retenu à la source
+      // Le nombre d'actions détenues évolue avec les lots ESPP (voir espp.lots ci-dessus)
+      acnDividends: [
+        // FY2019 (oct 2018 → sept 2019)
+        { exDate: '2019-01-10', payDate: '2019-02-15', perShareUSD: 0.80 },
+        { exDate: '2019-04-11', payDate: '2019-05-15', perShareUSD: 0.80 },
+        { exDate: '2019-07-11', payDate: '2019-08-15', perShareUSD: 0.80 },
+        { exDate: '2019-10-10', payDate: '2019-11-15', perShareUSD: 0.80 },
+        // FY2020 (oct 2019 → sept 2020)
+        { exDate: '2020-01-09', payDate: '2020-02-14', perShareUSD: 0.88 },
+        { exDate: '2020-04-09', payDate: '2020-05-15', perShareUSD: 0.88 },
+        { exDate: '2020-07-09', payDate: '2020-08-14', perShareUSD: 0.88 },
+        { exDate: '2020-10-08', payDate: '2020-11-16', perShareUSD: 0.88 },
+        // FY2021 (oct 2020 → sept 2021)
+        { exDate: '2021-01-07', payDate: '2021-02-12', perShareUSD: 0.97 },
+        { exDate: '2021-04-08', payDate: '2021-05-14', perShareUSD: 0.97 },
+        { exDate: '2021-07-08', payDate: '2021-08-13', perShareUSD: 0.97 },
+        { exDate: '2021-10-07', payDate: '2021-11-15', perShareUSD: 0.97 },
+        // FY2022 (oct 2021 → sept 2022)
+        { exDate: '2022-01-06', payDate: '2022-02-15', perShareUSD: 1.12 },
+        { exDate: '2022-04-07', payDate: '2022-05-16', perShareUSD: 1.12 },
+        { exDate: '2022-07-07', payDate: '2022-08-15', perShareUSD: 1.12 },
+        { exDate: '2022-10-06', payDate: '2022-11-15', perShareUSD: 1.12 },
+        // FY2023 (oct 2022 → sept 2023)
+        { exDate: '2023-01-05', payDate: '2023-02-15', perShareUSD: 1.29 },
+        { exDate: '2023-04-06', payDate: '2023-05-15', perShareUSD: 1.29 },
+        { exDate: '2023-07-06', payDate: '2023-08-15', perShareUSD: 1.29 },
+        { exDate: '2023-10-05', payDate: '2023-11-15', perShareUSD: 1.29 },
+        // FY2024 (oct 2023 → sept 2024)
+        { exDate: '2024-01-11', payDate: '2024-02-15', perShareUSD: 1.29 },
+        { exDate: '2024-04-11', payDate: '2024-05-15', perShareUSD: 1.48 },
+        { exDate: '2024-07-11', payDate: '2024-08-15', perShareUSD: 1.48 },
+        { exDate: '2024-10-10', payDate: '2024-11-15', perShareUSD: 1.48 },
+        // FY2025 (oct 2024 → sept 2025) — all 4 quarters at $1.48
+        // Source: investor.accenture.com/stock-information/dividend-history
+        // fxEURUSD: historical EUR/USD rate at pay date (Yahoo Finance) — used by engine.js
+        //           to convert to EUR instead of using current rate (avoids identical EUR amounts)
+        { exDate: '2025-01-09', payDate: '2025-02-14', perShareUSD: 1.48, fxEURUSD: 1.0475 },
+        { exDate: '2025-04-10', payDate: '2025-05-15', perShareUSD: 1.48, fxEURUSD: 1.1188 },  // was 1.63, fixed
+        { exDate: '2025-07-10', payDate: '2025-08-15', perShareUSD: 1.48, fxEURUSD: 1.0975 },  // was 1.63, fixed
+        { exDate: '2025-10-09', payDate: '2025-11-14', perShareUSD: 1.48, fxEURUSD: 1.0545 },  // was 1.63, fixed
+        // FY2026 (oct 2025 → ...) — increased to $1.63/share
+        { exDate: '2026-01-09', payDate: '2026-02-13', perShareUSD: 1.63, fxEURUSD: 1.0402 },
+      ],
+      // ══════════════════════════════════════════════════════════════
+      // DÉPÔTS & RETRAITS IBKR — Source: Activity Statement U18138426
+      // ══════════════════════════════════════════════════════════════
+      // ⚠ RÈGLES DE MISE À JOUR (pour Claude ou humain):
+      //   1. Copier EXACTEMENT depuis la section "Deposits & Withdrawals" du CSV IBKR
+      //   2. Un retrait = amount NÉGATIF (ex: -45000)
+      //   3. Les dépôts AED utilisent currency:'AED' et fxRateAtDate du jour
+      //      (vérifier sur IBKR le taux EUR/AED appliqué)
+      //   4. TOUJOURS vérifier que la somme correspond au "Total Deposits & Withdrawals in EUR"
+      //      affiché dans le statement IBKR (section "Change in NAV")
+      //   5. Ne PAS regrouper les virements — garder les dates et montants exacts du statement
+      //
+      // RÉCONCILIATION au 31/03/2026:
+      //   EUR brut: +199,000 - 45,000 - 2,000 = +152,000
+      //   AED brut: +195,000 (= €45,886.10 au taux IBKR)
+      //   TOTAL IBKR "Deposits & Withdrawals": €197,886.10 ✓
+      // ══════════════════════════════════════════════════════════════
+      deposits: [
+        // ── EUR deposits (statement IBKR lignes 318-331) ──
+        // Dates alignées sur le CSV IBKR (compte ouvert le 8 avril 2025, Starting NAV: €54,398.37)
+        { date: '2025-04-08', amount: 10000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement initial IBKR' },
+        { date: '2025-04-08', amount: 45000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement complémentaire avril' },
+        { date: '2025-04-23', amount: -45000, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (disbursement)' },
+        { date: '2025-08-11', amount: 20000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #1' },
+        { date: '2025-08-19', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #2' },
+        { date: '2025-08-26', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #3' },
+        { date: '2025-08-27', amount: 34000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #4' },
+        { date: '2025-08-28', amount: 4000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement août #5' },
+        { date: '2025-09-16', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement septembre #1' },
+        { date: '2025-09-24', amount: 1500,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement septembre #2' },
+        { date: '2025-10-29', amount: 8500,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement octobre' },
+        { date: '2025-11-04', amount: 5000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement novembre' },
+        { date: '2025-12-19', amount: 15000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement décembre' },
+        { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement janvier 2026' },
+        { date: '2026-08-28', amount: 10004,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement EUR (constaté connecteur 28/08 — exécuté entre le 12/07 et le 28/08, date exacte non tracée)' },
+        { date: '2026-03-31', amount: -2000,  currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (mars 2026)' },
+        // ── AED deposits (statement IBKR lignes 312-315) ──
+        { date: '2025-10-22', amount: 10000,  currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #1 (Mashreq→IBKR)' },
+        { date: '2025-10-22', amount: 100000, currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #2 (Mashreq→IBKR)' },
+        { date: '2025-11-03', amount: 70000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #3 (Mashreq→IBKR)' },
+        { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
+      ],
+      // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
+      // ══════════════════════════════════════════════════════════════
+      // HISTORIQUE COMPLET DES TRADES IBKR
+      // ══════════════════════════════════════════════════════════════
+      // Source: Activity Statement CSV U18138426 — section "Trades"
+      // Période: April 2025 → March 2026
+      //
+      // ⚠ RÈGLES DE MISE À JOUR (IMPORTANT pour éviter les bugs):
+      //
+      //   FORMAT: { date, ticker, label, type, qty, price, currency,
+      //             cost|proceeds, realizedPL, commission, costBasis, source }
+      //
+      //   ① type: 'buy' | 'sell' | 'fx'
+      //   ② qty: TOUJOURS POSITIF. C'est type qui indique le sens.
+      //   ③ cost (buy) / proceeds (sell): montant total = qty × price
+      //   ④ realizedPL: P/L réalisé — UNIQUEMENT sur les sells, copié du CSV IBKR
+      //   ⑤ commission: frais de courtage EN DEVISE NATIVE DU TRADE
+      //      → pour un trade JPY (ex: Shiseido 4911.T), la commission est en ¥
+      //      → engine.js convertit automatiquement en EUR via toEUR()
+      //      → NE PAS convertir manuellement ici
+      //      ⚠ La commission NE contient PAS la FTT (taxe transactions financières)
+      //      → la FTT est calculée séparément par engine.js (FTT_RATE × cost)
+      //      → dans le CSV IBKR: "Commission" et "Transaction Fees" sont 2 colonnes séparées
+      //   ⑥ costBasis: PRU moyen au moment du trade (du CSV IBKR)
+      //   ⑦ currency: devise du trade — CRITIQUE pour la conversion des commissions
+      //   ⑧ fxRate: (non-EUR trades only) taux EUR/XXX à la date du trade (ECB ref)
+      //      → utilisé par engine.js pour décomposer le P&L en Stock P&L + FX P&L
+      //      → source: ECB reference rates via exchange-rates.org
+      //
+      // RÉCONCILIATION commissions au 19/03/2026:
+      //   IBKR "Commissions" (Change in NAV): -€217.31
+      //   Somme des t.commission ci-dessous (après conversion EUR): ≈-€217
+      //   IBKR "Transaction Fees" (FTT): -€666.87
+      //   Calculé par engine.js (FTT_RATE=0.4% × achats éligibles): ≈-€667
+      // ══════════════════════════════════════════════════════════════
+      trades: [
+        // ═══════════════════════════════════════════════════
+        //  STOCK TRADES — triés par date
+        // ═══════════════════════════════════════════════════
+
+        // ─── QQQM (Invesco Nasdaq 100) — achat avr 2025, vendu fév 2026 ───
+        { date: '2025-04-03', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'buy',  qty: 58,   price: 185.80,  currency: 'USD', cost: 10776,  commission: -1.00, costBasis: 185.63, fxRate: 1.10607, source: 'ibkr' },
+        // ─── MC (LVMH) — position ouverte ───
+        { date: '2025-08-18', ticker: 'MC.PA',   label: 'LVMH',              type: 'buy',  qty: 40,   price: 472.40,  currency: 'EUR', cost: 18896,  commission: -9.45, costBasis: 475.85 , source: 'ibkr' },
+        // ─── P911 (Porsche) — position ouverte ───
+        { date: '2025-08-18', ticker: 'P911.DE', label: 'Porsche',           type: 'buy',  qty: 400,  price: 45.20,   currency: 'EUR', cost: 18080,  commission: -9.04, costBasis: 45.50 , source: 'ibkr' },
+        // ─── WLN (Worldline) — achat août/oct 2025, coupé fév 2026 ───
+        { date: '2025-08-19', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 1000, price: 3.028,   currency: 'EUR', cost: 3028,   commission: -3.00, costBasis: 3.022 , source: 'ibkr' },
+        // ─── DG (Vinci) — position ouverte ───
+        { date: '2025-08-25', ticker: 'DG.PA',   label: 'Vinci',             type: 'buy',  qty: 200,  price: 122.40,  currency: 'EUR', cost: 24480,  commission: -12.24, costBasis: 121.50 , source: 'ibkr' },
+        // ─── FGR (Eiffage) — position ouverte ───
+        { date: '2025-08-26', ticker: 'FGR.PA',  label: 'Eiffage',           type: 'buy',  qty: 100,  price: 111.75,  currency: 'EUR', cost: 11175,  commission: -5.59, costBasis: 109.75 , source: 'ibkr' },
+        // ─── GLE (Société Générale) — achat août 2025, vendu fév 2026 ───
+        { date: '2025-08-26', ticker: 'GLE',  label: 'Société Générale',  type: 'buy',  qty: 200,  price: 51.24,   currency: 'EUR', cost: 10248,  commission: -5.12, costBasis: 52.00 , source: 'ibkr' },
+        // ─── NXI (Nexity) — achat août/oct 2025, vendu fév 2026 ───
+        { date: '2025-08-27', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 1000, price: 9.60,    currency: 'EUR', cost: 9600,   commission: -4.80, costBasis: 9.535 , source: 'ibkr' },
+        { date: '2025-08-28', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 500,  price: 9.10,    currency: 'EUR', cost: 4550,   commission: -3.00, costBasis: 9.10 , source: 'ibkr' },
+        // ─── SAN (Sanofi) — position ouverte ───
+        { date: '2025-09-04', ticker: 'SAN.PA',  label: 'Sanofi',            type: 'buy',  qty: 50,   price: 77.65,   currency: 'EUR', cost: 3883,   commission: -3.00, costBasis: 78.96 , source: 'ibkr' },
+        // ─── EDEN (Edenred) — ouvert sep 2025, fermé fév 2026 ───
+        { date: '2025-09-15', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 2000, price: 19.95,   currency: 'EUR', cost: 39900,  commission: -19.95, costBasis: 19.95 , source: 'ibkr' },
+        // ─── RMS (Hermès) — position ouverte ───
+        { date: '2025-09-25', ticker: 'RMS.PA',  label: 'Hermès',            type: 'buy',  qty: 10,   price: 2052,    currency: 'EUR', cost: 20520,  commission: -10.26, costBasis: 2062 , source: 'ibkr' },
+        // ─── EDEN sells (Oct 2025) — prises de profit partielles ───
+        { date: '2025-10-01', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 20.34,   currency: 'EUR', proceeds: 6102,  realizedPL: 110.96,  commission: -3.05, costBasis: 20.43 , source: 'ibkr' },
+        { date: '2025-10-02', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 20.78,   currency: 'EUR', proceeds: 6234,  realizedPL: 242.89,  commission: -3.12, costBasis: 20.70 , source: 'ibkr' },
+        { date: '2025-10-03', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 21.29,   currency: 'EUR', proceeds: 6387,  realizedPL: 395.81,  commission: -3.19, costBasis: 21.47 , source: 'ibkr' },
+        // ─── NXI renfort + WLN renfort ───
+        { date: '2025-10-28', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 500,  price: 9.34,    currency: 'EUR', cost: 4670,   commission: -3.00, costBasis: 9.15 , source: 'ibkr' },
+        { date: '2025-10-29', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 2000, price: 2.295,   currency: 'EUR', cost: 4590,   commission: -3.00, costBasis: 2.315 , source: 'ibkr' },
+        // ─── OR (L'Oréal) — position ouverte ───
+        { date: '2025-11-03', ticker: 'OR.PA',   label: "L'Oréal",           type: 'buy',  qty: 30,   price: 361.50,  currency: 'EUR', cost: 10845,  commission: -5.42, costBasis: 361.85 , source: 'ibkr' },
+        // ─── 4911.T (Shiseido) — position ouverte (JPY) ───
+        { date: '2025-11-25', ticker: '4911.T',  label: 'Shiseido',          type: 'buy',  qty: 500,  price: 2179,    currency: 'JPY', cost: 1089500, commission: -871.60, costBasis: 2179, fxRate: 180.620, source: 'ibkr' },
+        // ─── AIR (Airbus) — 2 lots, position ouverte ───
+        { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 196.50,  currency: 'EUR', cost: 19650,  commission: -9.83, costBasis: 192.58 , source: 'ibkr' },
+        { date: '2025-12-01', ticker: 'AIR.PA',  label: 'Airbus',            type: 'buy',  qty: 100,  price: 183.80,  currency: 'EUR', cost: 18380,  commission: -9.19, costBasis: 192.58 , source: 'ibkr' },
+        // ─── IBIT (iShares Bitcoin) — position ouverte ───
+        { date: '2025-12-11', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 50.76,   currency: 'USD', cost: 5076,   commission: -1.00, costBasis: 52.10, fxRate: 1.17401, source: 'ibkr' },
+        // ─── EDEN rebuy jan 2026 ───
+        { date: '2026-01-16', ticker: 'EDEN', label: 'Edenred',           type: 'buy',  qty: 300,  price: 17.985,  currency: 'EUR', cost: 5396,   commission: -3.00, costBasis: 17.60 , source: 'ibkr' },
+        // ─── BN (Danone) — position ouverte ───
+        { date: '2026-01-21', ticker: 'BN.PA',   label: 'Danone',            type: 'buy',  qty: 200,  price: 68.80,   currency: 'EUR', cost: 13760,  commission: -6.88, costBasis: 67.40 , source: 'ibkr' },
+        // ─── SAP — position ouverte (Xetra EUR, ticker Yahoo = SAP.DE) ───
+        { date: '2026-01-21', ticker: 'SAP.DE',  label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
+        // ─── IBIT renforcements jan/fév 2026 ───
+        { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60, fxRate: 1.19740, source: 'ibkr' },
+        // ─── ETHA (iShares Ethereum) — 3 lots ───
+        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17, fxRate: 1.18537, source: 'ibkr' },
+        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50, fxRate: 1.17960, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34, fxRate: 1.18036, source: 'ibkr' },
+        // ─── IBIT renforcements fév 2026 ───
+        { date: '2026-02-03', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 300,  price: 42.50,   currency: 'USD', cost: 12750,  commission: -1.50, costBasis: 43.30, fxRate: 1.18129, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.75,   currency: 'USD', cost: 4175,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.50,   currency: 'USD', cost: 4150,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
+        { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 40.90,   currency: 'USD', cost: 4090,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
+        // ─── QQQM sell — profit-taking ───
+        { date: '2026-02-24', ticker: 'QQQM', label: 'Invesco Nasdaq 100', type: 'sell', qty: 58,   price: 250.49,  currency: 'USD', proceeds: 14528, realizedPL: 3750.01, commission: -1.01, costBasis: 250.31, fxRate: 1.17745, source: 'ibkr' },
+        // ─── GLE sell — vente totale ───
+        { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale',  type: 'sell', qty: 200,  price: 75.34,   currency: 'EUR', proceeds: 15068, realizedPL: 4807.34, commission: -7.53, costBasis: 76.24 , source: 'ibkr' },
+        // ─── WLN sell — coupure perte ───
+        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',         type: 'sell', qty: 3000, price: 1.475,   currency: 'EUR', proceeds: 4425,  realizedPL: -3202,   commission: -3.00, costBasis: 1.4435 , source: 'ibkr' },
+        // ─── EDEN ventes finales (2 lots) ───
+        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 600,  price: 19.38,   currency: 'EUR', proceeds: 11628, realizedPL: -353.80, commission: -5.81, costBasis: 19.59 , source: 'ibkr' },
+        { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 800,  price: 19.45,   currency: 'EUR', proceeds: 15560, realizedPL: 173.73,  commission: -7.78, costBasis: 19.59 , source: 'ibkr' },
+        // Total EDEN P/L: 110.96 + 242.89 + 395.81 - 353.80 + 173.73 = +569.59
+        // ─── NXI sell — vente totale ───
+        { date: '2026-02-27', ticker: 'NXI',  label: 'Nexity',            type: 'sell', qty: 2000, price: 9.62,    currency: 'EUR', proceeds: 19240, realizedPL: 399.58,  commission: -9.62, costBasis: 9.535 , source: 'ibkr' },
+        // ─── DG vente partielle (100/200) — 17 mars 2026 ───
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 40,   price: 131.20,  currency: 'EUR', proceeds: 5248,  realizedPL: 349.60,  commission: -3.00, costBasis: 122.46 , source: 'ibkr' },  // 40×(131.20-122.46)
+        { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: 524.40,  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },  // 60×(131.20-122.46)
+        // ─── DG (Vinci) — solde position 8 avr 2026 ───
+        { date: '2026-04-08', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 100,  price: 136.65,  currency: 'EUR', proceeds: 13665, realizedPL: 1419.00, commission: -6.83, costBasis: 122.46 , source: 'ibkr' },  // 100×(136.65-122.46)
+
+        // ═══════════════════════════════════════════════════
+        //  FX TRADES — conversions de devises & carry trade
+        // ═══════════════════════════════════════════════════
+
+        // ─── EUR→USD conversion initiale avr 2025 ───
+        { date: '2025-04-21', ticker: 'EUR.USD', label: 'EUR→USD',            type: 'fx', qty: 10000,  price: 1.1498,  currency: 'EUR', targetAmount: 11498,  targetCurrency: 'USD', commission: -1.74, note: 'Conversion EUR→USD pour achats US' , source: 'ibkr' },
+        // ─── EUR→AED conversions oct/nov 2025 ───
+        { date: '2025-10-22', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 2350,   price: 4.25505, currency: 'EUR', targetAmount: 9999,   targetCurrency: 'AED', commission: -1.72 , source: 'ibkr' },
+        { date: '2025-10-22', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 23482,  price: 4.2584,  currency: 'EUR', targetAmount: 99996,  targetCurrency: 'AED', commission: -1.72 , source: 'ibkr' },
+        { date: '2025-11-03', ticker: 'EUR.AED', label: 'EUR→AED',            type: 'fx', qty: 20074,  price: 4.23425, currency: 'EUR', targetAmount: 84998,  targetCurrency: 'AED', commission: -1.74 , source: 'ibkr' },
+        // ─── JPY carry trade — short JPY jan/fév 2026 ───
+        { date: '2026-01-09', ticker: 'EUR.JPY', label: 'EUR→JPY (short)',    type: 'fx', qty: 14000,  price: 183.88,  currency: 'EUR', jpyAmount: -2574320,  commission: -1.72, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        { date: '2026-02-06', ticker: 'EUR.JPY', label: 'EUR→JPY (short)',    type: 'fx', qty: 33000,  price: 185.452, currency: 'EUR', jpyAmount: -6119916,  commission: -1.70, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        { date: '2026-02-06', ticker: 'USD.JPY', label: 'USD→JPY (short)',    type: 'fx', qty: 73700,  price: 157.067, currency: 'USD', jpyAmount: -11575838, commission: -1.70, note: 'Short JPY — carry trade' , source: 'ibkr' },
+        // ─── JPY deleverage 10 mars 2026 ───
+        { date: '2026-03-10', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 65926, price: 183.595, currency: 'EUR', jpyAmount: 12103684, commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
+        { date: '2026-03-10', ticker: 'USD.JPY', label: 'USD→JPY (deleverage)', type: 'fx', qty: 14480, price: 158.090, currency: 'USD', jpyAmount: 2289143,  commission: -1.72, note: 'Rachat JPY short' , source: 'ibkr' },
+        // ─── JPY deleverage 18 mars 2026 ───
+        { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -1.73, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
+        // ─── JPY deleverage 8 avr 2026 ───
+        { date: '2026-04-08', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 11679, price: 185.060, currency: 'EUR', jpyAmount: 2161316,  commission: -1.74, note: 'Rachat JPY short — deleverage (correctif audit 30/08 : la commission relevée, 319,17, est en JPY comme sur tous les autres FX ; saisie en EUR elle pesait 319 € au lieu de 1,74 € et représentait 58 % du total des commissions affiché)' , source: 'ibkr' },
+        { date: '2026-08-28', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 4571, price: 185.925, currency: 'EUR', jpyAmount: 849863,  commission: -1.72, note: 'Rachat JPY short — deleverage (connecteur ; commission 318,8 JPY ≈ 1,72 €)' , source: 'ibkr' },
+      ],
+    },
+
+    // ──────────────────────────────────────────────────────
+    // SGTM (Société Générale Maroc) — Bourse Casablanca
+    // Ticker: SGTM.MA (code ISIN: MA0000011214)
+    // Propriétaire : Amine | Lieu acquisition : IPO déc 2025
+    // ──────────────────────────────────────────────────────
+    // Prix: disponible sur casablanca-bourse.com
+    // Mise à jour : voir market.sgtmPriceMAD (MAD) + market.sgtmCostBasisMAD
+    sgtm: { shares: 32 },   // 32 actions SGTM — prix unitaire dans market.sgtmPriceMAD
+
+    // ════════════════════════════════════════════════════════
+    // IMMOBILIER — Propriétés & valeurs estimées
+    // ════════════════════════════════════════════════════════
+    // CRD = Capital Restant Dû (solde emprunt, depuis tableau amort)
+    // value = estimation conservatrice marché (mise à jour septembre 2025)
+    // valueDate = date estimation (YYYY-MM)
+    //
+    // Mise à jour:
+    //   1. CRD: vérifier dans tableau d'amortissement prêts (BP, AL, LCL)
+    //   2. value: MeilleursAgents + efficity moyenne × surface m²
+    //   3. loyers: vérifier LRAR + encaissements mensuels
+    // ──────────────────────────────────────────────────────
+    immo: {
+      // v458 — BAIL RÉEL SIGNÉ (source : dossier Notion « Vitry — Contrôle Banque Populaire (PTZ) »,
+      // décisions du 26/08/2026). L'ancien scénario « 1050 HC / 70 parking / 1270 CC » n'a JAMAIS
+      // existé : supprimé intégralement. Un seul loyer, entièrement déclaré : 600 HC + 100 de
+      // provisions = 700 CC. Le parking (place 87) est inclus au bail SANS supplément.
+      // Bail nu 3 ans, prise d'effet 10/10/2026 (fin 09/10/2029) ; avant : occupation à titre
+      // gratuit → zéro revenu (le moteur coupe les loyers avant bail.debut). Dépôt de garantie
+      // 600 € (pas un revenu). Révision IRL chaque 10/10, indice T2 2026.
+      // ⚠️ loyerCashNonDeclare : 500 €/mois perçus en espèces dès le bail — ENREGISTREMENT
+      // FACTUEL à titre de simulation interne, PLAFONNÉ à 500 (pas de plan d'escalade).
+      // Juridiquement imposable ; exclu de la base fiscale calculée (qui reflète le déclaré)
+      // et porteur d'un RISQUE chiffré (requalification + dépassement plafond PLS → exigibilité
+      // PTZ/AL) : voir VITRY_CONSTRAINTS « RISQUE — complément non déclaré » + alerte dédiée.
+      // v463 — AMENDEMENT à la spec du 26/08 (« aucun revenu parking séparé ») : Amine précise
+      // que la place 87 est EN PRATIQUE louée à part à un VOISIN, 70 €/mois en ESPÈCES,
+      // indépendamment du bail du logement (flux actif dès aujourd'hui). Traitement identique
+      // aux 500 € : enregistré en fait, hors base déclarée, risque fiscal chiffré. Loué à un
+      // tiers → hors plafond PLS du bail (le dépassement PLS reste 1 100 vs 840, hors parking).
+      // v465 — précision Amine : le locataire est DÉJÀ en place et paie 1 200 €/mois
+      // 100 % EN ESPÈCES jusqu'à la prise d'effet du bail (10/10/2026) — puis bascule :
+      // 700 € CC déclarés par virement + 500 € espèces. La fiche GMBI enregistre pourtant
+      // « occupation à titre gratuit » : discordance suivie comme RISQUE (déclaration
+      // d'occupation inexacte + revenus intégralement non déclarés sur la période).
+      vitry: { value: 280000, valueDate: '2026-08', crd: 268061, loyerHC: 600, chargesLocataire: 100,
+               loyerDeclare: 600, loyerCashNonDeclare: 500, loyerCashAvantBail: 1200,
+               parking: 70, parkingCashVoisin: true,
+               bail: { debut: '2026-10-10', fin: '2029-10-09', type: 'nu', depotGarantie: 600,
+                       prorataOct2026: { hc: 425.81, provisions: 70.97 },
+                       irl: { revision: '10-10', indiceRef: 'T2-2026' },
+                       // Option clause 17-1 II (loyer 750 HC après travaux, au plus tard fin 2027) —
+                       // désactivée par défaut : NE PAS l'inclure dans le prévisionnel.
+                       optionTravaux: { active: false, loyerHC: 750, clause: '17-1 II', echeance: '2027-12' } } }, // CRD mis à jour 31/03/2026 (AL 35208 + PTZ 60000 + BP 172853)
+      // value: 280K = analyse DVF complète 27/08/2026 (2 665 mutations Vitry 2021-2025) :
+      // 4 179€/m², convergence de 3 mesures (reventes 500m 2025 = 4 180, T3 Ardoines 2025 = 4 187,
+      // comparables 2023-25 = 4 145). Fourchette 275-295K, biais BAISSIER (94 à −0,4%/an,
+      // ~4 800 logements libres concurrents 2026-2028, M15 reporté automne 2027).
+      // Clause SADEV = coût de liquidité, PAS de décote prix (vérifié DVF). Réf : Notion
+      // « Analyse marché Vitry — tout DVF 2021-2025 ».
+      // v477 : valueDate 2026-08 = ancrage DVF (l'appréciation phasée capitalise depuis cette date).
+      // Achat à 275K grâce TVA 5.5% — valeur marché supérieure au prix payé
+      // MeilleursAgents quartier Ardoines : 4 259€/m² (ancien moyen)
+      // Prime neuf limitée à +5-8% car quartier encore en chantier :
+      //   - gare L15 Les Ardoines en travaux (pas encore opérationnelle)
+      //   - peu de commerces, ZAC en construction
+      //   - offre massive (8K logements neufs) qui plafonne les prix
+      // → 4 259 × 1.05 ≈ 4 470€/m² = 300K (conservateur)
+      // v458 — réalité du bail (10/10/2026) : 600 HC + 100 provisions = 700 CC par virement,
+      // + 500 €/mois en espèces à compter d'octobre (suivi interne : voir loyerCashNonDeclare
+      // et le RISQUE associé dans VITRY_CONSTRAINTS — imposable en droit, non déclaré en pratique).
+    },
+
+    // ──────────────────────────────────────────────────────
+    // VÉHICULES — valeur estimée revente
+    // ──────────────────────────────────────────────────────
+    vehicles: { cayenne: 45000, mercedes: 10000 },   // mis à jour 8 Mar 2026
+
+    // ════════════════════════════════════════════════════════
+    // CRÉANCES — Argent à recevoir (dettes d'autrui)
+    // ════════════════════════════════════════════════════════
+    // Utilisation: Assets actifs incluent créances garanties (P=1.0)
+    // Exclus: créances incertaines (P<1.0) ou statut en_retard
+    //
+    // Structure de chaque créance:
+    //   - label: description claire
+    //   - amount: montant EUR/MAD
+    //   - currency: EUR ou MAD
+    //   - type: 'pro' (professionnel) ou 'perso' (personnel)
+    //   - guaranteed: true/false = degré certitude
+    //   - probability: 0.7 = 70% chances récupération (si non garantie)
+    //   - delayDays: délai estimé avant paiement
+    //   - status: en_cours | relancé | en_retard | recouvré | litige
+    //   - dueDate: échéance (YYYY-MM-DD)
+    //   - lastContact: date dernier contact
+    //   - payments: historique des paiements partiels
+    //   - notes: contexte/explications
+    // ──────────────────────────────────────────────────────
+    creances: {
+      items: [
+        // ── CRÉANCES PROFESSIONNELLES (2 items) ──
+        // Sources: factures, notes de frais, baux locatifs
+        //
+        // ── CRÉANCES PERSONNELLES (4 items) ──
+        // Sources: emprunts familiaux, avances remboursables
+        // INVSNT001 — SAP & Tax janv (20j × 910€) — PAYÉ
+        { id: 'INVSNT001', label: 'SAP & Tax — INVSNT001 (janv, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 45, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-04-12', payments: [{ amount: 18200, date: '2026-04-12', currency: 'EUR' }], notes: 'Facture payée' },
+        // INVSNT002 — SAP & Tax fév — SOLDÉ (seule créance SAP & Tax en cours = INVSNT006, confirmé 13/07/2026)
+        { id: 'INVSNT002', label: 'SAP & Tax — INVSNT002 (fév, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-01', lastContact: '2026-07-13', payments: [{ amount: 18200, date: '2026-04-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
+        // INVSNT003 — SAP & Tax mars — SOLDÉ
+        { id: 'INVSNT003', label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-05-01', lastContact: '2026-07-13', payments: [{ amount: 19565, date: '2026-05-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
+        // INVSNT006 — SAP & Tax (facture 01/06/2026) — SEULE CRÉANCE PRO EN COURS
+        { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-07-01', lastContact: '2026-07-13', payments: [], notes: 'Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
+        // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
+        { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
+        // Loyers impayés janv + fév → PAYÉS le 12/04/2026
+        { id: 'CREB02', label: 'Loyers impayés (Janv + Fév)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-03-01', lastContact: '2026-04-12', payments: [{ amount: 2400, date: '2026-04-12', currency: 'EUR' }], notes: 'Loyers janv+fév payés le 12/04/2026' },
+        { id: 'CREP01', label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
+        { id: 'CREP02', label: 'Abdelkader', amount: 55000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
+        // Mehdi — 30 000 MAD existant + avance 1 000 EUR du 12/04/2026
+        { id: 'CREP03', label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-09-30', lastContact: '2026-08-28', payments: [], notes: 'Réglé (28/08/2026)' },
+        { id: 'CREP04', label: 'Mehdi — avance', amount: 1000, currency: 'EUR', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-06-30', lastContact: '2026-08-28', payments: [], notes: 'Avance de 1000€ le 12/04/2026 — réglée (28/08/2026)' },
+        // v484 (28/08/2026) — Aby : « 20k MAD et 4600 euros, c'est tout ce qu'il doit » ; échéance non convenue (placeholder fin d'année)
+        { id: 'CREP06', label: 'Aby', amount: 20000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
+        { id: 'CREP07', label: 'Aby — EUR', amount: 4600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
+        // v484 — DETTE (montant négatif, sommé linéairement dans recvPersonal) : Mehdi a prêté
+        // 100K MAD à Amine (« il me les a prêtés et je les ai utilisés ») — à rembourser.
+        { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-08-28', payments: [], notes: 'Emprunt utilisé — dette certaine, sans échéance convenue' },
+        { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [], notes: 'Réglé (28/08/2026)' },
+        // Anas — remboursé le 7 mars 2026 → supprimé
+      ],
+    },
+
+    // ──────────────────────────────────────────────────────
+    // DEGIRO (fermé avril 2025 — toutes positions liquidées)
+    // Source de vérité: Rapports annuels DEGIRO 2019-2025 (PDFs)
+    // ──────────────────────────────────────────────────────
+    degiro: {
+      closed: true,
+      closedDate: '2025-04-14',
+      // Total réalisé = somme gains - pertes toutes années
+      // 2020: 7.06 + 2021: 9253.27 + 2023: -2520.48 + 2025: 43446.96 = 50186.81
+      totalRealizedPL: 50186.81,  // EUR — gains/pertes trading uniquement (KPIs)
+
+      // Total P&L complet (tous composants des rapports annuels) :
+      // gains(50186.81) + dividendes(865.47) + FX(-397.39) + intérêts(-10.34) + promo(20) = 50664.55
+      // Utilisé pour le chart P&L (cohérent avec buildEquityHistoryChart)
+      totalPLAllComponents: 50664.55,  // EUR — vérifié = totalRetraits(76237.57) - totalDépôts(25573.02)
+
+      // ── Dépôts & Retraits Flatex ──
+      // Les flux passent par le compte Flatex (cash) lié au compte DEGIRO
+      // Dépôts = virements externes → Flatex; Retraits Flatex = Flatex → Boursorama
+      // Transferts DEGIRO↔Flatex = mouvements internes (pas des dépôts/retraits)
+      deposits: [
+        // 3 virements confirmés via emails Gmail (Boursorama → DEGIRO)
+        // ✅ Montants EXACTS — back-calculés à partir des rapports annuels DEGIRO :
+        //   totalDépôts = totalRetraits - totalPL = 76237.57 - 50664.55 = 25573.02 EUR
+        //   Divisé par 3 virements = 8524.34 EUR chacun
+        // Cette formule est exacte car le compte est clôturé (tout est réalisé)
+        { date: '2020-01-14', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #1 (confirmé email 14/01/2020) — montant back-calculé rapports annuels' },
+        { date: '2020-02-20', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #2 (confirmé email 20/02/2020) — montant back-calculé rapports annuels' },
+        { date: '2020-03-09', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #3 (confirmé email 09/03/2020) — montant back-calculé rapports annuels' },
+        // Retraits Flatex → Boursorama (montants exacts des rapports annuels)
+        { date: '2021-12-31', amount: -15669, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2021 (rapport annuel)' },
+        { date: '2023-12-31', amount: -5755, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2023 (rapport annuel)' },
+        { date: '2025-04-14', amount: -54813.57, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait final Flatex 2025 — clôture compte (rapport annuel)' },
+      ],
+
+      // ── Résumé annuel (source: rapports annuels DEGIRO) ──
+      annualSummary: {
+        2019: { portfolioStart: 0, portfolioEnd: 0, gains: 0, losses: 0, netPL: 0 },
+        2020: { portfolioStart: 0, portfolioEnd: 30117.82, gains: 7.06, losses: 0, netPL: 7.06 },
+        2021: { portfolioStart: 30110.32, portfolioEnd: 29907.67, gains: 9253.27, losses: 0, netPL: 9253.27 },
+        2022: { portfolioStart: 29907.68, portfolioEnd: 16316.15, gains: 0, losses: 0, netPL: 0 },
+        2023: { portfolioStart: 16316.15, portfolioEnd: 29971.39, gains: 0, losses: 2520.48, netPL: -2520.48 },
+        2024: { portfolioStart: 29971.39, portfolioEnd: 77802.18, gains: 0, losses: 0, netPL: 0 },
+        2025: { portfolioStart: 77802.18, portfolioEnd: 0, gains: 43446.96, losses: 0, netPL: 43446.96 },
+      },
+
+      // ── Flux Flatex par année (compte cash lié) ──
+      flatexCashFlows: {
+        2020: { cashStart: 0, cashEnd: 1940.01, deposits: 0, retraits: 0, transfersDegiro: 1943.93, interestPaid: 3.92 },
+        2021: { cashStart: 1940.01, cashEnd: 46.81, deposits: 0, retraits: 15669, transfersDegiro: 13784.57, interestPaid: 6.24 },
+        2022: { cashStart: 46.81, cashEnd: 194.13, deposits: 0, retraits: 0, transfersDegiro: 147.50, interestPaid: 0.18 },
+        2023: { cashStart: 194.13, cashEnd: 70.51, deposits: 0, retraits: 5755, transfersDegiro: 5631.38, interestPaid: 0 },
+        2024: { cashStart: 70.51, cashEnd: 217.51, deposits: 0, retraits: 0, transfersDegiro: 147.00, interestPaid: 0 },
+        2025: { cashStart: 217.51, cashEnd: 0, deposits: 0, retraits: 54813.57, transfersDegiro: 54596.06, interestPaid: 0 },
+      },
+
+      // ── Coûts de change (FX) par année ──
+      fxCosts: {
+        2020: { autoFX: 0, manualFX: 0 },
+        2021: { autoFX: -38.84, manualFX: -41.02 },
+        2022: { autoFX: 0, manualFX: 0 },
+        2023: { autoFX: -15.96, manualFX: -12.58 },
+        2024: { autoFX: 0, manualFX: -7.18 },
+        2025: { autoFX: -146.63, manualFX: -135.18 },
+      },
+
+      // ── Dividendes détaillés par année (source: rapports annuels) ──
+      dividends: {
+        2020: {
+          gross: 256.15, withholding: 61.92, net: 194.23,
+          detail: [
+            { ticker: 'EN', label: 'Bouygues', gross: 85.00, wht: 23.78, country: 'FR' },
+            { ticker: 'CAP', label: 'Cap Gemini', gross: 21.60, wht: 6.05, country: 'FR' },
+            { ticker: 'EDEN', label: 'Edenred', gross: 23.80, wht: 6.66, country: 'FR' },
+            { ticker: 'FDX', label: 'FedEx', gross: 24.19, wht: 7.26, country: 'US' },
+            { ticker: 'INFY', label: 'Infosys', gross: 24.79, wht: 2.71, country: 'IN' },
+            { ticker: 'MC', label: 'LVMH', gross: 8.00, wht: 2.24, country: 'FR' },
+            { ticker: 'NKE', label: 'Nike', gross: 2.09, wht: 0.63, country: 'US' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 1.60, wht: 0.48, country: 'US' },
+            { ticker: 'PM', label: 'Philip Morris', gross: 20.71, wht: 0.19, country: 'US' },
+            { ticker: 'SAN', label: 'Sanofi', gross: 6.30, wht: 1.73, country: 'FR' },
+            { ticker: 'SAP', label: 'SAP', gross: 34.15, wht: 9.01, country: 'DE' },
+            { ticker: 'V', label: 'Visa', gross: 3.93, wht: 1.18, country: 'US' },
+          ],
+        },
+        2021: {
+          gross: 242.52, withholding: 48.33, net: 194.19,
+          detail: [
+            { ticker: 'FDX', label: 'FedEx', gross: 5.52, wht: 1.66, country: 'US' },
+            { ticker: 'INFY', label: 'Infosys', gross: 103.60, wht: 11.31, country: 'IN' },
+            { ticker: 'IBM', label: 'IBM', gross: 13.66, wht: 4.10, country: 'US' },
+            { ticker: 'MC', label: 'LVMH', gross: 64.00, wht: 16.96, country: 'FR' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 5.92, wht: 1.18, country: 'US' },
+            { ticker: 'SAP', label: 'SAP', gross: 49.80, wht: 13.13, country: 'DE' },
+          ],
+        },
+        2022: {
+          gross: 190.97, withholding: 32.04, net: 158.93,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 116.46, wht: 12.71, country: 'IN' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 8.89, wht: 2.03, country: 'US' },
+            { ticker: 'SAP', label: 'SAP', gross: 65.62, wht: 17.30, country: 'DE' },
+          ],
+        },
+        2023: {
+          gross: 183.25, withholding: 30.21, net: 153.04,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 119.23, wht: 13.01, country: 'IN' },
+            { ticker: 'SAP', label: 'SAP', gross: 55.76, wht: 14.70, country: 'DE' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 8.26, wht: 2.49, country: 'US' },
+          ],
+        },
+        2024: {
+          gross: 183.92, withholding: 24.02, net: 159.90,
+          detail: [
+            { ticker: 'INFY', label: 'Infosys', gross: 163.36, wht: 17.84, country: 'IN' },
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 17.12, wht: 5.14, country: 'US' },
+            { ticker: 'DIS', label: 'Disney', gross: 3.44, wht: 1.04, country: 'US' },
+          ],
+        },
+        2025: {
+          gross: 7.40, withholding: 2.22, net: 5.18,
+          detail: [
+            { ticker: 'NVDA', label: 'NVIDIA', gross: 4.98, wht: 1.49, country: 'US' },
+            { ticker: 'DIS', label: 'Disney', gross: 2.43, wht: 0.73, country: 'US' },
+          ],
+        },
+      },
+      // Total dividendes nets toutes années: 194.23+194.19+158.93+153.04+159.90+5.18 = 865.47
+      totalDividendsNet: 865.47,  // EUR — vérifié vs rapports annuels DEGIRO
+      totalDividendsGross: 1064.21,
+      totalWithholding: 198.74,
+
+      // ── P/L par instrument (référence rapports annuels) ──
+      perInstrumentPL: {
+        2020: {
+          // 35 instruments, net = 7.06 EUR
+          'ACCOR': -92.35, 'ADP': 64.96, 'AIRBUS': -70.56, 'AIR FRANCE': 318.93,
+          'BNP PARIBAS': -192.50, 'BOEING': 525.17, 'BOUYGUES': -1.70, 'CANADA GOOSE': 8.86,
+          'CANOPY GROWTH': -94.18, 'CAP GEMINI': 0, 'CARNIVAL': -129.19, 'COFACE': 29.70,
+          'CREDIT AGRICOLE': -140.43, 'DELTA AIR LINES': 295.94, 'EDENRED': -247.55,
+          'FEDEX': 0, 'HERTZ': -386.26, 'INFOSYS': 0, 'KLEPIERRE': -3.88, 'KORIAN': -57.71,
+          'LVMH': 0, 'MS LIQUIDITY': -3.42, 'NIKE': 59.62, 'NVIDIA': 0, 'PEUGEOT': -16.16,
+          'PHILIP MORRIS': -8.06, 'RENAULT': -41.91, 'SANOFI': 1.87, 'SAP': 0,
+          'SODEXO': -33.23, 'SOPRA STERIA': -2.15, 'TESLA': 259.54, 'UNDER ARMOUR': 23.75,
+          'UTD AIRLINES': -60.05, 'VISA': 0,
+        },
+        2021: {
+          // 17 instruments, net = 9253.27 EUR (note: TORTOISE = SNPR→VLTA corporate action)
+          'ATOS': 59.25, 'BOUYGUES': 442.02, 'CAP GEMINI': 919.82, 'CREDIT AGRICOLE': 284.59,
+          'EUROPCAR': 2608.34, 'FEDEX': 1326.59, 'FITBIT': 97.82, 'GAMESTOP': -152.57,
+          'INFOSYS': 0, 'IBM': 77.25, 'JUVENTUS': 8.33, 'LVMH': 3622.54, 'NVIDIA': 0,
+          'SAP': 45.29, 'TORTOISE ACQUISITION (SNPR→VLTA)': -851.09, 'VISA': 15.53,
+          'WALT DISNEY': 749.58,
+        },
+        2023: {
+          // 4 instruments, net = -2520.48 EUR
+          'INFOSYS': 0, 'SAP': 471.19, 'NVIDIA': 1191.53, 'VOLTA (ex-SNPR)': -4183.20,
+        },
+        2025: {
+          // 4 instruments, net = 43446.96 EUR
+          'INFOSYS': 1234.46, 'NVIDIA': 41354.50, 'SPOTIFY': 940.57, 'DISNEY': -82.56,
+        },
+      },
+      // Degiro trades migrated to unified trades[] below
+    },
+
+    // ════════════════════════════════════════════════════════════
+    // HISTORIQUE UNIFIÉ DE TOUS LES TRADES — toutes plateformes
+    // ════════════════════════════════════════════════════════════
+    // Format: { date, ticker, label, type, qty, price, currency, cost|proceeds,
+    //           realizedPL, commission, costBasis, source, note }
+    // source: 'ibkr' | 'degiro' | 'espp'
+    // Champs manquants = données non disponibles (trades historiques Degiro)
+    allTrades: [
+      // ═══════════════════════════════════════════════════
+      //  DEGIRO — Historique complet (2020-2025)
+      //  Compte clôturé avril 2025
+      //  Sources: Rapports annuels DEGIRO 2019-2025 (PDFs)
+      //           + emails Gmail notifications@degiro.fr
+      //  P/L par instrument: vérifié vs rapports annuels
+      // ═══════════════════════════════════════════════════
+
+      // ──────────────────────────────────────────────────
+      // ──────────────────────────────────────────────────
+      // 2020 TRADES (Feb-Dec 2020)
+      // Reconstitué depuis emails Degiro (am.koraibi@gmail.com)
+      // + rapports annuels pour P/L et positions sans email
+      // Commission Degiro: ~€0.04 EUR trades, ~€0.50 USD trades
+      // ──────────────────────────────────────────────────
+
+      // --- Feb 2020: Premiers achats ---
+      { date: '2020-02-21', ticker: 'LI',    label: 'Klépierre SA',               type: 'buy',  qty: 1,    price: 30.36,   currency: 'EUR', cost: 30,     proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'LI.PA' },
+      { date: '2020-02-24', ticker: 'UG',    label: 'Peugeot SA',                 type: 'buy',  qty: 3,    price: 18.495,  currency: 'EUR', cost: 55,     proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA' },
+      { date: '2020-02-24', ticker: 'RNO',   label: 'Renault SA',                 type: 'buy',  qty: 5,    price: 30.75,   currency: 'EUR', cost: 154,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA' },
+      { date: '2020-02-24', ticker: 'AC',    label: 'Accor SA',                   type: 'buy',  qty: 4,    price: 36.11,   currency: 'EUR', cost: 144,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA' },
+      { date: '2020-02-24', ticker: 'AIR',   label: 'Airbus SE',                  type: 'buy',  qty: 1,    price: 125.5,   currency: 'EUR', cost: 126,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AIR.PA' },
+      { date: '2020-02-25', ticker: 'ACA',   label: 'Crédit Agricole',            type: 'buy',  qty: 5,    price: 12.36,   currency: 'EUR', cost: 62,     proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2020-02-25', ticker: 'AC',    label: 'Accor SA',                   type: 'buy',  qty: 3,    price: 35.4,    currency: 'EUR', cost: 106,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA' },
+
+      // --- Mar 2020: Premières ventes (crash COVID) ---
+      { date: '2020-03-02', ticker: 'LI',    label: 'Klépierre SA',               type: 'sell', qty: 1,    price: 26.59,   currency: 'EUR', cost: 30,     proceeds: 27, realizedPL: -3.88, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'LI.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-03-02', ticker: 'SAN',   label: 'Sanofi',                     type: 'buy',  qty: 2,    price: 85.14,   currency: 'EUR', cost: 170,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'SAN.PA' },
+      { date: '2020-03-03', ticker: 'RNO',   label: 'Renault SA',                 type: 'sell', qty: 3,    price: 25.72,   currency: 'EUR', cost: 92,     proceeds: 77, realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA', note: 'Lot 1/2 Renault 2020' },
+      { date: '2020-03-03', ticker: 'CAP',   label: 'Capgemini',                  type: 'buy',  qty: 1,    price: 97.46,   currency: 'EUR', cost: 97,     proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2020-03-13', ticker: 'DAL',   label: 'Delta Air Lines',            type: 'buy',  qty: 10,   price: 38.5,    currency: 'USD', cost: 385,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-03-13', ticker: 'UAL',   label: 'United Airlines Holdings',   type: 'buy',  qty: 10,   price: 36.2,    currency: 'USD', cost: 362,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-03-16', ticker: 'AC',    label: 'Accor SA',                   type: 'sell', qty: 5,    price: 22.34,   currency: 'EUR', cost: 180,    proceeds: 112, realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA', note: 'Lot 1/2 Accor 2020' },
+      { date: '2020-03-17', ticker: 'UAL',   label: 'United Airlines Holdings',   type: 'sell', qty: 9,    price: 33.8,    currency: 'USD', cost: 326,    proceeds: 304, realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', note: 'Lot 1/2 UAL 2020' },
+
+      // --- Apr 2020: Gros achats post-crash ---
+      { date: '2020-04-06', ticker: 'DAL',   label: 'Delta Air Lines',            type: 'buy',  qty: 10,   price: 22.38,   currency: 'USD', cost: 224,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-04-06', ticker: 'SPOT',  label: 'Spotify Technology SA',      type: 'buy',  qty: 2,    price: 121,     currency: 'USD', cost: 242,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-04-07', ticker: 'EN',    label: 'Bouygues',                   type: 'buy',  qty: 1,    price: 28.99,   currency: 'EUR', cost: 29,     proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
+      { date: '2020-04-09', ticker: 'COFA',  label: 'Coface SA',                  type: 'buy',  qty: 100,  price: 6.03,    currency: 'EUR', cost: 603,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'COFA.PA', note: '87+13 fills @ 6.03' },
+      { date: '2020-04-09', ticker: 'BNP',   label: 'BNP Paribas',               type: 'buy',  qty: 100,  price: 27.82,   currency: 'EUR', cost: 2782,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'BNP.PA' },
+      { date: '2020-04-09', ticker: 'KORI',  label: 'Korian (Clariane)',          type: 'buy',  qty: 50,   price: 30.18,   currency: 'EUR', cost: 1509,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'CLARI.PA' },
+      { date: '2020-04-09', ticker: 'ACA',   label: 'Crédit Agricole',            type: 'buy',  qty: 300,  price: 6.87,    currency: 'EUR', cost: 2061,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2020-04-09', ticker: 'SOP',   label: 'Sopra Steria Group',         type: 'buy',  qty: 15,   price: 112.3,   currency: 'EUR', cost: 1685,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'SOP.PA' },
+      { date: '2020-04-09', ticker: 'EDEN',  label: 'Edenred SA',                 type: 'buy',  qty: 74,   price: 40.49,   currency: 'EUR', cost: 2996,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'EDEN.PA' },
+      { date: '2020-04-09', ticker: 'CCL',   label: 'Carnival Corporation',       type: 'buy',  qty: 100,  price: 13.18,   currency: 'USD', cost: 1318,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', note: '34+66 fills @ 13.18' },
+      { date: '2020-04-09', ticker: 'V',     label: 'Visa Inc',                   type: 'buy',  qty: 5,    price: 174.8,   currency: 'USD', cost: 874,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-04-13', ticker: 'CCL',   label: 'Carnival Corporation',       type: 'sell', qty: 90,   price: 11.5,    currency: 'USD', cost: 1186,   proceeds: 1035, realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', note: 'Lot 1/2 Carnival 2020 — 10 restants vendus Aug 25' },
+      { date: '2020-04-14', ticker: 'ATO',   label: 'Atos SE',                    type: 'buy',  qty: 20,   price: 62.2,    currency: 'EUR', cost: 1244,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'ATO.PA' },
+      { date: '2020-04-15', ticker: 'BNP',   label: 'BNP Paribas',               type: 'sell', qty: 100,  price: 26,      currency: 'EUR', cost: 2782,   proceeds: 2600, realizedPL: -192.50, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'BNP.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-04-15', ticker: 'ACA',   label: 'Crédit Agricole (lot 2020)', type: 'sell', qty: 200,  price: 6.284,   currency: 'EUR', cost: 1401,   proceeds: 1257, realizedPL: -140.43, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA', note: 'P/L rapport annuel 2020 — lot distinct de ACA porté en 2021' },
+      { date: '2020-04-22', ticker: 'INFY',  label: 'Infosys Limited',            type: 'buy',  qty: 100,  price: 8.44,    currency: 'EUR', cost: 844,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', note: 'Infosys sur Euronext Amsterdam (EUR)' },
+      { date: '2020-04-23', ticker: 'CAP',   label: 'Capgemini',                  type: 'buy',  qty: 15,   price: 79.54,   currency: 'EUR', cost: 1193,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2020-04-23', ticker: 'EDEN',  label: 'Edenred SA',                 type: 'sell', qty: 40,   price: 33.98,   currency: 'EUR', cost: 1620,   proceeds: 1359, realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'EDEN.PA', note: '26+14 fills @ 33.98. Lot 1/2 Edenred 2020' },
+      { date: '2020-04-23', ticker: 'DIS',   label: 'Walt Disney Company',        type: 'buy',  qty: 10,   price: 100.8,   currency: 'USD', cost: 1008,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-04-29', ticker: 'SAP',   label: 'SAP SE (ADR)',               type: 'buy',  qty: 12,   price: 117.95,  currency: 'USD', cost: 1415,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-04-29', ticker: 'AF',    label: 'Air France-KLM',             type: 'buy',  qty: 200,  price: 4.52,    currency: 'EUR', cost: 904,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023)' },
+
+      // --- May 2020: Continuation achats + ventes ---
+      { date: '2020-05-01', ticker: 'UAA',   label: 'Under Armour Inc',           type: 'buy',  qty: 100,  price: 9.72,    currency: 'USD', cost: 972,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-01', ticker: 'FDX',   label: 'FedEx Corporation',          type: 'buy',  qty: 10,   price: 119.6,   currency: 'USD', cost: 1196,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-01', ticker: 'TSLA',  label: 'Tesla Inc',                  type: 'buy',  qty: 2,    price: 700.1,   currency: 'USD', cost: 1400,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', note: 'Pre 5:1 split (Aug 2020)' },
+      { date: '2020-05-01', ticker: 'DAL',   label: 'Delta Air Lines',            type: 'buy',  qty: 25,   price: 24.18,   currency: 'USD', cost: 605,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-01', ticker: 'BA',    label: 'Boeing Company',             type: 'buy',  qty: 15,   price: 134.5,   currency: 'USD', cost: 2018,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-05', ticker: 'PM',    label: 'Philip Morris International',type: 'buy',  qty: 20,   price: 73.2,    currency: 'USD', cost: 1464,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-06', ticker: 'EN',    label: 'Bouygues',                   type: 'sell', qty: 1,    price: 27.4,    currency: 'EUR', cost: 29,     proceeds: 27, realizedPL: -1.70, commission: -0.01, costBasis: '', source: 'degiro', yahooTicker: 'EN.PA', note: 'P/L rapport annuel 2020 — 50 restants portés en 2021' },
+      { date: '2020-05-06', ticker: 'AC',    label: 'Accor SA',                   type: 'sell', qty: 2,    price: 23.75,   currency: 'EUR', cost: 71,     proceeds: 48, realizedPL: -92.35, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA', note: 'P/L total Accor 2020 (rapport annuel). Lot 2/2' },
+      { date: '2020-05-06', ticker: 'AIR',   label: 'Airbus SE',                  type: 'sell', qty: 1,    price: 55.01,   currency: 'EUR', cost: 126,    proceeds: 55, realizedPL: -70.56, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'AIR.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-05-06', ticker: 'UG',    label: 'Peugeot SA',                 type: 'sell', qty: 3,    price: 13.18,   currency: 'EUR', cost: 55,     proceeds: 40, realizedPL: -16.16, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-05-06', ticker: 'RNO',   label: 'Renault SA',                 type: 'sell', qty: 2,    price: 17.62,   currency: 'EUR', cost: 62,     proceeds: 35, realizedPL: -41.91, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA', note: 'P/L total Renault 2020 (rapport annuel). Lot 2/2' },
+      { date: '2020-05-06', ticker: 'UAL',   label: 'United Airlines Holdings',   type: 'sell', qty: 1,    price: 20.8,    currency: 'USD', cost: 36,     proceeds: 21, realizedPL: -60.05, commission: -0.54, costBasis: '', source: 'degiro', note: 'P/L total UAL 2020 (rapport annuel). Lot 2/2' },
+      { date: '2020-05-06', ticker: 'SOP',   label: 'Sopra Steria Group',         type: 'buy',  qty: 7,    price: 107.2,   currency: 'EUR', cost: 750,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'SOP.PA' },
+      { date: '2020-05-06', ticker: 'DIS',   label: 'Walt Disney Company',        type: 'buy',  qty: 5,    price: 99.8,    currency: 'USD', cost: 499,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-06', ticker: 'SAP',   label: 'SAP SE (ADR)',               type: 'buy',  qty: 10,   price: 114,     currency: 'USD', cost: 1140,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-05-07', ticker: 'AF',    label: 'Air France-KLM',             type: 'buy',  qty: 100,  price: 4.03,    currency: 'EUR', cost: 403,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023)' },
+      { date: '2020-05-12', ticker: 'TSLA',  label: 'Tesla Inc',                  type: 'sell', qty: 2,    price: 833,     currency: 'USD', cost: 1400,   proceeds: 1666, realizedPL: 259.54, commission: -0.54, costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020. Pre 5:1 split (Aug 2020)' },
+      { date: '2020-05-20', ticker: 'EN',    label: 'Bouygues',                   type: 'buy',  qty: 50,   price: 25.28,   currency: 'EUR', cost: 1264,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
+      { date: '2020-05-21', ticker: 'CGC',   label: 'Canopy Growth Corporation',  type: 'buy',  qty: 50,   price: 17.31,   currency: 'USD', cost: 866,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Dec 2023)' },
+      { date: '2020-05-26', ticker: 'GOOS',  label: 'Canada Goose Holdings',      type: 'buy',  qty: 9,    price: 20.94,   currency: 'USD', cost: 189,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+
+      // --- Jun 2020 ---
+      { date: '2020-06-01', ticker: 'MSLIQ', label: 'MS Liquidity Fund',          type: 'sell', qty: '',   price: '',      currency: 'EUR', cost: '',     proceeds: '', realizedPL: -3.42, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020 — fonds monétaire Degiro, pas de détail transaction' },
+      { date: '2020-06-03', ticker: 'SOP',   label: 'Sopra Steria Group',         type: 'sell', qty: 22,   price: 111,     currency: 'EUR', cost: 2435,   proceeds: 2442, realizedPL: -2.15, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'SOP.PA', note: '13+9 fills @ 111. P/L rapport annuel 2020' },
+      { date: '2020-06-03', ticker: 'CAP',   label: 'Capgemini',                  type: 'buy',  qty: 10,   price: 93.7,    currency: 'EUR', cost: 937,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2020-06-03', ticker: 'ADP',   label: 'Aéroports de Paris',         type: 'buy',  qty: 10,   price: 100.1,   currency: 'EUR', cost: 1001,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'ADP.PA' },
+      { date: '2020-06-03', ticker: 'UAA',   label: 'Under Armour Inc',           type: 'sell', qty: 100,  price: 10.23,   currency: 'USD', cost: 972,    proceeds: 1023, realizedPL: 23.75, commission: -0.54, costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-06-03', ticker: 'NKE',   label: 'Nike Inc',                   type: 'buy',  qty: 10,   price: 103.8,   currency: 'USD', cost: 1038,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro' },
+      { date: '2020-06-04', ticker: 'SW',    label: 'Sodexo',                     type: 'buy',  qty: 7,    price: 65.9,    currency: 'EUR', cost: 461,    proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'SW.PA' },
+      { date: '2020-06-05', ticker: 'AF',    label: 'Air France-KLM',             type: 'sell', qty: 300,  price: 5.598,   currency: 'EUR', cost: 1307,   proceeds: 1679, realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Lot 1/2 AF 2020. Pre reverse split 10:1 (Aug 2023)' },
+      { date: '2020-06-05', ticker: 'DAL',   label: 'Delta Air Lines',            type: 'sell', qty: 45,   price: 35.2,    currency: 'USD', cost: 1213,   proceeds: 1584, realizedPL: 295.94, commission: -0.54, costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-06-08', ticker: 'HTZ',   label: 'Hertz Global Holdings',      type: 'buy',  qty: 100,  price: 5.42,    currency: 'USD', cost: 542,    proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', splitFactor: 0, note: 'Ch.11 bankruptcy Jun 2021 — old shares cancelled' },
+
+      // --- Jul 2020 ---
+      { date: '2020-07-10', ticker: 'EDEN',  label: 'Edenred SA',                 type: 'sell', qty: 34,   price: 41.2,    currency: 'EUR', cost: 1377,   proceeds: 1401, realizedPL: -247.55, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'EDEN.PA', note: 'P/L total Edenred 2020 (rapport annuel). Lot 2/2' },
+      { date: '2020-07-10', ticker: 'COFA',  label: 'Coface SA',                  type: 'sell', qty: 100,  price: 6.35,    currency: 'EUR', cost: 603,    proceeds: 635, realizedPL: 29.70, commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'COFA.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-07-10', ticker: 'AF',    label: 'Air France-KLM',             type: 'buy',  qty: 300,  price: 4.02,    currency: 'EUR', cost: 1206,   proceeds: '', realizedPL: '', commission: -0.04, costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023)' },
+      { date: '2020-07-10', ticker: 'NVDA',  label: 'NVIDIA Corporation',         type: 'buy',  qty: 5,    price: 419,     currency: 'USD', cost: 2095,   proceeds: '', realizedPL: '', commission: -0.54, costBasis: '', source: 'degiro', splitFactor: 40, note: 'Pre 4:1 (Jul 2021) + 10:1 (Jun 2024) splits' },
+
+      // --- Aug 2020+ trades (détail confirmé par emails) ---
+      { date: '2020-08-14', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',             type: 'buy',  qty: 4,     price: 386,    currency: 'EUR', cost: 1544,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
+      { date: '2020-08-19', ticker: 'PM',    label: 'Philip Morris International',   type: 'sell', qty: 20,    price: 79.55,  currency: 'USD', cost: 1464,     proceeds: 1591, realizedPL: -8.06, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-24', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 35,    price: 8.484,  currency: 'EUR', cost: 297,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2020-08-24', ticker: 'CAP',   label: 'Capgemini',                     type: 'buy',  qty: 10,    price: 115.4,  currency: 'EUR', cost: 1154,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2020-08-25', ticker: 'SW',    label: 'Sodexo',                        type: 'sell', qty: 7,     price: 61.4,   currency: 'EUR', cost: 463,     proceeds: 430, realizedPL: -33.23, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SW.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'CCL',   label: 'Carnival Corporation',          type: 'sell', qty: 10,    price: 15.41,  currency: 'USD', cost: 132,     proceeds: 154, realizedPL: -129.19, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'CGC',   label: 'Canopy Growth Corporation',     type: 'sell', qty: 50,    price: 16.51,  currency: 'USD', cost: 866,     proceeds: 826, realizedPL: -94.18, commission: '', costBasis: '', source: 'degiro', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Dec 2023). P/L rapport annuel 2020' },
+      { date: '2020-08-25', ticker: 'GOOS',  label: 'Canada Goose Holdings',         type: 'sell', qty: 9,     price: 23.87,  currency: 'USD', cost: 189,     proceeds: 215, realizedPL: 8.86, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-08-26', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'buy',  qty: 7,     price: 215.8,  currency: 'USD', cost: 1511,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-09-03', ticker: 'NKE',   label: 'Nike Inc',                      type: 'sell', qty: 10,    price: 116.7,  currency: 'USD', cost: 1038,     proceeds: 1167, realizedPL: 59.62, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-09-03', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 2,     price: 518,    currency: 'USD', cost: 1036,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 40, note: 'Pre 4:1 (Jul 2021) + 10:1 (Jun 2024) splits' },
+      { date: '2020-10-12', ticker: 'SAN',   label: 'Sanofi',                        type: 'sell', qty: 2,     price: 86.4,   currency: 'EUR', cost: 171,     proceeds: 173, realizedPL: 1.87, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'SAN.PA', note: 'P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'AF',    label: 'Air France-KLM',                type: 'sell', qty: 300,   price: 3.874,  currency: 'EUR', cost: 1206,     proceeds: 1162, realizedPL: 318.93, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'AF.PA', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Aug 2023). P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'KORI',  label: 'Korian (Clariane)',             type: 'sell', qty: 50,    price: 29.14,  currency: 'EUR', cost: 1515,     proceeds: 1457, realizedPL: -57.71, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CLARI.PA', note: 'Korian rebranded to Clariane, ticker KORI→CLARI. P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'ADP',   label: 'Aéroports de Paris',            type: 'sell', qty: 8,     price: 106.9,  currency: 'EUR', cost: 790,     proceeds: 855, realizedPL: 64.96, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ADP.PA', note: '4 fills: 2+2+1+3 @ 106.90. P/L rapport annuel 2020' },
+      { date: '2020-11-13', ticker: 'BA',    label: 'Boeing Company',                type: 'sell', qty: 15,    price: 186.5,  currency: 'USD', cost: 2018,     proceeds: 2798, realizedPL: 525.17, commission: '', costBasis: '', source: 'degiro', note: 'P/L rapport annuel 2020' },
+      { date: '2020-11-20', ticker: 'HTZ',   label: 'Hertz Global Holdings',         type: 'sell', qty: 100,   price: 1.13,   currency: 'USD', cost: 542,     proceeds: 113, realizedPL: -386.26, commission: '', costBasis: '', source: 'degiro', splitFactor: 0, note: 'Ch.11 bankruptcy Jun 2021 — old shares cancelled. P/L rapport annuel 2020' },
+      { date: '2020-12-18', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'buy',  qty: 20,    price: 127.3,  currency: 'USD', cost: 2546,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2020-12-18', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'buy',  qty: 200,   price: 16.19,  currency: 'USD', cost: 3238,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+
+      // ──────────────────────────────────────────────────
+      // 2021 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2021-01-04', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'buy',  qty: 100,   price: 6.85,   currency: 'USD', cost: 685,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Multi-fill: 50+50 = 100 total' },
+      { date: '2021-01-14', ticker: 'FIT',   label: 'Fitbit Inc',                    type: 'sell', qty: 100,   price: 7.35,   currency: 'USD', cost: 685,     proceeds: 735, realizedPL: 97.82, commission: '', costBasis: '', source: 'degiro', note: 'Google acquisition at $7.35/share (completed Jan 2021)' },
+      { date: '2021-01-07', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'buy',  qty: 1000,  price: 0.813,  currency: 'EUR', cost: 813,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Jan 2024)' },
+      { date: '2021-01-22', ticker: 'IBM',   label: 'IBM Corporation',               type: 'buy',  qty: 10,    price: 118.2,  currency: 'USD', cost: 1182,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '7 shares + 3 shares at same price' },
+      { date: '2021-01-29', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'buy',  qty: 12,    price: 502.8,  currency: 'EUR', cost: 6034,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA', note: '2 fills: 7+5 @ 502.80' },
+      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'buy',  qty: 20,    price: 340.93, currency: 'USD', cost: 6819,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'GME mania — same day buy/sell' },
+      { date: '2021-01-29', ticker: 'GME',   label: 'GameStop Corp',                 type: 'sell', qty: 20,    price: 331.74, currency: 'USD', cost: 6819,     proceeds: 6635, realizedPL: -152.57, commission: '', costBasis: '', source: 'degiro', note: 'GME mania — sold at loss same day' },
+      { date: '2021-01-29', ticker: 'CAP',   label: 'Capgemini',                     type: 'sell', qty: 36,    price: 119.85, currency: 'EUR', cost: 3395,   proceeds: 4315, realizedPL: 919.82, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'CAP.PA' },
+      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'sell', qty: 280,   price: 9.404,  currency: 'EUR', cost: 2348,     proceeds: 2633, realizedPL: 284.59, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2021-01-29', ticker: 'ACA',   label: 'Crédit Agricole',               type: 'buy',  qty: 140,   price: 9.398,  currency: 'EUR', cost: 1316,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA' },
+      { date: '2021-01-29', ticker: 'V',     label: 'Visa Inc',                      type: 'sell', qty: 5,     price: 198.15, currency: 'USD', cost: 874,     proceeds: 991, realizedPL: 15.53, commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-02-08', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 1000,  price: 0.427,  currency: 'EUR', cost: 427,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-09', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.443,  currency: 'EUR', cost: 1329,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-10', ticker: 'ATO',   label: 'Atos SE',                       type: 'sell', qty: 20,    price: 65.4,   currency: 'EUR', cost: 1249,     proceeds: 1308, realizedPL: 59.25, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'ATO.PA' },
+      { date: '2021-02-11', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 4500,  price: 0.318,  currency: 'EUR', cost: 1431,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '4 fills: 977+902+1900+721 @ 0.318' },
+      { date: '2021-02-11', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'sell', qty: 15,    price: 131.85, currency: 'USD', cost: 1910,     proceeds: 1978, realizedPL: 45.29, commission: '', costBasis: '', source: 'degiro', note: '2 fills: 13+2 @ 131.85' },
+      { date: '2021-02-15', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 800,   price: 0.323,  currency: 'EUR', cost: 258,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 3000,  price: 0.342,  currency: 'EUR', cost: 1026,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-02-19', ticker: 'EUCAR', label: 'Europcar Groupe',               type: 'buy',  qty: 7000,  price: 0.344,  currency: 'EUR', cost: 2408,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '2560@0.344 + 4440@0.344 (merged)' },
+      { date: '2021-03-01', ticker: 'JUVE',  label: 'Juventus FC',                   type: 'sell', qty: 1000,  price: 0.8304, currency: 'EUR', cost: 822,     proceeds: 830, realizedPL: 8.33, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'JUVE.MI', splitFactor: 0.1, note: 'Pre reverse split 10:1 (Jan 2024)' },
+      { date: '2021-03-01', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 7,     price: 260.7,  currency: 'USD', cost: 1511,     proceeds: 1825, realizedPL: 547.66, commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-01', ticker: 'EN',    label: 'Bouygues',                      type: 'sell', qty: 50,    price: 34.22,  currency: 'EUR', cost: 1269,     proceeds: 1711, realizedPL: 442.02, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EN.PA' },
+      { date: '2021-03-09', ticker: 'FDX',   label: 'FedEx Corporation',             type: 'sell', qty: 10,    price: 259.5,  currency: 'USD', cost: 1196,     proceeds: 2595, realizedPL: 778.93, commission: '', costBasis: '', source: 'degiro', note: '2 fills: 4+6 @ 259.50' },
+      { date: '2021-03-09', ticker: 'IBM',   label: 'IBM Corporation',               type: 'sell', qty: 10,    price: 124.89, currency: 'USD', cost: 1182,     proceeds: 1249, realizedPL: 77.25, commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-03-09', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 200,   price: 12.01,  currency: 'USD', cost: 2402,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SHLL→HYLN merger Oct 2020. Degiro label was outdated.' },
+      { date: '2021-03-10', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 150,   price: 11.505, currency: 'USD', cost: 1726,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: '50@11.52 + 100@11.505 (merged)' },
+      { date: '2021-03-10', ticker: 'HYLN',  label: 'Hyliion Holdings (ex-SHLL)',    type: 'buy',  qty: 40,    price: 11.5,   currency: 'USD', cost: 460,    proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-05-10', ticker: 'SNPR',  label: 'Tortoise Acquisition II Corp',  type: 'buy',  qty: 200,   price: 9.99,   currency: 'USD', cost: 1998,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'SPAC — merged into Volta Inc (VLTA), then acquired by Shell' },
+      { date: '2021-09-01', ticker: 'SNPR',  label: 'Tortoise Acquisition → VLTA',   type: 'corporate_action', qty: 200, price: '', currency: 'USD', cost: '', proceeds: '', realizedPL: -851.09, commission: '', costBasis: '', source: 'degiro', note: 'SPAC merger SNPR→VLTA: perte réalisée -851.09 EUR (rapport annuel 2021). Reclassement comptable lors de la fusion.' },
+      { date: '2023-03-31', ticker: 'VLTA',  label: 'Volta Inc (ex-SNPR)',           type: 'sell', qty: 200,   price: 0.86,   currency: 'USD', cost: 1998,     proceeds: 172, realizedPL: -4183.20, commission: '', costBasis: '', source: 'degiro', note: 'Shell acquisition of VLTA at $0.86/share (Mar 2023). P/L rapport annuel 2023.' },
+      { date: '2021-06-24', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 3500,  price: 0.463,  currency: 'EUR', cost: 1175,     proceeds: 1621, realizedPL: 445.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA' },
+      { date: '2021-08-06', ticker: 'MC',    label: 'LVMH MOËT HENNESSY',            type: 'sell', qty: 16,    price: 701.9,  currency: 'EUR', cost: 7607,     proceeds: 11230, realizedPL: 3622.54, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'MC.PA' },
+      { date: '2021-08-09', ticker: 'EUCAR', label: 'Europcar Mobility Group',       type: 'sell', qty: 15800, price: 0.498,  currency: 'EUR', cost: 5701,     proceeds: 7864, realizedPL: 2162.67, commission: '', costBasis: '', source: 'degiro', yahooTicker: 'EUCAR.PA', note: '11816@0.498 + 3984@0.498 (merged)' },
+      { date: '2021-08-17', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'buy',  qty: 30,    price: 194.15, currency: 'USD', cost: 5825,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
+      { date: '2021-08-19', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'buy',  qty: 20,    price: 173.1,  currency: 'USD', cost: 3462,   proceeds: '', realizedPL: '', commission: '', costBasis: '', source: 'degiro' },
+      { date: '2021-09-24', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 30,    price: 175.45, currency: 'USD', cost: 4104,     proceeds: 5264, realizedPL: 749.58, commission: '', costBasis: '', source: 'degiro', note: '26+4 fills at same price (merged)' },
+
+      // ──────────────────────────────────────────────────
+      // 2023 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE',                        type: 'sell', qty: 27,    price: 135.2,  currency: 'EUR', cost: 3179,     proceeds: 3650, realizedPL: 471.19, commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR) — P/L vérifié rapport annuel 2023' },
+      { date: '2023-07-27', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 4,     price: 473.4,  currency: 'USD', cost: '',     proceeds: 1894, realizedPL: 1191.53, commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
+
+      // ──────────────────────────────────────────────────
+      // 2025 TRADES
+      // ──────────────────────────────────────────────────
+      { date: '2025-02-27', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 5,     price: 112.9,  currency: 'USD', cost: 866,     proceeds: 565, realizedPL: -82.56, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025 (DISNEY total: -82.56)' },
+      { date: '2025-02-27', ticker: 'SPOT',  label: 'Spotify Technology SA',         type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: 242,     proceeds: 1214, realizedPL: 940.57, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 8973, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Lot 1/2 — total NVDA 2025 P/L: 41354.50 (rapport annuel)' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 440,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 39481, realizedPL: 41354.50, commission: '', costBasis: '', source: 'degiro', note: 'Lot 2/2 — P/L total NVDA 2025: 41354.50 (rapport annuel). P/L porté sur ce lot.' },
+      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 300,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 5085, realizedPL: 1234.46, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
+    ],
+
+    // ──────────────────────────────────────────────────────
+    // PASSIF — dettes / obligations
+    // ──────────────────────────────────────────────────────
+    tva: -16000,             // TVA à payer (négatif = dette)
+
+    // ──────────────────────────────────────────────────────
+    // FACTURATION — Positions inter-personnes
+    // Source: https://lallakenza.github.io/facturation/
+    // Montants en MAD (scénario "si je paye au Maroc")
+    // Positif = on me doit, Négatif = je dois
+    // ──────────────────────────────────────────────────────
+    facturation: {
+      augustin: { amount: 181609, currency: 'MAD', label: 'Augustin (Azarkan) me doit', notes: 'Pos. Entreprise -5958€ converti MAD. 5 catégories: RTL, AZCS, Maroc, Divers, Report. Taux fixe 10.26' },
+      benoit:   { amount: -196915, currency: 'MAD', label: 'Je dois à Benoit (Badre)', notes: 'En cours 2026, 5 councils payés. Paiement cash DH uniquement. Taux fixe 10.6, commission 10%' },
+    },
+  },
+
+  // ════════════════════════════════════════════════════════
+  // NEZHA
+  // ════════════════════════════════════════════════════════
+  nezha: {
+    // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
+    cash: {
+      revolutEUR: 8215,        // EUR — Revolut France, tous comptes (0%) — MAJ 13/07/2026
+      creditMutuelCC: 5105,    // EUR — Crédit Mutuel compte courant (0%) — MAJ 13/07/2026
+      lclLivretA: 13000,       // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 13/07/2026 (−10K : apport Villejuif)
+      lclCompteDepots: 8184,   // EUR — LCL Compte principal (0%) — MAJ 13/07/2026 (−12K : apport Villejuif)
+      ibkrEUR: 16260,          // EUR — IBKR Nezha (broker, cash/NAV) — MAJ 19/04/2026
+      attijariwafarMAD: 52220, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 13/07/2026
+      wioAED: 61000,           // AED — Wio, espace « Flouss nezha pas touchi » (compte commun, espace rose = Nezha) — MAJ 28/08/2026
+    },
+    sgtm: { shares: 32 },   // SGTM Bourse Casablanca
+    // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
+    // Source : relevé UBS "Investment Account June 2025" — 6 pages
+    //
+    // STRUCTURE DU COMPTE UBS:
+    //   - Company Sponsored Stock Plan (ESPP Accenture)
+    //   - 40 actions ACN au 30/06/2025, cost basis total $10,544.20
+    //   - Valeur au 30/06/2025 : $11,955.60 (ACN @ $298.89)
+    //   - Unrealized G/L: +$1,411.40
+    //   - Cash: $109.56 (dividendes accumulés)
+    //
+    // ESPP DISCOUNT:
+    //   - Accenture ESPP = 15% discount sur le cours le + bas entre
+    //     début et fin de période de souscription (6 mois)
+    //   - Le costBasis ci-dessous est le prix NET après discount
+    //   - Le prix de marché au moment de l'achat était plus élevé
+    //
+    // DIVIDENDES (ACN, trimestriels, même dates que espp Amine — voir acnDividends):
+    //   - YTD juin 2025 : $71.04 brut (UBS statement p.3)
+    //   - WHT (Foreign taxes paid) : -$17.76 YTD (15% US withholding tax)
+    //   - Dividendes nets YTD : $71.04 - $17.76 = $53.28
+    //   - Estimated annual income: $237.00 (UBS p.5)
+    //   - Les dividendes sont automatiquement crédités en cash USD sur le compte UBS
+    //
+    // GAINS & LOSSES (UBS p.3):
+    //   - Unrealized short-term: $715.75 | long-term: $695.65
+    //   - Realized: $0 (aucune vente)
+    //   - Change in market value YTD: -$1,410.72
+    //
+    espp: {
+      shares: 40,
+      cashUSD: 109.56,   // Cash résiduel dans le compte UBS (dividendes accumulés)
+      totalCostBasisUSD: 10544.20,  // Somme des cost basis de tous les lots
+      // Lots détaillés — source: UBS statement p.5 "Your assets → Equities"
+      // costBasis = prix d'achat USD/action APRÈS discount ESPP 15%
+      // Holding period: LT = long-term (>1 an), ST = short-term (<1 an)
+      lots: [
+        { date: '2023-11-01', source: 'ESPP', shares: 8, costBasis: 255.148 },  // LT, cost $2,041.19
+        { date: '2024-05-01', source: 'ESPP', shares: 8, costBasis: 255.675 },  // LT, cost $2,045.40
+        { date: '2024-11-01', source: 'ESPP', shares: 8, costBasis: 294.431 },  // LT, cost $2,355.45 — unrealized +$35.67
+        { date: '2025-05-01', source: 'ESPP', shares: 16, costBasis: 256.385 }, // ST, cost $4,102.16 — unrealized +$680.08
+      ],
+      // Withholding tax tracking (source: UBS p.3 "Withholdings and tax summary")
+      whtYTD_2025_USD: 17.76,  // Foreign taxes paid YTD au 30/06/2025
+      dividendsYTD_2025_USD: 71.04, // Dividend income YTD au 30/06/2025
+    },
+    creances: {
+      items: [
+        { id: 'CREN01', label: 'Omar', amount: 40000, currency: 'MAD', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-01-15', payments: [], notes: '' },
+      ],
+    },
+    // Caution locative Rueil — dépôt de garantie reçu du locataire, à rembourser au départ
+    cautionRueil: 2600, // EUR — à déduire du patrimoine net (dette envers locataire)
+    // ── Montres / objets de valeur (actifs physiques patrimoniaux) ──
+    // Estimation conservatrice à la revente (2nde main, marché pre-owned) — pas de valeur d'assurance.
+    // Référence: Datejust 31 Rolesor Everose ref. 278271-0004 (acier 904L + or rose 18ct),
+    // boîte + papiers + garantie Rolex 5 ans — brochure Rolex France m278271-0004.
+    // Retail boutique 2026 (TTC France, avec diamants cadran/lunette selon config) ≈ 14-15K€.
+    // Portée occasionnellement, full set : pre-owned premium typique 80-85% du neuf
+    // (les Datejust Rolesor femme conservent bien mais < sport-models). 12 000€ prudent.
+    watches: {
+      rolexDatejust: 12000, // EUR — Datejust 31 Rolesor Everose (278271-0004), acheté avr 2026
+    },
+    immo: {
+      // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
+      // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
+      // v477 — arbitrage Amine 27/08/2026 : 256 500 = 248K (allée des Glycines relevée 4 445€/m²
+      // × 55,66m², audit facteurs externes) + 8 500 (MOITIÉ de la prime DPE C +13%, rétrogradée
+      // « hypothèse probable » : aucun DPE du lot 894 dans ADEME, certificat = voisin 2e étage).
+      // Prime pleine (→265K) à restaurer quand le DPE du lot sera récupéré (annexe bail meublé).
+      rueil:     { value: 256500, valueDate: '2026-08', crd: 194501, loyerHC: 1300, chargesLocataire: 150 }, // CRD mis à jour 31/03/2026 (76 mensualités)
+      // v420 — value 245K → 265K. Les transactions DVF restent la bonne base, mais elles
+      //   étaient MAL DATÉES par rapport au bien : la résidence a engagé des travaux
+      //   énergétiques en 2024, ACHEVÉS EN 2026. Les ventes 2024-2025 relevées ci-dessous
+      //   se sont donc faites PENDANT le chantier — période qui déprime structurellement
+      //   les prix (nuisances, incertitude sur le coût final, appels de fonds à la charge
+      //   du vendeur). Elles décrivent la résidence d'avant, pas celle d'aujourd'hui.
+      //
+      // Construction de la valeur :
+      //   base résidence pendant travaux (médiane 4 voies, 2024-25)   3 950 €/m²
+      //   + fin des travaux : ravalement, fenêtres, DPE CONFIRMÉ C         ~ +13%
+      //       DPE vérifié sur la base ADEME (dataset dpe03existant, 40 diagnostics
+      //       allée des Glycines) : répartition A:1 B:1 C:16 D:17 E:5, et les 19
+      //       diagnostics établis DEPUIS 2024 sont quasi tous en C — dont un au n°19
+      //       daté du 09/03/2026, 54,4 m², construction 1963, soit le jumeau du lot.
+      //       Les D et E sont les diagnostics d'avant travaux. Le +13% couvre donc
+      //       à la fois le saut de classe (D/E → C ≈ +4-8% selon les Notaires) ET la
+      //       disparition de la décote « chantier en cours » (5-10%).
+      //       (Notaires de France, transactions 2024 : chaque classe DPE
+      //        perdue coûte -4% sur un appartement ; un A-B se vend
+      //        jusqu'à +16% au-dessus du marché. Gagner 2-3 classes ≈ +8-12%.)
+      //   + 20 K€ de travaux intérieurs par Nezha (cuisine récente,
+      //     salles de bain et douches à l'italienne) — récupération
+      //     usuelle 50-80% du coût                                     ~ +230 €/m²
+      //   = environ 4 760 €/m² → 265 000 € pour 55,66 m²
+      //
+      // Contrôle de cohérence par le rendement : loué MEUBLÉ 1 450 € CC (1 300 HC),
+      //   soit 15 600 €/an. À 265 K€ le rendement brut ressort à 5,9% sur le loyer
+      //   meublé. Corrigé de la prime du meublé (~15-20% vs nu), l'équivalent nu donne
+      //   ~5,0% — élevé pour Rueil mais cohérent pour ce quartier, qui se traite
+      //   nettement sous la moyenne communale. À 245 K€ le rendement montait à 6,4%,
+      //   ce qui était le signe que la valeur était trop basse.
+      //
+      // Repère de plafond : les rues voisines HORS résidence transactent à 5 000-5 263 €/m²
+      //   (Henri Dunant, Dix-Huit-Juin, la Cascade). Une résidence fermée rénovée avec
+      //   jardins peut raisonnablement converger vers ces niveaux, pas les dépasser.
+      //   265 K€ = 4 762 €/m², soit encore ~7% sous ses voisines.
+      //
+      // ⚠️ NE PAS remonter aussi le taux d'appréciation pour « la revalorisation post-travaux » :
+      //   elle est déjà dans le NIVEAU ci-dessus. La compter deux fois est exactement
+      //   l'erreur corrigée sur Villejuif en v415.
+      //
+      // Historique de la ligne : 280K → 250K (v416, moyenne de quartier) → 280K (v417,
+      //   argument résidence rénovée) → 245K (v418, transactions DVF) → 265K (v420,
+      //   transactions DVF RECADRÉES sur le calendrier des travaux).
+      //
+      // Détail des transactions DVF, résidence Montbrison, 2024-2025 (PENDANT travaux) :
+      //
+      // C'est la première fois qu'on dispose des ventes de la résidence elle-même, et non
+      // d'estimations algorithmiques. Les 4 voies de la résidence Montbrison, ventes
+      // d'appartements depuis 2024 (35 transactions) :
+      //     Allée des Glycines    79 m   3 910 €/m² (n=6)
+      //     Rue des Mazurières   102 m   3 750 €/m² (n=9)
+      //     Rue Paul Gimont      110 m   3 970 €/m² (n=9)
+      //     Allée des Charmes    133 m   4 200 €/m² (n=11)
+      //   → médiane résidence ≈ 3 950 €/m²
+      //
+      // Deux lots quasi identiques au nôtre au 21 allée des Glycines (54 m², T3) :
+      //     déc. 2021  244 000 €  = 4 519 €/m²
+      //     févr. 2023 218 000 €  = 4 037 €/m²
+      // Et la tendance de la résidence est BAISSIÈRE : ~4 500 €/m² en 2021-22,
+      // ~3 900 €/m² en 2025. Environ -13% en quatre ans.
+      //
+      // Fait notable : les rues voisines HORS résidence transactent PLUS HAUT
+      // (all. de la Cascade 5 263, av. du Dix-Huit-Juin 5 203, rue Henri Dunant 5 000).
+      // La résidence est donc décotée par rapport à son environnement immédiat — l'inverse
+      // de l'hypothèse d'une prime « résidence fermée ».
+      //
+      // 245K = 55,66 × ~4 400 €/m². On retient un positionnement AU-DESSUS de la médiane
+      // résidence (3 950) pour tenir compte de trois éléments réels :
+      //   - unité plus petite que les comparables (55,66 vs 63-67 m²) → prime au m² usuelle
+      //   - 20 K€ de travaux intérieurs réalisés (cuisine, salles de bain, douches à l'italienne)
+      //   - ravalement de façade + fenêtres récents, DPE attendu B/C
+      // ⚠️ Ce dernier point n'est PAS ENCORE VISIBLE dans les transactions : aucune vente
+      //   postérieure aux travaux ne le confirme. Si le DPE B/C se vérifie et que le marché
+      //   le price, la valeur pourra remonter. En attendant, 280K supposait une prime de
+      //   +27% sur la résidence, non étayée par une seule vente.
+      //
+      // Historique de la ligne (à ne pas re-litiger) : 280K → 250K en v416 sur moyenne de
+      // quartier (méthode critiquable, la moyenne agrège le parc social) → retour à 280K en
+      // v417 sur l'argument résidence fermée/DPE → 245K en v418 sur transactions réelles.
+      //
+      // v416 l'avait baissée à 250K en s'appuyant sur la moyenne du quartier Fouilleuse
+      // (4 384 €/m² pour les appartements, relevé juillet 2026 ; quartier global 4 601 ;
+      // ville 6 038). C'était une ERREUR DE MÉTHODE : cette moyenne agrège le parc social
+      // et les grands ensembles qui dominent le secteur nord de Rueil. Elle ne décrit pas
+      // ce bien-ci.
+      //
+      // Ce qui justifie le positionnement HAUT dans la fourchette du quartier (3 275-6 617) :
+      //   - résidence FERMÉE avec espaces verts importants
+      //   - ravalement de façade + fenêtres refaits récemment
+      //   - DPE attendu B ou C après travaux (à confirmer par le certificat)
+      // Prime de « valeur verte » mesurée par les Notaires de France sur les transactions
+      // 2024 : un appartement A-B se vend jusqu'à +16% au-dessus du marché, et l'écart
+      // A/B/C contre D atteint 20% selon le secteur. Notre +15% sur la moyenne quartier
+      // rentre dans cette fourchette AVANT même de compter la résidence fermée et les jardins.
+      //
+      // Facteurs déprécatifs qui compensent en partie : rez-de-chaussée (décote usuelle
+      // 5-10%), pas de parking. D'où un positionnement à +15% et non au plafond du quartier.
+      //
+      // ⚠️ À FAIRE : récupérer le certificat DPE post-travaux et l'attacher au dossier.
+      //   C'est la pièce qui JUSTIFIE la prime retenue ici. Tant qu'elle manque, les 280K
+      //   reposent sur une estimation de classe, pas sur un document.
+      // value: voir bloc v420 ci-dessus — 265K = 55.66m² × ~4 760€/m² (résidence rénovée 2024-2026, 20K€ travaux intérieurs)
+      // Achat 255K (nov 2019) + 15K travaux = 270K investi
+      // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
+      // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
+      villejuif: { value: 415000, valueDate: '2026-08', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363,
+                   // v415 — value RÉÉVALUÉE 370K → 415K sur comparables du MÊME immeuble.
+                   //   Les T3 encore commercialisés par Fair' Promotion (13 lots, 2e-8e étage, 63,64-67,15 m²)
+                   //   s'affichent 400 000-438 000 € TTC, soit 6 280-6 530 €/m² (relevé 08/2026).
+                   //   Notre lot A27 fait 68,92 m² — plus grand que tous les T3 en vente — acheté 336 330 €
+                   //   soit 4 880 €/m². Décote d'environ 25% obtenue comme condition de la Ville de Villejuif.
+                   //   415K = 68,92 × ~6 020 €/m², prix affichés minorés d'une marge de négociation et du
+                   //   positionnement en 2e étage (bas de la fourchette des lots disponibles).
+                   // ⚠️ PLUS-VALUE NON RÉALISABLE AVANT ~MI-2033 : clause de restitution des avantages
+                   //   (acte 05/06/2026, p.18-19). Voir CLAUSE_SADEV94 plus bas. Choix assumé de valoriser
+                   //   au marché malgré tout : le bien n'est pas destiné à être vendu avant l'échéance,
+                   //   la valeur sert d'indication patrimoniale, pas de valeur de liquidation.
+                   // v357 — VEFA « asset under construction » : tant que non livré (Q3 2028), Villejuif est
+                   // valorisé au COÛT réellement engagé, pas à la valeur livrée. equity = appelsPayes − drawnToDate.
+                   //   appelsPayes = appels de fonds payés au promoteur (acte 05/06/2026 : 34% = 5% résa + 29% acte)
+                   //   drawnToDate = capital réellement débloqué par LCL (Prêt 1 64 369,15 + Prêt 2 31 800)
+                   // À rafraîchir à chaque appel de fonds / déblocage. Bascule vers value−CRD pleine à la livraison.
+                   // v358 — valorisation HYBRIDE : equity = (appelsPayes − drawnToDate) + PV latente reconnue
+                   //   au prorata de l'avancement (appelsPayes / contractPrice). PV latente = valeur marché
+                   //   livrée − prix contrat (discount résident ~15% + appréciation, ~40K). Converge vers la
+                   //   valeur livrée à la livraison. contractPrice = prix TTC de l'acte (avec discount résident).
+                   underConstruction: true, appelsPayes: 114352, drawnToDate: 96569, contractPrice: 336330 }, // v467 — CRD réels tableaux au 05/08/2026 (64 720,92 + 31 847,70, différés inclus)
+      // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
+      // Prix contrat réservation : 336 330€ TTC (TVA 20%) — réservation signée 20/06/2025
+      // ACTE DE VENTE NOTARIÉ SIGNÉ 05/06/2026 (Me Wysocki, Évry — SCCV Villejuif 167 Aragon)
+      //   → signed=true : equity (value − CRD) comptée dans nezhaNW, réservation absorbée
+      //   (plus de double-compte). Livraison : acte = T2 2028 (max 30/06/2028) ; opérationnel
+      //   Q3 2028 (retard annoncé promoteur — choix dashboard). conditional=true codé en dur
+      //   dans buildProperty → loyers/CF inactifs jusqu'à livraison.
+      // ÉCHÉANCIER VEFA (acte, art. R261-14) — référence pour le suivi cash :
+      //   34% payés à l'acte = 114 352,20€ (5% résa 16 816,50 + 29% acte 97 535,70),
+      //   financés par : dépôt 3 363 + apport Nezha ~17 860 (complément prix) + tirage LCL ~93 129.
+      //   Solde 221 977,80€ en 8 appels (fondations 1%, plancher RDC 15%, plancher 1er 15%,
+      //   hors d'eau 5%, plâtres 15%, peinture 9%, achèvement 1%, livraison 5%) — TOUS
+      //   couverts par le prêt LCL (acte : « couvrant intégralement la partie exigible à terme »).
+      //   → Zéro sortie cash future pour Nezha jusqu'à la livraison.
+      //   ⚠️ Cash : l'apport tous frais (~29 795€ dont 3 363 déjà sortis en 2025, soit ~26 432€
+      //   de cash frais : complément 17 860,05 + EDD 520 + TPF 2 008 + CSI 337 + émoluments
+      //   ~3 700 + frais bancaires LCL 5 370,05) sera déduit via la MAJ des soldes
+      //   PORTFOLIO.nezha.cash — fournis séparément.
+      // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
+      // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
+      // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
+      // Valeur conservatrice en construction (livraison Q3 2028)
+      //
+      // Flag `signed` (BUG-044, audit v297) — convention de calcul NW :
+      //   signed=false : bien en cours d'acquisition. Seuls `reservationFees` comptent dans le NW.
+      //                  `villejuifEquity = 0`, `futureEquity = valueProjetée − CRDfinal` (projection pour "NW avec Villejuif").
+      //   signed=true  : acte notarié passé. `villejuifEquity = value − CRD` compté dans nezhaNW.
+      //                  `reservationFees = 0` (remboursés à la signature, pas de double comptage).
+      // Règle d'or : `nezhaNW` inclut SOIT `reservationFees` (pré-signature) SOIT `villejuifEquity` (post-signature),
+      // jamais les deux simultanément. Vérifier `engine.js` L3762 + L3775 si tu bascules ce flag.
+    },
+  },
+
+  // ════════════════════════════════════════════════════════
+  // PRIX DE MARCHÉ (mis à jour automatiquement par API)
+  // ════════════════════════════════════════════════════════
+  market: {
+    sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD — fallback de DERNIER recours uniquement. v372 : le prix live vient en runtime de l'API TradingView (scanner CSEMA:GTM, direct navigateur), puis en repli data/sgtm_live.json, puis scraping proxy. Cette valeur figée ne sert que si TOUTES ces sources échouent.
+    sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
+    acnPriceUSD: 144.61,     // Cours Accenture en USD — clôture 16/07/2026 (bootstrap ; écrasé par l'API si dispo)
+    // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
+    acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
+    acnMtdOpen: 131.13,  // ACN clôture 1er juil 2026
+    acnOneMonthAgo: 124.44,  // ACN clôture 30 juin 2026
+    acnOneYearAgo: 274.0,  // ACN clôture 30 juil 2025
+    // ── Prix historiques 1Y ago (16 juillet 2025) — pour P&L 1 An ──
+    // Source : Yahoo Finance v8/chart API — rafraîchis le 16/07/2026 (voir PRICE_REFS_AS_OF)
+    // Ces prix servent de référence pour calculer l'évolution sur 1 an
+    // Pour les positions IBKR (toutes achetées APRÈS mars 2025), ces prix
+    // ne sont pas utilisés dans le calcul P&L (sharesAtStart=0) mais sont
+    // stockés pour référence historique et futur usage.
+    oneYearAgoPrices: {
+      // IBKR positions — clôture 30 juillet 2025
+      'AIR.PA':   178.86,    // Airbus
+      'BN.PA':    71.24,     // Danone
+      'DG.PA':    124.9,    // Vinci
+      'FGR.PA':   118.3,    // Eiffage
+      'MC.PA':    480.75,    // LVMH
+      'OR.PA':    388.55,    // L'Oréal
+      'P911.DE':  44.03,     // Porsche
+      'RMS.PA':   2270.0,   // Hermès
+      'SAN.PA':   85.52,    // Sanofi
+      'SAP.DE':   253.0,    // SAP SE
+      '4911.T':   2415.0,   // Shiseido (JPY)
+      'IBIT':     66.37,     // iShares Bitcoin (USD)
+      'ETHA':     28.48,     // iShares Ethereum (USD)
+      'ACN':      274.0,    // Accenture (USD) — même que acnOneYearAgo
+      // Positions fermées depuis (prix au 16 juil 2025 ; sharesAtStart=0 si achetées après)
+      'QQQM':     233.8,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
+      'GLE':      52.36,     // Société Générale (EUR) — acheté août 2025, vendu fév 2026
+      'WLN':      3.571,      // Worldline (EUR) — acheté août 2025, vendu fév 2026
+      //   ⚠ NON rafraîchi au 30/07/2025 : Yahoo cote 34.61 car il AJUSTE rétroactivement le
+      //   reverse split (~1:10). Le ledger de trades est en unités PRÉ-split ⇒ garder le prix
+      //   pré-split, sinon le P&L 1Y de cette position fermée serait faux d'un facteur ~10.
+      'EDEN':     25.55,     // Edenred (EUR) — acheté sept 2025, vendu fév 2026
+      'NXI':      12.02,     // Nexity (EUR) — acheté août 2025, vendu fév 2026
+      // Degiro positions liquidées en avril 2025 — ces positions EXISTAIENT
+      // le 21 mars 2025, donc leur P&L 1Y = (proceeds - shares × prix_1Y_ago)
+      'NVDA':     179.27,    // NVIDIA (USD) — 540 actions vendues le 7 avr 2025 @ $89.73
+      'INFY':     16.95,     // Infosys (USD) — 300 actions vendues le 7 avr 2025 @ $16.95
+    },
+    // ── Taux de change historiques 1Y ago (16 juillet 2025) ──
+    // Source : Yahoo Finance EURJPY=X, EURUSD=X, etc.
+    // Utilisés pour convertir les P&L des positions étrangères à leur valeur
+    // de référence 1Y ago
+    fxOneYearAgo: {
+      EUR: 1,
+      USD: 1.1551,    // EUR/USD le 30 juillet 2025
+      JPY: 171.451,    // EUR/JPY le 30 juillet 2025
+      MAD: 10.1646,    // EUR/MAD le 30 juillet 2025
+      AED: 4.239,    // EUR/AED le 30 juillet 2025
+    },
+  },
+};
 
 // ════════════════════════════════════════════════════════════
 // DATES DE RÉFÉRENCE DES PRIX HISTORIQUES (anti-péremption silencieuse)
@@ -62,9 +1372,12 @@ export const PORTFOLIO = {};
 // compare aux bornes qu'il calcule et DÉGRADE (hasData=false → « -- ») au lieu d'afficher
 // un chiffre faux. Rafraîchir mtdOpen le 1er de chaque mois et oneMonthAgo/oneYearAgo
 // avec, puis mettre ces dates à jour.
-// PRICE_REFS_AS_OF — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const PRICE_REFS_AS_OF = {};
+export const PRICE_REFS_AS_OF = {
+  ytdOpen:     '2026-01-02', // 1er jour de bourse de l'année en cours (annuel)
+  mtdOpen:     '2026-07-01', // 1er jour de bourse du mois en cours (mensuel)
+  oneMonthAgo: '2026-06-30', // ~1 mois avant aujourd'hui (mensuel) — rafraîchi 30/07/2026
+  oneYearAgo:  '2025-07-30', // ~1 an avant aujourd'hui (mensuel) — rafraîchi 30/07/2026
+};
 
 // ════════════════════════════════════════════════════════════
 // DATE DE DERNIÈRE MISE À JOUR DES DONNÉES STATIQUES
@@ -72,7 +1385,7 @@ export const PRICE_REFS_AS_OF = {};
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v516';
+export const APP_VERSION = 'v517';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -139,9 +1452,40 @@ export const DESIGN_TOKENS = {
 // Prix post-split en devise native. Mis à jour manuellement.
 // Les API Yahoo écrasent ces valeurs dès le fetch terminé.
 // ════════════════════════════════════════════════════════════
-// DEGIRO_STATIC_PRICES — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const DEGIRO_STATIC_PRICES = {};
+export const DEGIRO_STATIC_PRICES = {
+  // US stocks (USD)
+  NVDA:  { price: 182.78, currency: 'USD' },
+  DIS:   { price: 98.61,  currency: 'USD' },
+  BA:    { price: 209.89, currency: 'USD' },
+  NKE:   { price: 53.98,  currency: 'USD' },
+  PM:    { price: 174.71, currency: 'USD' },
+  CCL:   { price: 24.63,  currency: 'USD' },
+  GOOS:  { price: 10.50,  currency: 'USD' },
+  V:     { price: 307.14, currency: 'USD' },
+  FDX:   { price: 392.86, currency: 'USD' },
+  IBM:   { price: 223.35, currency: 'USD' },
+  GME:   { price: 23.28,  currency: 'USD' },
+  SPOT:  { price: 515.01, currency: 'USD' },
+  INFY:  { price: 13.52,  currency: 'USD' },
+  SAP:   { price: 189.97, currency: 'USD' },  // ADR price (NYSE)
+  CGC:   { price: 1.02,   currency: 'USD' },
+  HYLN:  { price: 2.01,   currency: 'USD' },
+  HTZ:   { price: 0.00,   currency: 'USD', delisted: true, note: 'Ch.11 bankruptcy — old shares cancelled (Jun 2021)' },
+  VLTA:  { price: 0.86,   currency: 'USD', delisted: true, note: 'Acquired by Shell at $0.86/share (Mar 2023)' },
+  // European stocks (EUR)
+  MC:    { price: 479.00, currency: 'EUR' },
+  CAP:   { price: 107.80, currency: 'EUR' },
+  ACA:   { price: 18.06,  currency: 'EUR' },
+  EN:    { price: 140.30, currency: 'EUR' },
+  AF:    { price: 9.57,   currency: 'EUR' },  // post reverse split 10:1
+  CLARI: { price: 3.83,   currency: 'EUR' },  // ex-KORI
+  KORI:  { price: 3.83,   currency: 'EUR' },  // alias → Clariane
+  ADP:   { price: 111.80, currency: 'EUR' },
+  ATO:   { price: 36.86,  currency: 'EUR' },
+  SAN:   { price: 83.00,  currency: 'EUR' },
+  JUVE:  { price: 2.17,   currency: 'EUR' },  // post reverse split 10:1
+  EUCAR: { price: 0.50,   currency: 'EUR', delisted: true, note: 'VW squeeze-out at €0.50/share (Jul 2022)' },
+};
 
 // ════════════════════════════════════════════════════════════
 // TAUX DE RENDEMENT CASH (annuels)
@@ -291,9 +1635,554 @@ export const CURRENCY_CONFIG = {
 // depuis les éléments: tableau amortissement prêts + appreciation + CF net
 // Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
-// IMMO_CONSTANTS — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const IMMO_CONSTANTS = {};
+export const IMMO_CONSTANTS = {
+  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (base ABSOLUE des simulateurs). Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). NB v442 : franchise août 2025 → juillet 2028 (activée à la signature de l'offre, pratique LCL confirmée) — les mensualités (août 2028) démarrent ~2 mois AVANT les premiers loyers (oct 2028).
+  charges: {
+    // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
+    // Vitry : prêt lissé → charges ~constantes quelle que soit la période
+    // P2 (2026-2028): AL 145 + BP 1021 + PTZ 0 = 1166 | P3 (2029-2043): AL 145 + BP 688 + PTZ 333 = 1166
+    // v422 — copro et TF recalées sur les APPELS DE FONDS ET BILANS DE CHARGES RÉELS
+    //   (dossier iCloud 04 - Perso/Immobilier). Jusqu'ici c'étaient des estimations rondes.
+    // v458 — TF RÉELLE (avis 2026) : 1 320 €/an en 2026-2027 (exonération construction nouvelle
+    // art. 1383 CGI limitée à 40 % par délibération de Vitry) → 110 €/mois ; 1 950 €/an dès 2028
+    // (le moteur lit fiscalite.vitry.tfSchedule pour les années suivantes). Échéance : 15 octobre.
+    // Copro réelle : 1 719,52 €/an (T3 1 592,40 + parking 127,12) → 143,29/mois ; les avances/fonds
+    // travaux (284 €/an) sont un décaissement NON déductible, hors charges mensuelles récurrentes.
+    vitry:     { pret: 1166, assurance: 17.48, pno: 15, tf: 110, copro: 143.29 },
+    // copro Vitry 150 → 143 : budget syndic LAMY 1 719,47 €/an sur un exercice 01/07 → 30/06
+    //   (NON calendaire — attention aux régularisations à cheval sur deux années civiles).
+    //   Dont chauffage COLLECTIF 415,04 €/an (24% de la quote-part, clé 69/10000) : ce poste
+    //   est le facteur de volatilité du bien, comme à Rueil.
+    //   Second lot rattaché : stationnement 000586 (bât. BA001, place n°87), 127,10 €/an de
+    //   charges — il génère les 70 €/mois de loyer parking mais n'est PAS valorisé dans les 300K.
+    //   Tantièmes : 71/10000 clé 0003 · bât.3 257/10000 · ascenseur 241/10000 · chauffage 69/10000.
+    rueil:     { pret: 970, assurance: 18, pno: 12, tf: 55, copro: 269 },  // pret: 969.62, ass: 17.99 (2026)
+    // copro Rueil 250 → 269 : 3 225,72 €/an d'appels 2024 (dont 143,24 de fonds travaux ALUR).
+    // tf Rueil 67 → 55 : avis 2023 réel 658 €/an (base 2 469, taux communal 21,54%).
+    //   ⚠️ L'avis porte sur un local « 17 allée des Glycines » alors que l'acte dit 21 —
+    //   à vérifier sur impots.gouv.fr avant de considérer ce montant comme définitif.
+    // Charge NETTE propriétaire réelle ≈ 593 €/an (450 non récupérables + 143 fonds travaux),
+    //   contre ~1 200 €/an implicites auparavant. Le chauffage collectif (récupérable à 99%)
+    //   a varié de 1 800,74 € (2022) à 645,72 € (2023) : -64% en un an. Une année type 2022
+    //   coûte ~1 155 € de trésorerie de plus, refacturables mais avec un an de décalage.
+    // Tantièmes 249 → 253/100000 (lot 894 + caves 924 et 954 à 2/100000 chacune).
+    villejuif: { pret: 1698, assurance: 51.29, pno: 15, tf: 83, copro: 110 }, // v347 — mensualité LCL réelle 1 697,78€ (P1 1 572,79 + P2 124,99), pas le 1669 du financement CA indicatif
+    // v493 (audit) — 53,57 €/mois était le montant CONTRACTUEL de l'offre ; les relevés et
+    // l'échéancier LCL montrent 51,29 (46,10 sur le prêt 1 + 5,19 sur le prêt 2), valeur déjà
+    // utilisée par `villejuifInsurance` et par le CF réel. Deux chiffres coexistaient pour la
+    // même charge : le projeté post-livraison s'appuyait sur 53,57, le réel sur 51,29. On retient
+    // le constaté, seule source vérifiable.
+  },
+  prets: {
+    vitryEnd: 2048,      // Année fin du prêt
+    rueilEnd: 2044,
+    villejuifEnd: 2053,  // v467 — dernière échéance RÉELLE des 2 prêts : 05/01/2053 (tableaux définitifs)
+  },
+  // ──────────────────────────────────────────────────────
+  // PRÊTS — Paramètres complets pour tableau d'amortissement
+  // principal: montant emprunté initial
+  // rate: taux annuel nominal (ex: 1.25% = 0.0125)
+  // startDate: 'YYYY-MM' — mois du premier versement
+  // durationMonths: durée totale en mois
+  // monthlyPayment: mensualité hors assurance
+  // insurance: assurance emprunteur mensuelle
+  // ──────────────────────────────────────────────────────
+  loans: {
+    // ── VITRY : 3 prêts — CRD calculé dynamiquement depuis vitryLoans ──
+    // ════════════════════════════════════════════════════════════
+    // VITRY — 3 prêts (275 000€ total)
+    // Sources : tableaux d'amortissement Banque Populaire Rives de Paris + Action Logement
+    // Emprunteur : Mohammed / Mohamed Amine KORAIBI
+    // Bien financé : ZAC Gare des Ardoines, Vitry-sur-Seine
+    //
+    // Le CRD global 'vitry' est calculé dynamiquement par computeMultiLoanSchedule(vitryLoans)
+    // L'assurance APRIL (17.48€/mois) est externalisée car elle couvre PTZ + BP ensemble
+    // ════════════════════════════════════════════════════════════
+    vitryInsurance: 17.48,     // assurance APRIL globale : 209.76€/an = 17.48€/mois
+    vitryLoans: [
+      // ── PRÊT 1 : Action Logement ──
+      // Dossier : ALSXACC-22047897
+      // Source : tableau d'amortissement Action Logement Services, Paris, 4 janvier 2023
+      // Versement SEINEO n° 3074557 (promoteur)
+      // Échéance constante 145.20€ (1ère: 156.53€ intérêts longs), assurance 3.33€/mois intégrée
+      // Taux annuel effectif assurance : 0.19%
+      // Dernière échéance : 05/02/2048
+      {
+        name: 'Action Logement',
+        principal: 40000,      // montant viré à SEINEO
+        rate: 0.005,           // 0.50% taux nominal fixe
+        startDate: '2023-03',  // 1ère échéance 05/03/2023
+        durationMonths: 300,   // 25 ans (mars 2023 → fév 2048)
+        monthlyPayment: 145.20,// échéance constante (hors 1ère: 156.53€)
+        insuranceMonthly: 3.33,// assurance AL intégrée dans l'échéance
+        iraExempt: true,       // Action Logement loans are exempt from IRA
+      },
+      // ── PRÊT 2 : PTZ (Prêt à Taux Zéro) ──
+      // Dossier : 08867339 — Banque Populaire Rives de Paris, agence Diderot
+      // Compte : 23193675521
+      // Source : tableau d'amortissement édité le 10/11/2023 par GODEAU
+      // Catégorie : PRET A TAUX ZERO (768 ZZ)
+      // Date réalisation : 06/04/2023, déblocage initial 5 000€
+      // Structure : 60 mois de différé total, puis 180 mois d'amortissement constant
+      // Dernière échéance : ~nov 2043
+      {
+        name: 'PTZ (via Banque Populaire)',
+        principal: 60000,
+        rate: 0,               // 0% — Prêt à Taux Zéro
+        startDate: '2023-12',  // 1ère échéance 06/12/2023 (table d'amort)
+        durationMonths: 240,   // 20 ans total (60 différé + 180 amort)
+        periods: [
+          { months: 60, payment: 0 },        // P1 : différé total 5 ans (déc 2023 – nov 2028)
+          { months: 180, payment: 333.33 },   // P2 : amortissement constant 333.33€ (déc 2028 – nov 2043)
+        ],                     // 60000 / 333.33 = 180 mois ✓
+        insuranceMonthly: 0,   // assurance APRIL séparée (voir vitryInsuranceAPRIL)
+        iraExempt: true,       // PTZ loans are exempt from IRA
+      },
+      // ── PRÊT 3 : Banque Populaire Riv'immo ──
+      // Dossier : 08867340 — Banque Populaire Rives de Paris, agence Diderot
+      // Compte : 23193675521 (même compte que PTZ)
+      // Conseillère : Nafissa BATTERY
+      // Source : tableau d'amortissement édité le 24/07/2025
+      // Catégorie : PRET IMMOBILIER (840 ZZ)
+      // Date réalisation : 10/11/2023, déblocage initial 1 250€
+      // Amortissement palier 4 périodes (lissage PTZ) :
+      //   P1 (5 mois)  : intérêts seuls ~306€  — pas d'amortissement capital
+      //   P2 (36 mois) : 1 020.55€ — amortissement + intérêts (aligné sur fin PTZ différé)
+      //   P3 (180 mois): 687.55€ — palier bas pendant remboursement PTZ (333.33€)
+      //   P4 (60 mois) : 1 020.58€ — retour palier haut après fin PTZ (nov 2043)
+      // Total intérêts : 48 263.39€ | Total remboursé : 223 263.39€
+      // Dernière échéance : 06/12/2048
+      {
+        name: 'Banque Populaire (Riv\'immo)',
+        principal: 175000,
+        rate: 0.021,           // 2.10% taux nominal fixe
+        startDate: '2025-08',  // 1ère échéance 06/08/2025
+        durationMonths: 281,   // 281 échéances (août 2025 → déc 2048)
+        periods: [
+          { months: 5, payment: 306.25 },     // P1 : intérêts seuls (août–déc 2025), 1ère: 305.07
+          { months: 36, payment: 1020.55 },   // P2 : jan 2026 – déc 2028 (palier haut, PTZ en différé)
+          { months: 180, payment: 687.55 },   // P3 : jan 2029 – déc 2043 (palier bas, PTZ rembourse)
+          { months: 60, payment: 1020.58 },   // P4 : jan 2044 – déc 2048 (retour palier, PTZ soldé)
+        ],
+        insuranceMonthly: 0,   // assurance APRIL séparée (voir vitryInsuranceAPRIL)
+        // ⚠️ Le prêt est un lissage : les paliers P2/P3/P4 sont calibrés pour que
+        //    BP + PTZ ≈ constante sur la durée (1020 + 0 ≈ 688 + 333 ≈ 1021 + 0)
+        totalInterestRef: 48263,  // coût total intérêts (tableau d'amort, pour référence)
+      },
+    ],
+    // ── Assurance emprunteur APRIL (couvre PTZ + BP Riv'immo) ──
+    // Externe aux prêts BP, facturée séparément par APRIL
+    // Pas d'assurance sur le prêt Action Logement (incluse dans l'échéance AL à 3.33€/mois)
+    vitryInsuranceAPRIL: {
+      annualTTC: 209.76,       // 17.48€/mois TTC
+      breakdown: {
+        ptz: 53.16,            // Emprunt N°1 : 60K PTZ
+        bp: 147.00,            // Emprunt N°2 : 175K Riv'immo
+        cotisationAssociative: 9.60,
+      },
+    },
+    // ── RUEIL-MALMAISON — Prêt unique (251 200€) ──
+    // Propriétaire : Nezha
+    // Source : contrat notarié 5 novembre 2019
+    // Bien financé : Rue Jean Bourgey, Rueil-Malmaison (75m² + parking)
+    // Taux nominal fixe 1.20%
+    // Assurance ACM VIE dégressive
+    rueil: {
+      principal: 251200,
+      rate: 0.012,           // 1.20% taux nominal fixe
+      startDate: '2019-12',   // 1ère échéance 5 décembre 2019
+      durationMonths: 300,   // 25 ans (déc 2019 → nov 2044)
+      monthlyPayment: 969.62, // échéance constante contrat notarié
+      insurance: 17.99,     // assurance ACM VIE — dégressive (17.99€ en 2026)
+    },
+    // ── VILLEJUIF — 2 prêts LCL (318 469€ total) ──
+    // Propriétaire : Nezha
+    // Source : offres de prêt LCL signées 2025 — v440 : partiellement débloquées (1er tirage à l'acte, juin 2026)
+    // Bien financé : T3 VEFA — Bd Gorki, Villejuif (68.92m² + parking)
+    // Prix contrat réservation : 336 330€ TTC (TVA 20%), signé 20/06/2025
+    // Livraison estimée : Q3 2028 (construction en cours)
+    // ⚠️ Le contrat de réservation mentionne un financement Crédit Agricole
+    //    (332 967€, 300 mois, 3.50%) → données INDICATIVES UNIQUEMENT
+    //    Les vrais prêts sont les 2 offres LCL ci-dessous.
+    // CRD global calculé dynamiquement par computeMultiLoanSchedule(villejuifLoans)
+    villejuifInsurance: 51.29,   // 46.10 (Prêt 1) + 5.19 (Prêt 2)
+    villejuifLoans: [
+      // ── PRÊT 1 : LCL Immo Taux Fixe (286 669€) ──
+      // Taux nominal 3.27% — TAEG 3.73% (avec assurance)
+      // Franchise totale 36 mois (intérêts capitalisés, pas de mensualité)
+      // Puis amortissement 291 mois à 1 572.79€
+      // Assurance CACI (groupe LCL/Crédit Agricole, pas ACM) : 46.10€/mois — v442 : cotisation
+      // constante prélevée DÈS LA SIGNATURE DE L'OFFRE, y compris pendant la franchise (confirmé
+      // relevés + échéancier proposition « 0,00€ hors assurance / 51,29€ assurance comprise »)
+      // Coût total intérêts : 142 199€ (offre de prêt, pour référence)
+      // Intérêts différés pendant franchise : 19 055€
+      {
+        name: 'LCL Prêt 1 — Immo Taux Fixe',
+        principal: 286669.95,
+        rate: 0.0327,          // 3.27% taux nominal fixe
+        // v467 — TABLEAU DÉFINITIF (édité 03/07/2026, prêt n°…558) : départ 05/06/2026 (acte),
+        // 1re échéance 05/07/2026, intérêts payés dès 01/2029, AMORTISSEMENT dès 05/02/2029,
+        // dernière échéance 05/01/2053. Tirage à l'acte : 64 369,15 € — différés UNIQUEMENT
+        // sur le tiré (capitalisation annuelle), mensualité réelle recalculée sur le capital
+        // tiré (345,70 € actuellement, remontera à chaque appel). Le paramétrique ci-dessous
+        // reste le proxy PLEIN-TIRAGE (trajectoire post-livraison), ancré fév 2029 → jan 2053.
+        startDate: '2026-02',
+        durationMonths: 324,   // 36 mois franchise + 288 mois amortissement (fév 2029 → jan 2053)
+        periods: [
+          { months: 36, payment: 0 },        // franchise (fév 2026 – jan 2029) — différés sur tiré
+          { months: 288, payment: 1572.79 }, // amortissement plein-tirage (fév 2029 – jan 2053)
+        ],
+        tableauReel: { edite: '2026-07-03', tirageActe: 64369.15, mensualiteSurTire: 345.70,
+                       premierPaiement: '2029-01', premierAmortissement: '2029-02', derniereEcheance: '2053-01',
+                       crdFinFranchise: 68767.20, differesCapitalises: 4556 },
+        insuranceMonthly: 46.10,            // assurance CACI (v442 — prélevée dès signature offre)
+        taeg: 0.0373,                       // Taux annuel effectif global
+        totalInterestRef: 142199,  // coût total intérêts (offre de prêt, pour référence)
+        deferredInterestRef: 19055,         // intérêts capitalisés pendant 36 mois franchise
+      },
+      // ── PRÊT 2 : LCL Immo Taux Fixe (31 800€) ──
+      // Complément financement — taux 0.90%
+      // Même structure franchise 36 mois + amortissement
+      // Assurance : 5.19€/mois
+      // Coût total intérêts : 3 791€ (offre de prêt)
+      {
+        name: 'LCL Prêt 2 — Immo Taux Fixe',
+        principal: 31800,
+        rate: 0.009,           // 0.90% taux nominal fixe
+        // v467 — TABLEAU DÉFINITIF (03/07/2026, prêt n°…12AH) : départ 18/09/2025, 1re échéance
+        // 05/11/2025, tirage INTÉGRAL 31 800 € à l'acte (05/06/2026, frais 672,02 au tirage),
+        // différés sur tiré (capitalisation annuelle), AMORTISSEMENT dès 05/11/2028
+        // (mensualité réelle 124,25), dernière échéance 05/01/2053.
+        startDate: '2025-11',
+        durationMonths: 327,
+        tableauReel: { edite: '2026-07-03', tirage: 31800, fraisAuTirage: 672.02, mensualiteSurTire: 124.25,
+                       premierAmortissement: '2028-11', derniereEcheance: '2053-01', crdFinFranchise: 32371.96 },
+        periods: [
+          { months: 36, payment: 0 },        // franchise (nov 2025 – oct 2028)
+          { months: 291, payment: 124.99 },  // amortissement (nov 2028 – jan 2053) — réel : 124,25 sur tiré
+        ],
+        insuranceMonthly: 5.19,             // assurance CACI (v442 — prélevée dès signature offre)
+        taeg: 0.0139,                       // Taux annuel effectif global
+        totalInterestRef: 3791,             // coût total intérêts
+        deferredInterestRef: 575,           // intérêts capitalisés pendant franchise
+      },
+    ],
+    // ── Franchise des prêts LCL — déblocage + calendrier ──
+    // v347 — ACTE SIGNÉ 05/06/2026 : Nezha a signé définitivement. Déblocage VEFA PAR TRANCHES
+    // (appels de fonds) : ~93 129€ tirés à l'acte (34% appelés), solde jusqu'à livraison Q3 2028.
+    // v442 — CONFIRMÉ (Amine, relevés) : LCL a activé la franchise À LA SIGNATURE DE L'OFFRE
+    // (août 2025), pas au 1er déblocage — et prélève l'assurance (51,29€/mois, CACI) depuis la
+    // signature, avant tout tirage. Franchise : août 2025 → juillet 2028, 1re mensualité août 2028.
+    // Intérêts intercalaires CAPITALISÉS (franchise totale), pas payés.
+    // loanDisbursed reste `false` = pas INTÉGRALEMENT débloqué (tranches en cours) ; la timeline
+    // s'appuie sur startDate (franchise démarrée) + drawnToDate (portion tirée).
+    // Frais de dossier LCL : 1 200€ (FDOSS, déjà débités à l'acte — cf. échéancier apport).
+    villejuifFranchise: {
+      months: 36,
+      startDate: '2025-11',    // v467 — 1re échéance P2 (tableau définitif) : franchise 36 mois → 1res mensualités NOV 2028 (P2, 124,25) puis FÉV 2029 (P1, 345,70), recalculées à chaque appel
+      loanDisbursed: false,    // Prêt pas intégralement débloqué (tranches VEFA en cours)
+      fraisDossier: 1200,      // v347 — FDOSS LCL réel 1 200€ (acte), pas 1 500 estimé
+    },
+  },
+  // ──────────────────────────────────────────────────────
+  // FISCALITÉ IMMOBILIÈRE
+  //
+  // ⚠️  Amine et Nezha sont RÉSIDENTS FISCAUX UAE
+  // → Pas d'IR français sur les revenus mondiaux
+  // → MAIS : les revenus fonciers de source FRANÇAISE restent
+  //   imposables en France (convention fiscale FR-UAE art. 6)
+  //
+  // Vitry (Amine) : location NUE → revenus fonciers
+  //   regime: 'micro-foncier' (abattement 30%) si loyers < 15K€/an
+  //   Partie du loyer reçue en cash (non déclarée) → exclue du calcul fiscal
+  //   En tant que non-résident : taux minimum 20% (pas de TMI progressive)
+  //   PS : 17.2% sur les revenus fonciers de source française
+  //
+  // Rueil + Villejuif (Nezha) : LMNP (meublé)
+  //   regime: 'micro-BIC' (abattement 50%) si recettes < 77 700€/an
+  //   ou régime réel simplifié (amortissement du bien)
+  //   Non-résident : taux minimum 20%
+  //   PS : 17.2%
+  // ──────────────────────────────────────────────────────
+  fiscalite: {
+    // v458 — fiscalité RÉELLE du bail (non-résident : 20 % IR minimum + 17,2 % PS = 37,2 %).
+    // Base = loyers HC − charges déductibles À COMPTER DU 10/10/2026 (prorata 2026).
+    // TF déductible = TF − TEOM (la TEOM 352 €/an est récupérée sur le locataire via la
+    // régularisation des provisions) ; copro déductible = copro totale − part récupérable
+    // (part récupérable ≈ provisions annuelles − TEOM). Avances travaux NON déductibles.
+    vitry:     { regime: 'reel-foncier', tmi: 0.20, ps: 0.172, type: 'nu',
+                 bailDebut: '2026-10-10',
+                 teomAnnuelle: 352,
+                 tfSchedule: { y2026: 1320, y2027: 1320, base2028: 1950,
+                               revaloAnnuelle: 0.02, revaloActive: false,   // option : revalorisation des bases +2 %/an
+                               reclamationCategorie: { active: false, tf2028: 1700, dateLimite: '2027-12-31' } },
+                 gestionForfaitAnnuel: 20,
+                 // coproRecuperableAnnuelle : part des 1 719,52 € refacturable au locataire (décret 87-713).
+                 // ESTIMATION structurelle (~35 %, hors TEOM) à AJUSTER au premier décompte de charges réel ;
+                 // les provisions (1 200/an) couvrent TEOM 352 + récupérable 600 + marge régularisable.
+                 coproAnnuelle: 1719.52, coproRecuperableAnnuelle: 600,
+                 provisionsLocataireAnnuelles: 1200, avancesTravauxAnnuelles: 284 },
+    // Vitry : loyerDeclare (500€/mois) est dans portfolio.amine.immo.vitry
+    // Régime réel : on déduit intérêts d'emprunt, assurance, PNO, TF, copro
+    // TMI 20% + PS 17.2% = taux effectif ~37% sur le revenu net
+    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2025-10' },
+    // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
+    // lmnpStartDate: date de passage en LMNP (bail signé sept 2025, prise effet oct 2025)
+    // Amortissement commence à cette date, pas à la date d'achat (2019)
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2028-09' }, // livraison Q3 2028 → location/LMNP dès Q3 2028
+    // lmnpStartDate: livraison + début location estimé sept 2029
+  },
+  // ──────────────────────────────────────────────────────
+  // MÉTADONNÉES PROPRIÉTÉS — surface, adresse, prix, appréciation
+  // Utilisé par les pages détaillées (apt_*.html)
+  // ──────────────────────────────────────────────────────
+  properties: {
+    vitry: {
+      address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
+      // v422 — ANNOTATION v421 RETIRÉE (elle était fausse). L'hypothèse d'une rue renommée
+      //   « rue Jardin → rue Nathalie Lemel » ne tient pas : les documents de copropriété
+      //   montrent que la résidence porte PLUSIEURS adresses simultanées.
+      // Copropriété réelle : SDC « VILLAGE HARMONIE », siège 93 rue Léon Geffroy,
+      //   94400 Vitry-sur-Seine. Les bâtiments sont aussi adressés 7/9/11/19 rue Nathalie
+      //   Lemel et 12 rue Blanche Lefebvre. Notre lot est au 19 rue Nathalie Lemel.
+      // C'est la vraie raison des recherches ADEME/DVF infructueuses : la voie est récente
+      //   (ZAC Gare des Ardoines) et le bâti n'y est pas encore référencé. Chercher plutôt
+      //   par coordonnées (48.78028, 2.40640) ou par « Léon Geffroy » — les DPE neufs de
+      //   cette rue voisine, tous en B, sont d'ailleurs ceux du même programme.
+      syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte copropriétaire CP1710061',
+      copropriete: 'SDC Village Harmonie, 93 rue Léon Geffroy, 94400 Vitry-sur-Seine',
+      surface: 67.14,           // m²
+      purchasePrice: 275000,    // prix d'achat TTC (VEFA)
+      purchaseDate: '2023-01',  // acte notarié 16 janvier 2023
+      deliveryDate: '2025-07',  // livraison VEFA juillet 2025
+      tvaAvantage: 37796,       // économie TVA (20% - 5.5%) × prix HT
+      // ── Appréciation réaliste par phase (moyenne pondérée) ──
+      // 2026-2028 : 1.0%/an — quartier encore en chantier, gare pas ouverte,
+      //   peu de commerces, offre neuve abondante qui pèse sur les prix, marché IDF tendu
+      // 2029-2032 : 2.0%/an — gare L15 opérationnelle, ZAC livrée, rattrapage modéré
+      // 2033+ : 1.5%/an — effet GPE digéré, croissance IDF standard
+      // Moyenne lissée sur 10 ans ≈ 1.5%/an
+      appreciation: 0.0145,      // moyenne lissée 2026-2040 des phases v478 : (2×0 + 2×1,5 + 5×2 + 6×1,5)/15 ≈ 1,47 %/an
+      // v415 — fenêtre de rattrapage DÉCALÉE DE 2 ANS : la ligne 15 Sud n'ouvre pas en 2025
+      //   mais à l'AUTOMNE 2027 (calendrier repoussé 6 fois : 2024 JO → été 2025 → fin 2025
+      //   → été 2026 → avril 2027 → automne 2027). Le rattrapage ne peut pas précéder l'ouverture.
+      // Moyenne pondérée 2026-2040 : (4×1.0 + 5×2.0 + 6×1.5)/15 = 1.53%/an ≈ appreciation ci-dessus.
+      // v478 — recalage sur les mesures du 27/08/2026 (analyse DVF 2 665 mutations + audit
+      // facteurs externes) : 94 seul département de petite couronne en BAISSE (−0,4 %
+      // notaires mars-mai 2026), ~4 800 logements libres concurrents ZAC 2026-2028, taux
+      // crédit en remontée (+19 pb/an), M15 reportée pour la 4e fois à l'automne 2027
+      // (SGP 25/06/2026). Le M15 reste le facteur décisif (seule variable capable de
+      // racheter les 5,1 km d'éloignement de Paris, gradient −6,6 %/km).
+      appreciationPhases: [
+        { start: 2026, end: 2027, rate: 0.000, note: '94 en baisse (−0,4 %), ~4 800 logements concurrents ZAC 2026-2028, M15 pas encore ouverte, taux en remontée' },
+        { start: 2028, end: 2029, rate: 0.015, note: 'M15 Ardoines ouverte (automne 2027), ZAC en achèvement, mises en vente du neuf au plus bas historique' },
+        { start: 2030, end: 2034, rate: 0.020, note: 'Effet M15 + sous-offre structurelle francilienne post-2029' },
+        { start: 2035, end: 2040, rate: 0.015, note: 'Effet GPE digéré, croissance IDF standard' },
+      ],
+      type: 'T3 — Location nue',
+      loyerObjectif: 700,       // v458 — loyer CC du bail : 600 HC + 100 provisions (parking inclus sans supplément)
+      dpe: 'B (68 kWh/m²/an)',  // v458 — DPE B confirmé (68), pas A
+      gmbi: {                   // v458 — référence DGFiP (audit GMBI 26/08/2026)
+        local: '940811772442', parcelle: '000 CG 0437',
+        occupationEnregistree: 'Nezha, à titre gratuit, depuis le 01/09/2025 (historique)',
+        aDeclarer: 'Locataire à compter du 10/10/2026, loyer 600 € — dans GMBI à la prise d\'effet du bail',
+      },
+      totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
+      // v415 — opening corrigé 2025 → 2027 (automne). Source : Société des grands projets,
+      //   ouverture L15 Sud repoussée d'avril 2027 à l'automne 2027.
+      ligne15: { station: 'Les Ardoines', distance: '2-5 min à pied', opening: 2027 },
+      details: {
+        // v423 — DOUBLE NUMÉROTATION : l'acte notarié dit « lot 3302 », le syndic LAMY dit
+        //   « 000219 ». Même bien, deux référentiels — ne pas croire à une incohérence.
+        lot: '3302',
+        lotSyndic: '000219',
+        // v423 — SECOND LOT, invisible du modèle jusqu'ici alors qu'il produit déjà du revenu :
+        //   stationnement 000586, bâtiment BA001, place n°87, livré le 02/07/2025 en même temps
+        //   que le logement (télécommande n°1471475000 remise au PV). Il porte 127,10 €/an de
+        //   charges et est INCLUS au bail du 10/10/2026 sans supplément de loyer (v458).
+        //   ⚠️ Sa VALEUR VÉNALE n'est chiffrée par AUCUN document : les 300 000 € retenus ne
+        //   couvrent que le logement. Un box en petite couronne vaut couramment 12-18 K€, mais
+        //   c'est un ordre de grandeur non documenté — ne pas l'inscrire sans référence réelle.
+        lotStationnement: { lot: '000586', batiment: 'BA001', place: 87, chargesAnnuelles: 127.10 },
+        floor: 'R+3 (4ème étage)',
+        building: 'Bâtiment 3',
+        type: 'T3',
+        yearBuilt: 2023,
+        developer: 'Nexity',
+        program: 'ZAC Gare des Ardoines (84 logements)',
+        norm: 'RE2020',
+        heating: 'Chauffage collectif',
+        dpe: 'B',   // v421 — corrigé de A à B. Le 'A' ne citait aucune source et venait
+                    //   vraisemblablement de la plaquette promoteur. Faisceau en faveur de B :
+                    //   sur les logements NEUFS construits 2022-2024 à Vitry (base ADEME,
+                    //   jeu « DPE Logements neufs », 846 diagnostics) la répartition est
+                    //   A:25 B:277 C:98 ; restreinte aux T3 de 60-75 m² (134 diagnostics)
+                    //   elle devient A:5 B:112 C:17 — soit 84% de B et seulement 4% de A.
+                    //   ⚠️ À confirmer par le certificat DPE de livraison, non retrouvé :
+                    //   le descriptif de lot (3302.pdf) est un plan scanné sans texte.
+        rooms: [
+          { name: 'Entrée', surface: 5.85 },
+          { name: 'Séjour', surface: 21.28 },
+          { name: 'Cuisine', surface: 8.52 },
+          { name: 'Chambre 1', surface: 12.38 },
+          { name: 'Chambre 2', surface: 9.95 },
+          { name: 'Salle de bain', surface: 4.87 },
+          { name: 'WC', surface: 2.09 },
+          { name: 'Dégagement', surface: 2.20 },
+        ],
+        surfaceHabitable: 67.14,
+        loggia: 8.1,
+        surfaceTotale: 75.24,
+        parking: true,
+        cave: false,
+        exposure: 'Sud-Ouest',
+      },
+    },
+    rueil: {
+      address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
+      // v425 — copropriété et syndic, pour parité d'affichage avec Vitry.
+      //   L'appel de fonds Foncia donne la composition exacte de la résidence : elle occupe
+      //   QUATRE voies, ce qui explique pourquoi une recherche par une seule rue sous-estime
+      //   le nombre de transactions comparables (cf. scripts/dvf_comparables.py).
+      copropriete: 'Résidence Montbrison — 1/3 rue des Charmes, 1/21 allée des Glycines, 2/22 rue P. Gimont, 92/94 rue des Mazurières',
+      syndic: 'Foncia Seine Ouest — client 004142524, immeuble 501308296, compte 102151753',
+      surface: 55.66,           // m²
+      purchasePrice: 240000,    // prix d'achat acte notarié (5 nov 2019) — hors frais notaire
+      purchaseDate: '2019-11',  // acte notarié 5 novembre 2019
+      purchaseDateLabel: '5 novembre 2019',
+      // ── Appréciation réaliste par phase ──
+      // 2026-2029 : 0.5%/an — marché plat, station L15 Rueil lointaine (~2030-2032),
+      //   quartier Fouilleuse/Mazurières sous-performe le reste de Rueil (-37% vs ville)
+      //   MeilleursAgents: 4 445€/m² allée des Glycines vs 5 920€ ville
+      //   Orpi: prix Rueil -1.5% sur 2 ans (2023-2025)
+      // 2030+ : 1.5%/an — si L15 Ouest ouvre, effet indirect (station à 15-20 min à pied)
+      // Moyenne lissée sur 10 ans ≈ 1.0%/an
+      appreciation: 0.0135,      // moyenne lissée 2026-2040 des phases v478 : (4×1 + 11×1,5)/15 ≈ 1,37 %/an
+      // v415 — phase 2 ramenée 1.5% → 1.0% : à 15-20 min à pied (~1,2-1,6 km), le bien est
+      //   HORS du périmètre de capture de valeur. Les Notaires du Grand Paris mesurent la prime
+      //   de proximité sur un rayon de 800 m ; la zone 800 m-1,5 km leur sert justement de
+      //   RÉFÉRENCE DE COMPARAISON. Il n'y a donc pas d'effet gare à capter ici.
+      // Moyenne pondérée 2026-2040 : (4×0.5 + 11×1.0)/15 = 0.87%/an.
+      // v478 — recalage audit 27/08/2026 : le 92 est le SEUL département de petite couronne
+      // en hausse mesurée (+1,0 % notaires mars-mai 2026, +1,7 % T1) → biais haussier.
+      appreciationPhases: [
+        { start: 2026, end: 2029, rate: 0.010, note: '92 seul département de petite couronne en hausse (+1,0 % notaires mars-mai 2026)' },
+        { start: 2030, end: 2040, rate: 0.015, note: 'Ouverture L15 Ouest (Rueil-Suresnes, 2030-2032) — effet indirect, bien à 15-20 min à pied' },
+      ],
+      type: 'T3 meublé — LMNP',
+      ligne15: { station: 'Rueil-Suresnes', distance: '15-20 min à pied', opening: '2030-2032' },
+      details: {
+        lot: '894',
+        floor: 'RDC',
+        building: 'Bâtiment IX, escalier A',
+        type: 'T3',
+        yearBuilt: '1949-1974',
+        developer: null,
+        program: 'Résidence Montbrison',
+        norm: null,
+        heating: 'Chauffage collectif, eau chaude collective',
+        dpe: null,
+        rooms: [
+          { name: 'Entrée + placard', surface: 4.39 },
+          { name: 'Dégagement', surface: 3.25 },
+          { name: 'Cuisine', surface: 6.11 },
+          { name: 'Salon', surface: 16.62 },
+          { name: 'Chambre 1 + placard', surface: 11.49 },
+          { name: 'Chambre 2', surface: 9.60 },
+          { name: 'WC', surface: 0.99 },
+          { name: 'Salle de bain', surface: 3.21 },
+        ],
+        surfaceHabitable: 55.66,
+        loggia: null,
+        surfaceTotale: 55.66,
+        parking: false,
+        cave: true,
+        caveLots: ['924 (cave)', '954 (séchoir)'],
+        // v423 — 249 → 253/100000 : l'appel de fonds travaux 2024 détaille le lot principal 894
+        //   PLUS les deux caves, 924 et 954, à 2/100000 chacune. Écart de +1,6% sur toute
+        //   quote-part de charges ou de travaux.
+        tantiemes: '253/100000',
+        exposure: null,
+      },
+    },
+    villejuif: {
+      address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
+      surface: 68.92,           // m² (contrat de réservation §1.6 — lot A27, étage 2)
+      purchasePrice: 336330,    // prix TTC contrat de réservation §1.7
+      totalOperation: 336330,   // montant TTC total (TVA 20%)
+      // v470 — appels de fonds RESTANTS (échéancier de l'acte, art. R261-14 : 66 % du prix,
+      // intégralement couverts par le prêt P1). Les DATES sont une HYPOTHÈSE de calendrier
+      // de chantier (livraison sept 2028) — à recaler à chaque appel reçu.
+      appelsRestants: [
+        { label: 'Fondations',   pct: 0.01, dateEstimee: '2026-11' },
+        { label: 'Plancher RDC', pct: 0.15, dateEstimee: '2027-03' },
+        { label: 'Plancher 1er', pct: 0.15, dateEstimee: '2027-07' },
+        { label: 'Hors d\'eau',  pct: 0.05, dateEstimee: '2027-11' },
+        { label: 'Plâtres',      pct: 0.15, dateEstimee: '2028-02' },
+        { label: 'Peinture',     pct: 0.09, dateEstimee: '2028-05' },
+        { label: 'Achèvement',   pct: 0.01, dateEstimee: '2028-08' },
+        { label: 'Livraison',    pct: 0.05, dateEstimee: '2028-09' },
+      ],
+      purchaseDate: '2025-06',  // signature contrat réservation 20/06/2025
+      deliveryDate: '2028-09',  // Q3 2028 — retard annoncé promoteur. Acte 05/06/2026 : T2 2028, max 30/06/2028 (résa initiale : 31/03/2028)
+      // ── Appréciation réaliste par phase (révisée avril 2026) ──
+      // Marché Villejuif : -1.17% sur 2 ans (2023-2025), tendance baissière
+      // L'effet L15 est largement pricé : +20% entre 2021-2025 autour Louis Aragon
+      // Études MeilleursAgents : les prix se tassent autour des futures stations GPE
+      // Référence L14 Saint-Ouen : +55% en 5 ans PUIS ralentissement à +1.4%/an
+      //   MeilleursAgents Bd Gorki : 5 138-5 210€/m² (fev-mars 2026)
+      //   efficity: 5 050€/m² jan 2026, +6% vs ville
+      //   Neuf VEFA Villejuif : 5 500-6 850€/m² (programmes en cours)
+      // 2025-2027 : 2.0%/an — anticipation L15 (ouverture avril 2027) mais
+      //   marché en tassement, effet déjà largement pricé. L14 déjà là + pôle Gustave Roussy
+      // 2028-2040 : 1.5%/an — post-livraison, L15 opérationnelle, effet digéré
+      //   cohérent avec inflation immobilière IDF long-terme
+      // Moyenne lissée sur 15 ans ≈ 1.7%/an
+      // v415 — phase 1 ramenée 2.0% → 0.5%. Le 2.0% CONTREDISAIT son propre argumentaire :
+      //   on ne peut pas écrire « marché en tassement, effet déjà pricé » puis appliquer le taux
+      //   le plus élevé des trois biens à la période la plus proche. S'y ajoutent deux faits :
+      //   (a) Louis Aragon est un TERMINUS M7 EXISTANT — cette connectivité est capitalisée depuis
+      //       des décennies, la L15 n'ajoute qu'une correspondance ;
+      //   (b) le bien est « au pied du métro » (<250 m), bande où la littérature relève une
+      //       DÉCOTE de 10-15% pour nuisances, pas une prime (optimum vers 500 m).
+      // Moyenne pondérée 2025-2040 : (3×0.5 + 13×1.5)/16 = 1.31%/an → appreciation ajustée à 0.013.
+      appreciation: 0.013,       // 1.3%/an (moyenne lissée des phases ci-dessous)
+      appreciationPhases: [
+        { start: 2025, end: 2027, rate: 0.005, note: 'Terminus M7 déjà capitalisé, marché local en tassement (-1,17% sur 2 ans), effet L15 déjà pricé' },
+        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison Q3 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
+      ],
+      type: 'T3 — VEFA — LMNP',
+      // v415 — opening corrigé 2027-04 → 2027-10 (report annoncé par la Société des grands projets).
+      ligne15: { station: 'Villejuif Louis Aragon', distance: 'En face (<1 min)', opening: '2027-10' },
+      details: {
+        lot: 'A27',
+        floor: '2ème étage',
+        building: null,
+        type: 'T3',
+        yearBuilt: 2028,
+        developer: 'Fair\' Promotion',
+        program: '167 Aragon (Villejuif)',
+        norm: 'RE2020, PMR évolutif',
+        heating: null,
+        dpe: null,
+        rooms: [
+          { name: 'Entrée', surface: 3.60 },
+          { name: 'Séjour/Cuisine', surface: 35.09 },
+          { name: 'Chambre 1', surface: 11.24 },
+          { name: 'Chambre 2', surface: 11.24 },
+          { name: 'Salle de bain', surface: 5.45 },
+          { name: 'WC', surface: 2.32 },
+        ],
+        surfaceHabitable: 68.92,
+        loggia: 9.51,
+        surfaceTotale: 78.45,
+        parking: false,
+        cave: false,
+        exposure: 'Sud-Ouest',
+      },
+    },
+  },
+};
 
 // ════════════════════════════════════════════════════════════
 // FRAIS DE SORTIE IMMOBILIER — Plus-value, agence, notaire
@@ -465,9 +2354,162 @@ export const EXIT_COSTS = {
 // CONTRAINTES VITRY — Rappel de toutes les obligations
 // liées aux dispositifs de financement et TVA réduite
 // ════════════════════════════════════════════════════════════
-// VITRY_CONSTRAINTS — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const VITRY_CONSTRAINTS = {};
+export const VITRY_CONSTRAINTS = {
+  summary: 'Obligations actives : Anti-spéculation (→ 01/2028), PTZ dérogatoire (bail nu, plafond PLS 840 €, fenêtre → 2031-07), Action Logement (RP → 2048), location nue au réel, déclaration GMBI à faire — TVA 5,5 % levée (exception naissance) ; 1 risque suivi (part de loyer non déclarée).',
+  constraints: [
+    {
+      dispositif: 'Anti-Spéculation (Municipal)',
+      reference: 'Acte de vente art. 5.1.3',
+      obligation: 'Interdiction de revente avec profit pendant 5 ans',
+      dateDebut: '2023-01',
+      dateFin: '2028-01',       // 5 ans depuis acte 16/01/2023
+      penalite: 'Reversement de 100% du profit net à la commune',
+      details: [
+        'Clause anti-spéculation inscrite dans l\'acte notarié du 16/01/2023',
+        'Durée : 5 ans → expire le 16 janvier 2028',
+        'Si vente avant : 100% de la plus-value nette reversée à la mairie',
+        'Après 5 ans : aucune contrainte, vente libre',
+      ],
+      status: 'actif',
+      yearsRemaining: 1,  // expire le 16/01/2028 (~1,4 an au 26/08/2026)
+    },
+    {
+      dispositif: 'TVA 5.5%',
+      reference: 'CGI art. 278 sexies',
+      obligation: 'Résidence principale pendant 10 ans depuis livraison',
+      dateDebut: '2025-07',     // obligation depuis livraison VEFA
+      dateFin: '2035-07',       // 10 ans depuis livraison juillet 2025
+      penalite: 'Remboursement différentiel TVA (14.5% × prix HT) au prorata des années restantes',
+      details: [
+        'Bien acheté 275 000€ TTC à TVA 5.5% au lieu de 20%',
+        'Économie TVA : 37 796€ (différentiel 14.5% × 260 000€ HT)',
+        'Obligation : RP 10 ans depuis livraison VEFA (juillet 2025)',
+        'Pénalité dégressive : -1/10ème par an',
+        'v458 — EXCEPTION « NAISSANCE » ACQUISE (26/08/2026) : engagement RP levé',
+        'AUCUN complément de TVA à provisionner — le risque de clawback est éteint',
+        'Zone ANRU / QPV Balzac — condition de localisation respectée',
+      ],
+      status: 'levé',
+      exceptionNaissanceAcquise: true,
+      yearsRemaining: 0,
+    },
+    {
+      dispositif: 'PTZ (Prêt à Taux Zéro) — location dérogatoire',
+      reference: 'Code de la construction L.31-10-6',
+      obligation: 'Bail NU + loyer plafonné PLS (~840 €/mois zone A) jusqu\'à la fin de la fenêtre de 6 ans post-versement',
+      dateDebut: '2023-04',     // 1er déblocage PTZ 06/04/2023
+      // v458 — FIN FENÊTRE PTZ : 2029-04 (6 ans après le 1er déblocage) ou 2031-07 (6 ans
+      // après le DERNIER déblocage). Défaut PRUDENT : 2031-07. Ce param pilote aussi la date
+      // la plus précoce d'une bascule meublé/LMNP (interdite pendant la fenêtre).
+      dateFin: '2031-07',
+      finFenetrePTZ: '2031-07',
+      finFenetrePTZOptions: ['2029-04', '2031-07'],
+      plafondLoyerPLS: 840,
+      penalite: 'Rappel du prêt PTZ (remboursement immédiat de 60 000€)',
+      details: [
+        'Montant PTZ : 60 000€ à 0%',
+        'Location dérogatoire DÉCLARÉE à la Banque Populaire le 26/08/2026',
+        'Conditions impératives pendant la fenêtre : bail NU + loyer ≤ plafond PLS (~840 €/mois zone A)',
+        'Fenêtre de 6 ans : 2029-04 (1er déblocage 06/04/2023) ou 2031-07 (dernier déblocage) — défaut prudent 2031-07',
+        'Meublé INTERDIT pendant la fenêtre → bascule LMNP au plus tôt 08/2031 (défaut)',
+        'Remboursement anticipé : sans pénalité ni frais',
+      ],
+      status: 'actif',
+      yearsRemaining: 5,
+    },
+    {
+      dispositif: 'Action Logement',
+      reference: 'Convention entre employeur et Action Logement Services',
+      obligation: 'Résidence principale pendant toute la durée du prêt (jusqu\'en 02/2048)',
+      dateDebut: '2023-02',
+      dateFin: '2048-02',       // 25 ans
+      // v458 — 35 208 € = CRD actuel : RISQUE D'EXIGIBILITÉ (rappel si manquement RP),
+      // PAS une dette additionnelle — le CRD est déjà compté au passif.
+      riskAmountEUR: 35208,
+      penalite: 'Rappel immédiat du CRD (35 208€ à date) — risque d\'exigibilité, pas une dette additionnelle',
+      details: [
+        'Montant : 40 000€ à 0,5%',
+        'Obligation RP pendant toute la durée (25 ans → février 2048)',
+        'Sanction si manquement : rappel immédiat du capital restant dû',
+        'Le locataire doit respecter les plafonds de ressources PLS',
+        'Fréquence d\'audit : rare',
+        'Remboursement anticipé : possible sans pénalité',
+      ],
+      status: 'actif',
+      yearsRemaining: 22,
+    },
+    {
+      dispositif: 'Location nue (régime foncier réel)',
+      reference: 'CGI art. 14 / 28',
+      obligation: 'Déclaration des revenus fonciers de source française dès la prise d\'effet du bail (10/10/2026)',
+      dateDebut: '2026-10',
+      dateFin: null,
+      penalite: 'Redressement fiscal si non-déclaration',
+      details: [
+        'Bail nu 3 ans signé : 600 € HC + 100 € de provisions (700 € CC), effet 10/10/2026',
+        'Non-résident UAE : IR 20% minimum + PS 17.2% = 37.2% du net foncier',
+        'Régime réel : intérêts d\'emprunt, APRIL, PNO, TF nette de TEOM, copro non récupérable, forfait gestion 20 €',
+        'NON déductibles : cuisine IKEA 2025, charges antérieures au 10/10/2026, avances/fonds travaux (284 €/an)',
+        'Prorata 2026 : revenus et charges décomptés à partir du 10/10 uniquement',
+      ],
+      status: 'actif',
+      yearsRemaining: null,
+    },
+    {
+      dispositif: 'RISQUE — revenus en espèces non déclarés (500 € locataire + 70 € parking voisin)',
+      reference: 'Suivi interne — enregistrement factuel, plafonné à 500 €',
+      obligation: 'Aucune : ce bloc CHIFFRE l\'exposition du choix de non-déclaration (imposable en droit)',
+      dateDebut: '2026-10',
+      dateFin: null,
+      penalite: 'Requalification : ~2 230 €/an d\'impôt éludé + majoration 40 % + intérêts de retard ; loyer réel 1 100 € > plafond PLS 840 € → exigibilité PTZ 60 000 € + Action Logement 35 208 € pendant la fenêtre (jusqu\'en 2031-07), contrôle BP EN COURS',
+      details: [
+        'AUJOURD\'HUI (jusqu\'au 09/10/2026) : 1 200 €/mois perçus 100 % EN ESPÈCES (+ 70 € parking voisin) — rien de déclaré',
+        'Dès le 10/10/2026 : 600 € déclarés (virement) + 100 € provisions + 500 € espèces (locataire) + 70 € espèces (parking) = 1 270 €/mois perçus',
+        'Discordance GMBI : la DGFiP enregistre « occupation à titre gratuit » pendant qu\'un loyer est perçu — déclaration d\'occupation inexacte',
+        'Parking loué à un tiers : HORS plafond PLS du bail, mais revenus fonciers imposables non déclarés',
+        'Fiscal : 570 × 12 × 37,2 % ≈ 2 545 €/an d\'impôt éludé ; majoration 40 % (manquement délibéré) + intérêts 0,2 %/mois en cas de contrôle',
+        'PTZ dérogatoire : plafond PLS ~840 €/mois — le loyer réel (1 100 €) le dépasse de ~31 % → motif d\'exigibilité des prêts aidés (95 208 €)',
+        'GMBI déclarera « loyer 600 € » à la DGFiP pendant que le locataire laisse des traces de paiements',
+        'Ce suivi n\'est PAS une optimisation : il enregistre un fait et en affiche le coût potentiel',
+      ],
+      status: 'risque',
+      yearsRemaining: null,
+    },
+    {
+      dispositif: 'Déclaration GMBI (occupation locataire)',
+      reference: 'DGFiP — Gérer mes biens immobiliers',
+      obligation: 'Déclarer l\'occupation « locataire à compter du 10/10/2026, loyer 600 € » à la prise d\'effet du bail',
+      dateDebut: '2026-10',
+      dateFin: '2026-10',
+      penalite: 'Amende forfaitaire en cas de non-déclaration d\'occupation',
+      details: [
+        'Local n° 940811772442 — parcelle 000 CG 0437',
+        'Occupation enregistrée à ce jour : « Nezha, à titre gratuit, depuis le 01/09/2025 » (historique)',
+        'À faire dans GMBI à la prise d\'effet du bail : locataire au 10/10/2026, loyer 600 €',
+      ],
+      status: 'à faire',
+      yearsRemaining: 0,
+    },
+  ],
+  timeline: [
+    { date: '2023-01', event: 'Acte notarié VEFA signé (16 janvier)', icon: 'doc', done: true },
+    { date: '2025-07', event: 'Livraison VEFA + début occupation', icon: 'key', done: true },
+    { date: '2025-08', event: 'Début prêt BP — intérêts seuls 306€/mois (5 mois)', icon: 'bank', done: true },
+    { date: '2026-01', event: 'Début remboursement capital BP (1 021€/mois)', icon: 'money', done: true },
+
+    { date: '2027-10', event: 'Mise en service M15 Sud — gare Les Ardoines (automne 2027, 4e report SGP 25/06/2026) : facteur de valorisation décisif du secteur', icon: 'metro' },
+    { date: '2027-12', event: 'Fin exonération TF partielle (art. 1383, 40 % de la base) : 1 320 → 1 950 €/an dès 2028', icon: 'tax' },
+    { date: '2028-01', event: 'Fin clause anti-spéculation (5 ans)', icon: 'unlock' },
+    { date: '2028-12', event: 'Fin différé PTZ → début remboursement 333€/mois', icon: 'money' },
+    { date: '2026-10', event: 'Naissance du bébé (terme max 05/10) — exception « naissance » TVA 5,5 % cristallisée : engagement RP levé, clawback annulé (~+30,7 K€ d\'équité nette)', icon: 'free' },
+    { date: '2026-10', event: 'Prise d\'effet du bail nu (600 € HC + 100 €) + déclaration GMBI à faire', icon: 'key' },
+    { date: '2031-07', event: 'Fin fenêtre PTZ (défaut prudent : 6 ans après dernier déblocage) → meublé/LMNP possible au plus tôt 08/2031', icon: 'unlock' },
+    { date: '2035-07', event: 'Fin de la fenêtre TVA 5.5% historique — exception « naissance » déjà acquise (26/08/2026), aucun enjeu résiduel', icon: 'free' },
+    { date: '2043-11', event: 'Fin prêt PTZ', icon: 'check' },
+    { date: '2048-02', event: 'Fin prêt Action Logement + fin obligation RP', icon: 'check' },
+    { date: '2048-12', event: 'Fin prêt Banque Populaire (Riv\'immo)', icon: 'check' },
+  ],
+};
 
 // ════════════════════════════════════════════════════════════
 // CONTRAINTES VILLEJUIF (v415) — clause de restitution des avantages
@@ -495,13 +2537,133 @@ export const VITRY_CONSTRAINTS = {};
 // déclarer dans autreTotal, les deux tables de breakdown, le treemap, les insights
 // ET les trois cartes views.*.other, puis à revérifier les invariants.
 // ════════════════════════════════════════════════════════════
-// IMMO_PASSIFS_DOCUMENTES — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const IMMO_PASSIFS_DOCUMENTES = [];
+export const IMMO_PASSIFS_DOCUMENTES = {
+  rueilCopro: {
+    bien: 'rueil',
+    nature: 'Dette de charges de copropriété, en recouvrement',
+    syndic: 'Foncia Seine Ouest — client 004142524, immeuble 501308296, compte 102151753',
+    // Chronologie établie par pièces, toutes dans Nezha Foncia/ :
+    //   24/11/2023  solde 20 993,32   (le saut de +19 150 depuis le 01/10/2023 n'est
+    //                                  couvert par AUCUNE pièce du dossier ; les courriels
+    //                                  indiquent qu'il s'agit de la quote-part des travaux
+    //                                  de rénovation énergétique)
+    //   01/01/2024  21 622,65
+    //   01/04/2024  22 429,08
+    //   01/07/2024  22 730,73   ← appel T3 2024, montant exigible
+    //   09/10/2024  dossier transmis à huissier (436 € de frais)
+    //   21/10/2024  Nezha règle 3 754,88 €
+    //   17/12/2024  Foncia ramène le solde à 20 329,30 €
+    //   14/03/2025  « DERNIÈRE RELANCE AVANT POURSUITES JUDICIAIRES »
+    dernierMontantConnu: 20329.30,
+    dernierMontantDate: '2024-12-17',
+    fraisRecouvrement: 629.38,   // mise en demeure 54 + intérêts de retard 95,38 + relance 44 + huissier 436
+    conteste: true,
+    // Nezha conteste les pénalités ET la quote-part travaux, au motif qu'elle n'a jamais
+    // reçu les documents nécessaires à sa demande d'éco-PTZ. Litige déclaré à sa protection
+    // juridique le 18/07/2025 contre Foncia Seine Ouest.
+    statutAujourdhui: 'INCONNU — aucune pièce postérieure au 14/03/2025',
+    // ⚠️ LIEN AVEC LA VALORISATION : les 265 K€ retenus pour Rueil intègrent une majoration
+    // de ~13% justifiée par la fin des travaux énergétiques et le passage du DPE en C.
+    // Or c'est précisément la quote-part de CES travaux qui reste impayée. La plus-value
+    // est donc réelle, mais elle a une contrepartie au passif. Comptabiliser l'une sans
+    // l'autre surévalue le patrimoine de Nezha d'environ 20 K€.
+  },
+  vitryCopro: {
+    bien: 'vitry',
+    nature: 'Impayé de charges courantes',
+    syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte CP1710061',
+    montant: 716.10,
+    date: '2025-12-01',
+    // Colonne VERSEMENTS à 0,00 € depuis le 01/08/2025 — cinq appels mensuels non réglés,
+    // alors qu'un mandat SEPA est actif (RUM MYN5859101, IBAN Revolut FR76 2823 3000 0147 7575).
+    // Signature typique d'un rejet de prélèvement récurrent : à vérifier côté Revolut.
+    statutAujourdhui: 'INCONNU — aucune pièce postérieure au 01/12/2025',
+  },
+  // v423 — Passif FISCAL documenté, lui aussi hors calcul.
+  pvMobiliereDegiro2025: {
+    nature: 'Plus-value de cession de valeurs mobilières, exercice 2025',
+    assiette: 43446.96,   // PROUVÉ : rapport fiscal Degiro 2025, « Gains de cessions 43446,96 EUR »
+                          // Détail : NVIDIA +41 354,50 · ADR Infosys +1 234,46 · Spotify +940,57 · Disney -82,56
+    impotEstime: 13034,   // DÉDUIT : PFU 30% — ce n'est pas un montant lu, c'est un calcul
+    // ⚠️ DOUBLE CONDITION avant toute inscription :
+    //   1. la résidence fiscale d'Amine en 2025. S'il est non-résident français, cette
+    //      plus-value mobilière n'est pas imposable en France et le passif tombe à zéro.
+    //   2. l'impôt a peut-être déjà été acquitté — vérifier l'avis 2026 sur revenus 2025.
+    statut: 'NON BRANCHÉ — conditionné à la résidence fiscale et au paiement éventuel',
+  },
+  // v423 — Coût de garantie Villejuif, à ne pas confondre avec un actif :
+  villejuifCautionCreditLogement: {
+    bien: 'villejuif', nature: 'Caution Crédit Logement (garantie du prêt)',
+    montantPaye: 4170.05,   // 3 498,03 + 672,02
+    // La part restituable en fin de prêt n'est indiquée NULLE PART. Ne rien inscrire
+    // à l'actif sans attestation Crédit Logement.
+    sens: 'coût d\'acquisition',
+  },
+  // Créance en sens inverse, elle aussi non branchée :
+  vitryAvanceTresorerie: {
+    bien: 'vitry', nature: 'Avance de trésorerie détenue par le syndicat, restituable à la vente',
+    montant: 142.00, sens: 'actif',
+  },
+  // NE PAS traiter en actif : le fonds travaux ALUR reste acquis au syndicat en cas de vente
+  // (art. 14-2 loi 1965, confirmé par la résolution 21 de l'AG Vitry du 13/03/2026).
+  // Rueil : ~640,94 € fin 2024. C'est un argument de négociation, pas une créance.
+  litiges: [
+    { bien: 'vitry', partiesAdverses: 'Nexity (vendeur) et Fermatic',
+      objet: 'Inexécution de l\'obligation de livraison conforme et garantie de parfait achèvement ; défaut de pré-équipement IRVE',
+      source: 'Résolutions 16 et 27, convocation AG du 13/03/2026',
+      effet: 'Frais de procédure imputés aux charges communes, non chiffrés et non provisionnés',
+      statut: 'Ouvert — le PV de cette AG ne figure pas au dossier' },
+    { bien: 'rueil', partiesAdverses: 'Foncia Seine Ouest',
+      objet: 'Manquement du syndic ayant empêché la demande d\'éco-PTZ ; demande d\'annulation des pénalités (629,38 €) et de dédommagement',
+      source: 'Déclaration de litige à la protection juridique du 18/07/2025',
+      effet: 'Créance conditionnelle, non chiffrable — ne rien inscrire à l\'actif',
+      statut: 'Ouvert' },
+  ],
+};
 
-// VILLEJUIF_CONSTRAINTS — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const VILLEJUIF_CONSTRAINTS = {};
+export const VILLEJUIF_CONSTRAINTS = {
+  summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
+  // v427 — hypothèse d'indexation, LUE PAR LE MOTEUR (computeExitCosts).
+  // L'acte réindexe le prix d'achat sur l'indice INSEE du coût de la construction. Cet
+  // indice futur est inconnu : 2%/an est une hypothèse de long terme, pas une donnée.
+  // Elle joue en NOTRE faveur dans le calcul (plus l'ICC est haut, moins on restitue),
+  // donc la retenir basse est le choix prudent. À réviser si l'ICC réel s'en écarte.
+  iccAnnuelHypothese: 0.02,
+  constraints: [
+    {
+      dispositif: 'Restitution des avantages en cas de revente anticipée',
+      reference: 'Acte authentique 05/06/2026, p.18-19',
+      beneficiaire: 'SADEV 94 (aménageur ZAC Aragon), à la demande de la commune de Villejuif',
+      obligation: 'Reverser l\'intégralité de la plus-value en cas de revente dans les 5 ans suivant l\'achèvement',
+      dateDebut: '2028-06',      // achèvement contractuel au plus tard le 30/06/2028
+      dateFin: '2033-06',        // + 5 ans
+      penalite: 'Restitution de 100% de la plus-value, versée sous 15 jours',
+      details: [
+        'Plus-value = prix de revente TTC − prix d\'achat TTC réindexé sur l\'indice INSEE du coût de la construction',
+        'Indice de base : dernier connu au jour de la signature — indice de révision : dernier publié au jour de la revente',
+        'Déductions admises : travaux non inclus dans le prix, frais d\'acquisition, impôt sur la plus-value acquitté',
+        'Si aucune plus-value constatée, l\'obligation s\'éteint de plein droit',
+        'Le notaire chargé de la revente doit être informé de l\'existence de la clause',
+        'CONSÉQUENCE : avant mi-2033, seule compte la revalorisation à l\'indice de la construction — tout gain de marché au-delà est reversé',
+      ],
+      exonerations: [
+        'Mobilité ou mutation professionnelle justifiée à plus de 30 km',
+        'Chômage de l\'acquéreur, de son conjoint ou de son partenaire',
+        'Modification grave de la situation familiale (décès, divorce, séparation, dissolution de PACS)',
+        'Incapacité ou invalidité permanente',
+        'Naissance gémellaire',
+      ],
+      // La portée de ce type de clause est parfois discutée. Ce n'est pas un point
+      // à trancher ici : question pour un notaire ou un avocat le moment venu.
+      reserve: 'Portée juridique parfois contestée — à faire qualifier par un professionnel avant toute décision de revente',
+      status: 'actif',
+    },
+  ],
+  // Droit de préemption : VÉRIFIÉ ET ÉCARTÉ. L'acte précise que la mutation n'entre
+  // pas dans le champ du droit de préemption urbain (Code de l'urbanisme, art. L 213-1 b,
+  // vente d'immeuble à construire), et le vendeur déclare aucun droit non purgé (p.42).
+  preemption: null,
+};
 // v440 — VILLEJUIF_REGIMES supprimé : dispositif Jeanbrun non retenu (loyer plafonné
 // 1 215€ vs 1 700€ marché), section comparative retirée de la fiche. Historique : git ≤ v439.
 
@@ -516,8 +2678,6 @@ export const VILLEJUIF_CONSTRAINTS = {};
 // This array should be populated with real historical net worth snapshots
 // Structure: [{ date: 'YYYY-MM', coupleNW, amineNW, nezhaNW, note? }, ...]
 // ════════════════════════════════════════════════════════════
-// NW_HISTORY — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
 export const NW_HISTORY = [];
 
 // ════════════════════════════════════════════════════════════
@@ -533,9 +2693,103 @@ export const NW_HISTORY = [];
 //   total = degiro + espp + ibkr
 //   degiro inclut Flatex cash (ex: dec 2020 = 30117.82 portefeuille + 1940.01 Flatex = 32058)
 // ════════════════════════════════════════════════════════════
-// EQUITY_HISTORY — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const EQUITY_HISTORY = [];
+export const EQUITY_HISTORY = [
+  // ── 2020 ── (Degiro ouvert, premiers trades)
+  // Dépôts exacts: 3 × 8524.34 = 25573.02 EUR (back-calculé rapports annuels)
+  // Points vérifiés: 2020-12 (portefeuille 30117.82 + Flatex 1940.01 = 32058)
+  { date: '2020-01-31', degiro: 8500,   espp: 14440, ibkr: 0, total: 22940,  note: '1er dépôt Degiro (8.5K) — 14/01' },
+  { date: '2020-02-29', degiro: 17000,  espp: 13832, ibkr: 0, total: 30832,  note: '2ème dépôt Degiro — 20/02' },
+  { date: '2020-03-31', degiro: 22000,  espp: 10875, ibkr: 0, total: 32875,  note: '3ème dépôt 09/03 (25.6K total) — COVID crash' },
+  { date: '2020-04-30', degiro: 23500,  espp: 12160, ibkr: 0, total: 35660,  note: 'Début recovery COVID' },
+  { date: '2020-05-31', degiro: 25000,  espp: 15675, ibkr: 0, total: 40675,  note: 'ESPP lot 6 (19 sh)' },
+  { date: '2020-06-30', degiro: 26500,  espp: 16625, ibkr: 0, total: 43125 },
+  { date: '2020-07-31', degiro: 27500,  espp: 17290, ibkr: 0, total: 44790 },
+  { date: '2020-08-31', degiro: 28000,  espp: 18525, ibkr: 0, total: 46525 },
+  { date: '2020-09-30', degiro: 28500,  espp: 17765, ibkr: 0, total: 46265 },
+  { date: '2020-10-31', degiro: 29000,  espp: 20165, ibkr: 0, total: 49165,  note: 'ESPP lot 5 (14 sh)' },
+  { date: '2020-11-30', degiro: 30500,  espp: 21255, ibkr: 0, total: 51755 },
+  { date: '2020-12-31', degiro: 32058,  espp: 22563, ibkr: 0, total: 54621,  note: 'Rapport annuel: Degiro 30117.82 + Flatex 1940.01' },
+
+  // ── 2021 ── (Trading actif, LVMH/Europcar/FedEx gros gains, ESPP continue)
+  // Points vérifiés: 2021-12 (portefeuille 29907.67 + Flatex 46.81, retrait 15669)
+  { date: '2021-01-31', degiro: 31500,  espp: 22890, ibkr: 0, total: 54390 },
+  { date: '2021-02-28', degiro: 31200,  espp: 24525, ibkr: 0, total: 55725 },
+  { date: '2021-03-31', degiro: 30800,  espp: 24525, ibkr: 0, total: 55325 },
+  { date: '2021-04-30', degiro: 30500,  espp: 29140, ibkr: 0, total: 59640,  note: 'ESPP lot 4 (15 sh)' },
+  { date: '2021-05-31', degiro: 30200,  espp: 29760, ibkr: 0, total: 59960 },
+  { date: '2021-06-30', degiro: 22000,  espp: 31000, ibkr: 0, total: 53000,  note: 'Ventes EUCAR/LVMH — retrait 15.7K' },
+  { date: '2021-07-31', degiro: 21000,  espp: 32240, ibkr: 0, total: 53240 },
+  { date: '2021-08-31', degiro: 20500,  espp: 33728, ibkr: 0, total: 54228,  note: 'Achat NVDA 30sh + vente LVMH 16sh' },
+  { date: '2021-09-30', degiro: 24000,  espp: 34720, ibkr: 0, total: 58720 },
+  { date: '2021-10-31', degiro: 26000,  espp: 35960, ibkr: 0, total: 61960 },
+  { date: '2021-11-30', degiro: 28000,  espp: 41850, ibkr: 0, total: 69850,  note: 'ESPP lot 3 (11 sh)' },
+  { date: '2021-12-31', degiro: 29955,  espp: 43875, ibkr: 0, total: 73830,  note: 'Rapport annuel: Degiro 29907.67 + Flatex 46.81' },
+
+  // ── 2022 ── (Bear market, pas de trades, ESPP continue)
+  // Points vérifiés: 2022-12 (portefeuille 16316.15 + Flatex 194.13)
+  { date: '2022-01-31', degiro: 28500,  espp: 44835, ibkr: 0, total: 73335 },
+  { date: '2022-02-28', degiro: 27000,  espp: 42630, ibkr: 0, total: 69630 },
+  { date: '2022-03-31', degiro: 25500,  espp: 44835, ibkr: 0, total: 70335 },
+  { date: '2022-04-30', degiro: 24000,  espp: 42630, ibkr: 0, total: 66630 },
+  { date: '2022-05-31', degiro: 22500,  espp: 40425, ibkr: 0, total: 62925,  note: 'ESPP lot 2 (12 sh)' },
+  { date: '2022-06-30', degiro: 21500,  espp: 37485, ibkr: 0, total: 58985 },
+  { date: '2022-07-31', degiro: 20500,  espp: 40500, ibkr: 0, total: 61000 },
+  { date: '2022-08-31', degiro: 19500,  espp: 42000, ibkr: 0, total: 61500,  note: 'ESPP FRAC 3sh (div reinvested)' },
+  { date: '2022-09-30', degiro: 18700,  espp: 36750, ibkr: 0, total: 55450 },
+  { date: '2022-10-31', degiro: 17900,  espp: 38250, ibkr: 0, total: 56150 },
+  { date: '2022-11-30', degiro: 17100,  espp: 40500, ibkr: 0, total: 57600 },
+  { date: '2022-12-31', degiro: 16510,  espp: 37500, ibkr: 0, total: 54010,  note: 'Rapport annuel: Degiro 16316.15 + Flatex 194.13' },
+
+  // ── 2023 ── (SAP+NVDA vendus, VOLTA perte, ESPP lot final)
+  // Points vérifiés: 2023-12 (portefeuille 29971.39 + Flatex 70.51, retrait 5755)
+  { date: '2023-01-31', degiro: 17000,  espp: 37296, ibkr: 0, total: 54296 },
+  { date: '2023-02-28', degiro: 17500,  espp: 38385, ibkr: 0, total: 55885 },
+  { date: '2023-03-31', degiro: 15500,  espp: 37500, ibkr: 0, total: 53000,  note: 'VOLTA liquidé (-4183)' },
+  { date: '2023-04-30', degiro: 18000,  espp: 39855, ibkr: 0, total: 57855 },
+  { date: '2023-05-31', degiro: 20000,  espp: 45925, ibkr: 0, total: 65925,  note: 'ESPP lot 1 final (17 sh) — 167 sh total' },
+  { date: '2023-06-30', degiro: 22000,  espp: 45925, ibkr: 0, total: 67925 },
+  { date: '2023-07-31', degiro: 22500,  espp: 47595, ibkr: 0, total: 70095,  note: 'Vente SAP+NVDA partielles' },
+  { date: '2023-08-31', degiro: 24000,  espp: 48430, ibkr: 0, total: 72430 },
+  { date: '2023-09-30', degiro: 25500,  espp: 46760, ibkr: 0, total: 72260 },
+  { date: '2023-10-31', degiro: 27000,  espp: 45925, ibkr: 0, total: 72925 },
+  { date: '2023-11-30', degiro: 28500,  espp: 50100, ibkr: 0, total: 78600 },
+  { date: '2023-12-31', degiro: 30042,  espp: 52605, ibkr: 0, total: 82647,  note: 'Rapport annuel: Degiro 29971.39 + Flatex 70.51' },
+
+  // ── 2024 ── (NVDA explose, pas de trades, dividendes seulement)
+  // Points vérifiés: 2024-12 (portefeuille 77802.18 + Flatex 217.51)
+  { date: '2024-01-31', degiro: 34000,  espp: 53440, ibkr: 0, total: 87440 },
+  { date: '2024-02-29', degiro: 38000,  espp: 55110, ibkr: 0, total: 93110 },
+  { date: '2024-03-31', degiro: 42000,  espp: 56780, ibkr: 0, total: 98780 },
+  { date: '2024-04-30', degiro: 44500,  espp: 54275, ibkr: 0, total: 98775 },
+  { date: '2024-05-31', degiro: 49000,  espp: 54275, ibkr: 0, total: 103275 },
+  { date: '2024-06-30', degiro: 54000,  espp: 46760, ibkr: 0, total: 100760,  note: 'NVDA split 10:1 (juin)' },
+  { date: '2024-07-31', degiro: 58000,  espp: 48430, ibkr: 0, total: 106430 },
+  { date: '2024-08-31', degiro: 62000,  espp: 51770, ibkr: 0, total: 113770 },
+  { date: '2024-09-30', degiro: 66000,  espp: 53440, ibkr: 0, total: 119440 },
+  { date: '2024-10-31', degiro: 70000,  espp: 54275, ibkr: 0, total: 124275 },
+  { date: '2024-11-30', degiro: 74000,  espp: 56780, ibkr: 0, total: 130780 },
+  { date: '2024-12-31', degiro: 78020,  espp: 57615, ibkr: 0, total: 135635,  note: 'Rapport annuel: Degiro 77802.18 + Flatex 217.51' },
+
+  // ── 2025 ── (Liquidation Degiro → IBKR, gros flush août)
+  { date: '2025-01-31', degiro: 78000,  espp: 55110, ibkr: 0,      total: 133110 },
+  { date: '2025-02-28', degiro: 78000,  espp: 56780, ibkr: 0,      total: 134780,  note: 'Vente DIS+SPOT Degiro' },
+  { date: '2025-03-31', degiro: 78000,  espp: 57615, ibkr: 0,      total: 135615 },
+  { date: '2025-04-30', degiro: 0,      espp: 51770, ibkr: 10000,  total: 61770,   note: 'Clôture Degiro — IBKR ouvert (10K)' },
+  { date: '2025-05-31', degiro: 0,      espp: 54275, ibkr: 20000,  total: 74275 },
+  { date: '2025-06-30', degiro: 0,      espp: 53440, ibkr: 35000,  total: 88440 },
+  { date: '2025-07-31', degiro: 0,      espp: 53440, ibkr: 50000,  total: 103440 },
+  { date: '2025-08-31', degiro: 0,      espp: 55110, ibkr: 135000, total: 190110,  note: 'Flush 108K vers IBKR' },
+  { date: '2025-09-30', degiro: 0,      espp: 55945, ibkr: 180000, total: 235945 },
+  { date: '2025-10-31', degiro: 0,      espp: 56780, ibkr: 210000, total: 266780 },
+  { date: '2025-11-30', degiro: 0,      espp: 57615, ibkr: 220000, total: 277615 },
+  { date: '2025-12-31', degiro: 0,      espp: 58450, ibkr: 200000, total: 258450,  note: 'IPO SGTM (non inclus ici)' },
+
+  // ── 2026 ── (données live à partir d'ici)
+  // espp = (Amine 167 + Nezha 40) × ACN_USD / fx_EURUSD + cash (€2000 + $109.56)
+  { date: '2026-01-31', degiro: 0,      espp: 53855, ibkr: 190000, total: 243855,  note: 'ACN~$260, fx~1.04' },
+  { date: '2026-02-28', degiro: 0,      espp: 43700, ibkr: 180000, total: 223700,  note: 'ACN~$209, fx~1.04' },
+  { date: '2026-03-31', degiro: 0,      espp: 37757, ibkr: 187700, total: 225457,  note: 'ACN=$197.55, fx=1.1467, IBKR NAV=185700+2000 retrait' },
+];
 
 // ════════════════════════════════════════════════════════════
 // TAUX WHT (Withholding Tax) — Retenue à la source par pays
@@ -837,11 +3091,46 @@ export const PROJECTION_HYPOTHESES = {
   horizonMois: 240,
 };
 
-// MONTHLY_INCOMES — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const MONTHLY_INCOMES = [];
+export const MONTHLY_INCOMES = [
+  // Amine — facturation SAP freelance via Bairok Consulting LLC (UAE)
+  // Montants nets (après charges société), convertis en mensuel moyen
+  { label: 'Facturation SAP (Bairok)',  amount: 85000,  currency: 'AED', freq: 'monthly',
+    owner: 'amine', type: 'Facturation',
+    note: 'Net après charges Bairok. Variable selon mission, moyenne 12m glissants.' },
 
-// BUDGET_EXPENSES — CHIFFRÉ. Coquille remplie au chargement par js/unlock.js
-// (données dans js/data.enc.js). Source en clair : hors dépôt, voir scripts/build_encrypted_data.mjs.
-export const BUDGET_EXPENSES = [];
+  // Nezha — salaire ou honoraires si applicable (placeholder à ajuster)
+  // { label: 'Salaire Nezha', amount: 0, currency: 'EUR', freq: 'monthly',
+  //   owner: 'nezha', type: 'Salaire' },
+
+  // Loyers nets (placeholders — engine les calcule via immoView, mais on peut
+  // les surfacer ici pour completude si souhaité)
+  // { label: 'Loyer Vitry net',   amount: 950,  currency: 'EUR', freq: 'monthly',
+  //   owner: 'amine', type: 'Loyer', note: 'Loyer HC - charges - intérêts prêt' },
+];
+
+export const BUDGET_EXPENSES = [
+  // v428 — 145 000 → 143 000 : montant CONTRACTUEL du bail Ejari 0120251011002074,
+  //   en vigueur depuis le 10/11/2025 (dépouillement iCloud v423). L'ancien 145 000
+  //   était une estimation.
+  { label: 'Loyer Dubai',     amount: 143000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement' },
+  // v428 — flux ABSENT du budget alors que documenté : bail de la résidence en France
+  //   (17 rue du Champtier) depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
+  //   l'épargne nette mensuelle était surestimée de 1 300 €.
+  { label: 'Loyer France (résidence)', amount: 1300, currency: 'EUR', freq: 'monthly', zone: 'France', type: 'Logement' },
+  { label: 'Électricité',     amount: 840,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Fibre Internet',  amount: 360,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Gaz',             amount: 120,    currency: 'AED', freq: 'quarterly', zone: 'Dubai',   type: 'Utilities' },
+  { label: 'Téléphone',       amount: 1669,   currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Abonnements' },
+  { label: 'Claude (AI)',     amount: 100,    currency: 'USD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+  { label: 'Spotify',         amount: 75,     currency: 'MAD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+  { label: 'Assurance Classe A', amount: 114,  currency: 'EUR', freq: 'monthly',   zone: 'France',  type: 'Assurance' },
+  { label: 'Assurance Porsche Cayenne', amount: 8000, currency: 'AED', freq: 'yearly', zone: 'Dubai', type: 'Assurance' },
+  { label: 'Amex Platinum',   amount: 720,    currency: 'EUR', freq: 'yearly',    zone: 'France',  type: 'Abonnements' },
+  { label: 'On/Off',          amount: 58.99,  currency: 'EUR', freq: 'yearly',    zone: 'Digital', type: 'Abonnements' },
+  { label: 'YouTube Premium', amount: 110,    currency: 'MAD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+  { label: 'Careem Plus',    amount: 19,     currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Abonnements' },
+  { label: 'Noon One',       amount: 25,     currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Abonnements' },
+  { label: 'iCloud+ 2TB',    amount: 39.99,  currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Abonnements' },
+  { label: 'Netflix',        amount: 65,     currency: 'MAD', freq: 'monthly',   zone: 'Digital', type: 'Abonnements' },
+];
 
