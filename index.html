@@ -1679,8 +1679,36 @@
   // Enregistré après le chargement pour ne pas concurrencer le premier rendu.
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+      navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        // Un service worker fraîchement installé attend, par défaut, que tous les onglets
+        // soient fermés. L'utilisateur voyait donc l'ancienne version jusqu'à ce qu'il
+        // recharge une seconde fois. On lui demande de prendre le contrôle tout de suite.
+        function reveiller(sw) {
+          if (!sw) return;
+          sw.addEventListener('statechange', function () {
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+              sw.postMessage({ type: 'PRENDRE_LE_CONTROLE' });
+            }
+          });
+        }
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          reg.waiting.postMessage({ type: 'PRENDRE_LE_CONTROLE' });
+        }
+        reveiller(reg.installing);
+        reg.addEventListener('updatefound', function () { reveiller(reg.installing); });
+      }).catch(function (e) {
         console.warn('[pwa] service worker non enregistré :', e && e.message);
+      });
+
+      // UN SEUL rechargement quand une nouvelle version prend le contrôle. Le drapeau
+      // évite la boucle : sans lui, chaque prise de contrôle relancerait un rechargement
+      // qui en déclencherait un autre.
+      var _rechargeFaite = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (_rechargeFaite) return;
+        _rechargeFaite = true;
+        console.log('[pwa] nouvelle version active — rechargement');
+        window.location.reload();
       });
     });
   }
@@ -4707,7 +4735,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=526"></script>
+<script type="module" src="js/app.js?v=527"></script>
 
 </body>
 </html>

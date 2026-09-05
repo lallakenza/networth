@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=526';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=527';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3649,7 +3649,7 @@ function computeCreancesView(portfolio, fx) {
         if (signedMAD > 0) {
           const amountEUR = toEUR(signedMAD, 'MAD', fx);
           factuCreances.push({
-            label: `Facturation — ${cp.label || cpId} me doit`, amount: signedMAD, currency: 'MAD',
+            label: `Facturation — créance sur ${cp.label || cpId}`, amount: signedMAD, currency: 'MAD',
             amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
             monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
             recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
@@ -3666,7 +3666,7 @@ function computeCreancesView(portfolio, fx) {
       if (augustinMAD > 0) {
         const amountEUR = toEUR(augustinMAD, 'MAD', fx);
         factuCreances.push({
-          label: 'Facturation — Augustin (Azarkan) me doit', amount: augustinMAD, currency: 'MAD',
+          label: 'Facturation — créance sur Augustin (Azarkan)', amount: augustinMAD, currency: 'MAD',
           amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
           monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
           recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
@@ -3680,7 +3680,7 @@ function computeCreancesView(portfolio, fx) {
       } else if (benoitDH > 0) {
         const amountEUR = toEUR(benoitDH, 'MAD', fx);
         factuCreances.push({
-          label: 'Facturation — Benoit (Badre) me doit', amount: benoitDH, currency: 'MAD',
+          label: 'Facturation — créance sur Benoit (Badre)', amount: benoitDH, currency: 'MAD',
           amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
           monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
           recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,

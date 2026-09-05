@@ -1053,8 +1053,8 @@ export const PORTFOLIO = {
     // Positif = on me doit, Négatif = je dois
     // ──────────────────────────────────────────────────────
     facturation: {
-      augustin: { amount: 181609, currency: 'MAD', label: 'Augustin (Azarkan) me doit', notes: 'Pos. Entreprise -5958€ converti MAD. 5 catégories: RTL, AZCS, Maroc, Divers, Report. Taux fixe 10.26' },
-      benoit:   { amount: -196915, currency: 'MAD', label: 'Je dois à Benoit (Badre)', notes: 'En cours 2026, 5 councils payés. Paiement cash DH uniquement. Taux fixe 10.6, commission 10%' },
+      augustin: { amount: 181609, currency: 'MAD', label: 'Créance sur Augustin (Azarkan)', notes: 'Pos. Entreprise -5958€ converti MAD. 5 catégories: RTL, AZCS, Maroc, Divers, Report. Taux fixe 10.26' },
+      benoit:   { amount: -196915, currency: 'MAD', label: 'Dette envers Benoit (Badre)', notes: 'En cours 2026, 5 councils payés. Paiement cash DH uniquement. Taux fixe 10.6, commission 10%' },
     },
   },
 
@@ -1397,7 +1397,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v526';
+export const APP_VERSION = 'v527';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=526';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=526';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=527';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=527';
 
 // ---- Generic table sort utility ----
 /**
@@ -537,7 +537,10 @@ function renderExpandSubs(state, view, options = {}) {
   setEur('subSGTM', strict ? s.amine.sgtm : (s.amine.sgtm + s.nezha.sgtm));
   setEur('subUAE', s.amine.uae);
   setEur('subRevolutEUR', s.amine.revolutEUR);
-  setEur('subBrokerCash', s.amine.brokerCash); // Amine-only (Nezha broker cash is in kpiNzCash)
+  // La sous-carte « Cash Courtiers » vit dans le bloc COUPLE mais n'affichait que la part
+  // d'Amine (10 487 €) : les 94 € de cash ESPP de Nezha manquaient au total du couple.
+  // Une sous-carte du couple doit totaliser le couple, sinon elle contredit sa carte mère.
+  setEur('subBrokerCash', (s.amine.brokerCash || 0) + (s.nezha.brokerCash || 0));
   setEur('subMarocCash', s.amine.moroccoCash);
   setEur('subVitryEq', s.amine.vitryEquity);
   setEur('subRueilEq', s.nezha.rueilEquity);
@@ -5308,7 +5311,10 @@ function renderImmoView(state) {
       + 'Loyers declares ' + Math.round(loyerAn - cashNonDeclare).toLocaleString('fr-FR') + '/an'
       + (cashNonDeclare > 0 ? ' (+ ' + Math.round(cashNonDeclare).toLocaleString('fr-FR') + ' non declare)' : '')
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
-      + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (iv.totalCFNetFiscal >= 0 ? '+' : '') + iv.totalCFNetFiscal + '/mois</strong>';
+      // Le nombre était concaténé BRUT : d'où « -107.05999999999997/mois » à l'écran. Les
+      // valeurs exactes servent au calcul, le formatage n'intervient qu'à l'affichage.
+      + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">'
+      + (iv.totalCFNetFiscal >= 0 ? '+' : '\u2212') + fmt(Math.abs(Math.round(iv.totalCFNetFiscal))) + '/mois</strong>';
   }
 
   // ── Dynamic CF Table (was hardcoded in HTML) ──
@@ -7555,7 +7561,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=526').then(m => {
+  import('./charts.js?v=527').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

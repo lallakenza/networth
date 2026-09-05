@@ -19,7 +19,7 @@
  *   Requêtes non-GET, et tout ce qui n'est pas same-origin hors liste → JAMAIS caché.
  */
 
-const VERSION = 'v526';
+const VERSION = 'v527';
 const CACHE_COQUILLE = 'patrimoine-coquille-' + VERSION;
 const CACHE_DONNEES = 'patrimoine-donnees-' + VERSION;
 
@@ -41,6 +41,11 @@ self.addEventListener('install', (e) => {
   // On ne pré-cache rien : la coquille se remplit à la première visite réelle.
   // Pré-cacher une liste figée obligerait à la maintenir en phase avec les ?v=N.
   self.skipWaiting();
+});
+
+// La page peut demander la prise de contrôle immédiate (bouton « recharger »).
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'PRENDRE_LE_CONTROLE') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
@@ -80,6 +85,33 @@ self.addEventListener('fetch', (e) => {
 
   // ── Reste : uniquement notre propre origine ──
   if (url.origin !== self.location.origin) return;
+
+  // ── LE DOCUMENT HTML : RÉSEAU D'ABORD ────────────────────────────────────────
+  // C'est la correction qui manquait. index.html était servi en stale-while-revalidate
+  // comme le reste de la coquille : à chaque visite, le navigateur recevait la copie en
+  // CACHE, laquelle référence les `?v=N` de la version précédente. Le versionnement des
+  // imports ne pouvait donc rien — il garantit qu'un JS neuf a une URL neuve, mais encore
+  // faut-il que le document qui la nomme soit à jour.
+  // Symptôme exact : l'URL principale servait v525, une URL avec paramètre chargeait v526,
+  // et un second rechargement finissait par aligner l'URL principale.
+  // Le document est petit : le chercher sur le réseau coûte peu, et le cache reste le
+  // filet hors ligne.
+  const estDocument = req.mode === 'navigate' || req.destination === 'document'
+    || (req.headers.get('accept') || '').includes('text/html');
+  if (estDocument) {
+    e.respondWith(
+      fetch(req)
+        .then((rep) => {
+          if (rep && rep.ok) {
+            const copie = rep.clone();
+            caches.open(CACHE_COQUILLE).then((c) => c.put(req, copie)).catch(() => {});
+          }
+          return rep;
+        })
+        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
+    );
+    return;
+  }
 
   // ── Coquille : cache d'abord, revalidation en arrière-plan ──
   e.respondWith(
