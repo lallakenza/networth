@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS } from './data.js?v=514';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=515';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1156,6 +1156,18 @@ export async function saveDailySnapshot(snapDateISO, quality, data) {
  * (qualité live > partial > static, puis la plus récente).
  * @returns {Promise<Array<{date:string, quality:string, capturedAt:string, data:object}>>} trié ASC
  */
+function _versionNumTexte(t) { const m = /v?(\d+)/.exec(t || ''); return m ? parseInt(m[1], 10) : 0; }
+
+/** Version de l'application ayant écrit un snapshot, en nombre comparable (v502 → 502). */
+function _versionNum(row) {
+  const t = _versionTxt(row);
+  const m = /v?(\d+)/.exec(t || '');
+  return m ? parseInt(m[1], 10) : 0;
+}
+function _versionTxt(row) {
+  return (row && row.data && row.data.meta && row.data.meta.appVersion) || '';
+}
+
 export async function loadSnapshots(sinceISO) {
   if (!_serverConfigured()) return [];
   try {
@@ -1168,14 +1180,40 @@ export async function loadSnapshots(sinceISO) {
     const byDate = new Map();
     for (const row of rows) {
       const prev = byDate.get(row.snap_date);
+      // La VERSION prime sur la qualité. Un onglet resté ouvert sur du vieux code écrit des
+      // lignes au périmètre périmé : le 04/09/2026, trois lignes v433 ont ainsi enregistré un
+      // net worth inférieur de 41 584 € à celui de la veille en v502, puis le 05/09 en v502 a
+      // « rebondi » d'autant. Deux variations quotidiennes entièrement fictives.
       const better = !prev
-        || (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[prev.quality] || 0)
-        || ((_QUALITY_RANK[row.quality] || 0) === (_QUALITY_RANK[prev.quality] || 0) && row.captured_at > prev.captured_at);
+        || _versionNum(row) > _versionNum(prev)
+        || (_versionNum(row) === _versionNum(prev) && (
+             (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[prev.quality] || 0)
+             || ((_QUALITY_RANK[row.quality] || 0) === (_QUALITY_RANK[prev.quality] || 0) && row.captured_at > prev.captured_at)));
       if (better) byDate.set(row.snap_date, row);
     }
-    return [...byDate.values()]
-      .sort((a, b) => a.snap_date.localeCompare(b.snap_date))
-      .map(row => ({ date: row.snap_date, quality: row.quality, capturedAt: row.captured_at, data: row.data }));
+
+    // RÉGRESSION DE VERSION = ligne écrite par du code périmé. Les versions croissent avec le
+    // temps : une journée dont la version est INFÉRIEURE à celle d'un jour antérieur ne peut pas
+    // être une évolution du patrimoine, c'est un artefact. On l'écarte plutôt que de la laisser
+    // fabriquer une variation. Les vieilles journées légitimes, elles, ont des versions
+    // croissantes et ne sont jamais touchées.
+    const ordonnees = [...byDate.values()].sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+    const gardees = [];
+    let vMax = 0;
+    for (const row of ordonnees) {
+      const v = _versionNum(row);
+      if (v && vMax && v < vMax) {
+        console.warn('[snapshot] ' + row.snap_date + ' ignoré : écrit par ' + _versionTxt(row)
+          + ' alors que l\'historique est déjà en v' + vMax + ' (code périmé, périmètre différent)');
+        continue;
+      }
+      if (v > vMax) vMax = v;
+      gardees.push(row);
+    }
+    return gardees.map(row => ({
+      date: row.snap_date, quality: row.quality, capturedAt: row.captured_at,
+      appVersion: _versionTxt(row), data: row.data,
+    }));
   } catch (e) { console.warn('[snapshot] load failed:', e && e.message); return []; }
 }
 
@@ -1196,6 +1234,18 @@ export async function maybeSaveDailySnapshot(quality, data) {
     let best = null;
     for (const row of rows) {
       if (!best || (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[best.quality] || 0)) best = row;
+    }
+    // Écriture par du code périmé : si le jour porte déjà une version SUPÉRIEURE à la nôtre,
+    // on s'abstient. C'est ce garde-fou qui manquait le 04/09/2026, où un onglet en v433 a
+    // écrit par-dessus une journée et fabriqué deux variations de ±41 K€.
+    const vNous = _versionNumTexte(APP_VERSION);
+    for (const row of rows) {
+      const vLigne = _versionNumTexte((row.data && row.data.meta && row.data.meta.appVersion) || '');
+      if (vLigne && vNous && vLigne > vNous) {
+        console.warn('[snapshot] ' + today + ' déjà écrit par une version plus récente (v'
+          + vLigne + ' > v' + vNous + ') — cet onglet est périmé, aucune écriture.');
+        return false;
+      }
     }
     const rank = _QUALITY_RANK[quality] || 0;
     const bestRank = best ? (_QUALITY_RANK[best.quality] || 0) : -1;
