@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=532';
-import { lireContratFacturation, fraicheurContrat } from './facturation_contract.js?v=532';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=533';
+import { lireContratEnCache } from './facturation_contract.js?v=533';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -320,6 +320,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
   const _sgtmVal = amineSgtm + nezhaSgtm;
 
+  const _cashJPYeur = toEUR(ibkrCashJPY, 'JPY', fx);
+  const _cashAEDeur = toEUR(ibkr.cashAED || 0, 'AED', fx);
+  const _cashUSDeur = toEUR(ibkrCashUSD, 'USD', fx);
+  // Une dette de marge n'est pas du « cash » : la loger dans la même ligne que les soldes
+  // créditeurs faisait afficher « Cash 0 % » alors qu'il y a 8 465 € disponibles d'un côté
+  // et 9 355 € empruntés en yens de l'autre. Les deux faits sont montrés séparément.
+  const _cashCourtier = Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur)
+    + Math.max(0, _cashJPYeur) + esppCashEUR + nezhaCashEUR;
+  const _detteMarge = Math.min(0, ibkrCashEUR) + Math.min(0, _cashUSDeur) + Math.min(0, _cashAEDeur)
+    + Math.min(0, _cashJPYeur);
   // Concentration : une seule mesure, sur le périmètre RÉELLEMENT listé (IBKR + ESPP + SGTM).
   const _lignes = [
     ...ibkrPositions.map((p) => ({ label: p.label, valEUR: p.valEUR })),
@@ -1170,7 +1180,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   }
 
   // g) Cash drag — too much cash vs portfolio
-  const cashPct = ibkrCashTotal > 0 && ibkrNAV > 0 ? (ibkrCashTotal / ibkrNAV * 100) : 0;
+  // « Cash 0 % ». Le garde `ibkrCashTotal > 0` renvoyait zéro dès que la dette de marge en
+  // yens dépassait les soldes créditeurs — ce qui est le cas — et l'écran annonçait donc
+  // qu'il n'y avait pas de cash au compte-titres alors qu'il y en a plus de dix mille euros.
+  // Deux faits distincts, deux mesures : le cash disponible, et la dette qui le finance.
+  const cashPct = ibkrNAV > 0 ? (_cashCourtier / ibkrNAV * 100) : 0;
+  const dettePct = ibkrNAV > 0 ? (Math.abs(_detteMarge) / ibkrNAV * 100) : 0;
   if (cashPct > 15) {
     recs.push({ priority: 1, icon: '💰', title: 'Cash élevé (' + cashPct.toFixed(0) + '% du portefeuille)',
       detail: '€' + Math.round(ibkrCashTotal).toLocaleString('fr-FR') + ' non investis. Ce cash ne travaille pas — déployer progressivement en DCA.' });
@@ -1222,8 +1237,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     currentLosersCount: currentLosers.length,
     winRate: winRate,
     profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
-    nbPositions: nbPositions,
+    // `nbPositions` comptait les seules lignes IBKR (12) devant un tableau qui en affiche 14.
+    nbPositions: concentration.nbLignes,
+    nbPositionsIbkr: nbPositions,
     cashPct: cashPct,
+    cashCourtier: _cashCourtier,
+    dettePct: dettePct,
+    detteMarge: _detteMarge,
     cryptoPct: cryptoPctPortfolio,
     // Mêmes parts que l'insight « geo » : ces badges affichaient France + US + Crypto
     // seulement, soit 82 % — quatrième endroit où une répartition géographique fuyait.
@@ -1420,16 +1440,6 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // montant ne change : c'est une DÉCOMPOSITION, pas un recalcul. L'identité
   //     titres + cash courtier − dette = NAV     et     titres − coût des titres = latent
   // est vérifiée plus bas et affichée en pied de tableau.
-  const _cashJPYeur = toEUR(ibkrCashJPY, 'JPY', fx);
-  const _cashAEDeur = toEUR(ibkr.cashAED || 0, 'AED', fx);
-  const _cashUSDeur = toEUR(ibkrCashUSD, 'USD', fx);
-  // Une dette de marge n'est pas du « cash » : la loger dans la même ligne que les soldes
-  // créditeurs faisait afficher « Cash 0 % » alors qu'il y a 8 465 € disponibles d'un côté
-  // et 9 355 € empruntés en yens de l'autre. Les deux faits sont montrés séparément.
-  const _cashCourtier = Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur)
-    + Math.max(0, _cashJPYeur) + esppCashEUR + nezhaCashEUR;
-  const _detteMarge = Math.min(0, ibkrCashEUR) + Math.min(0, _cashUSDeur) + Math.min(0, _cashAEDeur)
-    + Math.min(0, _cashJPYeur);
   // Titres au prix de marché, cash exclu.
   const _valTitres = totalPositionsVal + esppCurrentVal + nezhaEsppCurrentVal + _sgtmVal;
   // Coût des titres DÉTENUS. Pour l'ESPP, le cash au compte est une fraction des cotisations
@@ -1445,6 +1455,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     valTitres: _valTitres,
     cashCourtier: _cashCourtier,
     cashIbkr: Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur) + Math.max(0, _cashJPYeur),
+    // Détail par devise : le graphe reconstruit le cash à partir des flux ENREGISTRÉS
+    // (versements et opérations en EUR/USD/JPY) et ne peut donc pas voir le solde AED, né
+    // de conversions internes au compte. Publier la composante permet de chiffrer le pont
+    // plutôt que de laisser un écart sans nom.
+    cashEUR: ibkrCashEUR, cashUSDeur: _cashUSDeur, cashAEDeur: _cashAEDeur, cashJPYeur: _cashJPYeur,
+    esppCashTotal: esppCashEUR + nezhaCashEUR,
     detteMarge: _detteMarge,          // ≤ 0 (marge JPY)
     nav: _valTitres + _cashCourtier + _detteMarge,
     coutTitres: _coutTitres,
@@ -1849,13 +1865,32 @@ function computeCashView(portfolio, fx) {
   //   potentialGross = Σ valEUR × max(yield, refYield)  (garde les comptes déjà >6%, monte le reste à 6%)
   //   gapToPotential = potentialGross − grossInterest   (manque à gagner — identique nominal/réel)
   const REF_YIELD_CASH = IBKR_CONFIG.refYield; // 6% benchmark
+  //
+  // TROIS SEUILS, TROIS QUESTIONS DIFFÉRENTES — et chaque compte est classé sur SON PROPRE
+  // rendement, jamais par report d'un autre périmètre :
+  //   « sous l'inflation »  : ce cash perd du pouvoir d'achat.
+  //   « sous le benchmark » : ce cash pourrait rapporter davantage — c'est le gisement.
+  //   « au benchmark »      : ce cash est déjà placé au taux visé ; le déplacer ne rapporte rien.
+  // La troisième catégorie manquait. Sans elle, on ne pouvait pas comprendre pourquoi les
+  // deux premiers montants coïncident : c'est que 110 000 € sont posés EXACTEMENT à 6 %
+  // (Wio Savings et Wio UAE), donc ni sous l'inflation, ni sous le benchmark — et qu'aucun
+  // compte doté d'un solde ne se trouve entre les deux seuils.
+  const EGAL = 1e-9;   // comparaison de taux : 0.06 lu depuis deux constantes distinctes
   function cashFrameMetrics(accts, total) {
     const gross = accts.reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
     const nominalProductive = accts.filter(a => (a.yield || 0) > 0).reduce((s, a) => s + a.valEUR, 0);
     const potentialGross = accts.reduce((s, a) => s + a.valEUR * Math.max(a.yield || 0, REF_YIELD_CASH), 0);
     // Cash rémunéré < benchmark 6% (= gisement optimisable). optimalCash = déjà ≥ 6%.
-    const subOptimalCash = accts.filter(a => (a.yield || 0) < REF_YIELD_CASH).reduce((s, a) => s + a.valEUR, 0);
+    const subOptimalCash = accts.filter(a => (a.yield || 0) < REF_YIELD_CASH - EGAL).reduce((s, a) => s + a.valEUR, 0);
+    const atBenchmarkCash = accts.filter(a => Math.abs((a.yield || 0) - REF_YIELD_CASH) <= EGAL).reduce((s, a) => s + a.valEUR, 0);
+    const aboveBenchmarkCash = accts.filter(a => (a.yield || 0) > REF_YIELD_CASH + EGAL).reduce((s, a) => s + a.valEUR, 0);
+    const subInflationCash = accts.filter(a => (a.yield || 0) < INFLATION_RATE).reduce((s, a) => s + a.valEUR, 0);
     return {
+      atBenchmarkCash,
+      aboveBenchmarkCash,
+      // Recalculé ICI, sur les mêmes comptes que les autres périmètres du cadre, plutôt que
+      // repris d'un `totalNonYielding` calculé ailleurs sur une autre collection.
+      subInflationCash,
       grossInterest: gross,
       realNet: gross - total * INFLATION_RATE,
       inflationErosion: total * INFLATION_RATE,
@@ -3347,6 +3382,56 @@ function computeImmoView(portfolio, fx) {
     cashflow: properties.reduce((s, p) => s + (p.wealthBreakdown ? p.wealthBreakdown.cashflow : 0), 0),
   };
   const avgLTV = totalValue > 0 ? (totalCRD / totalValue * 100) : 0;
+  // ── Agrégats TEMPORELS (v533) ─────────────────────────────────────────────────────────
+  // Le patrimoine immobilier vit sur deux horizons que la page confondait. Deux biens sont
+  // loués aujourd'hui ; un troisième est en construction, ne rapporte rien et coûte déjà
+  // quelque chose (l'assurance emprunteur prélevée pendant la franchise). Selon l'endroit,
+  // l'écran additionnait ou non ce coût : le haut de page annonçait 2 827 € de charges et
+  // −107 € de cash-flow, le graphique 2 776 € et −56 €. Les deux étaient justes ; aucun ne
+  // disait sur quel périmètre il portait, et l'écart de 51 € n'était écrit nulle part.
+  //
+  // Trois agrégats nommés, dont aucun ne remplace les deux autres :
+  //   exploitation — ce qui est loué aujourd'hui ;
+  //   enConstruction — ce que coûte aujourd'hui ce qui n'est pas encore livré, séparé de ce
+  //                    qu'il coûtera et rapportera une fois livré ;
+  //   stabilise — le régime de croisière, quand tout sera loué.
+  const _exploites = properties.filter((p) => !p.conditional);
+  const _enCours = properties.filter((p) => p.conditional);
+  const _som = (arr, f) => arr.reduce((s, p) => s + (f(p) || 0), 0);
+  const temporel = {
+    exploitation: {
+      biens: _exploites.map((p) => p.label || p.loanKey),
+      recettes: _som(_exploites, (p) => p.totalRevenue),
+      loyerNu: _som(_exploites, (p) => p.loyer),
+      charges: _som(_exploites, (p) => p.charges),
+      cf: _som(_exploites, (p) => p.cf),
+    },
+    enConstruction: {
+      biens: _enCours.map((p) => p.label || p.loanKey),
+      // Ce qui sort du compte AUJOURD'HUI (assurance en franchise), et rien d'autre.
+      coutActuel: _som(_enCours, (p) => p.cfReel),
+      // Ce qui sortira une fois la franchise terminée : mensualité pleine + charges.
+      chargesFutures: _som(_enCours, (p) => p.charges),
+      // Estimation hors charges, bail NON signé : ce n'est pas un loyer contracté.
+      recettesFuturesEstimees: _som(_enCours, (p) => p.totalRevenue),
+      recettesFuturesContractees: false,
+      cfFutur: _som(_enCours, (p) => p.cf),
+    },
+  };
+  // Aujourd'hui = ce qui est loué + ce que coûte ce qui ne l'est pas encore.
+  temporel.actuel = {
+    recettes: temporel.exploitation.recettes,
+    charges: temporel.exploitation.charges - temporel.enConstruction.coutActuel,
+    cf: temporel.exploitation.cf + temporel.enConstruction.coutActuel,
+  };
+  // Régime de croisière = tout est loué. Les recettes de Villejuif y sont ESTIMÉES.
+  temporel.stabilise = {
+    recettes: temporel.exploitation.recettes + temporel.enConstruction.recettesFuturesEstimees,
+    charges: temporel.exploitation.charges + temporel.enConstruction.chargesFutures,
+    cf: temporel.exploitation.cf + temporel.enConstruction.cfFutur,
+    estime: true,
+  };
+
 
   // Fiscal totals
   const totalImpotAnnuel = properties.reduce((s, p) => s + (p.fiscalite ? p.fiscalite.totalImpot : 0), 0);
@@ -3626,7 +3711,7 @@ function computeImmoView(portfolio, fx) {
     properties,
     vitryImpotForecast,
     totalEquity, totalValue, totalCRD,
-    totalCF, totalWealthCreation, totalWealthBreakdown,
+    totalCF, totalWealthCreation, totalWealthBreakdown, temporel,
     avgLTV,
     amortSchedules,
     totalInterestPaid,
@@ -3720,79 +3805,44 @@ function computeCreancesView(portfolio, fx) {
   if (portfolio.amine.tva && portfolio.amine.tva < 0) {
     dettes.push({ label: 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(portfolio.amine.tva), owner: 'Amine', type: 'pro' });
   }
-  // Facturation: localStorage bridge or data.js fallback
-  let _factuPositions = null;
-  try {
-    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
-    if (raw) _factuPositions = JSON.parse(raw);
-  } catch(e) {}
-
-  if (_factuPositions) {
-    // New schema (multi-counterparts via counterparts[]) — preferred
-    // Fallback to legacy schema (augustin.mad + benoit.dh) for backward compat
-    const cps = _factuPositions.counterparts;
-    if (cps && typeof cps === 'object') {
-      // signedMAD: positif = la contrepartie me doit (créance), négatif = je dois (dette)
-      Object.entries(cps).forEach(([cpId, cp]) => {
-        const signedMAD = cp.signedMAD != null ? cp.signedMAD : 0;
-        if (signedMAD > 0) {
-          const amountEUR = toEUR(signedMAD, 'MAD', fx);
-          factuCreances.push({
-            label: `Facturation — créance sur ${cp.label || cpId}`, amount: signedMAD, currency: 'MAD',
-            amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
-            monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
-            recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-            status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage)',
-          });
-        } else if (signedMAD < 0) {
-          dettes.push({ label: cp.label || cpId, amount: Math.abs(signedMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(signedMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
-        }
-      });
-    } else {
-      // Legacy schema fallback
-      const augustinMAD = _factuPositions.augustin && _factuPositions.augustin.mad != null ? _factuPositions.augustin.mad : 0;
-      const benoitDH = _factuPositions.benoit && _factuPositions.benoit.dh != null ? _factuPositions.benoit.dh : 0;
-      if (augustinMAD > 0) {
-        const amountEUR = toEUR(augustinMAD, 'MAD', fx);
+  // ── Facturation : MÊME source que le calcul du patrimoine ─────────────────────────────
+  // Ce bloc reconstruisait les lignes à partir du localStorage brut pendant que le calcul du
+  // NW lisait, lui, le contrat : deux lectures indépendantes de la même notion, capables de
+  // diverger sans que rien ne le signale. Une seule lecture désormais.
+  //
+  // Chaque position brute devient UNE ligne, dans son propre sens. Le net global n'apparaît
+  // jamais comme une ligne : compenser ce qu'Augustin doit avec ce qu'Amine doit à Bob
+  // supposerait un accord de compensation qui n'existe pas.
+  const _cFactu = lireContratEnCache(typeof localStorage !== 'undefined' ? localStorage : null).contrat;
+  if (_cFactu) {
+    _cFactu.positions.forEach((pos) => {
+      const amountEUR = toEUR(Math.abs(pos.montantMAD), _cFactu.devise, fx);
+      if (pos.montantMAD > 0) {
         factuCreances.push({
-          label: 'Facturation — créance sur Augustin (Azarkan)', amount: augustinMAD, currency: 'MAD',
+          label: 'Facturation — ' + pos.nom + ' doit à Amine',
+          amount: pos.montantMAD, currency: _cFactu.devise,
           amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
           monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
           recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-          status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage, legacy)',
+          // Une position brute agrégée n'a PAS d'échéance : elle résulte d'un solde courant,
+          // pas d'une facture datée. `dueDate: null` l'affirme, et empêche le classement
+          // automatique en « en retard » que produisait une échéance absente traitée comme
+          // une échéance dépassée.
+          dueDate: null, status: 'en_cours', payments: [],
+          // Une position COURANTE n'a pas d'échéance parce qu'elle n'en a jamais eu : c'est
+          // un solde qui bouge, pas une facture datée. Sans cette distinction, la règle
+          // « échéance non renseignée » la signalait comme une donnée manquante à corriger.
+          positionCourante: true,
+          counterparty: pos.nom,
+          notes: 'Position brute — contrat 2048 ' + _cFactu.schemaVersion
+            + ' (' + _cFactu.producerVersion + '), données au ' + _cFactu.dataAsOf,
         });
-      } else if (augustinMAD < 0) {
-        dettes.push({ label: 'Augustin (Azarkan)', amount: Math.abs(augustinMAD), currency: 'MAD', amountEUR: toEUR(Math.abs(augustinMAD), 'MAD', fx), owner: 'Amine', type: 'pro' });
-      }
-      if (benoitDH < 0) {
-        dettes.push({ label: 'Benoit (Badre)', amount: Math.abs(benoitDH), currency: 'MAD', amountEUR: toEUR(Math.abs(benoitDH), 'MAD', fx), owner: 'Amine', type: 'pro' });
-      } else if (benoitDH > 0) {
-        const amountEUR = toEUR(benoitDH, 'MAD', fx);
-        factuCreances.push({
-          label: 'Facturation — créance sur Benoit (Badre)', amount: benoitDH, currency: 'MAD',
-          amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
-          monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
-          recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-          status: 'en_cours', payments: [], notes: 'Position facturation inter-personnes (localStorage, legacy)',
+      } else if (pos.montantMAD < 0) {
+        dettes.push({
+          label: 'Facturation — Amine doit à ' + pos.nom,
+          amount: Math.abs(pos.montantMAD), currency: _cFactu.devise,
+          amountEUR, owner: 'Amine', type: 'pro', dueDate: null,
         });
-      }
-    }
-  } else if (portfolio.amine.facturation) {
-    // Fallback to data.js hardcoded values
-    Object.entries(portfolio.amine.facturation).forEach(([key, pos]) => {
-      const amountEUR = toEUR(Math.abs(pos.amount), pos.currency, fx);
-      if (pos.amount > 0) {
-        // Receivable
-        factuCreances.push({
-          label: pos.label || key, amount: pos.amount, currency: pos.currency,
-          amountEUR, paymentsTotal: 0, remainingEUR: amountEUR, expectedValue: amountEUR,
-          monthlyInflationCost: 0, daysOverdue: 0, daysSinceContact: 0, needsFollowUp: false,
-          recoveryPct: 0, owner: 'Amine', type: 'pro', guaranteed: true, probability: 1.0,
-          status: 'en_cours', payments: [], notes: pos.notes || 'Position facturation (data.js)',
-        });
-      } else if (pos.amount < 0) {
-        // Debt
-        dettes.push({ label: pos.label || key, amount: Math.abs(pos.amount), currency: pos.currency, amountEUR, owner: 'Amine', type: 'pro' });
       }
     });
   }
@@ -4324,85 +4374,66 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   //   (= scénario "tout payé au Maroc", deal contractuel d'Amine).
   // Network NW utilise ce total convertible en EUR via Yahoo MAD/EUR pour
   // homogénéité avec le reste du dashboard (qui est en EUR).
+  // ── Facturation : lue au CONTRAT publié par 2048, jamais devinée ──────────────────────
+  // Le repli codé dans data.js a été retiré : il donnait Benoit débiteur là où le contrat
+  // le donne créancier, ignorait Bob, et aboutissait à −1 424 € au lieu de −788 €. Faute de
+  // contrat, la facturation est ABSENTE et l'écran le dit — un zéro annoncé vaut mieux
+  // qu'un chiffre faux indiscernable d'un chiffre juste.
   let amineFacturationNet = 0;
-  let _factuSrc = 'data.js';
-  // Périmètre RÉEL du calcul. Le chemin canonique lit `combined.mad`, qui agrège TOUTES
-  // les contreparties du site de facturation — Bob compris — pendant que l'écran annonçait
-  // « Augustin − Benoit ». On collecte les noms pour que le libellé suive le calcul.
+  let _factuSrc = 'indisponible';
   let _factuCounterparts = [];
-  // Métadonnées de provenance, affichées à côté du chiffre. Elles répondent aux trois
-  // questions qu'on ne pouvait pas poser jusqu'ici : d'où vient ce montant, quelle version
-  // du format l'a produit, et de quand il date.
-  let _factuMeta = { canal: 'data.js', schema: null, producteur: null, dataAsOf: null, ageJours: null, fraicheur: 'inconnue', motifRepli: null };
+  const _lu = lireContratEnCache(typeof localStorage !== 'undefined' ? localStorage : null);
+  let _factuMeta = {
+    canal: 'indisponible', schemaVersion: null, producerVersion: null, dataAsOf: null,
+    ageJours: null, fraicheur: 'indisponible', etat: _lu.code, raison: _lu.raison,
+    netMAD: null, positions: [], herite: false,
+  };
 
-  // ── Source PRIORITAIRE : le contrat versionné publié par 2048 ─────────────────────────
-  const _lu = lireContratFacturation(typeof localStorage !== 'undefined' ? localStorage : null);
-  if (_lu.valide && _lu.contrat) {
+  if (_lu.contrat) {
     const c = _lu.contrat;
-    Object.entries(c.positions).forEach(([cle, pos]) => {
-      amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
-      const nom = pos.label || (String(cle).charAt(0).toUpperCase() + String(cle).slice(1));
-      if (_factuCounterparts.indexOf(nom) < 0) _factuCounterparts.push(nom);
-    });
-    const _age = Math.floor((Date.now() - Date.parse(c.dataAsOf.slice(0, 10) + 'T00:00:00Z')) / 86400000);
+    // Un contrat PÉRIMÉ reste comptabilisé — c'est la dernière position connue, et
+    // l'ignorer creuserait un trou dans le patrimoine. Mais son état est affiché.
+    amineFacturationNet = toEUR(c.netMAD, c.devise, fx);
+    _factuCounterparts = c.positions.map((x) => x.nom);
+    _factuSrc = 'contrat 2048 ' + c.schemaVersion + ' (' + c.canal + ', ' + c.dataAsOf + ')';
     _factuMeta = {
-      canal: 'contrat ' + c.schema,
-      schema: c.schema,
-      producteur: c.producer.name + (c.producer.version ? ' ' + c.producer.version : ''),
-      dataAsOf: c.dataAsOf.slice(0, 10),
-      ageJours: _age,
-      fraicheur: fraicheurContrat(_age),
-      motifRepli: null,
+      canal: c.canal === 'http' ? 'contrat distant (HTTP)' : 'contrat en cache local',
+      schemaVersion: c.schemaVersion, producerVersion: c.producerVersion,
+      dataAsOf: c.dataAsOf, ageJours: c.ageJours, fraicheur: c.fraicheur,
+      etat: c.fraicheur, raison: null, netMAD: c.netMAD, positions: c.positions, herite: false,
     };
-    _factuSrc = 'contrat (' + c.dataAsOf.slice(0, 10) + ')';
+  } else {
+    // ── Repli : l'objet libre hérité, si 2048 n'a pas encore publié le contrat ──
+    try {
+      const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
+      if (raw) {
+        const fp = JSON.parse(raw);
+        let netMAD = null;
+        if (fp.combined && fp.combined.mad != null) {
+          netMAD = fp.combined.mad;
+          _factuCounterparts = fp.counterparts && typeof fp.counterparts === 'object'
+            ? Object.values(fp.counterparts).map((x, i) => (x && x.label) || Object.keys(fp.counterparts)[i])
+            : (fp.combinedLabels || []);
+        } else if (fp.augustin || fp.benoit) {
+          netMAD = ((fp.augustin && fp.augustin.mad) || 0) + ((fp.benoit && fp.benoit.dh) || 0);
+          _factuCounterparts = ['Augustin', 'Benoit'];
+        }
+        if (netMAD != null) {
+          amineFacturationNet = toEUR(netMAD, 'MAD', fx);
+          const _dAs = typeof fp.updatedAt === 'string' ? fp.updatedAt.slice(0, 10) : null;
+          _factuSrc = 'localStorage hérité (' + (_dAs || '?') + ')';
+          _factuMeta = {
+            canal: 'localStorage (format hérité, non versionné)', schemaVersion: null,
+            producerVersion: 'inconnue', dataAsOf: _dAs,
+            ageJours: _dAs ? Math.floor((Date.now() - Date.parse(_dAs + 'T00:00:00Z')) / 86400000) : null,
+            fraicheur: 'inconnue', etat: 'herite', raison: _lu.raison,
+            netMAD, positions: [], herite: true,
+          };
+        }
+      }
+    } catch (e) { /* localStorage indisponible ou JSON illisible */ }
   }
 
-  // ── Repli 1 : l'ancien objet libre, non versionné ─────────────────────────────────────
-  try {
-    const raw = _factuSrc === 'data.js'
-      && typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
-    if (raw) {
-      const fp = JSON.parse(raw);
-      // Prefer combined.mad (canonical, "tout au Maroc" scenario, B2 fix)
-      if (fp.combined && fp.combined.mad != null) {
-        amineFacturationNet = toEUR(fp.combined.mad, 'MAD', fx);
-        _factuCounterparts = fp.counterparts && typeof fp.counterparts === 'object'
-          ? Object.values(fp.counterparts).map((c, i) => (c && c.label) || Object.keys(fp.counterparts)[i])
-          : (fp.combinedLabels || []);
-      } else {
-        // Legacy schema fallback
-        const augustinMAD = fp.augustin && fp.augustin.mad != null ? fp.augustin.mad : 0;
-        const benoitDH = fp.benoit && fp.benoit.dh != null ? fp.benoit.dh : 0;
-        amineFacturationNet = toEUR(augustinMAD, 'MAD', fx) + toEUR(benoitDH, 'MAD', fx);
-        _factuCounterparts = ['Augustin', 'Benoit'];
-      }
-      _factuSrc = 'localStorage (' + (fp.updatedAt || '?') + ')';
-      const _dAs = typeof fp.updatedAt === 'string' ? fp.updatedAt.slice(0, 10) : null;
-      const _ageH = _dAs && /^\d{4}-\d{2}-\d{2}$/.test(_dAs)
-        ? Math.floor((Date.now() - Date.parse(_dAs + 'T00:00:00Z')) / 86400000) : null;
-      _factuMeta = {
-        canal: 'format hérité (non versionné)', schema: null, producteur: 'site 2048 (version inconnue)',
-        dataAsOf: _dAs, ageJours: _ageH, fraicheur: fraicheurContrat(_ageH),
-        motifRepli: _lu.raison,
-      };
-    }
-  } catch(e) { /* localStorage unavailable or parse error */ }
-  // Fallback: use hardcoded values from data.js if localStorage was empty
-  if (_factuSrc === 'data.js' && p.amine.facturation) {
-    Object.entries(p.amine.facturation).forEach(([cle, pos]) => {
-      amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
-      // La CLÉ est le nom de la contrepartie ; le libellé, lui, décrit le sens de la
-      // position (« Je dois à Benoit… ») et en extraire le premier mot donnait « Je ».
-      const court = String(cle).charAt(0).toUpperCase() + String(cle).slice(1);
-      if (court && _factuCounterparts.indexOf(court) < 0) _factuCounterparts.push(court);
-    });
-    _factuSrc = 'data.js (fallback)';
-    _factuMeta = {
-      canal: 'data.js (hors ligne)', schema: null, producteur: 'dashboard lui-même',
-      dataAsOf: typeof DATA_LAST_UPDATE === 'string' ? DATA_LAST_UPDATE : null,
-      ageJours: null, fraicheur: 'inconnue', motifRepli: _lu.raison,
-    };
-  }
   console.log('[engine] Facturation net:', Math.round(amineFacturationNet), 'EUR — source:', _factuSrc);
 
   // Cash includes brokerage cash (EUR+USD from IBKR + ESPP) for consistency with cash view
@@ -6065,6 +6096,24 @@ export function computeAlerts(state) {
   // ── 1. Créances en retard ──
   if (state.creancesView && state.creancesView.activeItems) {
     for (const c of state.creancesView.activeItems) {
+      // ── Positions courantes de facturation : pas d'échéance, et c'est normal ──
+      // Elles étaient traitées comme des créances à qui il MANQUE une échéance, avec une
+      // consigne (« renseigner dueDate ») impossible à suivre : un solde courant n'a pas de
+      // date d'exigibilité. On les énonce simplement, dans le sens que le contrat déclare.
+      if (c.positionCourante) {
+        alerts.push({
+          severity: 'green',
+          owner: c.owner || 'Amine',
+          title: 'Position de facturation : ' + (c.counterparty || c.label),
+          msg: (c.counterparty || c.label) + ' doit '
+            + Math.round(c.amountEUR || 0).toLocaleString('fr-FR') + ' € à Amine ('
+            + Math.round(c.amount).toLocaleString('fr-FR') + ' ' + (c.currency || 'MAD')
+            + '). Solde courant, sans date d’exigibilité — ce n’est pas un retard.',
+          action: 'Voir créances',
+          view: 'creances',
+        });
+        continue;
+      }
       if (!c.dueDate) {
         // Une créance sans échéance échappait à la règle « en retard » avec un simple
         // avertissement en console — invisible pour qui lit le site. Le silence est le

@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=532';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=532';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=533';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=533';
 
 // ---- Generic table sort utility ----
 /**
@@ -1624,6 +1624,41 @@ const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'L
 const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
 
 /**
+ * Pont entre la NAV du GRAPHE et la NAV canonique.
+ *
+ * Les deux chiffres ne mesurent pas la même chose et différaient de ~900 € sans que rien ne
+ * le dise. Le graphe RECONSTRUIT le solde de trésorerie à partir des flux enregistrés
+ * (versements, opérations, dividendes en EUR, USD et JPY) : c'est ce qui lui permet de
+ * remonter le temps. La page Actions, elle, LIT le solde du compte tel qu'il est aujourd'hui.
+ * Le solde en dirhams, né de conversions internes au compte IBKR et non d'un versement,
+ * n'apparaît donc jamais dans la reconstitution par les flux.
+ *
+ * On nomme le périmètre, on chiffre la composante connue, et on affiche le reste.
+ */
+function pontGraphe(r) {
+  const navG = (typeof window !== 'undefined' && window._navGraphe) || null;
+  if (!navG || !r || !r.nav) return '';
+  const ecart = r.nav - navG;
+  if (Math.abs(ecart) < 1) return '';
+  const aed = Math.round(r.cashAEDeur || 0);
+  const reste = Math.round(ecart) - aed;
+  const li = (t, v) => '<div style="display:flex;justify-content:space-between;gap:12px;">'
+    + '<span>' + t + '</span><span style="font-variant-numeric:tabular-nums;">'
+    + (v < 0 ? '\u2212' : '+') + fmt(Math.abs(Math.round(v))) + '</span></div>';
+  return '<div style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;color:#4a5568;">'
+    + '<div style="font-weight:600;margin-bottom:4px;">Pont avec la NAV du graphe</div>'
+    + '<div style="display:flex;justify-content:space-between;gap:12px;"><span>NAV du graphe '
+    + '<span style="color:#a0aec0;">(cash reconstruit depuis les flux EUR/USD/JPY)</span></span>'
+    + '<strong style="font-variant-numeric:tabular-nums;">' + fmt(Math.round(navG)) + '</strong></div>'
+    + li('Solde AED du compte (conversion interne, hors flux)', aed)
+    + (Math.abs(reste) >= 1 ? li('Arrondis quotidiens et prix de clôture', reste) : '')
+    + '<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e2e8f0;margin-top:4px;padding-top:4px;">'
+    + '<span><strong>= NAV canonique (soldes lus)</strong></span>'
+    + '<strong style="font-variant-numeric:tabular-nums;">' + fmt(Math.round(r.nav)) + '</strong></div>'
+    + '</div>';
+}
+
+/**
  * Libellé de la ligne « Facturation nette », dérivé du PÉRIMÈTRE RÉEL du calcul.
  * Il annonçait « Augustin − Benoit » alors que le chemin canonique lit `combined.mad`,
  * qui agrège toutes les contreparties du site de facturation — Bob compris. Un libellé
@@ -1646,13 +1681,38 @@ function libelleFacturation(s) {
 function provenanceFacturation(s) {
   const m = (s && s.amine && s.amine._facturationMeta) || null;
   if (!m) return '';
-  const couleur = m.fraicheur === 'à jour' ? '#15803d' : (m.fraicheur === 'périmé' ? '#dc2626' : '#b45309');
-  const bits = ['Source : ' + m.canal];
-  if (m.producteur) bits.push('produit par ' + m.producteur);
-  if (m.dataAsOf) bits.push('arrêté au ' + m.dataAsOf + (m.ageJours != null ? ' (' + m.ageJours + ' j)' : ''));
-  bits.push('fraîcheur : <span style="color:' + couleur + ';font-weight:600;">' + m.fraicheur + '</span>');
-  if (m.motifRepli) bits.push('contrat versionné non utilisé — ' + m.motifRepli);
-  return bits.join(' · ');
+  const COULEURS = { frais: '#15803d', 'périmé': '#b45309', herite: '#b45309',
+    'schema-incompatible': '#dc2626', invalide: '#dc2626', indisponible: '#dc2626' };
+  const c = COULEURS[m.etat] || '#718096';
+  const ETATS = {
+    frais: 'à jour', 'périmé': 'périmé', herite: 'format hérité',
+    'schema-incompatible': 'schéma incompatible — non comptabilisé',
+    invalide: 'contrat invalide — non comptabilisé',
+    indisponible: 'indisponible — facturation non comptabilisée',
+  };
+  const bits = [];
+  // Le montant natif ET sa conversion : le contrat est en dirhams, le patrimoine en euros.
+  if (m.netMAD != null) {
+    bits.push('Net ' + Math.round(m.netMAD).toLocaleString('fr-FR') + ' MAD = '
+      + fmt(Math.round(s.amine.facturationNet)) + ' au taux du jour');
+  }
+  bits.push('source : ' + m.canal);
+  if (m.producerVersion) bits.push('producteur ' + m.producerVersion);
+  if (m.schemaVersion) bits.push('schéma ' + m.schemaVersion);
+  if (m.dataAsOf) bits.push('données au ' + m.dataAsOf + (m.ageJours != null ? ' (' + m.ageJours + ' j)' : ''));
+  bits.push('état : <span style="color:' + c + ';font-weight:600;">' + (ETATS[m.etat] || m.etat) + '</span>');
+  if (m.raison) bits.push('<span style="color:' + c + ';">' + m.raison + '</span>');
+  let html = bits.join(' · ');
+  // Les positions BRUTES, une par tiers. Le net ne dit pas qui doit quoi à qui, et la
+  // compensation Augustin/Bob qu'il suggère n'a aucune existence contractuelle.
+  if (m.positions && m.positions.length) {
+    html += '<div style="margin-top:4px;">Positions brutes : '
+      + m.positions.map((p) => (p.montantMAD >= 0
+          ? p.nom + ' doit ' + Math.round(p.montantMAD).toLocaleString('fr-FR') + ' MAD à Amine'
+          : 'Amine doit ' + Math.round(-p.montantMAD).toLocaleString('fr-FR') + ' MAD à ' + p.nom)).join(' · ')
+      + '. Aucune compensation entre tiers.</div>';
+  }
+  return html;
 }
 
 /**
@@ -2574,6 +2634,7 @@ function renderActionsView(state) {
       + ') comprend les positions revendues : il sert de base au r\u00e9alis\u00e9, pas au latent.</div>'
       + (ecart > 1 ? '<div style="margin-top:6px;color:#c05621;">\u26a0 \u00c9cart de ' + fmt(Math.round(ecart))
         + ' entre la somme des lignes et les titres \u2014 signaler.</div>' : '')
+      + pontGraphe(r)
       + '</div>';
   })();
   if (owner !== 'both') {
@@ -3015,7 +3076,11 @@ function renderActionsView(state) {
         // TWR banner
         html += '<div style="margin-bottom:10px;padding:8px 12px;background:' + (recTWR >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;font-size:14px;">';
         html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong>';
-        html += ' &nbsp;|&nbsp; ' + ins.nbPositions + ' positions &nbsp;|&nbsp; Cash ' + ins.cashPct.toFixed(0) + '%';
+        html += ' &nbsp;|&nbsp; ' + ins.nbPositions + ' lignes de titres'
+          + ' &nbsp;|&nbsp; Cash courtier ' + fmt(Math.round(ins.cashCourtier || 0))
+          + ' (' + ins.cashPct.toFixed(1) + '%)'
+          + (ins.detteMarge < 0 ? ' &nbsp;|&nbsp; dette de marge \u2212' + fmt(Math.round(Math.abs(ins.detteMarge)))
+              + ' (' + ins.dettePct.toFixed(1) + '%)' : '');
         html += '</div>';
 
         // Points positifs (dynamiques)
@@ -4041,7 +4106,34 @@ function renderCashView(state) {
         + '<strong style="color:var(--green);">' + (fd.potentiel >= 0 ? '+' : '') + fmt(Math.round(fd.potentiel)) + '/an</strong>'
         + '<span style="color:var(--gray);"> · capté ' + (fd.rendu >= 0 ? '+' : '') + fmt(Math.round(fd.rendu)) + ' · </span>'
         + '<strong style="color:var(--gold);">manque +' + fmt(Math.round(fd.gap)) + '/an</strong>'
-        + '<span style="color:var(--gray);"> (si tout le cash sous-optimal est placé à ' + refPctTxt + '%)</span>';
+        + '<span style="color:var(--gray);"> (si tout le cash sous-optimal est placé à ' + refPctTxt + '%)</span>'
+        + repartitionSeuils();
+    }
+
+    /**
+     * Répartition par SEUIL, en montants. « Sous l'inflation » et « sous le benchmark »
+     * affichaient le même total sans que rien n'explique pourquoi : la raison est qu'aucun
+     * compte doté d'un solde ne se trouve entre les deux, et qu'une part importante du cash
+     * est posée EXACTEMENT au benchmark — donc ni gisement, ni perte de pouvoir d'achat.
+     * Cette troisième catégorie manquait, et son absence rendait l'égalité incompréhensible.
+     */
+    function repartitionSeuils() {
+      const f = cv.coupleFrame;
+      if (!f) return '';
+      const seg = (lib, v, coul) => '<span style="color:' + coul + ';font-weight:600;">'
+        + fmt(Math.round(v)) + '</span> <span style="color:var(--gray);">' + lib + '</span>';
+      const memeMontant = Math.abs(f.subOptimalCash - f.subInflationCash) < 1;
+      return '<div style="margin-top:6px;font-size:11.5px;line-height:1.7;">'
+        + seg('sous ' + (INFLATION_RATE * 100).toFixed(0) + '\u202f% (perte de pouvoir d\'achat)', f.subInflationCash, '#dc2626')
+        + ' \u00b7 ' + seg('sous ' + refPctTxt + '\u202f% (gisement \u00e0 placer)', f.subOptimalCash, '#b45309')
+        + ' \u00b7 ' + seg('\u00e0 ' + refPctTxt + '\u202f% pile (d\u00e9j\u00e0 au taux vis\u00e9)', f.atBenchmarkCash, '#15803d')
+        + ' \u00b7 ' + seg('au-dessus de ' + refPctTxt + '\u202f%', f.aboveBenchmarkCash, '#15803d')
+        + (memeMontant
+          ? '<div style="color:var(--gray);margin-top:2px;">Les deux premiers montants co\u00efncident : aucun compte '
+            + 'dot\u00e9 d\'un solde ne se situe entre ' + (INFLATION_RATE * 100).toFixed(0) + '\u202f% et '
+            + refPctTxt + '\u202f%. Ce sont deux crit\u00e8res distincts, pas deux constats.</div>'
+          : '')
+        + '</div>';
     }
 
     // ── Légende + badge de cadre (JS-driven : change avec le toggle) ──
@@ -4580,7 +4672,7 @@ function renderImmoView(state) {
         + '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">Vue par bien — cliquer une ligne ouvre sa fiche</div>'
         + '<div class="table-wrap"><table style="font-size:12.5px;width:100%;min-width:640px;">'
         + '<thead><tr><th>Bien</th><th class="num">Valeur</th><th class="num">CRD</th><th class="num">Équité</th>'
-        + '<th class="num">LTV</th><th class="num">Loyer /mois</th><th class="num">CF /mois</th><th class="num">Rdt net</th></tr></thead>'
+        + '<th class="num">LTV</th><th class="num">Recettes totales /mois</th><th class="num">CF /mois</th><th class="num">Rdt net</th></tr></thead>'
         + '<tbody>' + rows + '</tbody></table></div></div>';
     }
   } catch (e) { /* table absente plutôt que fausse */ }
@@ -4901,6 +4993,53 @@ function renderImmoView(state) {
   const cfCls = fTotalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = fTotalCF >= 0 ? '+' : '';
   setText('kpiImmoViewCF', cfSign + fmt(fTotalCF) + '/mois');
+
+  // ── Les trois horizons de l'immobilier (v533) ─────────────────────────────────────────
+  // Le haut de page et le graphique donnaient deux totaux de charges (2 827 et 2 776) et
+  // deux cash-flows (−107 et −56) sans dire ce que chacun comprenait. L'écart, 51 €, c'est
+  // l'assurance emprunteur d'un bien encore en construction — un coût réel, mais qui
+  // n'appartient pas à l'exploitation. Les trois périmètres sont désormais posés côte à côte.
+  (function () {
+    const el = document.getElementById('immoHorizons');
+    if (!el) return;
+    const t = iv.temporel;
+    if (!t) { el.innerHTML = ''; return; }
+    const e = (v) => (v < 0 ? '\u2212' : '') + fmt(Math.abs(Math.round(v)));
+    const coul = (v) => (v >= 0 ? '#15803d' : '#b45309');
+    const bloc2 = (titre, sous, lignes, note) =>
+      '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">'
+      + '<div style="font-weight:600;font-size:13px;">' + titre + '</div>'
+      + '<div style="font-size:11px;color:#718096;margin-bottom:8px;">' + sous + '</div>'
+      + lignes.map(([l, v, c]) => '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0;">'
+          + '<span>' + l + '</span><strong style="font-variant-numeric:tabular-nums;'
+          + (c ? 'color:' + c + ';' : '') + '">' + e(v) + '</strong></div>').join('')
+      + (note ? '<div style="font-size:11px;color:#718096;margin-top:6px;">' + note + '</div>' : '')
+      + '</div>';
+    el.innerHTML = '<div style="font-size:11.5px;color:#718096;margin-bottom:8px;">'
+      + 'Trois horizons \u2014 aucun ne remplace les autres</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;">'
+      + bloc2('Exploitation aujourd\u2019hui', t.exploitation.biens.join(' + ') + ' \u2014 lou\u00e9s',
+          [['Recettes totales', t.exploitation.recettes], ['Charges + pr\u00eats', -t.exploitation.charges],
+           ['CF net /mois', t.exploitation.cf, coul(t.exploitation.cf)]],
+          'C\u2019est le p\u00e9rim\u00e8tre du graphique de cash-flow.')
+      + bloc2('Portage avant livraison', t.enConstruction.biens.join(' + ') + ' \u2014 en construction',
+          [['Co\u00fbt actuel /mois', t.enConstruction.coutActuel, coul(t.enConstruction.coutActuel)],
+           ['Charges apr\u00e8s livraison', -t.enConstruction.chargesFutures],
+           ['Recettes apr\u00e8s livraison', t.enConstruction.recettesFuturesEstimees]],
+          'Seul le co\u00fbt actuel (assurance emprunteur en franchise) sort du compte aujourd\u2019hui. '
+          + 'Les deux autres lignes sont futures, et les recettes sont une ESTIMATION hors charges : '
+          + 'aucun bail n\u2019est sign\u00e9.')
+      + bloc2('Total aujourd\u2019hui', 'exploitation + portage \u2014 ce que montre le haut de page',
+          [['Recettes totales', t.actuel.recettes], ['Charges + pr\u00eats', -t.actuel.charges],
+           ['CF net /mois', t.actuel.cf, coul(t.actuel.cf)]],
+          'L\u2019\u00e9cart avec le graphique (' + e(t.actuel.charges - t.exploitation.charges)
+          + ') est exactement le portage ci-contre.')
+      + bloc2('R\u00e9gime de croisi\u00e8re', 'quand tout sera lou\u00e9 \u2014 sc\u00e9nario, pas un constat',
+          [['Recettes totales', t.stabilise.recettes], ['Charges + pr\u00eats', -t.stabilise.charges],
+           ['CF net /mois', t.stabilise.cf, coul(t.stabilise.cf)]],
+          'Repose sur une estimation de loyer et sur les dates de livraison ci-dessous.')
+      + '</div>';
+  })();
   const cfEl = document.getElementById('kpiImmoViewCF');
   if (cfEl) { cfEl.classList.remove('pl-pos', 'pl-neg'); cfEl.classList.add(cfCls); }
 
@@ -5531,12 +5670,20 @@ function renderImmoView(state) {
     const totalEq = iv.totalEquity;
     const leverage = totalDebt > 0 ? Math.round(totalDebt / totalVal * 100) : 0;
     const cfTotal = iv.totalCF;
+    const tmp = iv.temporel;
     const cfAnnual = cfTotal * 12;
     const wealthTotal = iv.totalWealthCreation;
     stratBox.innerHTML =
       '<strong>Strategie Immo Couple :</strong><br>' +
       '- <strong>Bilan consolide :</strong> ' + Math.round(totalVal / 1000) + 'K de patrimoine immo, ' + Math.round(totalDebt / 1000) + 'K de dette, ' + Math.round(totalEq / 1000) + 'K d\'equity. Taux d\'endettement immo de ~' + leverage + '%.<br>' +
-      '- <strong>Cash flow consolide : ' + (cfTotal >= 0 ? '+' : '') + cfTotal + '/mois</strong> aujourd\'hui (' + Math.abs(cfAnnual).toLocaleString('fr-FR') + '/an).<br>' +
+      // `cfTotal` était concaténé BRUT : « −107.05999999999997 /mois ». Et « aujourd'hui »
+      // portait un total qui mélange deux horizons — l'exploitation courante et le coût de
+      // portage d'un bien pas encore livré. Les deux sont nommés.
+      '- <strong>Cash flow consolide : ' + (cfTotal >= 0 ? '+' : '\u2212') + Math.abs(Math.round(cfTotal)).toLocaleString('fr-FR') + '/mois</strong> aujourd\'hui (' + Math.abs(Math.round(cfAnnual)).toLocaleString('fr-FR') + '/an)'
+        + (tmp ? ' = ' + (tmp.exploitation.cf >= 0 ? '+' : '\u2212') + Math.abs(Math.round(tmp.exploitation.cf)).toLocaleString('fr-FR')
+            + ' d\'exploitation (' + tmp.exploitation.biens.join(' + ') + ') '
+            + (tmp.enConstruction.coutActuel >= 0 ? '+' : '\u2212') + Math.abs(Math.round(tmp.enConstruction.coutActuel)).toLocaleString('fr-FR')
+            + ' de portage (' + tmp.enConstruction.biens.join(' + ') + ', non livr\u00e9)' : '') + '.<br>' +
       '- <strong>Creation de richesse : +' + Math.round(wealthTotal).toLocaleString('fr-FR') + '/mois</strong> (' + Math.round(wealthTotal * 12 / 1000) + 'K/an) via le remboursement du capital + appreciation.<br>' +
       '- <span style="color:var(--red)">Risque structurel :</span> Concentration 100% IDF, zero diversification geo. Un retournement francilien de -10% couterait ~' + Math.round(totalVal * 0.1 / 1000) + 'K d\'equity.<br>' +
       // Cite la courbe de projection quand elle est construite, plutôt qu'une extrapolation
@@ -6316,8 +6463,10 @@ function renderAptView(state, loanKey) {
           ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#718096;">désactivée</span></strong></div>' : '')
         + '</div>'
         + ((() => {
-            const cashPrevu = ((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
-              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0;
+            // Lu brut depuis data.js et collé à « €/mois ». Entier aujourd'hui, mais rien
+            // ne le garantit : c'est ainsi qu'un « −107.05999999999997 » atteint l'écran.
+            const cashPrevu = Math.round(((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
+              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0);
             return cashPrevu > 0
               ? '<div style="margin-top:10px;padding:8px 12px;background:#fff5f5;border-left:3px solid #c53030;border-radius:6px;font-size:12px;color:#742a2a;">'
                 + '<strong>⚠ ' + cashPrevu + ' €/mois en espèces dès le bail (suivi interne, non déclarés)</strong> — imposables en droit ; '
@@ -7369,7 +7518,12 @@ function attachKPIInsights(state, view) {
         + brut.toFixed(1) + '\u202f% BRUT, ' + net.toFixed(1) + '\u202f% apr\u00e8s le co\u00fbt annuel '
         + 'de l\'emprunt JPY (' + Math.round(coutJpy).toLocaleString('fr-FR') + '\u202f€). '
         + 'Le pied du tableau des comptes affiche le second. '
-        + 'UAE : 6\u202f% (Wio/Mashreq). IBKR EUR : 1,5\u202f%. France/Maroc : 0\u202f%.';
+        + 'Mashreq 6,25\u202f%, Wio 6\u202f%, Livret A 1,5\u202f%, France/Maroc 0\u202f%. '
+        // « IBKR EUR : 1,5 % » citait le taux NOMINAL. IBKR ne rémunère qu'au-delà de
+        // 10 000 $ : sous ce seuil le rendement EFFECTIF est nul, et c'est le cas ici —
+        // le tableau affichait donc 0 % en face d'une infobulle annonçant 1,5 %.
+        + 'IBKR EUR : 1,53\u202f% nominal mais 0\u202f% effectif, le solde \u00e9tant sous le '
+        + 'seuil de r\u00e9mun\u00e9ration de 10\u202f000\u202f$.';
     })();
     // Ce KPI ne porte QUE sur le cash qui ne bat pas l'inflation, alors que le graphe « après
     // inflation » érode la totalité du cash : deux chiffres très différents (255 €/mois contre
@@ -7387,10 +7541,12 @@ function attachKPIInsights(state, view) {
     // paquet de comptes : le lecteur voyait deux fois 102 271 € sans savoir que c'était une
     // coïncidence de barème et non deux mesures indépendantes.
     if (cv.seuilsConfondus) {
-      insights['kpiCashTotal'] += ' Attention : le cash « sous l\'inflation » et le cash « sous le '
-        + 'benchmark 6 % » d\u00e9signent en ce moment les M\u00caMES comptes (\u20ac'
-        + f(cv.totalNonYielding) + '), faute de compte r\u00e9mun\u00e9r\u00e9 entre les deux seuils. '
-        + 'Ce sont deux crit\u00e8res distincts, pas deux constats.';
+      insights['kpiCashTotal'] += ' Le cash « sous l\'inflation » et le cash « sous le benchmark '
+        + '6 % » d\u00e9signent en ce moment les M\u00caMES comptes (\u20ac'
+        + f(cv.totalNonYielding) + ') : aucun compte dot\u00e9 d\'un solde ne se situe entre les '
+        + 'deux seuils, et \u20ac' + f((cv.coupleFrame && cv.coupleFrame.atBenchmarkCash) || 0)
+        + ' sont pos\u00e9s exactement \u00e0 6 % (Wio Savings, Wio UAE). Deux crit\u00e8res '
+        + 'distincts, pas deux constats.';
     }
     insights['kpiCashProductive'] = 'Cash dont le rendement atteint au moins l\'inflation ('
       + (INFLATION_RATE * 100).toFixed(0) + ' %) : '
@@ -7705,7 +7861,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=532').then(m => {
+  import('./charts.js?v=533').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8105,7 +8261,12 @@ function renderPerfClasses(state) {
   const ytd = ov.kpiPLYTD && fin(ov.kpiPLYTD.value) ? Math.round(ov.kpiPLYTD.value) : null;
   const unAn = ov.kpiPL1Y && fin(ov.kpiPL1Y.value) ? Math.round(ov.kpiPL1Y.value) : null;
   const latent = fin(av.combinedUnrealizedPL) ? av.combinedUnrealizedPL : null;
-  const latentPct = fin(latent) && av.totalDeposits > 0 ? (latent / av.totalDeposits * 100) : null;
+  // Le latent était rapporté au capital DÉPLOYÉ (197 441 €), qui comprend le capital des
+  // positions déjà revendues, alors que le numérateur ne porte que sur les positions encore
+  // détenues : −1,6 % ici contre −1,3 % sur la page Actions, pour le même montant. Même
+  // dénominateur que la page Actions : le coût des titres détenus.
+  const _coutTitresRef = (av.reconciliation && av.reconciliation.coutTitres) || 0;
+  const latentPct = fin(latent) && _coutTitresRef > 0 ? (latent / _coutTitresRef * 100) : null;
   const kActions = kpiEur('Jour', jour) + kpiEur('YTD', ytd) + kpiEur('1 an', unAn)
     + (fin(latent) ? kpi('Latent total',
         '<span style="color:' + coul(latent) + ';">' + eur(latent)
@@ -8138,7 +8299,7 @@ function renderPerfClasses(state) {
     // et le tableau (views.couple.stocks) ; le cash courtiers est classé en Cash, dit
     // explicitement (l'ancien av.totalStocks l'incluait → deux « Actions » divergents).
     + carte('Actions & crypto', vues.couple && vues.couple.stocks ? vues.couple.stocks.val : av.totalStocks, kActions,
-      'hors cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ', class\u00e9 en Cash) \u00b7 Latent = P&L vs ' + fmt(av.totalDeposits || 0) + ' d\u00e9ploy\u00e9s \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
+      'hors cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ', class\u00e9 en Cash) \u00b7 Latent = titres \u2212 co\u00fbt des titres d\u00e9tenus (' + fmt(Math.round(_coutTitresRef)) + ') \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
     + carte('Immobilier (\u00e9quit\u00e9)', equite, kImmo, noteImmo)
     + carte('Cash', vues.couple && vues.couple.cash ? vues.couple.cash.val : cv.totalCash, kCash,
       'p\u00e9rim\u00e8tre treemap, incl. cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ') \u00b7 rendement : moyenne pond\u00e9r\u00e9e \u00b7 r\u00e9el = apr\u00e8s ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation')

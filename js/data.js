@@ -1052,10 +1052,15 @@ export const PORTFOLIO = {
     // Montants en MAD (scénario "si je paye au Maroc")
     // Positif = on me doit, Négatif = je dois
     // ──────────────────────────────────────────────────────
-    facturation: {
-      augustin: { amount: 181609, currency: 'MAD', label: 'Créance sur Augustin (Azarkan)', notes: 'Pos. Entreprise -5958€ converti MAD. 5 catégories: RTL, AZCS, Maroc, Divers, Report. Taux fixe 10.26' },
-      benoit:   { amount: -196915, currency: 'MAD', label: 'Dette envers Benoit (Badre)', notes: 'En cours 2026, 5 councils payés. Paiement cash DH uniquement. Taux fixe 10.6, commission 10%' },
-    },
+    // ── FACTURATION : PLUS AUCUNE VALEUR ICI ──────────────────────────────────────────
+    // Ces montants servaient de repli hors ligne. Confrontés au contrat que 2048 publie
+    // désormais (js/facturation_contract.js), ils se sont révélés faux sur trois points :
+    // Benoit y était DÉBITEUR (−196 915 MAD) là où le contrat le donne CRÉANCIER
+    // (+17 566), Bob (−92 376) n'y figurait pas du tout, et le net valait −1 424 € contre
+    // −788 €. Un repli faux est pire qu'une absence : il ne se distingue pas d'une donnée
+    // juste. Sans contrat, la facturation vaut désormais zéro et l'écran affiche
+    // « indisponible ».
+    // Source unique : https://lallakenza.github.io/2048/data/networth-bridge.json
   },
 
   // ════════════════════════════════════════════════════════
@@ -1397,7 +1402,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v532';
+export const APP_VERSION = 'v533';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

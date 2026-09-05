@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=532';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=532';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=532';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=532';
-import { loadSnapshots } from './api.js?v=532'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=532'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=533';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=533';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=533';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=533';
+import { loadSnapshots } from './api.js?v=533'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=533'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4297,6 +4297,14 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     // ── Total NAV (IBKR + ESPP + SGTM combined) ──
     const navTotal = Math.round(nav + esppValue + sgtmValue);
     chartValuesTotal.push(navTotal);
+  }
+
+  // NAV du GRAPHE, publiée pour le pont de réconciliation de la page Actions.
+  // Ce n'est pas la même grandeur que la NAV canonique : ici le cash est RECONSTRUIT à
+  // partir des flux enregistrés (versements, opérations, dividendes en EUR/USD/JPY), là-bas
+  // il est LU au solde du compte. Les deux sont justes ; leur écart doit être écrit.
+  if (typeof window !== 'undefined') {
+    window._navGraphe = chartValuesTotal.length ? chartValuesTotal[chartValuesTotal.length - 1] : null;
   }
 
   if (chartLabels.length === 0) return;

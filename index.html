@@ -4040,6 +4040,11 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiImmoViewPassifs">--</div><div class="label">Passifs document&eacute;s <span style="font-size:9px;color:#718096;">(non d&eacute;duits)</span></div></div>
     <div class="kpi"><div class="value" id="kpiImmoViewEcheance">--</div><div class="label">Prochaine &eacute;ch&eacute;ance<br><span id="kpiImmoViewEcheanceSub" style="font-size:9.5px;color:#718096;font-weight:400;"></span></div></div>
   </div>
+  <!-- Trois horizons distincts : ce qui est loué aujourd'hui, ce que coûte aujourd'hui ce
+       qui n'est pas encore livré, et le régime de croisière. Les confondre faisait cohabiter
+       « charges 2 827 » en haut de page et « 2 776 » dans le graphique. -->
+  <div id="immoHorizons" style="margin-top:14px;"></div>
+
   <!-- v438 (P5) — les 3 prochaines echeances tous biens confondus, calculees depuis les contraintes datees -->
   <div id="immoEcheances" style="margin-top:14px;"></div>
   <!-- v438 (P6) — LA table de consolidation : une ligne par bien, cliquable vers sa fiche -->
@@ -4745,7 +4750,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=532"></script>
+<script type="module" src="js/app.js?v=533"></script>
 
 </body>
 </html>

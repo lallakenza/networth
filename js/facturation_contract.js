@@ -1,25 +1,49 @@
 /**
- * Lecture du contrat de facturation publié par le site 2048 (dépôt `lallakenza/2048`).
+ * Contrat de facturation publié par le site 2048 (dépôt `lallakenza/2048`).
  *
- * POURQUOI UN CONTRAT. La passerelle lisait un objet libre déposé dans le localStorage :
- * aucune version de schéma, aucun producteur, aucune date de production. Le dashboard ne
- * pouvait donc ni détecter un changement de format en amont, ni dire si le chiffre qu'il
- * affichait datait d'hier ou de six mois — il l'affichait, simplement. Un format non
- * versionné entre deux dépôts est une dépendance qui casse en silence.
+ * POURQUOI UN CONTRAT DISTANT. Le montant de facturation vient d'un AUTRE dépôt. Il
+ * transitait par un objet libre déposé dans le localStorage : présent seulement si l'autre
+ * site avait été ouvert dans ce navigateur, sans version de schéma, sans producteur, sans
+ * date. Le dashboard ne pouvait ni détecter un changement de format en amont, ni dire si le
+ * chiffre affiché datait d'hier ou de six mois. 2048 publie désormais un JSON versionné à
+ * une URL stable : c'est la source de vérité, lisible sans avoir ouvert l'autre site.
  *
  * ORDRE DES SOURCES, du plus fiable au moins fiable :
- *   1. `facturation_contract_v1` — payload versionné et validé (source prioritaire) ;
- *   2. `facturation_positions`   — l'ancien objet libre (repli, format hérité) ;
- *   3. `PORTFOLIO.amine.facturation` — les valeurs de `data.js` (repli hors ligne).
+ *   1. le contrat HTTP (`URL_CONTRAT`), validé — source prioritaire ;
+ *   2. le dernier contrat valide mis en cache localement, si le réseau est indisponible ;
+ *   3. l'objet libre hérité `facturation_positions`, si 2048 n'a pas encore publié ;
+ *   4. rien — état « indisponible », annoncé comme tel.
  *
- * Ce module ne touche PAS au dépôt 2048 : il décrit ce que le dashboard accepte de lire.
- * Tant que 2048 ne publie pas le contrat, le repli hérité continue de fonctionner à
- * l'identique — la bascule est donc sans risque et sans coordination.
+ * IL N'Y A PAS DE CINQUIÈME SOURCE. Les valeurs de repli qui vivaient dans `data.js` ont été
+ * retirées : elles donnaient Benoit DÉBITEUR (−196 915 MAD) là où le contrat le donne
+ * CRÉANCIER (+17 566), ignoraient Bob (−92 376) et aboutissaient à −1 424 € au lieu de
+ * −788 €. Un chiffre faux qu'on ne peut pas distinguer d'un chiffre juste est pire qu'une
+ * absence : l'absence, elle, se voit.
+ *
+ * CONVENTION DE SIGNE — vérifiée, jamais supposée. `positif = le tiers doit à Amine`. Le
+ * contrat la déclare en toutes lettres ; si la déclaration change, le contrat est refusé
+ * plutôt que comptabilisé à l'envers.
+ *
+ * PAS DE NETTING. `netPositionMad` est la somme ARITHMÉTIQUE des positions brutes. Un
+ * contrat qui annoncerait `nettingApplied: true` compenserait ce qu'Augustin doit avec ce
+ * qu'Amine doit à Bob — deux créances sur des tiers différents, sans accord de compensation.
+ * Ce cas est refusé.
  */
-export const SCHEMA_FACTURATION = 'facturation/v1';
 
-/** Âge en jours d'une date ISO ; null si illisible. */
-function _ageJours(iso, maintenant) {
+export const URL_CONTRAT = 'https://lallakenza.github.io/2048/data/networth-bridge.json';
+export const CLE_CACHE = 'nw_facturation_contrat_v1';
+
+/** Version majeure de schéma que ce dashboard sait lire. */
+export const SCHEMA_MAJEUR = 1;
+
+/** Convention de signe attendue. Une autre formulation ⇒ refus, pas d'interprétation. */
+export const CONVENTION_SIGNE = 'positif = le tiers doit à Amine ; négatif = Amine doit au tiers';
+
+/** Au-delà, les données ne décrivent plus la situation courante. */
+export const SEUIL_PERIME_JOURS = 31;
+
+/** Âge en jours d'une date ISO `AAAA-MM-JJ` ; null si illisible. */
+export function ageJours(iso, maintenant) {
   if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
   const t = Date.parse(iso.slice(0, 10) + 'T00:00:00Z');
   if (Number.isNaN(t)) return null;
@@ -27,49 +51,152 @@ function _ageJours(iso, maintenant) {
 }
 
 /**
- * Valide un contrat. Renvoie `{ ok, raison }` — jamais d'exception : un contrat invalide
- * doit faire retomber sur le repli, pas casser le calcul du patrimoine.
+ * Valide un contrat. Ne lève jamais : un contrat douteux doit faire replier, pas planter
+ * le calcul du patrimoine.
+ * @returns {{ok: boolean, code: string, raison: string|null}}
+ *   code ∈ 'ok' | 'schema-incompatible' | 'invalide'
  */
-export function validerContratFacturation(c) {
-  if (!c || typeof c !== 'object') return { ok: false, raison: 'payload absent ou non-objet' };
-  if (c.schema !== SCHEMA_FACTURATION) return { ok: false, raison: 'schéma « ' + c.schema + ' » non reconnu' };
-  if (!c.producer || !c.producer.name) return { ok: false, raison: 'producteur non déclaré' };
-  if (_ageJours(c.dataAsOf) == null) return { ok: false, raison: 'dataAsOf absent ou illisible' };
-  const pos = c.positions;
-  if (!pos || typeof pos !== 'object' || Object.keys(pos).length === 0) {
-    return { ok: false, raison: 'aucune position' };
+export function validerContrat(c) {
+  const ko = (code, raison) => ({ ok: false, code, raison });
+  if (!c || typeof c !== 'object') return ko('invalide', 'payload absent ou non-objet');
+
+  // ── Version de schéma : compatibilité par version MAJEURE ──
+  const sv = c.schemaVersion;
+  if (typeof sv !== 'string' || !/^\d+\.\d+\.\d+$/.test(sv)) {
+    return ko('invalide', 'schemaVersion absent ou mal formé');
   }
-  for (const [cle, p] of Object.entries(pos)) {
-    if (!p || typeof p.amount !== 'number' || !Number.isFinite(p.amount)) {
-      return { ok: false, raison: 'montant non numérique pour « ' + cle + ' »' };
-    }
-    if (typeof p.currency !== 'string' || p.currency.length !== 3) {
-      return { ok: false, raison: 'devise invalide pour « ' + cle + ' »' };
+  const majeur = parseInt(sv.split('.')[0], 10);
+  if (majeur !== SCHEMA_MAJEUR) {
+    return ko('schema-incompatible',
+      'schéma ' + sv + ' — ce dashboard lit la version majeure ' + SCHEMA_MAJEUR);
+  }
+
+  if (typeof c.producerVersion !== 'string' || !c.producerVersion) {
+    return ko('invalide', 'producerVersion non déclarée');
+  }
+  if (ageJours(c.dataAsOf) == null) return ko('invalide', 'dataAsOf absent ou illisible');
+  if (c.currency !== 'MAD') return ko('invalide', 'devise « ' + c.currency +' » inattendue');
+
+  // ── Convention de signe : comparée, pas supposée ──
+  if (c.signConvention !== CONVENTION_SIGNE) {
+    return ko('schema-incompatible',
+      'convention de signe inattendue : « ' + c.signConvention + ' »');
+  }
+
+  // ── Pas de compensation entre tiers ──
+  if (c.nettingApplied === true) {
+    return ko('invalide', 'nettingApplied=true — la compensation entre tiers n’est pas comptabilisable');
+  }
+
+  const pg = c.positionsGross;
+  if (!pg || typeof pg !== 'object' || Object.keys(pg).length === 0) {
+    return ko('invalide', 'positionsGross absent ou vide');
+  }
+  for (const [cle, v] of Object.entries(pg)) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      return ko('invalide', 'position non numérique pour « ' + cle + ' »');
     }
   }
-  return { ok: true, raison: null };
+  if (typeof c.netPositionMad !== 'number' || !Number.isFinite(c.netPositionMad)) {
+    return ko('invalide', 'netPositionMad non numérique');
+  }
+  // Le net DOIT être la somme des positions brutes. S'il en diverge, une compensation a eu
+  // lieu quelque part malgré `nettingApplied: false`, et le total n'est plus la position
+  // brute agrégée que le dashboard accepte de comptabiliser.
+  const somme = Object.values(pg).reduce((s, v) => s + v, 0);
+  if (Math.abs(somme - c.netPositionMad) > 1) {
+    return ko('invalide', 'netPositionMad (' + c.netPositionMad + ') ≠ Σ positions brutes (' + somme + ')');
+  }
+  return { ok: true, code: 'ok', raison: null };
 }
 
-/** Qualifie la fraîcheur d'un contrat à partir de son âge. */
-export function fraicheurContrat(ageJours) {
-  if (ageJours == null) return 'inconnue';
-  if (ageJours <= 7) return 'à jour';
-  if (ageJours <= 31) return 'à rafraîchir';
-  return 'périmé';
+/** 'frais' tant que les données sont récentes, 'périmé' au-delà du seuil. */
+export function etatFraicheur(dataAsOf, maintenant) {
+  const a = ageJours(dataAsOf, maintenant);
+  if (a == null) return 'indisponible';
+  return a <= SEUIL_PERIME_JOURS ? 'frais' : 'périmé';
 }
 
 /**
- * Lit le contrat depuis un magasin clé/valeur (le localStorage en production, un objet
- * simple dans les tests).
- * @returns {{contrat: object|null, valide: boolean, raison: string|null}}
+ * Normalise un contrat validé en la forme que l'engine consomme.
+ * Aucune conversion de devise ici : l'engine seul détient le taux.
  */
-export function lireContratFacturation(magasin) {
+export function normaliser(c, canal) {
+  const positions = Object.entries(c.positionsGross).map(([cle, montantMAD]) => ({
+    cle,
+    nom: cle.charAt(0).toUpperCase() + cle.slice(1),
+    montantMAD,
+    // Convention vérifiée plus haut : positif ⇒ le tiers doit à Amine.
+    sens: montantMAD >= 0 ? 'tiers-doit-a-amine' : 'amine-doit-au-tiers',
+  })).sort((a, b) => b.montantMAD - a.montantMAD);
+  return {
+    canal,                                  // 'http' | 'cache'
+    schemaVersion: c.schemaVersion,
+    producerVersion: c.producerVersion,
+    dataAsOf: c.dataAsOf.slice(0, 10),
+    generatedAt: c.generatedAt || null,
+    devise: c.currency,
+    netMAD: c.netPositionMad,
+    positions,
+    ageJours: ageJours(c.dataAsOf),
+    fraicheur: etatFraicheur(c.dataAsOf),
+  };
+}
+
+/** Écrit le contrat validé dans le cache local (pour les chargements hors ligne). */
+export function mettreEnCache(c, magasin) {
+  try {
+    const m = magasin || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (m) m.setItem(CLE_CACHE, JSON.stringify({ recuLe: Date.now(), contrat: c }));
+  } catch (e) { /* mode privé : le cache hors ligne est perdu, rien de plus */ }
+}
+
+/**
+ * Lecture SYNCHRONE du dernier contrat mis en cache. L'engine est synchrone : il ne peut
+ * pas attendre le réseau, il lit ce que le chargement asynchrone a déposé.
+ * @returns {{contrat: object|null, code: string, raison: string|null}}
+ */
+export function lireContratEnCache(magasin) {
   let brut = null;
-  try { brut = magasin && magasin.getItem ? magasin.getItem('facturation_contract_v1') : null; }
-  catch (e) { return { contrat: null, valide: false, raison: 'magasin inaccessible' }; }
-  if (!brut) return { contrat: null, valide: false, raison: 'contrat absent' };
+  try {
+    const m = magasin || (typeof localStorage !== 'undefined' ? localStorage : null);
+    brut = m ? m.getItem(CLE_CACHE) : null;
+  } catch (e) { return { contrat: null, code: 'indisponible', raison: 'magasin inaccessible' }; }
+  if (!brut) return { contrat: null, code: 'indisponible', raison: 'aucun contrat reçu' };
+  let enveloppe = null;
+  try { enveloppe = JSON.parse(brut); }
+  catch (e) { return { contrat: null, code: 'invalide', raison: 'cache illisible' }; }
+  const c = enveloppe && enveloppe.contrat;
+  const v = validerContrat(c);
+  if (!v.ok) return { contrat: null, code: v.code, raison: v.raison };
+  return { contrat: normaliser(c, enveloppe.canal || 'cache'), code: 'ok', raison: null };
+}
+
+/**
+ * Récupère le contrat par HTTP et le met en cache s'il est valide.
+ * Appelé au démarrage, avant le premier calcul, comme `loadImmoRef`.
+ * @returns {Promise<{contrat: object|null, code: string, raison: string|null}>}
+ */
+export async function chargerContratDistant(fetchImpl, magasin) {
+  const f = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
+  if (!f) return { contrat: null, code: 'indisponible', raison: 'fetch indisponible' };
+  let rep = null;
+  try {
+    // `cache: 'no-store'` : la ressource est servie avec max-age=600 ; sans cela le
+    // dashboard pourrait afficher « frais » sur un contrat vieux de dix minutes de plus
+    // que ce qu'il annonce, et surtout rater une publication récente de 2048.
+    rep = await f(URL_CONTRAT, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
+  } catch (e) {
+    return { contrat: null, code: 'indisponible', raison: 'réseau : ' + (e && e.message) };
+  }
+  if (!rep || !rep.ok) {
+    return { contrat: null, code: 'indisponible', raison: 'HTTP ' + (rep ? rep.status : '?') };
+  }
   let c = null;
-  try { c = JSON.parse(brut); } catch (e) { return { contrat: null, valide: false, raison: 'JSON illisible' }; }
-  const v = validerContratFacturation(c);
-  return { contrat: v.ok ? c : null, valide: v.ok, raison: v.raison };
+  try { c = await rep.json(); }
+  catch (e) { return { contrat: null, code: 'invalide', raison: 'JSON illisible' }; }
+  const v = validerContrat(c);
+  if (!v.ok) return { contrat: null, code: v.code, raison: v.raison };
+  mettreEnCache(c, magasin);
+  return { contrat: normaliser(c, 'http'), code: 'ok', raison: null };
 }
