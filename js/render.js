@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=525';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=525';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=526';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=526';
 
 // ---- Generic table sort utility ----
 /**
@@ -2862,11 +2862,17 @@ function renderActionsView(state) {
       }
 
       else if (ins.type === 'geo') {
+        // Toutes les zones, dans l'ordre de poids : la version précédente en affichait
+        // quatre en dur et l'Allemagne n'apparaissait nulle part (total 87,8 %).
         html += '<div style="font-size:13px;">';
-        html += 'France : <strong>' + ins.francePct.toFixed(0) + '%</strong> | ';
-        html += 'US : <strong>' + ins.usPct.toFixed(0) + '%</strong> | ';
-        html += 'Crypto : <strong>' + ins.cryptoPct.toFixed(0) + '%</strong> | ';
-        html += 'Autres : <strong>' + ins.emergingPct.toFixed(0) + '%</strong></div>';
+        html += (ins.parts || []).map(p2 =>
+          (GEO_LABELS[p2.cle] || p2.cle) + ' : <strong>' + p2.pct.toFixed(1) + '\u202f%</strong>').join(' | ');
+        html += '</div>';
+        // Le total est affiché : s'il s'écarte de 100 %, cela se voit au lieu de se deviner.
+        if (ins.totalPct != null && Math.abs(ins.totalPct - 100) > 0.5) {
+          html += '<div style="font-size:12px;color:#b91c1c;margin-top:6px;">\u26A0 Total '
+            + ins.totalPct.toFixed(1) + '\u202f% — une zone manque à cette répartition.</div>';
+        }
         if (ins.francePct > 60) {
           html += '<div style="font-size:12px;color:#dd6b20;margin-top:8px;">\u26A0 Biais domestique important (' + ins.francePct.toFixed(0) + '% France). Le CAC 40 ne repr\u00e9sente que ~3% de la capitalisation mondiale. Diversifier via un ETF World (IWDA/VWCE).</div>';
         }
@@ -2917,8 +2923,14 @@ function renderActionsView(state) {
         html += '</tr>';
         // Net impact
         html += '<tr style="font-weight:600;">';
-        html += '<td style="padding:6px 0;">Impact net (coûts - dividendes)</td>';
-        html += '<td style="padding:6px 0;text-align:right;"><strong class="pl-neg">-' + fmt(Math.round(netCostsYTD)) + '</strong></td>';
+        // Le libellé annonçait « coûts − dividendes » et la valeur était préfixée d'un « - »
+        // codé en dur, alors que `netCostsYTD` porte déjà son signe : d'où le double signe
+        // « -€ -2 161 », et un intitulé à l'envers puisque les dividendes dépassent les coûts.
+        // On nomme le sens réel du calcul et on laisse le signe au nombre.
+        const impactNet = -netCostsYTD;   // dividendes nets − coûts
+        html += '<td style="padding:6px 0;">Impact net (dividendes nets − coûts)</td>';
+        html += '<td style="padding:6px 0;text-align:right;"><strong class="' + (impactNet >= 0 ? 'pl-pos' : 'pl-neg') + '">'
+          + (impactNet >= 0 ? '+' : '\u2212') + fmt(Math.abs(Math.round(impactNet))) + '</strong></td>';
         html += '</tr>';
         html += '</table>';
 
@@ -2975,9 +2987,12 @@ function renderActionsView(state) {
 
         // Résumé allocation en mini-badges
         html += '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">';
-        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">🇫🇷 ' + ins.francePct.toFixed(0) + '%</span>';
-        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">🇺🇸 ' + ins.usPct.toFixed(0) + '%</span>';
-        if (ins.cryptoPct > 0) html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">₿ ' + ins.cryptoPct.toFixed(0) + '%</span>';
+        // Ces badges n'affichaient que France, US et Crypto — 82 % du portefeuille. Ils
+        // reprennent désormais l'énumération complète, dans l'ordre de poids.
+        (ins.partsGeo || []).forEach(p2 => {
+          html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">'
+            + (GEO_LABELS[p2.cle] || p2.cle) + ' ' + p2.pct.toFixed(0) + '%</span>';
+        });
         html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">Win ' + ins.winRate.toFixed(0) + '%</span>';
         html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">PF ' + (ins.profitFactor === Infinity ? '∞' : ins.profitFactor.toFixed(1)) + 'x</span>';
         html += '</div>';
@@ -7197,7 +7212,17 @@ function attachKPIInsights(state, view) {
   // ── Actions view ──
   if (s.actionsView) {
     const av = s.actionsView;
-    insights['kpiActionsTotal'] = av.ibkrPositions.length + ' positions IBKR + ESPP + SGTM x2.';
+    // « 12 positions » comptait les seules lignes IBKR alors que le tableau en affiche 14
+    // (ESPP et SGTM compris), et le total inclut le cash des comptes-titres sans le dire.
+    // Le compteur est dérivé de la collection RÉELLEMENT affichée, et le périmètre est nommé.
+    (function () {
+      const listees = (typeof window !== 'undefined' && window._positionsAffichees)
+        ? window._positionsAffichees.length
+        : (av.ibkrPositions.length + 2);
+      const cashCourtier = (av.ibkrCashTotal || 0) + (av.esppCashEUR || 0);
+      insights['kpiActionsTotal'] = listees + ' lignes de position (IBKR, ESPP, SGTM), '
+        + 'dont ' + f(cashCourtier) + ' de cash courtier inclus dans le total.';
+    })();
     const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
     const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
     insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '.';
@@ -7530,7 +7555,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=525').then(m => {
+  import('./charts.js?v=526').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

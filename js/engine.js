@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=525';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=526';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1042,13 +1042,21 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // 4. Geo diversification assessment
   const totalGeo = Object.values(geoAllocation).reduce((s, v) => s + v, 0);
   const francePct = totalGeo > 0 ? ((geoAllocation.france || 0) / totalGeo * 100) : 0;
+  // Cette insight n'exposait que quatre postes FIXES — France, US, Crypto, et « Autres »
+  // limité à Maroc + Japon. L'ALLEMAGNE n'entrait dans aucun : le total affiché plafonnait
+  // à 87,8 % au lieu de 100 %. Les deux camemberts avaient été corrigés (v503), pas ce
+  // troisième producteur. On énumère donc TOUTES les zones présentes : une zone nouvelle
+  // apparaît d'elle-même, et le total ne peut plus fuir.
+  const partsGeo = Object.entries(geoAllocation)
+    .filter(([, v]) => isFinite(v) && v > 0)
+    .map(([cle, v]) => ({ cle, pct: totalGeo > 0 ? (v / totalGeo * 100) : 0, valEUR: v }))
+    .sort((a, b) => b.pct - a.pct);
   insights.push({
     type: 'geo',
     title: 'Diversification G\u00e9ographique',
+    parts: partsGeo,
+    totalPct: partsGeo.reduce((acc, p2) => acc + p2.pct, 0),
     francePct: francePct,
-    usPct: totalGeo > 0 ? ((geoAllocation.us || 0) / totalGeo * 100) : 0,
-    cryptoPct: totalGeo > 0 ? ((geoAllocation.crypto || 0) / totalGeo * 100) : 0,
-    emergingPct: totalGeo > 0 ? (((geoAllocation.morocco || 0) + (geoAllocation.japan || 0)) / totalGeo * 100) : 0,
   });
 
   // 5. Cost efficiency
@@ -1199,6 +1207,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     nbPositions: nbPositions,
     cashPct: cashPct,
     cryptoPct: cryptoPctPortfolio,
+    // Mêmes parts que l'insight « geo » : ces badges affichaient France + US + Crypto
+    // seulement, soit 82 % — quatrième endroit où une répartition géographique fuyait.
+    partsGeo,
     divYield: divYield,
     positives: positives,
     alerts: alerts,
