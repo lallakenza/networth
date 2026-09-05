@@ -12,7 +12,7 @@ const fs = require('fs'), path = require('path'), os = require('os');
 
 const RACINE = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'nw-geo-'));
-for (const f of ['engine.js', 'data.js']) {
+for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
   fs.writeFileSync(path.join(TMP, f),
     fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8').replace(/\?v=\d+/g, ''));
 }

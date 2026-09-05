@@ -25,7 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=527';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=528';
+import { lireContratFacturation, fraicheurContrat } from './facturation_contract.js?v=528';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -317,6 +318,22 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Total all stocks (IBKR + ESPP Amine + ESPP Nezha + SGTM)
   const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
+  const _sgtmVal = amineSgtm + nezhaSgtm;
+
+  // Concentration : une seule mesure, sur le périmètre RÉELLEMENT listé (IBKR + ESPP + SGTM).
+  const _lignes = [
+    ...ibkrPositions.map((p) => ({ label: p.label, valEUR: p.valEUR })),
+    ...(espp.shares + (portfolio.nezha.espp ? portfolio.nezha.espp.shares : 0) > 0
+      ? [{ label: 'Accenture (ACN)', valEUR: esppCurrentVal + nezhaEsppCurrentVal }] : []),
+    ...(_sgtmVal > 0 ? [{ label: 'SGTM', valEUR: _sgtmVal }] : []),
+  ].sort((a, b) => b.valEUR - a.valEUR);
+  const _totLignes = _lignes.reduce((s2, p) => s2 + p.valEUR, 0);
+  const concentration = {
+    nbLignes: _lignes.length,
+    top3: _lignes.slice(0, 3).map((p) => ({ label: p.label, pct: _totLignes > 0 ? p.valEUR / _totLignes * 100 : 0 })),
+    top3Pct: _totLignes > 0 ? _lignes.slice(0, 3).reduce((s2, p) => s2 + p.valEUR, 0) / _totLignes * 100 : 0,
+  };
+
 
   // Geo allocation from IBKR positions
   const geoAllocation = {};
@@ -1017,15 +1034,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   });
 
   // 2. Concentration risk — top 3 positions weight
-  const sortedByWeight = [...ibkrPositions].sort((a, b) => b.valEUR - a.valEUR);
-  const top3Val = sortedByWeight.slice(0, 3).reduce((s, p) => s + p.valEUR, 0);
-  const top3Pct = totalPositionsVal > 0 ? top3Val / totalPositionsVal * 100 : 0;
+  // La mesure canonique (`concentration`) porte sur le périmètre RÉELLEMENT listé : IBKR,
+  // ESPP et SGTM. Elle était ici calculée sur l'IBKR seul (48 % sur 12 lignes) tandis que
+  // l'infobulle du portefeuille en donnait une autre sur l'ensemble (42 %), devant un
+  // tableau de 14 lignes. Un seul chiffre, une seule définition.
   insights.push({
     type: 'concentration',
     title: 'Concentration du Portefeuille',
-    top3: sortedByWeight.slice(0, 3).map(p => ({ label: p.label, pct: (p.valEUR / totalPositionsVal * 100) })),
-    top3Pct: top3Pct,
-    totalPositions: ibkrPositions.length,
+    top3: concentration.top3,
+    top3Pct: concentration.top3Pct,
+    totalPositions: concentration.nbLignes,
   });
 
   // 3. Losers currently in portfolio
@@ -1226,7 +1244,17 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // endroits — à rafraîchir en même temps que `date`.
   const OR_XAU = { ytdPct: 21.0, prixUSD: 5602, note: 'record, haven demand (tensions géopolitiques)' };
 
+  // Ce relevé est MANUEL et daté ; la performance du portefeuille, elle, est du jour. Comparer
+  // les deux et proclamer « bat 5/7 benchmarks » revient à confronter deux dates différentes :
+  // le verdict est donc conditionné à la fraîcheur du relevé, et la date est publiée sous forme
+  // exploitable pour que l'écran puisse le dire plutôt que de le laisser deviner.
+  const BENCH_AS_OF = '2026-03-21';
+  const _joursBench = Math.floor((Date.now() - new Date(BENCH_AS_OF + 'T00:00:00').getTime()) / 86400000);
   const benchmarks = {
+    asOf: BENCH_AS_OF,
+    ageJours: _joursBench,
+    // Au-delà d'un mois, un YTD d'indice a bougé assez pour que la comparaison n'ait plus de sens.
+    comparable: _joursBench <= 31,
     date: '21 mars 2026',
     ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' }, // NOTE: twr overridden by window._chartKPIData?.twr in render.js
     total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
@@ -1379,10 +1407,62 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   }
   const insightsOwner = { amine: insights, nezha: nezhaInsights };
 
+  // ── Structure canonique du compte-titres (v528) ──────────────────────────────────────────
+  // POURQUOI. La page Actions produisait ses chiffres en six endroits indépendants : le
+  // compteur de positions comptait l'IBKR seul (12) devant un tableau de 14 lignes ; la
+  // concentration « top 3 » était calculée deux fois sur deux périmètres (48 % sur l'IBKR
+  // seul, 42 % sur l'ensemble) ; le P&L latent était rapporté tantôt au capital déployé
+  // (−4,5 %) tantôt au coût des titres détenus (−3,5 %) ; la ligne Accenture additionnait
+  // 207 titres et le cash du compte parce que le P&L ESPP mêlait les deux ; et le cash
+  // courtier tombait à « 0 % » parce que la dette JPY de marge le ramenait sous zéro.
+  //
+  // Un seul bloc décrit désormais le compte, et tous les consommateurs le lisent. Aucun
+  // montant ne change : c'est une DÉCOMPOSITION, pas un recalcul. L'identité
+  //     titres + cash courtier − dette = NAV     et     titres − coût des titres = latent
+  // est vérifiée plus bas et affichée en pied de tableau.
+  const _cashJPYeur = toEUR(ibkrCashJPY, 'JPY', fx);
+  const _cashAEDeur = toEUR(ibkr.cashAED || 0, 'AED', fx);
+  const _cashUSDeur = toEUR(ibkrCashUSD, 'USD', fx);
+  // Une dette de marge n'est pas du « cash » : la loger dans la même ligne que les soldes
+  // créditeurs faisait afficher « Cash 0 % » alors qu'il y a 8 465 € disponibles d'un côté
+  // et 9 355 € empruntés en yens de l'autre. Les deux faits sont montrés séparément.
+  const _cashCourtier = Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur)
+    + Math.max(0, _cashJPYeur) + esppCashEUR + nezhaCashEUR;
+  const _detteMarge = Math.min(0, ibkrCashEUR) + Math.min(0, _cashUSDeur) + Math.min(0, _cashAEDeur)
+    + Math.min(0, _cashJPYeur);
+  // Titres au prix de marché, cash exclu.
+  const _valTitres = totalPositionsVal + esppCurrentVal + nezhaEsppCurrentVal + _sgtmVal;
+  // Coût des titres DÉTENUS. Pour l'ESPP, le cash au compte est une fraction des cotisations
+  // qui n'a pas été investie : le coût des parts vaut donc les cotisations moins ce cash.
+  // C'est une identité comptable, et elle laisse le P&L ESPP total inchangé —
+  //   (parts + cash) − cotisations  =  parts − (cotisations − cash).
+  const _coutEsppParts = esppCostBasisEUR - esppCashEUR;
+  const _coutEsppPartsNezha = nezhaEsppCostBasisEUR - nezhaCashEUR;
+  const _coutTitres = totalCostBasis + _coutEsppParts + _coutEsppPartsNezha + sgtmCostEUR_hist;
+  const _latentTitres = _valTitres - _coutTitres;
+
+  const reconciliation = {
+    valTitres: _valTitres,
+    cashCourtier: _cashCourtier,
+    cashIbkr: Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur) + Math.max(0, _cashJPYeur),
+    detteMarge: _detteMarge,          // ≤ 0 (marge JPY)
+    nav: _valTitres + _cashCourtier + _detteMarge,
+    coutTitres: _coutTitres,
+    coutEsppParts: _coutEsppParts,
+    esppCash: esppCashEUR + nezhaCashEUR,
+    capitalDeploye: totalDeposits,
+    plRealise: combinedRealizedPL,
+    plLatent: _latentTitres,
+    // Dénominateur CANONIQUE du P&L latent en pourcentage : le coût des titres encore
+    // détenus. Le rapporter au capital déployé mélangeait les positions vendues au
+    // dénominateur et le latent des seules positions vivantes au numérateur.
+    plLatentPct: _coutTitres > 0 ? _latentTitres / _coutTitres * 100 : 0,
+  };
   return {
     ibkrPositions,
     ibkrNAV,
     ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
+    reconciliation, concentration,
     totalPositionsVal, totalCostBasis, totalUnrealizedPL, totalFxPL, totalStockPL,
     // ESPP detail
     esppVal: amineEspp,
@@ -1396,6 +1476,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     nezhaEsppCostBasisEUR: nezhaEsppCostBasisEUR,
     nezhaEsppCurrentVal: nezhaEsppCurrentVal,
     nezhaEsppUnrealizedPL: nezhaEsppUnrealizedPL,
+    nezhaEsppCashEUR: nezhaCashEUR,
     // SGTM
     sgtmAmineVal: amineSgtm,
     sgtmNezhaVal: nezhaSgtm,
@@ -1799,6 +1880,13 @@ function computeCashView(portfolio, fx) {
   const weightedAvgYield = totalCash > 0 ? (weightedYieldSum / totalCash) : 0;
   // Couple-level frame metrics (exclude debt account from the account set)
   const coupleFrame = cashFrameMetrics(accounts.filter(a => !a.isDebt), totalCash);
+  // Deux seuils circulent dans cette vue : « bat l'inflation » (3 %) et « atteint le
+  // benchmark » (6 %). Aujourd'hui aucun compte ne rend entre les deux — les rendements
+  // pratiqués sont 0 %, 1,5 % et 6 % — si bien que les deux périmètres désignent les MÊMES
+  // comptes et affichent le MÊME montant. L'écran présentait ces 102 271 € comme deux
+  // constats indépendants. Le fait est publié pour qu'il puisse être dit, et il redeviendra
+  // faux tout seul le jour où un compte se placera entre 3 % et 6 %.
+  const seuilsConfondus = Math.abs(coupleFrame.subOptimalCash - totalNonYielding) < 1;
   const monthlyInflationCost = totalNonYielding * INFLATION_RATE / 12;
   const annualInflationCost = totalNonYielding * INFLATION_RATE;
   const jpyShortEUR = toEUR(portfolio.amine.ibkr.cashJPY, 'JPY', fx);
@@ -1981,6 +2069,7 @@ function computeCashView(portfolio, fx) {
     diagnostics,
     byOwner,
     coupleFrame,
+    seuilsConfondus,
     inflationRate: INFLATION_RATE,
     refYield: REF_YIELD_CASH,
     fxDailyPL,
@@ -4241,8 +4330,37 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // les contreparties du site de facturation — Bob compris — pendant que l'écran annonçait
   // « Augustin − Benoit ». On collecte les noms pour que le libellé suive le calcul.
   let _factuCounterparts = [];
+  // Métadonnées de provenance, affichées à côté du chiffre. Elles répondent aux trois
+  // questions qu'on ne pouvait pas poser jusqu'ici : d'où vient ce montant, quelle version
+  // du format l'a produit, et de quand il date.
+  let _factuMeta = { canal: 'data.js', schema: null, producteur: null, dataAsOf: null, ageJours: null, fraicheur: 'inconnue', motifRepli: null };
+
+  // ── Source PRIORITAIRE : le contrat versionné publié par 2048 ─────────────────────────
+  const _lu = lireContratFacturation(typeof localStorage !== 'undefined' ? localStorage : null);
+  if (_lu.valide && _lu.contrat) {
+    const c = _lu.contrat;
+    Object.entries(c.positions).forEach(([cle, pos]) => {
+      amineFacturationNet += toEUR(pos.amount, pos.currency, fx);
+      const nom = pos.label || (String(cle).charAt(0).toUpperCase() + String(cle).slice(1));
+      if (_factuCounterparts.indexOf(nom) < 0) _factuCounterparts.push(nom);
+    });
+    const _age = Math.floor((Date.now() - Date.parse(c.dataAsOf.slice(0, 10) + 'T00:00:00Z')) / 86400000);
+    _factuMeta = {
+      canal: 'contrat ' + c.schema,
+      schema: c.schema,
+      producteur: c.producer.name + (c.producer.version ? ' ' + c.producer.version : ''),
+      dataAsOf: c.dataAsOf.slice(0, 10),
+      ageJours: _age,
+      fraicheur: fraicheurContrat(_age),
+      motifRepli: null,
+    };
+    _factuSrc = 'contrat (' + c.dataAsOf.slice(0, 10) + ')';
+  }
+
+  // ── Repli 1 : l'ancien objet libre, non versionné ─────────────────────────────────────
   try {
-    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
+    const raw = _factuSrc === 'data.js'
+      && typeof localStorage !== 'undefined' && localStorage.getItem('facturation_positions');
     if (raw) {
       const fp = JSON.parse(raw);
       // Prefer combined.mad (canonical, "tout au Maroc" scenario, B2 fix)
@@ -4259,6 +4377,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         _factuCounterparts = ['Augustin', 'Benoit'];
       }
       _factuSrc = 'localStorage (' + (fp.updatedAt || '?') + ')';
+      const _dAs = typeof fp.updatedAt === 'string' ? fp.updatedAt.slice(0, 10) : null;
+      const _ageH = _dAs && /^\d{4}-\d{2}-\d{2}$/.test(_dAs)
+        ? Math.floor((Date.now() - Date.parse(_dAs + 'T00:00:00Z')) / 86400000) : null;
+      _factuMeta = {
+        canal: 'format hérité (non versionné)', schema: null, producteur: 'site 2048 (version inconnue)',
+        dataAsOf: _dAs, ageJours: _ageH, fraicheur: fraicheurContrat(_ageH),
+        motifRepli: _lu.raison,
+      };
     }
   } catch(e) { /* localStorage unavailable or parse error */ }
   // Fallback: use hardcoded values from data.js if localStorage was empty
@@ -4271,6 +4397,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       if (court && _factuCounterparts.indexOf(court) < 0) _factuCounterparts.push(court);
     });
     _factuSrc = 'data.js (fallback)';
+    _factuMeta = {
+      canal: 'data.js (hors ligne)', schema: null, producteur: 'dashboard lui-même',
+      dataAsOf: typeof DATA_LAST_UPDATE === 'string' ? DATA_LAST_UPDATE : null,
+      ageJours: null, fraicheur: 'inconnue', motifRepli: _lu.raison,
+    };
   }
   console.log('[engine] Facturation net:', Math.round(amineFacturationNet), 'EUR — source:', _factuSrc);
 
@@ -4305,6 +4436,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nwDeltaPct: amineNWDeltaPct,
     nwDeltaTimeframe: nwDeltaTimeframe,
     _facturationSource: _factuSrc, // v386 — provenance (localStorage vs data.js fallback) pour les snapshots
+    _facturationMeta: _factuMeta,  // v528 — canal, schéma, producteur, dataAsOf, fraîcheur
     ibkr: amineIbkr,           // full IBKR NAV (positions + all cash incl. JPY carry)
     ibkrForActions: amineIbkrForActions, // positions + JPY carry (excl. EUR/USD cash → moved to Cash)
     espp: amineEspp,           // full ESPP value (shares + cash)

@@ -28,7 +28,7 @@ const SOURCE_CLAIR = process.env.NW_DATA_SOURCE
   || join(dirname(repoRoot), 'networth-data', 'data.source.js');
 
 const tmp = mkdtempSync(join(tmpdir(), 'nw-desync-'));
-for (const file of ['data.js', 'engine.js']) {
+for (const file of ['data.js', 'engine.js', 'facturation_contract.js']) {
   // data.js est un fichier coquille depuis le chiffrement : on lui substitue la source en clair.
   const origine = (file === 'data.js' && existsSync(SOURCE_CLAIR))
     ? SOURCE_CLAIR

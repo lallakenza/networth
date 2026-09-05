@@ -1397,7 +1397,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v527';
+export const APP_VERSION = 'v528';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2646,6 +2646,23 @@ export const IMMO_PASSIFS_DOCUMENTES = {
 
 export const VILLEJUIF_CONSTRAINTS = {
   summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
+  // Deux dates de livraison coexistent et n'ont pas la même nature. Le dashboard n'en
+  // montrait qu'une, sans dire laquelle : selon l'écran on lisait « T2 2028 » ou « Q3 2028 »
+  // pour le même bien. Les deux sont désormais déclarées et nommées.
+  //   - contractuelle : l'engagement de l'acte, opposable au promoteur.
+  //   - operationnelle : le retard annoncé par le promoteur, retenu par le dashboard pour
+  //     les projections (villejuifStartMonth) parce qu'il est plus prudent.
+  livraison: {
+    contractuelle: '2028-06',      // acte du 05/06/2026 : achèvement au plus tard le 30/06/2028
+    operationnelle: '2028-09',     // Q3 2028, retard annoncé promoteur — base des simulateurs
+    source: 'Acte authentique 05/06/2026 + annonce promoteur',
+  },
+  // Les deux prêts n'amortissent pas au même moment : la franchise du P1 court plus longtemps.
+  // Le calendrier était enfoui dans `prets`, jamais montré à côté du bien.
+  echeancier: [
+    { pret: 'P2', premierAmortissement: '2028-11', note: 'amortissement dès novembre 2028' },
+    { pret: 'P1', premierAmortissement: '2029-02', note: 'franchise plus longue, amortissement en février 2029' },
+  ],
   // v427 — hypothèse d'indexation, LUE PAR LE MOTEUR (computeExitCosts).
   // L'acte réindexe le prix d'achat sur l'indice INSEE du coût de la construction. Cet
   // indice futur est inconnu : 2%/an est une hypothèse de long terme, pas une donnée.

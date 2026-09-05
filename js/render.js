@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=527';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=527';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=528';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=528';
 
 // ---- Generic table sort utility ----
 /**
@@ -1308,8 +1308,17 @@ function renderIBKRPositionsSimple(state) {
     shares: pos.shares,
     valEUR: pos.valEUR,
   }));
-  if (cashEUR > 0) {
-    ibkrData.push({ label: 'Cash IBKR', priceLabel: '', shares: 0, valEUR: cashEUR, isCash: true });
+  // Le compte IBKR porte aussi des dirhams et une dette de marge en yens. N'afficher que
+  // l'euro laissait croire à un solde de trésorerie unique, et la dette — le poste qui
+  // faisait tomber le « cash » du compte sous zéro — n'apparaissait nulle part.
+  const _rec = state.actionsView && state.actionsView.reconciliation;
+  const _cashIbkr = _rec ? _rec.cashIbkr : (cashEUR > 0 ? cashEUR : 0);
+  const _detteMarge = _rec ? _rec.detteMarge : 0;
+  if (_cashIbkr > 0) {
+    ibkrData.push({ label: 'Cash IBKR (EUR + AED)', priceLabel: '', shares: 0, valEUR: _cashIbkr, isCash: true });
+  }
+  if (_detteMarge < 0) {
+    ibkrData.push({ label: 'Dette de marge (JPY)', priceLabel: '', shares: 0, valEUR: _detteMarge, isCash: true });
   }
 
   function renderIBKRRows(items) {
@@ -1624,6 +1633,26 @@ function libelleFacturation(s) {
   const cps = (s && s.amine && s.amine.facturationCounterparts) || [];
   if (!cps.length) return 'Facturation nette';
   return 'Facturation nette (' + cps.join(' + ') + ')';
+}
+
+/**
+ * Provenance de la facturation, en une phrase lisible.
+ *
+ * POURQUOI L'ÉCRIRE. Ce montant vient d'un AUTRE dépôt (`lallakenza/2048`) par un canal que
+ * rien ne garantit : le site de facturation peut ne pas avoir été ouvert depuis des mois, ou
+ * avoir changé de format. Le dashboard affichait le chiffre sans jamais dire d'où il venait
+ * ni de quand il datait — un montant périmé est indiscernable d'un montant frais.
+ */
+function provenanceFacturation(s) {
+  const m = (s && s.amine && s.amine._facturationMeta) || null;
+  if (!m) return '';
+  const couleur = m.fraicheur === 'à jour' ? '#15803d' : (m.fraicheur === 'périmé' ? '#dc2626' : '#b45309');
+  const bits = ['Source : ' + m.canal];
+  if (m.producteur) bits.push('produit par ' + m.producteur);
+  if (m.dataAsOf) bits.push('arrêté au ' + m.dataAsOf + (m.ageJours != null ? ' (' + m.ageJours + ' j)' : ''));
+  bits.push('fraîcheur : <span style="color:' + couleur + ';font-weight:600;">' + m.fraicheur + '</span>');
+  if (m.motifRepli) bits.push('contrat versionné non utilisé — ' + m.motifRepli);
+  return bits.join(' · ');
 }
 
 /**
@@ -2307,9 +2336,10 @@ function renderActionsView(state) {
   const plSign = av.combinedUnrealizedPL >= 0 ? '+' : '';
   setText('kpiActionsUnrealizedPL', plSign + fmt(av.combinedUnrealizedPL));
   document.getElementById('kpiActionsUnrealizedPL')?.classList.add(plCls);
-  // Add % vs deposits for unrealized P/L
-  const unrealPct = av.totalDeposits > 0 ? (av.combinedUnrealizedPL / av.totalDeposits * 100) : 0;
-  setSubPct('kpiActionsUnrealizedPL', unrealPct);
+  // Le latent était rapporté au capital DÉPLOYÉ (−4,5 %), qui inclut au dénominateur le
+  // capital des positions déjà vendues alors que le numérateur ne porte que sur les
+  // positions vivantes. Dénominateur canonique : le coût des titres détenus.
+  setSubPct('kpiActionsUnrealizedPL', av.reconciliation ? av.reconciliation.plLatentPct : 0);
 
   const rplCls = av.combinedRealizedPL >= 0 ? 'pl-pos' : 'pl-neg';
   const rplSign = av.combinedRealizedPL >= 0 ? '+' : '';
@@ -2411,16 +2441,19 @@ function renderActionsView(state) {
   const esppAllTrades = [...(showAmine ? esppLotsAmine : []), ...(showNezha ? esppLotsNezha : [])];
 
   const esppTotalShares = (showAmine ? av.esppShares : 0) + (showNezha ? (av.nezhaEsppShares || 0) : 0);
-  // La VALEUR de la ligne ESPP doit inclure le cash du compte, parce que le P/L l'inclut :
-  // `esppUnrealizedPL = parts + cash − coût`. En affichant les parts seules face à ce P/L, la
-  // ligne violait sa propre arithmétique (`valeur − coût ≠ P/L`) d'un montant exactement égal
-  // au cash, et la somme des lignes ne retombait pas sur le KPI « Total ». On dérive donc la
-  // valeur du couple (coût, P/L), ce qui rend l'égalité vraie par construction.
+  // Une ligne de POSITION ne porte que des titres. Le cash du compte ESPP y était additionné
+  // (« 207 ACN + 2 094 cash ») parce que le P&L de l'engine mêlait les deux :
+  // `esppUnrealizedPL = parts + cash − cotisations`. La correction est comptable, pas
+  // numérique — le cash au compte est la part des cotisations restée non investie, donc
+  //     (parts + cash) − cotisations  =  parts − (cotisations − cash).
+  // La ligne montre désormais les titres seuls face au coût des titres seuls, avec le MÊME
+  // P&L qu'avant ; le cash est compté une fois, dans le cash courtier.
   const esppTotalValParts = (showAmine ? av.esppCurrentVal : 0) + (showNezha ? (av.nezhaEsppCurrentVal || 0) : 0);
-  const esppTotalCost = (showAmine ? av.esppCostBasisEUR : 0) + (showNezha ? (av.nezhaEsppCostBasisEUR || 0) : 0);
+  const esppCashCompte = (showAmine ? (av.esppCashEUR || 0) : 0) + (showNezha ? (av.nezhaEsppCashEUR || 0) : 0);
   const esppTotalPL = (showAmine ? av.esppUnrealizedPL : 0) + (showNezha ? (av.nezhaEsppUnrealizedPL || 0) : 0);
-  const esppTotalVal = esppTotalCost + esppTotalPL;          // = parts + cash du compte
-  const esppCashLigne = esppTotalVal - esppTotalValParts;    // pour l'annoncer dans le libellé
+  const esppTotalCost = (showAmine ? av.esppCostBasisEUR : 0) + (showNezha ? (av.nezhaEsppCostBasisEUR || 0) : 0)
+    - esppCashCompte;                                        // coût des PARTS
+  const esppTotalVal = esppTotalValParts;                    // titres seuls
   // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
   // Le P&L de période de la ligne ESPP était pris ENTIER quel que soit le propriétaire actif :
   // en vue Nezha, sa ligne Accenture portait le mouvement des 187 parts d'Amine plus les
@@ -2439,8 +2472,7 @@ function renderActionsView(state) {
     return null;
   };
   if (esppTotalShares > 0) allPositions.push({ // v374 : ne pas afficher une ligne ACN à 0 part (ex. Nezha sans ESPP)
-    label: 'Accenture (' + esppTotalShares + ' ACN'
-      + (Math.abs(esppCashLigne) >= 1 ? ' + ' + fmt(Math.round(esppCashLigne)) + ' cash' : '') + ')',
+    label: 'Accenture (' + esppTotalShares + ' ACN)',
     broker: 'UBS (ESPP)',
     ticker: 'ACN',
     shares: esppTotalShares,
@@ -2514,6 +2546,36 @@ function renderActionsView(state) {
   // donne la liste déjà filtrée plutôt que de laisser deux constructions cohabiter.
   window._positionsAffichees = allPositions;
   window._totalPositionsAffichees = totalOwnerVal;
+
+  // ── Réconciliation visible du compte-titres (v528) ────────────────────────────────────
+  // Le tableau ne liste que des titres ; la carte « Total » porte la NAV. La différence,
+  // c'est le cash des comptes et la dette de marge en yens — deux faits qui n'étaient
+  // écrits nulle part, ce qui laissait « Cash 0 % » et une somme de lignes inférieure au
+  // total sans explication. Le contrôle est fait à l'écran plutôt qu'en commentaire.
+  (function () {
+    const el = document.getElementById('actionsReconciliation');
+    if (!el) return;
+    const r = av.reconciliation;
+    if (!r || owner !== 'both') { el.innerHTML = ''; return; }
+    const li = (lib, v, note) => '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;">'
+      + '<span>' + lib + (note ? ' <span style="color:#a0aec0;">' + note + '</span>' : '') + '</span>'
+      + '<strong style="font-variant-numeric:tabular-nums;">' + (v < 0 ? '\u2212' : '') + fmt(Math.abs(Math.round(v))) + '</strong></div>';
+    const ecart = Math.abs(totalOwnerVal - r.valTitres);
+    el.innerHTML = '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;max-width:520px;">'
+      + '<div style="font-weight:600;margin-bottom:6px;">Du tableau au total</div>'
+      + li('Titres (' + av.concentration.nbLignes + ' lignes ci-dessus)', r.valTitres)
+      + li('Cash des comptes-titres', r.cashCourtier, 'IBKR EUR/AED + ESPP')
+      + li('Dette de marge', r.detteMarge, 'emprunt en yens')
+      + '<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;">'
+      + li('<strong>NAV = carte « Total »</strong>', r.nav) + '</div>'
+      + '<div style="margin-top:8px;color:#718096;">Latent \u2212' + fmt(Math.abs(Math.round(r.plLatent)))
+      + ' = titres \u2212 co\u00fbt des titres d\u00e9tenus (' + fmt(Math.round(r.coutTitres)) + '), soit '
+      + r.plLatentPct.toFixed(1) + '%. Le capital net d\u00e9ploy\u00e9 (' + fmt(Math.round(r.capitalDeploye))
+      + ') comprend les positions revendues : il sert de base au r\u00e9alis\u00e9, pas au latent.</div>'
+      + (ecart > 1 ? '<div style="margin-top:6px;color:#c05621;">\u26a0 \u00c9cart de ' + fmt(Math.round(ecart))
+        + ' entre la somme des lignes et les titres \u2014 signaler.</div>' : '')
+      + '</div>';
+  })();
   if (owner !== 'both') {
     allPositions.forEach(p => { p.weight = totalOwnerVal > 0 ? (p.valEUR / totalOwnerVal * 100) : 0; });
   }
@@ -3031,7 +3093,7 @@ function renderActionsView(state) {
         b.items.forEach(function(item) {
           var barColor = item.ytd >= 0 ? '#22c55e' : '#ef4444';
           var barWidth = Math.min(Math.abs(item.ytd) * 2.5, 100);
-          var beat = totalYtd > item.ytd;
+          var beat = (b.comparable !== false) && totalYtd > item.ytd;   // même condition de date
           html += '<div style="padding:5px 0;border-bottom:1px solid #edf2f7;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">';
           html += '<span>' + item.label + (beat ? ' \u2714' : '') + '</span>';
@@ -3041,13 +3103,23 @@ function renderActionsView(state) {
           html += '<div style="font-size:10px;color:#718096;margin-top:2px;">' + item.note + '</div>';
           html += '</div>';
         });
-        // Summary — use total portfolio for comparison
-        var beaten = b.items.filter(function(i) { return totalYtd > i.ytd; }).length;
-        html += '<div style="margin-top:10px;padding:8px;background:' + (beaten >= 4 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
-        html += (beaten >= 4 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
-        if (totalYtd < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
-        else html += 'Surperforme le S&P 500 \u2014 stock picking cr\u00e9ateur de valeur cette ann\u00e9e.';
-        html += '</div>';
+        // Le verdict compare un YTD de portefeuille calculé AUJOURD'HUI à un relevé d'indices
+        // saisi à la main des mois plus tôt. Tant que les deux dates ne coïncident pas, le
+        // classement n'est pas une information : on dit ce qui manque au lieu de le proclamer.
+        if (b.comparable === false) {
+          html += '<div style="margin-top:10px;padding:8px;background:#fffaf0;border-radius:6px;font-size:12px;">';
+          html += '\u26a0 Pas de classement : les indices datent du ' + b.date + ' ('
+            + b.ageJours + ' jours) alors que la performance du portefeuille est du jour. '
+            + 'Rafra\u00eechir le relev\u00e9 dans <code>benchmarks</code> (engine.js) pour r\u00e9tablir la comparaison.';
+          html += '</div>';
+        } else {
+          var beaten = b.items.filter(function(i) { return totalYtd > i.ytd; }).length;
+          html += '<div style="margin-top:10px;padding:8px;background:' + (beaten >= 4 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
+          html += (beaten >= 4 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
+          if (totalYtd < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
+          else html += 'Surperforme le S&P 500 \u2014 stock picking cr\u00e9ateur de valeur cette ann\u00e9e.';
+          html += '</div>';
+        }
       }
 
       else if (ins.type === 'macro-risks') {
@@ -3658,6 +3730,8 @@ function renderCashView(state) {
   setEur('kpiCashTotal', cv.totalCash);
   setText('kpiCashAvgYield', (cv.weightedAvgYield * 100).toFixed(1) + '%');
   setText('kpiCashInflation', '-' + fmt(cv.monthlyInflationCost));
+  // Le libellé disait « sous 3 % » en dur, un chiffre qui ne bougeait pas avec INFLATION_RATE.
+  setHTML('kpiCashInflationLabel', '\u00c9rosion du cash sous ' + (INFLATION_RATE * 100).toFixed(0) + '\u202f% (inflation) /mois');
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
   setText('kpiCashProductive', fmt(cv.totalYielding));
 
@@ -4066,9 +4140,17 @@ function renderCashView(state) {
   // JPY note
   const jpyNote = document.getElementById('cashJPYNote');
   if (jpyNote) {
+    // La note disait « non inclus » sans dire ce que ça change. Qui additionne la colonne
+    // « Valeur EUR » du tableau trouve un total inférieur à la carte « Cash Total » : l'écart
+    // est exactement cette ligne. On donne les deux sommes pour que le contrôle soit faisable.
+    const _brut = cv.accounts.reduce((a, c) => a + c.valEUR, 0);
     jpyNote.innerHTML = '<strong>Note — Position JPY Short (IBKR) :</strong> ' + fmt(cv.jpyShortEUR)
       + ' (emprunt \u00a5' + Math.abs(state.portfolio.amine.ibkr.cashJPY).toLocaleString('ja-JP') + '). '
-      + 'Ce n\'est pas du cash mais un levier devise. Non inclus dans le total cash ci-dessus. '
+      + 'Ce n\'est pas du cash mais un levier devise. '
+      + '<strong>Elle figure au tableau ci-dessus mais est exclue du total :</strong> '
+      + 'la colonne « Valeur EUR » somme \u00e0 ' + fmt(Math.round(_brut))
+      + ', la carte « Cash Total » affiche ' + fmt(Math.round(cv.totalCash))
+      + ' \u2014 l\'\u00e9cart de ' + fmt(Math.round(cv.totalCash - _brut)) + ' est cette seule ligne. '
       + 'Un renforcement du yen de 10% co\u00fbterait ~' + fmt(Math.abs(cv.jpyShortEUR) * 0.1) + '.';
   }
 
@@ -4394,9 +4476,31 @@ function renderImmoView(state) {
 
   // ── v438 (P1) : flux bruts consolidés — entrées vs sorties, pas seulement le net ──
   // Biens NON conditionnels seulement (Villejuif VEFA hors flux, règle v347).
+  // Cette carte agrégeait `totalRevenue` — le loyer PLUS la provision pour charges versée par
+  // le locataire — sous le libellé « Loyers ». La provision est un flux de passage rendu au
+  // syndic, pas un revenu : le loyer paraissait plus élevé qu'il n'est. Le libellé nomme
+  // désormais l'agrégat réel, et l'infobulle en donne les deux composantes.
   const fTotalLoyers = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (p.totalRevenue || 0)), 0);
+  const fLoyerNu = fp.reduce((s2, p) => s2 + (p.conditional ? 0 : (p.loyer || 0)), 0);
+  const fProvCharges = fTotalLoyers - fLoyerNu;
   const fTotalCharges = fp.reduce((s2, p) => s2 + (p.conditional ? Math.round(-(p.cfReel || 0)) : (Math.round(p.charges) || 0)), 0); // v473 : + assurance CACI Villejuif (charge réelle en franchise)
   setText('kpiImmoViewLoyers', '+' + fmt(Math.round(fTotalLoyers)) + '/mois');
+  // Séparation temporelle : ces cartes décrivent l'ÉTAT DU JOUR. Les biens encore en
+  // construction (Villejuif) en sont exclus, donc ce n'est pas le régime de croisière — deux
+  // horizons que la page laissait se confondre.
+  (function () {
+    const enConstruction = fp.filter((p2) => p2.conditional).map((p2) => p2.label || p2.loanKey);
+    const el = document.getElementById('kpiImmoViewLoyersLabel');
+    if (el) el.textContent = 'Recettes totales /mois' + (enConstruction.length ? ' (aujourd\u2019hui)' : '');
+    window._insightsExtra = window._insightsExtra || {};
+    window._insightsExtra['kpiImmoViewLoyers'] = 'Loyer nu \u20ac' + fmt(Math.round(fLoyerNu))
+      + ' + provision pour charges \u20ac' + fmt(Math.round(fProvCharges))
+      + ' (revers\u00e9e au syndic, pas un revenu). '
+      + (enConstruction.length
+        ? 'Hors ' + enConstruction.join(', ') + ', encore en construction : ce chiffre d\u00e9crit '
+          + 'l\u2019\u00e9tat du jour, pas le r\u00e9gime de croisi\u00e8re.'
+        : 'Tous les biens sont en exploitation.');
+  })();
   setText('kpiImmoViewCharges', '−' + fmt(Math.round(fTotalCharges)) + '/mois');
 
   // ── v438 (P1) : passifs documentés — consignés hors calcul, mais VISIBLES depuis
@@ -6499,6 +6603,7 @@ function renderCreancesView(state) {
   setEur('kpiCreancesGuaranteed', crv.totalGuaranteed);
   setEur('kpiCreancesUncertain', crv.totalUncertain);
   setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
+  setHTML('facturationProvenance', provenanceFacturation(state));
 
   // v323 — statuts créance alignés sur DESIGN_TOKENS (charte graphique §70).
   // en_cours=info · relancé=warning · en_retard=danger · recouvré=success · litige=scenD (violet).
@@ -7181,11 +7286,12 @@ function attachKPIInsights(state, view) {
 
   // ── Amine view ──
   insights['kpiAmNW'] = 'Top poste : Actions (' + pct(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm, s.amine.nw) + '% du NW). Cash UAE repr\u00e9sente ' + pct(s.amine.uae, s.amine.nw) + '% \u2014 Mashreq/Wio rendent 6%/an.';
-  // BUG-030: compute top 3 concentration dynamically
-  const _ibkrPosVals = (s.actionsView ? s.actionsView.ibkrPositions : []).map(p => p.currentValue || 0).sort((a, b) => b - a);
-  const _top3Val = _ibkrPosVals.slice(0, 3).reduce((a, b) => a + b, 0);
-  const _ibkrTotalVal = _ibkrPosVals.reduce((a, b) => a + b, 0);
-  const _top3Pct = _ibkrTotalVal > 0 ? Math.round(_top3Val / _ibkrTotalVal * 100) : 0;
+  // Concentration : mesure CANONIQUE de l'engine. Ce calcul local lisait `p.currentValue`,
+  // un champ que `ibkrPositions` n'a jamais porté (il expose `valEUR`) : le pourcentage
+  // annoncé ici était donc structurellement faux, et divergeait de celui de l'encadré
+  // « Concentration du Portefeuille ».
+  const _top3Pct = Math.round((s.actionsView && s.actionsView.concentration)
+    ? s.actionsView.concentration.top3Pct : 0);
   insights['kpiAmPortfolio'] = 'IBKR \u20ac' + f(s.amine.ibkrForActions) + ' + ESPP \u20ac' + f(s.amine.esppForActions) + '. Concentration top 3 = ' + _top3Pct + '% du portefeuille.';
   insights['kpiAmTWR'] = 'Time-Weighted Return : mesure la performance ind\u00e9pendamment des d\u00e9p\u00f4ts/retraits. Comparable au benchmark (CAC 40, S&P 500).';
   const _vitryProp = s.immoView && s.immoView.properties ? s.immoView.properties.find(p => p.loanKey === 'vitry') : null;
@@ -7222,12 +7328,13 @@ function attachKPIInsights(state, view) {
     // (ESPP et SGTM compris), et le total inclut le cash des comptes-titres sans le dire.
     // Le compteur est dérivé de la collection RÉELLEMENT affichée, et le périmètre est nommé.
     (function () {
+      const r = av.reconciliation;
       const listees = (typeof window !== 'undefined' && window._positionsAffichees)
         ? window._positionsAffichees.length
-        : (av.ibkrPositions.length + 2);
-      const cashCourtier = (av.ibkrCashTotal || 0) + (av.esppCashEUR || 0);
-      insights['kpiActionsTotal'] = listees + ' lignes de position (IBKR, ESPP, SGTM), '
-        + 'dont ' + f(cashCourtier) + ' de cash courtier inclus dans le total.';
+        : av.concentration.nbLignes;
+      insights['kpiActionsTotal'] = listees + ' lignes de titres pour \u20ac' + f(r.valTitres)
+        + ', plus \u20ac' + f(r.cashCourtier) + ' de cash aux comptes-titres, moins \u20ac'
+        + f(Math.abs(r.detteMarge)) + ' de dette de marge en yens \u2014 soit la NAV affich\u00e9e.';
     })();
     const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
     const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
@@ -7240,7 +7347,13 @@ function attachKPIInsights(state, view) {
   // ── Cash view ──
   if (s.cashView) {
     const cv = s.cashView;
-    insights['kpiCashTotal'] = '\u20ac' + f(cv.totalCash) + ' en cash. Rendement moyen : ' + (cv.weightedAvgYield * 100).toFixed(1) + '%. Cash productif : \u20ac' + f(cv.totalYielding) + ' (' + pct(cv.totalYielding, cv.totalCash) + '%).';
+    // « Rendement moyen » sans qualificatif : brut ou après inflation ? Les deux sont donnés.
+    insights['kpiCashTotal'] = '\u20ac' + f(cv.totalCash) + ' en cash. Rendement pond\u00e9r\u00e9 : '
+      + (cv.weightedAvgYield * 100).toFixed(1) + '\u202f% brut, soit \u20ac'
+      + f((cv.coupleFrame && cv.coupleFrame.grossInterest) || 0) + '/an ; apr\u00e8s '
+      + (INFLATION_RATE * 100).toFixed(0) + '\u202f% d\'inflation il reste \u20ac'
+      + f((cv.coupleFrame && cv.coupleFrame.realNet) || 0) + '/an. Cash battant l\'inflation : \u20ac'
+      + f(cv.totalYielding) + ' (' + pct(cv.totalYielding, cv.totalCash) + '\u202f%).';
     // Deux chiffres circulaient sous le même nom : le moteur pondère les comptes SANS le
     // coût de l'emprunt JPY, le pied du tableau AVEC. Les deux sont justes, ils ne
     // répondent pas à la même question — l'infobulle les nomme désormais tous les deux.
@@ -7267,7 +7380,17 @@ function attachKPIInsights(state, view) {
     // ≥ 3 % (le seuil d'inflation). L'écart est exactement le Livret A à 1,5 %, qui rapporte
     // sans battre l'inflation — et qui apparaissait donc productif dans le graphe et dormant
     // dans le KPI.
-    insights['kpiCashProductive'] = 'Cash dont le rendement atteint au moins l\'inflation (3 %) : '
+    // Les deux seuils de la page (inflation et benchmark 6 %) découpent aujourd'hui le même
+    // paquet de comptes : le lecteur voyait deux fois 102 271 € sans savoir que c'était une
+    // coïncidence de barème et non deux mesures indépendantes.
+    if (cv.seuilsConfondus) {
+      insights['kpiCashTotal'] += ' Attention : le cash « sous l\'inflation » et le cash « sous le '
+        + 'benchmark 6 % » d\u00e9signent en ce moment les M\u00caMES comptes (\u20ac'
+        + f(cv.totalNonYielding) + '), faute de compte r\u00e9mun\u00e9r\u00e9 entre les deux seuils. '
+        + 'Ce sont deux crit\u00e8res distincts, pas deux constats.';
+    }
+    insights['kpiCashProductive'] = 'Cash dont le rendement atteint au moins l\'inflation ('
+      + (INFLATION_RATE * 100).toFixed(0) + ' %) : '
       + f(cv.totalYielding) + '. Un compte qui rapporte un peu sans atteindre ce seuil perd quand '
       + 'm\u00eame du pouvoir d\'achat \u2014 il compte comme dormant ici, alors que le graphe '
       + '« sans inflation » le classe parmi les comptes qui rapportent.';
@@ -7338,7 +7461,11 @@ function attachKPIInsights(state, view) {
       const valueEl = kpi.querySelector('[id]');
       if (!valueEl) return;
       const id = valueEl.id;
-      const text = insights[id];
+      // Certaines infobulles sont produites par les fonctions de rendu de vue, qui tournent
+      // après cette construction (l'immo décompose loyer nu / provision de charges au moment
+      // où il agrège les biens). Elles se déposent ici plutôt que d'être recalculées.
+      const extra = (typeof window !== 'undefined' && window._insightsExtra) || {};
+      const text = insights[id] || extra[id];
       if (!text) return;
 
       // Remove old listeners (by replacing node — simple approach)
@@ -7561,7 +7688,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=527').then(m => {
+  import('./charts.js?v=528').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -7782,6 +7909,19 @@ function _prochainesEcheancesImmo() {
   });
   ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.constraints) || []).forEach(c => {
     if (c.dateFin) cands.push({ d: c.dateFin, l: 'Villejuif — fin clause SADEV 94' });
+  });
+  // Les deux dates de livraison et les deux départs d'amortissement étaient dans les données
+  // sans jamais apparaître dans un calendrier : « Villejuif 2028 » se lisait comme un
+  // événement unique, alors que quatre jalons distincts s'échelonnent sur seize mois.
+  const vjLiv = VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.livraison;
+  if (vjLiv) {
+    if (vjLiv.contractuelle) cands.push({ d: vjLiv.contractuelle, l: 'Villejuif — livraison CONTRACTUELLE (acte)' });
+    if (vjLiv.operationnelle && vjLiv.operationnelle !== vjLiv.contractuelle) {
+      cands.push({ d: vjLiv.operationnelle, l: 'Villejuif — livraison OPÉRATIONNELLE (retard promoteur, base des projections)' });
+    }
+  }
+  ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.echeancier) || []).forEach(e => {
+    if (e.premierAmortissement) cands.push({ d: e.premierAmortissement, l: 'Villejuif ' + e.pret + ' — ' + e.note });
   });
   const vjl = (IMMO_CONSTANTS.loans.villejuifLoans || [])[0];
   if (vjl && vjl.startDate && vjl.periods && vjl.periods[0]) {

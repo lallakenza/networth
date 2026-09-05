@@ -3802,6 +3802,11 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   </div>
   <p id="actionsStaticFootnote" style="font-size:11px;color:#718096;margin:4px 0 0 0;"></p>
 
+  <!-- Réconciliation du compte-titres : le tableau ci-dessus ne liste que des TITRES. Le KPI
+       « Total » porte la NAV, qui comprend aussi le cash des comptes et la dette de marge en
+       yens. L'écart était invisible ; il est désormais écrit, ligne à ligne, et vérifié. -->
+  <div id="actionsReconciliation" style="margin-top:10px;font-size:12px;color:#4a5568;"></div>
+
   <div style="margin-top:24px;">
     <h3>&#x1F4A1; Analyse &amp; Recommandations Investissement</h3>
     <div id="actionsInsights" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
@@ -3953,7 +3958,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-strip" id="kpi-cash">
     <div class="kpi green"><div class="value" id="kpiCashTotal" data-eur="0">--</div><div class="label">Cash Total</div></div>
     <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement Moyen</div></div>
-    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label">&Eacute;rosion du cash sous 3&nbsp;% /mois</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label" id="kpiCashInflationLabel">&Eacute;rosion du cash qui ne bat pas l&rsquo;inflation /mois</div></div>
     <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash qui bat l&rsquo;inflation</div></div>
     <!-- v305 — Patrimoine Financier Mobilisable : cash + positions liquides
          (IBKR + ESPP + SGTM), hors immo/véhicules/créances/TVA. Per-owner
@@ -4024,7 +4029,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     <div class="kpi"><div class="value" id="kpiImmoViewLTV">--</div><div class="label">LTV moyen</div></div>
   </div>
   <div class="kpi-strip" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
-    <div class="kpi green"><div class="value" id="kpiImmoViewLoyers">--</div><div class="label">Loyers /mois</div></div>
+    <div class="kpi green"><div class="value" id="kpiImmoViewLoyers">--</div><div class="label" id="kpiImmoViewLoyersLabel">Recettes totales /mois</div></div>
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiImmoViewCharges">--</div><div class="label">Charges + pr&ecirc;ts /mois</div></div>
     <div class="kpi primary"><div class="value" id="kpiImmoViewCF">--</div><div class="label">CF net /mois</div></div>
     <div class="kpi green"><div class="value" id="kpiImmoViewWealth">--</div><div class="label">Cr&eacute;ation richesse /mois</div></div>
@@ -4241,6 +4246,11 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-insight-bar" id="insight-creances"></div>
 
   <div id="creancesAlert" class="highlight" style="display:none;margin-bottom:16px;border-left-color:var(--red);background:#fff5f5;"></div>
+
+  <!-- Provenance de la facturation : ce montant vient du dépôt 2048 par un canal externe.
+       Sans cette ligne, un chiffre arrêté il y a six mois se lisait exactement comme un
+       chiffre du jour. -->
+  <div id="facturationProvenance" style="font-size:11px;color:#718096;margin:0 0 10px 0;"></div>
 
   <h3>Cr&eacute;ances en cours</h3>
   <div class="table-wrap" style="--tbl-min: 860px">
@@ -4735,7 +4745,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=527"></script>
+<script type="module" src="js/app.js?v=528"></script>
 
 </body>
 </html>

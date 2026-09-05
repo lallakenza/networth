@@ -4,16 +4,16 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=527';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=528';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=527';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=527';
-import { render, applySnapshotDeltas } from './render.js?v=527';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=527';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=527';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=527';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=527';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=528';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=528';
+import { render, applySnapshotDeltas } from './render.js?v=528';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=528';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=528';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=528';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=528';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -693,18 +693,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=527');
+  const auth = await import('./auth.js?v=528');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=527');
+  const auth = await import('./auth.js?v=528');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=527');
+  const auth = await import('./auth.js?v=528');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1301,12 +1301,17 @@ async function loadStockPrices(forceRefresh) {
     const total = result.totalTickers;
     const allLive = live >= total;
 
-    if (live > 0) {
-      sBadge.textContent = 'Actions: ' + live + '/' + total + ' live';
+    // « 9/14 live » en rouge laissait deviner ce que valaient les 5 autres. Un portefeuille
+    // partiellement live est un état NORMAL et exploitable — il doit se lire comme tel.
+    if (allLive) {
+      sBadge.textContent = 'Actions : ' + live + '/' + total + ' live';
+    } else if (live > 0) {
+      sBadge.textContent = 'Actions : données mixtes — ' + live + ' live / ' + (total - live) + ' statiques';
     } else {
-      sBadge.textContent = 'Actions: statique (données du ' + DATA_LAST_UPDATE + ')';
+      sBadge.textContent = 'Actions : statique (données du ' + DATA_LAST_UPDATE + ')';
     }
-    sBadge.style.color = allLive ? 'var(--green-on-dark)' : 'var(--red-on-dark)';
+    // Le rouge signale une panne. Un mélange live/statique n'en est pas une : orange.
+    sBadge.style.color = allLive ? 'var(--green-on-dark)' : (live > 0 ? '#f6ad55' : 'var(--red-on-dark)');
 
     // Tooltip : détail SGTM + tickers en échec éventuels (pour debug rapide sans console).
     const sgtmTip = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
@@ -1367,7 +1372,18 @@ async function loadStockPrices(forceRefresh) {
       const finalLive = PORTFOLIO.amine.ibkr.positions.filter(p => p._live === true).length + (PORTFOLIO.market._acnLive ? 1 : 0);
       const finalTotal = PORTFOLIO.amine.ibkr.positions.length + 1;
       const finalSgtm = PORTFOLIO.market._sgtmLive;
-      updateBadge({ liveCount: finalLive + (finalSgtm ? 1 : 0), totalTickers: finalTotal + 1, sgtmLive: finalSgtm });
+      const liveTot = finalLive + (finalSgtm ? 1 : 0);
+      const tickersTot = finalTotal + 1;
+      updateBadge({ liveCount: liveTot, totalTickers: tickersTot, sgtmLive: finalSgtm });
+      // Les tentatives sont épuisées : l'état est ce qu'il est, et il doit être NOMMÉ. Le
+      // libellé restait bloqué sur « retry 5... », qui décrit une action en cours et non un
+      // résultat — on ne pouvait pas savoir si les chiffres à l'écran étaient exploitables.
+      if (progressLabel) {
+        progressLabel.textContent = liveTot >= tickersTot
+          ? 'Prix live : ' + liveTot + '/' + tickersTot + ' \u2713'
+          : 'Donn\u00e9es mixtes : ' + liveTot + ' live / ' + (tickersTot - liveTot) + ' statiques';
+      }
+      if (progressFill) progressFill.style.width = '100%';
       refresh();
     }
 
@@ -2009,13 +2025,17 @@ async function loadStockPrices(forceRefresh) {
   } catch (e) {
     console.warn('Stock fetch error:', e);
     if (sBadge) { sBadge.textContent = 'Actions : erreur — données du ' + DATA_LAST_UPDATE; sBadge.style.color = 'var(--red-on-dark)'; }
-    _stockRefreshInProgress = false; // AUD-011: clear flag on error
+  } finally {
+    // POURQUOI UN `finally`. Ce démontage suivait le `catch` mais restait DANS le flot normal :
+    // tout ce qui pouvait interrompre la fonction entre-temps — un `return` anticipé, une
+    // requête historique qui ne se résout jamais — laissait la barre de progression et le
+    // libellé « Retry 5 — 9/14 live » à l'écran pour de bon. Le chargement paraissait sans
+    // fin alors qu'il était terminé depuis longtemps. La sortie est désormais garantie.
+    setTimeout(() => { if (progressBar) progressBar.style.display = 'none'; }, 2000);
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.style.opacity = '1'; }
+    if (hardRefreshBtn) { hardRefreshBtn.disabled = false; hardRefreshBtn.style.opacity = '1'; }
+    _stockRefreshInProgress = false;
   }
-
-  setTimeout(() => { if (progressBar) progressBar.style.display = 'none'; }, 2000);
-  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.style.opacity = '1'; }
-  if (hardRefreshBtn) { hardRefreshBtn.disabled = false; hardRefreshBtn.style.opacity = '1'; }
-  _stockRefreshInProgress = false;
 }
 
 // Initial load — smart refresh (uses cache)

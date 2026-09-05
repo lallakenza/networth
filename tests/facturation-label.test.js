@@ -12,7 +12,7 @@ const { execSync } = require('child_process');
 
 const RACINE = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'nw-factu-'));
-for (const f of ['engine.js', 'data.js']) {
+for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
   fs.writeFileSync(path.join(TMP, f),
     fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8').replace(/\?v=\d+/g, ''));
 }
