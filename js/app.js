@@ -4,16 +4,16 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=513';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=514';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=513';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=513';
-import { render, applySnapshotDeltas } from './render.js?v=513';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=513';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=513';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=513';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=513';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=514';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=514';
+import { render, applySnapshotDeltas } from './render.js?v=514';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=514';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=514';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=514';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=514';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -592,6 +592,37 @@ function renderHeroChartFromStore() {
 window._nwDeverrouille = false;
 (async () => {
   const gate = document.getElementById('authGate');
+
+  // ── Lien de déverrouillage ────────────────────────────────────────────────
+  // Le gabarit d'e-mail de ce projet Supabase appartient à Lalla Kenza : il envoie un lien vers
+  // le SaaS et n'affiche aucun code, et le modifier changerait les messages reçus par ses
+  // clients. Plutôt que d'imposer un copier-coller de lien à chaque appareil, on accepte la clé
+  // dans le FRAGMENT d'URL — un favori suffit alors à ouvrir le site.
+  //
+  // Le fragment n'est jamais transmis au serveur (ni à GitHub Pages, ni dans les journaux). La
+  // clé est retirée de la barre d'adresse dès qu'elle est lue, et mémorisée sur l'appareil comme
+  // l'était la phrase : le code court redevient suffisant ensuite.
+  //
+  // Ce que ça vaut, dit franchement : ce lien EST le secret. Qui l'obtient entre. Il a la même
+  // force que la clé (32 octets aléatoires), mais il vit dans un favori et un historique de
+  // navigation — à traiter comme un mot de passe, pas comme une adresse.
+  try {
+    const frag = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    const cleUrl = frag.get('k');
+    if (cleUrl) {
+      // Nettoyage immédiat, avant tout rendu : la clé ne doit pas rester affichée ni finir
+      // dans une capture d'écran ou un partage de lien.
+      history.replaceState(null, '', location.pathname + location.search);
+      if (await deverrouiller(cleUrl)) {
+        window._nwDeverrouille = true;
+        if (gate) gate.style.display = 'none';
+        apresDeverrouillage();
+        return;
+      }
+      console.warn('[unlock] la clé du lien ne déchiffre pas le blob — lien périmé ?');
+    }
+  } catch (e) { /* fragment illisible : on continue par les chemins normaux */ }
+
   if (!(await blobDisponible())) {
     // Chiffrement inactif : comportement historique, le cookie seul masque la grille.
     if (gate && window._nwCookieValide) gate.style.display = 'none';
@@ -662,18 +693,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=513');
+  const auth = await import('./auth.js?v=514');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=513');
+  const auth = await import('./auth.js?v=514');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=513');
+  const auth = await import('./auth.js?v=514');
   auth.deconnecter();
   oublierAppareil();
 };
