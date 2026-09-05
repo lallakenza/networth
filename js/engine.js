@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=522';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=523';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5910,11 +5910,20 @@ export function computeAlerts(state) {
   if (state.creancesView && state.creancesView.activeItems) {
     for (const c of state.creancesView.activeItems) {
       if (!c.dueDate) {
-        // v314 (A8) : ne pas masquer silencieusement les créances sans
-        // dueDate — elles échappent à la règle "en retard". Warn console
-        // pour que l'auteur aille compléter data.js.
-        console.warn('[alerts] Créance sans dueDate — ne sera pas surveillée :',
-          c.counterparty || c.label || c.id, `(${c.amount} ${c.currency || 'EUR'})`);
+        // Une créance sans échéance échappait à la règle « en retard » avec un simple
+        // avertissement en console — invisible pour qui lit le site. Le silence est le
+        // pire des deux mondes : la surveillance est désactivée ET personne ne le sait.
+        // On produit donc une alerte à part entière, qui dit exactement ce qui manque.
+        alerts.push({
+          severity: 'amber',
+          owner: c.owner || 'Amine',
+          category: 'creance-sans-echeance',
+          title: 'Échéance non renseignée — ' + (c.counterparty || c.label || c.id),
+          detail: 'Cette créance de ' + Math.round(c.amountEUR || 0).toLocaleString('fr-FR')
+            + ' € n’a pas de date d’échéance : aucun retard ne peut être calculé, elle n’est pas '
+            + 'surveillée. Renseigner `dueDate` à la source pour l’activer.',
+          amount: c.amountEUR || 0,
+        });
         continue;
       }
       const due = new Date(c.dueDate + 'T00:00:00');
