@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=538';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=538';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=539';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=539';
 
 // ---- Generic table sort utility ----
 /**
@@ -1711,8 +1711,11 @@ function lirePerfGraphe(id) {
   const o = (typeof window !== 'undefined' && window._chartKPIOverrides) || {};
   const v = o[id];
   if (!v || !Number.isFinite(v.value)) return null;
-  const scopeCourant = (typeof window !== 'undefined' && window._currentScope) || 'ibkr';
-  const ownerCourant = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  // MÊME résolution que le producteur (app.js) : sans cela, deux définitions du « périmètre
+  // courant » se contredisent et l'accesseur rejette des valeurs parfaitement à jour.
+  const w = (typeof window !== 'undefined') ? window : {};
+  const scopeCourant = w._currentScope || (w._ytdChartFullData && w._ytdChartFullData.scope) || 'ibkr';
+  const ownerCourant = w._activeOwner || 'both';
   // Valeurs écrites avant l'estampillage : on les accepte, faute de mieux, mais on le dit.
   if (v.scope === undefined) return { value: v.value, pct: v.pct, perimetre: 'non estampillé' };
   if (v.scope !== scopeCourant || v.owner !== ownerCourant) return null;
@@ -7991,7 +7994,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=538').then(m => {
+  import('./charts.js?v=539').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

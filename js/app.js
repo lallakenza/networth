@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=538';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=539';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=538';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=538';
-import { render, applySnapshotDeltas } from './render.js?v=538';
-import { chargerContratDistant } from './facturation_contract.js?v=538';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=538';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=538';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=538';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=538';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=539';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=539';
+import { render, applySnapshotDeltas } from './render.js?v=539';
+import { chargerContratDistant } from './facturation_contract.js?v=539';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=539';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=539';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=539';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=539';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -694,18 +694,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=538');
+  const auth = await import('./auth.js?v=539');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=538');
+  const auth = await import('./auth.js?v=539');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=538');
+  const auth = await import('./auth.js?v=539');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1009,7 +1009,11 @@ function updateKPIsFromChart(chartData) {
     // le lecteur refusera de la servir hors de ce périmètre.
     window._chartKPIOverrides[id] = {
       value: v, pct,
-      scope: window._currentScope || 'ibkr',
+      // Le périmètre RÉELLEMENT utilisé pour choisir les séries (`activeScope`), pas une
+      // relecture du global : celui-ci peut être vide au premier chargement alors que la
+      // fonction a bien travaillé sur « all ». Une estampille qui ment fait rejeter des
+      // valeurs justes — les cartes YTD et 1 an de l'accueil restaient vides.
+      scope: activeScope,
       owner: window._activeOwner || 'both',
       at: Date.now(),
     };
@@ -1245,7 +1249,7 @@ function update1YKPIFromChart() {
   if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
   window._chartKPIOverrides['kpiPL1Y'] = {
     value: Math.round(pl1Y), pct: pct1Y,
-    scope: window._currentScope || 'ibkr',
+    scope: activeScope,
     owner: window._activeOwner || 'both',
     at: Date.now(),
   };

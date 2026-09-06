@@ -366,10 +366,15 @@ t('les valeurs du graphe portent leur périmètre', () => {
   const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   // Sans estampille, deux surfaces rendues à des moments différents affichent deux
   // générations de la même mesure (accueil −21 494, page Actions −22 807).
-  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,220}scope:/,
-    'les overrides sont écrits sans périmètre');
-  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,220}owner:/,
+  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,400}scope: activeScope,/,
+    'les overrides n’inscrivent pas le périmètre RÉELLEMENT utilisé (activeScope)');
+  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,700}owner:/,
     'les overrides sont écrits sans propriétaire');
+  // Producteur et lecteur doivent résoudre « le périmètre courant » de la MÊME façon,
+  // sinon l'accesseur rejette des valeurs à jour et les cartes restent vides.
+  const rnd = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
+  assert.match(rnd, /_currentScope \|\| \(w\._ytdChartFullData && w\._ytdChartFullData\.scope\) \|\| 'ibkr'/,
+    'le lecteur ne résout pas le périmètre comme le producteur');
 });
 
 t('un seul accesseur lit ces valeurs, et il vérifie le périmètre', () => {
