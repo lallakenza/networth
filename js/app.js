@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=539';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=540';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=539';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=539';
-import { render, applySnapshotDeltas } from './render.js?v=539';
-import { chargerContratDistant } from './facturation_contract.js?v=539';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=539';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=539';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=539';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=539';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=540';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=540';
+import { render, applySnapshotDeltas } from './render.js?v=540';
+import { chargerContratDistant } from './facturation_contract.js?v=540';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=540';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=540';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=540';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=540';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -575,7 +575,7 @@ function renderHeroChartFromStore() {
     const r = buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, {
       mode: 'ytd', startingNAV: 209495, includeESPP: true, includeSGTM: true, scope: 'all',
     });
-    if (r) updateKPIsFromChart(r);
+    if (r) updateKPIsFromChart(r, 'store');   // amorçage : relevés stockés
     buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, { mode: '1y', includeESPP: true, includeSGTM: true, scope: 'all', skipRender: true });
     update1YKPIFromChart();
     buildPortfolioYTDChart(PORTFOLIO, base, FX_STATIC, { mode: 'alltime', includeESPP: true, includeSGTM: true, skipRender: true });
@@ -694,18 +694,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=539');
+  const auth = await import('./auth.js?v=540');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=539');
+  const auth = await import('./auth.js?v=540');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=539');
+  const auth = await import('./auth.js?v=540');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -858,7 +858,11 @@ _fxIntervalId = setInterval(() => refreshFX(true).catch(e => console.warn('[app]
 // ---- KPI computation from chart NAV series ----
 // Uses the accurate forward-simulation data from buildPortfolioYTDChart
 // instead of the per-position P&L approach (which misses cash/FX/deposits)
-function updateKPIsFromChart(chartData) {
+// `base` dit sur QUELLE série de prix historiques la valeur a été calculée : les relevés
+// stockés (amorçage instantané au chargement) ou les prix fraîchement récupérés. Les deux
+// donnent des YTD différents — 1 313 € d'écart constaté — et c'est ce qui faisait diverger
+// l'accueil (amorçage) de la page Actions (live) sans qu'aucun des deux ne le dise.
+function updateKPIsFromChart(chartData, base) {
   const { labels, ibkrValues, totalValues, depositsByDate, startingNAV } = chartData;
   if (!labels || labels.length < 2) return;
 
@@ -1015,6 +1019,7 @@ function updateKPIsFromChart(chartData) {
       // valeurs justes — les cartes YTD et 1 an de l'accueil restaient vides.
       scope: activeScope,
       owner: window._activeOwner || 'both',
+      base: base || 'live',
       at: Date.now(),
     };
     // Update sub-percentage (class: kpi-sub-pct, set by setSubPct in render.js)

@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=539';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=539';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=540';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=540';
 
 // ---- Generic table sort utility ----
 /**
@@ -1717,9 +1717,9 @@ function lirePerfGraphe(id) {
   const scopeCourant = w._currentScope || (w._ytdChartFullData && w._ytdChartFullData.scope) || 'ibkr';
   const ownerCourant = w._activeOwner || 'both';
   // Valeurs écrites avant l'estampillage : on les accepte, faute de mieux, mais on le dit.
-  if (v.scope === undefined) return { value: v.value, pct: v.pct, perimetre: 'non estampillé' };
+  if (v.scope === undefined) return { value: v.value, pct: v.pct, perimetre: 'non estampillé', base: null };
   if (v.scope !== scopeCourant || v.owner !== ownerCourant) return null;
-  return { value: v.value, pct: v.pct, perimetre: v.scope + '/' + v.owner };
+  return { value: v.value, pct: v.pct, perimetre: v.scope + '/' + v.owner, base: v.base || 'live' };
 }
 
 /**
@@ -7994,7 +7994,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=539').then(m => {
+  import('./charts.js?v=540').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8446,7 +8446,8 @@ function renderPerfClasses(state) {
     // et le tableau (views.couple.stocks) ; le cash courtiers est classé en Cash, dit
     // explicitement (l'ancien av.totalStocks l'incluait → deux « Actions » divergents).
     + carte('Actions & crypto', vues.couple && vues.couple.stocks ? vues.couple.stocks.val : av.totalStocks, kActions,
-      'hors cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ', class\u00e9 en Cash) \u00b7 Latent = titres \u2212 co\u00fbt des titres d\u00e9tenus (' + fmt(Math.round(_coutTitresRef)) + ') \u00b7 YTD et 1 an calcul\u00e9s par le graphe')
+      'hors cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ', class\u00e9 en Cash) \u00b7 Latent = titres \u2212 co\u00fbt des titres d\u00e9tenus (' + fmt(Math.round(_coutTitresRef)) + ') \u00b7 YTD et 1 an calcul\u00e9s par le graphe'
+      + (_pYTD && _pYTD.base === 'store' ? ' (base : relev\u00e9s stock\u00e9s, affin\u00e9 d\u00e8s les prix live)' : ''))
     + carte('Immobilier (\u00e9quit\u00e9)', equite, kImmo, noteImmo)
     + carte('Cash', vues.couple && vues.couple.cash ? vues.couple.cash.val : cv.totalCash, kCash,
       'p\u00e9rim\u00e8tre treemap, incl. cash courtiers (' + fmt(Math.round((state.amine.brokerCash || 0) + (state.nezha.brokerCash || 0))) + ') \u00b7 rendement : moyenne pond\u00e9r\u00e9e \u00b7 r\u00e9el = apr\u00e8s ' + (INFLATION_RATE * 100).toFixed(0) + '% d\'inflation')

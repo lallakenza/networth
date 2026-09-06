@@ -377,6 +377,21 @@ t('les valeurs du graphe portent leur périmètre', () => {
     'le lecteur ne résout pas le périmètre comme le producteur');
 });
 
+t('la base de prix est inscrite, et l’amorçage est distingué du live', () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  // Deux bases de prix historiques coexistent : les relevés stockés (amorçage instantané)
+  // et les prix récupérés. Elles donnent des YTD différents ; sans cette marque, l'accueil
+  // et la page Actions annonçaient chacun la leur sans dire laquelle.
+  assert.match(src, /function updateKPIsFromChart\(chartData, base\)/,
+    'updateKPIsFromChart n’accepte pas la base de prix');
+  assert.match(src, /base: base \|\| 'live',/, 'la base n’est pas inscrite dans l’estampille');
+  assert.match(src, /updateKPIsFromChart\(r, 'store'\)/,
+    'l’amorçage depuis les relevés stockés n’est pas marqué comme tel');
+  const rnd = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
+  assert.match(rnd, /base: v\.base \|\| 'live'/, 'le lecteur ne transmet pas la base');
+  assert.match(rnd, /relev\\u00e9s stock\\u00e9s/, 'la carte ne signale pas une valeur d’amorçage');
+});
+
 t('un seul accesseur lit ces valeurs, et il vérifie le périmètre', () => {
   const src = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
   assert.match(src, /function lirePerfGraphe/, 'accesseur unique absent');
