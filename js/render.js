@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=540';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=540';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=541';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=541';
 
 // ---- Generic table sort utility ----
 /**
@@ -7994,7 +7994,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=540').then(m => {
+  import('./charts.js?v=541').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8414,7 +8414,12 @@ function renderPerfClasses(state) {
   // dénominateur que la page Actions : le coût des titres détenus.
   const _coutTitresRef = (av.reconciliation && av.reconciliation.coutTitres) || 0;
   const latentPct = fin(latent) && _coutTitresRef > 0 ? (latent / _coutTitresRef * 100) : null;
-  const kActions = kpiEur('Jour', jour) + kpiEur('YTD', ytd) + kpiEur('1 an', unAn)
+  // Tant que le graphe n'a pas publié ses valeurs, la case disparaissait purement et
+  // simplement : le lecteur ne pouvait pas distinguer « pas encore calculé » de « aucune
+  // variation ». On affiche l'attente.
+  const kpiAttente = (libelle) => kpi(libelle, '<span style="color:#a0aec0;font-size:13px;">en attente du graphe</span>');
+  const kActions = kpiEur('Jour', jour) + (fin(ytd) ? kpiEur('YTD', ytd) : kpiAttente('YTD'))
+    + (fin(unAn) ? kpiEur('1 an', unAn) : kpiAttente('1 an'))
     + (fin(latent) ? kpi('Latent total',
         '<span style="color:' + coul(latent) + ';">' + eur(latent)
         + (fin(latentPct) ? ' <span style="font-size:11px;">(' + pctT(latentPct) + ')</span>' : '') + '</span>') : '');
