@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=537';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=537';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=537';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=537';
-import { loadSnapshots } from './api.js?v=537'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=537'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=538';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=538';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=538';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=538';
+import { loadSnapshots } from './api.js?v=538'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=538'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -4303,8 +4303,19 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // Ce n'est pas la même grandeur que la NAV canonique : ici le cash est RECONSTRUIT à
   // partir des flux enregistrés (versements, opérations, dividendes en EUR/USD/JPY), là-bas
   // il est LU au solde du compte. Les deux sont justes ; leur écart doit être écrit.
-  if (typeof window !== 'undefined') {
-    window._navGraphe = chartValuesTotal.length ? chartValuesTotal[chartValuesTotal.length - 1] : null;
+  //
+  // MAIS : cette fonction est aussi appelée en SILENCE (`skipRender`) pour préparer les
+  // séries 1 an et « tout l'historique » sans toucher au canvas. Publier la NAV à chaque
+  // appel faisait gagner le DERNIER exécuté, qui n'est pas celui qu'on voit : le pont
+  // annonçait 253 392 € en face d'un graphe affichant 252 990 €. Seule la construction
+  // RENDUE publie, et elle dit sur quel périmètre elle porte.
+  if (typeof window !== 'undefined' && !(options && options.skipRender) && mode !== 'alltime') {
+    window._navGraphe = chartValuesTotal.length ? {
+      valeur: chartValuesTotal[chartValuesTotal.length - 1],
+      mode,
+      scope: (options && options.scope) || 'ibkr',
+      date: chartLabels[chartLabels.length - 1] || null,
+    } : null;
     // Le panneau de réconciliation est rendu AVANT le graphe : on le complète maintenant.
     if (typeof window._majPontGraphe === 'function') { try { window._majPontGraphe(); } catch (e) { /* non bloquant */ } }
   }

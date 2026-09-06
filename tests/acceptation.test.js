@@ -334,5 +334,86 @@ t('aucune valeur numérique n’est concaténée sans mise en forme', () => {
   assert.equal(coupables.length, 0, 'concaténation brute :\n      ' + coupables.join('\n      '));
 });
 
+// ── 10. Créances : quatre périmètres, quatre noms ───────────────────────────────────────
+t('la ventilation par NATURE est distincte de la ventilation par GARANTIE', () => {
+  const c = s.creancesView;
+  proche(c.totalPro + c.totalPerso + c.totalSansType, c.totalNominal, 2, 'partition par nature');
+  proche(c.totalGuaranteed + c.totalUncertain, c.totalNominal, 2, 'partition par garantie');
+  // Le bug : « créances personnelles » valait `nominal − garanti`, soit le NON GARANTI.
+  assert.notEqual(Math.round(c.totalPerso), Math.round(c.totalUncertain),
+    'perso et non-garanti coïncident : le test ne discrimine plus les deux découpages');
+});
+
+t('les insights ne calculent plus le perso comme un reste de garantie', () => {
+  const src = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
+  assert.ok(!/persoCreances\s*=\s*Math\.max\(0,\s*totalCreances\s*-\s*guarCreances\)/.test(src),
+    'un insight dérive encore « perso » de « nominal − garanti »');
+});
+
+t('le montant comptabilisé au patrimoine est inférieur au nominal, et explicable', () => {
+  const c = s.creancesView;
+  const nw = (s.amine.recvPro || 0) + (s.amine.recvPersonal || 0)
+    + (s.nezha && s.nezha.recvPersonal ? s.nezha.recvPersonal : 0);
+  assert.ok(nw < c.totalNominal, 'le comptabilisé devrait être inférieur au nominal');
+  // L'écart s'explique par les positions de facturation, comptées à leur propre poste.
+  const factu = (c.activeItems || []).filter((i) => i.positionCourante)
+    .reduce((a, i) => a + (i.amountEUR || 0), 0);
+  assert.ok(factu > 0, 'aucune position de facturation : l’explication affichée serait vide');
+});
+
+// ── 11. Performance Actions : une seule génération ──────────────────────────────────────
+t('les valeurs du graphe portent leur périmètre', () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  // Sans estampille, deux surfaces rendues à des moments différents affichent deux
+  // générations de la même mesure (accueil −21 494, page Actions −22 807).
+  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,220}scope:/,
+    'les overrides sont écrits sans périmètre');
+  assert.match(src, /_chartKPIOverrides\[id\]\s*=\s*\{[\s\S]{0,220}owner:/,
+    'les overrides sont écrits sans propriétaire');
+});
+
+t('un seul accesseur lit ces valeurs, et il vérifie le périmètre', () => {
+  const src = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
+  assert.match(src, /function lirePerfGraphe/, 'accesseur unique absent');
+  assert.match(src, /if \(v\.scope !== scopeCourant \|\| v\.owner !== ownerCourant\) return null;/,
+    'l’accesseur ne refuse pas une valeur hors périmètre');
+  // Aucune lecture directe du cache ne doit subsister en dehors de l'accesseur.
+  const directes = src.split('\n')
+    .map((l, i) => [i + 1, l])
+    .filter(([, l]) => /_chartKPIOverrides/.test(l) && !/function lirePerfGraphe|const o = /.test(l))
+    .filter(([, l]) => !/^\s*(\/\/|\*)/.test(l));
+  assert.equal(directes.length, 0,
+    'lecture directe du cache hors accesseur :\n      ' + directes.map(([n, l]) => 'render.js:' + n + ' ' + l.trim().slice(0, 80)).join('\n      '));
+});
+
+t('seule la construction rendue publie la NAV du graphe', () => {
+  const src = readFileSync(new URL('../js/charts.js', import.meta.url), 'utf8');
+  assert.match(src, /!\(options && options\.skipRender\)[\s\S]{0,60}window\._navGraphe/,
+    'les constructions silencieuses écrasent encore la NAV publiée');
+});
+
+// ── 12. Immobilier : un détail qui couvre son total ─────────────────────────────────────
+t('la décomposition des recettes couvre le total, pour chaque bien', () => {
+  iv.properties.forEach((p) => {
+    const somme = (p.loyerHC || 0) + (p.chargesLoc || 0) + (p.parking || 0) + (p.loyerCash || 0);
+    proche(somme, p.totalRevenue || 0, 1,
+      'décomposition de ' + (p.loanKey || '?') + ' (une part manque à l’écran)');
+  });
+});
+
+t('Vitry : la part encaissée en espèces existe et n’est pas nulle', () => {
+  // C'est elle qui manquait à l'écran : « HC 0 + pkg 70 » devant 1 270 € de recettes.
+  const v = iv.properties.find((p) => p.loanKey === 'vitry');
+  assert.ok(v, 'Vitry introuvable');
+  assert.ok((v.loyerCash || 0) > 0, 'aucune part en espèces : le libellé n’a plus d’objet');
+  proche((v.loyerHC || 0) + (v.parking || 0) + (v.loyerCash || 0), v.totalRevenue, 1, 'Vitry');
+});
+
+t('aucun loyer de repli n’est écrit en dur dans le rendu', () => {
+  const src = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
+  assert.ok(!/loyerHC \|\| 600/.test(src), '« loyerHC || 600 » subsiste');
+  assert.ok(!/chargesLoc != null \? 100 : 100/.test(src), 'ternaire sans effet sur chargesLoc');
+});
+
 console.log(ko === 0 ? '\n✅ acceptation : tout passe\n' : '\n❌ ' + ko + ' échec(s)\n');
 process.exit(ko === 0 ? 0 : 1);

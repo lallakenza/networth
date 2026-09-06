@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=537';
-import { lireContratEnCache } from './facturation_contract.js?v=537';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=538';
+import { lireContratEnCache } from './facturation_contract.js?v=538';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3875,6 +3875,17 @@ function computeCreancesView(portfolio, fx) {
     totalExpected,
     totalGuaranteed,
     totalUncertain,
+    // ── Ventilation par TYPE, à ne pas confondre avec la ventilation par GARANTIE ──
+    // « Créances personnelles » était calculé comme `nominal − garanti`, c'est-à-dire le
+    // NON GARANTI : deux découpages différents du même total, présentés sous le même nom.
+    // L'écran annonçait ainsi « perso ~15 K » alors que les créances personnelles pèsent
+    // le double. Les deux ventilations sont désormais publiées séparément.
+    totalPro: (activeItems || []).filter((i) => i.type === 'pro')
+      .reduce((s2, i) => s2 + (i.remainingEUR != null ? i.remainingEUR : i.amountEUR), 0),
+    totalPerso: (activeItems || []).filter((i) => i.type === 'perso')
+      .reduce((s2, i) => s2 + (i.remainingEUR != null ? i.remainingEUR : i.amountEUR), 0),
+    totalSansType: (activeItems || []).filter((i) => i.type !== 'pro' && i.type !== 'perso')
+      .reduce((s2, i) => s2 + (i.remainingEUR != null ? i.remainingEUR : i.amountEUR), 0),
     monthlyInflationCost,
     totalRecovered,
     totalOverdue,

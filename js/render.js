@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=537';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=537';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=538';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=538';
 
 // ---- Generic table sort utility ----
 /**
@@ -926,15 +926,21 @@ function renderDynamicInsights(state, view) {
     const _crv = state.creancesView || {};
     const totalCreances = _crv.totalNominal || 0;
     const guarCreances = _crv.totalGuaranteed || 0;
-    const persoCreances = Math.max(0, totalCreances - guarCreances);
+    // `nominal − garanti` donne le NON GARANTI, pas les créances personnelles : deux
+    // découpages différents du même total, longtemps confondus sous le même mot.
+    const nonGarantiCreances = Math.max(0, totalCreances - guarCreances);
+    const persoCreances = _crv.totalPerso || 0;
+    // Ce qui entre RÉELLEMENT au patrimoine : les positions de facturation y arrivent par
+    // une autre porte, et les créances recouvrées sont déjà dans le cash.
+    const compteNW = (state.amine.recvPro || 0) + (state.amine.recvPersonal || 0);
     const totalVeh = (p.amine.vehicles.cayenne || 0) + (p.amine.vehicles.mercedes || 0);
     const tvaAbs = Math.abs(p.amine.tva || 0);
     otherIns.innerHTML =
       '<strong>Insights Autres :</strong><br>' +
-      '- <span style="color:var(--green)">' + N(totalCreances) + ' de creances dont ' + K(guarCreances) + ' garanties (delai 45j).</span> Les creances perso (~' + K(persoCreances) + ') sont a prioriser par montant.<br>' +
+      '- <span style="color:var(--green)">' + N(totalCreances) + ' de creances au NOMINAL, dont ' + K(guarCreances) + ' garanties (delai 45j) et ' + K(nonGarantiCreances) + ' non garanties.</span> Par nature : ' + K(_crv.totalPro || 0) + ' pro, ' + K(persoCreances) + ' perso. ' + K(compteNW) + ' seulement entrent au patrimoine (hors facturation, comptee a part, et hors recouvre, deja en cash).<br>' +
       '- Vehicules (' + K(totalVeh) + ') sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>' +
       '- TVA (-' + K(tvaAbs) + ') est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>' +
-      '- <span style="color:var(--red)">Risque :</span> Les creances personnelles (~' + K(persoCreances) + ') sont difficilement recouvrables a court terme. Ne pas les compter dans la tresorerie operationnelle. Les ' + K(guarCreances) + ' garantis sont assimilables a du cash.';
+      '- <span style="color:var(--red)">Risque :</span> Le non garanti (' + K(nonGarantiCreances) + ') est difficilement recouvrable a court terme \u2014 a ne pas compter dans la tresorerie operationnelle. Les ' + K(guarCreances) + ' garantis sont assimilables a du cash.';
   }
 
   // ── Couple insights ──
@@ -975,7 +981,8 @@ function renderDynamicInsights(state, view) {
     const _crvR = state.creancesView || {};
     const totalCreances = _crvR.totalNominal || 0;
     const guarCreances = _crvR.totalGuaranteed || 0;
-    const persoCreances = Math.max(0, totalCreances - guarCreances);
+    const nonGarantiCreances = Math.max(0, totalCreances - guarCreances);
+    const persoCreances = _crvR.totalPerso || 0;
     // Check for overdue créances
     const overdueCreances = (state.creancesView && state.creancesView.items)
       ? state.creancesView.items.filter(c => c.status === 'en_retard')
@@ -994,7 +1001,7 @@ function renderDynamicInsights(state, view) {
       '<strong>Risques & points d\'attention couple :</strong><br>' +
       '- <strong>Concentration immo IDF :</strong> ' + iv.properties.length + ' biens, ' + K(totalImmoVal) + ' de valeur, 100% en Ile-de-France. Zero diversification geo. Un retournement IDF de -10% = -' + K(totalImmoVal * 0.1) + ' d\'equity couple.<br>' +
       '- <strong>Exposition devise :</strong> Le couple est multi-devise \u2014 ~' + K(cashAmine) + ' en AED/USD (Amine) + ~' + K(cashNezha) + ' en EUR/MAD (Nezha). Le risque USD/EUR est reel (~' + aedPct + '% du cash total en AED).<br>' +
-      '- <strong>Creances (' + K(totalCreances) + ') :</strong> ' + K(guarCreances) + ' garanti (delai de paiement 45 jours \u2014 quasi-cash) + creances perso ' + K(persoCreances) + ' (recouvrement incertain). Ne compter que les ' + K(guarCreances) + ' dans la planification.' + overdueAlert + '<br>' +
+      '- <strong>Creances, ' + K(totalCreances) + ' au nominal :</strong> ' + K(guarCreances) + ' garanti (delai de paiement 45 jours \u2014 quasi-cash) + ' + K(nonGarantiCreances) + ' non garanti (recouvrement incertain). Par nature : ' + K(_crvR.totalPro || 0) + ' pro, ' + K(persoCreances) + ' perso. Ne compter que les ' + K(guarCreances) + ' dans la planification.' + overdueAlert + '<br>' +
       '- <strong>Levier JPY (Amine) :</strong> Emprunt -' + (jpyShort / 1000000).toFixed(1) + 'M JPY (~' + K(jpyEUR) + ' EUR) sur IBKR. Une appreciation du yen de 10% couterait ~' + K(jpyEUR * 0.1) + '.';
   }
 
@@ -1636,7 +1643,11 @@ const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'J
  * On nomme le périmètre, on chiffre la composante connue, et on affiche le reste.
  */
 function pontGraphe(r) {
-  const navG = (typeof window !== 'undefined' && window._navGraphe) || null;
+  const _ng = (typeof window !== 'undefined' && window._navGraphe) || null;
+  // Estampillé depuis la v538 : seule la construction RENDUE publie sa NAV. Un objet sans
+  // `valeur` vient d'une version antérieure du cache — on l'ignore plutôt que d'afficher
+  // la NAV d'un graphe invisible (c'était l'écart 253 392 / 252 990).
+  const navG = _ng && Number.isFinite(_ng.valeur) ? _ng.valeur : null;
   if (!navG || !r || !r.nav) {
     // Le graphe est construit APRÈS ce panneau : on laisse la place et on la remplit
     // quand la valeur arrive (voir `window._majPontGraphe`).
@@ -1655,7 +1666,8 @@ function pontGraphe(r) {
   return '<div id="pontGrapheNav" style="border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;color:#4a5568;">'
     + '<div style="font-weight:600;margin-bottom:4px;">Pont avec la NAV du graphe</div>'
     + '<div style="display:flex;justify-content:space-between;gap:12px;"><span>NAV du graphe '
-    + '<span style="color:#a0aec0;">(cash reconstruit depuis les flux EUR/USD/JPY, prix de cl\u00f4ture)</span></span>'
+    + '<span style="color:#a0aec0;">(cash reconstruit depuis les flux EUR/USD/JPY, prix de cl\u00f4ture'
+    + (_ng && _ng.date ? ' du ' + _ng.date : '') + (_ng && _ng.mode ? ', vue ' + _ng.mode.toUpperCase() : '') + ')</span></span>'
     + '<strong style="font-variant-numeric:tabular-nums;">' + fmt(Math.round(navG)) + '</strong></div>'
     + li('Solde AED du compte (conversion interne, hors flux)', aed)
     // Le reste n'est PAS attribué. L'appeler « arrondis » serait une explication inventée :
@@ -1681,6 +1693,52 @@ if (typeof window !== 'undefined') {
   };
 }
 
+
+/**
+ * Lecture d'une valeur de performance calculée par le graphe — source UNIQUE.
+ *
+ * POURQUOI. `window._chartKPIOverrides` est alimenté à chaque reconstruction du graphe, et
+ * chaque surface le lisait à son propre moment. Deux pages affichaient donc deux générations
+ * de la même mesure : l'accueil « YTD −21 494 », la page Actions « −22 807 », pour un écart
+ * constant de 1 313 € sur toutes les périodes — la signature d'un cache écrasé entre deux
+ * rendus, pas d'un calcul divergent.
+ *
+ * La valeur porte désormais son périmètre. Si celui-ci ne correspond plus à ce qui est
+ * affiché, on renvoie `null` : la carte montre un tiret plutôt qu'un chiffre périmé. Une
+ * absence visible vaut mieux qu'une valeur fausse indiscernable d'une valeur juste.
+ */
+function lirePerfGraphe(id) {
+  const o = (typeof window !== 'undefined' && window._chartKPIOverrides) || {};
+  const v = o[id];
+  if (!v || !Number.isFinite(v.value)) return null;
+  const scopeCourant = (typeof window !== 'undefined' && window._currentScope) || 'ibkr';
+  const ownerCourant = (typeof window !== 'undefined' && window._activeOwner) || 'both';
+  // Valeurs écrites avant l'estampillage : on les accepte, faute de mieux, mais on le dit.
+  if (v.scope === undefined) return { value: v.value, pct: v.pct, perimetre: 'non estampillé' };
+  if (v.scope !== scopeCourant || v.owner !== ownerCourant) return null;
+  return { value: v.value, pct: v.pct, perimetre: v.scope + '/' + v.owner };
+}
+
+/**
+ * Décomposition des recettes mensuelles d'un bien, en toutes ses parts.
+ *
+ * POURQUOI. Les tuiles annonçaient « HC 0 + pkg 70 » pour Vitry, dont les recettes totales
+ * valent 1 270 € : les 1 200 € encaissés en espèces n'apparaissaient nulle part, si bien
+ * que le détail ne couvrait pas son propre total. Un détail qui ne somme pas à son total
+ * n'est pas un détail — c'est un chiffre de plus.
+ */
+function partsRecettes(prop) {
+  const parts = [];
+  if (prop.loyerHC > 0) parts.push('HC ' + Math.round(prop.loyerHC));
+  if (prop.chargesLoc > 0) parts.push('charges ' + Math.round(prop.chargesLoc));
+  if (prop.parking > 0) parts.push('parking ' + Math.round(prop.parking));
+  if (prop.loyerCash > 0) parts.push('espèces ' + Math.round(prop.loyerCash));
+  const somme = (prop.loyerHC || 0) + (prop.chargesLoc || 0) + (prop.parking || 0) + (prop.loyerCash || 0);
+  const ecart = Math.round((prop.totalRevenue || 0) - somme);
+  // Si une part manque encore, on le dit plutôt que de laisser un écart muet.
+  if (Math.abs(ecart) >= 1) parts.push('autre ' + ecart);
+  return parts.join(' + ');
+}
 
 /**
  * Libellé de la ligne « Facturation nette », dérivé du PÉRIMÈTRE RÉEL du calcul.
@@ -2461,7 +2519,7 @@ function renderActionsView(state) {
       if (!el) return;
       if (chartOverriddenKPIs.has(p.id)) {
         // Check if chart has already computed this value
-        const saved = window._chartKPIOverrides && window._chartKPIOverrides[p.id];
+        const saved = lirePerfGraphe(p.id);
         if (saved) {
           // Reuse the chart-computed value (more accurate than static)
           const v = saved.value;
@@ -3937,7 +3995,10 @@ function renderCashView(state) {
       const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
+      // La carte du haut donne le rendement BRUT (4,3 %) ; cette ligne inclut le coût de
+      // l'emprunt JPY et donne donc le rendement NET (4,2 %). Les deux sont justes ; rien
+      // ne les distinguait, et l'écart de 0,1 point paraissait être une erreur.
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coût de l\'emprunt JPY</span></td>'
         + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
         + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
         + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
@@ -3982,7 +4043,10 @@ function renderCashView(state) {
       const grandAvgYield = cv.totalCash > 0 ? (grandTotalYieldAnn / cv.totalCash * 100).toFixed(1) : '0.0';
       const tr = document.createElement('tr');
       tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong></td>'
+      // La carte du haut donne le rendement BRUT (4,3 %) ; cette ligne inclut le coût de
+      // l'emprunt JPY et donne donc le rendement NET (4,2 %). Les deux sont justes ; rien
+      // ne les distinguait, et l'écart de 0,1 point paraissait être une erreur.
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coût de l\'emprunt JPY</span></td>'
         + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
         + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
         + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
@@ -5214,7 +5278,8 @@ function renderImmoView(state) {
         + '<div class="prop-kpi"><div class="pk-val">' + prop.ltv.toFixed(0) + '%' + ltvGauge + '</div><div class="pk-label">LTV</div></div>'
         + '<div class="prop-kpi"><div class="pk-val ' + cfClass + '">' + cfSign + Math.round(cfCarte) + '</div><div class="pk-label">'
         + (prop.conditional ? 'CF r\u00e9el /mois' : 'CF /mois') + '</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + prop.loyerHC + (prop.parking > 0 ? ' <span style="font-size:11px;color:var(--gray)">+' + prop.parking + ' pkg</span>' : '') + '</div><div class="pk-label">Loyer HC</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + Math.round(prop.totalRevenue || 0)
+          + '</div><div style="font-size:10px;color:var(--gray);line-height:1.3;">' + partsRecettes(prop) + '</div><div class="pk-label">Loyer HC</div></div>'
         + fiscLine
         + '</div>';
       card.addEventListener('click', () => {
@@ -5609,9 +5674,12 @@ function renderImmoView(state) {
       const cfStyle = prop.conditional ? ' style="color:var(--gray)"' : ' style="font-weight:700"';
       // La date de livraison était écrite en dur ici. Elle vient du référentiel.
       const livr = (prop.propertyMeta && prop.propertyMeta.deliveryDate) || '';
-      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA \u2014 assurance seule'
-            + (livr ? ', livraison ' + livr : '') + '</span>'
-        : '<span style="font-size:11px;color:var(--gray)">HC ' + (prop.loyerHC || 0) + (prop.parking > 0 ? ' + pkg ' + prop.parking : '') + '</span>';
+      // Une ligne conditionnelle mêlait deux horizons sans le dire : des charges FUTURES
+      // (1 960 €), des recettes « TBD », et un cash-flow ACTUEL de −51 €. On nomme les deux.
+      const desc = prop.conditional ? '<span style="font-size:11px;color:#92400e">VEFA, non livré \u2014 '
+            + 'colonnes de charges = APRÈS livraison' + (livr ? ' (' + livr + ')' : '')
+            + ' ; CF affiché = coût de portage AUJOURD\'HUI (assurance en franchise)</span>'
+        : '<span style="font-size:11px;color:var(--gray)">' + partsRecettes(prop) + '</span>';
       html += '<tr' + rowBg + '>'
         + '<td><strong>' + prop.name + '</strong><br>' + desc + '</td>'
         + '<td class="num">' + Math.round(cd.pret || prop.monthlyPret || 0).toLocaleString('fr-FR') + '</td>'
@@ -6481,7 +6549,11 @@ function renderAptView(state, loanKey) {
         + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
         + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
         + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
-        + '<div><span style="color:#718096;">Loyer</span><br><strong>' + Math.round(prop.loyerHC || 600) + ' € HC + ' + Math.round(prop.chargesLoc != null ? 100 : 100) + ' € prov.</strong></div>'
+        // `|| 600` et `? 100 : 100` étaient deux valeurs écrites en dur : la seconde renvoie
+        // 100 dans les deux branches, donc le ternaire ne testait rien. Un bien dont le loyer
+        // déclaré est nul affichait « 600 € HC ».
+        + '<div><span style="color:#718096;">Recettes</span><br><strong>' + Math.round(prop.totalRevenue || 0) + ' €</strong>'
+        + '<br><span style="font-size:11px;color:#718096;">' + partsRecettes(prop) + '</span></div>'
         + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
         + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
         + (b.optionTravaux && !b.optionTravaux.active
@@ -6781,6 +6853,39 @@ function renderCreancesView(state) {
   setEur('kpiCreancesUncertain', crv.totalUncertain);
   setText('kpiCreancesInflation', '-' + fmt(crv.monthlyInflationCost) + '/mois');
   setHTML('facturationProvenance', provenanceFacturation(state));
+
+  // ── Les périmètres des créances, nommés (v538) ────────────────────────────────────────
+  // « 93 626 € de créances » dans un encadré, « 74 096 € » sur une carte, « ~15 K perso »
+  // ailleurs : trois nombres justes, trois découpages différents, aucun libellé pour les
+  // distinguer. On pose les quatre périmètres et le chemin qui va de l'un à l'autre.
+  (function () {
+    const el = document.getElementById('creancesPerimetres');
+    if (!el) return;
+    const nw = (state.amine.recvPro || 0) + (state.amine.recvPersonal || 0)
+      + (state.nezha && state.nezha.recvPersonal ? state.nezha.recvPersonal : 0);
+    const factu = (crv.activeItems || []).filter((i) => i.positionCourante)
+      .reduce((a, i) => a + (i.amountEUR || 0), 0);
+    const li = (lib, v, note) => '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;">'
+      + '<span>' + lib + (note ? ' <span style="color:#a0aec0;">' + note + '</span>' : '') + '</span>'
+      + '<strong style="font-variant-numeric:tabular-nums;">' + (v < 0 ? '\u2212' : '') + fmt(Math.abs(Math.round(v))) + '</strong></div>';
+    el.innerHTML = '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;max-width:620px;font-size:12px;color:#4a5568;">'
+      + '<div style="font-weight:600;margin-bottom:6px;">Quatre périmètres, à ne pas confondre</div>'
+      + li('Nominal des créances actives', crv.totalNominal, 'valeur faciale, toutes lignes')
+      + li('Valeur attendue', crv.totalExpected, 'nominal × probabilité de recouvrement')
+      + '<div style="border-top:1px solid #edf2f7;margin:6px 0;padding-top:6px;">'
+      + '<div style="color:#718096;margin-bottom:2px;">Par garantie</div>'
+      + li('Garanti', crv.totalGuaranteed) + li('Non garanti', crv.totalUncertain) + '</div>'
+      + '<div style="border-top:1px solid #edf2f7;margin:6px 0;padding-top:6px;">'
+      + '<div style="color:#718096;margin-bottom:2px;">Par nature \u2014 découpage DIFFÉRENT du précédent</div>'
+      + li('Professionnelles', crv.totalPro) + li('Personnelles', crv.totalPerso)
+      + (crv.totalSansType > 1 ? li('Sans type déclaré', crv.totalSansType) : '') + '</div>'
+      + '<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;">'
+      + li('<strong>Comptabilisé au patrimoine</strong>', nw)
+      + '<div style="color:#718096;margin-top:4px;">Écart avec le nominal : les positions de '
+      + 'facturation (' + fmt(Math.round(factu)) + ') entrent au patrimoine par leur propre poste, '
+      + 'et les créances recouvrées sont déjà dans le cash.</div></div>'
+      + '</div>';
+  })();
 
   // v323 — statuts créance alignés sur DESIGN_TOKENS (charte graphique §70).
   // en_cours=info · relancé=warning · en_retard=danger · recouvré=success · litige=scenD (violet).
@@ -7886,7 +7991,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=537').then(m => {
+  import('./charts.js?v=538').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8248,7 +8353,20 @@ function renderTrajectoireCouple(state) {
   } catch (e) { el.innerHTML = ''; }
 }
 
+// Le graphe publie ses valeurs APRÈS le rendu de cette carte : sans ce rappel, l'accueil
+// restait figé sur la génération précédente (« Jour 0 » alors que la page Actions affichait
+// −132) et les deux surfaces divergeaient durablement. On mémorise le dernier état rendu
+// pour pouvoir rejouer la carte quand de nouvelles valeurs arrivent.
+let _etatPerfClasses = null;
+if (typeof window !== 'undefined') {
+  window._majPerfClasses = function () {
+    if (!_etatPerfClasses) return;
+    try { renderPerfClasses(_etatPerfClasses); } catch (e) { /* non bloquant */ }
+  };
+}
+
 function renderPerfClasses(state) {
+  _etatPerfClasses = state;
   const el = document.getElementById('perfClasses');
   if (!el) return;
   const av = state.actionsView, iv = state.immoView, cv = state.cashView, vues = state.views;
@@ -8282,9 +8400,10 @@ function renderPerfClasses(state) {
     const d = av.periodPL && av.periodPL.daily;
     if (d && d.hasData) { const sc = scopePeriodPLByOwner(d, av); if (fin(sc.total)) jour = Math.round(sc.total); }
   } catch (e) { /* tuile masquee */ }
-  const ov = window._chartKPIOverrides || {};
-  const ytd = ov.kpiPLYTD && fin(ov.kpiPLYTD.value) ? Math.round(ov.kpiPLYTD.value) : null;
-  const unAn = ov.kpiPL1Y && fin(ov.kpiPL1Y.value) ? Math.round(ov.kpiPL1Y.value) : null;
+  const _pYTD = lirePerfGraphe('kpiPLYTD');
+  const _p1Y = lirePerfGraphe('kpiPL1Y');
+  const ytd = _pYTD ? Math.round(_pYTD.value) : null;
+  const unAn = _p1Y ? Math.round(_p1Y.value) : null;
   const latent = fin(av.combinedUnrealizedPL) ? av.combinedUnrealizedPL : null;
   // Le latent était rapporté au capital DÉPLOYÉ (197 441 €), qui comprend le capital des
   // positions déjà revendues, alors que le numérateur ne porte que sur les positions encore

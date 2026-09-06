@@ -3957,7 +3957,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <h2><span class="section-icon" style="background: #48bb78;">&#x1F4B0;</span>Tr&eacute;sorerie & Cash</h2>
   <div class="kpi-strip" id="kpi-cash">
     <div class="kpi green"><div class="value" id="kpiCashTotal" data-eur="0">--</div><div class="label">Cash Total</div></div>
-    <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement Moyen</div></div>
+    <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement moyen (brut)</div></div>
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label" id="kpiCashInflationLabel">&Eacute;rosion du cash qui ne bat pas l&rsquo;inflation /mois</div></div>
     <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash qui bat l&rsquo;inflation</div></div>
     <!-- v305 — Patrimoine Financier Mobilisable : cash + positions liquides
@@ -4255,6 +4255,11 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <!-- Provenance de la facturation : ce montant vient du dépôt 2048 par un canal externe.
        Sans cette ligne, un chiffre arrêté il y a six mois se lisait exactement comme un
        chiffre du jour. -->
+  <!-- Du nominal à ce qui entre au patrimoine : quatre périmètres circulaient sous le mot
+       « créances » (nominal, valeur attendue, garanti/incertain, comptabilisé au NW) sans
+       qu'aucun ne dise lequel il était. -->
+  <div id="creancesPerimetres" style="margin:0 0 12px 0;"></div>
+
   <div id="facturationProvenance" style="font-size:11px;color:#718096;margin:0 0 10px 0;"></div>
 
   <h3>Cr&eacute;ances en cours</h3>
@@ -4750,7 +4755,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=537"></script>
+<script type="module" src="js/app.js?v=538"></script>
 
 </body>
 </html>

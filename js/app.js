@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=537';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=538';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=537';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=537';
-import { render, applySnapshotDeltas } from './render.js?v=537';
-import { chargerContratDistant } from './facturation_contract.js?v=537';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=537';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=537';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=537';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=537';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=538';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=538';
+import { render, applySnapshotDeltas } from './render.js?v=538';
+import { chargerContratDistant } from './facturation_contract.js?v=538';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=538';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=538';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=538';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=538';
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -694,18 +694,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=537');
+  const auth = await import('./auth.js?v=538');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=537');
+  const auth = await import('./auth.js?v=538');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=537');
+  const auth = await import('./auth.js?v=538');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1001,7 +1001,18 @@ function updateKPIsFromChart(chartData) {
     // Save chart-computed value for render.js to reuse on re-render (tab switches)
     const pct = (refValue && refValue > 0) ? (value / refValue * 100) : null;
     if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
-    window._chartKPIOverrides[id] = { value: v, pct };
+    // PROVENANCE OBLIGATOIRE. Ce cache était indexé par le seul identifiant de carte : chaque
+    // reconstruction du graphe — changement de périmètre, de période, de propriétaire —
+    // écrasait les mêmes cases, et toute surface rendue à un autre moment affichait une
+    // autre génération. L'accueil annonçait « YTD −21 494 » pendant que la page Actions
+    // annonçait « −22 807 » pour la même chose. On estampille ce qui a produit la valeur ;
+    // le lecteur refusera de la servir hors de ce périmètre.
+    window._chartKPIOverrides[id] = {
+      value: v, pct,
+      scope: window._currentScope || 'ibkr',
+      owner: window._activeOwner || 'both',
+      at: Date.now(),
+    };
     // Update sub-percentage (class: kpi-sub-pct, set by setSubPct in render.js)
     // Always remove existing pct span first (prevents stale values when switching to scopes with 0 NAV)
     const existing = el.parentElement?.querySelector('.kpi-sub-pct');
@@ -1092,6 +1103,10 @@ function updateKPIsFromChart(chartData) {
     oneYear: { costs: aggregateCosts(oneYearAgoStr, lastDate) },
     twr: twrPct,
   };
+
+  // Les cartes de l'accueil ont été rendues AVANT ce calcul : sans ce rappel elles restent
+  // sur la génération précédente, et les deux pages annoncent deux performances.
+  if (typeof window._majPerfClasses === 'function') { try { window._majPerfClasses(); } catch (e) { /* non bloquant */ } }
 
   console.log('[kpi-chart] Updated KPIs from chart: Daily=' + Math.round(plDaily) +
     ', MTD=' + Math.round(plMTD) + ', 1M=' + Math.round(pl1M) +
@@ -1228,7 +1243,13 @@ function update1YKPIFromChart() {
   }
   // Also save to _chartKPIOverrides so render.js re-renders preserve the chart value
   if (!window._chartKPIOverrides) window._chartKPIOverrides = {};
-  window._chartKPIOverrides['kpiPL1Y'] = { value: Math.round(pl1Y), pct: pct1Y };
+  window._chartKPIOverrides['kpiPL1Y'] = {
+    value: Math.round(pl1Y), pct: pct1Y,
+    scope: window._currentScope || 'ibkr',
+    owner: window._activeOwner || 'both',
+    at: Date.now(),
+  };
+  if (typeof window._majPerfClasses === 'function') { try { window._majPerfClasses(); } catch (e) { /* non bloquant */ } }
 
   console.log('[kpi-1y] Updated 1Y KPI from chart: P&L=' + Math.round(pl1Y) + ', pct=' + pct1Y.toFixed(1) + '%, capitalDeployed=' + Math.round(capitalDeployed));
 }
