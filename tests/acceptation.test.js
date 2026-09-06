@@ -433,6 +433,9 @@ t('aucun loyer de repli n’est écrit en dur dans le rendu', () => {
   const src = readFileSync(new URL('../js/render.js', import.meta.url), 'utf8');
   assert.ok(!/loyerHC \|\| 600/.test(src), '« loyerHC || 600 » subsiste');
   assert.ok(!/chargesLoc != null \? 100 : 100/.test(src), 'ternaire sans effet sur chargesLoc');
+  // La tuile porte le TOTAL des recettes : l'étiquette « Loyer HC » décrivait une seule part.
+  assert.ok(!/partsRecettes\(prop\)[\s\S]{0,80}pk-label">Loyer HC</.test(src),
+    'la tuile des recettes est encore étiquetée « Loyer HC »');
 });
 
 console.log(ko === 0 ? '\n✅ acceptation : tout passe\n' : '\n❌ ' + ko + ' échec(s)\n');
