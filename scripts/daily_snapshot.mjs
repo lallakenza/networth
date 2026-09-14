@@ -6,9 +6,9 @@
  *   1. Prix live Yahoo (direct, pas de CORS en Node) pour chaque position + FX.
  *   2. SGTM : data/sgtm_live.json du checkout (rafraîchi par le cron horaire existant).
  *   3. compute() headless (même moteur que le site, imports ?v= strippés → .tmp/).
- *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only). Authentification
- *      gouvernée par la version : v544 = clé publishable (existant) ; v545 = secret serveur
- *      sb_secret_… en `apikey` seul (voir NW_SUPABASE_SECRET_KEY + scripts/_snapshot_auth.mjs).
+ *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only). Clé serveur sb_secret_…
+ *      (NW_SUPABASE_SECRET_KEY) en `apikey` seul dès qu'elle est valide ; sans elle, repli
+ *      publishable en v544 uniquement, refus en v545 (scripts/_snapshot_auth.mjs).
  *
  * Limites connues (flaguées dans meta) : pas de localStorage en headless → facturation
  * = fallback data.js ; fxSource='live (cron)'. La ligne du cron étant la plus récente à
@@ -142,14 +142,14 @@ console.log('[cron-snap] NW couple', snap.total.couple, '€ | qualité', qualit
 if (quality === 'static') { console.error('[cron-snap] tout statique → pas d\'insert (on ne fige pas un jour dégradé)'); process.exit(1); }
 if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'insert'); process.exit(1); }
 
-// ── 6. INSERT append-only — authentification GOUVERNÉE PAR LA VERSION (items 2 & 3) ──
-// v544 (avant bascule) : comportement EXISTANT préservé → clé publishable (publique par design).
-//   Le cron nocturne continue de tourner tant que la bascule n'a pas eu lieu ; aucun secret requis.
-// v545 (dès la bascule) : échec FERMÉ → exige le secret serveur au nouveau format `sb_secret_…`
-//   (le projet a migré anon/service_role → sb_publishable_…/sb_secret_…). Cette clé n'est PAS un
-//   JWT : elle part UNIQUEMENT dans l'en-tête `apikey`, jamais en Authorization Bearer. Le secret
-//   arrive par l'environnement GitHub Actions (NW_SUPABASE_SECRET_KEY), JAMAIS dans js/ ni dans un
-//   fichier suivi. Détail dans scripts/_snapshot_auth.mjs (fonction pure, testée).
+// ── 6. INSERT append-only — authentification de transition (scripts/_snapshot_auth.mjs) ──
+// Secret serveur `sb_secret_…` valide (NW_SUPABASE_SECRET_KEY) → utilisé immédiatement, même en
+//   v544, dans l'en-tête `apikey` SEUL (ce n'est pas un JWT, jamais de Bearer). C'est ce qui permet
+//   de fermer la RLS avant le déploiement v545 sans interrompre le cron.
+// Pas de secret valide : v544 → repli temporaire sur la clé publishable (chemin historique) ;
+//   v545+ → échec FERMÉ, aucune écriture.
+// Le secret arrive par l'environnement GitHub Actions, JAMAIS dans js/ ni dans un fichier suivi, et
+// n'est jamais imprimé.
 const SUPA = 'https://mjbmtubkhlspwfqhqgvq.supabase.co';
 const PUBLISHABLE_KEY = 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO';   // publique par design
 const snapDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
@@ -162,10 +162,11 @@ try {
     publishableKey: PUBLISHABLE_KEY,
   });
 } catch (e) {
-  console.error('[cron-snap] ✗ ' + (e && e.message) + ' — AUCUNE écriture (v545 : échec fermé).');
-  console.error('             Ajouter le secret sb_secret_… au dépôt et l\'exposer au job (env: NW_SUPABASE_SECRET_KEY).');
+  console.error('[cron-snap] ✗ ' + (e && e.message) + ' — AUCUNE écriture (échec fermé).');
+  console.error('             Créer le secret dépôt NW_SUPABASE_SECRET_KEY (clé serveur sb_secret_…) et l\'exposer au job.');
   process.exit(1);
 }
+if (auth.warning) console.warn('[cron-snap] ⚠ ' + auth.warning);
 console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ')');
 const res = await fetch(SUPA + '/rest/v1/nw_snapshots', {
   method: 'POST',

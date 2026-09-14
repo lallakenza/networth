@@ -1,40 +1,73 @@
-# Store serveur partagé (L2 Supabase) — provisioning
+# Store serveur Supabase — clés, tables et RLS
 
-Le site utilise un cache à 2 niveaux pour l'historique des prix :
+Projet `mjbmtubkhlspwfqhqgvq`, **partagé avec Lalla Kenza**. Les tables Net Worth s'y distinguent
+par leur nom ; aucune règle ne doit reposer sur « tout utilisateur authentifié ».
 
-- **L1 = localStorage** (par navigateur) : cache local instantané, rendu immédiat du graphe.
-- **L2 = Supabase** (partagé) : source de vérité cross-machine. Une nouvelle machine lit tout
-  l'historique depuis L2 en 1 requête au lieu de re-backfiller 5 ans depuis Yahoo. Seul le delta
-  manquant est chargé de Yahoo/TradingView, restitué à l'utilisateur, puis ré-uploadé vers L2 en
-  arrière-plan.
+## Clés
 
-Donnée stockée = **prix d'actions publics** (dates + clôtures par ticker). **Pas** de montants,
-pas de positions, pas de données perso → clé anon dans le client = pratique standard Supabase.
+Le projet a **désactivé les anciennes clés JWT** `anon` et `service_role` (format `eyJ…`). Ne jamais
+en générer, en coller ni en recommander.
 
-Tant que `SERVER_STORE.url` / `anonKey` sont vides dans `js/api.js`, L2 est **inactif** (le site
-fonctionne en L1-only, comportement inchangé). Pour l'activer :
+| Clé | Usage | Emplacement | Envoi |
+|---|---|---|---|
+| `sb_publishable_…` | navigateur | `js/api.js` → `SERVER_STORE.anonKey` (nom historique du champ) | `apikey` ; l'identité vient du JWT de session en `Authorization: Bearer` |
+| `sb_secret_…` | cron serveur uniquement | secret GitHub Actions `NW_SUPABASE_SECRET_KEY` | **`apikey` seul** : ce n'est pas un JWT, jamais en `Authorization: Bearer` |
 
-## 1. Créer la table (SQL editor Supabase)
+- La clé publishable est publique par design : elle ne donne accès qu'à ce que la RLS autorise au
+  rôle anonyme — pour les tables patrimoniales, **rien** après la RLS v545.
+- Une clé `sb_secret_…` contourne la RLS. Elle ne vit que dans le secret GitHub Actions, n'est jamais
+  dans `js/`, dans un fichier suivi, dans une commande tapée ni dans un log. Le cron vérifie son
+  format (`scripts/_snapshot_auth.mjs`) et refuse toute autre forme.
+- Créer une clé serveur : *Project Settings* → *API Keys* → *Secret keys*, une clé nommée par usage
+  (ex. `github-actions-daily-snapshot`) pour pouvoir la révoquer seule. Procédure d'installation sans
+  affichage : `docs/BASCULE_V545.md`, étape 2.
 
-Projet Supabase existant OU nouveau projet gratuit dédié à networth (recommandé pour l'isolation).
-Dans **SQL Editor**, exécuter :
+## Politique d'accès cible (RLS v545)
+
+| Table | Contenu | Lecture | Écriture |
+|---|---|---|---|
+| `price_history` | prix d'actions publics, aucune donnée personnelle | publique | publique (cache de prix) |
+| `nw_snapshots` | patrimoine quotidien | **compte Net Worth seul** | INSERT : compte Net Worth (navigateur) ou clé serveur (cron). Aucun UPDATE/DELETE |
+| `immo_properties`, `immo_loans`, `immo_crd_obs` | référentiel immobilier | **compte Net Worth seul** | administration uniquement (SQL Editor / Management API) |
+| `nw_secrets` | clé des données | compte Net Worth seul | administration uniquement |
+
+Le script qui pose cette RLS est **hors dépôt** :
+`/Users/amine/networth-data/activation-kit/supabase_v545.sql` — un seul bloc atomique qui active la
+RLS, retire toutes les policies existantes des quatre tables patrimoniales, crée les policies du seul
+UID autorisé et vérifie les invariants avant de valider. Ordre d'exécution et contrôles :
+`docs/BASCULE_V545.md`, étapes 1 à 6.
+
+> **État tant que ce script n'est pas exécuté** : les quatre tables patrimoniales portent encore des
+> policies anonymes héritées. Elles sont à retirer, jamais à recréer.
+
+---
+
+## `price_history` — cache L2 des prix
+
+Le site met l'historique des prix en cache sur deux niveaux :
+
+- **L1 = localStorage** (par navigateur) : rendu immédiat du graphe.
+- **L2 = Supabase** (partagé) : une nouvelle machine lit tout l'historique en une requête au lieu de
+  re-backfiller cinq ans depuis Yahoo ; seul le delta manquant est rechargé puis ré-uploadé.
+
+Donnée stockée : dates et clôtures par ticker. Ni montant, ni position, ni donnée personnelle — c'est
+la seule table où un accès anonyme est acceptable.
 
 ```sql
-create table if not exists price_history (
+create table if not exists public.price_history (
   id         text primary key,
   data       jsonb not null,
   updated_at timestamptz default now()
 );
+alter table public.price_history enable row level security;
 
-alter table price_history enable row level security;
+-- Prix publics uniquement : lecture et écriture ouvertes au rôle anonyme.
+create policy "price_read"   on public.price_history for select to anon, authenticated using (true);
+create policy "price_insert" on public.price_history for insert to anon, authenticated with check (true);
+create policy "price_update" on public.price_history for update to anon, authenticated using (true) with check (true);
 
--- Donnée non sensible (prix publics) + app perso mono-utilisateur → accès anon permissif.
-create policy "anon read"   on price_history for select using (true);
-create policy "anon insert" on price_history for insert with check (true);
-create policy "anon update" on price_history for update using (true) with check (true);
-
--- updated_at = vraie date de dernière écriture (le DEFAULT ne se déclenche qu'à l'INSERT ;
--- un upsert fait un UPDATE et laisserait updated_at figé sans ce trigger).
+-- updated_at = vraie date de dernière écriture (le DEFAULT ne joue qu'à l'INSERT ; un upsert fait
+-- un UPDATE).
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end;
@@ -45,132 +78,115 @@ create trigger trg_price_history_updated_at
   for each row execute function public.set_updated_at();
 ```
 
-> Note : ce projet a désactivé les clés legacy (anon/service_role) → utiliser la clé
-> **publishable** (`sb_publishable_…`, récupérable via
-> `GET https://api.supabase.com/v1/projects/<ref>/api-keys?reveal=true`) comme valeur
-> `anonKey` dans `SERVER_STORE`. Table déjà provisionnée sur le projet `mjbmtubkhlspwfqhqgvq`.
+Pire cas assumé : quelqu'un écrase le cache de prix ; le site le reconstruit depuis Yahoo.
 
----
-
-# Snapshots quotidiens du patrimoine (table `nw_snapshots`, v386+)
-
-Historique NW type Finary : chaque visite avec **prix live** fige l'arbre complet du
-patrimoine (total/personne, cartes KPI par vue, chaque compte cash, chaque appartement
-brute+nette, chaque position, créances, meta qualité) — `buildDailySnapshot(state)` dans
-`js/engine.js`, ~5 Ko/jour, ids **stables snake_case** (`CASH_ACCOUNT_IDS`).
-
-## Table (APPEND-ONLY — différent de price_history !)
-
-```sql
-create table public.nw_snapshots (
-  snap_date  date not null,
-  captured_at timestamptz not null default now(),
-  quality    text not null default 'static' check (quality in ('live','partial','static')),
-  data       jsonb not null check (pg_column_size(data) < 200000),
-  primary key (snap_date, captured_at)
-);
-alter table public.nw_snapshots enable row level security;
-create policy "nw_snap_read"   on public.nw_snapshots for select to anon using (true);
-create policy "nw_snap_insert" on public.nw_snapshots for insert to anon
-  with check (snap_date between date '2020-01-01' and current_date + 1);
--- PAS de policy UPDATE ni DELETE : un snapshot d'hier est IRREMPLAÇABLE (on ne peut pas
--- recalculer le NW passé). Même avec la clé publique, l'historique est infalsifiable.
--- Corrections admin uniquement via la Management API.
-```
-
-## Sémantique
-
-- Plusieurs lignes possibles par jour (append) ; la « meilleure » est choisie **à la
-  lecture** : qualité `live > partial > static`, puis `captured_at` max (`loadSnapshots`).
-- Écriture : `maybeSaveDailySnapshot` (api.js) — insert seulement si 1ʳᵉ du jour, upgrade
-  de qualité, ou raffinement > 4 h. **Jamais de capture en prix statiques** (une fausse
-  chute deviendrait permanente).
-- Date du jour = calendrier **Europe/Paris** (`parisDateISO`), pas UTC.
-- Jours sans visite = trous assumés (forward-fill à l'affichage). Pas de seed depuis
-  EQUITY_HISTORY dans la courbe NW (actions-only → serait des données inventées, purgées
-  v86/v150) ; elle est rendue comme série séparée dans la vue Historique.
-
-## Consommation
-
-Vue **Analyse → 📈 Historique** : courbes NW (couple/amine/nezha), aires par catégorie,
-explorateur de séries (~73 séries : chaque compte, bien, position, créance), profondeur
-mensuelle actions. Deltas « vs hier » sur les cartes NW (`applySnapshotDeltas`, render.js).
-Cache session `window._nwSnapCache`, préchargé à l'init (app.js).
-
-## 2. Récupérer l'URL + la clé anon
-
-**Project Settings → API** :
-- **Project URL** : `https://xxxxxxxx.supabase.co`
-- **anon public** key : `eyJ...` (la clé PUBLIQUE — surtout PAS la `service_role`)
-
-## 3. Renseigner la config
-
-Dans `js/api.js`, remplir la constante `SERVER_STORE` :
+### Configuration du client
 
 ```js
 const SERVER_STORE = {
-  url: 'https://xxxxxxxx.supabase.co',
-  anonKey: 'eyJ...',           // clé anon PUBLIQUE uniquement
+  url: 'https://mjbmtubkhlspwfqhqgvq.supabase.co',
+  anonKey: 'sb_publishable_…',   // clé PUBLISHABLE uniquement — jamais une clé sb_secret_… ni eyJ…
   table: 'price_history',
   row: 'singleton',
 };
 ```
 
-Puis bump `?v=N` + commit + push (déploiement GitHub Pages ~60 s).
+URL et clé vides ⇒ L2 inactif, le site fonctionne en L1 seul. Toute modification : bump `?v=N`,
+commit, push.
 
-## 4. Vérifier
+### Vérifier
 
-- 1er chargement (L1 + L2 vides) : backfill 5Y depuis Yahoo → upload vers L2 (console
-  `[hist] L2 Supabase upload OK`).
-- Chargement depuis une autre machine (L1 vide) : `[hist] L2 Supabase fusionné …` puis
-  `0 backfill + N gap` → l'historique vient de L2, Yahoo n'est appelé que pour le delta.
-
-## Notes
-
-- Écritures concurrentes (2 machines) : chacune lit L2 puis y ajoute son gap ; les gaps Yahoo
-  étant déterministes, les blobs convergent (last-write-wins acceptable en mono-utilisateur).
-- Blob borné à ~1800 j/série (`_trimSeries`) → quelques centaines de Ko, très en dessous du
-  free tier Supabase (500 Mo).
+- Premier chargement (L1 et L2 vides) : backfill depuis Yahoo puis `[hist] L2 Supabase upload OK`.
+- Autre machine (L1 vide) : `[hist] L2 Supabase fusionné …` puis `0 backfill + N gap`.
+- Écritures concurrentes : les gaps Yahoo sont déterministes, les blobs convergent. Blob borné à
+  ~1 800 jours par série (`_trimSeries`).
 
 ---
 
-## Référentiel immobilier (v402) — `immo_properties` / `immo_loans` / `immo_crd_obs`
+## `nw_snapshots` — patrimoine quotidien (append-only)
 
-Source de vérité éditable des données appartements, consommée par le site au chargement
-(`loadImmoRef()` → `applyImmoRef()`, fallback intégral data.js si fetch KO).
-RLS : anon SELECT uniquement — toute écriture passe par la Management API (admin).
+Historique Net Worth : chaque capture fige l'arbre complet (totaux par personne, cartes KPI, chaque
+compte, bien, position, créance, métadonnées de qualité) — `buildDailySnapshot(state)` dans
+`js/engine.js`, ~5 Ko par jour, ids stables snake_case (`CASH_ACCOUNT_IDS`).
+
+```sql
+create table public.nw_snapshots (
+  snap_date   date not null,
+  captured_at timestamptz not null default now(),
+  quality     text not null default 'static' check (quality in ('live','partial','static')),
+  data        jsonb not null check (pg_column_size(data) < 200000),
+  primary key (snap_date, captured_at)
+);
+alter table public.nw_snapshots enable row level security;
+-- Policies : posées par supabase_v545.sql (SELECT et INSERT du seul UID autorisé).
+-- AUCUNE policy UPDATE ni DELETE : un snapshot passé est irremplaçable.
+-- Corrections : administration uniquement.
+```
+
+### Qui écrit
+
+| Écrivain | Authentification | Quand |
+|---|---|---|
+| Cron GitHub Actions (`scripts/daily_snapshot.mjs`, ~22 h Paris) | clé `sb_secret_…` en `apikey` seul | chaque soir |
+| Navigateur (`maybeSaveDailySnapshot`, `js/api.js`) | JWT de session du compte Net Worth | visite avec prix live ; sans session, s'abstient |
+
+Pendant la transition, le cron accepte encore la clé publishable **en v544 et sans secret valide
+seulement** ; en v545 il refuse d'écrire sans clé serveur. Détail et tests : `scripts/_snapshot_auth.mjs`,
+`tests/snapshot-auth.test.js`.
+
+### Sémantique
+
+- Plusieurs lignes possibles par jour ; la meilleure est choisie **à la lecture** : qualité
+  `live > partial > static`, puis `captured_at` le plus récent (`loadSnapshots`).
+- Le navigateur n'insère que si c'est la première ligne du jour, une amélioration de qualité, ou un
+  raffinement après plus de 4 h. **Jamais de capture en prix statiques.**
+- Date du jour = calendrier **Europe/Paris** (`parisDateISO`), pas UTC.
+- Jours sans capture = trous assumés (forward-fill à l'affichage). Jamais de reconstitution depuis
+  `EQUITY_HISTORY`, affiché comme série séparée.
+
+### Consommation
+
+Vue **Analyse → Historique** : courbes Net Worth (couple / Amine / Nezha), aires par catégorie,
+explorateur de séries, profondeur mensuelle actions. Deltas « vs hier » sur les cartes
+(`applySnapshotDeltas`, `js/render.js`). Lecture avec le JWT de session : sans connexion, la vue
+est vide.
+
+---
+
+## Référentiel immobilier — `immo_properties` / `immo_loans` / `immo_crd_obs`
+
+Source de vérité éditable des données appartements, lue au chargement (`loadImmoRef()` →
+`applyImmoRef()`), avec le JWT de session. Sans session ou en cas d'échec : cache local puis
+`data.js` intégral.
+
+Lecture : compte Net Worth seul (RLS v545). Écriture : administration uniquement, dans le SQL Editor.
 
 ### Éditer une valeur (exemples)
 
 ```sql
--- MAJ valeur de marché Vitry (nouvelle estimation)
-update immo_properties set value = 305000, value_date = '2026-09', updated_at = now()
+-- Valeur de marché Vitry (nouvelle estimation)
+update public.immo_properties set value = 305000, value_date = '2026-09', updated_at = now()
 where id = 'vitry';
 
--- MAJ CRD snapshot après réception d'un tableau d'amortissement
-update immo_properties set crd_snapshot = 266000, crd_snapshot_date = '2026-09-30', updated_at = now()
+-- CRD après réception d'un tableau d'amortissement
+update public.immo_properties set crd_snapshot = 266000, crd_snapshot_date = '2026-09-30', updated_at = now()
 where id = 'vitry';
-insert into immo_crd_obs (property_id, loan_id, obs_date, crd, source)
+insert into public.immo_crd_obs (property_id, loan_id, obs_date, crd, source)
 values ('vitry', 'vitry_bp', '2026-09-30', 170500, 'tableau BP sept 2026');
 
--- MAJ loyer Rueil (nouveau bail)
-update immo_properties set rent = rent || '{"loyerHC":1350}', updated_at = now()
-where id = 'rueil';
-
 -- Avancement VEFA Villejuif (nouvel appel de fonds)
-update immo_properties
+update public.immo_properties
 set vefa = vefa || '{"appelsPayes":165000,"drawnToDate":150000}', updated_at = now()
 where id = 'villejuif';
 ```
 
 ### Règles
 
-1. **Garder `data.js` en phase** : c'est le fallback offline ET la baseline du test
-   d'équivalence. Toute édition Supabase se réplique dans data.js (même valeur).
-2. **`vitryLoans[0]` = Action Logement** — l'ordre AL, PTZ, BP est significatif
-   (l'engine lit `[0]` pour l'assurance AL). Idem villejuif : LCL1 puis LCL2.
-3. **Jamais en base** : adresses postales, lots/étages, noms (locataires, banquiers,
-   notaires), numéros de dossier/compte. Ils restent hors DB (ou data.js seulement).
-4. **Vérifier après édition** : hard-refresh du site → console `[immo-ref] appliqué
-   (source=supabase)` avec les nouvelles valeurs ; les invariants engine doivent
-   rester verts (`[engine] Catégories cohérentes ✓`).
+1. **Garder `data.js` en phase** : c'est le repli sans session ou hors ligne ET la base du test
+   d'équivalence. Toute édition Supabase se réplique dans `data.js`.
+2. **`vitryLoans[0]` = Action Logement** : l'ordre AL, PTZ, BP est significatif (l'engine lit `[0]`).
+   Idem Villejuif : LCL1 puis LCL2.
+3. **Jamais en base** : adresses, lots, noms de personnes, numéros de dossier ou de compte, revenus
+   hors bail.
+4. **Vérifier après édition** : se connecter, hard-refresh, console `[immo-ref] Supabase OK` avec les
+   nouvelles valeurs ; les invariants engine restent verts (`[engine] Catégories cohérentes ✓`).

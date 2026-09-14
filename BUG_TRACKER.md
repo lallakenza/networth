@@ -2464,7 +2464,10 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   `immo_properties.vitry.rent` porte encore 8 champs sensibles (revenus hors bail). `nw_secrets` est
   correctement protégé (0 ligne en anonyme) ; toute écriture anonyme est refusée (401).
 - **Lectures JWT (item 3, livré v544-prep)** : `loadSnapshots`/`loadImmoRef` envoient le jeton de
-  session avec repli anon (compatible avant/après RLS). — **Correctif préparé (NON appliqué)** : `scratchpad/supabase_v545.sql` — §A retire les champs
-  sensibles et aligne les faits Villejuif (2 UPDATE, 1 INSERT, 0 DELETE) ; §B propose de verrouiller la
-  RLS sur le compte authentifié, à coordonner avec un changement de `js/api.js` (lecture avec le jeton
-  de session) sous peine de casser l'immo et l'Historique anonymes. À exécuter par l'utilisateur.
+  session avec repli anon (compatible avant/après RLS). — **Correctif préparé (NON appliqué)** :
+  `/Users/amine/networth-data/activation-kit/supabase_v545.sql` (hors dépôt), un bloc atomique — §A retire
+  les champs sensibles et aligne les faits Villejuif (2 UPDATE, 1 INSERT idempotent, 0 DELETE) ; §B
+  épingle lecture et INSERT `nw_snapshots` sur l'UID du compte Net Worth, retire toute policy anonyme,
+  aucune UPDATE/DELETE, invariants vérifiés avant validation. Le cron écrit avec une clé serveur
+  `sb_secret_…` en `apikey` seul (`NW_SUPABASE_SECRET_KEY`). À exécuter par l'utilisateur, dans l'ordre
+  de `docs/BASCULE_V545.md` (secret et cron vérifiés en v544 AVANT la RLS).

@@ -5076,7 +5076,8 @@ d'une session anonyme reste vide.
   anonyme se fait en complément au navigateur.
 - **En attente** : la phrase (= secret Supabase `nw_secrets.data_key`), ni au trousseau ni au dépôt.
 - **Supabase (item 2)** : tables immo + `nw_snapshots` (802 lignes) lisibles avec la clé publique.
-  SQL de nettoyage + proposition RLS : `scratchpad/supabase_nettoyage_v544.sql`, non exécuté.
+  SQL de nettoyage + RLS : remplacé par le script atomique hors dépôt
+  `/Users/amine/networth-data/activation-kit/supabase_v545.sql`, non exécuté.
 
 ### Frais de financement Villejuif (item 3) — par niveau de preuve
 `villejuifCapitalInvesti()` ne fond plus estimations et montant non justifié dans un « coût payé ».
@@ -5098,17 +5099,22 @@ Préparés sans activer le chiffrement ni toucher un secret/RLS ; l'utilisateur 
   si le trousseau est vide, l'enregistre après vérification, et part TOUJOURS du `js/data.js`
   courant (`NW_DATA_SOURCE` forcé sur la sauvegarde fraîche ; source par défaut = data.js en clair).
 - **Cron nocturne** : `scripts/daily_snapshot.mjs` déchiffre le blob via `scripts/_dechiffre.mjs`
-  (partagé) quand `NW_PASSPHRASE` est fourni ; le workflow DEVRA l'exposer depuis le secret dépôt
-  `NW_PASSPHRASE` (masqué par GitHub) — modif YAML fournie (`scratchpad/daily-snapshot.yml.v545`) à
-  appliquer par l'utilisateur, le jeton de l'agent n'ayant pas le scope `workflow`. Sans phrase et
-  données chiffrées → refus d'écrire (table append-only). Test `tests/snapshot-chiffre.test.js`
-  (clé jetable). **Le secret GitHub n'est pas créé.**
+  (partagé) quand `NW_PASSPHRASE` est fourni. Écriture : clé serveur `sb_secret_…`
+  (`NW_SUPABASE_SECRET_KEY`) en `apikey` seul dès qu'elle est valide, repli publishable en v544
+  seulement, refus en v545 (`scripts/_snapshot_auth.mjs`, `tests/snapshot-auth.test.js`). Le workflow
+  expose les deux secrets via le patch hors dépôt
+  `/Users/amine/networth-data/activation-kit/daily-snapshot.workflow.v545.patch`, à appliquer par
+  l'utilisateur (le jeton de l'agent n'a pas le scope `workflow`). Sans phrase et données chiffrées
+  → refus d'écrire. Test `tests/snapshot-chiffre.test.js` (clé jetable). **Aucun secret n'est créé.**
 - **Lectures Supabase avec JWT** (item 3, `js/api.js`/`js/auth.js`) : `loadSnapshots` et
   `loadImmoRef` envoient le jeton de session quand il existe, avec repli anon TANT QUE la RLS reste
   permissive — compatible avant ET après le §B RLS, sans coordination fragile.
-- **RLS restrictive** (`scratchpad/supabase_v545.sql`) : lecture épinglée sur un `auth.uid()` précis
-  (base partagée Lalla Kenza → « authentifié » ne suffit pas), INSERT anon conservé pour le cron,
-  impact ligne par ligne. **Non exécuté.**
+- **RLS restrictive** (`/Users/amine/networth-data/activation-kit/supabase_v545.sql`, hors dépôt) :
+  un bloc atomique qui épingle lecture (4 tables) et INSERT (`nw_snapshots`) sur un `auth.uid()`
+  précis (base partagée Lalla Kenza → « authentifié » ne suffit pas), sans policy anonyme ni
+  UPDATE/DELETE, invariants vérifiés avant validation. **Non exécuté.** Ordre sûr :
+  `docs/BASCULE_V545.md` (UID → secrets → workflow → cron vérifié en v544 → RLS → contrôles →
+  chiffrement v545 → prod → purge).
 - **Purge d'historique** (`docs/PURGE_HISTORIQUE.md`, `scripts/purge_history.sh`) : inventaire
   (data.js 48 commits depuis le 30/08, fichiers supprimés en v543, n° de compte), sauvegarde,
   réécriture `git filter-repo` sur un miroir, conséquences. **S'arrête avant le force-push.**
