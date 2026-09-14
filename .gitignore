@@ -1,9 +1,9 @@
 .DS_Store
 *.swp
 
-# Skill tooling (npx skills) — local dev only, jamais déployé sur GitHub Pages
+# Outillage local (node_modules, lock) — jamais déployé. package.json EST suivi (v544) :
+# il porte les commandes npm run test/lint/desync/confidentiality/verify/encrypt (item 5).
 node_modules/
-package.json
 package-lock.json
 skills-lock.json
 .agents/

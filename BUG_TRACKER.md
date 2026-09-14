@@ -2428,3 +2428,37 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   toujours en clair par décision v517.
 - **Tests** : `tests/confidentialite.test.js` (motifs interdits dans tout fichier suivi, fichiers hérités absents,
   surcouche sans champ hors bail).
+
+
+## BUG-120 : les données patrimoniales sont téléchargeables sans authentification
+
+- **Version** : mécanique livrée en v544 (14/09/2026) ; ACTIVATION en attente de la phrase. **Sévérité** : critique.
+- **Symptôme** : la grille de code ne masque que l'interface. `curl …/js/data.js` renvoie 200 avec soldes,
+  positions, créances, contreparties ; et le DOM contient les montants avant toute saisie.
+- **Cause** : depuis la v517, `js/data.js` est en clair et `blobDisponible()` renvoyait `false` en dur.
+- **Correctif (v544)** : la mécanique de chiffrement (AES-256-GCM + PBKDF2, blob `js/data.enc.js`,
+  déverrouillage par phrase servie après authentification Supabase ou appairage d'appareil) est
+  rebranchée et **s'active sur l'état des données** : `blobDisponible()` renvoie true dès que
+  `js/data.js` est une coquille (PORTFOLIO vide). `donneesPretes()` bloque déjà tout rendu sans
+  données → le DOM anonyme reste vide. Liste unique des 13 blocs sensibles
+  (`scripts/_blocs_sensibles.mjs`, dont les nouveaux VILLEJUIF_ACTE et RESIDENCE_FISCALE), un seul
+  geste d'activation (`npm run encrypt`), et un vérificateur (`scripts/verify_no_leak.mjs`).
+  Simulation complète en bac à sable : coquille + blob 138 Ko, DOM anonyme vide, données récupérables
+  avec la phrase, zéro fuite.
+- **En attente** : la phrase (= secret Supabase `nw_secrets.data_key`) n'est ni dans le trousseau
+  macOS ni dans le dépôt. Elle est requise pour générer le blob à jour. Aucune clé n'est tournée.
+- **Reste hors dépôt (§ Supabase)** : `immo_properties`/`immo_loans`/`immo_crd_obs` et surtout
+  `nw_snapshots` (802 lignes) restent lisibles avec la clé publique — voir BUG-121.
+- **Tests** : `tests/chiffrement.test.js` (mécanique), `scripts/verify_no_leak.mjs` (`npm run confidentiality`).
+
+## BUG-121 : Supabase — tables patrimoniales lisibles avec la clé publique
+
+- **Version** : constaté et documenté en v544 ; correction en attente d'approbation. **Sévérité** : haute.
+- **Constat (mesuré le 14/09/2026)** : `immo_properties` (3), `immo_loans` (6), `immo_crd_obs` (8) et
+  `nw_snapshots` (802 instantanés du patrimoine complet) répondent `SELECT 200` en anonyme.
+  `immo_properties.vitry.rent` porte encore 8 champs sensibles (revenus hors bail). `nw_secrets` est
+  correctement protégé (0 ligne en anonyme) ; toute écriture anonyme est refusée (401).
+- **Correctif préparé (NON appliqué)** : `scratchpad/supabase_nettoyage_v544.sql` — §A retire les champs
+  sensibles et aligne les faits Villejuif (2 UPDATE, 1 INSERT, 0 DELETE) ; §B propose de verrouiller la
+  RLS sur le compte authentifié, à coordonner avec un changement de `js/api.js` (lecture avec le jeton
+  de session) sous peine de casser l'immo et l'Historique anonymes. À exécuter par l'utilisateur.

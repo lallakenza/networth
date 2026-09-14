@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=543';
-import { lireContratEnCache } from './facturation_contract.js?v=543';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=544';
+import { lireContratEnCache } from './facturation_contract.js?v=544';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -597,11 +597,15 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   const _staleList = Object.keys(refStale).filter(k => refStale[k]);
   if (_staleList.length) {
-    console.warn('[engine] ⚠ Prix de référence périmés : ' + _staleList.join(', ')
-      + ' — P&L de ces périodes masqué (« -- ») au lieu d\'un chiffre faux. '
-      + 'Rafraîchir les prix dans data.js puis PRICE_REFS_AS_OF. Bornes calculées : '
-      + 'mtd=' + mtdStartStr + ', 1M=' + oneMonthStr + ', 1Y=' + oneYearStr
-      + ' | déclarées : ' + JSON.stringify(_refsAsOf));
+    // ATTENDU HORS LIGNE. `PRICE_REFS_AS_OF` (data.js) n'est qu'un REPLI : en production, app.js
+    // le rafraîchit au runtime depuis les séries Yahoo du graphe (applyPriceRefs, v483). Ce garde
+    // masque le P&L d'une période plutôt que d'afficher un chiffre faux à partir d'une référence
+    // figée — c'est le comportement voulu, pas un défaut à corriger. En test/CI (pas de réseau),
+    // le repli reste périmé : d'où ce message, en info et non en avertissement.
+    const _msg = '[engine] Prix de référence figés (repli data.js) périmés : ' + _staleList.join(', ')
+      + ' — P&L de ces périodes masqué. Rafraîchis au runtime en production (applyPriceRefs). '
+      + 'Bornes : mtd=' + mtdStartStr + ', 1M=' + oneMonthStr + ', 1Y=' + oneYearStr + '.';
+    if (typeof window === 'undefined') console.info(_msg); else console.warn(_msg);
   }
   // ═══════════════════════════════════════════════════════════════════
   // UNIFIED PERIOD P&L ENGINE
@@ -2616,24 +2620,53 @@ export function iccADate(dateISO, acte = VILLEJUIF_ACTE) {
  */
 export function villejuifCapitalInvesti(acte = VILLEJUIF_ACTE) {
   const r2 = (x) => Math.round(x * 100) / 100;
-  const cashPrix = r2(acte.appelsPayes.montant - acte.deblocageActe.total);
   const dn = acte.decompteNotarial;
-  const fraisAcq = acte.fraisAcquisitionReels != null ? acte.fraisAcquisitionReels : dn.provisionFraisAchat;
-  const fraisStatut = acte.fraisAcquisitionReels != null
-    ? 'définitif' : 'provision notariale du ' + dn.date + ', non définitive — montant réel non documenté';
-  const financement = Object.values(acte.fraisFinancement).reduce((t, x) => t + (x.montant || 0), 0);
-  // La quote-part de 520 € figure à part dans le décompte : comptée UNE fois, en plus de la provision.
-  const horsFinancement = cashPrix + fraisAcq + acte.chargeAugmentative.montant;
+  const F = acte.fraisFinancement;
+  // Le décaissement Villejuif se lit à QUATRE niveaux de preuve distincts. Les additionner en un
+  // seul « capital investi » (ce que faisait la v543) présentait des estimations et un montant
+  // non justifié comme des coûts réellement payés. Chaque poste porte donc son statut, et le
+  // total « réel/documenté » ne retient que les paiements ÉTABLIS.
+  //
+  //  1. PAYÉ ET DOCUMENTÉ — établi par l'acte : la part du prix réglée sur fonds propres (appels
+  //     payés − déblocage LCL) et la charge augmentative EDD/RC (520 €, p.8-9).
+  const cashPrix = r2(acte.appelsPayes.montant - acte.deblocageActe.total);
+  const edd = acte.chargeAugmentative.montant;
+  const reelDocumente = r2(cashPrix + edd);
+  //  2. PROVISION PAYÉE MAIS NON DÉFINITIVE — provision de frais d'achat du décompte notarial du
+  //     27/05/2026 (« sauf à parfaire ou à diminuer ») : versée à la signature, montant non arrêté.
+  const provision = dn.provisionFraisAchat;
+  //  3. SEULEMENT PROPOSÉ / ESTIMÉ — garanties Crédit Logement, chiffrées par la proposition LCL
+  //     du 11/07/2025, non confirmées sur relevé.
+  const estimePropose = r2((F.garantieP1 ? F.garantieP1.montant : 0) + (F.garantieP2 ? F.garantieP2.montant : 0));
+  //  4. NON JUSTIFIÉ — frais de dossier, aucun montant rattaché à une pièce.
+  const nonJustifie = F.dossier ? F.dossier.montant : 0;
+
   return {
+    // Détail par tier, chacun avec sa source.
+    tiers: [
+      { cle: 'reel', libelle: 'Payé et documenté', montant: reelDocumente, statut: 'établi',
+        source: 'Acte p.9 (fonds propres ' + cashPrix + ') + charge augmentative EDD/RC ' + edd + ' (p.8-9)' },
+      { cle: 'provision', libelle: 'Provision notariale (payée, non définitive)', montant: provision, statut: 'payé, non définitif',
+        source: 'Décompte notarial du ' + dn.date + ' — « sauf à parfaire ou à diminuer »' },
+      { cle: 'estime', libelle: 'Garanties — seulement proposées', montant: estimePropose, statut: 'estimé',
+        source: 'Proposition commerciale LCL du 11/07/2025' },
+      { cle: 'nonJustifie', libelle: 'Frais de dossier — non justifiés', montant: nonJustifie, statut: 'non justifié',
+        source: 'Aucune pièce (proposition : 1 500 €)' },
+    ],
+    // « Réel/documenté » = paiements établis UNIQUEMENT.
+    reelDocumente,
     cashPrix,
     depotReservationInclus: acte.appelsPayes.dontDepotReservation,
-    fraisAcquisition: fraisAcq,
-    fraisStatut,
-    quotePartEDD: acte.chargeAugmentative.montant,
-    fraisAcquisitionPourClause: r2(fraisAcq + acte.chargeAugmentative.montant),
-    fraisFinancement: r2(financement),
-    horsFinancement: r2(horsFinancement),
-    total: r2(horsFinancement + financement),
+    quotePartEDD: edd,
+    provision,
+    estimePropose,
+    nonJustifie,
+    // Scénario estimatif : additionne les quatre tiers. À lire comme une borne haute, pas un fait.
+    scenarioEstimatif: r2(reelDocumente + provision + estimePropose + nonJustifie),
+    // Pour la clause SADEV — frais d'ACQUISITION acquittés (provision + EDD), distincts du forfait
+    // fiscal de 7,5 %. Ces 520 € sont comptés ICI et dans `reelDocumente` sans double emploi : les
+    // deux servent des calculs différents (assiette SADEV vs total décaissé), jamais additionnés.
+    fraisAcquisitionPourClause: r2(provision + edd),
     apportNominal: acte.apport.nominalContractuel,
     ecartApport: r2(cashPrix - acte.apport.nominalContractuel),
     ecartStatut: 'non réconcilié',
@@ -2832,7 +2865,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
       ));
       result.sadevDetail = {
         fenetre: fen, iccBase: S.icc.base, iccRevision: iccRev, prixIndexe: Math.round(prixIndexe),
-        fraisAcquisition: cap.fraisAcquisitionPourClause, fraisStatut: cap.fraisStatut,
+        fraisAcquisition: cap.fraisAcquisitionPourClause, fraisStatut: 'provision notariale (non définitive) + EDD, frais acquittés',
         travaux, travauxStatut: S.travauxAcquereur != null ? 'renseigné' : 'non renseigné (0 retenu)',
       };
     }

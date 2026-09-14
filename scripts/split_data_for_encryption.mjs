@@ -14,16 +14,11 @@
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COQUILLES } from './_blocs_sensibles.mjs';
 
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 const CIBLE = join(RACINE, 'js', 'data.js');
 
-// nom → coquille vide de même TYPE (un tableau ne se remplit pas comme un objet)
-const COQUILLES = {
-  PORTFOLIO: '{}', IMMO_CONSTANTS: '{}', VITRY_CONSTRAINTS: '{}', VILLEJUIF_CONSTRAINTS: '{}',
-  IMMO_PASSIFS_DOCUMENTES: '[]', NW_HISTORY: '[]', EQUITY_HISTORY: '[]', MONTHLY_INCOMES: '[]',
-  BUDGET_EXPENSES: '[]', DEGIRO_STATIC_PRICES: '{}', PRICE_REFS_AS_OF: '{}',
-};
 
 function bornesBloc(src, nom) {
   const ancre = `export const ${nom}`;

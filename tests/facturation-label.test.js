@@ -8,13 +8,14 @@
 // contrepartie est ajoutée. Ce test échoue si la divergence revient.
 // ============================================================================
 const fs = require('fs'), path = require('path'), os = require('os');
+const { contenuClair } = require('./_clair.cjs');
 const { execSync } = require('child_process');
 
 const RACINE = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'nw-factu-'));
 for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
-  fs.writeFileSync(path.join(TMP, f),
-    fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8').replace(/\?v=\d+/g, ''));
+  const brut = f === 'data.js' ? contenuClair() : fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8');
+  fs.writeFileSync(path.join(TMP, f), brut.replace(/\?v=\d+/g, ''));
 }
 
 let echecs = [];

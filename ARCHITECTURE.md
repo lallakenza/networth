@@ -5056,6 +5056,48 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v544 (14 septembre 2026) — chiffrement des données patrimoniales (mécanique) ; frais Villejuif par preuve ; CF Vitry contractuel ; outillage reproductible
+
+### Confidentialité (item 1) — le chiffrement s'active sur l'état des données
+Le dépôt est public : tout fichier suivi est téléchargeable. La grille de code ne masque que
+l'interface. La v544 rebranche le chiffrement existant (AES-256-GCM, clé PBKDF2-SHA256, blob
+`js/data.enc.js`) et le rend ATOMIQUE : `blobDisponible()` (js/unlock.js) renvoie true dès que
+`js/data.js` est une coquille (PORTFOLIO vide). Vider les 13 blocs + publier un blob à jour = chiffrement
+en service, sans autre interrupteur. `donneesPretes()` bloquant déjà tout rendu sans données, le DOM
+d'une session anonyme reste vide.
+
+- **Liste unique** des blocs sensibles : `scripts/_blocs_sensibles.mjs` (13, dont VILLEJUIF_ACTE et
+  RESIDENCE_FISCALE ajoutés en v544). `build_encrypted_data.mjs` et `split_data_for_encryption.mjs`
+  l'importent — ils ne peuvent plus diverger.
+- **Un seul geste** : `npm run encrypt` (`scripts/enable_encryption.mjs`) — sauvegarde le clair hors
+  dépôt, régénère le blob, vide `js/data.js`, contrôle la non-fuite. Ne tourne aucune clé.
+- **Vérificateur** : `scripts/verify_no_leak.mjs` (`npm run confidentiality[:prod]`) — coquilles vides,
+  motifs privés, montants du DOM initial. Le contrôle du DOM rendu / des requêtes réseau en session
+  anonyme se fait en complément au navigateur.
+- **En attente** : la phrase (= secret Supabase `nw_secrets.data_key`), ni au trousseau ni au dépôt.
+- **Supabase (item 2)** : tables immo + `nw_snapshots` (802 lignes) lisibles avec la clé publique.
+  SQL de nettoyage + proposition RLS : `scratchpad/supabase_nettoyage_v544.sql`, non exécuté.
+
+### Frais de financement Villejuif (item 3) — par niveau de preuve
+`villejuifCapitalInvesti()` ne fond plus estimations et montant non justifié dans un « coût payé ».
+Quatre tiers, chacun avec sa source : **payé et documenté** (fonds propres 18 183,05 + EDD 520 =
+18 703,05), **provision notariale payée mais non définitive** (6 950), **seulement proposé** (garanties
+4 170,05, proposition LCL), **non justifié** (dossier 1 200). `reelDocumente` = paiements établis ;
+`scenarioEstimatif` = borne haute affichée à part. La quote-part EDD est comptée une fois (dans le réel
+ET l'assiette SADEV, jamais additionnée).
+
+### Cash-flow Vitry (item 4)
+Le −1 377 €/mois suppose zéro revenu avant la prise d'effet du bail (date à confirmer) : libellé
+« CF contractuel pré-bail ». Le cash-flow économique réel ne se calcule qu'après authentification, non
+exposé publiquement.
+
+### Outillage reproductible (item 5)
+`package.json` : `test`, `lint` (config `eslint.config.mjs` committée, globals navigateur+node),
+`desync`, `confidentiality`, `verify` (lint+test+desync), `encrypt`. `npm test` reste reproductible
+avant ET après chiffrement via `tests/_clair.cjs` (clair depuis data.js, ou la source hors dépôt).
+Avertissement « prix de référence figés périmés » clarifié : c'est le repli hors-ligne attendu,
+rafraîchi au runtime en production (applyPriceRefs) — passé en info hors navigateur.
+
 ## v543 (14 septembre 2026) — Villejuif : horizons de valeur, faits sourcés ; confidentialité du dépôt
 
 ### Hiérarchie des sources

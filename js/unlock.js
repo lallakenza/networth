@@ -22,31 +22,40 @@
  */
 
 // LE SUFFIXE ?v=N EST OBLIGATOIRE, PAS DÉCORATIF. Les modules ES sont indexés par URL résolue :
-// './data.js' et './data.js?v=543' sont DEUX modules distincts, donc deux objets PORTFOLIO
+// './data.js' et './data.js?v=544' sont DEUX modules distincts, donc deux objets PORTFOLIO
 // distincts. Sans ce suffixe, le déchiffrement remplissait un orphelin que personne ne lit —
 // le déverrouillage réussissait et le tableau de bord restait vide (v496 à v500).
-import * as DATA from './data.js?v=543';
+import * as DATA from './data.js?v=544';
 
 // Import DYNAMIQUE : tant que `js/data.enc.js` n'existe pas (chiffrement pas encore activé), le
 // site continue de fonctionner exactement comme avant. Cela permet de livrer ce mécanisme sans
 // rien casser, et de basculer le jour où la phrase est choisie et le blob généré.
 let DATA_ENC = null;
+/**
+ * Le chiffrement s'active TOUT SEUL selon l'état de js/data.js (v544).
+ *
+ * Tant que les blocs sensibles y sont EN CLAIR, il n'y a rien à protéger côté déchiffrement :
+ * `blobDisponible()` répond false, la grille ne masque que l'interface (comportement v517).
+ * Dès que `scripts/split_data_for_encryption.mjs` les a vidés en coquilles, `PORTFOLIO` est vide :
+ * il n'y a plus rien à AFFICHER sans déchiffrer, et ce module charge le blob `js/data.enc.js`.
+ *
+ * La bascule est donc ATOMIQUE : vider data.js + publier un blob à jour = chiffrement en service,
+ * sans autre interrupteur à basculer. C'est ce couplage qui interdit l'état incohérent « données
+ * en clair ET grille de déchiffrement », et l'état inverse « données vidées SANS blob ».
+ */
 export async function blobDisponible() {
   if (DATA_ENC) return true;
-  // ── CHIFFREMENT DÉSACTIVÉ (v517, à la demande) ────────────────────────────────────────
-  // Les données sont revenues EN CLAIR dans js/data.js, et le code d'accès à 4 chiffres est
-  // redevenu la seule serrure. Conséquence assumée : le fichier est téléchargeable par qui
-  // connaît son adresse, la grille ne masquant que l'interface.
-  //
-  // Rien n'est supprimé : ce module, js/auth.js, js/data.enc.js et le secret rangé dans
-  // Supabase restent en place. Pour rallumer le chiffrement, il suffit de rétablir la ligne
-  // ci-dessous, de vider les 11 blocs de js/data.js (scripts/split_data_for_encryption.mjs) et
-  // de régénérer le blob (scripts/build_encrypted_data.mjs). Le blob publié aujourd'hui est en
-  // revanche PÉRIMÉ dès la première modification de données : il faudra le reconstruire.
-  //
-  // try { DATA_ENC = (await import('./data.enc.js?v=543')).DATA_ENC; return !!DATA_ENC; }
-  // catch (e) { return false; }
-  return false;
+  const clairPresent = DATA && DATA.PORTFOLIO && typeof DATA.PORTFOLIO === 'object'
+    && Object.keys(DATA.PORTFOLIO).length > 0;
+  if (clairPresent) return false;   // données en clair → pas de déchiffrement
+  try {
+    DATA_ENC = (await import('./data.enc.js?v=544')).DATA_ENC;
+    return !!(DATA_ENC && DATA_ENC.data);
+  } catch (e) {
+    // data.js vidé MAIS blob absent : état à ne jamais publier. On le signale au lieu de le taire.
+    console.error('[unlock] données non présentes en clair et blob chiffré introuvable — publication incohérente :', e && e.message);
+    return false;
+  }
 }
 
 const CLE_SESSION = 'nw_unlocked_v1';
@@ -80,7 +89,7 @@ export async function deverrouillerDepuisServeur() {
   if (!(await blobDisponible())) return false;
   let cle = null;
   try {
-    const auth = await import('./auth.js?v=543');
+    const auth = await import('./auth.js?v=544');
     cle = await auth.cleDeDonnees();
   } catch (e) { console.warn('[unlock] module d\'authentification indisponible :', e.message); return false; }
   if (!cle) return false;

@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=543';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=543';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=544';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=544';
 
 // ---- Generic table sort utility ----
 /**
@@ -5079,6 +5079,19 @@ function renderImmoView(state) {
   const cfCls = fTotalCF >= 0 ? 'pl-pos' : 'pl-neg';
   const cfSign = fTotalCF >= 0 ? '+' : '';
   setText('kpiImmoViewCF', cfSign + fmt(fTotalCF) + '/mois');
+  // v544 (item 4) — ce total suppose ZÉRO revenu avant la prise d'effet du bail de Vitry (dont la
+  // date reste à confirmer) : c'est un cash-flow CONTRACTUEL, pas le cash-flow économique réel.
+  // Le libellé le dit ; le cash-flow économique privé ne se calcule qu'après authentification et
+  // n'est pas exposé publiquement.
+  (function () {
+    const _vp = (iv.properties || []).find((p) => p.loanKey === 'vitry');
+    const _preBail = _vp && _vp.bail && !_vp.bailActif;
+    const lab = document.getElementById('kpiImmoViewCF');
+    const cell = lab && lab.parentElement ? lab.parentElement.querySelector('.label') : null;
+    if (cell) cell.innerHTML = _preBail
+      ? 'CF contractuel pré-bail /mois <span style="color:#718096;font-weight:400;">(0 revenu Vitry avant prise d\u2019effet)</span>'
+      : 'CF net /mois';
+  })();
 
   // ── Les trois horizons de l'immobilier (v533) ─────────────────────────────────────────
   // Le haut de page et le graphique donnaient deux totaux de charges (2 827 et 2 776) et
@@ -6537,14 +6550,24 @@ function renderAptView(state, loanKey) {
       + ligneHz('3. Valeur de marché estimée à la livraison', hz.marcheLivraison)
       + ligneHz('4. Valeur réalisable / liquidative', hz.realisable)
       + '</tbody></table></div>'
-      + (ci ? '<div style="margin-top:10px;font-size:12px;color:#4a5568;line-height:1.6;">'
-        + '<strong>Capital investi, hors valeur du bien</strong> : part du prix payée hors banque ' + e2(ci.cashPrix)
-        + ' (dépôt de réservation de ' + e2(ci.depotReservationInclus) + ' compris) + frais d\'acquisition ' + e2(ci.fraisAcquisition)
-        + ' <span style="color:#b45309;">(' + ci.fraisStatut + ')</span> + quote-part EDD ' + e2(ci.quotePartEDD)
-        + ' = <strong>' + e2(ci.horsFinancement) + '</strong> hors financement ; frais de financement ' + e2(ci.fraisFinancement)
-        + ' (proposition LCL et chiffre non rattaché, à confirmer) — total ' + e2(ci.total) + '. Ces frais ne sont jamais ajoutés à la valeur du bien. '
-        + 'Apport nominal (prix − prêts) ' + e2(ci.apportNominal) + ' contre ' + e2(ci.cashPrix) + ' constatés : '
-        + '<strong>écart non réconcilié de ' + e2(ci.ecartApport) + '</strong>.</div>' : '')
+      + (ci ? (function () {
+          // v544 (item 3) — quatre niveaux de preuve, jamais fondus en un « coût payé » unique.
+          const COUL = { 'établi': '#276749', 'payé, non définitif': '#b45309', 'estimé': '#a0aec0', 'non justifié': '#c53030' };
+          const lignes = ci.tiers.map((t) => '<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;">'
+            + '<span>' + t.libelle + ' <span style="color:#a0aec0;font-size:10.5px;">' + t.source + '</span></span>'
+            + '<strong style="color:' + (COUL[t.statut] || '#4a5568') + ';white-space:nowrap;">' + e2(t.montant)
+            + ' <span style="font-weight:400;font-size:10px;">(' + t.statut + ')</span></strong></div>').join('');
+          return '<div style="margin-top:10px;font-size:12px;color:#4a5568;line-height:1.5;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;">'
+            + '<div style="font-weight:600;margin-bottom:6px;">Capital investi — hors valeur du bien, par niveau de preuve</div>'
+            + lignes
+            + '<div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;">'
+            + '<span><strong>Réel / documenté</strong> (paiements établis)</span><strong style="color:#276749;">' + e2(ci.reelDocumente) + '</strong></div>'
+            + '<div style="display:flex;justify-content:space-between;gap:10px;color:#718096;">'
+            + '<span>Scénario estimatif (borne haute, tous tiers)</span><span>' + e2(ci.scenarioEstimatif) + '</span></div>'
+            + '<div style="margin-top:6px;color:#718096;">Ces frais ne sont jamais ajoutés à la valeur du bien ni au patrimoine. '
+            + 'Apport nominal (prix − prêts) ' + e2(ci.apportNominal) + ' contre ' + e2(ci.cashPrix) + ' constatés : '
+            + '<strong style="color:#c53030;">écart non réconcilié de ' + e2(ci.ecartApport) + '</strong>.</div></div>';
+        })() : '')
       + '<div style="margin-top:10px;font-size:12.5px;color:#744210;line-height:1.6;">'
       + '<strong>Bien VEFA non livré</strong> — livraison ' + _delivLabel + ' (septembre 2028 : scénario non vérifié). '
       + 'Revente avant la livraison : hypothèse à confirmer, non démontrée par l\'acte. '
@@ -7705,7 +7728,7 @@ function attachKPIInsights(state, view) {
     // Signe devant le symbole, comme dans le détail : `f()` rend déjà « -107 », ce qui donnait
     // « €-107/mois ».
     const signeTotal = iv.totalCF >= 0 ? '+' : '\u2212';
-    insights['kpiImmoViewCF'] = 'CF net = loyers \u2212 charges. ' + detailCF
+    insights['kpiImmoViewCF'] = 'CF CONTRACTUEL = recettes des baux \u2212 charges. Avant la prise d\'effet du bail de Vitry (date \u00e0 confirmer), ce bien est compt\u00e9 \u00e0 0 revenu : le CF \u00e9conomique r\u00e9el ne se calcule qu\'apr\u00e8s authentification, non expos\u00e9 ici. ' + detailCF
       + (detailCF ? '. ' : '') + 'Total : ' + signeTotal + '\u20ac' + f(Math.abs(iv.totalCF)) + '/mois.';
   }
 
@@ -7990,7 +8013,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=543').then(m => {
+  import('./charts.js?v=544').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

@@ -10,12 +10,13 @@
 // Ce test compare ce que le moteur PRODUIT à ce que le rendu CONSOMME.
 // ============================================================================
 const fs = require('fs'), path = require('path'), os = require('os');
+const { contenuClair } = require('./_clair.cjs');
 
 const RACINE = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'nw-alerts-'));
 for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
-  fs.writeFileSync(path.join(TMP, f),
-    fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8').replace(/\?v=\d+/g, ''));
+  const brut = f === 'data.js' ? contenuClair() : fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8');
+  fs.writeFileSync(path.join(TMP, f), brut.replace(/\?v=\d+/g, ''));
 }
 
 const SEVERITES_AFFICHABLES = ['red', 'yellow', 'green'];

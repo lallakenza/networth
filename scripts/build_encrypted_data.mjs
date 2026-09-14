@@ -35,6 +35,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { NOMS_SENSIBLES } from './_blocs_sensibles.mjs';
 
 // ── Trousseau macOS ───────────────────────────────────────────────────────────
 // La phrase saisie ici n'était écrite NULLE PART, par conception. C'est correct pour un secret,
@@ -68,17 +69,16 @@ const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 // Le fichier en clair vit HORS du dépôt : c'est ce qui garantit qu'il n'atterrit ni sur
 // GitHub ni sur Pages. À sauvegarder par tes soins (iCloud, Drive, disque chiffré) — sa perte
 // serait irréversible, le blob chiffré ne se remonte pas en source lisible sans la phrase.
-const SOURCE_PATH = process.env.NW_DATA_SOURCE || join(dirname(RACINE), 'networth-data', 'data.source.js');
-const SORTIE = join(RACINE, 'js', 'data.enc.js');
+// Source par défaut : la copie hors dépôt si elle existe, SINON le js/data.js du dépôt (qui, tant
+// que le chiffrement n'est pas activé, contient les données en clair à jour). NW_DATA_SOURCE force.
+const _horsDepot = join(dirname(RACINE), 'networth-data', 'data.source.js');
+const SOURCE_PATH = process.env.NW_DATA_SOURCE || (existsSync(_horsDepot) ? _horsDepot : join(RACINE, 'js', 'data.js'));
+const SORTIE = process.env.NW_ENC_OUT || join(RACINE, 'js', 'data.enc.js');
 
 // Blocs à chiffrer. Le reste de data.js (barèmes fiscaux publics, taux de change, tokens de
 // design, calendrier de dividendes) reste en clair : rien de personnel, et le site doit pouvoir
 // s'afficher avant déverrouillage.
-const BLOCS_SENSIBLES = [
-  'PORTFOLIO', 'IMMO_CONSTANTS', 'VITRY_CONSTRAINTS', 'VILLEJUIF_CONSTRAINTS',
-  'IMMO_PASSIFS_DOCUMENTES', 'NW_HISTORY', 'EQUITY_HISTORY', 'MONTHLY_INCOMES',
-  'BUDGET_EXPENSES', 'DEGIRO_STATIC_PRICES', 'PRICE_REFS_AS_OF',
-];
+const BLOCS_SENSIBLES = NOMS_SENSIBLES;
 
 const ITERATIONS = 250000;
 const LONGUEUR_MIN = 12;
@@ -185,7 +185,7 @@ async function principal() {
     const dechiffre = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cle2, chiffre);
     const relu = JSON.parse(new TextDecoder().decode(dechiffre));
     const ok = BLOCS_SENSIBLES.every((n) => relu[n] !== undefined);
-    console.log(ok ? '✓ Vérification : le blob se déchiffre et contient les 11 blocs.' : '✗ Vérification échouée.');
+    console.log(ok ? `✓ Vérification : le blob se déchiffre et contient les ${BLOCS_SENSIBLES.length} blocs.` : '✗ Vérification échouée.');
     if (!ok) process.exit(1);
   }
 

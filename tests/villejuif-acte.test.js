@@ -8,11 +8,13 @@
 // frais définitifs, achèvement réel) contre toute « résolution » silencieuse.
 // ============================================================================
 const fs = require('fs'), path = require('path'), os = require('os'), assert = require('assert/strict');
+const { contenuClair } = require('./_clair.cjs');
 
 const RACINE = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'nw-vj-'));
 for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
-  fs.writeFileSync(path.join(TMP, f), fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8').replace(/\?v=\d+/g, ''));
+  const brut = f === 'data.js' ? contenuClair() : fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8');
+  fs.writeFileSync(path.join(TMP, f), brut.replace(/\?v=\d+/g, ''));
 }
 
 let ko = 0;
@@ -81,7 +83,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
   });
   t('les frais ne sont jamais ajoutés à la valeur du bien', () => {
     centimes(vj.value, A.appelsPayes.montant, 'actif (sans frais)');
-    assert.ok(cap.total > cap.cashPrix, 'le capital investi doit porter les frais');
+    assert.ok(cap.scenarioEstimatif > cap.reelDocumente, 'le scénario estimatif doit dépasser le réel documenté');
   });
 
   // ── 4. Frais réels de la clause ≠ forfait fiscal ──
@@ -95,8 +97,17 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.match(ec.sadevDetail.travauxStatut, /non renseigné/);
   });
   t('la quote-part de 520 € est comptée une seule fois', () => {
-    centimes(cap.horsFinancement, cap.cashPrix + cap.fraisAcquisition + 520, 'hors financement');
-    centimes(cap.horsFinancement, 25653.05, 'capital investi hors financement (provisoire)');
+    // Réel/documenté = fonds propres (18 183,05) + EDD (520). La provision, les garanties et le
+    // dossier sont dans des tiers SÉPARÉS, jamais fondus dans le réel.
+    centimes(cap.reelDocumente, cap.cashPrix + 520, 'réel documenté');
+    centimes(cap.reelDocumente, 18703.05, 'réel documenté (établi)');
+    centimes(cap.provision, 6950, 'provision notariale, tier distinct');
+    centimes(cap.estimePropose, 4170.05, 'garanties proposées, tier distinct');
+    assert.equal(cap.nonJustifie, 1200, 'dossier non justifié, tier distinct');
+    centimes(cap.scenarioEstimatif, 31023.10, 'scénario estimatif (borne haute)');
+    // La quote-part EDD est comptée une fois : dans le réel ET dans l'assiette de la clause,
+    // deux consommateurs distincts, jamais additionnés.
+    centimes(cap.fraisAcquisitionPourClause, 6950 + 520, 'frais de la clause = provision + EDD');
   });
 
   // ── 5. Fenêtre = achèvement réel + 5 ans ; ICC réel ──
@@ -113,7 +124,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.equal(E.computeExitCostsAtYear('villejuif', 2034, 480000, 336330, 200000, 0).clauseSADEVActive, false);
   });
   t('aucune date de fin de clause écrite en dur', () => {
-    const src = fs.readFileSync(path.join(RACINE, 'js', 'data.js'), 'utf-8');
+    const src = contenuClair();
     assert.ok(!/dateFin: '2033-06'/.test(src), 'dateFin 2033-06 subsiste');
     assert.equal(D.VILLEJUIF_CONSTRAINTS.constraints[0].dateFin, null);
     assert.equal(D.VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese, undefined, 'l’ICC forfaitaire est encore une donnée');
@@ -146,7 +157,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
   });
   t('plus aucune mention d’août 2028 ni de livraison Q3 dans le code', () => {
     for (const f of ['data.js', 'engine.js', 'render.js', 'simulators.js']) {
-      const src = fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8');
+      const src = f === 'data.js' ? contenuClair() : fs.readFileSync(path.join(RACINE, 'js', f), 'utf-8');
       assert.ok(!/août 2028|Q3 2028/.test(src), f + ' mentionne encore août 2028 ou Q3 2028');
     }
   });

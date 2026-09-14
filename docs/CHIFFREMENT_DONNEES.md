@@ -1,14 +1,23 @@
 # Chiffrer les données patrimoniales
 
-> **ÉTAT AU 5 SEPTEMBRE 2026 : DÉSACTIVÉ, à la demande.** `js/data.js` contient de nouveau les
-> données EN CLAIR, et le code à 4 chiffres est la seule serrure — il masque l'interface, il ne
-> protège pas le fichier, qui est téléchargeable par qui connaît son adresse. La purge
-> d'historique reste acquise pour le passé, mais chaque nouveau commit republie les données.
+> **ÉTAT AU 14 SEPTEMBRE 2026 (v544) : PRÊT À ACTIVER, en un seul geste.** Toute la mécanique est
+> en place et testée (`tests/chiffrement.test.js`, simulation complète en bac à sable). Il ne
+> manque que la PHRASE (= le secret Supabase `nw_secrets.data_key`), qui n'est ni dans le trousseau
+> macOS ni dans le dépôt. Pour activer :
 >
-> Rien n'est supprimé : `js/unlock.js` (import du blob commenté), `js/auth.js`, `js/data.enc.js`
-> et le secret rangé dans Supabase attendent. Pour rallumer, voir « Mise en service » ci-dessous —
-> le blob publié aujourd'hui devra être régénéré, il est périmé dès la première mise à jour de
-> données.
+> ```bash
+> NW_PASSPHRASE='votre phrase existante' npm run encrypt   # ou : --keychain
+> # puis : bump de version, git add js/data.js js/data.enc.js, commit, push
+> node scripts/verify_no_leak.mjs --prod                   # contrôle en production
+> ```
+>
+> `scripts/enable_encryption.mjs` sauvegarde le clair hors dépôt, régénère le blob à partir des
+> données v543, vide les 13 blocs de `js/data.js` et vérifie qu'aucune donnée ne fuit. Le
+> chiffrement s'active alors TOUT SEUL (`blobDisponible()` bascule sur l'état des données). Ce
+> script NE TOURNE AUCUNE CLÉ : il réutilise la phrase existante.
+>
+> Tant que ce n'est pas fait, `js/data.js` reste EN CLAIR et `npm run confidentiality` échoue —
+> le chantier n'est pas terminé.
 
 
 ## Le problème

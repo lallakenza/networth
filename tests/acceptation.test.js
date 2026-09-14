@@ -8,7 +8,21 @@
  * laisse passer, et qu'une refonte qui les casse échoue.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { contenuClair } = require('./_clair.cjs');
+// Le moteur importe `./data.js` : pour que le test reste reproductible une fois les données
+// CHIFFRÉES, on copie le moteur et les données EN CLAIR dans un dossier temporaire (le `?v=`
+// retiré fait pointer l'import du moteur sur cette copie), et on importe depuis là.
+const _TMP = mkdtempSync(join(tmpdir(), 'nw-acc-'));
+for (const f of ['engine.js', 'facturation_contract.js']) {
+  writeFileSync(join(_TMP, f), readFileSync(new URL('../js/' + f, import.meta.url), 'utf-8').replace(/\?v=\d+/g, ''));
+}
+writeFileSync(join(_TMP, 'data.js'), contenuClair().replace(/\?v=\d+/g, ''));
 
 // Le moteur lit le contrat de facturation dans le localStorage au moment du calcul : il doit
 // donc y être AVANT l'import. C'est la fixture du contrat réellement publié par 2048.
@@ -29,9 +43,9 @@ const CONTRAT = {
 };
 _mem['nw_facturation_contrat_v1'] = JSON.stringify({ recuLe: Date.now(), canal: 'http', contrat: CONTRAT });
 
-const { PORTFOLIO } = await import('../js/data.js');
-const { compute, computeAlerts } = await import('../js/engine.js');
-const { INFLATION_RATE } = await import('../js/data.js');
+const { PORTFOLIO } = await import('file://' + join(_TMP, 'data.js'));
+const { compute, computeAlerts } = await import('file://' + join(_TMP, 'engine.js'));
+const { INFLATION_RATE } = await import('file://' + join(_TMP, 'data.js'));
 
 const fx = { USD: 1.17, JPY: 172, AED: 4.30, MAD: 10.75 };
 const s = compute(PORTFOLIO, fx, 'static');
@@ -196,7 +210,7 @@ t('les alertes de facturation emploient une formulation naturelle', () => {
 });
 
 t('aucune valeur financière de facturation n’est codée en dur dans data.js', () => {
-  const src = readFileSync(new URL('../js/data.js', import.meta.url), 'utf8');
+  const src = contenuClair();
   assert.ok(!/181609|196915/.test(src), 'les anciens montants de facturation subsistent dans data.js');
   // L'URL du contrat en commentaire est de la documentation, pas une valeur : on ne
   // cherche que des MONTANTS.
@@ -300,7 +314,7 @@ t('le régime de croisière n’est pas confondu avec aujourd’hui', () => {
 });
 
 t('la livraison contractuelle, le scénario non vérifié et les échéances de prêt restent distincts', async () => {
-  const { VILLEJUIF_CONSTRAINTS } = await import('../js/data.js');
+  const { VILLEJUIF_CONSTRAINTS } = await import('file://' + join(_TMP, 'data.js'));
   const L = VILLEJUIF_CONSTRAINTS.livraison;
   assert.equal(L.contractuelle, '2028-06');
   assert.equal(L.scenarioNonVerifie, '2028-09');
