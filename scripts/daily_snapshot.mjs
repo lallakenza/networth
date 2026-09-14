@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { dechiffreBlobs, remplirEnPlace } from './_dechiffre.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--dry-run');
@@ -56,32 +57,18 @@ async function garantirDonnees() {
     console.error('             Ajouter le secret NW_PASSPHRASE au workflow pour rétablir le cron.');
     process.exit(1);
   }
-  const { webcrypto } = await import('node:crypto');
   const encSrc = await readFile(join(ROOT, 'js', 'data.enc.js'), 'utf8');
-  await writeFile(join(tmp, 'data.enc.js'), encSrc.replace(/\?v=\d+/g, ''));
-  const { DATA_ENC } = await import(pathToFileURL(join(tmp, 'data.enc.js')).href);
-  const b64 = (s) => Uint8Array.from(Buffer.from(s, 'base64'));
-  const base = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(phrase), 'PBKDF2', false, ['deriveKey']);
-  const cle = await webcrypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: b64(DATA_ENC.sel), iterations: DATA_ENC.it || 250000, hash: 'SHA-256' },
-    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt'],
-  );
   let blocs;
   try {
-    const clair = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(DATA_ENC.iv) }, cle, b64(DATA_ENC.data));
-    blocs = JSON.parse(new TextDecoder().decode(clair));
+    blocs = await dechiffreBlobs(encSrc, phrase);
   } catch (e) {
     console.error('[cron-snap] ✗ déchiffrement impossible (phrase erronée ?) — AUCUNE écriture.');
     process.exit(1);
   }
-  // Remplissage EN PLACE, comme js/unlock.js côté navigateur : les objets importés par le
-  // moteur sont les mêmes références.
+  // Remplissage EN PLACE, comme js/unlock.js côté navigateur : les objets importés par le moteur
+  // (PORTFOLIO, FX_STATIC, et les 11 autres blocs) sont les mêmes références.
   const mod = await import(pathToFileURL(join(tmp, 'data.js')).href);
-  for (const [nom, valeur] of Object.entries(blocs)) {
-    const cible = mod[nom];
-    if (Array.isArray(cible) && Array.isArray(valeur)) { cible.length = 0; cible.push(...valeur); }
-    else if (cible && typeof cible === 'object') { for (const k of Object.keys(cible)) delete cible[k]; Object.assign(cible, valeur); }
-  }
+  remplirEnPlace(mod, blocs);
   console.log('[cron-snap] ✓ données déchiffrées (' + Object.keys(blocs).length + ' blocs)');
 }
 await garantirDonnees();

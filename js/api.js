@@ -1075,6 +1075,43 @@ const SERVER_STORE = {
 };
 function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKey); }
 
+// ── Lectures Supabase avec le JWT de session (item 3, v545-ready) ──────────────────────────
+// Les tables patrimoniales (nw_snapshots, immo_properties + immo_loans) doivent, une fois la RLS
+// restrictive posée, n'être lisibles QUE par le compte autorisé. On envoie donc le jeton de la
+// session quand il existe, la clé anon sinon.
+//
+// COMPATIBILITÉ pré/post-RLS, sans coordination fragile :
+//   · Pré-RLS (politique `to anon using(true)`) : une requête AUTHENTIFIÉE tombe sur un rôle sans
+//     politique et PostgREST renvoie [] (pas 401). On réessaie alors en anon → rien ne casse.
+//   · Post-RLS (`to authenticated where auth.uid()=…`) : la requête authentifiée renvoie les
+//     données ; pas de second appel. L'anonyme, lui, obtient [] et ne voit rien (voulu).
+// Une table réellement vide renvoie [] dans les deux régimes — comportement inchangé.
+let _authMod = null;
+async function _jwtSession() {
+  try {
+    if (!_authMod) _authMod = await import('./auth.js?v=544');
+    return (await _authMod.jetonSession()) || null;
+  } catch (e) { return null; }
+}
+async function _lectureSupabaseRows(url, timeoutMs) {
+  const tenter = async (auth) => {
+    try {
+      const r = await fetch(url, {
+        headers: { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + (auth || SERVER_STORE.anonKey) },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      return r.ok ? { ok: true, rows: await r.json(), status: r.status } : { ok: false, rows: null, status: r.status };
+    } catch (e) { return { ok: false, rows: null, err: e }; }
+  };
+  const jwt = await _jwtSession();
+  const out = await tenter(jwt);
+  if (jwt && out.ok && Array.isArray(out.rows) && out.rows.length === 0) {
+    const anon = await tenter(null);   // fenêtre pré-RLS : l'authentifié renvoie [] → repli anon
+    if (anon.ok && Array.isArray(anon.rows) && anon.rows.length) return anon.rows;
+  }
+  return out.ok ? out.rows : null;
+}
+
 /** Lit le blob d'historique depuis Supabase (L2). Retourne {tickers,fx,sgtmHistory?,_lastDate,_backfilled} ou null. */
 export async function loadServerHistory() {
   if (!_serverConfigured()) return null;
@@ -1174,9 +1211,8 @@ export async function loadSnapshots(sinceISO) {
     let u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE
       + '?select=snap_date,captured_at,quality,data&order=snap_date.asc,captured_at.asc';
     if (sinceISO) u += '&snap_date=gte.' + sinceISO;
-    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
-    const rows = await res.json();
+    const rows = await _lectureSupabaseRows(u, 12000);   // JWT si session, anon sinon (item 3)
+    if (!rows) return [];
     const byDate = new Map();
     for (const row of rows) {
       const prev = byDate.get(row.snap_date);
@@ -1555,9 +1591,8 @@ export async function loadImmoRef() {
   try {
     const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/immo_properties'
       + '?select=*,immo_loans(*)&order=id.asc';
-    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(6000) });
-    if (res.ok) {
-      const rows = await res.json();
+    const rows = await _lectureSupabaseRows(u, 6000);   // JWT si session, anon sinon (item 3)
+    {
       if (Array.isArray(rows) && rows.length >= 3) {
         try { localStorage.setItem(IMMO_REF_CACHE_KEY, JSON.stringify({ at: Date.now(), rows })); } catch (_) {}
         console.log('[immo-ref] Supabase OK —', rows.length, 'propriétés,',
@@ -1565,7 +1600,7 @@ export async function loadImmoRef() {
         return { properties: rows, source: 'supabase' };
       }
     }
-    console.warn('[immo-ref] réponse invalide (HTTP ' + res.status + ') → cache/fallback');
+    console.warn('[immo-ref] réponse Supabase invalide ou refusée → cache/fallback');
   } catch (e) { console.warn('[immo-ref] fetch échoué (' + (e && e.message) + ') → cache/fallback'); }
   try {
     const c = JSON.parse(localStorage.getItem(IMMO_REF_CACHE_KEY) || 'null');

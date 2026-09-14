@@ -5091,6 +5091,28 @@ Le −1 377 €/mois suppose zéro revenu avant la prise d'effet du bail (date �
 « CF contractuel pré-bail ». Le cash-flow économique réel ne se calcule qu'après authentification, non
 exposé publiquement.
 
+### Prérequis de bascule du chiffrement (14/09/2026, suite v544)
+Préparés sans activer le chiffrement ni toucher un secret/RLS ; l'utilisateur activera (runbook
+`docs/BASCULE_V545.md`).
+- **Activation en un geste** : `npm run encrypt -- --keychain` demande la phrase en saisie masquée
+  si le trousseau est vide, l'enregistre après vérification, et part TOUJOURS du `js/data.js`
+  courant (`NW_DATA_SOURCE` forcé sur la sauvegarde fraîche ; source par défaut = data.js en clair).
+- **Cron nocturne** : `scripts/daily_snapshot.mjs` déchiffre le blob via `scripts/_dechiffre.mjs`
+  (partagé) quand `NW_PASSPHRASE` est fourni ; le workflow l'expose depuis le secret dépôt
+  `NW_PASSPHRASE` (masqué par GitHub, jamais imprimé), `permissions: contents:read`. Sans phrase et
+  données chiffrées → refus d'écrire (table append-only). Test `tests/snapshot-chiffre.test.js`
+  (clé jetable). **Le secret GitHub n'est pas créé.**
+- **Lectures Supabase avec JWT** (item 3, `js/api.js`/`js/auth.js`) : `loadSnapshots` et
+  `loadImmoRef` envoient le jeton de session quand il existe, avec repli anon TANT QUE la RLS reste
+  permissive — compatible avant ET après le §B RLS, sans coordination fragile.
+- **RLS restrictive** (`scratchpad/supabase_v545.sql`) : lecture épinglée sur un `auth.uid()` précis
+  (base partagée Lalla Kenza → « authentifié » ne suffit pas), INSERT anon conservé pour le cron,
+  impact ligne par ligne. **Non exécuté.**
+- **Purge d'historique** (`docs/PURGE_HISTORIQUE.md`, `scripts/purge_history.sh`) : inventaire
+  (data.js 48 commits depuis le 30/08, fichiers supprimés en v543, n° de compte), sauvegarde,
+  réécriture `git filter-repo` sur un miroir, conséquences. **S'arrête avant le force-push.**
+- **Bump reproductible** : `npm run bump` (`scripts/bump_version.mjs`).
+
 ### Outillage reproductible (item 5)
 `package.json` : `test`, `lint` (config `eslint.config.mjs` committée, globals navigateur+node),
 `desync`, `confidentiality`, `verify` (lint+test+desync), `encrypt`. `npm test` reste reproductible

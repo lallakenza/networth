@@ -121,6 +121,14 @@ export async function verifierCode(email, saisie) {
   return true;
 }
 
+/**
+ * Jeton d'accès de la session courante (rafraîchi si nécessaire), ou null si non connecté.
+ * Public : lu par js/api.js pour envoyer les lectures Supabase avec le JWT plutôt qu'en anonyme.
+ */
+export async function jetonSession() {
+  try { return await jetonValide(); } catch (e) { return null; }
+}
+
 /** Renvoie un jeton d'accès valide, en le rafraîchissant si nécessaire. */
 async function jetonValide() {
   const s = lireSession();

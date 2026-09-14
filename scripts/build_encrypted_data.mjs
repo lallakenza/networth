@@ -69,10 +69,22 @@ const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 // Le fichier en clair vit HORS du dépôt : c'est ce qui garantit qu'il n'atterrit ni sur
 // GitHub ni sur Pages. À sauvegarder par tes soins (iCloud, Drive, disque chiffré) — sa perte
 // serait irréversible, le blob chiffré ne se remonte pas en source lisible sans la phrase.
-// Source par défaut : la copie hors dépôt si elle existe, SINON le js/data.js du dépôt (qui, tant
-// que le chiffrement n'est pas activé, contient les données en clair à jour). NW_DATA_SOURCE force.
+// Source par défaut, dans l'ordre de fraîcheur :
+//   1. NW_DATA_SOURCE si fourni (force) ;
+//   2. js/data.js du dépôt s'il est EN CLAIR (PORTFOLIO peuplé) — la source la plus à jour ;
+//   3. sinon (data.js déjà vidé) la copie hors dépôt, pour rebâtir le blob après édition du clair.
+// On ne retombe JAMAIS sur une copie hors dépôt tant que le dépôt porte les données en clair :
+// c'est ce qui garantissait qu'on parte du js/data.js courant et non d'un cache périmé.
 const _horsDepot = join(dirname(RACINE), 'networth-data', 'data.source.js');
-const SOURCE_PATH = process.env.NW_DATA_SOURCE || (existsSync(_horsDepot) ? _horsDepot : join(RACINE, 'js', 'data.js'));
+const _repo = join(RACINE, 'js', 'data.js');
+function _sourceParDefaut() {
+  const t = readFileSync(_repo, 'utf-8');
+  const enClair = /export const PORTFOLIO\s*=/.test(t) && !/export const PORTFOLIO\s*=\s*\{\s*\}\s*;/.test(t);
+  if (enClair) return _repo;
+  if (existsSync(_horsDepot)) return _horsDepot;
+  return _repo;
+}
+const SOURCE_PATH = process.env.NW_DATA_SOURCE || _sourceParDefaut();
 const SORTIE = process.env.NW_ENC_OUT || join(RACINE, 'js', 'data.enc.js');
 
 // Blocs à chiffrer. Le reste de data.js (barèmes fiscaux publics, taux de change, tokens de

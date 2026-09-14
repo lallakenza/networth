@@ -35,7 +35,7 @@ function phraseTrousseau() {
   } catch (e) { return null; }
 }
 
-// 0. Pré-conditions
+// 0. Préconditions
 const clair = readFileSync(DATA, 'utf-8');
 if (/export const PORTFOLIO\s*=\s*\{\s*\}\s*;/.test(clair)) {
   console.error('⚠ js/data.js est déjà une coquille — le chiffrement semble actif.');
@@ -43,27 +43,35 @@ if (/export const PORTFOLIO\s*=\s*\{\s*\}\s*;/.test(clair)) {
   console.error('  NW_DATA_SOURCE=~/networth-data/data.source.js node scripts/build_encrypted_data.mjs');
   process.exit(1);
 }
-const phrase = process.env.NW_PASSPHRASE || (keychain ? phraseTrousseau() : null);
-if (!phrase) {
-  console.error('✗ Aucune phrase. Fournis-la sans la journaliser :');
-  console.error("    NW_PASSPHRASE='…' node scripts/enable_encryption.mjs");
-  console.error('  (ou --keychain si elle est déjà dans le trousseau macOS).');
+
+// Trois façons de fournir la phrase, jamais journalisée :
+//   · NW_PASSPHRASE dans l'environnement (non interactif) ;
+//   · --keychain, trousseau REMPLI → relue silencieusement ;
+//   · --keychain, trousseau VIDE → build la DEMANDE en saisie masquée, puis l'enregistre au
+//     trousseau après vérification (c'est build_encrypted_data.mjs qui s'en charge).
+const envPhrase = process.env.NW_PASSPHRASE || null;
+if (!envPhrase && !keychain) {
+  console.error('✗ Aucune phrase. Deux options, sans jamais l\'écrire dans l\'historique du shell :');
+  console.error("    npm run encrypt -- --keychain          # demande en saisie masquée, enregistre au trousseau");
+  console.error("    NW_PASSPHRASE='…' npm run encrypt       # non interactif (préfixe d'un espace pour éviter l\'historique)");
   console.error('  C\'est la phrase existante = le secret Supabase nw_secrets.data_key. Ce script ne la change pas.');
   process.exit(2);
 }
 
-const run = (args) => execFileSync(process.execPath, args, {
-  cwd: RACINE, stdio: 'inherit',
-  env: { ...process.env, NW_PASSPHRASE: phrase },
-});
-
-// 1. Sauvegarde du clair hors dépôt
+// 1. Sauvegarde du clair COURANT hors dépôt — ÉCRASE toute copie antérieure (ex. la copie
+//    périmée d'août). Le blob part donc TOUJOURS du js/data.js v544 présent, jamais d'un cache.
 if (!existsSync(SRC_DIR)) mkdirSync(SRC_DIR, { recursive: true });
 copyFileSync(DATA, SRC);
-console.log('✓ 1/4 clair sauvegardé hors dépôt : ' + SRC);
+console.log('✓ 1/4 clair COURANT sauvegardé hors dépôt (copie antérieure écrasée) : ' + SRC);
 
-// 2. Génération + vérification du blob (à partir du clair sauvegardé)
-console.log('· 2/4 génération du blob chiffré…');
+// NW_DATA_SOURCE forcé sur cette sauvegarde fraîche : aucune ambiguïté de source possible.
+const run = (args) => execFileSync(process.execPath, args, {
+  cwd: RACINE, stdio: 'inherit',
+  env: { ...process.env, NW_DATA_SOURCE: SRC, ...(envPhrase ? { NW_PASSPHRASE: envPhrase } : {}) },
+});
+
+// 2. Génération + vérification du blob à partir du clair courant.
+console.log('· 2/4 génération du blob chiffré (saisie masquée si le trousseau est vide)…');
 run(['scripts/build_encrypted_data.mjs', '--verify', ...(keychain ? ['--keychain'] : [])]);
 
 // 3. Vidage des blocs de js/data.js

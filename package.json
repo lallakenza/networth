@@ -9,7 +9,8 @@
     "confidentiality": "node scripts/verify_no_leak.mjs",
     "confidentiality:prod": "node scripts/verify_no_leak.mjs --prod",
     "verify": "npm run lint && npm run test && npm run desync",
-    "encrypt": "node scripts/enable_encryption.mjs"
+    "encrypt": "node scripts/enable_encryption.mjs",
+    "bump": "node scripts/bump_version.mjs"
   },
   "devDependencies": {
     "eslint": "^10.10.0"

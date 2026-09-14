@@ -2449,7 +2449,12 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   macOS ni dans le dépôt. Elle est requise pour générer le blob à jour. Aucune clé n'est tournée.
 - **Reste hors dépôt (§ Supabase)** : `immo_properties`/`immo_loans`/`immo_crd_obs` et surtout
   `nw_snapshots` (802 lignes) restent lisibles avec la clé publique — voir BUG-121.
-- **Tests** : `tests/chiffrement.test.js` (mécanique), `scripts/verify_no_leak.mjs` (`npm run confidentiality`).
+- **Prérequis de bascule (14/09, préparés, non activés)** : activation un-geste avec saisie masquée
+  (`npm run encrypt -- --keychain`, part du data.js courant) ; cron déchiffrant (`_dechiffre.mjs` +
+  workflow `NW_PASSPHRASE` masqué, test à clé jetable) ; runbook `docs/BASCULE_V545.md` ; purge
+  d'historique `docs/PURGE_HISTORIQUE.md` + `scripts/purge_history.sh` (stop avant force-push).
+- **Tests** : `tests/chiffrement.test.js` (mécanique), `tests/snapshot-chiffre.test.js` (cron),
+  `scripts/verify_no_leak.mjs` (`npm run confidentiality`).
 
 ## BUG-121 : Supabase — tables patrimoniales lisibles avec la clé publique
 
@@ -2458,7 +2463,8 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   `nw_snapshots` (802 instantanés du patrimoine complet) répondent `SELECT 200` en anonyme.
   `immo_properties.vitry.rent` porte encore 8 champs sensibles (revenus hors bail). `nw_secrets` est
   correctement protégé (0 ligne en anonyme) ; toute écriture anonyme est refusée (401).
-- **Correctif préparé (NON appliqué)** : `scratchpad/supabase_nettoyage_v544.sql` — §A retire les champs
+- **Lectures JWT (item 3, livré v544-prep)** : `loadSnapshots`/`loadImmoRef` envoient le jeton de
+  session avec repli anon (compatible avant/après RLS). — **Correctif préparé (NON appliqué)** : `scratchpad/supabase_v545.sql` — §A retire les champs
   sensibles et aligne les faits Villejuif (2 UPDATE, 1 INSERT, 0 DELETE) ; §B propose de verrouiller la
   RLS sur le compte authentifié, à coordonner avec un changement de `js/api.js` (lecture avec le jeton
   de session) sous peine de casser l'immo et l'Historique anonymes. À exécuter par l'utilisateur.
