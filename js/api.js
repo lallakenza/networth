@@ -1153,9 +1153,13 @@ export async function saveServerHistory(data) {
 
 // ════════════════════════════════════════════════════════════════════
 //  v386 — SNAPSHOTS QUOTIDIENS DU PATRIMOINE (table Supabase nw_snapshots)
-//  Table APPEND-ONLY : PK (snap_date, captured_at), policies anon = INSERT+SELECT
-//  seulement (UPDATE/DELETE = no-op même avec la clé publique) → l'historique est
+//  Table APPEND-ONLY : PK (snap_date, captured_at), UPDATE/DELETE = no-op → historique
 //  infalsifiable ; les corrections passent par la Management API (admin).
+//  v545 : plus d'accès ANONYME. Lecture ET écriture exigent le JWT de session
+//  (auth.uid() = propriétaire) ; l'INSERT anonyme est retiré (une clé publique ne doit pas
+//  permettre d'injecter de faux snapshots). L'écriture nocturne est faite par le cron avec
+//  un secret serveur (scripts/daily_snapshot.mjs). Sans session authentifiée, le navigateur
+//  ne lit ni n'écrit ces snapshots.
 //  Sémantique du jour : plusieurs lignes possibles par date, la « meilleure » est
 //  choisie À LA LECTURE : qualité live > partial > static, puis captured_at max.
 // ════════════════════════════════════════════════════════════════════
@@ -1167,18 +1171,24 @@ export function parisDateISO() {
   return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 }
 
-function _snapHeaders() {
-  return { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey, 'Content-Type': 'application/json' };
+// v545 : en-têtes AUTHENTIFIÉS (apikey = clé publique du projet, identité via le Bearer JWT).
+// Retourne null si aucune session → l'appelant s'abstient (pas de repli anonyme sur cette table).
+async function _snapHeadersAuthed() {
+  const jwt = await _jwtSession();
+  if (!jwt) return null;
+  return { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + jwt, 'Content-Type': 'application/json' };
 }
 
-/** INSERT une ligne de snapshot (append-only — jamais d'update). */
+/** INSERT une ligne de snapshot (append-only — jamais d'update). v545 : exige le JWT de session. */
 export async function saveDailySnapshot(snapDateISO, quality, data) {
   if (!_serverConfigured() || !data) return false;
+  const headers = await _snapHeadersAuthed();
+  if (!headers) { console.log('[snapshot] session non authentifiée → insert navigateur ignoré (le cron serveur alimente l\'historique)'); return false; }
   try {
     const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE;
     const res = await fetch(u, {
       method: 'POST',
-      headers: { ..._snapHeaders(), Prefer: 'return=minimal' },
+      headers: { ...headers, Prefer: 'return=minimal' },
       body: JSON.stringify({ snap_date: snapDateISO, quality, data }),
       signal: AbortSignal.timeout(12000),
     });
@@ -1261,11 +1271,13 @@ export async function loadSnapshots(sinceISO) {
  */
 export async function maybeSaveDailySnapshot(quality, data) {
   if (!_serverConfigured() || !data) return false;
+  const headers = await _snapHeadersAuthed();
+  if (!headers) { console.log('[snapshot] session non authentifiée → capture navigateur ignorée (le cron serveur alimente l\'historique)'); return false; }
   const today = parisDateISO();
   try {
     const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SNAP_TABLE
       + '?select=captured_at,quality&snap_date=eq.' + today + '&order=captured_at.desc';
-    const res = await fetch(u, { headers: _snapHeaders(), signal: AbortSignal.timeout(9000) });
+    const res = await fetch(u, { headers, signal: AbortSignal.timeout(9000) });
     const rows = res.ok ? await res.json() : [];
     let best = null;
     for (const row of rows) {

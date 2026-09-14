@@ -6,7 +6,8 @@
  *   1. Prix live Yahoo (direct, pas de CORS en Node) pour chaque position + FX.
  *   2. SGTM : data/sgtm_live.json du checkout (rafraîchi par le cron horaire existant).
  *   3. compute() headless (même moteur que le site, imports ?v= strippés → .tmp/).
- *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only, clé publishable).
+ *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only, secret serveur — v545,
+ *      plus d'INSERT anonyme : voir NW_SNAPSHOT_SUPABASE_KEY plus bas).
  *
  * Limites connues (flaguées dans meta) : pas de localStorage en headless → facturation
  * = fallback data.js ; fxSource='live (cron)'. La ligne du cron étant la plus récente à
@@ -25,7 +26,9 @@ const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
 // ── 1. Moteur headless (strip ?v= comme scripts/detect_desyncs.mjs) ──
 const tmp = join(ROOT, '.tmp_snapshot');
 await mkdir(tmp, { recursive: true });
-for (const f of ['data.js', 'engine.js']) {
+// engine.js importe data.js ET facturation_contract.js : les trois doivent être copiés dans .tmp,
+// sinon l'import échoue (ERR_MODULE_NOT_FOUND). Même liste que scripts/detect_desyncs.mjs.
+for (const f of ['data.js', 'engine.js', 'facturation_contract.js']) {
   const src = await readFile(join(ROOT, 'js', f), 'utf8');
   await writeFile(join(tmp, f), src.replace(/\?v=\d+/g, ''));
 }
@@ -137,14 +140,26 @@ console.log('[cron-snap] NW couple', snap.total.couple, '€ | qualité', qualit
 if (quality === 'static') { console.error('[cron-snap] tout statique → pas d\'insert (on ne fige pas un jour dégradé)'); process.exit(1); }
 if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'insert'); process.exit(1); }
 
-// ── 6. INSERT append-only (clé publishable — publique par design, cf. docs) ──
+// ── 6. INSERT append-only — SECRET SERVEUR obligatoire (item 3, v545) ───────────────
+// La table nw_snapshots n'accepte plus l'INSERT anonyme : la clé publishable étant PUBLIQUE,
+// n'importe qui pouvait injecter de faux snapshots. L'écriture exige désormais un secret
+// serveur, fourni UNIQUEMENT via l'environnement GitHub Actions (NW_SNAPSHOT_SUPABASE_KEY),
+// JAMAIS présent dans le frontend (js/*). Recommandé : la clé service_role Supabase
+// (server-side, contourne RLS) ; un jeton limité au seul UID propriétaire convient aussi
+// (la policy INSERT « owner » l'accepte). Ce script LIT le secret, ne le crée ni ne l'affiche.
 const SUPA = 'https://mjbmtubkhlspwfqhqgvq.supabase.co';
-const KEY = 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO';
+const SERVER_KEY = process.env.NW_SNAPSHOT_SUPABASE_KEY || '';
 const snapDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 if (DRY) { console.log('[cron-snap] DRY RUN — insert sauté. Blob:', JSON.stringify(snap).length, 'octets, date', snapDate); process.exit(0); }
+if (!SERVER_KEY) {
+  console.error('[cron-snap] ✗ NW_SNAPSHOT_SUPABASE_KEY absent — AUCUNE écriture.');
+  console.error('             L\'INSERT anonyme est retiré (v545) : le cron doit présenter un secret serveur.');
+  console.error('             Ajouter le secret au dépôt et l\'exposer au job (env: NW_SNAPSHOT_SUPABASE_KEY).');
+  process.exit(1);
+}
 const res = await fetch(SUPA + '/rest/v1/nw_snapshots', {
   method: 'POST',
-  headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+  headers: { apikey: SERVER_KEY, Authorization: 'Bearer ' + SERVER_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ snap_date: snapDate, quality, data: snap }),
   signal: AbortSignal.timeout(15000),
 });

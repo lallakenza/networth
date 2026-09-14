@@ -21,7 +21,7 @@ ne remonte qu'au 30/08/2026. Ce plan couvre le RÉSIDUEL depuis.
 | `transaction_history.csv` | 2 | supprimé en v543 |
 | `data/*_balance_*.json` | 6 | n° de compte masqués en v543 |
 
-935 commits au total, `.git` ≈ 98 Mo.
+1 385 commits au total (mesuré le 14/09/2026), 4 139 blobs.
 
 ## 1. Sauvegarde AVANT toute opération (indispensable, réversible)
 ```bash
@@ -32,38 +32,36 @@ git clone --mirror . ~/networth-mirror-$(date +%Y%m%d).git            # miroir c
 Pour restaurer en cas de pépin : `git clone ~/networth-backup-<date>.bundle networth-restore`.
 
 ## 2. Outil
-`git filter-repo` (recommandé, pas BFG). Déjà présent en pip (2.47.0). S'il n'est pas sur le PATH :
+`git filter-repo` (recommandé, pas BFG). Déjà présent en pip (2.47.0) mais **pas sur le PATH** de ce
+poste : le script le détecte et bascule automatiquement sur `python3 -m git_filter_repo`. Sinon :
 ```bash
 python3 -m pip install --user git-filter-repo    # ou : brew install git-filter-repo
 ```
 
 ## 3. Réécriture — sur un MIROIR, jamais sur ton dépôt de travail
-`scripts/purge_history.sh` fait 1+3 pour toi puis S'ARRÊTE avant le push. En résumé, ce qu'il exécute :
+`scripts/purge_history.sh` sauvegarde, clone un miroir, réécrit, puis **S'ARRÊTE avant le push**.
+Il fait **deux passes** (le détail vit dans le script + `scripts/_purge_fileinfo.py`) :
+
+- **Passe 1 — `--invert-paths`** : *retire* les fichiers sensibles listés et **conserve tout le
+  reste**. ⚠️ On n'utilise **jamais** `--path <fichier>` seul pour cibler `js/data.js` : `--path`
+  est un filtre de *conservation*, il aurait réduit l'historique au seul `js/data.js` en supprimant
+  tous les autres fichiers.
+- **Passe 2 — `--file-info-callback` (conscient du chemin)** : ne réécrit que le CONTENU.
+  `js/data.js` en clair → bannière (la coquille `{};` du HEAD est reconnue et laissée intacte) ;
+  partout ailleurs, rédaction des numéros de compte sous leurs **deux formes** présentes dans
+  l'historique (`#`+chiffres, et la forme littérale `#0?`+chiffres qui avait fuité dans l'outillage).
+  Aucun numéro réel n'est écrit dans le script.
+
+**Teste la mécanique dès maintenant** (avant même la bascule), sur un miroir jetable, sans rien
+pousser — prouve que l'arborescence et le nombre de fichiers sont conservés (hors suppressions
+intentionnelles), que les numéros de compte tombent à zéro et que toutes les refs sont réécrites :
 ```bash
-WORK=~/networth-purge.git
-git clone --mirror . "$WORK" && cd "$WORK"
-# a) supprimer entièrement les fichiers sensibles retirés du HEAD
-git filter-repo --force \
-  --invert-paths \
-  --path dashboard.html \
-  --path portfolio_analysis.html --path portfolio_analysis_v2.html \
-  --path portfolio_analysis_v3.html --path portfolio_analysis_v4.html \
-  --path FINANCIAL_DATA_EXTRACTION.md --path AUDIT_REPORT.md --path AUDIT_SUMMARY.txt \
-  --path transaction_history.csv
-# b) remplacer TOUTE version en clair de js/data.js par une bannière (le HEAD post-v545 est déjà
-#    une coquille : il est laissé tel quel par le callback), et masquer les n° de compte.
-git filter-repo --force --path js/data.js --blob-callback '
-  txt = blob.data.decode("utf-8", "replace")
-  if "export const PORTFOLIO = {};" not in txt:      # tout sauf la coquille du HEAD
-      blob.data = b"// Historique purge (v545) : donnees patrimoniales en clair retirees. Voir js/data.enc.js.\n"
-'
-git filter-repo --force --replace-text <(printf '%s\n' \
-  'regex:#[0-9]{9,}==>#redacted')
+bash scripts/purge_history.sh --self-test
 ```
-> Le `--blob-callback` remplace chaque version NON-coquille de `js/data.js` par une bannière : la
-> structure disparaît, pas seulement les valeurs. Le HEAD (coquille) est reconnu et laissé intact.
-> Le masquage des comptes utilise un **motif générique** (`#` suivi de 9 chiffres ou plus) : aucun
-> numéro réel n'est écrit dans ce dépôt public, et toutes les variantes de l'historique sont couvertes.
+Puis, une fois la bascule v545 faite (HEAD = coquille), lance la vraie préparation :
+```bash
+bash scripts/purge_history.sh          # exige que js/data.js soit une coquille ; s'arrête avant le push
+```
 
 ## 4. Publication (À TON INITIATIVE — le script ne le fait pas)
 ```bash
