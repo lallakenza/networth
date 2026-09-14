@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=542';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=543';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1613,7 +1613,8 @@ export function applyImmoRef(ref) {
     Object.assign(PORTFOLIO.amine.immo.vitry, {
       value: fin(v.value), valueDate: v.value_date, crd: fin(v.crd_snapshot),
       loyerHC: fin(v.rent.loyerHC), loyerDeclare: fin(v.rent.loyerDeclare),
-      chargesLocataire: fin(v.rent.chargesLocataire), parking: fin(v.rent.parking),
+      chargesLocataire: fin(v.rent.chargesLocataire),
+      // v543 — aucun autre champ de `rent` n'est repris : seuls les revenus du bail sont modélisés.
       loyerTotalCC: fin(v.rent.loyerTotalCC), loyerDeclareCC: fin(v.rent.loyerDeclareCC),
     });
     Object.assign(PORTFOLIO.nezha.immo.rueil, {
@@ -1627,9 +1628,8 @@ export function applyImmoRef(ref) {
       loyerHC: fin(j.rent.loyerHC), signed: !!j.signed,
       reservationFees: jf.reservationFees != null ? fin(jf.reservationFees) : 0,
       underConstruction: !!jf.underConstruction,
-      appelsPayes: jf.appelsPayes != null ? fin(jf.appelsPayes) : 0,
-      drawnToDate: jf.drawnToDate != null ? fin(jf.drawnToDate) : 0,
-      contractPrice: jf.contractPrice != null ? fin(jf.contractPrice) : 0,
+      // v543 — appels payés, tirages et prix viennent de VILLEJUIF_ACTE (acte + tableaux LCL, au centime) :
+      // la base les portait arrondis (114 352, 96 569) et les écrasait.
     });
 
     // ── IMMO_CONSTANTS (charges, prêts, assurances, VEFA, fiscalité, appréciation) ──
@@ -1654,7 +1654,6 @@ export function applyImmoRef(ref) {
     }
     IMMO_CONSTANTS.loans.villejuifInsurance = Math.round(((L.villejuif_lcl1.insurance_monthly || 0) * 1 + (L.villejuif_lcl2.insurance_monthly || 0) * 1) * 100) / 100;
     if (jf.franchiseMonths != null) IMMO_CONSTANTS.loans.villejuifFranchise = { months: jf.franchiseMonths, startDate: jf.franchiseStart || null, loanDisbursed: !!jf.loanDisbursed, fraisDossier: jf.fraisDossier != null ? jf.fraisDossier : null };
-    if (jf.startMonth != null) IMMO_CONSTANTS.villejuifStartMonth = jf.startMonth;
 
     if (typeof window !== 'undefined') window._immoSource = ref.source;
     console.log('[immo-ref] appliqué (source=' + ref.source + ') — vitry ' + v.value + '/' + v.crd_snapshot

@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=542';
-import { IMMO_CONSTANTS } from './data.js?v=542';
+import { fmt, fmtAxis } from './render.js?v=543';
+import { IMMO_CONSTANTS } from './data.js?v=543';
 
 const IC = IMMO_CONSTANTS;
 
@@ -15,6 +15,16 @@ const IC = IMMO_CONSTANTS;
 function moisBaseSim(decalage = 0) {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth() + decalage, 1);
+}
+
+// v543 — mois entre aujourd'hui et la livraison de Villejuif, dérivés de la date CONTRACTUELLE
+// (30/06/2028, acte p.8). Remplace la constante `villejuifStartMonth` (30), calée sur une base de
+// temps abandonnée et sur un retard jamais sourcé.
+function moisAvantLivraisonVJ() {
+  const d = ((IMMO_CONSTANTS.properties || {}).villejuif || {}).deliveryDate || '2028-06';
+  const [y, m] = d.split('-').map(Number);
+  const n = new Date();
+  return Math.max(0, (y - n.getFullYear()) * 12 + (m - 1 - n.getMonth()));
 }
 let simCharts = {};
 
@@ -808,9 +818,9 @@ function runCoupleSimulator(state) {
         // v489 (audit) — renvoyait 0 avant la livraison, en contradiction avec la note v347
         // juste au-dessus (« l'equity est possédée dès m=0 ») et avec le NW, qui compte bien le
         // capital engagé. La marche d'escalier que v347 voulait supprimer était revenue par ici.
-        growthFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifEquity(m) : vjEquiteEngagee,
-        crdFn: (m) => m >= IC.villejuifStartMonth ? computeVillejuifCRD(m) : 0,
-        cashFlowFn: makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, IC.villejuifStartMonth),
+        growthFn: (m) => m >= moisAvantLivraisonVJ() ? computeVillejuifEquity(m) : vjEquiteEngagee,
+        crdFn: (m) => m >= moisAvantLivraisonVJ() ? computeVillejuifCRD(m) : 0,
+        cashFlowFn: makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, moisAvantLivraisonVJ()),
         _computedEquity: true
       },
     ]
@@ -916,7 +926,7 @@ function runNezhaSimulator(state) {
   // 2. RUEIL. L'interpolation des frais de sortie sur la fraction de mois décale m=0 de ~554 €.
   //    C'est un biais systématique, pas une différence réelle : on le neutralise par un décalage
   //    constant, ce qui préserve la forme de la courbe.
-  const _vjLivraison = (_vjP && _vjP.propertyMeta && _vjP.propertyMeta.deliveryDate) || '2028-09';
+  const _vjLivraison = (_vjP && _vjP.propertyMeta && _vjP.propertyMeta.deliveryDate) || '2028-06';
   const _vjEngage = s.nezha.villejuifEquity || 0;
   const _moisISO = (m) => { const d = moisBaseSim(m); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   const _ecartRueil = (s.nezha.rueilEquity || 0) - _rueilBrut(0);
@@ -1055,7 +1065,7 @@ function runNezhaSimulator(state) {
       id: 'villejuifLine',
       afterDraw(chart) {
         const labels = chart.data.labels;
-        const d = moisBaseSim(IC.villejuifStartMonth);
+        const d = moisBaseSim(moisAvantLivraisonVJ());
         const lbl = d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
         let idx = labels.indexOf(lbl);
         if (idx < 0) return;

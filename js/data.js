@@ -569,32 +569,14 @@ export const PORTFOLIO = {
     //   3. loyers: vérifier LRAR + encaissements mensuels
     // ──────────────────────────────────────────────────────
     immo: {
-      // v458 — BAIL RÉEL SIGNÉ (source : dossier Notion « Vitry — Contrôle Banque Populaire (PTZ) »,
-      // décisions du 26/08/2026). L'ancien scénario « 1050 HC / 70 parking / 1270 CC » n'a JAMAIS
-      // existé : supprimé intégralement. Un seul loyer, entièrement déclaré : 600 HC + 100 de
-      // provisions = 700 CC. Le parking (place 87) est inclus au bail SANS supplément.
-      // Bail nu 3 ans, prise d'effet 10/10/2026 (fin 09/10/2029) ; avant : occupation à titre
-      // gratuit → zéro revenu (le moteur coupe les loyers avant bail.debut). Dépôt de garantie
-      // 600 € (pas un revenu). Révision IRL chaque 10/10, indice T2 2026.
-      // ⚠️ loyerCashNonDeclare : 500 €/mois perçus en espèces dès le bail — ENREGISTREMENT
-      // FACTUEL à titre de simulation interne, PLAFONNÉ à 500 (pas de plan d'escalade).
-      // Juridiquement imposable ; exclu de la base fiscale calculée (qui reflète le déclaré)
-      // et porteur d'un RISQUE chiffré (requalification + dépassement plafond PLS → exigibilité
-      // PTZ/AL) : voir VITRY_CONSTRAINTS « RISQUE — complément non déclaré » + alerte dédiée.
-      // v463 — AMENDEMENT à la spec du 26/08 (« aucun revenu parking séparé ») : Amine précise
-      // que la place 87 est EN PRATIQUE louée à part à un VOISIN, 70 €/mois en ESPÈCES,
-      // indépendamment du bail du logement (flux actif dès aujourd'hui). Traitement identique
-      // aux 500 € : enregistré en fait, hors base déclarée, risque fiscal chiffré. Loué à un
-      // tiers → hors plafond PLS du bail (le dépassement PLS reste 1 100 vs 840, hors parking).
-      // v465 — précision Amine : le locataire est DÉJÀ en place et paie 1 200 €/mois
-      // 100 % EN ESPÈCES jusqu'à la prise d'effet du bail (10/10/2026) — puis bascule :
-      // 700 € CC déclarés par virement + 500 € espèces. La fiche GMBI enregistre pourtant
-      // « occupation à titre gratuit » : discordance suivie comme RISQUE (déclaration
-      // d'occupation inexacte + revenus intégralement non déclarés sur la période).
+      // Vitry — bail nu 3 ans : 600 € HC + 100 € de provisions (700 € CC), stationnement inclus.
+      // v543 — seuls les revenus prévus au BAIL sont modélisés, à partir de sa prise d'effet ; avant,
+      // aucun revenu locatif n'est modélisé. Date d'effet NON CONFIRMÉE — les sources divergent
+      // (01/10, 10/10 ou 01/11/2026) ; 10/10/2026 reste la date du site depuis l'arbitrage du
+      // 27/08/2026. Dépôt de garantie 600 € (pas un revenu). Révision IRL, indice T2 2026.
       vitry: { value: 280000, valueDate: '2026-08', crd: 268061, loyerHC: 600, chargesLocataire: 100,
-               loyerDeclare: 600, loyerCashNonDeclare: 500, loyerCashAvantBail: 1200,
-               parking: 70, parkingCashVoisin: true,
-               bail: { debut: '2026-10-10', fin: '2029-10-09', type: 'nu', depotGarantie: 600,
+               loyerDeclare: 600,
+               bail: { debut: '2026-10-10', dateEffetAConfirmer: true, fin: '2029-10-09', type: 'nu', depotGarantie: 600,
                        prorataOct2026: { hc: 425.81, provisions: 70.97 },
                        irl: { revision: '10-10', indiceRef: 'T2-2026' },
                        // Option clause 17-1 II (loyer 750 HC après travaux, au plus tard fin 2027) —
@@ -614,9 +596,6 @@ export const PORTFOLIO = {
       //   - peu de commerces, ZAC en construction
       //   - offre massive (8K logements neufs) qui plafonne les prix
       // → 4 259 × 1.05 ≈ 4 470€/m² = 300K (conservateur)
-      // v458 — réalité du bail (10/10/2026) : 600 HC + 100 provisions = 700 CC par virement,
-      // + 500 €/mois en espèces à compter d'octobre (suivi interne : voir loyerCashNonDeclare
-      // et le RISQUE associé dans VITRY_CONSTRAINTS — imposable en droit, non déclaré en pratique).
     },
 
     // ──────────────────────────────────────────────────────
@@ -877,7 +856,7 @@ export const PORTFOLIO = {
       // ──────────────────────────────────────────────────
       // ──────────────────────────────────────────────────
       // 2020 TRADES (Feb-Dec 2020)
-      // Reconstitué depuis emails Degiro (am.koraibi@gmail.com)
+      // Reconstitué depuis emails Degiro (boîte mail personnelle)
       // + rapports annuels pour P/L et positions sans email
       // Commission Degiro: ~€0.04 EUR trades, ~€0.50 USD trades
       // ──────────────────────────────────────────────────
@@ -1143,7 +1122,7 @@ export const PORTFOLIO = {
     immo: {
       // { value: valeur estimée à valueDate, crd: capital restant dû, loyer: loyer mensuel }
       // La valeur évolue automatiquement avec le taux d'appréciation depuis valueDate
-      // v477 — arbitrage Amine 27/08/2026 : 256 500 = 248K (allée des Glycines relevée 4 445€/m²
+      // v477 — arbitrage Amine 27/08/2026 : 256 500 = 248K (rue de la résidence relevée 4 445€/m²
       // × 55,66m², audit facteurs externes) + 8 500 (MOITIÉ de la prime DPE C +13%, rétrogradée
       // « hypothèse probable » : aucun DPE du lot 894 dans ADEME, certificat = voisin 2e étage).
       // Prime pleine (→265K) à restaurer quand le DPE du lot sera récupéré (annexe bail meublé).
@@ -1159,7 +1138,7 @@ export const PORTFOLIO = {
       //   base résidence pendant travaux (médiane 4 voies, 2024-25)   3 950 €/m²
       //   + fin des travaux : ravalement, fenêtres, DPE CONFIRMÉ C         ~ +13%
       //       DPE vérifié sur la base ADEME (dataset dpe03existant, 40 diagnostics
-      //       allée des Glycines) : répartition A:1 B:1 C:16 D:17 E:5, et les 19
+      //       rue de la résidence) : répartition A:1 B:1 C:16 D:17 E:5, et les 19
       //       diagnostics établis DEPUIS 2024 sont quasi tous en C — dont un au n°19
       //       daté du 09/03/2026, 54,4 m², construction 1963, soit le jumeau du lot.
       //       Les D et E sont les diagnostics d'avant travaux. Le +13% couvre donc
@@ -1198,13 +1177,13 @@ export const PORTFOLIO = {
       // C'est la première fois qu'on dispose des ventes de la résidence elle-même, et non
       // d'estimations algorithmiques. Les 4 voies de la résidence Montbrison, ventes
       // d'appartements depuis 2024 (35 transactions) :
-      //     Allée des Glycines    79 m   3 910 €/m² (n=6)
+      //     rue de la résidence    79 m   3 910 €/m² (n=6)
       //     Rue des Mazurières   102 m   3 750 €/m² (n=9)
       //     Rue Paul Gimont      110 m   3 970 €/m² (n=9)
       //     Allée des Charmes    133 m   4 200 €/m² (n=11)
       //   → médiane résidence ≈ 3 950 €/m²
       //
-      // Deux lots quasi identiques au nôtre au 21 allée des Glycines (54 m², T3) :
+      // Deux lots quasi identiques au nôtre dans la même résidence (54 m², T3) :
       //     déc. 2021  244 000 €  = 4 519 €/m²
       //     févr. 2023 218 000 €  = 4 037 €/m²
       // Et la tendance de la résidence est BAISSIÈRE : ~4 500 €/m² en 2021-22,
@@ -1252,60 +1231,27 @@ export const PORTFOLIO = {
       //   reposent sur une estimation de classe, pas sur un document.
       // value: voir bloc v420 ci-dessus — 265K = 55.66m² × ~4 760€/m² (résidence rénovée 2024-2026, 20K€ travaux intérieurs)
       // Achat 255K (nov 2019) + 15K travaux = 270K investi
-      // MeilleursAgents allée des Glycines : 4 445€/m² (moyenne rue, stock mixte)
+      // MeilleursAgents rue de la résidence : 4 445€/m² (moyenne rue, stock mixte)
       // Après rénovation : +10-12% vs non rénové → ~4 935-5 030€/m² = 275-280K
       villejuif: { value: 415000, valueDate: '2026-08', crd: 318470, loyerHC: 1700, signed: true, reservationFees: 3363,
-                   // v415 — value RÉÉVALUÉE 370K → 415K sur comparables du MÊME immeuble.
-                   //   Les T3 encore commercialisés par Fair' Promotion (13 lots, 2e-8e étage, 63,64-67,15 m²)
-                   //   s'affichent 400 000-438 000 € TTC, soit 6 280-6 530 €/m² (relevé 08/2026).
-                   //   Notre lot A27 fait 68,92 m² — plus grand que tous les T3 en vente — acheté 336 330 €
-                   //   soit 4 880 €/m². Décote d'environ 25% obtenue comme condition de la Ville de Villejuif.
-                   //   415K = 68,92 × ~6 020 €/m², prix affichés minorés d'une marge de négociation et du
-                   //   positionnement en 2e étage (bas de la fourchette des lots disponibles).
-                   // ⚠️ PLUS-VALUE NON RÉALISABLE AVANT ~MI-2033 : clause de restitution des avantages
-                   //   (acte 05/06/2026, p.18-19). Voir CLAUSE_SADEV94 plus bas. Choix assumé de valoriser
-                   //   au marché malgré tout : le bien n'est pas destiné à être vendu avant l'échéance,
-                   //   la valeur sert d'indication patrimoniale, pas de valeur de liquidation.
-                   // v357 — VEFA « asset under construction » : tant que non livré (Q3 2028), Villejuif est
-                   // valorisé au COÛT réellement engagé, pas à la valeur livrée. equity = appelsPayes − drawnToDate.
-                   //   appelsPayes = appels de fonds payés au promoteur (acte 05/06/2026 : 34% = 5% résa + 29% acte)
-                   //   drawnToDate = capital réellement débloqué par LCL (Prêt 1 64 369,15 + Prêt 2 31 800)
-                   // À rafraîchir à chaque appel de fonds / déblocage. Bascule vers value−CRD pleine à la livraison.
-                   // v358 — valorisation HYBRIDE : equity = (appelsPayes − drawnToDate) + PV latente reconnue
-                   //   au prorata de l'avancement (appelsPayes / contractPrice). PV latente = valeur marché
-                   //   livrée − prix contrat (discount résident ~15% + appréciation, ~40K). Converge vers la
-                   //   valeur livrée à la livraison. contractPrice = prix TTC de l'acte (avec discount résident).
-                   underConstruction: true, appelsPayes: 114352, drawnToDate: 96569, contractPrice: 336330 }, // v467 — CRD réels tableaux au 05/08/2026 (64 720,92 + 31 847,70, différés inclus)
-      // value: 370K = estimation sept 2025, 68.92m² × ~5 370€/m² (VEFA neuf, en construction)
-      // Prix contrat réservation : 336 330€ TTC (TVA 20%) — réservation signée 20/06/2025
-      // ACTE DE VENTE NOTARIÉ SIGNÉ 05/06/2026 (Me Wysocki, Évry — SCCV Villejuif 167 Aragon)
-      //   → signed=true : equity (value − CRD) comptée dans nezhaNW, réservation absorbée
-      //   (plus de double-compte). Livraison : acte = T2 2028 (max 30/06/2028) ; opérationnel
-      //   Q3 2028 (retard annoncé promoteur — choix dashboard). conditional=true codé en dur
-      //   dans buildProperty → loyers/CF inactifs jusqu'à livraison.
-      // ÉCHÉANCIER VEFA (acte, art. R261-14) — référence pour le suivi cash :
-      //   34% payés à l'acte = 114 352,20€ (5% résa 16 816,50 + 29% acte 97 535,70),
-      //   financés par : dépôt 3 363 + apport Nezha ~17 860 (complément prix) + tirage LCL ~93 129.
-      //   Solde 221 977,80€ en 8 appels (fondations 1%, plancher RDC 15%, plancher 1er 15%,
-      //   hors d'eau 5%, plâtres 15%, peinture 9%, achèvement 1%, livraison 5%) — TOUS
-      //   couverts par le prêt LCL (acte : « couvrant intégralement la partie exigible à terme »).
-      //   → Zéro sortie cash future pour Nezha jusqu'à la livraison.
-      //   ⚠️ Cash : l'apport tous frais (~29 795€ dont 3 363 déjà sortis en 2025, soit ~26 432€
-      //   de cash frais : complément 17 860,05 + EDD 520 + TPF 2 008 + CSI 337 + émoluments
-      //   ~3 700 + frais bancaires LCL 5 370,05) sera déduit via la MAJ des soldes
-      //   PORTFOLIO.nezha.cash — fournis séparément.
-      // efficity Bd Gorki jan 2026 : 5 050€/m² (ancien), prime neuf +6%
-      // MeilleursAgents Bd Gorki : 5 138€/m² (ancien moyen)
-      // Neuf VEFA face station L15 Louis Aragon : ~5 400-5 600€/m²
-      // Valeur conservatrice en construction (livraison Q3 2028)
-      //
-      // Flag `signed` (BUG-044, audit v297) — convention de calcul NW :
-      //   signed=false : bien en cours d'acquisition. Seuls `reservationFees` comptent dans le NW.
-      //                  `villejuifEquity = 0`, `futureEquity = valueProjetée − CRDfinal` (projection pour "NW avec Villejuif").
-      //   signed=true  : acte notarié passé. `villejuifEquity = value − CRD` compté dans nezhaNW.
-      //                  `reservationFees = 0` (remboursés à la signature, pas de double comptage).
-      // Règle d'or : `nezhaNW` inclut SOIT `reservationFees` (pré-signature) SOIT `villejuifEquity` (post-signature),
-      // jamais les deux simultanément. Vérifier `engine.js` L3762 + L3775 si tu bascules ce flag.
+                   // `value` = VALEUR DE MARCHÉ ESTIMÉE DU BIEN LIVRÉ (horizon « livraison ») : relevé des
+                   //   T3 encore commercialisés dans le même immeuble (08/2026, 6 280-6 530 €/m² affichés).
+                   //   Ce n'est PAS la valeur portée au patrimoine avant la livraison.
+                   // v543 — AVANT LIVRAISON le patrimoine porte le COÛT ENGAGÉ : appels de fonds réellement
+                   //   payés (114 352,20 €, acte p.9) moins le capital restant dû des tableaux LCL. Le modèle
+                   //   v358 y ajoutait une plus-value latente « au prorata de l'avancement » (~26,8 k€) sous le
+                   //   libellé « coût engagé » : un mark-to-progress, pas un coût. Il reste calculé à part,
+                   //   nommé comme tel, hors patrimoine. Les faits sourcés (prix, appels, tirages, CRD, frais,
+                   //   livraison, clause SADEV) vivent dans VILLEJUIF_ACTE — ne plus les recopier ici.
+                   // Prix : l'acte dit seulement qu'il « a pu être minoré » grâce à la Ville et à SADEV 94
+                   //   (p.18) ; il ne chiffre aucune remise. L'écart aux lots en vente est une observation de
+                   //   marché, pas une remise documentée.
+                   underConstruction: true, contractPrice: 336330 },
+      // Flag `signed` (BUG-044) — convention de calcul NW :
+      //   signed=false : seuls `reservationFees` comptent (bien en cours d'acquisition).
+      //   signed=true  : l'équité du bien est comptée, et le dépôt de réservation n'est PAS ajouté —
+      //                  les 3 363 € sont compris dans les 114 352,20 € payés à l'acte (p.9).
+      // Jamais les deux simultanément.
     },
   },
 
@@ -1401,8 +1347,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '28/08/2026';
-export const APP_VERSION = 'v542';
+export const DATA_LAST_UPDATE = '14/09/2026';
+export const APP_VERSION = 'v543';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1653,7 +1599,7 @@ export const CURRENCY_CONFIG = {
 // Voir computeImmoView() pour détails
 // ════════════════════════════════════════════════════════════
 export const IMMO_CONSTANTS = {
-  villejuifStartMonth: 30, // Q3 2028 ~ 30 mois à partir de mars 2026 (base ABSOLUE des simulateurs). Acte 05/06/2026 : livraison contractuelle T2 2028 (max 30/06/2028) ; Q3 = retard annoncé promoteur (choix dashboard). NB v442 : franchise août 2025 → juillet 2028 (activée à la signature de l'offre, pratique LCL confirmée) — les mensualités (août 2028) démarrent ~2 mois AVANT les premiers loyers (oct 2028).
+  villejuifStartMonth: 27, // v543 — conservé pour compatibilité ; les simulateurs dérivent désormais le délai de la date de livraison CONTRACTUELLE (30/06/2028, acte p.8). Aucune source primaire pour une livraison en septembre 2028.
   charges: {
     // { pret: mensualité, assurance, pno: assurance propriétaire, tf: taxe foncière/12, copro }
     // Vitry : prêt lissé → charges ~constantes quelle que soit la période
@@ -1670,13 +1616,13 @@ export const IMMO_CONSTANTS = {
     //   (NON calendaire — attention aux régularisations à cheval sur deux années civiles).
     //   Dont chauffage COLLECTIF 415,04 €/an (24% de la quote-part, clé 69/10000) : ce poste
     //   est le facteur de volatilité du bien, comme à Rueil.
-    //   Second lot rattaché : stationnement 000586 (bât. BA001, place n°87), 127,10 €/an de
+    //   Second lot rattaché : stationnement 000586 (bât. BA001, place de stationnement), 127,10 €/an de
     //   charges — il génère les 70 €/mois de loyer parking mais n'est PAS valorisé dans les 300K.
     //   Tantièmes : 71/10000 clé 0003 · bât.3 257/10000 · ascenseur 241/10000 · chauffage 69/10000.
     rueil:     { pret: 970, assurance: 18, pno: 12, tf: 55, copro: 269 },  // pret: 969.62, ass: 17.99 (2026)
     // copro Rueil 250 → 269 : 3 225,72 €/an d'appels 2024 (dont 143,24 de fonds travaux ALUR).
     // tf Rueil 67 → 55 : avis 2023 réel 658 €/an (base 2 469, taux communal 21,54%).
-    //   ⚠️ L'avis porte sur un local « 17 allée des Glycines » alors que l'acte dit 21 —
+    //   ⚠️ L'avis porte sur un local adresse légèrement différente de celle de l'acte —
     //   à vérifier sur impots.gouv.fr avant de considérer ce montant comme définitif.
     // Charge NETTE propriétaire réelle ≈ 593 €/an (450 non récupérables + 143 fonds travaux),
     //   contre ~1 200 €/an implicites auparavant. Le chauffage collectif (récupérable à 99%)
@@ -1720,7 +1666,7 @@ export const IMMO_CONSTANTS = {
       // ── PRÊT 1 : Action Logement ──
       // Dossier : ALSXACC-22047897
       // Source : tableau d'amortissement Action Logement Services, Paris, 4 janvier 2023
-      // Versement SEINEO n° 3074557 (promoteur)
+      // Versement notaire (promoteur)
       // Échéance constante 145.20€ (1ère: 156.53€ intérêts longs), assurance 3.33€/mois intégrée
       // Taux annuel effectif assurance : 0.19%
       // Dernière échéance : 05/02/2048
@@ -1814,10 +1760,10 @@ export const IMMO_CONSTANTS = {
     },
     // ── VILLEJUIF — 2 prêts LCL (318 469€ total) ──
     // Propriétaire : Nezha
-    // Source : offres de prêt LCL signées 2025 — v440 : partiellement débloquées (1er tirage à l'acte, juin 2026)
+    // Source : offre LCL acceptée le 17/09/2025 ; tableaux d'amortissement édités le 03/07/2026 (1er tirage à l'acte du 05/06/2026)
     // Bien financé : T3 VEFA — Bd Gorki, Villejuif (68.92m² + parking)
     // Prix contrat réservation : 336 330€ TTC (TVA 20%), signé 20/06/2025
-    // Livraison estimée : Q3 2028 (construction en cours)
+    // Livraison contractuelle : 2e trimestre 2028, au plus tard le 30/06/2028 (acte p.8)
     // ⚠️ Le contrat de réservation mentionne un financement Crédit Agricole
     //    (332 967€, 300 mois, 3.50%) → données INDICATIVES UNIQUEMENT
     //    Les vrais prêts sont les 2 offres LCL ci-dessous.
@@ -1837,8 +1783,8 @@ export const IMMO_CONSTANTS = {
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
         rate: 0.0327,          // 3.27% taux nominal fixe
-        // v467 — TABLEAU DÉFINITIF (édité 03/07/2026, prêt n°…558) : départ 05/06/2026 (acte),
-        // 1re échéance 05/07/2026, intérêts payés dès 01/2029, AMORTISSEMENT dès 05/02/2029,
+        // v467/v543 — TABLEAU DÉFINITIF (édité 03/07/2026) : départ 05/06/2026 (acte),
+        // 1re échéance 05/07/2026 (0 €), ÉCHÉANCES D'INTÉRÊTS dès le 05/11/2028 (345,70 €), AMORTISSEMENT dès le 05/02/2029,
         // dernière échéance 05/01/2053. Tirage à l'acte : 64 369,15 € — différés UNIQUEMENT
         // sur le tiré (capitalisation annuelle), mensualité réelle recalculée sur le capital
         // tiré (345,70 € actuellement, remontera à chaque appel). Le paramétrique ci-dessous
@@ -1850,7 +1796,7 @@ export const IMMO_CONSTANTS = {
           { months: 288, payment: 1572.79 }, // amortissement plein-tirage (fév 2029 – jan 2053)
         ],
         tableauReel: { edite: '2026-07-03', tirageActe: 64369.15, mensualiteSurTire: 345.70,
-                       premierPaiement: '2029-01', premierAmortissement: '2029-02', derniereEcheance: '2053-01',
+                       premierPaiement: '2028-11', premierAmortissement: '2029-02', derniereEcheance: '2053-01',
                        crdFinFranchise: 68767.20, differesCapitalises: 4556 },
         insuranceMonthly: 46.10,            // assurance CACI (v442 — prélevée dès signature offre)
         taeg: 0.0373,                       // Taux annuel effectif global
@@ -1866,7 +1812,7 @@ export const IMMO_CONSTANTS = {
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
         rate: 0.009,           // 0.90% taux nominal fixe
-        // v467 — TABLEAU DÉFINITIF (03/07/2026, prêt n°…12AH) : départ 18/09/2025, 1re échéance
+        // v467 — TABLEAU DÉFINITIF (03/07/2026, prêt P2) : départ 18/09/2025, 1re échéance
         // 05/11/2025, tirage INTÉGRAL 31 800 € à l'acte (05/06/2026, frais 672,02 au tirage),
         // différés sur tiré (capitalisation annuelle), AMORTISSEMENT dès 05/11/2028
         // (mensualité réelle 124,25), dernière échéance 05/01/2053.
@@ -1885,20 +1831,21 @@ export const IMMO_CONSTANTS = {
       },
     ],
     // ── Franchise des prêts LCL — déblocage + calendrier ──
-    // v347 — ACTE SIGNÉ 05/06/2026 : Nezha a signé définitivement. Déblocage VEFA PAR TRANCHES
-    // (appels de fonds) : ~93 129€ tirés à l'acte (34% appelés), solde jusqu'à livraison Q3 2028.
-    // v442 — CONFIRMÉ (Amine, relevés) : LCL a activé la franchise À LA SIGNATURE DE L'OFFRE
-    // (août 2025), pas au 1er déblocage — et prélève l'assurance (51,29€/mois, CACI) depuis la
-    // signature, avant tout tirage. Franchise : août 2025 → juillet 2028, 1re mensualité août 2028.
-    // Intérêts intercalaires CAPITALISÉS (franchise totale), pas payés.
+    // v543 — Déblocage VEFA PAR TRANCHES. À l'acte (05/06/2026) : 96 169,15 € tirés (P1 64 369,15 + P2 31 800),
+    // et non l'estimation antérieure. Dates distinctes, à ne pas confondre :
+    //   origine administrative : P2 18/09/2025, P1 05/06/2026 (tableaux) ;
+    //   assurance : prélevée avant tout tirage (constaté sur relevés, v442) ;
+    //   échéances d'intérêts : P1 dès le 05/11/2028 ; amortissement : P2 05/11/2028, P1 05/02/2029 ;
+    //   échéance « plein tirage » (1 572,79 + 124,99) : projection après déblocage intégral.
+    // Intérêts intercalaires CAPITALISÉS pendant la franchise, pas payés.
     // loanDisbursed reste `false` = pas INTÉGRALEMENT débloqué (tranches en cours) ; la timeline
     // s'appuie sur startDate (franchise démarrée) + drawnToDate (portion tirée).
     // Frais de dossier LCL : 1 200€ (FDOSS, déjà débités à l'acte — cf. échéancier apport).
     villejuifFranchise: {
       months: 36,
-      startDate: '2025-11',    // v467 — 1re échéance P2 (tableau définitif) : franchise 36 mois → 1res mensualités NOV 2028 (P2, 124,25) puis FÉV 2029 (P1, 345,70), recalculées à chaque appel
+      startDate: '2025-11',    // v467/v543 — 1re échéance P2 05/11/2025 ; P2 amortit dès le 05/11/2028 (124,25) ; P1 : intérêts dès le 05/11/2028, amortissement dès le 05/02/2029 (345,70) — recalculés à chaque tirage
       loanDisbursed: false,    // Prêt pas intégralement débloqué (tranches VEFA en cours)
-      fraisDossier: 1200,      // v347 — FDOSS LCL réel 1 200€ (acte), pas 1 500 estimé
+      fraisDossier: 1200,      // v543 — montant non retrouvé dans l'acte ni dans un justificatif (proposition LCL du 11/07/2025 : 1 500)
     },
   },
   // ──────────────────────────────────────────────────────
@@ -1911,7 +1858,6 @@ export const IMMO_CONSTANTS = {
   //
   // Vitry (Amine) : location NUE → revenus fonciers
   //   regime: 'micro-foncier' (abattement 30%) si loyers < 15K€/an
-  //   Partie du loyer reçue en cash (non déclarée) → exclue du calcul fiscal
   //   En tant que non-résident : taux minimum 20% (pas de TMI progressive)
   //   PS : 17.2% sur les revenus fonciers de source française
   //
@@ -1946,7 +1892,7 @@ export const IMMO_CONSTANTS = {
     // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
     // lmnpStartDate: date de passage en LMNP (bail signé sept 2025, prise effet oct 2025)
     // Amortissement commence à cette date, pas à la date d'achat (2019)
-    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2028-09' }, // livraison Q3 2028 → location/LMNP dès Q3 2028
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2028-09' }, // HYPOTHÈSE de début de location — livraison contractuelle 30/06/2028 (acte p.8)
     // lmnpStartDate: livraison + début location estimé sept 2029
   },
   // ──────────────────────────────────────────────────────
@@ -1955,19 +1901,15 @@ export const IMMO_CONSTANTS = {
   // ──────────────────────────────────────────────────────
   properties: {
     vitry: {
-      address: '19 Rue Nathalie Lemel, 94400 Vitry-sur-Seine',
+      address: 'Vitry-sur-Seine (94)',
       // v422 — ANNOTATION v421 RETIRÉE (elle était fausse). L'hypothèse d'une rue renommée
-      //   « rue Jardin → rue Nathalie Lemel » ne tient pas : les documents de copropriété
       //   montrent que la résidence porte PLUSIEURS adresses simultanées.
-      // Copropriété réelle : SDC « VILLAGE HARMONIE », siège 93 rue Léon Geffroy,
       //   94400 Vitry-sur-Seine. Les bâtiments sont aussi adressés 7/9/11/19 rue Nathalie
-      //   Lemel et 12 rue Blanche Lefebvre. Notre lot est au 19 rue Nathalie Lemel.
       // C'est la vraie raison des recherches ADEME/DVF infructueuses : la voie est récente
       //   (ZAC Gare des Ardoines) et le bâti n'y est pas encore référencé. Chercher plutôt
-      //   par coordonnées (48.78028, 2.40640) ou par « Léon Geffroy » — les DPE neufs de
       //   cette rue voisine, tous en B, sont d'ailleurs ceux du même programme.
       syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte copropriétaire CP1710061',
-      copropriete: 'SDC Village Harmonie, 93 rue Léon Geffroy, 94400 Vitry-sur-Seine',
+      copropriete: 'Copropriété de la résidence (syndic LAMY)',
       surface: 67.14,           // m²
       purchasePrice: 275000,    // prix d'achat TTC (VEFA)
       purchaseDate: '2023-01',  // acte notarié 16 janvier 2023
@@ -1999,11 +1941,6 @@ export const IMMO_CONSTANTS = {
       type: 'T3 — Location nue',
       loyerObjectif: 700,       // v458 — loyer CC du bail : 600 HC + 100 provisions (parking inclus sans supplément)
       dpe: 'B (68 kWh/m²/an)',  // v458 — DPE B confirmé (68), pas A
-      gmbi: {                   // v458 — référence DGFiP (audit GMBI 26/08/2026)
-        local: '940811772442', parcelle: '000 CG 0437',
-        occupationEnregistree: 'Nezha, à titre gratuit, depuis le 01/09/2025 (historique)',
-        aDeclarer: 'Locataire à compter du 10/10/2026, loyer 600 € — dans GMBI à la prise d\'effet du bail',
-      },
       totalInterestCost: 56644, // coût total intérêts (3 prêts combinés, offres de prêt)
       // v415 — opening corrigé 2025 → 2027 (automne). Source : Société des grands projets,
       //   ouverture L15 Sud repoussée d'avril 2027 à l'automne 2027.
@@ -2014,8 +1951,8 @@ export const IMMO_CONSTANTS = {
         lot: '3302',
         lotSyndic: '000219',
         // v423 — SECOND LOT, invisible du modèle jusqu'ici alors qu'il produit déjà du revenu :
-        //   stationnement 000586, bâtiment BA001, place n°87, livré le 02/07/2025 en même temps
-        //   que le logement (télécommande n°1471475000 remise au PV). Il porte 127,10 €/an de
+        //   stationnement 000586, bâtiment BA001, place de stationnement, livré le 02/07/2025 en même temps
+        //   que le logement (télécommande remise au PV). Il porte 127,10 €/an de
         //   charges et est INCLUS au bail du 10/10/2026 sans supplément de loyer (v458).
         //   ⚠️ Sa VALEUR VÉNALE n'est chiffrée par AUCUN document : les 300 000 € retenus ne
         //   couvrent que le logement. Un box en petite couronne vaut couramment 12-18 K€, mais
@@ -2056,12 +1993,12 @@ export const IMMO_CONSTANTS = {
       },
     },
     rueil: {
-      address: '21 Allée des Glycines, 92500 Rueil-Malmaison',
+      address: 'Rueil-Malmaison (92)',
       // v425 — copropriété et syndic, pour parité d'affichage avec Vitry.
       //   L'appel de fonds Foncia donne la composition exacte de la résidence : elle occupe
       //   QUATRE voies, ce qui explique pourquoi une recherche par une seule rue sous-estime
       //   le nombre de transactions comparables (cf. scripts/dvf_comparables.py).
-      copropriete: 'Résidence Montbrison — 1/3 rue des Charmes, 1/21 allée des Glycines, 2/22 rue P. Gimont, 92/94 rue des Mazurières',
+      copropriete: 'Copropriété de la résidence (syndic Foncia)',
       syndic: 'Foncia Seine Ouest — client 004142524, immeuble 501308296, compte 102151753',
       surface: 55.66,           // m²
       purchasePrice: 240000,    // prix d'achat acte notarié (5 nov 2019) — hors frais notaire
@@ -2070,7 +2007,7 @@ export const IMMO_CONSTANTS = {
       // ── Appréciation réaliste par phase ──
       // 2026-2029 : 0.5%/an — marché plat, station L15 Rueil lointaine (~2030-2032),
       //   quartier Fouilleuse/Mazurières sous-performe le reste de Rueil (-37% vs ville)
-      //   MeilleursAgents: 4 445€/m² allée des Glycines vs 5 920€ ville
+      //   MeilleursAgents: 4 445€/m² rue de la résidence vs 5 920€ ville
       //   Orpi: prix Rueil -1.5% sur 2 ans (2023-2025)
       // 2030+ : 1.5%/an — si L15 Ouest ouvre, effet indirect (station à 15-20 min à pied)
       // Moyenne lissée sur 10 ans ≈ 1.0%/an
@@ -2123,25 +2060,25 @@ export const IMMO_CONSTANTS = {
       },
     },
     villejuif: {
-      address: '167 Boulevard Maxime Gorki, 94800 Villejuif',
+      address: 'Villejuif (94)',
       surface: 68.92,           // m² (contrat de réservation §1.6 — lot A27, étage 2)
       purchasePrice: 336330,    // prix TTC contrat de réservation §1.7
       totalOperation: 336330,   // montant TTC total (TVA 20%)
-      // v470 — appels de fonds RESTANTS (échéancier de l'acte, art. R261-14 : 66 % du prix,
-      // intégralement couverts par le prêt P1). Les DATES sont une HYPOTHÈSE de calendrier
-      // de chantier (livraison sept 2028) — à recaler à chaque appel reçu.
+      // v543 — appels de fonds RESTANTS (échéancier de l'acte p.10). Seul l'appel « fondations »
+      // est daté par une pièce (émis le 03/08/2026, relancé le 10/09/2026 comme non réglé) ; les
+      // autres dates sont une HYPOTHÈSE de chantier calée sur la livraison contractuelle.
       appelsRestants: [
-        { label: 'Fondations',   pct: 0.01, dateEstimee: '2026-11' },
-        { label: 'Plancher RDC', pct: 0.15, dateEstimee: '2027-03' },
-        { label: 'Plancher 1er', pct: 0.15, dateEstimee: '2027-07' },
-        { label: 'Hors d\'eau',  pct: 0.05, dateEstimee: '2027-11' },
-        { label: 'Plâtres',      pct: 0.15, dateEstimee: '2028-02' },
-        { label: 'Peinture',     pct: 0.09, dateEstimee: '2028-05' },
-        { label: 'Achèvement',   pct: 0.01, dateEstimee: '2028-08' },
-        { label: 'Livraison',    pct: 0.05, dateEstimee: '2028-09' },
+        { label: 'Fondations',   pct: 0.01, dateEstimee: '2026-08', emis: true },
+        { label: 'Plancher RDC', pct: 0.15, dateEstimee: '2026-12' },
+        { label: 'Plancher 1er', pct: 0.15, dateEstimee: '2027-04' },
+        { label: 'Hors d\'eau',  pct: 0.05, dateEstimee: '2027-08' },
+        { label: 'Plâtres',      pct: 0.15, dateEstimee: '2027-11' },
+        { label: 'Peinture',     pct: 0.09, dateEstimee: '2028-02' },
+        { label: 'Achèvement',   pct: 0.01, dateEstimee: '2028-05' },
+        { label: 'Livraison',    pct: 0.05, dateEstimee: '2028-06' },
       ],
       purchaseDate: '2025-06',  // signature contrat réservation 20/06/2025
-      deliveryDate: '2028-09',  // Q3 2028 — retard annoncé promoteur. Acte 05/06/2026 : T2 2028, max 30/06/2028 (résa initiale : 31/03/2028)
+      deliveryDate: '2028-06',  // v543 — CONTRACTUELLE : 2e trimestre 2028, au plus tard le 30/06/2028 (acte p.8). Septembre 2028 = scénario non vérifié (VILLEJUIF_ACTE.livraison)
       // ── Appréciation réaliste par phase (révisée avril 2026) ──
       // Marché Villejuif : -1.17% sur 2 ans (2023-2025), tendance baissière
       // L'effet L15 est largement pricé : +20% entre 2021-2025 autour Louis Aragon
@@ -2166,7 +2103,7 @@ export const IMMO_CONSTANTS = {
       appreciation: 0.013,       // 1.3%/an (moyenne lissée des phases ci-dessous)
       appreciationPhases: [
         { start: 2025, end: 2027, rate: 0.005, note: 'Terminus M7 déjà capitalisé, marché local en tassement (-1,17% sur 2 ans), effet L15 déjà pricé' },
-        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison Q3 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
+        { start: 2028, end: 2040, rate: 0.015, note: 'Livraison contractuelle T2 2028, L15 opérationnelle depuis ~1 an, effet digéré' },
       ],
       type: 'T3 — VEFA — LMNP',
       // v415 — opening corrigé 2027-04 → 2027-10 (report annoncé par la Société des grands projets).
@@ -2349,15 +2286,17 @@ export const EXIT_COSTS = {
     // LMNP ou foncier nu selon le choix (Jeanbrun non retenu — v440)
     // Si LMNP réel : même règle de réintégration des amortissements
     lmnpAmortReintegration: true,
-    note: 'VEFA — choix régime à faire avant livraison (Q3 2028)',
+    note: 'VEFA — choix régime à faire avant livraison (contractuelle : 30/06/2028)',
     timeline: [
       { date: '2025-06', event: 'Signature contrat de réservation (dépôt 3 363€)', icon: 'doc', done: true },
-      { date: '2025-08', event: 'Offre de prêt LCL (287K + 32K, franchise 36 mois)', icon: 'bank', done: true },
-      { date: '2026-06', event: 'Acte de vente signé (Me Wysocki, Évry — 34% appelés soit 114 352€)', icon: 'doc', done: true },
+      { date: '2025-09', event: 'Offre de prêt LCL acceptée le 17/09/2025 (286 669,95 € + 31 800 €, franchise 36 mois)', icon: 'bank', done: true },
+      { date: '2026-06', event: 'Acte de vente signé le 05/06/2026 — 34 % appelés, 114 352,20 € (dépôt de 3 363 € compris)', icon: 'doc', done: true },
+      { date: '2026-08', event: 'Appel de fonds « achèvement des fondations » (1 %, 3 363,30 €) — relancé le 10/09/2026 comme non réglé', icon: 'doc' },
       { date: '2027-10', event: 'Ouverture L15 Sud — station Villejuif Louis Aragon (automne 2027, 4e report SGP 25/06/2026)', icon: 'metro' },
-      { date: '2028-09', event: 'Livraison VEFA + remise des clés (Q3 2028 — acte : max 30/06/2028)', icon: 'key' },
-      { date: '2028-10', event: 'Début location (LMNP)', icon: 'home' },
-      { date: '2028-11', event: '1re mensualité P2 (124,25 € — sur capital tiré) puis P1 en fév 2029 (345,70 €) ; recalcul à chaque appel de fonds, cible ~1 698 € au tirage plein', icon: 'money' },
+      { date: '2028-06', event: 'Livraison CONTRACTUELLE au plus tard le 30/06/2028 (acte p.8) — septembre 2028 : scénario non vérifié', icon: 'key' },
+      { date: '2028-10', event: 'Début de location (LMNP) — hypothèse ; aucun bail avant paiement intégral du prix sans accord du vendeur (acte p.8)', icon: 'home' },
+      { date: '2028-11', event: 'P2 : 1er amortissement (124,25 €) · P1 : 1res échéances d\'intérêts (345,70 €) — tableaux LCL du 03/07/2026, recalculés à chaque tirage', icon: 'bank' },
+      { date: '2029-02', event: 'P1 : 1er amortissement (345,70 € sur le capital tiré ; 1 572,79 € après déblocage intégral)', icon: 'bank' },
       { date: '2028-01', event: 'Choix régime fiscal (LMNP vs foncier nu) — décision avant 1ère mise en location', icon: 'tax' },
       { date: '2030-03', event: 'Fin exonération TF (construction neuve 2 ans)', icon: 'tax' },
       { date: '2035-06', event: '10 ans détention — abattement PV IR commence', icon: 'tax' },
@@ -2372,7 +2311,7 @@ export const EXIT_COSTS = {
 // liées aux dispositifs de financement et TVA réduite
 // ════════════════════════════════════════════════════════════
 export const VITRY_CONSTRAINTS = {
-  summary: 'Obligations actives : Anti-spéculation (→ 01/2028), PTZ dérogatoire (bail nu, plafond PLS 840 €, fenêtre → 2031-07), Action Logement (RP → 2048), location nue au réel, déclaration GMBI à faire — TVA 5,5 % levée (exception naissance) ; 1 risque suivi (part de loyer non déclarée).',
+  summary: 'Obligations actives : Anti-spéculation (→ 01/2028), PTZ dérogatoire (bail nu, plafond PLS 840 €, fenêtre → 2031-07), Action Logement (RP → 2048), location nue au réel, déclaration GMBI à faire — TVA 5,5 % levée (exception naissance).',
   constraints: [
     {
       dispositif: 'Anti-Spéculation (Municipal)',
@@ -2473,26 +2412,6 @@ export const VITRY_CONSTRAINTS = {
       yearsRemaining: null,
     },
     {
-      dispositif: 'RISQUE — revenus en espèces non déclarés (500 € locataire + 70 € parking voisin)',
-      reference: 'Suivi interne — enregistrement factuel, plafonné à 500 €',
-      obligation: 'Aucune : ce bloc CHIFFRE l\'exposition du choix de non-déclaration (imposable en droit)',
-      dateDebut: '2026-10',
-      dateFin: null,
-      penalite: 'Requalification : ~2 230 €/an d\'impôt éludé + majoration 40 % + intérêts de retard ; loyer réel 1 100 € > plafond PLS 840 € → exigibilité PTZ 60 000 € + Action Logement 35 208 € pendant la fenêtre (jusqu\'en 2031-07), contrôle BP EN COURS',
-      details: [
-        'AUJOURD\'HUI (jusqu\'au 09/10/2026) : 1 200 €/mois perçus 100 % EN ESPÈCES (+ 70 € parking voisin) — rien de déclaré',
-        'Dès le 10/10/2026 : 600 € déclarés (virement) + 100 € provisions + 500 € espèces (locataire) + 70 € espèces (parking) = 1 270 €/mois perçus',
-        'Discordance GMBI : la DGFiP enregistre « occupation à titre gratuit » pendant qu\'un loyer est perçu — déclaration d\'occupation inexacte',
-        'Parking loué à un tiers : HORS plafond PLS du bail, mais revenus fonciers imposables non déclarés',
-        'Fiscal : 570 × 12 × 37,2 % ≈ 2 545 €/an d\'impôt éludé ; majoration 40 % (manquement délibéré) + intérêts 0,2 %/mois en cas de contrôle',
-        'PTZ dérogatoire : plafond PLS ~840 €/mois — le loyer réel (1 100 €) le dépasse de ~31 % → motif d\'exigibilité des prêts aidés (95 208 €)',
-        'GMBI déclarera « loyer 600 € » à la DGFiP pendant que le locataire laisse des traces de paiements',
-        'Ce suivi n\'est PAS une optimisation : il enregistre un fait et en affiche le coût potentiel',
-      ],
-      status: 'risque',
-      yearsRemaining: null,
-    },
-    {
       dispositif: 'Déclaration GMBI (occupation locataire)',
       reference: 'DGFiP — Gérer mes biens immobiliers',
       obligation: 'Déclarer l\'occupation « locataire à compter du 10/10/2026, loyer 600 € » à la prise d\'effet du bail',
@@ -2500,8 +2419,6 @@ export const VITRY_CONSTRAINTS = {
       dateFin: '2026-10',
       penalite: 'Amende forfaitaire en cas de non-déclaration d\'occupation',
       details: [
-        'Local n° 940811772442 — parcelle 000 CG 0437',
-        'Occupation enregistrée à ce jour : « Nezha, à titre gratuit, depuis le 01/09/2025 » (historique)',
         'À faire dans GMBI à la prise d\'effet du bail : locataire au 10/10/2026, loyer 600 €',
       ],
       status: 'à faire',
@@ -2603,7 +2520,7 @@ export const IMMO_PASSIFS_DOCUMENTES = {
     montant: 716.10,
     date: '2025-12-01',
     // Colonne VERSEMENTS à 0,00 € depuis le 01/08/2025 — cinq appels mensuels non réglés,
-    // alors qu'un mandat SEPA est actif (RUM MYN5859101, IBAN Revolut FR76 2823 3000 0147 7575).
+    // alors qu'un mandat SEPA est actif (mandat et IBAN retirés du fichier public).
     // Signature typique d'un rejet de prélèvement récurrent : à vérifier côté Revolut.
     statutAujourdhui: 'INCONNU — aucune pièce postérieure au 01/12/2025',
   },
@@ -2649,64 +2566,174 @@ export const IMMO_PASSIFS_DOCUMENTES = {
   ],
 };
 
-export const VILLEJUIF_CONSTRAINTS = {
-  summary: 'Toute plus-value de revente revient à SADEV 94 pendant 5 ans après achèvement',
-  // Deux dates de livraison coexistent et n'ont pas la même nature. Le dashboard n'en
-  // montrait qu'une, sans dire laquelle : selon l'écran on lisait « T2 2028 » ou « Q3 2028 »
-  // pour le même bien. Les deux sont désormais déclarées et nommées.
-  //   - contractuelle : l'engagement de l'acte, opposable au promoteur.
-  //   - operationnelle : le retard annoncé par le promoteur, retenu par le dashboard pour
-  //     les projections (villejuifStartMonth) parce qu'il est plus prudent.
-  livraison: {
-    contractuelle: '2028-06',      // acte du 05/06/2026 : achèvement au plus tard le 30/06/2028
-    operationnelle: '2028-09',     // Q3 2028, retard annoncé promoteur — base des simulateurs
-    source: 'Acte authentique 05/06/2026 + annonce promoteur',
+// ════════════════════════════════════════════════════════════════════════════════════════
+// VILLEJUIF — FAITS SOURCÉS (v543)
+// Hiérarchie des sources : acte authentique > tableaux d'amortissement LCL > décompte notarial
+// > mails du promoteur > Notion (miroir, parfois ancien) > estimations. Chaque montant dit d'où
+// il vient. `null` signifie « pièce non retrouvée » : jamais remplacé par une estimation muette.
+// ════════════════════════════════════════════════════════════════════════════════════════
+export const VILLEJUIF_ACTE = {
+  verifieLe: '2026-09-14',
+  acte: { date: '2026-06-05', objet: 'Acte authentique de vente en l\'état futur d\'achèvement — SCCV Villejuif 167 Aragon' },
+  prix: { ttc: 336330, ht: 280275, tva: 56055, tauxTVA: 0.20, pages: '8-9' },
+  // « Charge augmentative du prix » : quote-part EDD / règlement de copropriété / diagnostics.
+  chargeAugmentative: { montant: 520, pages: '8, 9, 13' },
+  appelsPayes: { montant: 114352.20, pct: 0.34, dontDepotReservation: 3363, page: 9 },
+  echeancier: {
+    page: 10,
+    tranches: [
+      { label: 'Réservation', pct: 0.05, montant: 16816.50 }, { label: 'Signature de l\'acte', pct: 0.29, montant: 97535.70 },
+      { label: 'Fondations', pct: 0.01, montant: 3363.30 }, { label: 'Plancher bas RDC', pct: 0.15, montant: 50449.50 },
+      { label: 'Plancher bas 1er', pct: 0.15, montant: 50449.50 }, { label: 'Hors d\'eau', pct: 0.05, montant: 16816.50 },
+      { label: 'Plâtres', pct: 0.15, montant: 50449.50 }, { label: 'Peinture', pct: 0.09, montant: 30269.70 },
+      { label: 'Achèvement', pct: 0.01, montant: 3363.30 }, { label: 'Livraison', pct: 0.05, montant: 16816.50 },
+    ],
   },
-  // Les deux prêts n'amortissent pas au même moment : la franchise du P1 court plus longtemps.
-  // Le calendrier était enfoui dans `prets`, jamais montré à côté du bien.
+  pretsLCL: { total: 318469.95, page: 12 },
+  deblocageActe: { p1: 64369.15, p2: 31800, total: 96169.15,
+    source: 'Tableaux LCL édités le 03/07/2026 (ligne de déblocage du 05/06/2026 ; P2 tiré en totalité)' },
+  // Total restant dû P1 + P2, intérêts différés compris, à chaque échéance. Valable tant qu'aucun
+  // nouveau tirage n'a eu lieu : un appel de fonds réglé par LCL rend ces lignes caduques.
+  crdTableau: {
+    edite: '2026-07-03',
+    source: 'Tableaux d\'amortissement LCL (P1 + P2, total restant dû)',
+    points: {
+      '2026-06-05': 96169.15,
+      '2026-07-05': 96366.00,
+      '2026-08-05': 96568.62,
+      '2026-09-05': 96771.24,
+      '2026-10-05': 96968.09,
+      '2026-11-05': 97170.71,
+      '2026-12-05': 97367.56,
+      '2027-01-05': 97570.18,
+      '2027-02-05': 97772.80,
+      '2027-03-05': 97958.12,
+      '2027-04-05': 98160.74,
+      '2027-05-05': 98357.59,
+      '2027-06-05': 98560.21,
+      '2027-07-05': 98757.06,
+      '2027-08-05': 98966.24,
+      '2027-09-05': 99175.42,
+      '2027-10-05': 99378.63,
+      '2027-11-05': 99587.81,
+      '2027-12-05': 99791.02,
+      '2028-01-05': 100000.20,
+      '2028-02-05': 100209.38,
+      '2028-03-05': 100406.61,
+      '2028-04-05': 100615.79,
+      '2028-05-05': 100819.00,
+      '2028-06-05': 101028.18,
+      '2028-07-05': 101231.39,
+      '2028-08-05': 101446.86,
+      '2028-09-05': 101662.33,
+      '2028-10-05': 101871.63,
+      '2028-11-05': 101613.55,
+      '2028-12-05': 101355.45,
+      '2029-01-05': 101097.27,
+      '2029-02-05': 100839.02,
+    },
+  },
+  appelEnCours: { label: 'Achèvement des fondations', pct: 0.01, montant: 3363.30, emisLe: '2026-08-03',
+    relanceLe: '2026-09-10', statut: 'non réglé à la date de la relance', source: 'Mails du promoteur du 03/08 et du 10/09/2026' },
+  // Décompte financier du notaire, 27/05/2026 : « frais d'achat (sauf à parfaire ou à diminuer) ».
+  // C'est une PROVISION : le solde de compte définitif n'a pas été retrouvé.
+  decompteNotarial: { date: '2026-05-27', provisionFraisAchat: 6950, quotePart: 520, acompteDeduit: 3363,
+    versementSignature: 118459.20, definitif: false },
+  droitsCompris: { taxePubliciteFonciere: 2008, contributionSecuriteImmobiliere: 337, page: 14 },  // inclus dans la provision
+  fraisAcquisitionReels: null,   // solde de compte définitif du notaire : non retrouvé
+  fraisFinancement: {
+    dossier:    { montant: 1200,    documente: false, source: 'Chiffre antérieur non rattaché à une pièce (proposition LCL du 11/07/2025 : 1 500)' },
+    garantieP1: { montant: 3498.03, documente: 'proposition', source: 'Proposition commerciale LCL du 11/07/2025' },
+    garantieP2: { montant: 672.02,  documente: 'proposition', source: 'Proposition commerciale LCL du 11/07/2025' },
+  },
+  apport: {
+    nominalContractuel: 17860.05,   // prix − total des prêts = 336 330 − 318 469,95
+    // Le résiduel réel (appels payés − déblocage) vaut 18 183,05 : 323 € de plus. Aucune pièce
+    // consultée (acte, tableaux, décompte, proposition LCL) ne l'explique. L'« appel de fonds à la
+    // banque » joint au mail du notaire du 27/05/2026 est la pièce la plus susceptible de le faire.
+    ecartNonReconcilie: 323,
+  },
+  livraison: {
+    contractuelle: '2028-06-30', libelle: '2e trimestre 2028, au plus tard le 30 juin 2028', page: 8,
+    reservation: { date: '2028-03-31', source: 'Contrat de réservation du 20/06/2025, §1.4 (1er trimestre 2028)' },
+    scenarioRetard: { date: '2028-09-30', statut: 'non vérifié',
+      note: 'Aucune source primaire (acte, contrat, mails du promoteur). Le mail du 06/01/2026 visait au contraire une acquisition du terrain « sans impact sur la livraison ».' },
+    achevementReel: null,
+  },
+  prets: {
+    source: 'Tableaux d\'amortissement LCL édités le 03/07/2026 — échéances recalculées à chaque tirage',
+    offreAcceptee: '2025-09-17',
+    p1: { origine: '2026-06-05', premiereEcheance: '2026-07-05', premieresEcheancesInterets: '2028-11-05',
+          premierAmortissement: '2029-02-05', echeanceSurTire: 345.70, echeancePleinTirage: 1572.79, derniereEcheance: '2053-01-05' },
+    p2: { origine: '2025-09-18', premiereEcheance: '2025-11-05', premieresEcheancesInterets: '2028-11-05',
+          premierAmortissement: '2028-11-05', echeanceSurTire: 124.25, echeanceOffre: 124.99, derniereEcheance: '2053-01-05' },
+    assurance: { mensuelle: 51.29, debut: 'avant tout tirage (constaté sur relevés, v442)' },
+  },
+  sadev: {
+    pages: '17-18',
+    icc: {
+      serie: 'INSEE 000008630 — indice du coût de la construction',
+      base: { trimestre: '2025-T4', valeur: 2058, publieJO: '2026-03-26' },   // dernier connu le 05/06/2026
+      publies: [
+        { trimestre: '2025-T4', valeur: 2058, publieJO: '2026-03-26' },
+        { trimestre: '2026-T1', valeur: 2084, publieJO: '2026-06-28' },
+      ],
+      releveLe: '2026-09-14',
+      scenarioAnnuel: 0.02,   // SCÉNARIO pour les indices futurs — pas une donnée
+    },
+    travauxAcquereur: null,   // travaux de l'acquéreur hors prix : aucun montant sans pièce
+  },
+};
+
+export const VILLEJUIF_CONSTRAINTS = {
+  summary: 'Revente dans les 5 ans suivant l\'achèvement réel : le gain contractuel positif est restitué à SADEV 94 (acte p.18)',
+  // Livraison : UNE date contractuelle sourcée ; toute autre date est un scénario, et le dit.
+  livraison: {
+    contractuelle: '2028-06',
+    scenarioNonVerifie: '2028-09',
+    source: 'Acte du 05/06/2026, p.8 (le contrat de réservation du 20/06/2025 annonçait le 1er trimestre 2028)',
+  },
+  // Jalons des prêts LCL (tableaux d'amortissement du 03/07/2026).
   echeancier: [
-    { pret: 'P2', premierAmortissement: '2028-11', note: 'amortissement dès novembre 2028' },
-    { pret: 'P1', premierAmortissement: '2029-02', note: 'franchise plus longue, amortissement en février 2029' },
+    { pret: 'P1', date: '2028-11', nature: 'interets', note: 'premières échéances d\'intérêts (345,70 €, intérêts différés compris)' },
+    { pret: 'P2', date: '2028-11', nature: 'amortissement', note: 'premier amortissement (124,25 €)' },
+    { pret: 'P1', date: '2029-02', nature: 'amortissement', note: 'premier amortissement (345,70 € sur le capital tiré)' },
   ],
-  // v427 — hypothèse d'indexation, LUE PAR LE MOTEUR (computeExitCosts).
-  // L'acte réindexe le prix d'achat sur l'indice INSEE du coût de la construction. Cet
-  // indice futur est inconnu : 2%/an est une hypothèse de long terme, pas une donnée.
-  // Elle joue en NOTRE faveur dans le calcul (plus l'ICC est haut, moins on restitue),
-  // donc la retenir basse est le choix prudent. À réviser si l'ICC réel s'en écarte.
-  iccAnnuelHypothese: 0.02,
   constraints: [
     {
       dispositif: 'Restitution des avantages en cas de revente anticipée',
-      reference: 'Acte authentique 05/06/2026, p.18-19',
-      beneficiaire: 'SADEV 94 (aménageur ZAC Aragon), à la demande de la commune de Villejuif',
-      obligation: 'Reverser l\'intégralité de la plus-value en cas de revente dans les 5 ans suivant l\'achèvement',
-      dateDebut: '2028-06',      // achèvement contractuel au plus tard le 30/06/2028
-      dateFin: '2033-06',        // + 5 ans
-      penalite: 'Restitution de 100% de la plus-value, versée sous 15 jours',
+      reference: 'Acte authentique du 05/06/2026, p.17-18',
+      beneficiaire: 'SADEV 94 (aménageur de la ZAC Aragon), à la demande de la commune de Villejuif',
+      obligation: 'Restituer à SADEV 94 le gain contractuel positif en cas de revente dans les 5 ans suivant la date réelle d\'achèvement',
+      // Aucune date écrite en dur : la fenêtre part de l'achèvement RÉEL, inconnu à ce jour. Le moteur
+      // la calcule (sadevFenetre) et la présente comme provisoire tant qu'elle repose sur la date contractuelle.
+      dateDebut: null,
+      dateFin: null,
+      fenetre: 'date réelle d\'achèvement + 5 ans',
+      penalite: 'Restitution du gain calculé à SADEV 94 sous 15 jours — la clause ne prévoit ni pénalité forfaitaire, ni séquestre, ni formalité par lettre recommandée',
       details: [
-        'Plus-value = prix de revente TTC − prix d\'achat TTC réindexé sur l\'indice INSEE du coût de la construction',
-        'Indice de base : dernier connu au jour de la signature — indice de révision : dernier publié au jour de la revente',
-        'Déductions admises : travaux non inclus dans le prix, frais d\'acquisition, impôt sur la plus-value acquitté',
-        'Si aucune plus-value constatée, l\'obligation s\'éteint de plein droit',
-        'Le notaire chargé de la revente doit être informé de l\'existence de la clause',
-        'CONSÉQUENCE : avant mi-2033, seule compte la revalorisation à l\'indice de la construction — tout gain de marché au-delà est reversé',
+        'Gain = prix de revente TTC − prix d\'achat TTC indexé sur l\'indice INSEE du coût de la construction',
+        'Indice de base : dernier connu à la signature (ICC T4 2025 = 2 058, publié le 26/03/2026) ; indice de révision : dernier publié au jour de la revente',
+        'Il est aussi tenu compte des travaux de l\'acquéreur hors prix, des frais d\'acquisition acquittés et de l\'impôt sur la plus-value dû',
+        'Sans gain positif, l\'obligation est éteinte de plein droit',
+        'Le notaire chargé de la revente doit être informé de la clause',
+        'Le prix « a pu être minoré » grâce à la Ville et à SADEV 94 (p.18) : l\'acte ne chiffre aucune remise',
+        'Aucune obligation de résidence principale ni durée minimale d\'occupation relevée ; aucune interdiction durable de louer',
+        'Avant paiement intégral du prix : ni jouissance ni bail sans accord écrit du vendeur (p.8)',
+        'Revente avant la livraison : hypothèse opérationnelle ou juridique à confirmer — non démontrée par l\'acte inspecté',
       ],
       exonerations: [
-        'Mobilité ou mutation professionnelle justifiée à plus de 30 km',
+        'Mobilité ou mutation professionnelle dûment justifiée à plus de 30 km (acquéreur, conjoint ou partenaire)',
         'Chômage de l\'acquéreur, de son conjoint ou de son partenaire',
-        'Modification grave de la situation familiale (décès, divorce, séparation, dissolution de PACS)',
+        'Modification grave de la situation familiale : décès, divorce, séparation, dissolution de PACS',
         'Incapacité ou invalidité permanente',
         'Naissance gémellaire',
       ],
-      // La portée de ce type de clause est parfois discutée. Ce n'est pas un point
-      // à trancher ici : question pour un notaire ou un avocat le moment venu.
-      reserve: 'Portée juridique parfois contestée — à faire qualifier par un professionnel avant toute décision de revente',
+      reserve: 'Portée juridique à faire qualifier par un professionnel avant toute décision de revente',
       status: 'actif',
     },
   ],
-  // Droit de préemption : VÉRIFIÉ ET ÉCARTÉ. L'acte précise que la mutation n'entre
-  // pas dans le champ du droit de préemption urbain (Code de l'urbanisme, art. L 213-1 b,
-  // vente d'immeuble à construire), et le vendeur déclare aucun droit non purgé (p.42).
+  // Droit de préemption : VÉRIFIÉ ET ÉCARTÉ (art. L 213-1 b, vente d'immeuble à construire ; p.42).
   preemption: null,
 };
 // v440 — VILLEJUIF_REGIMES supprimé : dispositif Jeanbrun non retenu (loyer plafonné

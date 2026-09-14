@@ -299,15 +299,16 @@ t('le régime de croisière n’est pas confondu avec aujourd’hui', () => {
   assert.ok(t2.stabilise.recettes > t2.actuel.recettes, 'les recettes stabilisées devraient être supérieures');
 });
 
-t('les deux dates de livraison et les deux échéances de prêt restent distinctes', async () => {
+t('la livraison contractuelle, le scénario non vérifié et les échéances de prêt restent distincts', async () => {
   const { VILLEJUIF_CONSTRAINTS } = await import('../js/data.js');
   const L = VILLEJUIF_CONSTRAINTS.livraison;
   assert.equal(L.contractuelle, '2028-06');
-  assert.equal(L.operationnelle, '2028-09');
-  assert.notEqual(L.contractuelle, L.operationnelle);
+  assert.equal(L.scenarioNonVerifie, '2028-09');
+  assert.notEqual(L.contractuelle, L.scenarioNonVerifie);
   const e = VILLEJUIF_CONSTRAINTS.echeancier;
-  assert.equal(e.find((x) => x.pret === 'P2').premierAmortissement, '2028-11');
-  assert.equal(e.find((x) => x.pret === 'P1').premierAmortissement, '2029-02');
+  assert.equal(e.find((x) => x.pret === 'P2' && x.nature === 'amortissement').date, '2028-11');
+  assert.equal(e.find((x) => x.pret === 'P1' && x.nature === 'interets').date, '2028-11');
+  assert.equal(e.find((x) => x.pret === 'P1' && x.nature === 'amortissement').date, '2029-02');
 });
 
 // ── 9. Aucun flottant brut à l’écran ────────────────────────────────────────────────────
@@ -415,18 +416,21 @@ t('seule la construction rendue publie la NAV du graphe', () => {
 // ── 12. Immobilier : un détail qui couvre son total ─────────────────────────────────────
 t('la décomposition des recettes couvre le total, pour chaque bien', () => {
   iv.properties.forEach((p) => {
-    const somme = (p.loyerHC || 0) + (p.chargesLoc || 0) + (p.parking || 0) + (p.loyerCash || 0);
+    const somme = (p.loyerHC || 0) + (p.chargesLoc || 0);
     proche(somme, p.totalRevenue || 0, 1,
       'décomposition de ' + (p.loanKey || '?') + ' (une part manque à l’écran)');
   });
 });
 
-t('Vitry : la part encaissée en espèces existe et n’est pas nulle', () => {
-  // C'est elle qui manquait à l'écran : « HC 0 + pkg 70 » devant 1 270 € de recettes.
+t('Vitry : seuls les revenus du bail sont modélisés', () => {
+  // Les fichiers publics ne portent que le bail : 600 € HC + 100 € de provisions à partir de sa
+  // prise d'effet, rien avant. Aucun autre flux locatif n'est représenté.
   const v = iv.properties.find((p) => p.loanKey === 'vitry');
   assert.ok(v, 'Vitry introuvable');
-  assert.ok((v.loyerCash || 0) > 0, 'aucune part en espèces : le libellé n’a plus d’objet');
-  proche((v.loyerHC || 0) + (v.parking || 0) + (v.loyerCash || 0), v.totalRevenue, 1, 'Vitry');
+  const attendu = v.bailActif ? (v.loyerHCContractuel + v.chargesLocContractuel) : 0;
+  proche(v.totalRevenue, attendu, 0.5, 'recettes Vitry');
+  assert.equal(v.parking, 0, 'un revenu de stationnement distinct est encore modélisé');
+  assert.ok(!Object.keys(v).some((k) => /^loyer.*ash/i.test(k)), 'un champ de loyer hors bail est encore exposé');
 });
 
 t('aucun loyer de repli n’est écrit en dur dans le rendu', () => {

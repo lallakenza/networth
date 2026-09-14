@@ -5,7 +5,7 @@
  * POURQUOI : le site est servi par GitHub Pages depuis un dépôt public. Tout fichier du dépôt
  * est téléchargeable par qui connaît son adresse — la grille de code de l'accueil ne masque que
  * l'interface. Avant ce script, `js/data.js` exposait en clair les soldes bancaires, les créances
- * nominatives, la TVA, l'identifiant fiscal du bien de Vitry et les champs de loyer en espèces.
+ * nominatives, la TVA, l'identifiant fiscal du bien de Vitry et les champs de loyer privés.
  *
  * PRINCIPE : les blocs sensibles quittent le dépôt. Ils vivent dans un fichier source gardé HORS
  * du dépôt (voir SOURCE_PATH), et ce script en produit un blob chiffré (AES-256-GCM, clé dérivée

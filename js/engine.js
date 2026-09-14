@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=542';
-import { lireContratEnCache } from './facturation_contract.js?v=542';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=543';
+import { lireContratEnCache } from './facturation_contract.js?v=543';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2455,10 +2455,8 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
 function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscConfig, loanInterestAnnuel) {
   const f = fiscConfig;
 
-  // loyerDeclareAnnuel = revenu déclaré (bail officiel)
-  // loyerTotalAnnuel = revenu total (HC + parking + charges locataire)
+  // loyerDeclareAnnuel = loyer du bail (hors provisions) ; loyerTotalAnnuel = loyer + provisions.
   const loyerDeclare = loyerDeclareAnnuel;
-  const loyerCash = loyerTotalAnnuel - loyerDeclareAnnuel;
 
   if (f.regime === 'micro-foncier') {
     // Location NUE — abattement forfaitaire 30%
@@ -2468,7 +2466,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
     const totalImpot = ir + ps;
     return {
       regime: 'micro-foncier', type: f.type || 'nu',
-      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare),
       abattement: Math.round(loyerDeclare * 0.30),
       abattementPct: 30,
       revenuImposable: Math.round(revenuImposable),
@@ -2487,7 +2485,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
     const totalImpot = ir + ps;
     return {
       regime: 'micro-bic', type: 'lmnp',
-      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare),
       abattement: Math.round(loyerDeclare * 0.50),
       abattementPct: 50,
       revenuImposable: Math.round(revenuImposable),
@@ -2503,7 +2501,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
     // L'amortissement couvre largement le revenu net → impôt = 0
     return {
       regime: 'lmnp-amort', type: 'lmnp',
-      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: 0,
+      loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare),
       abattement: 0, abattementPct: 0,
       revenuImposable: 0,
       ir: 0, ps: 0,
@@ -2524,7 +2522,7 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
   const totalImpot = ir + ps;
   return {
     regime: f.regime, type: f.type || 'nu',
-    loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare), loyerCash: Math.round(loyerCash),
+    loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare),
     deductions: Math.round(deductions),
     revenuImposable: Math.round(revenuImposable),
     deficit: Math.round(deficit),
@@ -2567,6 +2565,81 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
  * @returns {Object} { salePrice, purchasePrice, capitalGain, pvTaxBeforeAbattement, pvTax,
  *                      agencyFees, totalCosts, netEquityAfterExit, iraTotalEUR, details: {...} }
  */
+// ── Villejuif : faits sourcés → grandeurs dérivées (v543) ──────────────────────────────────
+/** CRD Villejuif (P1 + P2, intérêts différés compris) à une date, lu dans les tableaux LCL. */
+export function villejuifCrdADate(dateISO, acte = VILLEJUIF_ACTE) {
+  const pts = (acte && acte.crdTableau && acte.crdTableau.points) || {};
+  const jour = String(dateISO || new Date().toISOString()).slice(0, 10);
+  let d = null;
+  for (const x of Object.keys(pts).sort()) { if (x <= jour) d = x; else break; }
+  if (!d) return { crd: acte.deblocageActe.total, date: acte.acte.date, source: 'déblocage à l\'acte' };
+  return { crd: pts[d], date: d, source: acte.crdTableau.source + ', édités le ' + acte.crdTableau.edite };
+}
+
+/**
+ * Fenêtre de la clause SADEV : date RÉELLE d'achèvement + 5 ans (acte p.18). Tant que
+ * l'achèvement n'est pas constaté, la fenêtre repose sur la date contractuelle et se dit
+ * provisoire — la date « 2033-06 » écrite en dur ne pouvait pas le dire.
+ */
+export function sadevFenetre(acte = VILLEJUIF_ACTE) {
+  const liv = (acte && acte.livraison) || {};
+  const debut = liv.achevementReel || liv.contractuelle || null;
+  if (!debut) return { debut: null, fin: null, statut: 'inconnue', base: null };
+  return {
+    debut,
+    fin: (parseInt(debut.slice(0, 4), 10) + 5) + debut.slice(4),
+    statut: liv.achevementReel ? 'établie' : 'provisoire',
+    base: liv.achevementReel ? 'achèvement réel constaté' : 'scénario : achèvement à la date contractuelle',
+  };
+}
+
+/** ICC applicable à une date : dernier indice PUBLIÉ à cette date si connu, sinon scénario explicite. */
+export function iccADate(dateISO, acte = VILLEJUIF_ACTE) {
+  const icc = acte.sadev.icc;
+  const jour = String(dateISO).slice(0, 10);
+  const tries = (icc.publies || []).slice().sort((a, b) => a.publieJO.localeCompare(b.publieJO));
+  const publies = tries.filter((x) => x.publieJO <= jour);
+  if (jour <= icc.releveLe && publies.length) {
+    const x = publies[publies.length - 1];
+    return { valeur: x.valeur, trimestre: x.trimestre, statut: 'publié' };
+  }
+  const dernier = tries[tries.length - 1];
+  const ans = Math.max(0, (Date.parse(jour) - Date.parse(dernier.publieJO)) / (365.25 * 86400000));
+  return { valeur: dernier.valeur * Math.pow(1 + icc.scenarioAnnuel, ans), trimestre: null,
+    statut: 'scénario ' + (icc.scenarioAnnuel * 100).toFixed(0) + ' %/an depuis ' + dernier.trimestre };
+}
+
+/**
+ * Capital réellement investi dans Villejuif — HORS valeur du bien. Les frais sont des coûts :
+ * ils entrent dans le capital investi et le rendement, jamais dans la valeur ni le NW (les
+ * soldes de trésorerie les ont déjà absorbés à la signature).
+ */
+export function villejuifCapitalInvesti(acte = VILLEJUIF_ACTE) {
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const cashPrix = r2(acte.appelsPayes.montant - acte.deblocageActe.total);
+  const dn = acte.decompteNotarial;
+  const fraisAcq = acte.fraisAcquisitionReels != null ? acte.fraisAcquisitionReels : dn.provisionFraisAchat;
+  const fraisStatut = acte.fraisAcquisitionReels != null
+    ? 'définitif' : 'provision notariale du ' + dn.date + ', non définitive — montant réel non documenté';
+  const financement = Object.values(acte.fraisFinancement).reduce((t, x) => t + (x.montant || 0), 0);
+  // La quote-part de 520 € figure à part dans le décompte : comptée UNE fois, en plus de la provision.
+  const horsFinancement = cashPrix + fraisAcq + acte.chargeAugmentative.montant;
+  return {
+    cashPrix,
+    depotReservationInclus: acte.appelsPayes.dontDepotReservation,
+    fraisAcquisition: fraisAcq,
+    fraisStatut,
+    quotePartEDD: acte.chargeAugmentative.montant,
+    fraisAcquisitionPourClause: r2(fraisAcq + acte.chargeAugmentative.montant),
+    fraisFinancement: r2(financement),
+    horsFinancement: r2(horsFinancement),
+    total: r2(horsFinancement + financement),
+    apportNominal: acte.apport.nominalContractuel,
+    ecartApport: r2(cashPrix - acte.apport.nominalContractuel),
+    ecartStatut: 'non réconcilié',
+  };
+}
+
 function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAtExit, totalAmortissements, targetDate = null, loanCRDs = null) {
   const EC = EXIT_COSTS;
   const result = {
@@ -2601,16 +2674,18 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     netEquityAfterExit: 0,
   };
 
-  // Frais de notaire forfaitaires à l'achat (déjà payés) — on les ajoute au prix d'acquisition
-  // pour réduire la PV (majoration forfaitaire 7.5% si on ne peut pas justifier les frais réels)
-  const fraisAcquisition = purchasePrice * 0.075;  // forfait 7.5%
+  // ESTIMATION FISCALE des frais d'acquisition : forfait de 7,5 % admis pour l'assiette de la PV
+  // (art. 150 VB). Ce n'est PAS le montant réellement payé — la clause SADEV, elle, veut les frais
+  // effectivement acquittés (villejuifCapitalInvesti). Les deux ne doivent plus se confondre.
+  const fraisAcquisitionFiscal = purchasePrice * 0.075;
 
   // Si LMNP réel : les amortissements déduits sont réintégrés (loi finances 2025)
   const amortReintegration = (EC[loanKey] && EC[loanKey].lmnpAmortReintegration && totalAmortissements > 0)
     ? totalAmortissements : 0;
 
   // Plus-value brute = prix vente - (prix achat + frais + travaux) + réintégration amortissements
-  result.pvBrute = salePrice - (purchasePrice + fraisAcquisition) + amortReintegration;
+  result.pvBrute = salePrice - (purchasePrice + fraisAcquisitionFiscal) + amortReintegration;
+  result.fraisAcquisitionFiscal = Math.round(fraisAcquisitionFiscal);
   result.amortReintegration = amortReintegration; // v475 — exposé pour l'affichage de l'assiette
 
   if (result.pvBrute > 0) {
@@ -2725,35 +2800,41 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     }
   }
 
-  // ── v427 : clause de restitution SADEV 94 (Villejuif) ──
-  // Jusqu'à ~mi-2033, toute plus-value de revente revient à l'aménageur. La projection
-  // de sortie l'ignorait et affichait donc un gain qui ne serait jamais encaissé.
-  // Calcul conforme à l'acte : plus-value = prix de revente moins prix d'achat RÉINDEXÉ
-  // sur l'indice INSEE du coût de la construction. L'ICC futur étant inconnu, on retient
-  // une hypothèse explicite plutôt que de l'ignorer — l'ignorer surestimerait la
-  // restitution en traitant l'inflation de la construction comme un gain.
+  // ── Clause de restitution SADEV 94 (Villejuif), appliquée comme l'acte l'écrit (v543) ──
+  // Acte p.18. Fenêtre : 5 ans à compter de la date RÉELLE d'achèvement (sadevFenetre — provisoire
+  // tant qu'il n'est pas constaté). Base : prix TTC × ICC de révision / ICC de base, la base étant
+  // le dernier indice connu à la signature et la révision le dernier publié au jour de la revente
+  // (iccADate : publié si connu, scénario explicite sinon). Déductions : travaux de l'acquéreur
+  // (non renseignés → 0, et dit), frais d'acquisition ACQUITTÉS (décompte notarial — pas le
+  // forfait fiscal de 7,5 %) et impôt sur la plus-value.
   result.restitutionSADEV = 0;
   result.clauseSADEVActive = false;
-  if (loanKey === 'villejuif' && VILLEJUIF_CONSTRAINTS && Array.isArray(VILLEJUIF_CONSTRAINTS.constraints)) {
-    const cl = VILLEJUIF_CONSTRAINTS.constraints[0];
-    const fin = cl && cl.dateFin;                       // '2033-06'
-    // v441 — targetDate arrive en objet Date depuis computeExitCostsAtYear : String(Date)
-    // donne « Mon Jun 01… », jamais < '2033-06' → la clause ne s'appliquait JAMAIS aux
-    // projections annuelles (bug silencieux depuis v427). Normaliser en 'YYYY-MM'.
-    const moisVente = targetDate
+  result.sadevDetail = null;
+  if (loanKey === 'villejuif' && VILLEJUIF_ACTE) {
+    const fen = sadevFenetre();
+    // targetDate arrive en objet Date depuis computeExitCostsAtYear : normaliser en 'YYYY-MM-DD'.
+    // Comparer au JOUR : au mois, une vente le 01/06/2033 sortait à tort d'une fenêtre qui court
+    // jusqu'au 30/06/2033.
+    const jourVente = targetDate
       ? (targetDate instanceof Date
-        ? targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0')
-        : String(targetDate).slice(0, 7))
+        ? targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + String(targetDate.getDate()).padStart(2, '0')
+        : (String(targetDate).length === 7 ? String(targetDate) + '-01' : String(targetDate).slice(0, 10)))
       : null;
-    if (fin && moisVente && moisVente < fin) {
+    if (fen.fin && jourVente && jourVente < fen.fin) {
       result.clauseSADEVActive = true;
-      const icc = (VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese != null)
-        ? VILLEJUIF_CONSTRAINTS.iccAnnuelHypothese : 0.02;
-      const prixIndexe = purchasePrice * Math.pow(1 + icc, Math.max(0, holdingYears));
-      // Déductions admises par l'acte : frais d'acquisition et impôt de plus-value acquitté.
+      const S = VILLEJUIF_ACTE.sadev;
+      const iccRev = iccADate(jourVente);
+      const prixIndexe = purchasePrice * iccRev.valeur / S.icc.base.valeur;
+      const cap = villejuifCapitalInvesti();
+      const travaux = S.travauxAcquereur != null ? S.travauxAcquereur : 0;
       result.restitutionSADEV = Math.max(0, Math.round(
-        salePrice - prixIndexe - fraisAcquisition - result.totalTaxPV
+        salePrice - prixIndexe - travaux - cap.fraisAcquisitionPourClause - result.totalTaxPV
       ));
+      result.sadevDetail = {
+        fenetre: fen, iccBase: S.icc.base, iccRevision: iccRev, prixIndexe: Math.round(prixIndexe),
+        fraisAcquisition: cap.fraisAcquisitionPourClause, fraisStatut: cap.fraisStatut,
+        travaux, travauxStatut: S.travauxAcquereur != null ? 'renseigné' : 'non renseigné (0 retenu)',
+      };
     }
   }
 
@@ -2771,7 +2852,7 @@ function computeExitCosts(loanKey, salePrice, purchasePrice, holdingYears, crdAt
     if (clV.dateFin && moisVenteV < clV.dateFin) {
       result.clauseSADEVActive = true;   // clause en vigueur, même si la restitution ressort à 0
       const prixIndexeV = purchasePrice * Math.pow(1 + (clV.iccAnnuelHypothese || 0.02), Math.max(0, holdingYears));
-      result.restitutionSADEV = Math.max(0, Math.round(salePrice - prixIndexeV - fraisAcquisition - result.totalTaxPV));
+      result.restitutionSADEV = Math.max(0, Math.round(salePrice - prixIndexeV - fraisAcquisitionFiscal - result.totalTaxPV));
     }
   }
 
@@ -2942,20 +3023,22 @@ function computeImmoView(portfolio, fx) {
         currentValue = Math.round(val);
       }
     }
-    // v358 — VEFA « asset under construction » : valorisation HYBRIDE tant que non livré.
-    //   valeur portée = capital engagé (appels payés) + plus-value latente reconnue au prorata de l'avancement.
-    //   La PV latente vient du discount résident ~15% + appréciation (valeur marché − prix contrat, ~40K).
-    //   Reconnaître × avancement (appels/prix) fait CONVERGER l'equity vers `valeur livrée − CRD` à 100%.
-    // `_deliveredValue` (marché livré, apprécié) est conservé pour la projection long-terme (post-livraison).
+    // v543 — VEFA avant livraison : la valeur PORTÉE est le COÛT ENGAGÉ, rien d'autre.
+    //   Le modèle v358 ajoutait aux appels payés une plus-value latente « au prorata de
+    //   l'avancement » (~26,8 k€) sous le libellé « coût engagé » : un mark-to-progress, pas un
+    //   coût. Il reste calculé ici, nommé comme tel, et n'entre dans aucun total.
+    //   `_deliveredValue` = valeur de marché estimée du bien livré (projection post-livraison).
     const _deliveredValue = currentValue;
-    let _recognizedLatentGain = 0;
+    const _acteVJ = (loanKey === 'villejuif' && VILLEJUIF_ACTE) ? VILLEJUIF_ACTE : null;
+    let _valeurHybride = null;
+    let _pvHybride = 0;
     if (propData.underConstruction) {
-      const _appels = propData.appelsPayes || 0;
-      const _price = propData.contractPrice || _appels;
+      const _appels = _acteVJ ? _acteVJ.appelsPayes.montant : (propData.appelsPayes || 0);
+      const _price = _acteVJ ? _acteVJ.prix.ttc : (propData.contractPrice || _appels);
       const _completion = _price > 0 ? Math.min(1, _appels / _price) : 0;
-      const _latentGain = Math.max(0, _deliveredValue - _price);
-      _recognizedLatentGain = Math.round(_latentGain * _completion);
-      currentValue = _appels + _recognizedLatentGain; // valeur portée = coût engagé + PV reconnue
+      _pvHybride = Math.round(Math.max(0, _deliveredValue - _price) * _completion);
+      _valeurHybride = _appels + _pvHybride;
+      currentValue = _appels;
     }
     // Replace propData.value with currentValue everywhere below
     const _val = currentValue;
@@ -2981,15 +3064,11 @@ function computeImmoView(portfolio, fx) {
     const bailActif = !bailProp || !bailProp.debut || (new Date().toISOString().slice(0, 10) >= bailProp.debut);
     // loyerHC: base rent (excluding tenant charges provision, e.g., "€1200 HC")
     const loyerHC = bailActif ? (propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0)) : 0;
-    const parking = propData.parking || 0;  // v463 — INDÉPENDANT du bail : place louée à un voisin (espèces), flux actif dès aujourd'hui
     const chargesLoc = bailActif ? (propData.chargesLocataire || 0) : 0;  // Tenant charges provision
-    // v458 — complément perçu en espèces (suivi interne, PLAFONNÉ en data) : compte dans le
-    // cash-flow RÉEL, jamais dans la base fiscale déclarée. Imposable en droit — le risque
-    // (requalification + dépassement plafond PLS) est chiffré dans VITRY_CONSTRAINTS + alerte.
-    // v465 — AVANT le bail : le locataire en place paie déjà (100 % espèces, montant dédié) ;
-    // APRÈS : la part espèces du schéma cible. Toujours hors base déclarée, toujours en risque.
-    const loyerCash = bailActif ? (propData.loyerCashNonDeclare || 0) : (propData.loyerCashAvantBail || 0);
-    const loyer = loyerHC + parking + loyerCash;     // Total rent for display (HC+cash+parking)
+    // v543 — seuls les revenus prévus au BAIL sont modélisés (loyer HC + provisions), à partir de sa
+    //   prise d'effet. Aucun autre flux locatif n'est représenté dans ces fichiers publics.
+    const parking = 0;
+    const loyer = loyerHC;
     const totalRevenue = loyer + chargesLoc;         // Full revenue including charges provision
 
     // Monthly cash flow: totalRevenue - charges (can be negative if effort épargne)
@@ -3054,9 +3133,18 @@ function computeImmoView(portfolio, fx) {
       computedCRD = propData.crd;
       console.warn('[immo] CRD fallback statique (snapshot data.js/Supabase, potentiellement périmé) pour', name, '- tableau d\'amortissement indisponible');
     }
-    // v357 — VEFA en construction : CRD = capital réellement débloqué par la banque (appels de fonds),
-    // pas le principal plein. Le tableau d'amortissement modélise un déblocage 100% qui n'a pas eu lieu.
-    if (propData.underConstruction) computedCRD = propData.drawnToDate || 0;
+    // v543 — VEFA en construction : CRD = total restant dû des tableaux LCL (P1 + P2, intérêts
+    // différés compris) à la dernière échéance passée. Le tableau paramétrique modélise un
+    // déblocage intégral qui n'a pas eu lieu.
+    let crdDate = null;
+    if (propData.underConstruction) {
+      if (_acteVJ) {
+        const _c = villejuifCrdADate(new Date().toISOString());
+        computedCRD = _c.crd; crdDate = _c.date;
+      } else {
+        computedCRD = propData.drawnToDate || 0;
+      }
+    }
 
     // Loan details for detail panel
     /**
@@ -3172,8 +3260,8 @@ function computeImmoView(portfolio, fx) {
     } else if (IC.loans && IC.loans[loanKey]) {
       loanCRDs = [{ name: 'Prêt principal', crd: computedCRD, rate: IC.loans[loanKey].rate || 0 }];
     }
-    // v357 — VEFA en construction : pas de frais de sortie (bien non livré, non cessible en direct) ;
-    // l'equity nette = equity brute = appels payés − capital tiré.
+    // v543 — VEFA en construction : pas de frais de sortie modélisés (revente avant livraison non
+    // démontrée par l'acte — hypothèse à confirmer) ; équité nette = équité au coût engagé.
     const exitCosts = propData.underConstruction
       ? { netEquityAfterExit: Math.max(0, _val - computedCRD), totalExitCosts: 0, iraTotal: 0, pvImmoTax: 0, agencyFee: 0 }
       : computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
@@ -3200,8 +3288,8 @@ function computeImmoView(portfolio, fx) {
     // For conditional properties (VEFA under construction, not yet delivered): NO monthly wealth
     // creation at all — no rent (CF), no principal repayment (franchise), and no market appreciation.
     // v362 (BUG-065): previously appreciation was still counted (appreciationMois applied to the
-    // carrying value = construction cost + recognized discount). That was spurious: (1) the resident
-    // discount is already captured as `recognizedLatentGain` inside `equity` (balance-sheet), and
+    // carrying value = construction cost + recognized discount). That was spurious: (1) since v543 the
+    // carrying value is the engaged cost only (no latent gain), and
     // (2) a unit not yet delivered doesn't accrue realized market appreciation month by month.
     // So zero all three flow components for conditional, consistent with CF/loyer aggregates.
     // v473 — flux REEL actuel d'un bien conditionnel (VEFA) : pas de loyer ni de
@@ -3231,8 +3319,25 @@ function computeImmoView(portfolio, fx) {
       cfReel,
       value: _val, referenceValue: _refValue, valueDate: _refDate,
       deliveredValue: _deliveredValue, // v357 — valeur de marché livrée (= value hors VEFA ; sert à la projection)
-      recognizedLatentGain: _recognizedLatentGain, // v358 — PV latente reconnue (VEFA) ; 0 hors construction
-      engagedCapital: propData.underConstruction ? ((propData.appelsPayes || 0) - computedCRD) : (_val - computedCRD), // capital réellement engagé (cash-basis)
+      valeurHybride: _valeurHybride,          // v543 — mark-to-progress, HORS patrimoine (null hors VEFA)
+      plusValueHybride: _pvHybride,
+      crdDate,                                // v543 — date de la ligne de tableau LCL retenue (VEFA)
+      horizons: propData.underConstruction ? {
+        coutEngage: { actif: _val, dette: computedCRD, equity: _val - computedCRD, date: crdDate, dansNW: true,
+          definition: 'Appels de fonds réellement payés − capital restant dû (intérêts différés compris)',
+          source: 'Acte p.9 (appels) ; tableaux LCL édités le 03/07/2026 (CRD)' },
+        hybride: { actif: _valeurHybride, dette: computedCRD, equity: _valeurHybride == null ? null : _valeurHybride - computedCRD, dansNW: false,
+          definition: 'Mark-to-progress : coût engagé + plus-value latente estimée × avancement des appels — un modèle, pas un coût',
+          source: 'Calcul du tableau de bord' },
+        marcheLivraison: { actif: _deliveredValue, date: propData.valueDate || null, dansNW: false,
+          definition: 'Valeur de marché estimée du bien une fois livré',
+          source: 'Prix affichés des lots comparables du même immeuble (08/2026), appréciation phasée' },
+        realisable: { actif: null, statut: 'non établie', dansNW: false,
+          definition: 'Ce qu\'une cession rapporterait réellement à la date considérée',
+          source: 'Avant livraison : cession non démontrée par l\'acte (hypothèse à confirmer). Après achèvement réel : gain plafonné par la clause SADEV pendant 5 ans.' },
+      } : null,
+      capitalInvesti: _acteVJ ? villejuifCapitalInvesti() : null,
+      engagedCapital: _val - computedCRD, // capital réellement engagé (cash-basis)
       crd: computedCRD, equity: _val - computedCRD,
       ltv: (computedCRD / _val * 100),
       monthlyPayment: chargesConfig.pret + chargesConfig.assurance,
@@ -3258,10 +3363,8 @@ function computeImmoView(portfolio, fx) {
       loanKey,
       bail: propData.bail || null,           // v458 — bail réel (dates, dépôt, IRL, option travaux)
       loyerHCContractuel: propData.loyerHC || 0,          // v460 — pour l'état vide pré-bail (UX)
-      loyerCashContractuel: propData.loyerCashNonDeclare || 0,  // v462 — affiché en RISQUE dès aujourd'hui
       chargesLocContractuel: propData.chargesLocataire || 0,
       bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
-      loyerCash,                             // v466 — le const calculé (1 200 avant bail, 500 après) ; le champ restait sur l'ancienne formule → affichait 0
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
@@ -3929,7 +4032,7 @@ function computeCreancesView(portfolio, fx) {
  */
 // v488 (audit) — SOURCE UNIQUE de la valeur à projeter pour un bien.
 // Un bien en VEFA porte deux valeurs : `value` = coût réellement engagé (appels de fonds payés,
-// ~141 K pour Villejuif) et `deliveredValue` = valeur de marché une fois livré (~415 K). Projeter
+// 114 352,20 € pour Villejuif) et `deliveredValue` = valeur de marché une fois livré (~415 K). Projeter
 // une appréciation ou un prix de cession sur la première n'a aucun sens : elle mesure ce qui a été
 // décaissé, pas ce que vaut le bien. projectNW (v479) utilisait déjà deliveredValue ; deux autres
 // boucles ne l'ont jamais fait, d'où des frais de sortie 2028 de 7 228 € ici contre 49 585 € là.
@@ -3987,8 +4090,8 @@ function computeBudgetView(portfolio, fx, immoView) {
 
   // ── INVESTMENT EXPENSES (from IMMO_CONSTANTS.charges) ──
   // Each property: prêt, assurance crédit, PNO, taxe foncière, copropriété
-  // Villejuif: charges décalées — franchise totale 36 mois activée à la signature de l'offre
-  // (août 2025, pratique LCL confirmée v442) : 1re mensualité août 2028, ~2 mois avant les loyers (oct 2028).
+  // Villejuif : franchise des prêts LCL. Tableaux du 03/07/2026 : P1 échéances d'intérêts dès le
+  // 05/11/2028, P2 amortissement dès le 05/11/2028, P1 amortissement dès le 05/02/2029.
   const chargeLabels = { pret: 'Prêt', assurance: 'Assurance crédit', pno: 'PNO', tf: 'Taxe foncière', copro: 'Copropriété' };
   const propNames = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
   // Villejuif : acte signé, prêt débloqué PAR TRANCHES, intérêts intercalaires capitalisés.
@@ -4014,7 +4117,7 @@ function computeBudgetView(portfolio, fx, immoView) {
 
     // v488 (audit) — SOURCE UNIQUE. Ce bloc re-dérivait le loyer depuis data.js avec les seuls
     // champs historiques (loyerHC + parking + chargesLocataire), en ignorant les champs ajoutés
-    // en v458/v463/v465 : la porte `bail.debut` et la part en espèces. Résultat : Vitry affichait
+    // en v458/v463/v465 : la porte `bail.debut` et la part hors bail. Résultat : Vitry affichait
     // 770 €/mois de loyer et −682 € de cash-flow sur la page Budget, contre 1 270 € et −182 € sur
     // la page Immobilier — deux pages du même dashboard, le même bien, la même seconde.
     // On lit désormais la propriété déjà calculée par computeImmoView.
@@ -4023,12 +4126,12 @@ function computeBudgetView(portfolio, fx, immoView) {
       : null;
     let loyer = 0;
     if (_propIV) {
-      // totalRevenue porte la réalité du flux (gating bail, espèces, parking) ; futureLoyer garde
+      // totalRevenue porte la réalité du flux (gating bail) ; futureLoyer garde
       // le loyer contractuel plein pour les biens pas encore livrés.
       loyer = _propIV.totalRevenue || 0;
     } else if (prop === 'vitry' && p.amine && p.amine.immo && p.amine.immo.vitry) {
       const v = p.amine.immo.vitry;   // repli si la vue immo n'est pas disponible
-      loyer = (v.loyerHC || v.loyer || 0) + (v.parking || 0) + (v.chargesLocataire || 0);
+      loyer = (v.loyerHC || v.loyer || 0) + (v.chargesLocataire || 0);
     } else if (p.nezha && p.nezha.immo && p.nezha.immo[prop]) {
       const nz = p.nezha.immo[prop];
       loyer = (nz.loyerHC || nz.loyer || 0) + (nz.parking || 0) + (nz.chargesLocataire || 0);
@@ -4546,7 +4649,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
   const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
-  // v357/358 — VEFA en construction : lire valeur portée (coût engagé + PV latente reconnue) et CRD
+  // v543 — VEFA en construction : valeur portée = COÛT ENGAGÉ (appels payés), CRD des tableaux LCL
   // (capital tiré) directement depuis buildProperty pour une cohérence totale avec l'immoView.
   const _vjProp = immoView.properties.find(pr => pr.loanKey === 'villejuif');
   const nezhaVillejuifCRD = _vjProp ? _vjProp.crd : (immoCRDs.villejuif ?? p.nezha.immo.villejuif.crd);
@@ -5158,8 +5261,8 @@ export const CASH_ACCOUNT_IDS = {
 //   actions : × (1+r)^(1/12) par scénario p10/p50/p90 + contributions (vers Amine)
 //   immo    : équité NETTE recalculée par computeExitCostsAtYear (valeur projetée
 //             par les phases v478, CRD des vrais tableaux d'amortissement, clauses
-//             datées : SADEV jusqu'à mi-2033, abattements PV, représentant fiscal) ;
-//             Villejuif : équité engagée FLAT jusqu'à la livraison (09/2028) puis
+//             datées : SADEV (achèvement réel + 5 ans), abattements PV, représentant fiscal) ;
+//             Villejuif : équité au coût engagé FLAT jusqu'à la livraison contractuelle (06/2028) puis
 //             bascule valeur livrée − CRD − frais (le saut est le vrai modèle du site)
 //   cash    : cumul des cash-flows immo mensuels (cf actuels ; villejuif cfReel puis
 //             cf projeté post-livraison) — le reste du cash est stable
@@ -5201,7 +5304,7 @@ export function projectNW(state, hyp = {}) {
     const fiscConfig = IMMO_CONSTANTS.fiscalite && IMMO_CONSTANTS.fiscalite[k];
     const fiscType = fiscConfig ? fiscConfig.type : 'nu';
     const estVEFA = !!p.conditional;
-    const livraisonISO = estVEFA ? ((meta.deliveryDate || '2028-09').slice(0, 7)) : null;
+    const livraisonISO = estVEFA ? ((meta.deliveryDate || (VILLEJUIF_ACTE && VILLEJUIF_ACTE.livraison.contractuelle) || '2028-06').slice(0, 7)) : null;
     const baseValue = estVEFA ? (p.deliveredValue || meta.deliveredValue || p.value) : p.value;
 
     // équité nette "modèle" au mois i (recalcul frais de sortie 1×/an, valeur composée mensuellement)
@@ -5302,7 +5405,7 @@ export function buildDailySnapshot(state) {
       ...(p.conditional ? { conditional: true } : {}),
     };
   });
-  properties.villejuif = { ...(properties.villejuif || {}), signed: !!s.nezha.villejuifSigned, reservation: r(s.nezha.villejuifReservation) };
+  properties.villejuif = { ...(properties.villejuif || {}), signed: !!s.nezha.villejuifSigned, reservation: r(s.nezha.villejuifReservation), valorisation: 'cout-engage' };
 
   // Chaque position actions
   const positions = {};
@@ -6278,30 +6381,6 @@ export function computeAlerts(state) {
     }
   }
 
-  // ── v458 — RISQUE Vitry : complément de loyer non déclaré (enregistrement factuel) ──
-  // L'alerte existe tant que loyerCashNonDeclare > 0 : elle chiffre l'exposition au lieu
-  // de la cacher (requalification fiscale + dépassement du plafond PLS de la location
-  // dérogatoire PTZ, contrôle Banque Populaire en cours).
-  try {
-    const vdA = state.portfolio && state.portfolio.amine && state.portfolio.amine.immo && state.portfolio.amine.immo.vitry;
-    const cashA = vdA && vdA.loyerCashNonDeclare;
-    if (cashA > 0) {
-      const declA = vdA.loyerDeclare || vdA.loyerHC || 0;
-      const parkA = vdA.parkingCashVoisin ? (vdA.parking || 0) : 0;   // v463 — espèces aussi (voisin)
-      const bailA = vdA.bail && vdA.bail.debut && (new Date().toISOString().slice(0, 10) >= vdA.bail.debut);
-      const cashNow = (bailA ? cashA : (vdA.loyerCashAvantBail || 0)) + parkA;   // v465 — 100 % espèces avant le bail
-      alerts.push({
-        severity: 'red',
-        title: 'Vitry — ' + cashNow + ' €/mois en espèces non déclarés' + (bailA ? ', loyer locataire > plafond PLS' : ' (100 % du loyer) + GMBI « à titre gratuit »'),
-        msg: (bailA
-          ? declA + ' € déclarés + ' + cashA + ' € espèces (locataire) + ' + parkA + ' € espèces (parking, voisin). Loyer locataire réel ' + (declA + cashA) + ' € > plafond PLS ~840 €'
-          : 'Locataire en place payant ' + (vdA.loyerCashAvantBail || 0) + ' €/mois 100 % en espèces (+ ' + parkA + ' € parking voisin) alors que GMBI enregistre « occupation à titre gratuit » ; bascule 700 € déclarés + 500 € espèces au ' + vdA.bail.debut.split('-').reverse().join('/') + '. Plafond PLS ~840 € dépassé dans les deux schémas')
-          + ' — location dérogatoire PTZ sous contrôle BP : exposition exigibilité PTZ + Action Logement (~95 208 €). Redressement potentiel ~'
-          + Math.round(cashNow * 12 * 0.372) + ' €/an d\'impôt éludé + majoration 40 %.',
-        action: 'Fiche Vitry', view: 'apt_vitry',
-      });
-    }
-  } catch (e) { /* alerte optionnelle */ }
 
   return alerts;
 }
@@ -6596,11 +6675,11 @@ export function computeFiscaliteMRE(state) {
   if (vitry) {
     // Correctif 29/08/2026 (audit) — le `||` traitait un 0 LÉGITIME comme « champ absent » :
     // tant que le bail n'a pas pris effet, loyerDeclareAnnuel vaut délibérément 0 (v458), et le
-    // repli basculait l'assiette sur totalRevenue, qui agrège le loyer en espèces et le parking.
+    // repli basculait l'assiette sur totalRevenue, qui agrège d'autres flux.
     // Cette page imposait donc un revenu que la fiche du bien déclare explicitement à zéro —
     // 3 365 €/an affichés contre 0 € sur la vue Immobilier, pour le même bien le même jour.
     // Règle d'or n°6 du projet : `!= null`, jamais `||`. Le repli ne porte plus que sur le
-    // loyer hors charges CONTRACTUEL, jamais sur les encaissements en espèces.
+    // loyer hors charges CONTRACTUEL, jamais sur un autre encaissement.
     const loyerAnnuel = vitry.loyerDeclareAnnuel != null
       ? vitry.loyerDeclareAnnuel
       : (vitry.loyerHCContractuel != null ? vitry.loyerHCContractuel : (vitry.loyerHC || 0)) * 12;

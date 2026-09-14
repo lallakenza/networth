@@ -315,7 +315,7 @@ const factAt = (path, d) => { let v = null; for (const o of FACT_OBS[path] || []
 const firstFactDate = (path) => { const o = FACT_OBS[path] || []; return o.length ? o[0].date : null; };
 console.log('[facts-git]', Object.keys(FACT_OBS).length, 'séries de faits bruts (immo/créances/tva/factu/véhicules/montres)');
 
-// ── v401 : CRD immo PRÉ-GIT par tableaux d'amortissement (FINANCIAL_DATA_EXTRACTION.md §2) ──
+// ── v401 : CRD immo PRÉ-GIT par tableaux d'amortissement (extraction hors dépôt public depuis v543) ──
 // Le CRD d'un prêt annuité est DÉTERMINISTE : crd(k) = P(1+r)^k − m·((1+r)^k−1)/r, k = mensualités payées.
 // Le modèle ne s'applique que STRICTEMENT AVANT la 1ère observation git (2026-03-07) — le git garde la main après.
 // Anchors durs (data.js 31/03/2026, "CRD mis à jour" depuis les vrais tableaux) :

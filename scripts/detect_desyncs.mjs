@@ -28,9 +28,14 @@ const SOURCE_CLAIR = process.env.NW_DATA_SOURCE
   || join(dirname(repoRoot), 'networth-data', 'data.source.js');
 
 const tmp = mkdtempSync(join(tmpdir(), 'nw-desync-'));
+// v543 — le data.js du dépôt est en clair depuis v517 : c'est lui qui fait foi. La copie privée
+// hors dépôt n'est utilisée que si on la désigne explicitement (NW_DATA_SOURCE) ou si data.js
+// est redevenu une coquille (chiffrement rallumé). Sinon le détecteur vérifiait une copie
+// périmée et plantait sur les exports ajoutés depuis.
+const dataDepot = readFileSync(join(repoRoot, 'js', 'data.js'), 'utf8');
+const dataEstCoquille = !/export const PORTFOLIO = \{\s*\n\s*amine/.test(dataDepot);
 for (const file of ['data.js', 'engine.js', 'facturation_contract.js']) {
-  // data.js est un fichier coquille depuis le chiffrement : on lui substitue la source en clair.
-  const origine = (file === 'data.js' && existsSync(SOURCE_CLAIR))
+  const origine = (file === 'data.js' && (process.env.NW_DATA_SOURCE || dataEstCoquille) && existsSync(SOURCE_CLAIR))
     ? SOURCE_CLAIR
     : join(repoRoot, 'js', file);
   const src = readFileSync(origine, 'utf8').replace(/\?v=\d+/g, '');
@@ -92,10 +97,10 @@ else {
   if (!l27 || l27.impot < 350 || l27.impot > 480)
     findings.push({ name: 'AC-8 — impot vitry 2027 hors [350;480]', a: l27 ? l27.impot : 0, b: 415, gap: l27 ? l27.impot - 415 : 415 });
 }
-// AC-5 (structure) : vitry pre-bail = 0 revenu ; post-bail = 700 CC (+ part especes suivie)
+// AC-5 (structure) : vitry pre-bail = 0 revenu ; post-bail = 700 CC
 const pV = s.immoView && s.immoView.properties && s.immoView.properties.find((p) => p.loanKey === 'vitry');
 if (pV && pV.bail && pV.bail.debut) {
-  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100 + 500 + (pV.parking || 0)) : (1200 + (pV.parking || 0));   // v465 — pré-bail : 1 200 espèces + parking
+  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100) : 0;   // v543 — revenus du bail seuls
   chk('AC-5 — totalRevenue vitry conforme au bail', pV.totalRevenue, attendu);
 }
 

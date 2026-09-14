@@ -2124,14 +2124,14 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 - **Fix (v480)**: BP intégré à la ligne Cash EUR, ligne « Binance USDT (Amine) » ajoutée ; l'invariant devient VISIBLE (ligne rouge dans la table quand |Σ − NW| > 2 €, plus seulement console.warn).
 - **Regression tests**: Σ lignes = NW à ±0 (headless ✓) ; aucune ligne rouge d'écart affichée ; tout futur compte oublié déclenche la ligne rouge à l'écran.
 
-## BUG-094: Assiette fiscale de Vitry calculée sur le loyer en espèces (`||` sur un 0 légitime)
+## BUG-094: Assiette fiscale de Vitry calculée sur le loyer hors bail (`||` sur un 0 légitime)
 
 - **Version**: détecté par l'audit du 29/08/2026, corrigé v487.
 - **Sévérité**: HAUTE — chiffre fiscal faux, susceptible d'être recopié dans une déclaration.
-- **Root cause**: `computeFiscaliteMRE` (engine.js) écrivait `vitry.loyerDeclareAnnuel || vitry.totalRevenue * 12`. Depuis v458, `loyerDeclareAnnuel` vaut délibérément **0** tant que le bail n'a pas pris effet ; le `||` traitait ce 0 comme « champ absent » et basculait l'assiette sur `totalRevenue`, qui agrège le loyer en espèces (1 200 €/mois) et le parking. Violation de la règle d'or n°6 du projet (`!= null`, jamais `||`).
+- **Root cause**: `computeFiscaliteMRE` (engine.js) écrivait `vitry.loyerDeclareAnnuel || vitry.totalRevenue * 12`. Depuis v458, `loyerDeclareAnnuel` vaut délibérément **0** tant que le bail n'a pas pris effet ; le `||` traitait ce 0 comme « champ absent » et basculait l'assiette sur `totalRevenue`, qui agrège le loyer hors bail (1 200 €/mois) et le parking. Violation de la règle d'or n°6 du projet (`!= null`, jamais `||`).
 - **Symptôme**: trois impôts fonciers contradictoires pour le même bien le même jour — 0 € (fiche Immo), 404 € (prévisionnel 2027), **3 365 €** (Plan & Fiscalité, sur une base de 15 240 € dont 14 400 € hors base déclarée).
 - **Fix (v487)**: test `!= null` ; le repli ne porte plus que sur le loyer hors charges **contractuel**, jamais sur les encaissements. Vérifié : les deux pages affichent désormais 0 €.
-- **Regression tests**: `computeFiscaliteMRE().loyerVitry.total === immoView.properties[vitry].fiscalite.totalImpot` pour un même état ; la base ne doit jamais inclure `loyerCash*` ni `parking`.
+- **Regression tests**: `computeFiscaliteMRE().loyerVitry.total === immoView.properties[vitry].fiscalite.totalImpot` pour un même état ; la base ne doit jamais inclure de flux hors bail.
 
 ## BUG-095: Une créance à montant négatif (dette) reste rangée parmi les créances actives
 
@@ -2164,7 +2164,7 @@ Audit ciblé « chaque chiffre affiché est-il calculé à partir de la bonne so
 
 - **Version**: détecté par l'audit du 29/08/2026, corrigé v488.
 - **Sévérité**: HAUTE — deux pages du même dashboard, le même bien, la même seconde, deux chiffres.
-- **Root cause**: `computeBudgetView` re-dérivait le loyer depuis data.js avec les seuls champs historiques (`loyerHC + parking + chargesLocataire`), en ignorant les champs ajoutés en v458/v463/v465 : la porte `bail.debut` et la part en espèces. Seul `computeImmoView` avait été câblé. Classe BUG-017/047/064 appliquée aux champs de FLUX au lieu des composants de NW.
+- **Root cause**: `computeBudgetView` re-dérivait le loyer depuis data.js avec les seuls champs historiques (`loyerHC + parking + chargesLocataire`), en ignorant les champs ajoutés en v458/v463/v465 : la porte `bail.debut`. Seul `computeImmoView` avait été câblé. Classe BUG-017/047/064 appliquée aux champs de FLUX au lieu des composants de NW.
 - **Symptôme**: Vitry — loyer 770 €/mois et CF −682 € sur la page Budget, contre 1 270 € et −182 € sur la page Immobilier. Totaux : CF invest −609 vs −107.
 - **Fix (v488)**: `computeBudgetView(portfolio, fx, immoView)` lit `prop.totalRevenue` de la vue immo (source unique), avec repli sur l'ancien calcul si la vue n'est pas disponible. Vérifié : Vitry 1 270/1 270 et −182/−182, Rueil 1 450/1 450 et +126/+126. Villejuif reste volontairement différent (0 en Budget = flux réel, 1 700 en Immo = projeté post-livraison).
 - **Regression tests**: pour tout bien non conditionnel, `budgetView.investProperties[k].loyer === immoView.properties[k].totalRevenue`.
@@ -2365,3 +2365,66 @@ telle. Elle reste dans le net worth, mais n'est pas du cash personnel disponible
 **Leçon** : cinq notions, sept implémentations. Le remède appliqué est le même que pour les
 autres lots — une seule fonction dans le moteur, les vues la consomment — et, quand un détail
 doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
+
+
+## BUG-116 : Villejuif — « valeur au coût engagé » recouvrait un modèle hybride (+26,8 k€)
+
+- **Version** : corrigé en v543 (14/09/2026). **Sévérité** : haute (patrimoine surévalué, libellé faux).
+- **Symptôme** : actif 141 159 €, dette 96 569 €, équité 44 590 € sous le libellé « valeur au coût engagé ».
+- **Cause** : depuis v358, `buildProperty` ajoutait aux appels payés une plus-value latente « au prorata de
+  l'avancement » (valeur livrée estimée − prix × 34 %), soit ~26,8 k€ qui n'avaient jamais été décaissés.
+  Commentaires et base portaient en outre des chiffres périmés (« dépôt 3 363 + apport ~17 860 + tirage
+  ~93 129 », qui compte deux fois le dépôt et utilise un tirage erroné).
+- **Correctif** : actif porté = appels de fonds payés (114 352,20 €, acte p.9, dépôt compris) ; CRD = total
+  restant dû des tableaux LCL à la dernière échéance passée ; quatre horizons exposés (`horizons` :
+  coût engagé — seul dans le NW —, hybride, marché à la livraison, réalisable « non établie »). Faits
+  sourcés regroupés dans `VILLEJUIF_ACTE`.
+- **Écart non réconcilié** : apport nominal 17 860,05 € (prix − prêts) contre 18 183,05 € constatés
+  (appels payés − déblocage de 96 169,15 €). **323 €** que ni l'acte, ni les tableaux LCL, ni le décompte
+  notarial, ni la proposition LCL n'expliquent. Conservé comme tel (`VILLEJUIF_ACTE.apport.ecartNonReconcilie`).
+- **Tests** : `tests/villejuif-acte.test.js` (dépôt inclus, équité cash 17 783,58 € au 05/08/2026,
+  horizons séparés, frais hors valeur, écart de 323 € maintenu).
+
+## BUG-117 : clause SADEV — date en dur, ICC forfaitaire, frais fiscaux à la place des frais acquittés
+
+- **Version** : corrigé en v543. **Sévérité** : moyenne (restitution projetée fausse).
+- **Causes** : (1) `dateFin: '2033-06'` écrit en dur alors que la fenêtre court 5 ans à compter de la date
+  RÉELLE d'achèvement (acte p.18) ; (2) indexation par un ICC forfaitaire de 2 %/an au lieu des indices
+  publiés ; (3) déduction du forfait fiscal de 7,5 % (25 224,75 €) au lieu des frais d'acquisition
+  effectivement acquittés ; (4) comparaison au mois : une vente le 01/06/2033 sortait de la fenêtre.
+- **Correctif** : `sadevFenetre()` (achèvement réel + 5 ans, « provisoire » tant qu'il repose sur la date
+  contractuelle) ; `iccADate()` (ICC de base = T4 2025 = 2 058, publié le 26/03/2026, dernier connu à la
+  signature ; indice publié si connu, scénario explicite sinon) ; frais de la clause = décompte notarial
+  (provision 6 950 € + quote-part 520 €, non définitive) ; forfait fiscal isolé dans `fraisAcquisitionFiscal`
+  pour la seule assiette de plus-value ; travaux de l'acquéreur = `null` (non renseignés, 0 retenu et dit).
+- **Tests** : `tests/villejuif-acte.test.js` (fenêtre provisoire puis établie, vente 2033 dans la fenêtre,
+  frais de clause ≠ forfait, ICC réel puis scénario, absence de date en dur).
+
+## BUG-118 : Villejuif — livraison « Q3 2028 » non sourcée, échéances de prêt inexactes
+
+- **Version** : corrigé en v543. **Sévérité** : moyenne.
+- **Causes** : septembre 2028 servait de base aux projections sans aucune source primaire (l'acte fixe le
+  2e trimestre 2028, au plus tard le 30/06/2028 ; le mail du promoteur du 06/01/2026 visait au contraire
+  « sans impact sur la livraison ») ; « P1 : intérêts dès janvier 2029 » alors que le tableau du 03/07/2026
+  porte des échéances d'intérêts de 345,70 € dès le 05/11/2028 ; mentions « 1re mensualité août 2028 » ;
+  la surcouche Supabase écrasait appels et tirages par des valeurs arrondies et fixait `villejuifStartMonth`.
+- **Correctif** : livraison contractuelle par défaut, septembre 2028 étiqueté « scénario non vérifié » ;
+  jalons datés (P1 intérêts 05/11/2028, P2 amortissement 05/11/2028, P1 amortissement 05/02/2029, fin
+  05/01/2053) ; délai de livraison des simulateurs dérivé de la date ; surcouche ne reprenant plus les faits d'acte.
+
+## BUG-119 : données privées exposées dans le dépôt public et sur le site
+
+- **Version** : corrigé en v543 pour ce qui relève du dépôt. **Sévérité** : critique (confidentialité).
+- **Constat** : dépôt `public`, servi par GitHub Pages. Y figuraient des revenus locatifs hors bail et leur
+  analyse de risque, des adresses de biens, un numéro de local fiscal et une parcelle, des numéros de compte
+  bancaire (séries `data/*_balance_*.json`), un fragment d'IBAN, et neuf fichiers hérités non utilisés par le
+  site (tableaux de bord, analyses, historique de transactions, rapports d'audit).
+- **Correctif** : seuls les revenus prévus au bail sont modélisés (Vitry : 0 € avant la prise d'effet, dont la
+  date reste à confirmer ; 600 € HC + 100 € de provisions ensuite) ; champs, alerte, libellés et commentaires
+  retirés ; adresses remplacées par la ville ; numéros masqués ; fichiers hérités retirés du suivi ; la
+  surcouche Supabase ne réinjecte plus de champ de loyer hors bail.
+- **Reste hors dépôt (décision utilisateur requise)** : historique Git public (anciens commits consultables) ;
+  lignes `immo_properties.rent` et table `nw_snapshots` lisibles avec la clé publique Supabase ; `js/data.js`
+  toujours en clair par décision v517.
+- **Tests** : `tests/confidentialite.test.js` (motifs interdits dans tout fichier suivi, fichiers hérités absents,
+  surcouche sans champ hors bail).

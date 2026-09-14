@@ -72,7 +72,7 @@ export function validerContrat(c) {
   }
 
   if (typeof c.producerVersion !== 'string' || !c.producerVersion) {
-    return ko('invalide', 'producerVersion non déclarée');
+    return ko('invalide', 'producerVersion absente');
   }
   if (ageJours(c.dataAsOf) == null) return ko('invalide', 'dataAsOf absent ou illisible');
   if (c.currency !== 'MAD') return ko('invalide', 'devise « ' + c.currency +' » inattendue');

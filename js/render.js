@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, RESIDENCE_FISCALE } from './data.js?v=542';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW } from './engine.js?v=542';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=543';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=543';
 
 // ---- Generic table sort utility ----
 /**
@@ -355,7 +355,7 @@ function renderHeader(state, view) {
   } else {
     // Asset views
     const titles = { actions: 'Cockpit Actions & Crypto', cash: 'Tr\u00e9sorerie & Cash', immobilier: 'Portefeuille Immobilier', creances: 'Cr\u00e9ances & Recouvrements', budget: 'Budget Mensuel', apt_vitry: 'Vitry-sur-Seine', apt_rueil: 'Rueil-Malmaison', apt_villejuif: 'Villejuif (VEFA)', historique: 'Historique du Patrimoine' };
-    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: '19 Rue Nathalie Lemel — T3 Location nue', apt_rueil: '21 All\u00e9e des Glycines — T3 meubl\u00e9 LMNP', apt_villejuif: '167 Bd Maxime Gorki — T3 VEFA', historique: 'Évolution quotidienne du net worth — snapshots automatiques (type Finary)' };
+    const subs = { actions: 'Toutes les positions actions, crypto, ETFs — IBKR + ESPP + SGTM', cash: 'Vue consolid\u00e9e de tous les comptes cash — Amine & Nezha', immobilier: '3 biens immobiliers — Vitry, Rueil, Villejuif', creances: 'Cr\u00e9ances actives — analyse de recouvrement et co\u00fbt d\'opportunit\u00e9', budget: 'D\u00e9penses fixes — Dubai, France, Digital', apt_vitry: 'T3 — location nue', apt_rueil: 'T3 meubl\u00e9 — LMNP', apt_villejuif: 'T3 — VEFA', historique: 'Évolution quotidienne du net worth — snapshots automatiques (type Finary)' };
     // v524 — une vue sans entrée dans ces tables laissait l'en-tête VIDE : c'est ce qui
     // arrive en arrivant par un lien vers une section qui n'est pas une route (Financement
     // et Plan & Fiscalité sont des sections repliables de la page Immobilier, pas des vues).
@@ -1197,7 +1197,7 @@ function renderCoupleTable(state) {
     ['Cash sociétés (iBanq Bairok + Wise Bridgevale)', (s.amine.ibanqBairok || 0) + (s.amine.bridgevaleWise || 0)], // v484
     ['\u00c9quit\u00e9 immo \u2014 Vitry (Amine)', s.amine.vitryEquity],
     ['\u00c9quit\u00e9 immo \u2014 Rueil (Nezha)', s.nezha.rueilEquity],
-    ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha) [livraison ' + libelleLivraisonVJ() + ']', s.nezha.villejuifEquity],
+    ['\u00c9quit\u00e9 immo \u2014 Villejuif VEFA (Nezha, co\u00fbt engag\u00e9) [livraison ' + libelleLivraisonVJ() + ']', s.nezha.villejuifEquity],
     ...(s.nezha.villejuifReservation > 0 ? [['Villejuif Reservation Fees (non-signé)', s.nezha.villejuifReservation]] : []),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
@@ -1261,7 +1261,7 @@ function renderNezhaTable(state, view) {
     ['SGTM (' + sgtmLabel + ')', s.nezha.sgtm],
     ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (réf. 278271-0004)', s.nezha.rolexDatejust]] : []),
     ...(s.nezha.villejuifSigned
-      ? (s.nezha.villejuifEquity > 0 ? [['\u00c9quit\u00e9 Villejuif VEFA (asset under construction)', s.nezha.villejuifEquity]] : [])
+      ? (s.nezha.villejuifEquity > 0 ? [['\u00c9quit\u00e9 Villejuif VEFA (co\u00fbt engag\u00e9)', s.nezha.villejuifEquity]] : [])
       : (s.nezha.villejuifReservation > 0 ? [['Réservation Villejuif', s.nezha.villejuifReservation]] : [])),
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
   ];
@@ -1723,20 +1723,14 @@ function lirePerfGraphe(id) {
 }
 
 /**
- * Décomposition des recettes mensuelles d'un bien, en toutes ses parts.
- *
- * POURQUOI. Les tuiles annonçaient « HC 0 + pkg 70 » pour Vitry, dont les recettes totales
- * valent 1 270 € : les 1 200 € encaissés en espèces n'apparaissaient nulle part, si bien
- * que le détail ne couvrait pas son propre total. Un détail qui ne somme pas à son total
- * n'est pas un détail — c'est un chiffre de plus.
+ * Décomposition des recettes mensuelles d'un bien : les parts prévues au bail (loyer HC,
+ * provisions pour charges). Le détail doit couvrir son total ; tout reste est signalé.
  */
 function partsRecettes(prop) {
   const parts = [];
   if (prop.loyerHC > 0) parts.push('HC ' + Math.round(prop.loyerHC));
   if (prop.chargesLoc > 0) parts.push('charges ' + Math.round(prop.chargesLoc));
-  if (prop.parking > 0) parts.push('parking ' + Math.round(prop.parking));
-  if (prop.loyerCash > 0) parts.push('espèces ' + Math.round(prop.loyerCash));
-  const somme = (prop.loyerHC || 0) + (prop.chargesLoc || 0) + (prop.parking || 0) + (prop.loyerCash || 0);
+  const somme = (prop.loyerHC || 0) + (prop.chargesLoc || 0);
   const ecart = Math.round((prop.totalRevenue || 0) - somme);
   // Si une part manque encore, on le dit plutôt que de laisser un écart muet.
   if (Math.abs(ecart) >= 1) parts.push('autre ' + ecart);
@@ -1824,7 +1818,7 @@ function bandeauResidenceFiscale() {
 
 /**
  * Libellé de livraison de Villejuif, dérivé du référentiel (data.js, écrasé par la surcouche
- * Supabase). Il était écrit en dur « Q3 2028 » à cinq endroits : corriger la date en base ne
+ * Supabase). La date était écrite en dur à cinq endroits : corriger la date en base ne
  * changeait donc rien à l'écran.
  */
 function libelleLivraisonVJ() {
@@ -1834,7 +1828,7 @@ function libelleLivraisonVJ() {
   if (!m) return d;
   const mois = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin',
                 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
-  return mois[parseInt(m[2], 10) - 1] + ' ' + m[1];
+  return mois[parseInt(m[2], 10) - 1] + ' ' + m[1] + ' (contractuelle)';
 }
 
 // v346 — toggle « Inclure Villejuif » supprimé (acte signé 05/06/2026) : le bien est
@@ -5645,10 +5639,8 @@ function renderImmoView(state) {
   if (fiscSummary) {
     const loyerAn = iv.totalLoyerAnnuel;
     const impotAn = iv.totalImpotAnnuel;
-    const cashNonDeclare = iv.properties.reduce((s, p) => s + (p.fiscalite && p.fiscalite.loyerCash ? p.fiscalite.loyerCash : 0), 0);
     fiscSummary.innerHTML = '<strong>Synthese fiscale :</strong> '
-      + 'Loyers declares ' + Math.round(loyerAn - cashNonDeclare).toLocaleString('fr-FR') + '/an'
-      + (cashNonDeclare > 0 ? ' (+ ' + Math.round(cashNonDeclare).toLocaleString('fr-FR') + ' non declare)' : '')
+      + 'Recettes des baux ' + Math.round(loyerAn).toLocaleString('fr-FR') + '/an'
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       // Le nombre était concaténé BRUT : d'où « -107.05999999999997/mois » à l'écran. Les
       // valeurs exactes servent au calcul, le formatage n'intervient qu'à l'affichage.
@@ -5715,8 +5707,8 @@ function renderImmoView(state) {
   // Remplace l'ancienne estimation (taux moyen 3,1 % simple × principal plein, puis
   // facteur 0,81 codé en dur). Désormais : part TIRÉE = différés EXACTS des tableaux
   // définitifs LCL (03/07/2026) ; tranches FUTURES = échéancier d'appels de l'acte
-  // (montants contractuels, dates de chantier estimées) × 3,27 % jusqu'à fin de
-  // franchise (janv 2029), intérêts simples (la capitalisation annuelle ajoute ~1-2 %,
+  // (montants contractuels, dates de chantier estimées) × 3,27 % jusqu'aux premières
+  // échéances d'intérêts (novembre 2028), intérêts simples (la capitalisation annuelle ajoute ~1-2 %,
   // négligée et signalée). Comparateur = scénario plein-tirage DE L'OFFRE (19 630 €).
   const vilSim = document.getElementById('villejuifSimulation');
   if (vilSim) {
@@ -5729,7 +5721,7 @@ function renderImmoView(state) {
         + ((tr2.crdFinFranchise || 0) - (tr2.tirage || 0));
       const prix = meta_vj.totalOperation || 336330;
       const tauxP1 = (vl[0] && vl[0].rate) || 0.0327;
-      const finFr = { y: 2029, m: 1 };   // dernière échéance de différés P1 (tableau : amortissement 02/2029)
+      const finFr = { y: 2028, m: 10 };  // v543 — P1 : échéances d'intérêts dès le 05/11/2028 (tableau du 03/07/2026)
       let futurs = 0;
       const lignes = [];
       (meta_vj.appelsRestants || []).forEach(a => {
@@ -6375,8 +6367,8 @@ function renderAptView(state, loanKey) {
   }
   html += '<div style="margin-bottom:24px;">'
     + '<h3 style="margin:0 0 12px;font-size:15px;color:#2d3748;">Cash Flow mensuel'
-    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — loyers dès oct 2028, mensualités dès août 2028</span>' : '')
-    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">1 200 € espèces aujourd\u2019hui → 700 € CC déclarés + 500 € espèces dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '')
+    + (prop.conditional ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">projeté post-livraison — livraison contractuelle 30/06/2028, échéances LCL dès le 05/11/2028, loyers : hypothèse</span>' : '')
+    + (prop.bail && !prop.bailActif ? ' <span style="font-size:11px;font-weight:500;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px;vertical-align:middle;">revenus modélisés à partir du bail — date d\u2019effet à confirmer</span>' : '')
     + '</h3>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">'
     // Revenus
@@ -6387,22 +6379,11 @@ function renderAptView(state, loanKey) {
     // contractuelle grisée avec sa date, et le total actuel reste honnêtement à 0.
     + (prop.bail && !prop.bailActif
       ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
-        + '<div style="font-weight:600;color:#742a2a;margin-bottom:2px;">Aujourd\u2019hui (avant bail)</div>'
-        + '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Loyer — 100 % espèces, non déclaré ⚠</span><strong>' + Math.round(prop.loyerCash || 0) + ' €</strong></div>'
-        + (prop.parking > 0
-          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Parking — voisin, espèces ⚠</span><strong>' + Math.round(prop.parking) + ' €</strong></div>'
-          : '')
-        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-top:1px solid #c6f6d5;margin:4px 0;padding-top:4px;"><span>Total actuel</span><span>' + Math.round(prop.totalRevenue) + ' €/mois</span></div>'
-        + '<div style="font-weight:600;color:#2d3748;margin:8px 0 2px;">Dès le ' + prop.bail.debut.split('-').reverse().join('/') + ' (bail)</div>'
-        + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC + provisions (virement, déclaré)</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
-        + (prop.loyerCashContractuel > 0
-          ? '<div style="display:flex;justify-content:space-between;color:#742a2a;"><span>Espèces (non déclaré — risque ⚠)</span><strong>' + Math.round(prop.loyerCashContractuel) + ' €</strong></div>'
-          : '')
-        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #c6f6d5;margin-top:4px;padding-top:4px;"><span>Total attendu <span style="color:#718096;font-size:10.5px;">(hors parking ; locataire ' + Math.round((prop.loyerHCContractuel || 0) + (prop.loyerCashContractuel || 0)) + ' € HC > plafond PLS 840)</span></span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0) + (prop.loyerCashContractuel || 0)) + ' €</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-bottom:1px solid #c6f6d5;margin-bottom:4px;padding-bottom:4px;"><span>Aujourd\u2019hui (avant bail)</span><span>0 €</span></div>'
+        + '<div style="font-weight:600;color:#2d3748;margin:6px 0 2px;">Dès le ' + prop.bail.debut.split('-').reverse().join('/') + ' (bail — date d\u2019effet à confirmer)</div>'
+        + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC + provisions</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
         + '</div>'
       : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
-        + (prop.loyerCash > 0 ? cfBarRowApt('Espèces (non déclaré ⚠)', prop.loyerCash, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
-        + (prop.parking > 0 ? cfBarRowApt('Parking (voisin, espèces ⚠)', prop.parking, 'linear-gradient(90deg,#feb2b2,#c53030)', maxCFBarApt) : '')
         + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
         + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>')
     + '</div>'
@@ -6422,7 +6403,7 @@ function renderAptView(state, loanKey) {
     + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;color:#718096;">' + (prop.cf >= 0 ? '+' : '') + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF projeté après livraison /mois</div></div>' : '')
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
       + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel, espèces incl.)' : '')) + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
     + '</div></div>';
@@ -6448,10 +6429,10 @@ function renderAptView(state, loanKey) {
     // actuelle » et la note marché n'apparaissait jamais. Basé désormais sur les champs
     // réellement exposés par le moteur : prop.conditional et prop.deliveredValue.
     + '<div><span style="color:#718096;">'
-      + (prop.conditional ? 'Valeur au coût engagé (VEFA)' : 'Valeur actuelle')
+      + (prop.conditional ? 'Coût engagé — appels de fonds payés (VEFA)' : 'Valeur actuelle')
       + '</span><br><strong>' + fmt(prop.value) + '</strong>'
       + (prop.deliveredValue && Math.abs(prop.deliveredValue - prop.value) > 1000
-          ? '<br><span style="font-size:11px;color:#718096;">valeur livrée estimée ' + fmt(prop.deliveredValue) + '</span>'
+          ? '<br><span style="font-size:11px;color:#718096;">valeur de marché estimée à la livraison ' + fmt(prop.deliveredValue) + ' (hors patrimoine)</span>'
           : '')
       + '</div>'
     + '<div><span style="color:#718096;">\u00c9quit\u00e9 brute</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
@@ -6464,7 +6445,7 @@ function renderAptView(state, loanKey) {
     // affichés sur sa propre fiche (ils ne vivaient que dans les tables consolidées).
     + '<div><span style="color:#718096;">Loyer HC</span><br><strong>'
       + (prop.loyerHC ? fmt(prop.loyerHC) + '/mois'
-        : (prop.bail && !prop.bailActif ? '600 €/mois <span style="font-weight:400;font-size:11px;color:#b7791f;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + '</span>' : '\u2014')) + '</strong></div>'
+        : (prop.bail && !prop.bailActif ? Math.round(prop.loyerHCContractuel || 0) + ' €/mois <span style="font-weight:400;font-size:11px;color:#b7791f;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + ', date à confirmer</span>' : '\u2014')) + '</strong></div>'
     + '<div><span style="color:#718096;">Rdt net</span><br><strong>'
       + (Number.isFinite(prop.yieldNet) && !prop.conditional ? prop.yieldNet.toFixed(1) + '%/an' : '\u2014') + '</strong></div>'
     + (Number.isFinite(prop.yieldNetFiscal) && !prop.conditional
@@ -6526,19 +6507,51 @@ function renderAptView(state, loanKey) {
     // v443 — bien VEFA non livré : computeExitCosts ne tourne pas (non cessible en direct)
     // et la carte restait entièrement VIDE (avec, en prime, le div grille jamais refermé).
     // On affiche ce qui existe et on explique pourquoi il n'y a pas de frais « aujourd'hui ».
-    const _delivLabel = (prop.vefaConfig && prop.vefaConfig.deliveryDate) || libelleLivraisonVJ();
-    html += '<div><span style="color:#718096;">Équité engagée</span><br><strong class="pl-pos">' + fmt(prop.equity) + '</strong></div>'
-      + '<div><span style="color:#718096;">Capital tiré (prêts)</span><br><strong>' + fmt(prop.crd) + '</strong></div>'
+    // v543 — quatre horizons de valeur, un seul dans le patrimoine. « Valeur au coût engagé » couvrait
+    // un modèle hybride qui ajoutait ~26,8 k€ de plus-value latente : chaque horizon est désormais
+    // nommé, défini, sourcé, daté, et dit s'il entre ou non dans le patrimoine.
+    const _delivLabel = libelleLivraisonVJ();
+    const hz = prop.horizons || {};
+    const ci = prop.capitalInvesti || null;
+    const fen = sadevFenetre();
+    const e2 = (x) => Number(x).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€';
+    const jma = (d) => String(d).split('-').reverse().join('/');
+    const ligneHz = (titre, h) => !h ? '' : '<tr><td style="padding:5px 6px;vertical-align:top;"><strong>' + titre + '</strong>'
+        + '<div style="font-size:10.5px;color:#718096;">' + h.definition + '</div>'
+        + '<div style="font-size:10px;color:#a0aec0;">Source : ' + h.source + (h.date ? ' · au ' + jma(h.date) : '') + '</div></td>'
+        + '<td class="num" style="padding:5px 6px;vertical-align:top;">' + (h.actif != null ? fmt(Math.round(h.actif)) : '<span style="color:#a0aec0;">' + (h.statut || 'non établie') + '</span>') + '</td>'
+        + '<td class="num" style="padding:5px 6px;vertical-align:top;">' + (h.equity != null ? fmt(Math.round(h.equity)) : '\u2014') + '</td>'
+        + '<td style="padding:5px 6px;vertical-align:top;font-size:11px;">' + (h.dansNW ? '<strong style="color:#276749;">dans le patrimoine</strong>' : '<span style="color:#718096;">hors patrimoine</span>') + '</td></tr>';
+    html += '<div><span style="color:#718096;">Équité au coût engagé</span><br><strong class="pl-pos">' + fmt(Math.round(prop.equity)) + '</strong></div>'
+      + '<div><span style="color:#718096;">Capital restant dû' + (prop.crdDate ? ' au ' + jma(prop.crdDate) : '') + '</span><br><strong>' + fmt(Math.round(prop.crd)) + '</strong></div>'
       + '<div><span style="color:#718096;">Frais de sortie aujourd\'hui</span><br><strong>—</strong></div>'
       + '<div><span style="color:#718096;">Équité nette après sortie</span>'
-      + '<span style="font-size:10px;color:#b45309;display:block;">avant passifs de copro contestés</span>'
+      + '<span style="font-size:10px;color:#b45309;display:block;">au coût engagé, sans plus-value latente</span>'
       + '<strong>' + fmt(Math.round(ec.netEquityAfterExit || 0)) + '</strong></div>'
       + '</div>'
-      + '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;font-size:12.5px;color:#744210;line-height:1.6;">'
-      + '<strong>Bien VEFA non livré</strong> — pas de revente en direct avant la livraison (' + _delivLabel + '). '
-      + 'Et jusqu\'à ~mi-2033, la clause SADEV 94 restituerait à l\'aménageur toute plus-value au-delà du prix d\'achat indexé ICC. '
+      + '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #fed7d7;">'
+      + '<div style="font-weight:600;font-size:13px;color:#744210;margin-bottom:6px;">Quatre horizons de valeur — un seul entre dans le patrimoine</div>'
+      + '<div class="table-wrap"><table style="width:100%;font-size:12px;"><thead><tr><th>Horizon</th><th class="num">Actif</th><th class="num">Équité</th><th>Statut</th></tr></thead><tbody>'
+      + ligneHz('1. Coût engagé (cash)', hz.coutEngage)
+      + ligneHz('2. Valorisation hybride « mark-to-progress »', hz.hybride)
+      + ligneHz('3. Valeur de marché estimée à la livraison', hz.marcheLivraison)
+      + ligneHz('4. Valeur réalisable / liquidative', hz.realisable)
+      + '</tbody></table></div>'
+      + (ci ? '<div style="margin-top:10px;font-size:12px;color:#4a5568;line-height:1.6;">'
+        + '<strong>Capital investi, hors valeur du bien</strong> : part du prix payée hors banque ' + e2(ci.cashPrix)
+        + ' (dépôt de réservation de ' + e2(ci.depotReservationInclus) + ' compris) + frais d\'acquisition ' + e2(ci.fraisAcquisition)
+        + ' <span style="color:#b45309;">(' + ci.fraisStatut + ')</span> + quote-part EDD ' + e2(ci.quotePartEDD)
+        + ' = <strong>' + e2(ci.horsFinancement) + '</strong> hors financement ; frais de financement ' + e2(ci.fraisFinancement)
+        + ' (proposition LCL et chiffre non rattaché, à confirmer) — total ' + e2(ci.total) + '. Ces frais ne sont jamais ajoutés à la valeur du bien. '
+        + 'Apport nominal (prix − prêts) ' + e2(ci.apportNominal) + ' contre ' + e2(ci.cashPrix) + ' constatés : '
+        + '<strong>écart non réconcilié de ' + e2(ci.ecartApport) + '</strong>.</div>' : '')
+      + '<div style="margin-top:10px;font-size:12.5px;color:#744210;line-height:1.6;">'
+      + '<strong>Bien VEFA non livré</strong> — livraison ' + _delivLabel + ' (septembre 2028 : scénario non vérifié). '
+      + 'Revente avant la livraison : hypothèse à confirmer, non démontrée par l\'acte. '
+      + 'Clause SADEV 94 : restitution du gain au-delà du prix TTC indexé sur l\'ICC en cas de revente dans les 5 ans suivant l\'achèvement réel'
+      + (fen.fin ? ' — fenêtre ' + fen.statut + ' jusqu\'au ' + jma(fen.fin) + ' (' + fen.base + ')' : '') + '. '
       + 'Le scénario post-livraison est dans « Projection frais de sortie par année » (section repliée plus bas).'
-      + '</div>';
+      + '</div></div>';
   }
   html += '</div>';
   html += '</div>';
@@ -6548,7 +6561,7 @@ function renderAptView(state, loanKey) {
       const b = prop.bail;
       const fdate = (d) => d ? d.split('-').reverse().join('/') : '—';
       html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">'
-        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail en cours' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
+        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
         + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
         + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
         + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
@@ -6562,29 +6575,8 @@ function renderAptView(state, loanKey) {
         + (b.optionTravaux && !b.optionTravaux.active
           ? '<div><span style="color:#718096;">Option clause 17-1 II</span><br><strong>750 € HC après travaux — <span style="color:#718096;">désactivée</span></strong></div>' : '')
         + '</div>'
-        + ((() => {
-            // Lu brut depuis data.js et collé à « €/mois ». Entier aujourd'hui, mais rien
-            // ne le garantit : c'est ainsi qu'un « −107.05999999999997 » atteint l'écran.
-            const cashPrevu = Math.round(((state.portfolio || {}).amine || {}).immo && state.portfolio.amine.immo.vitry
-              ? (state.portfolio.amine.immo.vitry.loyerCashNonDeclare || 0) : 0);
-            return cashPrevu > 0
-              ? '<div style="margin-top:10px;padding:8px 12px;background:#fff5f5;border-left:3px solid #c53030;border-radius:6px;font-size:12px;color:#742a2a;">'
-                + '<strong>⚠ ' + cashPrevu + ' €/mois en espèces dès le bail (suivi interne, non déclarés)</strong> — imposables en droit ; '
-                + 'loyer réel ' + (600 + cashPrevu) + ' € > plafond PLS ~840 € (PTZ dérogatoire, contrôle BP en cours). '
-                + 'Exposition chiffrée dans le bloc Obligations & risques et en alerte page principale.</div>'
-              : '';
-          })())
         + '</div>';
-      const g = (prop.propertyMeta || {}).gmbi;
-      if (g) {
-        html += '<div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">'
-          + '<h3 style="margin:0 0 10px;font-size:15px;color:#2d3748;">Référence DGFiP (GMBI)</h3>'
-          + '<div style="font-size:13px;line-height:1.8;color:#4a5568;">'
-          + 'Local n° <strong>' + g.local + '</strong> · parcelle <strong>' + g.parcelle + '</strong> · DPE <strong>' + ((prop.propertyMeta || {}).dpe || '—') + '</strong><br>'
-          + 'Occupation enregistrée : ' + g.occupationEnregistree + '<br>'
-          + '<span style="color:#b7791f;font-weight:600;">À faire :</span> ' + g.aDeclarer
-          + '</div></div>';
-      }
+      // v543 — la référence DGFiP (local, parcelle, occupation déclarée) n'est plus publiée.
     }
 
 
@@ -6724,7 +6716,7 @@ function renderAptView(state, loanKey) {
 
     // v459 — « Simulateur fiscal Déclaré vs Cash » SUPPRIMÉ : vestige de l'ancien scénario
     // (il comparait 700 € déclarés à… 700 € déclarés, économie 0). Le prévisionnel d'impôt
-    // CALCULÉ (v458) le remplace ; la part espèces est traitée en RISQUE, pas en scénario.
+    // CALCULÉ (v458) le remplace ; seuls les revenus du bail sont modélisés.
 
     // v461 — blocs Bail & GMBI REMONTÉS juste sous la Fiche propriété (audit UX)
   }
@@ -6803,6 +6795,10 @@ function renderAptView(state, loanKey) {
       html += '<div style="font-size:12px;color:#4a5568;margin:6px 0;"><strong>Obligation :</strong> ' + c.obligation + '</div>';
       if (c.dateDebut && c.dateFin) {
         html += '<div style="font-size:12px;color:#4a5568;"><strong>Période :</strong> ' + c.dateDebut + ' → ' + c.dateFin + '</div>';
+      } else if (c.fenetre) {
+        const fw = sadevFenetre();
+        html += '<div style="font-size:12px;color:#4a5568;"><strong>Fenêtre :</strong> ' + c.fenetre
+          + (fw.fin ? ' — ' + fw.statut + ' : jusqu\'au ' + fw.fin.split('-').reverse().join('/') + ' (' + fw.base + ')' : '') + '</div>';
       }
       html += '<div style="font-size:12px;color:#c53030;margin:4px 0;"><strong>Pénalité :</strong> ' + c.penalite + '</div>';
       html += '<ul style="margin:6px 0 0;padding-left:16px;font-size:11px;color:#4a5568;">';
@@ -7600,7 +7596,7 @@ function attachKPIInsights(state, view) {
   insights['kpiNzRueil'] = '\u00c9quit\u00e9 Rueil NETTE apr\u00e8s frais de sortie = \u20ac' + f(s.nezha.rueilEquity)
     + (rueilProp ? ' (brute : \u20ac' + f(Math.round(rueilProp.equity)) + ')' : '')
     + '. Cr\u00e9dit Mutuel 1.20%. Auto-financ\u00e9 : loyer couvre 100% des charges. +\u20ac' + _rueilWealth + '/mois de richesse.';
-  insights['kpiNzVillejuif'] = 'VEFA en construction. Livraison ' + libelleLivraisonVJ() + '. Franchise 3 ans (int\u00e9r\u00eats capitalis\u00e9s). Equity estimative bas\u00e9e sur l\'apport + appr\u00e9ciation.';
+  insights['kpiNzVillejuif'] = '\u00c9quit\u00e9 au co\u00fbt engag\u00e9 : appels de fonds pay\u00e9s (114 352,20 \u20ac, d\u00e9p\u00f4t de r\u00e9servation compris) \u2212 capital restant d\u00fb des tableaux LCL. Aucune plus-value latente incluse. Livraison ' + libelleLivraisonVJ() + '.';
   insights['kpiNzCash'] = 'Cash \u20ac' + f(s.nezha.cash) + ' + cr\u00e9ance Omar \u20ac'
     + f(s.nezha.recvOmar || 0) + ' (pond\u00e9r\u00e9e). Dont Livret A \u20ac' + f(s.nezha.livretA)
     + ' (1,5 %) et \u20ac' + f(s.nezha.cashFrance - s.nezha.livretA)
@@ -7994,7 +7990,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=542').then(m => {
+  import('./charts.js?v=543').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8213,29 +8209,17 @@ function _prochainesEcheancesImmo() {
   ((VITRY_CONSTRAINTS && VITRY_CONSTRAINTS.constraints) || []).forEach(c => {
     if (c.dateFin) cands.push({ d: c.dateFin, l: 'Vitry — ' + (c.dispositif || 'obligation') });
   });
-  ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.constraints) || []).forEach(c => {
-    if (c.dateFin) cands.push({ d: c.dateFin, l: 'Villejuif — fin clause SADEV 94' });
-  });
-  // Les deux dates de livraison et les deux départs d'amortissement étaient dans les données
-  // sans jamais apparaître dans un calendrier : « Villejuif 2028 » se lisait comme un
-  // événement unique, alors que quatre jalons distincts s'échelonnent sur seize mois.
+  // v543 — SADEV : fin de fenêtre = achèvement RÉEL + 5 ans, provisoire tant que non constaté.
+  const _fenVJ = sadevFenetre();
+  if (_fenVJ.fin) cands.push({ d: _fenVJ.fin.slice(0, 7), l: 'Villejuif — fin de la clause SADEV 94 (' + _fenVJ.statut + ', ' + _fenVJ.base + ')' });
   const vjLiv = VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.livraison;
   if (vjLiv) {
-    if (vjLiv.contractuelle) cands.push({ d: vjLiv.contractuelle, l: 'Villejuif — livraison CONTRACTUELLE (acte)' });
-    if (vjLiv.operationnelle && vjLiv.operationnelle !== vjLiv.contractuelle) {
-      cands.push({ d: vjLiv.operationnelle, l: 'Villejuif — livraison OPÉRATIONNELLE (retard promoteur, base des projections)' });
-    }
+    if (vjLiv.contractuelle) cands.push({ d: vjLiv.contractuelle, l: 'Villejuif — livraison CONTRACTUELLE au plus tard le 30/06/2028 (acte p.8)' });
+    if (vjLiv.scenarioNonVerifie) cands.push({ d: vjLiv.scenarioNonVerifie, l: 'Villejuif — livraison en septembre 2028 : scénario NON VÉRIFIÉ' });
   }
   ((VILLEJUIF_CONSTRAINTS && VILLEJUIF_CONSTRAINTS.echeancier) || []).forEach(e => {
-    if (e.premierAmortissement) cands.push({ d: e.premierAmortissement, l: 'Villejuif ' + e.pret + ' — ' + e.note });
+    if (e.date) cands.push({ d: e.date, l: 'Villejuif ' + e.pret + ' — ' + e.note });
   });
-  const vjl = (IMMO_CONSTANTS.loans.villejuifLoans || [])[0];
-  if (vjl && vjl.startDate && vjl.periods && vjl.periods[0]) {
-    const [y, m] = vjl.startDate.split('-').map(Number);
-    const tot = y * 12 + (m - 1) + vjl.periods[0].months;
-    cands.push({ d: Math.floor(tot / 12) + '-' + String((tot % 12) + 1).padStart(2, '0'),
-                 l: 'Villejuif — fin de franchise, mensualités démarrent' });
-  }
   const auj = new Date().toISOString().slice(0, 7);
   return cands.filter(c => c.d > auj).sort((a, b) => a.d.localeCompare(b.d));
 }
@@ -8651,7 +8635,7 @@ function renderPlanFiscalView(state) {
         html += '<p style="font-size:11px;color:var(--gray);margin-top:6px;font-style:italic">'
           + 'Base : valeur de marché ' + fmt(st.valMarche) + ' (Villejuif en valeur livrée), équité ' + fmt(st.equite) + '. '
           + 'Hypothèse : +1 pt de taux \u2248 \u22128,5 % de capacité d\u2019emprunt, transmission prix ~65 % (2022-2024, zone tendue). '
-          + 'Le CRD étant fixe, le choc de valeur passe intégralement dans l\u2019équité (effet levier). Clauses : Vitry bloqué jusqu\u2019à 01/2028, Villejuif jusqu\u2019à ~mi-2033 \u2014 seul Rueil peut capturer un rebond à court terme.</p>';
+          + 'Le CRD étant fixe, le choc de valeur passe intégralement dans l\u2019équité (effet levier). Clauses : Vitry bloqué jusqu\u2019à 01/2028, Villejuif 5 ans après l\u2019achèvement réel (provisoirement 30/06/2033) \u2014 seul Rueil peut capturer un rebond à court terme.</p>';
       }
     } catch (e) { /* bloc optionnel */ }
     tblSens.innerHTML = html;

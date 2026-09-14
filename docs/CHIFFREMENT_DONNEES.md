@@ -20,11 +20,11 @@ l'interface, elle ne protège rien :
 ```bash
 curl https://lallakenza.github.io/networth/js/data.js
 # → HTTP 200, 261 Ko : soldes bancaires, créances nominatives, TVA,
-#   identifiant fiscal du bien de Vitry, champs de loyer en espèces.
+#   identifiant fiscal du bien de Vitry, champs de loyer privés.
 ```
 
 Le plus sensible n'est pas le montant des comptes : ce sont les champs
-`loyerCashNonDeclare` / `loyerCashAvantBail`, publics, indexables, et associés dans le même
+certains champs de loyer, publics, indexables, et associés dans le même
 fichier à un identifiant fiscal et à une adresse.
 
 ## Ce que fait le chiffrement
@@ -116,7 +116,7 @@ vérifié, et surtout **à ne pas commiter**.
 ### 4. Vérifier avant de publier
 
 ```bash
-grep -c "mashreq: 5\|loyerCashNonDeclare" js/data.js   # doit afficher 0
+grep -c "mashreq: 5\|champ privé" js/data.js   # doit afficher 0
 node --check js/data.js && node --check js/data.enc.js
 ```
 

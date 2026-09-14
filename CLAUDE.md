@@ -119,6 +119,8 @@ js/api.js :: fetchSGTMFromRepo()       ← fetch('./data/<ticker>_live.json?h=<h
 4. **KPI timing in créances**: KPIs must be computed AFTER injecting facturation items into `activeItems`. (BUG-019)
 5. **Cache-busting forgotten**: Always bump `?v=N` on ALL 7 imports in `app.js` + the script tag in `index.html`. Missing one = stale JS in production. (BUG-008)
 6. **Degiro closed account**: NAV=0, net deposits negative (-50K). Don't use `Math.max(0, ...)` on deposits. Invariant: `NAV - NetDeployed ≈ Realized + Unrealized`. (BUG-014)
+8. **Villejuif (VEFA) — v543**: before delivery the NW carries the ENGAGED COST only (calls paid − LCL CRD). Sourced facts live in `VILLEJUIF_ACTE` (data.js, with deed pages); the hybrid mark-to-progress value, the delivered market value and the realisable value are separate `horizons`, outside the NW. Never hardcode the SADEV end date (actual completion + 5 years), never use the 7.5 % tax proxy as the fees actually paid, and keep the unreconciled 323 € gap as such.
+9. **Public repository — v543**: every tracked file is public. Never commit non-lease rental income, property addresses, tax/land identifiers, bank account numbers or IBANs. `tests/confidentialite.test.js` enforces it.
 7. **Chart init order**: `refresh()` destroys charts. Always call `renderPortfolioChart()` after `refresh()` in init sequence. (BUG-003)
 
 ## File locations for common tasks

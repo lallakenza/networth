@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=542';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=542';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=542';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=542';
-import { loadSnapshots } from './api.js?v=542'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=542'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=543';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=543';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=543';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=543';
+import { loadSnapshots } from './api.js?v=543'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=543'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -575,7 +575,7 @@ export function buildCFProjection(state) {
   const labels = [];
   const vitryData = [], rueilData = [], villejuifData = [], totalData = [];
 
-  // Revenus de départ : ceux que le moteur calcule réellement (gating bail, espèces, parking,
+  // Revenus de départ : ceux que le moteur calcule réellement (gating bail,
   // charges locataires), et non des constantes réécrites à la main.
   const _vitryP = _p('vitry'), _rueilP = _p('rueil'), _vjP = _p('villejuif');
   let vitryLoyer = _vitryP ? (_vitryP.totalRevenue || 0) : 1270;

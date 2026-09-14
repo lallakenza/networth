@@ -4992,7 +4992,7 @@ Nezha démarrant à son capital engagé, réglages du graphe de richesse mémori
 ## v493 (29 août 2026) — outillage de chiffrement des données (livré, pas encore activé)
 
 Réponse au point critique de l'audit : `js/data.js` est servi publiquement (261 Ko, soldes,
-créances nominatives, GMBI, champs de loyer en espèces) et le dépôt est public. Trois pièces
+créances nominatives, GMBI, champs de loyer privés) et le dépôt est public. Trois pièces
 livrées, **inertes tant que le blob n'existe pas** : `scripts/build_encrypted_data.mjs` (extrait les
 11 blocs sensibles d'une source gardée hors dépôt, produit `js/data.enc.js` en AES-256-GCM /
 PBKDF2-SHA256 250 000 itérations, phrase jamais écrite ni journalisée, minimum 12 caractères
@@ -5024,7 +5024,7 @@ le patrimoine réel.
 ## v488 (29 août 2026) — audit, lot 2 : Budget/Immo réconciliés, Villejuif à sa valeur livrée, filtre propriétaire complété
 
 BUG-098 : `computeBudgetView` reçoit `immoView` et lit `prop.totalRevenue` au lieu de re-dériver le
-loyer sans la porte `bail` ni les espèces (Vitry 770 → 1 270 €, CF −682 → −182 €, identiques à la
+loyer sans la porte `bail` ni les compléments hors bail (Vitry 770 → 1 270 €, CF −682 → −182 €, identiques à la
 page Immo). BUG-099 : helper `valeurProjetable(prop)` — un VEFA se projette sur `deliveredValue`,
 pas sur le coût engagé (frais de sortie 2028 : 7 228 → 47 182 €) — et l'appréciation d'un bien non
 livré est gatée comme le capital (graphe de richesse aligné sur son KPI à 1 € près). BUG-100 :
@@ -5035,7 +5035,7 @@ inexistants deviennent `PORTFOLIO` (ratio SGTM figé à 50/50 dans les tooltips)
 ## v487 (29 août 2026) — correctifs de l'audit complet : assiette fiscale, dettes, insights, pipeline SGTM
 
 Premier lot de l'audit multi-agent du 29/08 (43 trouvailles vérifiées). BUG-094 : l'assiette fiscale
-de Vitry basculait sur le loyer en espèces à cause d'un `||` sur un 0 légitime — 3 365 €/an affichés
+de Vitry basculait sur le loyer hors bail à cause d'un `||` sur un 0 légitime — 3 365 €/an affichés
 contre 0 € sur la fiche du même bien ; correctif `!= null` + repli sur le loyer contractuel seul.
 BUG-095 : une créance à montant négatif (dette de 100 000 MAD) rejoint les dettes au lieu de se
 soustraire des créances garanties (45 295 → 54 588 €), NW inchangé. BUG-096 : les deux bandeaux
@@ -5055,6 +5055,73 @@ palettes vert/rouge cycliques. Changer un taux dans CASH_YIELDS reclasse tout au
 compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l'écart
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
+
+## v543 (14 septembre 2026) — Villejuif : horizons de valeur, faits sourcés ; confidentialité du dépôt
+
+### Hiérarchie des sources
+Acte authentique (05/06/2026) > tableaux d'amortissement LCL (édités le 03/07/2026) > décompte notarial
+(27/05/2026) > mails du promoteur > Notion (miroir, parfois ancien) > estimations. Un fait non documenté
+reste `null` et s'affiche comme tel ; une estimation n'est jamais présentée comme un fait. Le moteur et la
+base Supabase restent la source de calcul ; `VILLEJUIF_ACTE` (data.js) porte les faits d'acte au centime, et la
+surcouche Supabase ne les écrase plus.
+
+### Définitions — les quatre horizons d'un bien en VEFA
+| Horizon | Définition | Dans le NW |
+|---|---|---|
+| Coût engagé | appels de fonds payés − capital restant dû (intérêts différés compris) | **oui** |
+| Hybride « mark-to-progress » | coût engagé + plus-value latente estimée × avancement | non |
+| Marché à la livraison | valeur de marché estimée du bien livré (lots comparables du même immeuble) | non |
+| Réalisable / liquidative | ce qu'une cession rapporterait réellement ; avant livraison : non établie | non |
+
+L'« équité nette après sortie » d'un bien non livré est son équité au coût engagé : aucune plus-value latente.
+Les frais (notaire, EDD, garanties, dossier) entrent dans le capital investi et le rendement
+(`villejuifCapitalInvesti`), jamais dans la valeur ni le NW — les soldes de trésorerie les ont déjà absorbés.
+
+### Faits retenus (Villejuif)
+- Prix 336 330 € TTC = 280 275 € HT + 56 055 € de TVA à 20 % (p.8-9) ; quote-part EDD/RC/diagnostics 520 €
+  « charge augmentative du prix » (p.8, 9, 13).
+- Appels payés à l'acte : 114 352,20 € (34 %), **dont** le dépôt de réservation de 3 363 € (p.9).
+- Prêts LCL : 318 469,95 € (p.12). Déblocage à l'acte : P1 64 369,15 € + P2 31 800 € = 96 169,15 €.
+- CRD : ligne du tableau à la dernière échéance passée — 96 568,62 € au 05/08/2026 (équité 17 783,58 €),
+  96 771,24 € au 05/09/2026 (équité 17 580,96 €). Caduc dès qu'un nouveau tirage a lieu : l'appel
+  « fondations » (1 %, 3 363,30 €) a été émis le 03/08/2026 et relancé le 10/09/2026 comme non réglé.
+- Décompte notarial : provision de frais d'achat 6 950 € (« sauf à parfaire ou à diminuer ») + quote-part
+  520 € ; versement à la signature 118 459,20 €. Solde de compte définitif : non retrouvé.
+- Frais de financement : garanties 3 498,03 € + 672,02 € (proposition LCL du 11/07/2025), dossier 1 200 €
+  (chiffre antérieur non rattaché à une pièce).
+- Livraison contractuelle : 2e trimestre 2028, au plus tard le 30/06/2028 (p.8). Septembre 2028 : scénario
+  non vérifié. Contrat de réservation du 20/06/2025 : 1er trimestre 2028.
+- Prêts : P2 amortit dès le 05/11/2028 (124,25 €) ; P1 paie des intérêts dès le 05/11/2028 (345,70 €) et
+  amortit dès le 05/02/2029 ; fin des deux prêts le 05/01/2053. Échéance après déblocage intégral :
+  1 572,79 € + 124,99 € (offre).
+- Clause SADEV (p.17-18) : fenêtre = achèvement réel + 5 ans ; gain = revente TTC − prix TTC × ICC révision /
+  ICC base (base T4 2025 = 2 058) − travaux de l'acquéreur − frais acquittés − impôt de plus-value ; paiement
+  sous 15 jours ; notaire de la revente informé ; exonérations : mutation > 30 km, chômage, décès, divorce,
+  séparation ou dissolution de PACS, invalidité permanente, naissance gémellaire. L'acte ne chiffre aucune
+  remise et ne prévoit ni pénalité forfaitaire, ni séquestre, ni formalité par LRAR, ni obligation de
+  résidence principale ; avant paiement intégral du prix, ni jouissance ni bail sans accord du vendeur.
+  « Pas de revente avant livraison » : hypothèse à confirmer, non démontrée par l'acte.
+
+### Écart non résolu
+**323 €** entre l'apport nominal contractuel (17 860,05 € = prix − prêts) et le résiduel constaté
+(18 183,05 € = appels payés − déblocage). Aucune pièce consultée ne l'explique ; la pièce la plus
+susceptible de le faire est l'« appel de fonds à la banque » joint au mail du notaire du 27/05/2026.
+
+### Vitry et confidentialité
+Le dépôt est public. Seuls les revenus prévus au bail sont modélisés : 0 € avant la prise d'effet,
+600 € HC + 100 € de provisions ensuite. La date d'effet n'est pas confirmée (01/10, 10/10 ou 01/11/2026 selon
+les sources ; 10/10 retenue). La réalité économique, le budget et la déclaration se distinguent dans Notion
+(privé), jamais dans ce dépôt. Conséquence visible : cash-flow immobilier actuel publié −1 377 €/mois au lieu
+de −107 €/mois. Retirés : revenus hors bail, alerte et analyse de risque, adresses, identifiants fiscaux,
+numéros de compte, neuf fichiers hérités. Restent hors dépôt, à décider : historique Git, lignes Supabase
+lisibles en anonyme (`immo_properties.rent`, `nw_snapshots`), `data.js` en clair (v517).
+
+### Valeurs avant / après (moteur, 13-14/09/2026)
+| | avant | après |
+|---|---|---|
+| Villejuif actif / CRD / équité | 141 159 / 96 569 / 44 590 | 114 352 / 96 771 / 17 581 |
+| Immo : valeur / CRD / équité brute | 677 873 / 550 481 / 127 392 | 651 066 / 550 629 / 100 437 |
+| Équité nette après sortie | 116 401 | 89 446 |
 
 ## Migration données (27 août 2026) — révision RÉTROACTIVE de l'immo dans nw_snapshots
 
@@ -5084,7 +5151,7 @@ Arbitrages d'Amine sur les analyses du 27/08 (DVF Vitry 2 665 mutations + audit 
 externes) : Vitry 300K→**280 000** (4 179 €/m², convergence DVF, valueDate 2026-08), Rueil
 265K→**256 500** (248K rue + ½ prime DPE « hypothèse probable » tant que le certificat du
 lot 894 manque), Villejuif inchangé. Plan locatif Vitry : statu quo site (1 200 cash, bail
-10/10, parking voisin) — la fiche Notion porte une version divergente (gratuit, 01/11,
+10/10, stationnement) — la fiche Notion porte une version divergente (gratuit, 01/11,
 parking inclus), arbitrée par Amine. Frais de sortie : **représentant fiscal accrédité**
 (non-résident hors EEE, 0,7 % du prix si > 150K et < 30 ans, dû même à impôt nul) ajouté à
 computeExitCosts ; jeton d'exo non-résident 150 K€ (art. 150 U II 2°) documenté NON appliqué.
