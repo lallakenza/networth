@@ -58,11 +58,12 @@ git filter-repo --force --path js/data.js --blob-callback '
       blob.data = b"// Historique purge (v545) : donnees patrimoniales en clair retirees. Voir js/data.enc.js.\n"
 '
 git filter-repo --force --replace-text <(printf '%s\n' \
-  'regex:#0?19010637138==>#redacted' 'regex:#0?19101959133==>#redacted' \
-  'regex:#9925802269==>#redacted' 'regex:#6074504654==>#redacted')
+  'regex:#[0-9]{9,}==>#redacted')
 ```
 > Le `--blob-callback` remplace chaque version NON-coquille de `js/data.js` par une bannière : la
 > structure disparaît, pas seulement les valeurs. Le HEAD (coquille) est reconnu et laissé intact.
+> Le masquage des comptes utilise un **motif générique** (`#` suivi de 9 chiffres ou plus) : aucun
+> numéro réel n'est écrit dans ce dépôt public, et toutes les variantes de l'historique sont couvertes.
 
 ## 4. Publication (À TON INITIATIVE — le script ne le fait pas)
 ```bash

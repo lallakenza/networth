@@ -31,10 +31,12 @@ txt = blob.data.decode("utf-8", "replace")
 if "export const PORTFOLIO = {};" not in txt:
     blob.data = b"// Historique purge (v545) : donnees patrimoniales en clair retirees. Voir js/data.enc.js.\n"
 '
-echo "· (c) masquage des numeros de compte dans data/*_balance_*.json…"
+echo "· (c) masquage de tout numero de compte (# suivi de 9+ chiffres) dans l'historique…"
+# Motif generique : on n'ecrit AUCUN numero reel dans ce fichier suivi (sinon on re-fuit
+# ce que la purge doit retirer). filter-repo balaie tout l'historique et redige chaque
+# occurrence, y compris les variantes avec zero de tete.
 TMPR="$(mktemp)"; printf '%s\n' \
-  'regex:#0?19010637138==>#redacted' 'regex:#0?19101959133==>#redacted' \
-  'regex:#9925802269==>#redacted' 'regex:#6074504654==>#redacted' > "$TMPR"
+  'regex:#[0-9]{9,}==>#redacted' > "$TMPR"
 git filter-repo --force --replace-text "$TMPR"; rm -f "$TMPR"
 
 cat <<MSG
