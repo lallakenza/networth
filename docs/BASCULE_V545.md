@@ -74,8 +74,12 @@ ensuite.
 ## 8. Snapshot nocturne
 Le cron écrit dans une table APPEND-ONLY : sans la phrase, `daily_snapshot.mjs` REFUSE d'écrire
 (pas de faux zéro). Pour le rétablir :
-1. Dépôt GitHub → Settings → Secrets and variables → Actions → New secret : `NW_PASSPHRASE` = la phrase.
-   (Le workflow l'expose déjà ; GitHub le masque dans les logs.)
+1. **Appliquer d'abord la modif du workflow** (le jeton de l'agent n'a pas le scope `workflow`) :
+   remplacer `.github/workflows/daily-snapshot.yml` par `scratchpad/daily-snapshot.yml.v545`
+   (ajoute `permissions: contents: read` et `env: NW_PASSPHRASE: ${{ secrets.NW_PASSPHRASE }}`),
+   puis `git add .github/workflows/daily-snapshot.yml && git commit && git push`.
+2. Dépôt GitHub → Settings → Secrets and variables → Actions → New secret : `NW_PASSPHRASE` = la phrase.
+   (Le workflow l'expose alors ; GitHub le masque dans les logs.)
 2. Déclencher une fois à la main : Actions → « Daily NW snapshot » → Run workflow, et vérifier le log
    `[cron-snap] ✓ données déchiffrées (13 blocs)` puis l'insertion.
 ```bash

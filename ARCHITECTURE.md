@@ -5098,8 +5098,9 @@ Préparés sans activer le chiffrement ni toucher un secret/RLS ; l'utilisateur 
   si le trousseau est vide, l'enregistre après vérification, et part TOUJOURS du `js/data.js`
   courant (`NW_DATA_SOURCE` forcé sur la sauvegarde fraîche ; source par défaut = data.js en clair).
 - **Cron nocturne** : `scripts/daily_snapshot.mjs` déchiffre le blob via `scripts/_dechiffre.mjs`
-  (partagé) quand `NW_PASSPHRASE` est fourni ; le workflow l'expose depuis le secret dépôt
-  `NW_PASSPHRASE` (masqué par GitHub, jamais imprimé), `permissions: contents:read`. Sans phrase et
+  (partagé) quand `NW_PASSPHRASE` est fourni ; le workflow DEVRA l'exposer depuis le secret dépôt
+  `NW_PASSPHRASE` (masqué par GitHub) — modif YAML fournie (`scratchpad/daily-snapshot.yml.v545`) à
+  appliquer par l'utilisateur, le jeton de l'agent n'ayant pas le scope `workflow`. Sans phrase et
   données chiffrées → refus d'écrire (table append-only). Test `tests/snapshot-chiffre.test.js`
   (clé jetable). **Le secret GitHub n'est pas créé.**
 - **Lectures Supabase avec JWT** (item 3, `js/api.js`/`js/auth.js`) : `loadSnapshots` et
