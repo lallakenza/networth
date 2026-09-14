@@ -6,8 +6,9 @@
  *   1. Prix live Yahoo (direct, pas de CORS en Node) pour chaque position + FX.
  *   2. SGTM : data/sgtm_live.json du checkout (rafraîchi par le cron horaire existant).
  *   3. compute() headless (même moteur que le site, imports ?v= strippés → .tmp/).
- *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only, secret serveur — v545,
- *      plus d'INSERT anonyme : voir NW_SNAPSHOT_SUPABASE_KEY plus bas).
+ *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only). Authentification
+ *      gouvernée par la version : v544 = clé publishable (existant) ; v545 = secret serveur
+ *      sb_secret_… en `apikey` seul (voir NW_SUPABASE_SECRET_KEY + scripts/_snapshot_auth.mjs).
  *
  * Limites connues (flaguées dans meta) : pas de localStorage en headless → facturation
  * = fallback data.js ; fxSource='live (cron)'. La ligne du cron étant la plus récente à
@@ -18,6 +19,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { dechiffreBlobs, remplirEnPlace } from './_dechiffre.mjs';
+import { resolveSnapshotWriteAuth } from './_snapshot_auth.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--dry-run');
@@ -32,7 +34,7 @@ for (const f of ['data.js', 'engine.js', 'facturation_contract.js']) {
   const src = await readFile(join(ROOT, 'js', f), 'utf8');
   await writeFile(join(tmp, f), src.replace(/\?v=\d+/g, ''));
 }
-const { PORTFOLIO, FX_STATIC } = await import(pathToFileURL(join(tmp, 'data.js')).href);
+const { PORTFOLIO, FX_STATIC, APP_VERSION } = await import(pathToFileURL(join(tmp, 'data.js')).href);
 const { compute, buildDailySnapshot } = await import(pathToFileURL(join(tmp, 'engine.js')).href);
 
 // ── 1bis. GARDE-FOU CHIFFREMENT (v495) ────────────────────────────────────────────
@@ -140,26 +142,34 @@ console.log('[cron-snap] NW couple', snap.total.couple, '€ | qualité', qualit
 if (quality === 'static') { console.error('[cron-snap] tout statique → pas d\'insert (on ne fige pas un jour dégradé)'); process.exit(1); }
 if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'insert'); process.exit(1); }
 
-// ── 6. INSERT append-only — SECRET SERVEUR obligatoire (item 3, v545) ───────────────
-// La table nw_snapshots n'accepte plus l'INSERT anonyme : la clé publishable étant PUBLIQUE,
-// n'importe qui pouvait injecter de faux snapshots. L'écriture exige désormais un secret
-// serveur, fourni UNIQUEMENT via l'environnement GitHub Actions (NW_SNAPSHOT_SUPABASE_KEY),
-// JAMAIS présent dans le frontend (js/*). Recommandé : la clé service_role Supabase
-// (server-side, contourne RLS) ; un jeton limité au seul UID propriétaire convient aussi
-// (la policy INSERT « owner » l'accepte). Ce script LIT le secret, ne le crée ni ne l'affiche.
+// ── 6. INSERT append-only — authentification GOUVERNÉE PAR LA VERSION (items 2 & 3) ──
+// v544 (avant bascule) : comportement EXISTANT préservé → clé publishable (publique par design).
+//   Le cron nocturne continue de tourner tant que la bascule n'a pas eu lieu ; aucun secret requis.
+// v545 (dès la bascule) : échec FERMÉ → exige le secret serveur au nouveau format `sb_secret_…`
+//   (le projet a migré anon/service_role → sb_publishable_…/sb_secret_…). Cette clé n'est PAS un
+//   JWT : elle part UNIQUEMENT dans l'en-tête `apikey`, jamais en Authorization Bearer. Le secret
+//   arrive par l'environnement GitHub Actions (NW_SUPABASE_SECRET_KEY), JAMAIS dans js/ ni dans un
+//   fichier suivi. Détail dans scripts/_snapshot_auth.mjs (fonction pure, testée).
 const SUPA = 'https://mjbmtubkhlspwfqhqgvq.supabase.co';
-const SERVER_KEY = process.env.NW_SNAPSHOT_SUPABASE_KEY || '';
+const PUBLISHABLE_KEY = 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO';   // publique par design
 const snapDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 if (DRY) { console.log('[cron-snap] DRY RUN — insert sauté. Blob:', JSON.stringify(snap).length, 'octets, date', snapDate); process.exit(0); }
-if (!SERVER_KEY) {
-  console.error('[cron-snap] ✗ NW_SNAPSHOT_SUPABASE_KEY absent — AUCUNE écriture.');
-  console.error('             L\'INSERT anonyme est retiré (v545) : le cron doit présenter un secret serveur.');
-  console.error('             Ajouter le secret au dépôt et l\'exposer au job (env: NW_SNAPSHOT_SUPABASE_KEY).');
+let auth;
+try {
+  auth = resolveSnapshotWriteAuth({
+    appVersion: APP_VERSION,
+    secretKey: process.env.NW_SUPABASE_SECRET_KEY,
+    publishableKey: PUBLISHABLE_KEY,
+  });
+} catch (e) {
+  console.error('[cron-snap] ✗ ' + (e && e.message) + ' — AUCUNE écriture (v545 : échec fermé).');
+  console.error('             Ajouter le secret sb_secret_… au dépôt et l\'exposer au job (env: NW_SUPABASE_SECRET_KEY).');
   process.exit(1);
 }
+console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ')');
 const res = await fetch(SUPA + '/rest/v1/nw_snapshots', {
   method: 'POST',
-  headers: { apikey: SERVER_KEY, Authorization: 'Bearer ' + SERVER_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+  headers: auth.headers,
   body: JSON.stringify({ snap_date: snapDate, quality, data: snap }),
   signal: AbortSignal.timeout(15000),
 });
