@@ -22,10 +22,10 @@
  */
 
 // LE SUFFIXE ?v=N EST OBLIGATOIRE, PAS DÉCORATIF. Les modules ES sont indexés par URL résolue :
-// './data.js' et './data.js?v=545' sont DEUX modules distincts, donc deux objets PORTFOLIO
+// './data.js' et './data.js?v=546' sont DEUX modules distincts, donc deux objets PORTFOLIO
 // distincts. Sans ce suffixe, le déchiffrement remplissait un orphelin que personne ne lit —
 // le déverrouillage réussissait et le tableau de bord restait vide (v496 à v500).
-import * as DATA from './data.js?v=545';
+import * as DATA from './data.js?v=546';
 
 // Import DYNAMIQUE : tant que `js/data.enc.js` n'existe pas (chiffrement pas encore activé), le
 // site continue de fonctionner exactement comme avant. Cela permet de livrer ce mécanisme sans
@@ -49,7 +49,7 @@ export async function blobDisponible() {
     && Object.keys(DATA.PORTFOLIO).length > 0;
   if (clairPresent) return false;   // données en clair → pas de déchiffrement
   try {
-    DATA_ENC = (await import('./data.enc.js?v=545')).DATA_ENC;
+    DATA_ENC = (await import('./data.enc.js?v=546')).DATA_ENC;
     return !!(DATA_ENC && DATA_ENC.data);
   } catch (e) {
     // data.js vidé MAIS blob absent : état à ne jamais publier. On le signale au lieu de le taire.
@@ -89,7 +89,7 @@ export async function deverrouillerDepuisServeur() {
   if (!(await blobDisponible())) return false;
   let cle = null;
   try {
-    const auth = await import('./auth.js?v=545');
+    const auth = await import('./auth.js?v=546');
     cle = await auth.cleDeDonnees();
   } catch (e) { console.warn('[unlock] module d\'authentification indisponible :', e.message); return false; }
   if (!cle) return false;

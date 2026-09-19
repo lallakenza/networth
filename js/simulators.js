@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=545';
-import { IMMO_CONSTANTS } from './data.js?v=545';
+import { fmt, fmtAxis } from './render.js?v=546';
+import { IMMO_CONSTANTS } from './data.js?v=546';
 
 const IC = IMMO_CONSTANTS;
 

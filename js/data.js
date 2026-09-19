@@ -48,9 +48,9 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 498734.07,   // Mashreq NEO PLUS, 2 comptes (Saver 498 508,95 + Current 225,12) — MAJ 19/09/2026 (capture app, solde disponible)
-      wioSavings: 423000,   // Wio — espaces d'épargne d'AMINE (mauves : 50K+54K+100,5K+7K+100K+100,5K+11K) — MAJ 19/09/2026 ; total app 524 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED)
+      wioSavings: 498000,   // Wio — espaces d'épargne d'AMINE (mauves : 50K+54K+100,5K+7K+100K+100,5K+11K+75K) — MAJ 19/09/2026 ; total app 599 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED). +75 000 le 19/09 depuis Wio Business (espace jusqu'au 19/10)
       wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
-      wioBusiness: 77975.63, // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app : compte AED 77 975,63 ; sous-compte « Consulting revenue USD » 0)
+      wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 833,      // Revolut TOTAL toutes poches en EUR (EUR 112,58 + USD 825,73≈720,40) — MAJ 19/07/2026 (app.revolut.com live)
       banquePopulaire: 1968,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/07/2026 (espace client live, solde 1 967,60)
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
@@ -65,7 +65,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 138943.56,  // Attijariwafa MRA current account (0% rendement) — MAJ 19/09/2026 (Attijarinet live ; inclut 3 virements reçus le 19/09 encore « en cours » : 50 000 + 50 000 + 18 000)
+      attijari: 138943.56,  // Attijariwafa MRA current account (0% rendement) — MAJ 19/09/2026 (Attijarinet live ; inclut 3 virements reçus le 19/09 encore « en cours » : 50 000 + 50 000 + 18 000 ; ~100 000 MAD RÉSERVÉS pour un virement à Mehdi annoncé le 19/09 (pas encore parti — cash volontairement non placé))
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
       cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app), confirmé inchangé le 19/09/2026 (Amine : « 29 275 MAD »)
       _lastUpdate: '2026-07-12',
@@ -1383,7 +1383,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v545';
+export const APP_VERSION = 'v546';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
