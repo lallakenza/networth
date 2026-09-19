@@ -1,8 +1,8 @@
 {
   "ticker": "SGTM",
-  "priceMAD": 673.0,
+  "priceMAD": 580.0,
   "currency": "MAD",
-  "lastUpdate": "2026-08-05T14:54:46Z",
+  "lastUpdate": "2026-09-19T01:37:03Z",
   "source": "casablanca-bourse.com",
-  "raw": "673,00"
+  "raw": "580"
 }
