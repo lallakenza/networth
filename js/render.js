@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=547';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=547';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=548';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=548';
 
 // ---- Generic table sort utility ----
 /**
@@ -702,8 +702,9 @@ function renderExpandSubs(state, view, options = {}) {
     setHTML('subVehiclesDetail', 'Porsche Cayenne ' + Math.round((veh.cayenne || 0) / 1000) + 'K<br>Mercedes Class A ' + Math.round((veh.mercedes || 0) / 1000) + 'K');
     setEur('subVehicles', totalVeh);
   }
-  const tvaVal = Math.abs(p0.amine.tva || 0);
-  setHTML('subTVADetail', 'Passif fiscal<br>Provision estimee');
+  const tvaVal = Math.abs(tvaPonderee(p0.amine));
+  const tvaProb = p0.amine.tvaProbability != null ? p0.amine.tvaProbability : 1;
+  setHTML('subTVADetail', tvaProb < 1 ? 'Passif fiscal<br>' + Math.round(tvaProb * 100) + ' % de ' + Math.round(Math.abs(p0.amine.tva || 0) / 1000) + 'K nominal' : 'Passif fiscal<br>Provision estimee');
   const tvaEl = document.getElementById('subTVA');
   if (tvaEl) { tvaEl.setAttribute('data-eur', Math.round(tvaVal)); tvaEl.setAttribute('data-sign', '-'); }
 
@@ -935,12 +936,12 @@ function renderDynamicInsights(state, view) {
     // une autre porte, et les créances recouvrées sont déjà dans le cash.
     const compteNW = (state.amine.recvPro || 0) + (state.amine.recvPersonal || 0);
     const totalVeh = (p.amine.vehicles.cayenne || 0) + (p.amine.vehicles.mercedes || 0);
-    const tvaAbs = Math.abs(p.amine.tva || 0);
+    const tvaAbs = Math.abs(tvaPonderee(p.amine));
     otherIns.innerHTML =
       '<strong>Insights Autres :</strong><br>' +
       '- <span style="color:var(--green)">' + N(totalCreances) + ' de creances au NOMINAL, dont ' + K(guarCreances) + ' garanties (delai 45j) et ' + K(nonGarantiCreances) + ' non garanties.</span> Par nature : ' + K(_crv.totalPro || 0) + ' pro, ' + K(persoCreances) + ' perso. ' + K(compteNW) + ' seulement entrent au patrimoine (hors facturation, comptee a part, et hors recouvre, deja en cash).<br>' +
       '- Vehicules (' + K(totalVeh) + ') sont des actifs depreciants. La Porsche Cayenne perd ~5-7K/an. Considerer la revente dans 2-3 ans pour reinvestir.<br>' +
-      '- TVA (-' + K(tvaAbs) + ') est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>' +
+      '- TVA (-' + K(tvaAbs) + ((p.amine.tvaProbability != null && p.amine.tvaProbability < 1) ? ', ponderee a ' + Math.round(p.amine.tvaProbability * 100) + ' % du nominal ' + K(Math.abs(p.amine.tva || 0)) + ') : peu probable qu\'elle soit reclamee, mais a garder en reserve.<br>' : ') est un passif a court terme. Prevoir le paiement dans les prochains mois.<br>') +
       '- <span style="color:var(--red)">Risque :</span> Le non garanti (' + K(nonGarantiCreances) + ') est difficilement recouvrable a court terme \u2014 a ne pas compter dans la tresorerie operationnelle. Les ' + K(guarCreances) + ' garantis sont assimilables a du cash.';
   }
 
@@ -8023,7 +8024,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=547').then(m => {
+  import('./charts.js?v=548').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

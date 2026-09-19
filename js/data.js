@@ -51,8 +51,8 @@ export const PORTFOLIO = {
       wioSavings: 498000,   // Wio — espaces d'épargne d'AMINE (mauves : 50K+54K+100,5K+7K+100K+100,5K+11K+75K) — MAJ 19/09/2026 ; total app 599 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED). +75 000 le 19/09 depuis Wio Business (espace jusqu'au 19/10)
       wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
-      revolutEUR: 833,      // Revolut TOTAL toutes poches en EUR (EUR 112,58 + USD 825,73≈720,40) — MAJ 19/07/2026 (app.revolut.com live)
-      banquePopulaire: 1968,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/07/2026 (espace client live, solde 1 967,60)
+      revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
+      banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
       ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
@@ -643,9 +643,10 @@ export const PORTFOLIO = {
         { id: 'INVSNT002', label: 'SAP & Tax — INVSNT002 (fév, 20j × 910€)', amount: 18200, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-01', lastContact: '2026-07-13', payments: [{ amount: 18200, date: '2026-04-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
         // INVSNT003 — SAP & Tax mars — SOLDÉ
         { id: 'INVSNT003', label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-05-01', lastContact: '2026-07-13', payments: [{ amount: 19565, date: '2026-05-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
-        // INVSNT006 — SAP & Tax (facture 01/06/2026) — SEULE CRÉANCE PRO EN COURS
-        { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-07-01', lastContact: '2026-07-13', payments: [], notes: 'Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
-        // INVSNT007 et INVSNT008 — factures émises, NON ENCAISSÉES.
+        // INVSNT006 — SAP & Tax (facture 01/06/2026) — SOLDÉ (constaté 19/09/2026)
+        { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-07-01', lastContact: '2026-09-19', payments: [{ amount: 19124.79, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
+        // INVSNT007 — PAYÉE (constaté 19/09/2026). INVSNT008 — émise, NON ENCAISSÉE.
+        // Le client paie en général ~1 mois après l'échéance de facture, vers le 3-4 du mois suivant.
         // Elles manquaient au registre : jusqu'ici INVSNT006 était présentée comme la SEULE
         // créance pro en cours, alors que deux factures postérieures avaient été émises. Le
         // registre était donc incomplet de 33 215 EUR.
@@ -655,25 +656,30 @@ export const PORTFOLIO = {
         // `payments: []` : aucune date de règlement n'est connue, aucune n'est inventée.
         // Vérifié avant ajout : aucun encaissement de 18 655 ni 14 560 EUR n'existe déjà dans
         // les données — pas de double comptage avec le cash.
-        { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-09-01', lastContact: '2026-08-01', payments: [], notes: 'Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
+        { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-09-01', lastContact: '2026-09-19', payments: [{ amount: 18655, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
         { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026)', amount: 14560, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-10-01', lastContact: '2026-09-01', payments: [], notes: 'Facture 01/09/2026, échéance 01/10/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
+        // Accrual septembre 2026 — travaillé, PAS ENCORE FACTURÉ (facture attendue 01/10, encaissement ~03-04/11).
+        // Jours = timesheet Notion « Timesheet 2026 - LOREAL / NEO » : 01-04, 07-11, 14-18/09 = 14 j × 910 € (arrêté au 18/09).
+        // À remplacer par la facture INVSNT009 dès son émission (et à compléter des jours du 21 au 30/09).
+        { id: 'ACCSNT09', label: 'SAP & Tax — accrual septembre (14j × 910€, au 18/09)', amount: 12740, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-09-19', payments: [], notes: 'Non facturé : 14 jours travaillés du 01/09 au 18/09 (timesheet Notion) × 910 €. Facture attendue 01/10/2026, encaissement attendu ~03-04/11/2026.' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
         { id: 'CREB02', label: 'Loyers impayés (Janv + Fév)', amount: 2400, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-03-01', lastContact: '2026-04-12', payments: [{ amount: 2400, date: '2026-04-12', currency: 'EUR' }], notes: 'Loyers janv+fév payés le 12/04/2026' },
         { id: 'CREP01', label: 'Kenza', amount: 200000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-02-15', payments: [], notes: 'Remboursement prévu après vente terrain' },
-        { id: 'CREP02', label: 'Abdelkader', amount: 55000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 0.7, status: 'en_cours', dueDate: '2026-06-30', lastContact: '2026-01-10', payments: [], notes: '' },
         // Mehdi — 30 000 MAD existant + avance 1 000 EUR du 12/04/2026
         { id: 'CREP03', label: 'Mehdi', amount: 30000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-09-30', lastContact: '2026-08-28', payments: [{ amount: 30000, date: '2026-08-28', currency: 'MAD' }], notes: 'Réglé (28/08/2026)' },
         { id: 'CREP04', label: 'Mehdi — avance', amount: 1000, currency: 'EUR', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: '2026-06-30', lastContact: '2026-08-28', payments: [{ amount: 1000, date: '2026-08-28', currency: 'EUR' }], notes: 'Avance de 1000€ le 12/04/2026 — réglée (28/08/2026)' },
-        // v484 (28/08/2026) — Aby : « 20k MAD et 4600 euros, c'est tout ce qu'il doit » ; échéance non convenue (placeholder fin d'année)
-        { id: 'CREP06', label: 'Aby', amount: 20000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
-        { id: 'CREP07', label: 'Aby — EUR', amount: 4600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-08-28', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
+        // v548 (19/09/2026) — Aby/Abdelkader = une seule personne. Reste dû : 20 000 MAD + 1 860 EUR
+        // (remplace les 3 lignes Abdelkader 55 000 MAD / Aby 20 000 MAD / Aby 4 600 EUR) ; échéance non convenue (placeholder fin d'année)
+        { id: 'CREP06', label: 'Aby (Abdelkader)', amount: 20000, currency: 'MAD', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
+        { id: 'CREP07', label: 'Aby (Abdelkader) — EUR', amount: 1860, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
         // v484 — DETTE (montant négatif, sommé linéairement dans recvPersonal) : Mehdi a prêté
         // 100K MAD à Amine (« il me les a prêtés et je les ai utilisés ») — à rembourser.
         { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-08-28', payments: [], notes: 'Emprunt utilisé — dette certaine, sans échéance convenue' },
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
-        // Anas — remboursé le 7 mars 2026 → supprimé
+        // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
+        { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
       ],
     },
 
@@ -1030,7 +1036,10 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     // PASSIF — dettes / obligations
     // ──────────────────────────────────────────────────────
-    tva: -16000,             // TVA à payer (négatif = dette)
+    tva: -16000,             // TVA à payer (négatif = dette) — montant NOMINAL
+    // Probabilité que la TVA soit effectivement réclamée/payée (v548, 19/09/2026 : Amine estime
+    // qu'elle ne sera probablement pas réclamée). Le NW porte tva × tvaProbability, comme les créances.
+    tvaProbability: 0.25,
 
     // ──────────────────────────────────────────────────────
     // FACTURATION — Positions inter-personnes
@@ -1383,7 +1392,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v547';
+export const APP_VERSION = 'v548';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

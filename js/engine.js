@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=547';
-import { lireContratEnCache } from './facturation_contract.js?v=547';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=548';
+import { lireContratEnCache } from './facturation_contract.js?v=548';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3914,6 +3914,12 @@ function computeImmoView(portfolio, fx) {
 /**
  * Compute creances view data
  */
+// Expected TVA liability carried in the NW: nominal × probability (same weighting as créances).
+export function tvaPonderee(amine) {
+  const prob = amine.tvaProbability != null ? amine.tvaProbability : 1;
+  return (amine.tva || 0) * prob;
+}
+
 function computeCreancesView(portfolio, fx) {
   const allItems = [];
   const today = new Date();
@@ -3985,7 +3991,8 @@ function computeCreancesView(portfolio, fx) {
     }));
   // TVA
   if (portfolio.amine.tva && portfolio.amine.tva < 0) {
-    dettes.push({ label: 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(portfolio.amine.tva), owner: 'Amine', type: 'pro' });
+    const prob = portfolio.amine.tvaProbability != null ? portfolio.amine.tvaProbability : 1;
+    dettes.push({ label: prob < 1 ? 'TVA à payer (' + Math.round(prob * 100) + ' % probable)' : 'TVA à payer', amount: Math.abs(portfolio.amine.tva), currency: 'EUR', amountEUR: Math.abs(tvaPonderee(portfolio.amine)), owner: 'Amine', type: 'pro' });
   }
   // ── Facturation : MÊME source que le calcul du patrimoine ─────────────────────────────
   // Ce bloc reconstruisait les lignes à partir du localStorage brut pendant que le calcul du
@@ -4553,7 +4560,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     });
   }
 
-  const amineTva = p.amine.tva;
+  const amineTva = tvaPonderee(p.amine);
 
   // Facturation positions (inter-personnes: Augustin/Azarkan, Benoit/Badre, ...)
   // Source: https://lallakenza.github.io/facturation/ via shared localStorage

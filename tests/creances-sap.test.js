@@ -22,7 +22,8 @@ const ATTENDUES = {
   INVSNT007: { montant: 18655,    echeance: '2026-09-01' },
   INVSNT008: { montant: 14560,    echeance: '2026-10-01' },
 };
-const TOTAL_PRO_ATTENDU = 52339.79;
+// v548 : INVSNT006/007 payées (recouvré) ; restent INVSNT008 (14 560) + accrual septembre ACCSNT09 (12 740).
+const TOTAL_PRO_ATTENDU = 27300;
 
 (async () => {
   const echecs = [];
