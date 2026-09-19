@@ -87,16 +87,17 @@ const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-10-11' ? 14560 : 0) + (AUJ_ISO < '202
     }
   }
 
-  // Alertes : une facture échue doit alerter, une facture à échoir non.
-  const auj = new Date();
+  // Alertes (v550) : SAP & Tax paie selon le contrat (~échéance + quelques jours) — ce n'est PAS
+  // une créance douteuse. Aucune facture SAP ne doit produire d'alerte de retard ni de relance.
   const alertes = computeAlerts(s);
-  for (const [id, att] of Object.entries(ATTENDUES)) {
-    const f = items.find(i => i.id === id);
-    if (!f || f.status !== 'en_cours') continue;
-    const echue = new Date(att.echeance + 'T00:00:00') < auj;
-    const aUneAlerte = alertes.some(a => (a.title || '').includes(id) && a.severity === 'red');
-    if (echue && !aUneAlerte) echecs.push(`${id} est échue depuis le ${att.echeance} mais ne déclenche aucune alerte de retard`);
-    if (!echue && aUneAlerte) echecs.push(`${id} n'est pas encore échue (${att.echeance}) mais déclenche une alerte de retard`);
+  for (const id of Object.keys(ATTENDUES)) {
+    if (alertes.some(a => (a.title || '').includes(id) && a.severity === 'red')) {
+      echecs.push(`${id} déclenche une alerte de retard alors que le client paie selon le contrat`);
+    }
+  }
+  for (const it of s.creancesView.allItems || s.creancesView.items || []) {
+    if (!/^(INVSNT|ACCSNT)/.test(it.id || '')) continue;
+    if (it.daysOverdue > 0 || it.needsFollowUp) echecs.push(`${it.id} affiché en retard / à relancer`);
   }
 
   if (echecs.length) {
@@ -105,5 +106,5 @@ const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-10-11' ? 14560 : 0) + (AUJ_ISO < '202
     process.exit(1);
   }
   console.log('✓ registre SAP & Tax : 3 factures uniques, règle échéance + 10 j, échéances correctes, total pro '
-    + TOTAL_PRO_ATTENDU + ' EUR, aucun double comptage, alertes conformes à la date du jour');
+    + TOTAL_PRO_ATTENDU + ' EUR, aucun double comptage, aucune alerte de retard (paiement contractuel)');
 })();

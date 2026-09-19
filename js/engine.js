@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=549';
-import { lireContratEnCache } from './facturation_contract.js?v=549';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=550';
+import { lireContratEnCache } from './facturation_contract.js?v=550';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3924,6 +3924,18 @@ export function tvaPonderee(amine) {
 // of `idPrefixes` is flipped to `recouvré` once `dueDate + graceDaysAfterDue` has passed, with a
 // presumed payment of the remaining amount dated at that cutoff. Mutates in place and is idempotent,
 // so every downstream reader (NW, créances view, render, alerts) sees the same status.
+// Contractual payer (creances.autoSettle): the client pays on the agreed schedule, so an item is
+// never "late" or "to chase" before its presumed-settlement date — it is not a doubtful receivable.
+function creanceContractuelle(c, rule) {
+  return !!(rule && (rule.idPrefixes || []).some(pre => String(c.id || '').startsWith(pre)));
+}
+function dateEncaissementAttendu(c, rule) {
+  if (!c.dueDate) return null;
+  const d = new Date(c.dueDate + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + ((rule && rule.graceDaysAfterDue) || 0));
+  return d.toISOString().slice(0, 10);
+}
+
 export function applyCreancesAutoSettle(creances, today = new Date()) {
   const rule = creances && creances.autoSettle;
   if (!rule || !Array.isArray(creances.items)) return [];
@@ -3931,10 +3943,8 @@ export function applyCreancesAutoSettle(creances, today = new Date()) {
   const todayISO = today.toISOString().slice(0, 10);
   for (const c of creances.items) {
     if (c.status !== 'en_cours' || !c.dueDate) continue;
-    if (!(rule.idPrefixes || []).some(pre => String(c.id || '').startsWith(pre))) continue;
-    const cutoff = new Date(c.dueDate + 'T00:00:00Z');
-    cutoff.setUTCDate(cutoff.getUTCDate() + (rule.graceDaysAfterDue || 0));
-    const cutoffISO = cutoff.toISOString().slice(0, 10);
+    if (!creanceContractuelle(c, rule)) continue;
+    const cutoffISO = dateEncaissementAttendu(c, rule);
     if (todayISO < cutoffISO) continue;
     const paid = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
     const remaining = c.amount - paid;
@@ -3951,8 +3961,10 @@ function computeCreancesView(portfolio, fx) {
   applyCreancesAutoSettle(portfolio.amine && portfolio.amine.creances);
   const allItems = [];
   const today = new Date();
+  const ruleAmine = portfolio.amine && portfolio.amine.creances && portfolio.amine.creances.autoSettle;
 
   function processCreance(c, owner) {
+    const contractuel = owner === 'Amine' && creanceContractuelle(c, ruleAmine);
     const amountEUR = toEUR(c.amount, c.currency, fx);
     const paymentsTotal = (c.payments || []).reduce((s, p) => s + toEUR(p.amount, c.currency, fx), 0);
     const remainingEUR = amountEUR - paymentsTotal;
@@ -3964,7 +3976,8 @@ function computeCreancesView(portfolio, fx) {
 
     // Recouvrement tracking
     let daysOverdue = 0;
-    if (c.dueDate) {
+    // Contractual payer: paying after dueDate is the agreed schedule, not a delay.
+    if (c.dueDate && !contractuel) {
       const due = new Date(c.dueDate);
       if (today > due) daysOverdue = Math.floor((today - due) / 86400000);
     }
@@ -3972,7 +3985,7 @@ function computeCreancesView(portfolio, fx) {
     if (c.lastContact) {
       daysSinceContact = Math.floor((today - new Date(c.lastContact)) / 86400000);
     }
-    const needsFollowUp = daysSinceContact > 30 && c.status !== 'recouvré';
+    const needsFollowUp = !contractuel && daysSinceContact > 30 && c.status !== 'recouvré';
     const recoveryPct = amountEUR > 0 ? (paymentsTotal / amountEUR * 100) : 0;
 
     return {
@@ -3987,6 +4000,8 @@ function computeCreancesView(portfolio, fx) {
       needsFollowUp,
       recoveryPct,
       owner,
+      contractuel,
+      expectedPaymentDate: contractuel ? dateEncaissementAttendu(c, ruleAmine) : null,
     };
   }
 
@@ -6394,6 +6409,9 @@ export function computeAlerts(state) {
         });
         continue;
       }
+      // Contractual payer (SAP & Tax): no late alert — it settles on schedule and leaves the
+      // NW on its expected payment date (applyCreancesAutoSettle).
+      if (c.contractuel) continue;
       const due = new Date(c.dueDate + 'T00:00:00');
       const overdue = -daysDiff(due);
       if (overdue > 0 && overdue < 9000) {  // filter sentinel dates

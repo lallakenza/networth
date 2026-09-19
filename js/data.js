@@ -1398,7 +1398,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v549';
+export const APP_VERSION = 'v550';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
