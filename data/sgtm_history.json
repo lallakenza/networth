@@ -5,6 +5,39 @@
   "note": "OHLCV quotidien depuis l'IPO via le websocket TradingView (scripts/tv_history.mjs). priceMAD = close. Backfill à la demande — le live runtime reste le scanner HTTP + localStorage.",
   "lastBackfill": "2026-07-17",
   "source": "tradingview-ws",
+  "closures": [
+    {
+      "date": "2026-08-14",
+      "reason": "Jour férié — Oued Ed-Dahab",
+      "evidence": "calendrier officiel BVC (casablanca-bourse.com/market-data/jours-feries) ; aucun bulletin de la cote publié (BCFR_20260814.pdf → 404)"
+    },
+    {
+      "date": "2026-08-20",
+      "reason": "Jour férié — Révolution du Roi et du Peuple",
+      "evidence": "calendrier officiel BVC (casablanca-bourse.com/market-data/jours-feries) ; aucun bulletin de la cote publié (BCFR_20260820.pdf → 404)"
+    },
+    {
+      "date": "2026-08-21",
+      "reason": "Jour férié — Fête de la Jeunesse",
+      "evidence": "calendrier officiel BVC (casablanca-bourse.com/market-data/jours-feries) ; aucun bulletin de la cote publié (BCFR_20260821.pdf → 404)"
+    },
+    {
+      "date": "2026-08-25",
+      "reason": "Jour férié — Aïd Al Mawlid (J1)",
+      "evidence": "date lunaire effective ; le calendrier BVC estimait 26-27/08 mais le bulletin du 24/08 existe et celui du 27/08 donne 707,10 (clôture du 24) comme cours précédent ; aucun bulletin de la cote publié (BCFR_20260825.pdf → 404)"
+    },
+    {
+      "date": "2026-08-26",
+      "reason": "Jour férié — Aïd Al Mawlid (J2)",
+      "evidence": "idem 25/08 ; aucun bulletin de la cote publié (BCFR_20260826.pdf → 404)"
+    },
+    {
+      "date": "2026-09-17",
+      "reason": "Séance suspendue — incident technique",
+      "evidence": "communiqués BVC 43128 (suspension, 17/09) et 43135 (reprise le 18/09) ; aucun bulletin de la cote publié (BCFR_20260917.pdf → 404)"
+    }
+  ],
+  "closuresNote": "Jours ouvrés SANS séance : volontairement absents de `series` (aucun cours n'existe). Les lecteurs appliquent le forward-fill (dernier close <= date, forwardFilled=true).",
   "series": [
     {
       "date": "2025-12-16",
