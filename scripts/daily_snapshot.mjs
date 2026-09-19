@@ -8,7 +8,8 @@
  *   3. compute() headless (même moteur que le site, imports ?v= strippés → .tmp/).
  *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only). Clé serveur sb_secret_…
  *      (NW_SUPABASE_SECRET_KEY) en `apikey` seul dès qu'elle est valide ; sans elle, repli
- *      publishable en v544 uniquement, refus en v545 (scripts/_snapshot_auth.mjs).
+ *      publishable tant que les données sont en clair, refus dès qu'elles sont chiffrées
+ *      (scripts/_snapshot_auth.mjs).
  *
  * Limites connues (flaguées dans meta) : pas de localStorage en headless → facturation
  * = fallback data.js ; fxSource='live (cron)'. La ligne du cron étant la plus récente à
@@ -76,6 +77,9 @@ async function garantirDonnees() {
   remplirEnPlace(mod, blocs);
   console.log('[cron-snap] ✓ données déchiffrées (' + Object.keys(blocs).length + ' blocs)');
 }
+// État des données AVANT déchiffrement : coquille vide ⇔ bascule faite. C'est lui, et non le numéro
+// de version, qui fixe le régime d'écriture (scripts/_snapshot_auth.mjs).
+const DONNEES_CHIFFREES = !PORTFOLIO || !PORTFOLIO.amine || Object.keys(PORTFOLIO.amine || {}).length === 0;
 await garantirDonnees();
 
 // ── 2. FX live (Yahoo, EUR base) ──
@@ -103,13 +107,16 @@ for (const [pair, key] of [['EURUSD=X', 'USD'], ['EURJPY=X', 'JPY'], ['EURAED=X'
 console.log(`[cron-snap] FX live ${fxLive}/4 →`, JSON.stringify(fx));
 
 // ── 3. Prix live par position (+ ACN pour l'ESPP) ──
-const positions = PORTFOLIO.amine.ibkr.positions || [];
+// v545 — positions des DEUX comptes IBKR (Amine + compte propre de Nezha) ; un ticker détenu des
+// deux côtés (VWCE) n'est coté qu'une fois, et son prix est appliqué à chaque ligne.
+const positions = (PORTFOLIO.amine.ibkr.positions || [])
+  .concat((PORTFOLIO.nezha && PORTFOLIO.nezha.ibkr && PORTFOLIO.nezha.ibkr.positions) || []);
 let live = 0, total = 0;
-for (const pos of positions) {
+for (const ticker of [...new Set(positions.map((x) => x.ticker))]) {
   total++;
-  const p = await yahooChart(pos.ticker);
-  if (p > 0) { pos.price = p; pos._live = true; live++; }
-  else console.warn('[cron-snap] ✗ ' + pos.ticker + ' (prix statique conservé)');
+  const p = await yahooChart(ticker);
+  if (p > 0) { positions.filter((x) => x.ticker === ticker).forEach((x) => { x.price = p; x._live = true; }); live++; }
+  else console.warn('[cron-snap] ✗ ' + ticker + ' (prix statique conservé)');
 }
 total++; // ACN (ESPP)
 const acn = await yahooChart('ACN');
@@ -143,11 +150,11 @@ if (quality === 'static') { console.error('[cron-snap] tout statique → pas d\'
 if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'insert'); process.exit(1); }
 
 // ── 6. INSERT append-only — authentification de transition (scripts/_snapshot_auth.mjs) ──
-// Secret serveur `sb_secret_…` valide (NW_SUPABASE_SECRET_KEY) → utilisé immédiatement, même en
-//   v544, dans l'en-tête `apikey` SEUL (ce n'est pas un JWT, jamais de Bearer). C'est ce qui permet
-//   de fermer la RLS avant le déploiement v545 sans interrompre le cron.
-// Pas de secret valide : v544 → repli temporaire sur la clé publishable (chemin historique) ;
-//   v545+ → échec FERMÉ, aucune écriture.
+// Secret serveur `sb_secret_…` valide (NW_SUPABASE_SECRET_KEY) → utilisé immédiatement, données
+//   chiffrées ou non, dans l'en-tête `apikey` SEUL (ce n'est pas un JWT, jamais de Bearer). C'est ce
+//   qui permet de fermer la RLS avant la bascule sans interrompre le cron.
+// Pas de secret valide : données en clair → repli temporaire sur la clé publishable (chemin
+//   historique) ; données chiffrées → échec FERMÉ, aucune écriture.
 // Le secret arrive par l'environnement GitHub Actions, JAMAIS dans js/ ni dans un fichier suivi, et
 // n'est jamais imprimé.
 const SUPA = 'https://mjbmtubkhlspwfqhqgvq.supabase.co';
@@ -157,7 +164,7 @@ if (DRY) { console.log('[cron-snap] DRY RUN — insert sauté. Blob:', JSON.stri
 let auth;
 try {
   auth = resolveSnapshotWriteAuth({
-    appVersion: APP_VERSION,
+    donneesChiffrees: DONNEES_CHIFFREES,
     secretKey: process.env.NW_SUPABASE_SECRET_KEY,
     publishableKey: PUBLISHABLE_KEY,
   });
@@ -167,7 +174,7 @@ try {
   process.exit(1);
 }
 if (auth.warning) console.warn('[cron-snap] ⚠ ' + auth.warning);
-console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ')');
+console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ', données ' + (DONNEES_CHIFFREES ? 'chiffrées' : 'en clair') + ')');
 const res = await fetch(SUPA + '/rest/v1/nw_snapshots', {
   method: 'POST',
   headers: auth.headers,

@@ -4,17 +4,23 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=544';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=545';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=544';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=544';
-import { render, applySnapshotDeltas } from './render.js?v=544';
-import { chargerContratDistant } from './facturation_contract.js?v=544';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=544';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=544';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=544';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=544';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=545';
+import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=545';
+import { render, applySnapshotDeltas } from './render.js?v=545';
+import { chargerContratDistant } from './facturation_contract.js?v=545';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=545';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=545';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=545';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=545';
+
+// v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
+// live, les références de période et le prolongement des séries s'appliquent aux deux.
+function _positionsIbkrApp() {
+  return PORTFOLIO.amine.ibkr.positions.concat((PORTFOLIO.nezha && PORTFOLIO.nezha.ibkr && PORTFOLIO.nezha.ibkr.positions) || []);
+}
 
 // v369 — Prix d'une action marocaine à une date donnée, exposé pour un usage direct
 // (console, debug, futurs conscommateurs). Ex : await getMoroccanPriceAt('SGTM','2026-06-16')
@@ -694,18 +700,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=544');
+  const auth = await import('./auth.js?v=545');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=544');
+  const auth = await import('./auth.js?v=545');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=544');
+  const auth = await import('./auth.js?v=545');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1417,8 +1423,10 @@ async function loadStockPrices(forceRefresh) {
       );
 
       // Final badge update after retries
-      const finalLive = PORTFOLIO.amine.ibkr.positions.filter(p => p._live === true).length + (PORTFOLIO.market._acnLive ? 1 : 0);
-      const finalTotal = PORTFOLIO.amine.ibkr.positions.length + 1;
+      // v545 — tickers IBKR uniques des deux comptes (Amine + Nezha)
+      const _tkIbkr = [...new Set(_positionsIbkrApp().map(p => p.ticker))];
+      const finalLive = _tkIbkr.filter(t => _positionsIbkrApp().some(p => p.ticker === t && p._live === true)).length + (PORTFOLIO.market._acnLive ? 1 : 0);
+      const finalTotal = _tkIbkr.length + 1;
       const finalSgtm = PORTFOLIO.market._sgtmLive;
       const liveTot = finalLive + (finalSgtm ? 1 : 0);
       const tickersTot = finalTotal + 1;
@@ -1437,7 +1445,7 @@ async function loadStockPrices(forceRefresh) {
 
     // ---- Background: fetch sold stock prices (always, even if some held tickers failed) ----
     {
-      const heldTickers = new Set(PORTFOLIO.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']));
+      const heldTickers = new Set(_positionsIbkrApp().map(p => p.ticker).concat(['ACN']));   // v545 — + Nezha
       // Collect unique tickers from closed positions (trades) that are not currently held
       // ibkr.trades has IBKR trades, allTrades has Degiro trades — merge both
       const allTrades = (PORTFOLIO.amine.ibkr.trades || []).concat(PORTFOLIO.amine.allTrades || []);
@@ -1488,7 +1496,7 @@ async function loadStockPrices(forceRefresh) {
         // Collect all tickers needed: current positions + sold 2026 tickers
         const ytdTickerSet = new Set();
         // Current held positions
-        PORTFOLIO.amine.ibkr.positions.forEach(p => ytdTickerSet.add(p.ticker));
+        _positionsIbkrApp().forEach(p => ytdTickerSet.add(p.ticker));   // v545 — + compte IBKR de Nezha
         // Add ESPP Accenture for YTD chart
         ytdTickerSet.add('ACN');
         // Sold positions from all trades (2025 and 2026)
@@ -1544,8 +1552,8 @@ async function loadStockPrices(forceRefresh) {
             // Prix live du ticker (positions IBKR, ou ACN pour l'ESPP). Un ticker VENDU n'a pas
             // de prix live → on n'invente rien, getClose() forward-fill sa dernière clôture.
             let live = 0;
-            const pos = PORTFOLIO.amine.ibkr.positions.find(p => p.ticker === ticker);
-            if (pos && pos._live && pos.price > 0) live = pos.price;
+            const pos = _positionsIbkrApp().find(p => p.ticker === ticker && p._live && p.price > 0);
+            if (pos) live = pos.price;
             if (ticker === 'ACN' && PORTFOLIO.market._acnLive && PORTFOLIO.market.acnPriceUSD > 0) live = PORTFOLIO.market.acnPriceUSD;
             if (!(live > 0)) return;
             if (td.dates[lastIdx] === todayStr) { td.closes[lastIdx] = live; _overridden++; }
@@ -1649,7 +1657,7 @@ async function loadStockPrices(forceRefresh) {
               return true;
             };
             let nOk = 0, nTot = 0;
-            PORTFOLIO.amine.ibkr.positions.forEach((p) => {
+            _positionsIbkrApp().forEach((p) => {   // v545 — références aussi pour le compte de Nezha
               const s = hist.tickers[p.ticker];
               if (!s || !s.dates || !s.dates.length) return;
               nTot++;

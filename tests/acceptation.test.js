@@ -100,7 +100,7 @@ t('le P&L latent en % est rapporté au coût des titres, pas au capital déploy�
 
 t('la concentration porte sur les lignes réellement listées', () => {
   const c = av.concentration;
-  const attendu = av.ibkrPositions.length
+  const attendu = av.ibkrPositions.length + (av.nezhaIbkrPositions || []).length
     + ((av.esppShares + (av.nezhaEsppShares || 0)) > 0 ? 1 : 0)
     + (av.sgtmTotal > 0 ? 1 : 0);
   assert.equal(c.nbLignes, attendu, 'nombre de lignes');
@@ -111,6 +111,31 @@ t('la concentration porte sur les lignes réellement listées', () => {
 t('la dette de marge est un passif, jamais du cash', () => {
   assert.ok(av.reconciliation.detteMarge <= 0, 'la dette devrait être ≤ 0');
   assert.ok(av.reconciliation.cashCourtier >= 0, 'le cash courtier devrait être ≥ 0');
+});
+
+// ── 2 bis. Compte IBKR PROPRE de Nezha (v545) : ventilé comme celui d'Amine ─────────────
+t('IBKR Nezha : titres en Actions, cash en Cash, NAV = titres + cash', () => {
+  const lignes = s.nezha.ibkrPositions || [];
+  assert.ok(lignes.length > 0, 'aucune ligne IBKR pour Nezha');
+  proche(s.nezha.ibkrForActions, lignes.reduce((a, x) => a + x.valEUR, 0), 0.5, 'titres IBKR Nezha');
+  proche(s.views.nezha.stocks.val, s.nezha.sgtm + s.nezha.esppForActions + s.nezha.ibkrForActions, 1, 'carte Actions Nezha');
+  proche(av.nezhaIbkrNAV, s.nezha.ibkrForActions + s.nezha.ibkrEUR, 1, 'NAV IBKR Nezha');
+  const ligneCash = cv.accounts.find((c) => c.label === 'IBKR (Nezha)');
+  assert.ok(ligneCash, 'ligne cash IBKR (Nezha) absente du tableau cash');
+  proche(ligneCash.valEUR, s.nezha.ibkrEUR, 1, 'la ligne cash ne porte que le cash, pas les titres');
+});
+
+t('chaque ligne IBKR appartient à son titulaire, y compris dans le P&L de période', () => {
+  assert.ok((av.ibkrPositions || []).every((p) => p.owner === 'Amine'), 'une ligne du compte d’Amine n’est pas à Amine');
+  assert.ok((av.nezhaIbkrPositions || []).every((p) => p.owner === 'Nezha'), 'une ligne du compte de Nezha n’est pas à Nezha');
+  const nzTickers = new Set((av.nezhaIbkrPositions || []).map((p) => p.ticker));
+  ['daily', 'mtd', 'ytd', 'oneMonth', 'oneYear'].forEach((k) => {
+    const d = av.periodPL[k];
+    (d.breakdown || []).filter((i) => / — Nezha$/.test(i.label || '')).forEach((i) => {
+      assert.equal(i.owner, 'Nezha', k + ' : ligne ' + i.label + ' sans propriétaire');
+      assert.ok(nzTickers.has(i.ticker), k + ' : ticker inattendu ' + i.ticker);
+    });
+  });
 });
 
 // ── 3. Le cash : somme, et périmètres distincts ─────────────────────────────────────────
@@ -221,24 +246,30 @@ t('aucune valeur financière de facturation n’est codée en dur dans data.js',
 // ── 6. Pont avec la NAV du graphe ───────────────────────────────────────────────────────
 t('le pont graphe↔canonique expose ses composantes', () => {
   const r = av.reconciliation;
-  ['cashEUR', 'cashUSDeur', 'cashAEDeur', 'cashJPYeur', 'esppCashTotal'].forEach((k) => {
+  ['cashEUR', 'cashUSDeur', 'cashAEDeur', 'cashJPYeur', 'esppCashTotal', 'cashIbkrNezha'].forEach((k) => {
     assert.equal(typeof r[k], 'number', 'composante ' + k + ' absente du pont');
   });
-  // Le cash courtier canonique se recompose de ses parts positives, plus l'ESPP.
+  // Le cash courtier canonique se recompose de ses parts positives, plus l'ESPP, plus le cash du
+  // compte IBKR propre de Nezha (v545).
   const positives = Math.max(0, r.cashEUR) + Math.max(0, r.cashUSDeur)
-    + Math.max(0, r.cashAEDeur) + Math.max(0, r.cashJPYeur) + r.esppCashTotal;
+    + Math.max(0, r.cashAEDeur) + Math.max(0, r.cashJPYeur) + r.esppCashTotal + Math.max(0, r.cashIbkrNezha);
   proche(positives, r.cashCourtier, 1, 'recomposition du cash courtier');
   // Le solde AED est la part que la reconstitution par les flux ne peut pas voir.
   assert.ok(r.cashAEDeur > 0, 'le solde AED devrait être positif — sinon le pont perd son objet');
 });
 
-t('14 lignes de titres, et un cash courtier non nul', () => {
-  assert.equal(av.concentration.nbLignes, 14);
+t('toutes les lignes de titres (IBKR + ACN + SGTM), et un cash courtier non nul', () => {
+  // Dérivé des données, pas figé : 12 lignes IBKR + ACN + SGTM = 14 jusqu'au 31/08/2026, puis 15
+  // avec VWCE (01/09/2026), puis + les lignes du compte IBKR propre de Nezha (v545).
+  // Ce qui compte : le bandeau compte TOUTES les lignes listées, pas les seules IBKR d'Amine.
+  const lignesAttendues = PORTFOLIO.amine.ibkr.positions.length
+    + ((PORTFOLIO.nezha.ibkr && PORTFOLIO.nezha.ibkr.positions) || []).length + 2;
+  assert.equal(av.concentration.nbLignes, lignesAttendues);
   assert.ok(av.reconciliation.cashCourtier > 0,
     'cash courtier nul : c’est le symptôme du « Cash 0 % »');
   const ins = (av.insights || []).find((i) => i.type === 'recommendation');
   assert.ok(ins, 'encadré recommandations absent');
-  assert.equal(ins.nbPositions, 14, 'le bandeau compte encore les seules lignes IBKR');
+  assert.equal(ins.nbPositions, lignesAttendues, 'le bandeau compte encore les seules lignes IBKR');
   assert.ok(ins.cashPct > 0, 'le bandeau annonce encore « Cash 0 % »');
 });
 

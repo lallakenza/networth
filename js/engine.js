@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=544';
-import { lireContratEnCache } from './facturation_contract.js?v=544';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=545';
+import { lireContratEnCache } from './facturation_contract.js?v=545';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -84,6 +84,16 @@ function computeIBKR(portfolio, fx, stockSource) {
 }
 
 /**
+ * v545 — Cash courtier du compte IBKR PROPRE de Nezha, en EUR (0 si pas de compte).
+ * Reclassé en « Cash » comme le cash courtier d'Amine ; ses titres vont en « Actions ».
+ */
+export function nezhaIbkrCashEUR(portfolio, fx) {
+  const nz = portfolio.nezha && portfolio.nezha.ibkr;
+  if (!nz) return 0;
+  return (nz.cashEUR || 0) + toEUR(nz.cashUSD || 0, 'USD', fx);
+}
+
+/**
  * Compute individual IBKR position values with P/L (for table display)
  *
  * Period P&L formula (accounts for trades during the period):
@@ -94,8 +104,9 @@ function computeIBKR(portfolio, fx, stockSource) {
  *     netCashInvested = cost of buys during period − proceeds of sells during period (in EUR)
  *     sharesAtStart = currentShares − (buys during period) + (sells during period)
  */
-function computeIBKRPositions(portfolio, fx) {
-  const ibkr = portfolio.amine.ibkr;
+function computeIBKRPositions(portfolio, fx, ibkr = portfolio.amine.ibkr, owner = 'Amine') {
+  // v545 — réutilisée pour le compte-titres PROPRE de Nezha (portfolio.nezha.ibkr) : chaque ligne
+  // porte son propriétaire, pour que les vues filtrées par personne sachent à qui elle appartient.
 
   // Group IBKR stock trades by ticker (exclude FX trades)
   const allTrades = (ibkr.trades || []).filter(t => t.type === 'buy' || t.type === 'sell');
@@ -236,7 +247,7 @@ function computeIBKRPositions(portfolio, fx) {
     // irrelevant — periodPL() handles this case: P&L = valEUR - netCashInvestedEUR
     const oneYearAgoPrice = portfolio.market?.oneYearAgoPrices?.[pos.ticker] || null;
     const oneYearPL = periodPL(oneYearAgoPrice, false, oneYearStr);
-    return { ...pos, valEUR, costEUR, costEUR_hist, unrealizedPL, pctPL, fxPL, stockPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL, oneYearPL };
+    return { ...pos, owner, valEUR, costEUR, costEUR_hist, unrealizedPL, pctPL, fxPL, stockPL, priceLabel, dailyPL, mtdPL, ytdPL, oneMonthPL, oneYearPL };
   }).sort((a, b) => b.valEUR - a.valEUR);
 
   // Compute weights
@@ -279,9 +290,10 @@ function computeIBKRPositions(portfolio, fx) {
  * @param {number} nezhaSgtm - Nezha SGTM value in EUR
  * @param {number} amineEspp - ESPP value in EUR
  * @param {number} nezhaEspp - Nezha ESPP value in EUR
+ * @param {Array} [nezhaIbkrPositions] - v545 — lignes du compte IBKR PROPRE de Nezha (owner 'Nezha')
  * @returns {Object} { ibkrNav, esppNav, sgtmNav, totalNav, positions: {...}, dividends, allocation, ... }
  */
-function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp) {
+function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp, nezhaIbkrPositions = []) {
   const ibkr = portfolio.amine.ibkr;
   const espp = portfolio.amine.espp;
   const m = portfolio.market;
@@ -300,6 +312,16 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const totalFxPL = ibkrPositions.reduce((s, p) => s + (p.fxPL || 0), 0);
   const totalStockPL = ibkrPositions.reduce((s, p) => s + (p.stockPL || 0), 0);
 
+  // v545 — compte IBKR PROPRE de Nezha. Tenu À PART des agrégats `ibkr*`, qui décrivent le
+  // compte d'Amine (dépôts, coûts, réalisé, marge, graphe) ; ajouté partout où la vue Actions
+  // additionne des titres ou du cash courtier, pour que titres + cash − dette = NAV reste vrai.
+  const _nzPos = nezhaIbkrPositions || [];
+  const nezhaIbkrTitres = _nzPos.reduce((s, p) => s + p.valEUR, 0);
+  const nezhaIbkrCout = _nzPos.reduce((s, p) => s + p.costEUR_hist, 0);
+  const nezhaIbkrLatent = nezhaIbkrTitres - nezhaIbkrCout;
+  const nezhaIbkrCash = nezhaIbkrCashEUR(portfolio, fx);
+  const nezhaIbkrNAV = nezhaIbkrTitres + nezhaIbkrCash;
+
   // ESPP cost basis & P/L — v246: use contribEUR (actual salary deductions in EUR)
   // v297 (BUG-043): esppLotCostEUR hoisted to module scope to share with engine.compute()
   const esppCostBasisEUR = (espp.lots || []).reduce((s, l) => s + esppLotCostEUR(l, 1.15), 0);
@@ -317,7 +339,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const nezhaEsppUnrealizedPL = (nezhaEsppCurrentVal + nezhaCashEUR) - nezhaEsppCostBasisEUR;
 
   // Total all stocks (IBKR + ESPP Amine + ESPP Nezha + SGTM)
-  const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
+  const totalStocks = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm + nezhaIbkrNAV;
   const _sgtmVal = amineSgtm + nezhaSgtm;
 
   const _cashJPYeur = toEUR(ibkrCashJPY, 'JPY', fx);
@@ -327,12 +349,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // créditeurs faisait afficher « Cash 0 % » alors qu'il y a 8 465 € disponibles d'un côté
   // et 9 355 € empruntés en yens de l'autre. Les deux faits sont montrés séparément.
   const _cashCourtier = Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur)
-    + Math.max(0, _cashJPYeur) + esppCashEUR + nezhaCashEUR;
+    + Math.max(0, _cashJPYeur) + esppCashEUR + nezhaCashEUR + Math.max(0, nezhaIbkrCash);
   const _detteMarge = Math.min(0, ibkrCashEUR) + Math.min(0, _cashUSDeur) + Math.min(0, _cashAEDeur)
-    + Math.min(0, _cashJPYeur);
+    + Math.min(0, _cashJPYeur) + Math.min(0, nezhaIbkrCash);
   // Concentration : une seule mesure, sur le périmètre RÉELLEMENT listé (IBKR + ESPP + SGTM).
   const _lignes = [
     ...ibkrPositions.map((p) => ({ label: p.label, valEUR: p.valEUR })),
+    ..._nzPos.map((p) => ({ label: p.label + ' — Nezha', valEUR: p.valEUR })),   // v545
     ...(espp.shares + (portfolio.nezha.espp ? portfolio.nezha.espp.shares : 0) > 0
       ? [{ label: 'Accenture (ACN)', valEUR: esppCurrentVal + nezhaEsppCurrentVal }] : []),
     ...(_sgtmVal > 0 ? [{ label: 'SGTM', valEUR: _sgtmVal }] : []),
@@ -347,7 +370,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Geo allocation from IBKR positions
   const geoAllocation = {};
-  ibkrPositions.forEach(p => {
+  ibkrPositions.concat(_nzPos).forEach(p => {   // v545 — + compte IBKR de Nezha
     const geo = p.geo || 'other';
     geoAllocation[geo] = (geoAllocation[geo] || 0) + p.valEUR;
   });
@@ -356,7 +379,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // Sector allocation from IBKR positions
   const sectorAllocation = {};
-  ibkrPositions.forEach(p => {
+  ibkrPositions.concat(_nzPos).forEach(p => {   // v545 — + compte IBKR de Nezha
     const sec = p.sector || 'other';
     sectorAllocation[sec] = (sectorAllocation[sec] || 0) + p.valEUR;
   });
@@ -372,11 +395,13 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   // v378 — allocations géo/secteur PAR PROPRIÉTAIRE (le toggle owner filtre toute la vue Actions,
   // pas seulement le graphe/tableau). 'both' garde les objets ci-dessus INCHANGÉS (zéro régression) ;
-  // on ne calcule ici que les variantes amine/nezha. IBKR = 100% Amine ; ESPP/SGTM répartis.
+  // on ne calcule ici que les variantes amine/nezha. Chaque compte IBKR à son titulaire (v545) ;
+  // ESPP/SGTM répartis.
   function _scopeActionsAlloc(inclAmine, inclNezha) {
     const geo = {}, sector = {};
-    if (inclAmine) {
-      ibkrPositions.forEach(p => {
+    const _lignesIbkr = (inclAmine ? ibkrPositions : []).concat(inclNezha ? _nzPos : []);
+    if (_lignesIbkr.length) {
+      _lignesIbkr.forEach(p => {
         geo[p.geo || 'other'] = (geo[p.geo || 'other'] || 0) + p.valEUR;
         sector[p.sector || 'other'] = (sector[p.sector || 'other'] || 0) + p.valEUR;
       });
@@ -535,7 +560,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     .filter(d => d.platform === 'Degiro' && d.amountEUR < 0)
     .reduce((s, d) => s + d.amountEUR, 0);
 
-  const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR;
+  // v545 — dépôts du compte IBKR PROPRE de Nezha. Aucun versement n'est relevé ligne à ligne :
+  // tant que le compte n'a ni vente, ni dividende, ni frais enregistrés, ce qui y a été versé est
+  // exactement cash + coût des titres détenus (identité, pas estimation). À remplacer par les
+  // versements réels quand son compte sera connecté.
+  const nezhaIbkrDeposits = nezhaIbkrCash + nezhaIbkrCout;
+  const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR + nezhaIbkrDeposits;
 
   // Cross-platform combined unrealized P/L (includes SGTM)
   // SGTM: use historical FX at IPO date (10.8 MAD/EUR) for cost basis
@@ -547,10 +577,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const sgtmUnrealizedPL = (amineSgtm + nezhaSgtm) - sgtmCostEUR_hist;
   const sgtmFxPL = sgtmCostEUR - sgtmCostEUR_hist;  // FX impact on SGTM
   const sgtmStockPL = sgtmUnrealizedPL - sgtmFxPL;
-  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL + sgtmUnrealizedPL;
+  const combinedUnrealizedPL = totalUnrealizedPL + esppUnrealizedPL + nezhaEsppUnrealizedPL + sgtmUnrealizedPL + nezhaIbkrLatent;
 
   // Cross-platform total current value (IBKR + ESPP + SGTM)
-  const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm;
+  const totalCurrentValue = ibkrNAV + amineEspp + nezhaEspp + amineSgtm + nezhaSgtm + nezhaIbkrNAV;
 
   // ── Compute P&L of CLOSED positions per period ──
   // Date strings for period boundaries (same as computeIBKRPositions)
@@ -588,7 +618,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // dégradaient : le tableau, lui, continuait d'afficher des P&L calculés contre un prix de la
   // mauvaise date. On neutralise les colonnes concernées ⇒ elles rendent « — » (render.js
   // fait `pos[periodMap[...]] || null`).
-  (ibkrPositions || []).forEach(p => {
+  (ibkrPositions || []).concat(_nzPos).forEach(p => {
     if (refStale.mtd) p.mtdPL = null;
     if (refStale.oneMonth) p.oneMonthPL = null;
     if (refStale.ytd) p.ytdPL = null;
@@ -895,6 +925,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         '(IBKR:', ibkrDepositsTotal.toFixed(0),
         '| ESPP:', esppDeposits.toFixed(0),
         '| SGTM:', sgtmDepositsEUR.toFixed(0),
+        '| IBKR Nezha:', nezhaIbkrDeposits.toFixed(0),
         '| Degiro:', degiroDepositsNet.toFixed(0), ')'
       );
     } else {
@@ -1445,14 +1476,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   //     titres + cash courtier − dette = NAV     et     titres − coût des titres = latent
   // est vérifiée plus bas et affichée en pied de tableau.
   // Titres au prix de marché, cash exclu.
-  const _valTitres = totalPositionsVal + esppCurrentVal + nezhaEsppCurrentVal + _sgtmVal;
+  const _valTitres = totalPositionsVal + esppCurrentVal + nezhaEsppCurrentVal + _sgtmVal + nezhaIbkrTitres;
   // Coût des titres DÉTENUS. Pour l'ESPP, le cash au compte est une fraction des cotisations
   // qui n'a pas été investie : le coût des parts vaut donc les cotisations moins ce cash.
   // C'est une identité comptable, et elle laisse le P&L ESPP total inchangé —
   //   (parts + cash) − cotisations  =  parts − (cotisations − cash).
   const _coutEsppParts = esppCostBasisEUR - esppCashEUR;
   const _coutEsppPartsNezha = nezhaEsppCostBasisEUR - nezhaCashEUR;
-  const _coutTitres = totalCostBasis + _coutEsppParts + _coutEsppPartsNezha + sgtmCostEUR_hist;
+  const _coutTitres = totalCostBasis + _coutEsppParts + _coutEsppPartsNezha + sgtmCostEUR_hist + nezhaIbkrCout;
   const _latentTitres = _valTitres - _coutTitres;
 
   const reconciliation = {
@@ -1465,6 +1496,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // plutôt que de laisser un écart sans nom.
     cashEUR: ibkrCashEUR, cashUSDeur: _cashUSDeur, cashAEDeur: _cashAEDeur, cashJPYeur: _cashJPYeur,
     esppCashTotal: esppCashEUR + nezhaCashEUR,
+    // v545 — cash du compte IBKR PROPRE de Nezha : une composante à part entière du cash courtier.
+    // Le graphe reconstitue le seul compte d'Amine ; cette part est donc, elle aussi, hors pont.
+    cashIbkrNezha: nezhaIbkrCash,
     detteMarge: _detteMarge,          // ≤ 0 (marge JPY)
     nav: _valTitres + _cashCourtier + _detteMarge,
     coutTitres: _coutTitres,
@@ -1480,6 +1514,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   };
   return {
     ibkrPositions,
+    // v545 — compte IBKR PROPRE de Nezha (tenu à part des agrégats du compte d'Amine)
+    nezhaIbkrPositions: _nzPos,
+    nezhaIbkrTitres,
+    nezhaIbkrCash,
+    nezhaIbkrNAV,
+    nezhaIbkrLatent,
     ibkrNAV,
     ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
     reconciliation, concentration,
@@ -1633,8 +1673,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         opts = opts || {};
         const closedPL = closedData.total;
         const closedItems = closedData.items;
-        // 1. IBKR open positions
-        const ibkrPL = sumField(field);
+        // 1. IBKR open positions (compte d'Amine + compte propre de Nezha, v545)
+        const ibkrPL = sumField(field) + _nzPos.reduce((s2, p) => s2 + (p[field] || 0), 0);
         // 2. ESPP (Amine + Nezha)
         const esppPL = esppPeriodPL(acnRefPrice, opts.prevFxUSD) + nezhaEsppPeriodPL(acnRefPrice, opts.prevFxUSD);
         // 3. SGTM — daily : variation de séance (opts.sgtmPeriodPL) ; autres périodes : plus-value
@@ -1651,6 +1691,10 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         const items = [];
         ibkrPositions.forEach(p => {
           if (p[field] != null) items.push({ label: p.label, ticker: p.ticker, pl: p[field], valEUR: p.valEUR });
+        });
+        // v545 — lignes du compte IBKR de Nezha, marquées `owner` pour la portée par propriétaire
+        _nzPos.forEach(p => {
+          if (p[field] != null) items.push({ label: p.label + ' — Nezha', ticker: p.ticker, owner: 'Nezha', pl: p[field], valEUR: p.valEUR });
         });
         if (esppPL !== 0) items.push({ label: 'Accenture (ACN)', ticker: 'ACN', pl: esppPL, valEUR: esppCurrentVal + nezhaEsppCurrentVal });
         // SGTM in breakdown (greyed out if not in total)
@@ -1817,7 +1861,7 @@ function computeCashView(portfolio, fx) {
     { label: 'Crédit Mutuel', native: p.nezha.cash.creditMutuelCC, currency: 'EUR', yield: CASH_YIELDS.nezhaCreditMutuel, owner: 'Nezha' },
     { label: 'Livret A (LCL)', native: p.nezha.cash.lclLivretA, currency: 'EUR', yield: CASH_YIELDS.nezhaLivretA, owner: 'Nezha' },
     { label: 'LCL Compte principal', native: p.nezha.cash.lclCompteDepots, currency: 'EUR', yield: CASH_YIELDS.nezhaLclDepots, owner: 'Nezha' },
-    { label: 'IBKR (Nezha)', native: p.nezha.cash.ibkrEUR || 0, currency: 'EUR', yield: CASH_YIELDS.nezhaIbkrEUR, owner: 'Nezha' },
+    { label: 'IBKR (Nezha)', native: nezhaIbkrCashEUR(p, fx), currency: 'EUR', yield: CASH_YIELDS.nezhaIbkrEUR, owner: 'Nezha' }, // v545 — cash courtier seul (titres → Actions)
     { label: 'Attijariwafa (Nezha)', native: p.nezha.cash.attijariwafarMAD, currency: 'MAD', yield: CASH_YIELDS.nezhaAttijariMAD, owner: 'Nezha' },
     { label: 'Wio UAE (Nezha)', native: p.nezha.cash.wioAED, currency: 'AED', yield: CASH_YIELDS.nezhaWioAED, owner: 'Nezha' },
   ];
@@ -4695,9 +4739,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     : 0;
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   // Nezha cash — detailed accounts
-  // v328: ajout IBKR Nezha (EUR) — traité comme cash France (broker balance, pas de positions détaillées)
+  // v545 — compte IBKR PROPRE de Nezha, ventilé comme celui d'Amine : les TITRES vont en
+  // « Actions » (valorisés au prix live), le CASH courtier reste en « Cash » (France).
+  // Avant v545 le compte était une seule ligne de cash « à investir » (valeur nette).
   const nc = p.nezha.cash;
-  const nezhaCashFranceEUR = nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + (nc.ibkrEUR || 0);
+  const nezhaIbkrPositions = p.nezha.ibkr ? computeIBKRPositions(p, fx, p.nezha.ibkr, 'Nezha') : [];
+  const nezhaIbkrForActions = nezhaIbkrPositions.reduce((s2, x) => s2 + x.valEUR, 0);
+  const nezhaIbkrCash = nezhaIbkrCashEUR(p, fx);
+  const nezhaCashFranceEUR = nc.revolutEUR + nc.creditMutuelCC + nc.lclLivretA + nc.lclCompteDepots + nezhaIbkrCash;
   const nezhaCashMarocEUR = toEUR(nc.attijariwafarMAD, 'MAD', fx);
   const nezhaCashUAE_EUR = toEUR(nc.wioAED, 'AED', fx);
   const nezhaSgtm = toEUR(p.nezha.sgtm.shares * m.sgtmPriceMAD, 'MAD', fx);
@@ -4743,7 +4792,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // When !signed: nezhaVillejuifEquity=0 and reservationFees counts (behavior unchanged).
   // When signed: nezhaVillejuifEquity counts and reservationFees=0 (no double-count by construction).
   // v328 — nezhaWatches ajouté au NW Nezha (actif physique, classé "Autres actifs")
-  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaRecvOmar + nezhaVillejuifEquity + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil;
+  const nezhaNW = nezhaRueilEquity + nezhaCash + nezhaSgtm + nezhaEsppForActions + nezhaIbkrForActions + nezhaRecvOmar + nezhaVillejuifEquity + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil;
 
   // Calculate delta from previous NW in history
   // NW_HISTORY is empty (v150), so deltas are always null
@@ -4778,7 +4827,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     creditMutuel: nc.creditMutuelCC,
     livretA: nc.lclLivretA,
     lclDepots: nc.lclCompteDepots,
-    ibkrEUR: nc.ibkrEUR || 0,  // v328 — IBKR Nezha (broker cash/NAV en EUR)
+    ibkrEUR: nezhaIbkrCash,    // v545 — cash courtier IBKR Nezha (EUR + USD→EUR) ; les titres sont dans ibkrForActions
+    ibkrForActions: nezhaIbkrForActions, // v545 — titres IBKR Nezha (VWCE, IBKR…) au prix live
+    ibkrPositions: nezhaIbkrPositions,   // v545 — lignes détaillées (owner 'Nezha')
     sgtm: nezhaSgtm,
     espp: nezhaEspp,             // full ESPP (shares + cash)
     esppForActions: nezhaEsppForActions, // shares only (cash → moved to Cash)
@@ -4803,9 +4854,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     cash: nezhaCash,
     // v305 — Patrimoine financier mobilisable côté Nezha.
     // Même définition que pour Amine : cash (tous comptes) + positions
-    // liquides (ESPP actions + SGTM). Nezha n'a pas d'IBKR direct propre
-    // (compte Amine avec ownership ratio), donc ESPP + SGTM uniquement.
-    financialMobilisable: nezhaCash + nezhaEsppForActions + nezhaSgtm,
+    // liquides (ESPP actions + SGTM + titres de son compte IBKR propre, v545).
+    financialMobilisable: nezhaCash + nezhaEsppForActions + nezhaSgtm + nezhaIbkrForActions,
     financialMobilisableBreakdown: {
       cashFrance: nezhaCashFranceEUR,         // Revolut + CM + LivretA + LCL
       cashMaroc:  nezhaCashMarocEUR,          // Attijari MAD
@@ -4813,6 +4863,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
       brokerCash: nezhaBrokerCash,            // ESPP cash UBS
       esppShares: nezhaEsppForActions,        // ESPP Nezha (shares only)
       sgtm:       nezhaSgtm,                  // SGTM Casablanca (Nezha shares)
+      ibkrTitres: nezhaIbkrForActions,        // v545 — titres IBKR Nezha
     },
   };
 
@@ -4845,7 +4896,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     immoCRD: coupleImmoCRD,
     nbBiens: nbBiens,
     cashTotal: amineCashTotal + nezhaCash, // includes broker cash (IBKR EUR/USD + ESPP)
-    actionsTotal: amineIbkrForActions + amineEsppShares + amineSgtm + nezhaEsppForActions + nezhaSgtm,
+    actionsTotal: amineIbkrForActions + amineEsppShares + amineSgtm + nezhaEsppForActions + nezhaSgtm + nezhaIbkrForActions,
     // v305 — Mobilisable couple = Amine mobilisable + Nezha mobilisable.
     // Identité : cashTotal + actionsTotal (par définition).
     financialMobilisable: amine.financialMobilisable + nezha.financialMobilisable,
@@ -4923,7 +4974,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         const ibkrNonCryptoVal = nonCrypto.reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
         // JPY carry trade stays with Actions (investment position), EUR/USD cash → Cash category
         const ibkrJPY = toEUR(p.amine.ibkr.cashJPY, 'JPY', fx);
-        return ibkrNonCryptoVal + ibkrJPY + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm;
+        const nezhaNonCrypto = nezhaIbkrPositions.filter(pos => pos.sector !== 'crypto').reduce((s2, pos) => s2 + pos.valEUR, 0);
+        return ibkrNonCryptoVal + ibkrJPY + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm + nezhaNonCrypto;
       })(),
       sub: [
         ...p.amine.ibkr.positions.filter(pos => pos.sector !== 'crypto').map((pos, i) => {
@@ -4939,19 +4991,25 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         // v359 — portage JPY (marge, négatif) : compris dans le total mais exclu par le filtre des
         // sous-items positifs. On le rajoute pour que Σ sous-items = total de la catégorie.
         .concat(toEUR(p.amine.ibkr.cashJPY, 'JPY', fx) < -100 ? [{ label: 'Portage JPY (marge)', val: toEUR(p.amine.ibkr.cashJPY, 'JPY', fx), color: '#94a3b8', owner: 'Amine — carry Shiseido' }] : [])
+        // v545 — titres du compte IBKR propre de Nezha, APRÈS le filtre « > 100 € » : chaque ligne
+        // est dans le total, elle doit donc être dans les sous-tuiles (garde Σsub = total).
+        .concat(nezhaIbkrPositions.filter(pos => pos.sector !== 'crypto').map((pos) => ({
+          label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: '#0891b2', owner: 'Nezha — IBKR', ticker: pos.ticker })))
     },
     {
       label: 'Crypto', color: '#f59e0b',
       total: (() => {
         return p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto')
-          .reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0);
+          .reduce((s, pos) => s + toEUR(pos.shares * pos.price, pos.currency, fx), 0)
+          + nezhaIbkrPositions.filter(pos => pos.sector === 'crypto').reduce((s2, pos) => s2 + pos.valEUR, 0);
       })(),
       sub: p.amine.ibkr.positions.filter(pos => pos.sector === 'crypto').map((pos, i) => {
         const colors = ['#f59e0b','#d97706'];
         const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
         const short = pos.label.replace(/\s*\(.*\)/, '');
         return { label: short, val: valEUR, color: colors[i % colors.length], owner: 'Amine — IBKR' };
-      })
+      }).concat(nezhaIbkrPositions.filter(pos => pos.sector === 'crypto').map((pos) => ({
+        label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: '#b45309', owner: 'Nezha — IBKR' })))
     },
     {
       label: 'Cash Productif', color: '#22c55e',
@@ -5002,7 +5060,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     couple: {
       title: 'Dashboard Patrimonial',
       subtitle: 'Amine (33 ans) & Nezha (34 ans) Koraibi \u2014 Vue consolidee',
-      stocks:    { val: amineIbkrForActions + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm, sub: 'IBKR + ESPP x2 + SGTM x2' },
+      stocks:    { val: amineIbkrForActions + amineEsppShares + nezhaEsppForActions + amineSgtm + nezhaSgtm + nezhaIbkrForActions, sub: 'IBKR x2 + ESPP x2 + SGTM x2' },
       cash:      { val: amineCashTotal + nezhaCash, sub: 'UAE + France + Maroc + Courtiers' },
       immo:      { val: coupleImmoEquity, sub: nbBiens + ' biens \u2014 Equity nette' },
       other:     { val: amineVehicles + amineRecvPro + amineRecvPersonal + amineTva + amineFacturationNet + nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil, sub: 'Vehicules + Montres + Creances + Facturation - TVA - Caution', title: 'Autres Actifs' },
@@ -5022,7 +5080,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     nezha: {
       title: 'Dashboard \u2014 Nezha Kabbaj',
       subtitle: 'Nezha Kabbaj, 34 ans \u2014 Immobilier',
-      stocks:    { val: nezhaSgtm + nezhaEsppForActions, sub: 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
+      stocks:    { val: nezhaSgtm + nezhaEsppForActions + nezhaIbkrForActions, sub: (nezhaIbkrForActions > 0 ? 'IBKR + ' : '') + 'ESPP (' + nezhaEsppShares + ' ACN) + SGTM' },
       cash:      { val: nezhaCash, sub: Math.round(nezhaCashFranceEUR/1000) + 'K France + ' + Math.round(nezhaCashMarocEUR/1000) + 'K Maroc + ' + Math.round(nezhaCashUAE_EUR/1000) + 'K UAE' },
       immo:      { val: nezhaRueilEquity + nezhaVillejuifEquity, sub: villejuifSigned ? '2 biens \u2014 Rueil + Villejuif' : '1 bien \u2014 Rueil' },
       other:     { val: nezhaRecvOmar + nezhaVillejuifReservation + nezhaWatches - nezhaCautionRueil, sub: villejuifSigned ? 'Creance Omar + Rolex - Caution' : 'Creances + Reservation + Rolex - Caution', title: 'Autres Actifs' },
@@ -5123,8 +5181,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     },
     {
       label: 'Actions', color: '#2b6cb0',
-      total: nezhaSgtm + nezhaEsppForActions,
+      total: nezhaSgtm + nezhaEsppForActions + nezhaIbkrForActions,
       sub: [
+        // v545 — titres de son compte IBKR propre (toutes les lignes : elles sont dans le total)
+        ...nezhaIbkrPositions.map((pos) => ({ label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: '#0891b2', owner: 'IBKR', ticker: pos.ticker })),
         ...(nezhaEsppForActions > 100 ? [{ label: 'ESPP Accenture', val: nezhaEsppForActions, color: '#6366f1', owner: 'UBS' }] : []),
         { label: 'SGTM', val: nezhaSgtm, color: '#818cf8', owner: 'Maroc' },
       ]
@@ -5143,8 +5203,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   ].filter(c => Math.abs(c.total) > 0);
 
   // ---- ACTIONS TREEMAP CATEGORIES (by geo) ----
-  const geoLabels = { france: 'France', crypto: 'Crypto', us: 'US / Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
-  const geoColors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e' };
+  const geoLabels = { france: 'France', crypto: 'Crypto', us: 'US / Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc', world: 'Monde' };
+  const geoColors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e', world: '#0891b2' };
   const geoColorSubs = {
     france: ['#1e3a5f','#2563eb','#3b82f6','#0284c7','#0369a1','#1d4ed8','#4338ca','#60a5fa'],
     crypto: ['#7c3aed','#a78bfa'],
@@ -5152,6 +5212,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     germany: ['#ea580c','#f97316'],
     japan: ['#dc2626','#ef4444'],
     morocco: ['#ca8a04','#eab308'],
+    world: ['#0e7490','#06b6d4'],
   };
   // v378 — treemap catégories PAR PROPRIÉTAIRE (le toggle owner filtre aussi le treemap).
   // 'both' = _buildActionsCategories(true,true) reproduit EXACTEMENT le comportement historique
@@ -5166,6 +5227,14 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         const short = pos.label.replace(/\s*\(.*\)/, '');
         const pal = geoColorSubs[geo] || ['#94a3b8'];
         geoGroups[geo].push({ label: short, val: valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR', ticker: pos.ticker });
+      });
+    }
+    if (inclNezha) {   // v545 — compte IBKR propre de Nezha
+      nezhaIbkrPositions.forEach((pos) => {
+        const geo = pos.geo || 'france';
+        if (!geoGroups[geo]) geoGroups[geo] = [];
+        const pal = geoColorSubs[geo] || ['#94a3b8'];
+        geoGroups[geo].push({ label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR Nezha', ticker: pos.ticker });
       });
     }
     const espp = (inclAmine ? amineEspp : 0) + (inclNezha ? nezhaEspp : 0);
@@ -5190,7 +5259,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const ibkrPositions = computeIBKRPositions(p, fx);
 
   // ---- NEW ASSET-TYPE VIEWS ----
-  const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp);
+  const actionsView = computeActionsView(p, fx, stockSource, amineIbkr, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp, nezhaIbkrPositions);
   // immoView already computed at top of function (needed for CRDs in NW calculations)
   const creancesView = computeCreancesView(p, fx);
   const budgetView = computeBudgetView(p, fx, immoView); // v488 — source unique des loyers (audit)
@@ -5447,6 +5516,9 @@ export function buildDailySnapshot(state) {
   if (av.nezhaEsppCurrentVal > 0) positions['ACN.ESPP.N'] = { eur: r(av.nezhaEsppCurrentVal), pl: r(av.nezhaEsppUnrealizedPL) };
   if (av.sgtmAmineVal > 0) positions['SGTM.A'] = { eur: r(av.sgtmAmineVal) };
   if (av.sgtmNezhaVal > 0) positions['SGTM.N'] = { eur: r(av.sgtmNezhaVal) };
+  // v545 — compte IBKR propre de Nezha : id suffixé « .N » (même convention qu'ACN.ESPP.N / SGTM.N),
+  // sinon sa ligne VWCE écraserait celle d'Amine sous la même clé.
+  (av.nezhaIbkrPositions || []).forEach((p) => { positions[p.ticker + '.N'] = { eur: r(p.valEUR), pl: r(p.unrealizedPL) }; });
 
   // Créances actives keyées par id (pas de nom de contrepartie dans le blob)
   const creanceItems = {};
@@ -5462,6 +5534,7 @@ export function buildDailySnapshot(state) {
     cash: { total: r(cv.totalCash), amine: r(s.amine.cashTotal), nezha: r(s.nezha.cash), yieldAvg: r2((cv.weightedAvgYield || 0) * 100), accounts },
     stocks: {
       total: r(av.totalStocks), ibkrNAV: r(av.ibkrNAV), ibkrCash: r(av.ibkrCashTotal),
+      ibkrNezhaNAV: r(av.nezhaIbkrNAV || 0), ibkrNezhaCash: r(av.nezhaIbkrCash || 0), // v545
       esppAmine: r(av.esppCurrentVal), esppNezha: r(av.nezhaEsppCurrentVal),
       sgtmAmine: r(av.sgtmAmineVal), sgtmNezha: r(av.sgtmNezhaVal),
       unrealizedPL: r(av.totalUnrealizedPL), realizedPL: r(av.combinedRealizedPL),

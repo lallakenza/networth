@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=544';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=544';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=545';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre } from './engine.js?v=545';
 
 // ---- Generic table sort utility ----
 /**
@@ -257,8 +257,9 @@ function scopePeriodPLByOwner(data, av) {
     const tk = it.ticker || '';
     if (tk === 'ACN') { const pl = it.pl * esppRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
     else if (tk === 'SGTM') { const pl = it.pl * sgtmRatio; if (Math.abs(pl) >= 0.5) scoped.push({ ...it, pl }); }
+    else if (it.owner === 'Nezha') { if (_o === 'nezha') scoped.push(it); }   // v545 — son compte IBKR
     else if (_o === 'amine') { scoped.push(it); }
-    // nezha : on saute IBKR, coûts et réalisé (elle ne trade pas)
+    // nezha : on saute l'IBKR d'Amine, ses coûts et son réalisé
   }
   // Effet FX du cash IBKR : 100 % Amine, et sans ligne dédiée (il ne vit que dans le total).
   const cfx = (_o === 'amine' && data && data.cashFxPL) ? data.cashFxPL : 0;
@@ -444,7 +445,7 @@ function renderKPIs(state, view) {
   // La carte s'intitule « Cash + Créances » mais n'affichait que le cash : la créance Omar
   // (pondérée) en était absente. Soit le libellé mentait, soit le chiffre — on aligne le chiffre.
   setEur('kpiNzCash', (s.nezha.cash || 0) + (s.nezha.recvOmar || 0));
-  setEur('kpiNzActions', s.nezha.esppForActions + s.nezha.sgtm);
+  setEur('kpiNzActions', s.nezha.esppForActions + s.nezha.sgtm + (s.nezha.ibkrForActions || 0)); // v545 — + son compte IBKR
 
   // Amine detail KPIs (show positions-only, matching Actions category)
   setEur('kpiAmIBKR', s.amine.ibkrForActions);
@@ -532,7 +533,7 @@ function renderExpandSubs(state, view, options = {}) {
   if (catH2) catH2.textContent = strict ? 'Patrimoine par Catégorie — Amine' : 'Patrimoine par Catégorie';
 
   // Sub expand card values
-  setEur('subIBKR', s.amine.ibkrForActions);
+  setEur('subIBKR', strict ? s.amine.ibkrForActions : (s.amine.ibkrForActions + (s.nezha.ibkrForActions || 0))); // v545 — sous-carte du couple : les deux comptes IBKR
   setEur('subESPP', strict ? s.amine.esppForActions : (s.amine.esppForActions + s.nezha.esppForActions));
   setEur('subSGTM', strict ? s.amine.sgtm : (s.amine.sgtm + s.nezha.sgtm));
   setEur('subUAE', s.amine.uae);
@@ -1079,11 +1080,11 @@ function renderDynamicInsights(state, view) {
       // en cours. Les deux sont dérivés.
       '<strong>Profil :</strong> ' + (function () {
         const immoN = (s.nezha.rueilEquity || 0) + (s.nezha.villejuifEquity || 0);
-        const actionsN = (s.nezha.esppForActions || 0) + (s.nezha.sgtm || 0);
+        const actionsN = (s.nezha.esppForActions || 0) + (s.nezha.sgtm || 0) + (s.nezha.ibkrForActions || 0);
         const autresN = (s.nezha.watches || 0) + (s.nezha.recvOmar || 0) - (s.nezha.cautionRueil || 0);
         const pc = (x) => s.nezha.nw > 0 ? Math.round(x / s.nezha.nw * 100) : 0;
         return 'Immobilier ' + pc(immoN) + '%, cash ' + pc(s.nezha.cash) + '%, actions ' + pc(actionsN)
-          + '% (ESPP + SGTM), autres ' + pc(autresN) + '% (montre, cr\u00e9ance, caution).';
+          + '% (' + ((s.nezha.ibkrForActions || 0) > 0 ? 'IBKR + ' : '') + 'ESPP + SGTM), autres ' + pc(autresN) + '% (montre, cr\u00e9ance, caution).';
       })() + ' ' + K(cashFR) + ' en France (dont une partie pour apport Villejuif). '
       + (function () {
         const vj = iv && iv.properties ? iv.properties.find(pr => pr.loanKey === 'villejuif') : null;
@@ -1188,7 +1189,7 @@ function renderCoupleTable(state) {
   const s = state;
   const p = state.portfolio;
   const rows = [
-    ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkrForActions + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm],
+    ['Actions & ETFs (IBKR + ' + (p.amine.espp.shares + (p.nezha.espp ? p.nezha.espp.shares : 0)) + ' ACN + ' + (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' SGTM)', s.amine.ibkrForActions + (s.nezha.ibkrForActions || 0) + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm],
     ['Cash EUR (Nezha France + Revolut + Banque Populaire Amine)', s.nezha.cashFrance + s.amine.revolutEUR + (s.amine.banquePopulaire || 0)], // v480 (audit BI) : BP manquait — écart hero/tableau
     ['Cash MAD (Nezha ' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' + Amine ' + Math.round(s.amine.moroccoMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc + s.amine.moroccoCash],
     ['Cash AED (Amine UAE + Nezha Wio ' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.amine.uae + s.nezha.cashUAE],
@@ -1253,7 +1254,9 @@ function renderNezhaTable(state, view) {
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
     ['LCL Compte principal', s.nezha.lclDepots],
-    ...((s.nezha.ibkrEUR || 0) > 0 ? [['IBKR Nezha (à investir)', s.nezha.ibkrEUR]] : []),
+    // v545 — son compte IBKR est ventilé : titres (au prix live) + cash courtier
+    ...((s.nezha.ibkrPositions || []).map((x) => ['IBKR Nezha — ' + x.label + ' (' + x.shares + ' @ ' + x.priceLabel + ')', x.valEUR])),
+    ...((s.nezha.ibkrEUR || 0) !== 0 ? [['IBKR Nezha — cash', s.nezha.ibkrEUR]] : []),
     ['Attijariwafa Maroc (' + Math.round(s.nezha.cashMarocMAD).toLocaleString('fr-FR') + ' MAD)', s.nezha.cashMaroc],
     ['Wio UAE (' + Math.round(s.nezha.cashUAE_AED).toLocaleString('fr-FR') + ' AED)', s.nezha.cashUAE],
     ...(s.nezha.brokerCash > 0 ? [['Cash ESPP (courtier)', s.nezha.brokerCash]] : []),
@@ -1627,8 +1630,8 @@ function setHTML(id, html) {
 let _allSortKey = null;
 let _allSortDir = 'desc';
 
-const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux' };
-const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc' };
+const SECTOR_LABELS = { industrials: 'Industriel', consumer: 'Conso', luxury: 'Luxe', tech: 'Tech', healthcare: 'Santé', automotive: 'Auto', crypto: 'Crypto', finance: 'Finance', materials: 'Matériaux', etf: 'ETF diversifié' };
+const GEO_LABELS = { france: 'France', germany: 'Allemagne', us: 'US', japan: 'Japon', crypto: 'Crypto', morocco: 'Maroc', world: 'Monde' };
 
 /**
  * Pont entre la NAV du GRAPHE et la NAV canonique.
@@ -2448,7 +2451,8 @@ function renderActionsView(state) {
     // IBKR appartient à 100 % à Amine : en vue Nezha, cette bande affichait IBIT et ETHA,
     // qu'elle ne détient pas. Le filtre propriétaire existait dix lignes plus haut sans lui
     // être appliqué.
-    const bouge = (showAmine ? (av.ibkrPositions || []) : []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
+    const bouge = [...(showAmine ? (av.ibkrPositions || []) : []), ...(showNezha ? (av.nezhaIbkrPositions || []) : [])]
+      .filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
     if (!bouge.length) { tmEl.innerHTML = ''; }
     else {
       const top = [...bouge].sort((a, b) => Math.abs(b.dailyPL) - Math.abs(a.dailyPL)).slice(0, 5);
@@ -2553,15 +2557,20 @@ function renderActionsView(state) {
   const totalAllVal = av.totalStocks;
   const pctFromRef = (price, ref) => (ref && ref > 0 && price > 0) ? ((price - ref) / ref * 100) : null;
   const allTrades = av.trades || [];
-  const allPositions = (showAmine ? av.ibkrPositions : []).map(p => ({ // v374 : IBKR = 100% Amine → aucune ligne pour Nezha
+  // v545 — chaque compte IBKR à son titulaire : celui d'Amine, et celui, PROPRE, de Nezha.
+  const _nzTrades = ((state.portfolio.nezha && state.portfolio.nezha.ibkr && state.portfolio.nezha.ibkr.trades) || [])
+    .map(t => ({ ...t, owner: 'Nezha' }));
+  const allPositions = [
+    ...(showAmine ? av.ibkrPositions : []).map(p => ({ ...p, broker: 'IBKR', _tradesSrc: allTrades, _ownerLbl: 'Amine' })),
+    ...(showNezha ? (av.nezhaIbkrPositions || []) : []).map(p => ({ ...p, label: p.label + ' — Nezha', broker: 'IBKR Nezha', _tradesSrc: _nzTrades, _ownerLbl: 'Nezha' })),
+  ].map(p => ({
     ...p,
-    broker: 'IBKR',
     weight: totalAllVal > 0 ? (p.valEUR / totalAllVal * 100) : 0,
     dailyPct: pctFromRef(p.price, p.previousClose),
     mtdPct: pctFromRef(p.price, p.mtdOpen),
     ytdPct: pctFromRef(p.price, p.ytdOpen),
     oneMonthPct: pctFromRef(p.price, p.oneMonthAgo),
-    _trades: allTrades.filter(t => t.ticker === p.ticker).map(t => ({ ...t, owner: 'Amine' })),
+    _trades: p._tradesSrc.filter(t => t.ticker === p.ticker).map(t => ({ ...t, owner: p._ownerLbl })),
   }));
 
   // ESPP Accenture (Amine + Nezha merged) — build trade history from lots
@@ -3321,7 +3330,8 @@ function setupKPIDetailPanels(state) {
   // IBKR d'Amine et un total de couple sous une carte scopée sur Nezha.
   const _scopees = (typeof window !== 'undefined' && window._positionsAffichees) || null;
   const _ownerPanneau = (typeof window !== 'undefined' && window._activeOwner) || 'both';
-  const allPos = _scopees ? _scopees.slice() : av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }));
+  const allPos = _scopees ? _scopees.slice() : av.ibkrPositions.map(p => ({ ...p, broker: 'IBKR' }))
+    .concat((av.nezhaIbkrPositions || []).map(p => ({ ...p, label: p.label + ' — Nezha', broker: 'IBKR Nezha' })));
   // Total cohérent avec la liste affichée (le KPI « Total » est lui aussi dérivé de cette somme
   // dès qu'un propriétaire est sélectionné).
   const _totalAffiche = _scopees
@@ -7580,7 +7590,7 @@ function attachKPIInsights(state, view) {
 
   // ── Couple view ──
   const immoEq = s.couple.immoEquity;
-  const stocksTotal = s.amine.ibkrForActions + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm;
+  const stocksTotal = s.amine.ibkrForActions + (s.nezha.ibkrForActions || 0) + s.amine.esppForActions + s.nezha.esppForActions + s.amine.sgtm + s.nezha.sgtm;
   const cashTotal = s.amine.cashTotal + s.nezha.cash;
   insights['kpiCoupleNW'] = 'Actions \u20ac' + f(stocksTotal) + ' (' + pct(stocksTotal, gt) + '%) + Immo \u20ac' + f(immoEq) + ' (' + pct(immoEq, gt) + '%) + Cash \u20ac' + f(cashTotal) + ' (' + pct(cashTotal, gt) + '%) + Autre \u20ac' + f(s.couple.autreTotal) + ' (' + pct(s.couple.autreTotal, gt) + '%).';
   insights['kpiCoupleAmNW'] = 'Amine : Actions \u20ac' + f(s.amine.ibkrForActions + s.amine.esppForActions + s.amine.sgtm) + ' + Cash \u20ac' + f(s.amine.cashTotal) + ' + Immo \u20ac' + f(s.amine.vitryEquity) + ' + Autre \u20ac' + f(s.amine.vehicles + s.amine.recvPro + s.amine.recvPersonal + s.amine.facturationNet + s.amine.tva) + '.';
@@ -8013,7 +8023,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=544').then(m => {
+  import('./charts.js?v=545').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8318,7 +8328,8 @@ function renderTopMoversCouple(state) {
   const el = document.getElementById('topMoversCouple');
   if (!el) return;
   const av = state.actionsView;
-  const bouge = ((av && av.ibkrPositions) || []).filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
+  const bouge = [...((av && av.ibkrPositions) || []), ...((av && av.nezhaIbkrPositions) || [])]
+    .filter(p => typeof p.dailyPL === 'number' && p.dailyPL !== 0);
   if (!bouge.length) { el.innerHTML = ''; return; }
   const top = [...bouge].sort((a, b) => Math.abs(b.dailyPL) - Math.abs(a.dailyPL)).slice(0, 5);
   let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 0;">'

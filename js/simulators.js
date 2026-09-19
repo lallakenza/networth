@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=544';
-import { IMMO_CONSTANTS } from './data.js?v=544';
+import { fmt, fmtAxis } from './render.js?v=545';
+import { IMMO_CONSTANTS } from './data.js?v=545';
 
 const IC = IMMO_CONSTANTS;
 
@@ -708,7 +708,7 @@ function runCoupleSimulator(state) {
   // Auparavant omis → départ sous-estimé de ~25-35K€ : actions ESPP de Nezha, facturationNet
   // d'Amine, créance Omar, montres de Nezha, caution Rueil et réservation Villejuif (si non signé).
   // Chaque actif est rangé dans le bon pool de croissance (actions / cash / statique).
-  const couplePoolActions = s.pools.actions + s.nezha.sgtm + (s.nezha.esppForActions || 0);
+  const couplePoolActions = s.pools.actions + s.nezha.sgtm + (s.nezha.esppForActions || 0) + (s.nezha.ibkrForActions || 0); // v545 — + titres IBKR de Nezha
   const couplePoolCash = s.pools.cash + s.amine.recvPro + s.amine.recvPersonal
     + (s.amine.facturationNet || 0) + s.nezha.cash + (s.nezha.recvOmar || 0)
     + (s.nezha.villejuifSigned ? 0 : (s.nezha.villejuifReservation || 0));
@@ -939,7 +939,9 @@ function runNezhaSimulator(state) {
   //    inventer un rendement.
   // `esppForActions` et non `espp` : ce dernier inclut les 96 € de cash du compte UBS, déjà
   // comptés dans `nezha.cash`. Les additionner double-comptait ce montant.
-  const autresNz = (s.nezha.esppForActions || 0) + (s.nezha.watches || 0)
+  // v545 — les titres de son compte IBKR suivent la même règle que son ESPP (tenus à plat) : le
+  // simulateur Nezha n'a pas de pool actions propre, et leur prêter un rendement serait l'inventer.
+  const autresNz = (s.nezha.esppForActions || 0) + (s.nezha.ibkrForActions || 0) + (s.nezha.watches || 0)
     + (s.nezha.recvOmar || 0) - (s.nezha.cautionRueil || 0);
 
   const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];

@@ -5056,6 +5056,38 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v545 (19 septembre 2026) — mise à jour des données ; compte IBKR propre de Nezha ventilé ; zone « Monde » ; analyses après les chiffres
+- **Données (19/09/2026)** : IBKR Amine via le connecteur (achat VWCE 50 × 166,86 € le 01/09 ; cash EUR
+  −2 511,62, JPY −1 601 380) ; Wio (épargne Amine 423 000 AED, Nezha 101 000 AED ; Business 77 975,63 AED) ;
+  Mashreq 498 734,07 AED ; Attijari Amine 138 943,56 MAD (Attijarinet) ; iBanq Bairok 0 ; Nezha : Revolut,
+  Crédit Mutuel, LCL, Attijari. `DATA_LAST_UPDATE` = 19/09/2026.
+- **Zone géographique `world`** (« Monde ») : VWCE = ETF monde capitalisant. Libellés et couleurs dans le
+  moteur, les deux camemberts, le treemap et le tableau ; retenue 0 % (aucune distribution).
+- **IBKR Nezha = compte PROPRE, ventilé comme celui d'Amine** (`PORTFOLIO.nezha.ibkr` : positions, trades,
+  cash). Avant : une seule ligne de cash « à investir ». `computeIBKRPositions(portfolio, fx, ibkr, owner)`
+  est réutilisée ; chaque ligne porte `owner` ('Amine' | 'Nezha'). Titres → « Actions » (cartes des vues
+  Nezha et Couple, treemaps, allocations géo/secteur, concentration, P&L latent) ; cash courtier →
+  « Cash » (ligne `IBKR (Nezha)`). Tenu À PART des agrégats `ibkr*` du compte d'Amine (dépôts, coûts,
+  réalisé, marge). Invariants préservés : titres + cash − dette = NAV (composante `cashIbkrNezha` du pont),
+  NAV − déposé ≈ réalisé + latent (dépôts Nezha = cash + coût des titres, identité tant qu'aucune vente
+  ni frais n'est relevé). P&L de période : lignes suffixées « — Nezha » et marquées `owner`, que
+  `scopePeriodPLByOwner` attribue à Nezha. Prix live, références de période et prolongement des séries
+  appliqués aux deux comptes (`api.js`, `app.js`) ; le cron cote aussi ses lignes ; snapshot : ids `TICKER.N`.
+  **Limite connue** : le graphe d'évolution (et donc le P&L MTD/1M/YTD/1Y des cartes, qui en vient)
+  reconstitue le seul compte d'Amine ; le compte de Nezha n'y figure pas encore.
+  **Dates de trades ESTIMÉES** (VWCE Nezha 15/09, ligne IBKR sans date) — à remplacer quand son compte
+  sera connecté.
+- **Cron : régime selon l'ÉTAT DES DONNÉES, plus selon la version** (décision du 19/09/2026) : clé
+  serveur `sb_secret_…` en `apikey` seul dès qu'elle est valide ; sans elle, repli publishable tant que les
+  données sont en clair, refus dès qu'elles sont chiffrées. La bascule n'a donc plus de numéro réservé
+  (runbook `docs/BASCULE_V545.md` mis à jour). Correctif : le cron ne cotait que les lignes d'Amine.
+- **Mise en page** : dans les sections Cash et Actions, l'analyse (« Diagnostic & Actions Urgentes »,
+  « Analyse & Recommandations ») passe APRÈS les chiffres (cash productif vs dormant par personne,
+  répartition par devise ; positions, évolution et cartes de période).
+- **Tests** : `acceptation` — ventilation IBKR Nezha (titres/cash/NAV, propriétaire de chaque ligne y
+  compris dans le P&L de période), nombre de lignes dérivé des données ; `snapshot-auth` — les quatre cas
+  par état des données, indépendance vis-à-vis du numéro de version, refus si l'état est inconnu.
+
 ## v544 — maintenance (19 septembre 2026) — scraper SGTM réparé, échec désormais visible (BUG-122)
 Hors application (aucun fichier `js/` modifié → pas de bump `?v=` ni d'`APP_VERSION`).
 - **Sources** : `scripts/scrape_sgtm.py` réécrit en HTTP simple, sans Playwright. (1) cote officielle

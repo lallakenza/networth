@@ -1,10 +1,15 @@
-# Bascule v545 — runbook d'activation, dans l'ordre sûr
+# Bascule du chiffrement — runbook d'activation, dans l'ordre sûr
+
+> Fichier nommé `BASCULE_V545` pour l'historique ; la bascule n'a PAS de numéro réservé. Depuis
+> le 19/09/2026 (v545 = mise à jour des données), le cron ne dépend plus du numéro de version mais
+> de l'**état des données** (en clair / chiffrées). La « version de bascule » est simplement celle
+> que produit `npm run bump` à l'étape 7. Le kit garde ses noms de fichiers `…v545…`.
 
 > À la fin, aucune donnée patrimoniale n'est lisible sans le compte Net Worth, le cron nocturne
 > continue d'écrire, et l'historique Git est prêt à être purgé.
 >
 > **Tous les gestes ci-dessous sont les tiens** : relever l'UID, créer les secrets, pousser le
-> workflow, exécuter le SQL, saisir la phrase, pousser v545, force-pusher la purge. L'agent n'en a
+> workflow, exécuter le SQL, saisir la phrase, pousser la version de bascule, force-pusher la purge. L'agent n'en a
 > exécuté aucun.
 >
 > Règles pendant tout le runbook :
@@ -36,15 +41,17 @@ Le cron refuse toute autre forme. Elle n'est jamais dans `js/` ni dans un fichie
 
 `scripts/_snapshot_auth.mjs`, couvert par `tests/snapshot-auth.test.js` :
 
-| Version | `NW_SUPABASE_SECRET_KEY` valide ? | Écriture |
+| Données | `NW_SUPABASE_SECRET_KEY` valide ? | Écriture |
 |---|---|---|
-| v544 | non | clé publishable, **temporairement** — ne marche que tant que la RLS n'est pas fermée |
-| v544 | oui | clé serveur, `apikey` seul — log `écriture en mode « secret » (version v544)` |
-| v545 | non | **refus** — aucune écriture, sortie en erreur |
-| v545 | oui | clé serveur, `apikey` seul |
+| en clair | non | clé publishable, **temporairement** — ne marche que tant que la RLS n'est pas fermée |
+| en clair | oui | clé serveur, `apikey` seul — log `écriture en mode « secret » (version vNNN, données en clair)` |
+| chiffrées | non | **refus** — aucune écriture, sortie en erreur |
+| chiffrées | oui | clé serveur, `apikey` seul |
 
-C'est ce qui rend l'ordre ci-dessous possible : le secret est installé et vérifié en v544, la RLS se
-ferme, puis seulement le chiffrement est activé.
+Le numéro de version n'intervient pas : les mises à jour de données peuvent monter de version
+librement avant la bascule. C'est ce qui rend l'ordre ci-dessous possible : le secret est installé et
+vérifié pendant que les données sont en clair, la RLS se ferme, puis seulement le chiffrement est
+activé.
 
 ---
 
@@ -116,14 +123,15 @@ P=/Users/amine/networth-data/activation-kit/daily-snapshot.workflow.v545.patch
 git apply --check "$P" && git apply "$P"
 git diff --stat                                   # seul .github/workflows/daily-snapshot.yml
 git add .github/workflows/daily-snapshot.yml
-git commit -m "v544: le snapshot nocturne reçoit NW_PASSPHRASE et NW_SUPABASE_SECRET_KEY"
+V=$(grep -oE "APP_VERSION = 'v[0-9]+'" js/data.js | grep -oE 'v[0-9]+')   # version courante
+git commit -m "$V: le snapshot nocturne reçoit NW_PASSPHRASE et NW_SUPABASE_SECRET_KEY"
 git push origin main
 ```
 
 Si le push est refusé faute de scope `workflow` : `gh auth refresh -h github.com -s workflow`, puis
 relancer `git push origin main`.
 
-## 4. Déclencher le workflow sous v544 et confirmer le mode serveur
+## 4. Déclencher le workflow (données en clair) et confirmer le mode serveur
 
 ```bash
 gh workflow run daily-snapshot.yml --repo lallakenza/networth
@@ -134,7 +142,7 @@ gh run view "$RUN" --repo lallakenza/networth --log | grep "cron-snap"
 ```
 
 Attendu dans le log :
-- `écriture en mode « secret » (version v544)` ;
+- `écriture en mode « secret » (version vNNN, données en clair)` ;
 - `✅ snapshot … inséré`.
 
 **Arrêt si** le log montre `mode « legacy »` ou `⚠ NW_SUPABASE_SECRET_KEY présent mais au mauvais
@@ -250,14 +258,14 @@ select 'VÉRIFICATION RLS OK' as resultat;
 
 La ligne `VÉRIFICATION RLS OK` n'apparaît que si tous les contrôles passent.
 
-**6c. Le cron survit à la RLS fermée** — relancer l'étape 4 : toujours `mode « secret » (version
-v544)` et `✅ snapshot … inséré`.
+**6c. Le cron survit à la RLS fermée** — relancer l'étape 4 : toujours `mode « secret » (…,
+données en clair)` et `✅ snapshot … inséré`.
 
-> Entre cette étape et le déploiement v545, le site v544 visité **sans session** ne reçoit plus les
+> Entre cette étape et la bascule, le site (données en clair) visité **sans session** ne reçoit plus les
 > snapshots ni le référentiel immo : l'immobilier retombe sur le cache local ou `data.js` (tenu en
 > phase avec §A) et la vue Historique reste vide. C'est attendu et ne dure que jusqu'à l'étape 7.
 
-## 7. Générer le blob, vider `data.js`, passer en v545, tester, déployer
+## 7. Générer le blob, vider `data.js`, monter de version, tester, déployer
 
 ```bash
 cd ~/networth
@@ -271,11 +279,12 @@ déchiffre, vide les 13 blocs sensibles de `js/data.js`, et contrôle l'absence 
 
 ```bash
 npm run confidentiality      # doit être vert : 13 coquilles, aucun motif privé, DOM sans montant
-npm run bump                 # v544 → v545 : ?v= de js/*.js, index.html, import du blob, APP_VERSION, sw
+npm run bump                 # vN → vN+1 (= version de bascule) : ?v= de js/*.js, index.html, import du blob, APP_VERSION, sw
 npm run verify               # lint + tests + desync
 git add js/data.js js/data.enc.js js/*.js index.html sw.js
 git status --short           # ne doit lister ni data.js.avant-chiffrement ni ~/networth-data
-git commit -m "v545: activation du chiffrement des données patrimoniales"
+V=$(grep -oE "APP_VERSION = 'v[0-9]+'" js/data.js | grep -oE 'v[0-9]+')   # la version produite par npm run bump
+git commit -m "$V: activation du chiffrement des données patrimoniales"
 git push origin main
 ```
 
@@ -284,7 +293,7 @@ Si `npm run confidentiality` ou `npm run verify` échoue : **ne pas committer**.
 Attendre le déploiement GitHub Pages :
 
 ```bash
-until curl -s "https://lallakenza.github.io/networth/?cb=$RANDOM" | grep -q "app.js?v=545"; do sleep 10; done; echo "v545 déployée"
+until curl -s "https://lallakenza.github.io/networth/?cb=$RANDOM" | grep -q "app.js?v=${V#v}"; do sleep 10; done; echo "$V déployée"
 ```
 
 ## 8. Vérifier la production
@@ -301,10 +310,10 @@ sans aucun montant avant déverrouillage, *Network* sans réponse Supabase conte
 
 **Authentifiée** : se connecter avec le compte de l'étape 1 et saisir la phrase. Le tableau se
 remplit ; contrôler le Net Worth couple et l'immobilier (valeur 651 066, CRD 550 629, équité
-100 437 / 89 446) contre la v544. La vue Historique affiche de nouveau les snapshots.
+100 437 / 89 446) contre la version précédente. La vue Historique affiche de nouveau les snapshots.
 
-**Cron en v545** : relancer l'étape 4. Attendu : `✓ données déchiffrées (13 blocs)`, `écriture en
-mode « secret » (version v545)`, `✅ snapshot … inséré`.
+**Cron après bascule** : relancer l'étape 4. Attendu : `✓ données déchiffrées (13 blocs)`, `écriture en
+mode « secret » (version vNNN, données chiffrées)`, `✅ snapshot … inséré`.
 
 ## 9. Préparer la purge — le force-push reste le tien
 
@@ -326,7 +335,7 @@ clones doivent être refaits, et ce qui a déjà été cloné reste exposé.
 |---|---|
 | Étapes 2-4 | supprimer les secrets (`gh secret delete …`) et `git revert` du commit workflow ; le cron revient au chemin publishable |
 | Étape 5 échouée | rien à défaire : le bloc est atomique |
-| Après l'étape 5 | ne **pas** rouvrir de policy anonyme. Le site v544 retombe sur `data.js` ; corriger en avant |
+| Après l'étape 5 | ne **pas** rouvrir de policy anonyme. Le site (données en clair) retombe sur `data.js` ; corriger en avant |
 | Étape 7 avant push | `git checkout -- js/data.js && rm -f js/data.enc.js` (le clair est intact) |
-| Après push v545 | `git revert` du commit v545 ; le clair reste dans `~/networth-data/data.source.js` et dans l'historique jusqu'à la purge |
+| Après push de la bascule | `git revert` du commit de bascule ; le clair reste dans `~/networth-data/data.source.js` et dans l'historique jusqu'à la purge |
 | Étape 9 | le miroir purgé n'affecte rien tant qu'il n'est pas poussé ; restauration : `git clone ~/networth-backup-<date>.bundle` |

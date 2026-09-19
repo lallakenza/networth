@@ -47,15 +47,15 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 503122.84,   // Mashreq NEO (Saver 495 840,36 + Current 7 282,48) — MAJ 28/08/2026 (captures app)
-      wioSavings: 412000,   // Wio — espaces d'épargne d'AMINE (mauves : 54K+100,5K+7K+100K+100,5K+50K) — MAJ 28/08/2026 ; l'espace rose « Flouss nezha pas touchi » (61K) est à Nezha (nezha.cash.wioAED)
+      mashreq: 498734.07,   // Mashreq NEO PLUS, 2 comptes (Saver 498 508,95 + Current 225,12) — MAJ 19/09/2026 (capture app, solde disponible)
+      wioSavings: 423000,   // Wio — espaces d'épargne d'AMINE (mauves : 50K+54K+100,5K+7K+100K+100,5K+11K) — MAJ 19/09/2026 ; total app 524 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED)
       wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
-      wioBusiness: 3144,    // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/07/2026 (relevé : 3 143,63 AED ; l'ancien 3000 était arrondi)
+      wioBusiness: 77975.63, // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app : compte AED 77 975,63 ; sous-compte « Consulting revenue USD » 0)
       revolutEUR: 833,      // Revolut TOTAL toutes poches en EUR (EUR 112,58 + USD 825,73≈720,40) — MAJ 19/07/2026 (app.revolut.com live)
       banquePopulaire: 1968,// Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/07/2026 (espace client live, solde 1 967,60)
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
-      ibanqBairok: 16176.91, // iBanq — Bairok Consulting LLC, solde consolidé EUR (EUR 16 160,55 + AED 70,41 + GBP 0)
+      ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
       bridgevaleWise: 300,   // Wise — Bridgevale Consulting (UK), EUR — « il reste plus que 300 € » (Amine, 28/08/2026)
       _lastUpdate: '2026-08-28',
     },
@@ -65,9 +65,9 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 57101,      // Attijariwafa MRA current account (0% rendement) — MAJ 19/07/2026 (Attijarinet live, solde comptable)
+      attijari: 138943.56,  // Attijariwafa MRA current account (0% rendement) — MAJ 19/09/2026 (Attijarinet live ; inclut 3 virements reçus le 19/09 encore « en cours » : 50 000 + 50 000 + 18 000)
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
-      cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app)
+      cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app), confirmé inchangé le 19/09/2026 (Amine : « 29 275 MAD »)
       _lastUpdate: '2026-07-12',
     },
 
@@ -249,11 +249,15 @@ export const PORTFOLIO = {
         { ticker: '4911.T',  shares: 500,  price: 3699.00,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 2633, oneMonthAgo: 2618.0 },
         { ticker: 'IBIT',    shares: 1200, price: 45.50,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 34.0, oneMonthAgo: 33.29 },
         { ticker: 'ETHA',    shares: 1100, price: 18.97,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 12.19, oneMonthAgo: 11.89 },
+        // VWCE = Vanguard FTSE All-World UCITS ETF USD **Acc** (capitalisant, domicile Irlande), coté Xetra en EUR.
+        // Ticker Yahoo = VWCE.DE. Acheté le 01/09/2026 : sharesAtStart=0 sur MTD/1M/YTD/1Y ⇒ les prix de
+        // référence ne servent pas au P&L de période (clôtures Yahoo relevées le 19/09/2026, pour mémoire).
+        { ticker: 'VWCE.DE', shares: 50,   price: 167.14, costBasis: 166.94, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
-      cashEUR: 5832.72,      // Solde EUR chez IBKR (connecteur 28/08/2026 soir) — après rachat JPY 4 571 € du jour
+      cashEUR: -2511.62,     // Solde EUR chez IBKR (connecteur 19/09/2026) — après achat VWCE 01/09 (−8 347,17 €) ; +2,83 € non attribués par le connecteur
       cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 12/07/2026)
-      cashJPY: -1609070.36, // Solde JPY chez IBKR (connecteur 28/08/2026 soir) — deleverage du jour : +849 863 JPY rachetés, marge réduite de ~35%
+      cashJPY: -1601380.36, // Solde JPY chez IBKR (connecteur 19/09/2026) — +7 690 ¥ depuis le 28/08 sans trade (probablement dividende Shiseido net d'intérêts JPY ; à confirmer sur relevé)
       cashAED: 11319,        // Solde AED chez IBKR — 11 319,13 (conversions EUR→AED 8-11/06/2026, connecteur 12/07/2026)
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
@@ -521,6 +525,9 @@ export const PORTFOLIO = {
         { date: '2026-03-17', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 60,   price: 131.20,  currency: 'EUR', proceeds: 7872,  realizedPL: 524.40,  commission: -3.56, costBasis: 122.46 , source: 'ibkr' },  // 60×(131.20-122.46)
         // ─── DG (Vinci) — solde position 8 avr 2026 ───
         { date: '2026-04-08', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 100,  price: 136.65,  currency: 'EUR', proceeds: 13665, realizedPL: 1419.00, commission: -6.83, costBasis: 122.46 , source: 'ibkr' },  // 100×(136.65-122.46)
+
+        // ─── VWCE (Vanguard FTSE All-World, Acc, Xetra) — position ouverte 1er sept 2026 ───
+        { date: '2026-09-01', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 166.86, currency: 'EUR', cost: 8343, commission: -4.17, costBasis: 166.94, source: 'ibkr' },  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
 
         // ═══════════════════════════════════════════════════
         //  FX TRADES — conversions de devises & carry trade
@@ -1048,13 +1055,40 @@ export const PORTFOLIO = {
   nezha: {
     // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
     cash: {
-      revolutEUR: 8215,        // EUR — Revolut France, tous comptes (0%) — MAJ 13/07/2026
-      creditMutuelCC: 5105,    // EUR — Crédit Mutuel compte courant (0%) — MAJ 13/07/2026
-      lclLivretA: 13000,       // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 13/07/2026 (−10K : apport Villejuif)
-      lclCompteDepots: 8184,   // EUR — LCL Compte principal (0%) — MAJ 13/07/2026 (−12K : apport Villejuif)
-      ibkrEUR: 16260,          // EUR — IBKR Nezha (broker, cash/NAV) — MAJ 19/04/2026
-      attijariwafarMAD: 52220, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 13/07/2026
-      wioAED: 61000,           // AED — Wio, espace « Flouss nezha pas touchi » (compte commun, espace rose = Nezha) — MAJ 28/08/2026
+      revolutEUR: 4403.76,     // EUR — Revolut France, tous comptes (0%) — MAJ 19/09/2026 (capture app ; −2 000 le 12/09)
+      creditMutuelCC: 3058.85, // EUR — Crédit Mutuel compte courant (0%) — MAJ 19/09/2026 (capture app ; échéance prêt 987,68 le 05/09)
+      lclLivretA: 8015,        // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 19/09/2026 (déclaratif Amine)
+      lclCompteDepots: 1240,   // EUR — LCL Compte principal (0%) — MAJ 19/09/2026 (déclaratif Amine)
+      attijariwafarMAD: 5532.83, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 19/09/2026 : capture 25 532,83 (après 2 × 50 000 vers Amine) − 20 000 envoyés ensuite (déclaratif, hors frais)
+      wioAED: 101000,          // AED — Wio, espaces roses « Flouss nezha pas touchi » 61 000 (→ 25/09) + « Flouss nezha pas toucher » 40 000 (→ 19/10) = Nezha — MAJ 19/09/2026
+    },
+    // ── IBKR Nezha — compte-titres PROPRE à Nezha (≠ compte d'Amine), ventilé comme celui d'Amine ──
+    // Même schéma que amine.ibkr : positions (valorisées au prix live), trades (P&L de période),
+    // cash par devise. Source : captures de l'app IBKR de Nezha le 19/09/2026 — valeur nette
+    // 16 379 €, valeur de marché des titres 8 434,32 €.
+    // Le cash courtier est reclassé en « Cash » comme pour Amine ; les titres vont en « Actions ».
+    ibkr: {
+      positions: [
+        { ticker: 'VWCE.DE', shares: 50,     price: 167.14, costBasis: 165.26, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
+        // 0,8906 action Interactive Brokers Group (NASDAQ) — ligne ANCIENNE (coût ≈ 71 USD, niveau
+        // de cours oct. 2025–avr. 2026), date d'entrée inconnue ⇒ aucun trade : le P&L de période
+        // part des cours de référence Yahoo (tous postérieurs à l'entrée probable). PRU déduit du
+        // P&L latent de l'app (116 € au total − 100,87 € sur VWCE ≈ 15 € sur cette ligne).
+        { ticker: 'IBKR',    shares: 0.8906, price: 90.69,  costBasis: 71.18,  currency: 'USD', label: 'Interactive Brokers (IBKR)', sector: 'finance', geo: 'us', ytdOpen: 67.23, mtdOpen: 90.39, oneMonthAgo: 90.54 },
+      ],
+      // ⚠ À METTRE À JOUR une fois le compte IBKR de Nezha connecté (connecteur ou relevé
+      //   d'activité) : dates, prix d'exécution et commissions RÉELS de chaque trade, date et coût
+      //   d'entrée de la ligne IBKR, cash exact. Les valeurs ci-dessous sont ESTIMÉES (19/09/2026).
+      trades: [
+        // Date ESTIMÉE : « il y a 2-3 jours » (Amine, 19/09) + seule séance Xetra récente dont la
+        // fourchette contient le PRU (15/09 : 164,98–166,08 ; le 16/09 et le 17/09 cotent au-dessus).
+        // Le PRU IBKR inclut la commission, non ventilée par l'app. Sans effet sur le P&L MTD/1M/YTD
+        // (achat postérieur au 1er sept. et au 19/08 dans les deux cas).
+        { date: '2026-09-15', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 165.26, currency: 'EUR', cost: 8263, commission: 0, costBasis: 165.26, source: 'ibkr-app', note: 'PRU commission incluse ; date déduite' },
+      ],
+      cashEUR: 7944.68,   // 16 379 (valeur nette) − 8 434,32 (valeur de marché des titres) ; l'app affiche « EUR Cash 7.94K »
+      cashUSD: 0,
+      _lastUpdate: '2026-09-19',
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
@@ -1288,6 +1322,7 @@ export const PORTFOLIO = {
       '4911.T':   2415.0,   // Shiseido (JPY)
       'IBIT':     66.37,     // iShares Bitcoin (USD)
       'ETHA':     28.48,     // iShares Ethereum (USD)
+      'VWCE.DE':  139.04,    // Vanguard FTSE All-World (EUR) — clôture Yahoo 19/09/2025 (acheté 01/09/2026 : non utilisée)
       'ACN':      274.0,    // Accenture (USD) — même que acnOneYearAgo
       // Positions fermées depuis (prix au 16 juil 2025 ; sharesAtStart=0 si achetées après)
       'QQQM':     233.8,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
@@ -1347,8 +1382,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '14/09/2026';
-export const APP_VERSION = 'v544';
+export const DATA_LAST_UPDATE = '19/09/2026';
+export const APP_VERSION = 'v545';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2898,6 +2933,7 @@ export const WHT_RATES = {
   us: 0.30,           // 30% WHT (BUG-024: UAE résident, pas de W-8BEN → taux plein 30%, vérifié QQQM 5.50/18.33)
   japan: 0.15,        // 15% WHT (convention FR-JP)
   crypto: 0,          // ETFs crypto = 0% (pas de distribution)
+  world: 0,           // ETF monde capitalisant (VWCE) : aucune distribution ⇒ aucune retenue visible (la retenue interne au fonds est déjà dans son cours)
   morocco: 0.15,      // 15% WHT (convention FR-MA)
 };
 
@@ -2939,6 +2975,7 @@ export const DIV_YIELDS = {
   '4911.T': 0.020,    // Shiseido ~2.0% (JPY)
   'IBIT': 0,          // iShares Bitcoin — PAS de dividendes (ETF spot)
   'ETHA': 0,          // iShares Ethereum — PAS de dividendes (ETF spot)
+  'VWCE.DE': 0,       // Vanguard FTSE All-World Acc — capitalisant, AUCUNE distribution
 };
 
 // ════════════════════════════════════════════════════════════
@@ -3005,6 +3042,7 @@ export const DIV_CALENDAR = {
                note: 'Final ¥20 juin + interim ¥10 déc' },
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
   'ETHA':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
+  'VWCE.DE': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
 };
 
 // ════════════════════════════════════════════════════════════

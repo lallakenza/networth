@@ -130,8 +130,9 @@ alter table public.nw_snapshots enable row level security;
 | Cron GitHub Actions (`scripts/daily_snapshot.mjs`, ~22 h Paris) | clé `sb_secret_…` en `apikey` seul | chaque soir |
 | Navigateur (`maybeSaveDailySnapshot`, `js/api.js`) | JWT de session du compte Net Worth | visite avec prix live ; sans session, s'abstient |
 
-Pendant la transition, le cron accepte encore la clé publishable **en v544 et sans secret valide
-seulement** ; en v545 il refuse d'écrire sans clé serveur. Détail et tests : `scripts/_snapshot_auth.mjs`,
+Pendant la transition, le cron accepte encore la clé publishable **tant que les données sont en clair
+et sans secret valide seulement** ; dès que les données sont chiffrées, il refuse d'écrire sans clé
+serveur (le numéro de version n'intervient pas). Détail et tests : `scripts/_snapshot_auth.mjs`,
 `tests/snapshot-auth.test.js`.
 
 ### Sémantique

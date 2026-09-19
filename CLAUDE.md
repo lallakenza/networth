@@ -292,7 +292,7 @@ git -c user.name="Amine" -c user.email="amine.koraibi@gmail.com" commit -m "vN: 
 - TVA: negative (tax liability)
 
 **Nezha**:
-- IBKR (shared account, ownership ratio applied)
+- IBKR (her OWN account since v545, `PORTFOLIO.nezha.ibkr` — positions/trades/cash, same schema as Amine's; lines carry `owner: 'Nezha'`; not in the evolution chart yet)
 - ESPP (shared, from Nov 2023)
 - Immo: Villejuif (reservation deposit), Rueil (caution/deposit)
 - Créances: Omar

@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=544';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=544';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=544';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=544';
-import { loadSnapshots } from './api.js?v=544'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=544'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=545';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=545';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=545';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=545';
+import { loadSnapshots } from './api.js?v=545'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=545'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -401,9 +401,9 @@ function buildGeoChart(state) {
     || state.actionsView.geoAllocation || {};
 
   const labels = { france: 'France', crypto: 'Crypto', us: 'Irlande/US (ACN)', germany: 'Allemagne',
-                   japan: 'Japon', morocco: 'Maroc (SGTM)', other: 'Autre' };
+                   japan: 'Japon', morocco: 'Maroc (SGTM)', world: 'Monde (ETF)', other: 'Autre' };
   const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936',
-                   japan: '#e53e3e', morocco: '#d69e2e', other: '#718096' };
+                   japan: '#e53e3e', morocco: '#d69e2e', world: '#0891b2', other: '#718096' };
 
   // Une valeur non finie est une DONNÉE MANQUANTE, pas un zéro : on la signale au lieu de la
   // faire disparaître dans un camembert qui semblerait complet.
@@ -689,8 +689,8 @@ function buildActionsGeoDonut(state) {
   // v378 — le toggle owner (Couple/Amine/Nezha) filtre aussi le donut géo. 'both' → objet inchangé.
   const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
   const geo = (_o !== 'both' && state.actionsView.geoAllocationOwner && state.actionsView.geoAllocationOwner[_o]) || state.actionsView.geoAllocation;
-  const labels = { france: 'France', crypto: 'Crypto', us: 'US/Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc' };
-  const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e' };
+  const labels = { france: 'France', crypto: 'Crypto', us: 'US/Irlande', germany: 'Allemagne', japan: 'Japon', morocco: 'Maroc', world: 'Monde' };
+  const colors = { france: '#2b6cb0', crypto: '#9f7aea', us: '#48bb78', germany: '#ed8936', japan: '#e53e3e', morocco: '#d69e2e', world: '#0891b2' };
   const entries = Object.entries(geo).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
   const total = entries.reduce((s,[,v]) => s + v, 0);
 

@@ -11,7 +11,7 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=544';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=545';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -614,14 +614,22 @@ function applyTickerToPortfolio(ticker, priceData, portfolio) {
     portfolio.market._acnLive = true;
     return;
   }
-  const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === ticker);
-  if (pos) {
+  _positionsIbkr(portfolio).filter(p => p.ticker === ticker).forEach(pos => {   // v545 — les deux comptes
     pos.price = priceData.price;
     pos.previousClose = priceData.previousClose;
     pos.lastTradeTs = priceData.lastTradeTs || null;   // v454
     pos.exchangeTz = priceData.exchangeTz || null;
     pos._live = true;
-  }
+  });
+}
+
+// v545 — positions IBKR des DEUX comptes (Amine + compte propre de Nezha). Un même ticker peut
+// être détenu des deux côtés (VWCE) : on le cote une fois et on applique le prix à chaque ligne.
+function _positionsIbkr(portfolio) {
+  return portfolio.amine.ibkr.positions.concat((portfolio.nezha && portfolio.nezha.ibkr && portfolio.nezha.ibkr.positions) || []);
+}
+function _tickersIbkr(portfolio) {
+  return [...new Set(_positionsIbkr(portfolio).map(p => p.ticker))];
 }
 
 /**
@@ -635,7 +643,7 @@ function applyTickerToPortfolio(ticker, priceData, portfolio) {
  * Returns { updated, liveCount, totalTickers, sgtmLive, failedTickers }
  */
 export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTickerLoaded) {
-  const allTickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
+  const allTickers = _tickersIbkr(portfolio).concat(['ACN']);
   const totalTickers = allTickers.length + 1; // +1 for SGTM
   let loaded = 0;
   const prices = {};
@@ -699,7 +707,7 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
   }
 
   // Mark non-loaded positions as static
-  portfolio.amine.ibkr.positions.forEach(pos => {
+  _positionsIbkr(portfolio).forEach(pos => {
     if (!prices[pos.ticker]) pos._live = false;
   });
   if (!prices['ACN']) portfolio.market._acnLive = false;
@@ -835,7 +843,7 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
   delayMs = delayMs || 5000;
   let remaining = [...failedTickers];
   const cache = loadCache();
-  const allTickers = portfolio.amine.ibkr.positions.map(p => p.ticker).concat(['ACN']);
+  const allTickers = _tickersIbkr(portfolio).concat(['ACN']);
 
   for (let retry = 1; retry <= maxRetries && remaining.length > 0; retry++) {
     console.log('[retry] Round ' + retry + '/' + maxRetries + ': ' + remaining.length + ' tickers (' + remaining.join(', ') + ')');
@@ -851,14 +859,13 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
     for (const { ticker, result } of results) {
       if (result) {
         // Update portfolio
-        const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === ticker);
-        if (pos) {
+        _positionsIbkr(portfolio).filter(p => p.ticker === ticker).forEach(pos => {   // v545
           pos.price = result.price;
           pos.previousClose = result.previousClose;
           pos.lastTradeTs = result.lastTradeTs || null;   // v454
           pos.exchangeTz = result.exchangeTz || null;
           pos._live = true;
-        }
+        });
         if (ticker === 'ACN') {
           portfolio.market.acnPriceUSD = result.price;
           portfolio.market.acnPreviousClose = result.previousClose;
@@ -876,7 +883,7 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
     if (anySuccess) saveCache(cache);
 
     remaining = remaining.filter(t => {
-      const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === t);
+      const pos = _positionsIbkr(portfolio).find(p => p.ticker === t);
       if (pos) return !pos._live;
       if (t === 'ACN') return !portfolio.market._acnLive;
       return true;
@@ -884,7 +891,7 @@ export async function retryFailedTickers(failedTickers, portfolio, onRetryUpdate
 
     // Count live
     const liveCount = allTickers.filter(t => {
-      const pos = portfolio.amine.ibkr.positions.find(p => p.ticker === t);
+      const pos = _positionsIbkr(portfolio).find(p => p.ticker === t);
       if (pos) return pos._live === true;
       if (t === 'ACN') return portfolio.market._acnLive === true;
       return false;
@@ -1089,7 +1096,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=544');
+    if (!_authMod) _authMod = await import('./auth.js?v=545');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }
