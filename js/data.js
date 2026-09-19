@@ -56,7 +56,7 @@ export const PORTFOLIO = {
       binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
       ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
-      bridgevaleWise: 300,   // Wise — Bridgevale Consulting (UK), EUR — « il reste plus que 300 € » (Amine, 28/08/2026)
+      bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
       _lastUpdate: '2026-08-28',
     },
 
@@ -1383,7 +1383,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v546';
+export const APP_VERSION = 'v547';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
