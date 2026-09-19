@@ -1377,6 +1377,131 @@
       "source": "casablanca-bourse.com"
     },
     {
+      "date": "2026-08-06",
+      "priceMAD": 700.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-07",
+      "priceMAD": 734.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-10",
+      "priceMAD": 729.1,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-11",
+      "priceMAD": 710.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-12",
+      "priceMAD": 709.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-13",
+      "priceMAD": 706.2,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-17",
+      "priceMAD": 709.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-18",
+      "priceMAD": 702.5,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-19",
+      "priceMAD": 715.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-24",
+      "priceMAD": 707.1,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-27",
+      "priceMAD": 707.5,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-28",
+      "priceMAD": 700.3,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-08-31",
+      "priceMAD": 675.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-01",
+      "priceMAD": 640.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-02",
+      "priceMAD": 640.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-03",
+      "priceMAD": 640.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-04",
+      "priceMAD": 640.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-07",
+      "priceMAD": 647.1,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-08",
+      "priceMAD": 653.9,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-09",
+      "priceMAD": 645.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-10",
+      "priceMAD": 635.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-11",
+      "priceMAD": 630.0,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-14",
+      "priceMAD": 600.1,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-15",
+      "priceMAD": 602.1,
+      "source": "tradingview"
+    },
+    {
+      "date": "2026-09-16",
+      "priceMAD": 610.0,
+      "source": "tradingview"
+    },
+    {
       "date": "2026-09-18",
       "priceMAD": 580.0,
       "source": "casablanca-bourse.com"
