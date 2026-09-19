@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=548';
-import { lireContratEnCache } from './facturation_contract.js?v=548';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=549';
+import { lireContratEnCache } from './facturation_contract.js?v=549';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3920,7 +3920,35 @@ export function tvaPonderee(amine) {
   return (amine.tva || 0) * prob;
 }
 
+// Presumed-settlement rule (data: creances.autoSettle). An `en_cours` item whose id starts with one
+// of `idPrefixes` is flipped to `recouvré` once `dueDate + graceDaysAfterDue` has passed, with a
+// presumed payment of the remaining amount dated at that cutoff. Mutates in place and is idempotent,
+// so every downstream reader (NW, créances view, render, alerts) sees the same status.
+export function applyCreancesAutoSettle(creances, today = new Date()) {
+  const rule = creances && creances.autoSettle;
+  if (!rule || !Array.isArray(creances.items)) return [];
+  const settled = [];
+  const todayISO = today.toISOString().slice(0, 10);
+  for (const c of creances.items) {
+    if (c.status !== 'en_cours' || !c.dueDate) continue;
+    if (!(rule.idPrefixes || []).some(pre => String(c.id || '').startsWith(pre))) continue;
+    const cutoff = new Date(c.dueDate + 'T00:00:00Z');
+    cutoff.setUTCDate(cutoff.getUTCDate() + (rule.graceDaysAfterDue || 0));
+    const cutoffISO = cutoff.toISOString().slice(0, 10);
+    if (todayISO < cutoffISO) continue;
+    const paid = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
+    const remaining = c.amount - paid;
+    c.status = 'recouvré';
+    c.autoSettled = cutoffISO;
+    if (remaining > 0) c.payments = [...(c.payments || []), { amount: remaining, date: cutoffISO, currency: c.currency, presumed: true }];
+    c.notes = (c.notes ? c.notes + ' ' : '') + '[Réputée encaissée le ' + cutoffISO + ' — règle échéance + ' + (rule.graceDaysAfterDue || 0) + ' j.]';
+    settled.push(c.id);
+  }
+  return settled;
+}
+
 function computeCreancesView(portfolio, fx) {
+  applyCreancesAutoSettle(portfolio.amine && portfolio.amine.creances);
   const allItems = [];
   const today = new Date();
 
@@ -4487,6 +4515,8 @@ export function sessionOuverteAujourdhui(lastTradeTs, exchangeTz) {
 
 export function compute(portfolio, fx, stockSource = 'statique') {
   const p = portfolio;
+  // Must run before any créance read (NW, views, render all consume the same items).
+  applyCreancesAutoSettle(p.amine && p.amine.creances);
   const m = p.market;
 
   // ---- IMMO VIEW (computed early so CRDs are available for NW) ----

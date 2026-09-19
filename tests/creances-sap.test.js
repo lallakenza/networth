@@ -23,7 +23,9 @@ const ATTENDUES = {
   INVSNT008: { montant: 14560,    echeance: '2026-10-01' },
 };
 // v548 : INVSNT006/007 payées (recouvré) ; restent INVSNT008 (14 560) + accrual septembre ACCSNT09 (12 740).
-const TOTAL_PRO_ATTENDU = 27300;
+// v549 : chacune sort du NW à échéance + 10 j (règle autoSettle) — le total attendu dépend du jour.
+const AUJ_ISO = new Date().toISOString().slice(0, 10);
+const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-10-11' ? 14560 : 0) + (AUJ_ISO < '2026-11-11' ? 12740 : 0);
 
 (async () => {
   const echecs = [];
@@ -48,6 +50,26 @@ const TOTAL_PRO_ATTENDU = 27300;
     if (f.status === 'en_cours' && (f.payments || []).length) {
       echecs.push(`${id} est « en cours » mais porte ${f.payments.length} encaissement(s) — risque de double comptage avec le cash`);
     }
+  }
+
+  // Règle autoSettle, à dates fixes (indépendant du jour) : facture échue 01/10 → réputée
+  // encaissée le 11/10, pas avant ; une seconde application ne change rien (idempotence).
+  {
+    const { applyCreancesAutoSettle } = await import('file://' + path.join(TMP, 'engine.js'));
+    const mk = () => ({ autoSettle: { idPrefixes: ['INVSNT', 'ACCSNT'], graceDaysAfterDue: 10 }, items: [
+      { id: 'INVSNT099', amount: 1000, currency: 'EUR', status: 'en_cours', dueDate: '2026-10-01', payments: [] },
+      { id: 'CREP099', amount: 500, currency: 'EUR', status: 'en_cours', dueDate: '2026-01-01', payments: [] },
+    ] });
+    const avant = mk(); applyCreancesAutoSettle(avant, new Date('2026-10-10T12:00:00Z'));
+    if (avant.items[0].status !== 'en_cours') echecs.push('autoSettle : réglée dès le 10/10 (échéance + 9 j)');
+    const apres = mk(); applyCreancesAutoSettle(apres, new Date('2026-10-11T00:00:00Z'));
+    const f = apres.items[0];
+    if (f.status !== 'recouvré' || f.payments.length !== 1 || f.payments[0].amount !== 1000 || f.payments[0].date !== '2026-10-11') {
+      echecs.push('autoSettle : INVSNT099 non réputée encaissée le 11/10 (' + JSON.stringify(f) + ')');
+    }
+    if (apres.items[1].status !== 'en_cours') echecs.push('autoSettle : une créance hors préfixe a été réglée');
+    applyCreancesAutoSettle(apres, new Date('2026-12-01T00:00:00Z'));
+    if (f.payments.length !== 1) echecs.push('autoSettle : non idempotente (paiement doublé)');
   }
 
   // Total des créances pro
@@ -82,6 +104,6 @@ const TOTAL_PRO_ATTENDU = 27300;
     for (const e of echecs) console.error('   - ' + e);
     process.exit(1);
   }
-  console.log('✓ registre SAP & Tax : 3 factures uniques, échéances correctes, total pro '
+  console.log('✓ registre SAP & Tax : 3 factures uniques, règle échéance + 10 j, échéances correctes, total pro '
     + TOTAL_PRO_ATTENDU + ' EUR, aucun double comptage, alertes conformes à la date du jour');
 })();

@@ -631,6 +631,12 @@ export const PORTFOLIO = {
     //   - notes: contexte/explications
     // ──────────────────────────────────────────────────────
     creances: {
+      // Règle de règlement présumé (v549, 19/09/2026) : le client SAP & Tax paie en général ~1 mois
+      // après l'échéance, vers le 3-4 du mois suivant. Une créance dont l'id commence par l'un de ces
+      // préfixes est réputée ENCAISSÉE (→ recouvré, sortie du NW) une fois « un mois et 10 jours »
+      // passés depuis la facture, soit dueDate (facture + 1 mois) + graceDaysAfterDue. Le cash, lui,
+      // doit être mis à jour à la main depuis les relevés : c'est lui qui porte alors l'argent.
+      autoSettle: { idPrefixes: ['INVSNT', 'ACCSNT'], graceDaysAfterDue: 10 },
       items: [
         // ── CRÉANCES PROFESSIONNELLES (2 items) ──
         // Sources: factures, notes de frais, baux locatifs
@@ -1392,7 +1398,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v548';
+export const APP_VERSION = 'v549';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
