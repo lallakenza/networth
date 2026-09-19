@@ -5056,6 +5056,24 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v544 — maintenance (19 septembre 2026) — scraper SGTM réparé, échec désormais visible (BUG-122)
+Hors application (aucun fichier `js/` modifié → pas de bump `?v=` ni d'`APP_VERSION`).
+- **Sources** : `scripts/scrape_sgtm.py` réécrit en HTTP simple, sans Playwright. (1) cote officielle
+  `casablanca-bourse.com/live-market/actions` — depuis la refonte Drupal de la BVC, la cote complète est
+  embarquée dans `drupal-settings-json` (`live_market.actions[].dernierCours`, `live_market.session.timestamp`) ;
+  une séance > 5 jours ouvrés est rejetée. (2) TradingView scanner `CSEMA:GTM` (même API que le runtime).
+  Retirés : l'ancienne URL BVC (301 → accueil), idbourse (login requis), investing (sélecteur/Cloudflare).
+- **TLS** : le serveur BVC n'envoie que le certificat feuille. Contexte = racines certifi + intermédiaire
+  récupéré via l'URL AIA du certificat ; `PARTIAL_CHAIN` désactivé, hostname vérifié. Aucune désactivation
+  de la vérification.
+- **Visibilité** : suppression du `continue-on-error` (le job restait vert avec un prix figé du 05/08 au
+  19/09) ; nouvelle étape `--check-staleness 3` (`if: always()`) : rouge si `data/sgtm_live.json` a plus de
+  3 jours ouvrés. `git pull --rebase` avant le push.
+- **Historique** : la clé du jour de `sgtm_history.json` est la date de séance BVC quand elle est connue.
+- **Inchangé** : schéma `{ ticker, priceMAD, currency, lastUpdate, source, raw }`, règle « commit si prix
+  changé ou relevé > 1 h ». Nouvelles valeurs de `source` : `casablanca-bourse.com` (inchangée) et
+  `tradingview.com` → `repo:tradingview.com` côté app, badge « live ✓ » via la branche `repo:` existante.
+
 ## v544 (14 septembre 2026) — chiffrement des données patrimoniales (mécanique) ; frais Villejuif par preuve ; CF Vitry contractuel ; outillage reproductible
 
 ### Confidentialité (item 1) — le chiffrement s'active sur l'état des données

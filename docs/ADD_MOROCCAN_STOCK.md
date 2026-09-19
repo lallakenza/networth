@@ -16,12 +16,12 @@ Pour la spec architecturale complète, voir `ARCHITECTURE.md §v331 "Moroccan st
 .github/workflows/<ticker>-scrape.yml  ← cron `30 8-14 * * 1-5` (heures BVC)
          │
          ▼
-scripts/scrape_<ticker>.py             ← Playwright Chromium headless
-  ├─ casablanca-bourse.com/...         (HTTP puis Playwright en fallback)
-  ├─ idbourse.com/stocks/<TICKER>      (hydratation SPA)
-  └─ fr.investing.com/equities/<slug>  (bypass Cloudflare via Playwright)
+scripts/scrape_<ticker>.py             ← HTTP simple (urllib + certifi), sans navigateur
+  ├─ casablanca-bourse.com/live-market/actions  (officiel : JSON Drupal embarqué, `dernierCours`)
+  └─ scanner.tradingview.com/symbol?symbol=CSEMA:<CODE_BVC>  (JSON, sans auth)
          │
-         ▼ (commit si prix changé OU snapshot > 1h)
+         ▼ (commit si prix changé OU snapshot > 1h) ; échec total = job ROUGE
+         ▼ + étape `--check-staleness 3` : rouge si le JSON a > 3 jours ouvrés
 data/<ticker>_live.json                ← { ticker, priceMAD, currency, lastUpdate, source, raw }
 data/<ticker>_history.json             ← upsert daily { series: [{date, priceMAD, source}] }
          │
@@ -38,8 +38,9 @@ js/charts.js → merge history dans BASE_<TICKER>_PRICES
 
 Avant d'écrire du code, vérifier sur **casablanca-bourse.com** :
 - Ticker officiel (ex: `CSR` pour Cosumar)
-- URL ticker sur casablanca-bourse.com (format `https://www.casablanca-bourse.com/fr/live-market/instrument/<ISIN>`)
-- Slug investing.com (ex: `cosumar` → `fr.investing.com/equities/cosumar`)
+- Code BVC (champ `symbol` de `live_market.actions[]` sur `https://www.casablanca-bourse.com/live-market/actions`
+  — attention, il peut différer du ticker broker : SGTM = `GTM`)
+- Vérifier que `https://scanner.tradingview.com/symbol?symbol=CSEMA:<CODE_BVC>&fields=close,currency` répond
 - Fourchette 52 semaines (pour définir `MIN_PRICE` / `MAX_PRICE` du scraper, éviter les valeurs aberrantes)
 - Nombre d'actions détenues + cost basis moyen (pour P&L)
 
@@ -79,10 +80,8 @@ Modifier :
 | `OUT_PATH` | `data/sgtm_live.json` | `data/csr_live.json` |
 | `HISTORY_PATH` | `data/sgtm_history.json` | `data/csr_history.json` |
 | `MIN_PRICE` / `MAX_PRICE` | `300` / `2000` | Selon 52w range du titre |
-| URL casablanca-bourse | `.../instrument/<ISIN SGTM>` | ISIN CSR |
-| URL idbourse | `.../stocks/SGTM` | `.../stocks/CSR` |
-| URL investing | `.../sgtm` | `.../cosumar` |
-| Tag `ticker` dans snapshot | `"SGTM"` | `"CSR"` |
+| `TICKER` (clé du JSON) | `"SGTM"` | `"CSR"` |
+| `BVC_CODE` (BVC + TradingView) | `"GTM"` | `"CSR"` |
 
 ### 4. `.github/workflows/<ticker>-scrape.yml` — Cloner le workflow
 
@@ -180,28 +179,30 @@ git push
 
 Pousser sur `main` déclenche (a) le déploiement GitHub Pages et (b) le premier run CI du
 nouveau workflow. Vérifier dans **GitHub → Actions** que le run passe ; sinon télécharger
-l'artifact `scrape-debug-<run_id>` pour diagnostiquer (screenshots + HTML des tentatives).
+l'artifact `scrape-debug-<run_id>` pour diagnostiquer (HTML / JSON des tentatives).
 
 ---
 
 ## Troubleshooting — scraper rouge au premier run
 
-**WAF bloque l'IP GitHub Actions** (cas SGTM sur casablanca-bourse.com) : c'est géré par le fallback
-Playwright qui simule un vrai navigateur. Si l'URL principale HTTP échoue, le scraper tente
-automatiquement Playwright sur la même URL. Vérifier que `scrape_casablanca_bourse_playwright()`
-est bien copié depuis `scrape_sgtm.py`.
+**`CERTIFICATE_VERIFY_FAILED` (unable to get local issuer certificate)** : le serveur de la BVC
+n'envoie pas son certificat intermédiaire Sectigo. `ssl_context_for()` le récupère via l'URL AIA du
+certificat et vérifie toujours la chaîne jusqu'à une racine certifi. **Ne jamais** désactiver la
+vérification (`CERT_NONE`, `verify=False`).
 
-**Timeout sur idbourse.com** : le site hydrate via JS en ~3-5s. Augmenter `page.wait_for_timeout(5000)`
-à 8000ms si besoin.
+**`bloc drupal-settings-json/live_market introuvable`** : la BVC a refondu son site (déjà arrivé en
+août 2026 : l'ancienne URL `/fr/live-market/instruments/GTM` redirige vers l'accueil). Ouvrir
+l'artifact `scrape-debug-<run_id>` (HTML sauvé) et repérer où vit la cote ; TradingView sert de
+relais entre-temps.
 
 **Prix hors bornes** : si le scraper extrait "462,00" mais interprète comme 462 au lieu de 46.2,
 vérifier la fonction `parse_french_number()` — gère `'1 234,56' → 1234.56` mais pas les décimales
 séparées par point ambigu. Les bornes `MIN_PRICE`/`MAX_PRICE` attrapent ce cas et le run échoue
 proprement avec un artifact de debug.
 
-**Cloudflare challenge sur investing.com** : le fallback Playwright gère ce cas en utilisant un
-vrai Chromium. Si Cloudflare devient trop aggressif, commenter investing.com et se reposer sur
-casablanca-bourse.com + idbourse.com.
+**Sources abandonnées (19/09/2026)** : idbourse.com (réservé aux membres connectés), investing.com
+(Cloudflare / sélecteur), leboursier.ma (DNS mort) et tout le fallback Playwright. Ne pas les
+réintroduire sans vérifier qu'elles répondent depuis un runner GitHub.
 
 ---
 

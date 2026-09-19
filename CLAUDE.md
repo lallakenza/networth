@@ -87,14 +87,15 @@ Where:
 Yahoo Finance ne couvre AUCUNE action de la Bourse de Casablanca (BVC). Pour rendre une action marocaine "live" (SGTM aujourd'hui, CSR/LHM/IAM/ATW/BCP/CIH/TQM/MNG/WAA dans le futur), on utilise un pipeline dédié via GitHub Actions :
 
 ```
-.github/workflows/<ticker>-scrape.yml  ← cron '0 9-16 * * 1-5' (hourly, Mon-Fri)
+.github/workflows/<ticker>-scrape.yml  ← cron '30 8-14 * * 1-5' (hourly, séance BVC, Mon-Fri)
          │
          ▼
-scripts/scrape_<ticker>.py             ← Playwright Chromium headless, multi-source
-  ├─ idbourse.com/stocks/<TICKER>      (hydratation SPA, DOM text scan)
-  └─ fr.investing.com/equities/<slug>  (bypass Cloudflare grâce à Playwright)
+scripts/scrape_<ticker>.py             ← HTTP simple (urllib + certifi, chaîne TLS complétée par AIA)
+  ├─ casablanca-bourse.com/live-market/actions  (officiel, JSON Drupal embarqué `dernierCours`)
+  └─ scanner.tradingview.com CSEMA:<code BVC>   (relais ; SGTM = GTM)
          │
-         ▼ (commit only if price changed OR snapshot > 1h)
+         ▼ (commit only if price changed OR snapshot > 1h ; toutes sources KO = job ROUGE,
+         ▼  + étape --check-staleness 3 : rouge si JSON > 3 jours ouvrés)
 data/<ticker>_live.json                ← { ticker, priceMAD, currency, lastUpdate, source, raw }
          │
          ▼ auto-deploy GitHub Pages (~60s)

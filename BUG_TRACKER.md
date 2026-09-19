@@ -2471,3 +2471,23 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   aucune UPDATE/DELETE, invariants vérifiés avant validation. Le cron écrit avec une clé serveur
   `sb_secret_…` en `apikey` seul (`NW_SUPABASE_SECRET_KEY`). À exécuter par l'utilisateur, dans l'ordre
   de `docs/BASCULE_V545.md` (secret et cron vérifiés en v544 AVANT la RLS).
+
+## BUG-122 : prix SGTM figé à 673 MAD depuis le 05/08/2026, workflow vert
+
+- **Version** : corrigé le 19/09/2026 (maintenance v544, hors `js/`). **Sévérité** : haute (NW et
+  snapshot nocturne `scripts/daily_snapshot.mjs` valorisaient 32 SGTM à 673 au lieu de ~580 MAD, ≈ −3 000 MAD).
+- **Détection** : relevé Attijarinet du 19/09 (18 560 MAD pour 32 titres) vs `data/sgtm_live.json`.
+- **Symptôme** : runs horaires « success » dans `gh run list`, mais log (run 35372556779) : toutes sources KO,
+  « Process completed with exit code 1 », JSON non modifié.
+- **Causes** : (1) refonte du site BVC — `/fr/live-market/instruments/GTM` redirige (301) vers l'accueil ;
+  (2) le serveur BVC n'envoie pas l'intermédiaire Sectigo DV R36 → `CERTIFICATE_VERIFY_FAILED` sous OpenSSL ;
+  (3) idbourse réservé aux membres, investing sélecteur/Cloudflare ; (4) `continue-on-error: true` sur l'étape
+  de scrape → job vert malgré exit 1.
+- **Correctif** : sources HTTP `live-market/actions` (JSON Drupal) + TradingView scanner ; complétion AIA de la
+  chaîne TLS avec racines certifi (vérification stricte conservée) ; retrait de `continue-on-error` ; étape
+  `--check-staleness 3` en `if: always()`.
+- **Tests de régression** : `python scripts/scrape_sgtm.py` → `[casablanca-bourse] ✓ prix=… (séance AAAA-MM-JJ)` ;
+  le même sous OpenSSL 3 sans intermédiaire reproduit l'erreur avec le contexte certifi seul et passe avec
+  `ssl_context_for()` ; un hostname faux reste refusé ; `--check-staleness 3` sort 1 sur un JSON > 3 jours
+  ouvrés ; après merge, `gh run list --workflow sgtm-scrape.yml` montre un run vert ET un commit
+  `chore(sgtm): live price …`.

@@ -1,86 +1,83 @@
 #!/usr/bin/env python3
 """
-scrape_sgtm.py — Récupère le dernier cours SGTM (Société Générale des Travaux du Maroc)
-depuis plusieurs sources publiques et écrit data/sgtm_live.json.
+scrape_sgtm.py — Récupère le dernier cours SGTM (Société Générale des Travaux du Maroc,
+code BVC « GTM ») et écrit data/sgtm_live.json.
 
-Stratégie multi-source (première source qui répond gagne) :
-  1. idbourse.com/stocks/SGTM (Next.js rendu client + Supabase)
-  2. fr.investing.com/equities/ste-generale-des-travaux-du-maroc
-  3. www.boursorama.com (si jamais ajouté plus tard)
+Sources (HTTP simple, aucune dépendance navigateur ; la première qui répond gagne) :
+  1. casablanca-bourse.com/live-market/actions — source OFFICIELLE. Depuis la refonte
+     (Drupal, ~août 2026) l'ancienne page /fr/live-market/instruments/GTM redirige (301)
+     vers l'accueil ; la cote complète est désormais embarquée server-side dans le
+     `<script data-drupal-selector="drupal-settings-json">` → live_market.actions[] avec
+     `dernierCours` + live_market.session.timestamp (date de séance).
+  2. scanner.tradingview.com/symbol?symbol=CSEMA:GTM — JSON plat, sans auth (la même API
+     que le runtime navigateur, js/api.js fetchMoroccanStockFromTradingView).
 
-Utilise Playwright headless chromium parce que :
-  - idbourse.com hydrate les prix côté client (HTML initial = skeleton)
-  - investing.com renvoie un challenge Cloudflare "Just a moment..." à curl
-  - Playwright exécute le JS, passe Cloudflare transparent, puis on lit le DOM
+TLS : le serveur de la BVC n'envoie QUE le certificat feuille (chaîne incomplète : il manque
+l'intermédiaire « Sectigo Public Server Authentication CA DV R36 »). Les navigateurs le
+récupèrent via l'extension AIA ; OpenSSL/Python non → CERTIFICATE_VERIFY_FAILED. Correctif :
+contexte TLS = racines certifi + intermédiaire téléchargé depuis l'URL AIA du certificat
+feuille. La vérification reste STRICTE (chaîne jusqu'à une racine certifi auto-signée,
+PARTIAL_CHAIN désactivé, hostname vérifié) — on ne désactive jamais la vérification.
 
-Exit codes :
-  0 = succès, JSON écrit ou déjà à jour
-  1 = aucune source n'a répondu (ne PAS commit — garde l'ancien JSON)
+Retirés le 19/09/2026 (tous morts) : casablanca-bourse Playwright (URL 301), idbourse.com
+(réservé aux membres connectés), investing.com (sélecteur/Cloudflare) ; leboursier.ma
+(DNS mort depuis 04/2026).
+
+Modes :
+  (défaut)                scrape + écrit le JSON (commit décidé par le workflow)
+  --check-staleness [N]   exit 1 si data/sgtm_live.json a plus de N jours ouvrés (défaut 3)
+  --backfill              reconstruit data/sgtm_history.json depuis le git log
+
+Exit codes : 0 = succès (JSON écrit ou déjà à jour) ; 1 = aucune source / JSON périmé.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PATTERN GÉNÉRIQUE — actions marocaines (Bourse de Casablanca)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ce script est le prototype pour TOUTE action marocaine (CSR, LHM, IAM,
-ATW, BCP, CIH, TQM, MNG, WAA, etc.). Pour ajouter un nouveau ticker :
-
-  1. Copier ce fichier → `scripts/scrape_<ticker>.py`
-  2. Remplacer `TICKER = 'SGTM'`, OUTPUT_PATH, URLs idbourse/investing,
-     et les bornes MIN_PRICE/MAX_PRICE (52-semaines du titre).
-  3. Copier `.github/workflows/sgtm-scrape.yml` → `<ticker>-scrape.yml`
-     et remplacer les occurrences `sgtm` → `<ticker>`.
-  4. Créer le bootstrap `data/<ticker>_live.json` (voir ARCHITECTURE §v331).
-  5. Côté JS (api.js), factoriser `fetchSGTMFromRepo()` en
-     `fetchMoroccanStockFromRepo(ticker)` dès le 2ème ticker.
-
-Checklist complète : CLAUDE.md "Moroccan stocks live pipeline" + ARCHITECTURE §v331.
+Pour un autre titre (CSR, LHM, IAM, ATW, …) : copier ce fichier, changer TICKER / BVC_CODE /
+OUT_PATH / HISTORY_PATH / MIN_PRICE / MAX_PRICE. Les deux sources couvrent toute la cote.
+Runbook : docs/ADD_MOROCCAN_STOCK.md.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import ssl
 import sys
-import time
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-
-# NB : `from __future__ import annotations` (en tête) rend toutes les annotations
-# paresseuses (chaînes non évaluées), donc `page: Page` dans les signatures ne force
-# PAS l'import de Playwright au chargement du module. On importe Playwright UNIQUEMENT
-# dans scrape() → les utilitaires history (--backfill, --price-at) tournent sans lui.
-if False:  # pragma: no cover — pour les type-checkers uniquement
-    from playwright.sync_api import Page  # noqa: F401
-
-# Correctif 29/08/2026 — `PlaywrightTimeoutError` était utilisé dans les 8 gestionnaires
-# d'erreur des 4 scrapers sans avoir jamais été importé : au premier délai dépassé, le
-# `except` levait lui-même un NameError, toutes les sources tombaient, et le workflow
-# restait vert (continue-on-error). Résultat : 23 jours de prix figé sans alerte.
-# On conserve l'import paresseux voulu par l'en-tête ci-dessus : la résolution se fait au
-# premier appel, et retombe sur une classe inerte si Playwright est absent (mode --backfill).
-class _TimeoutIndisponible(Exception):
-    """Sentinelle : ne peut jamais être levée, donc le `except` ne masque rien."""
-
-
-def _timeout_error():
-    try:
-        from playwright.sync_api import TimeoutError as _TE
-        return _TE
-    except ImportError:
-        return _TimeoutIndisponible
-
-
-PlaywrightTimeoutError = _timeout_error()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = REPO_ROOT / "data" / "sgtm_live.json"
 HISTORY_PATH = REPO_ROOT / "data" / "sgtm_history.json"
 
+TICKER = "SGTM"   # ticker broker (clé du JSON)
+BVC_CODE = "GTM"  # code Bourse de Casablanca / TradingView
+
 # Borne de sanity: SGTM oscille typiquement 400-1200 MAD. Toute valeur hors de ça = bug de parsing.
 MIN_PRICE = 300.0
 MAX_PRICE = 2000.0
+
+# Une séance BVC plus vieille que ça = donnée figée côté source → rejetée (fériés inclus :
+# l'Aïd peut fermer la bourse 2-3 jours ouvrés d'affilée).
+MAX_SESSION_AGE_WEEKDAYS = 5
+
+UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+
+BVC_URL = "https://www.casablanca-bourse.com/live-market/actions"
+TV_URL = (f"https://scanner.tradingview.com/symbol?symbol=CSEMA:{BVC_CODE}"
+          "&fields=close,currency,open,change")
+
+
+def _debug_dir() -> Path:
+    d = Path(os.environ.get("DEBUG_DIR", "/tmp/scrape_debug"))
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def parse_french_number(s: str) -> float | None:
@@ -107,340 +104,207 @@ def parse_french_number(s: str) -> float | None:
         return None
 
 
-def scrape_casablanca_bourse_http() -> dict | None:
-    """Source OFFICIELLE de la Bourse de Casablanca — HTML rendu server-side,
-    aucune dépendance à Playwright. Ultra-rapide (~1s), pas de Cloudflare.
-
-    URL : https://www.casablanca-bourse.com/fr/live-market/instruments/GTM
-    (le symbole côté BVC est "GTM" — ticker abrégé de Société Générale
-    des Travaux du Maroc ; côté broker retail c'est souvent "SGTM")
-
-    Le prix apparaît dans un `<td><span dir="ltr">826,00</span></td>` précédé
-    du `<th>Cours (MAD)</th>`. Les cours sont en différé 15 minutes (standard BVC),
-    ce qui est largement suffisant pour un dashboard patrimonial quotidien.
-    """
-    url = "https://www.casablanca-bourse.com/fr/live-market/instruments/GTM"
-    print(f"[casablanca-bourse] HTTP GET {url} ...")
-    debug_dir = Path(os.environ.get("DEBUG_DIR", "/tmp/scrape_debug"))
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    html = ""
-    status = None
-    headers_dump = ""
+def _in_bounds(val) -> float | None:
     try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                # UA de Chrome récent + headers "browser-like" complets pour
-                # éviter les blocages côté CDN (certains runners GitHub Actions
-                # ont une IP US datacenter que des firewalls WAF peuvent filtrer
-                # quand les headers paraissent trop "bot").
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-                "Accept-Encoding": "identity",  # éviter gzip/br compression (urllib ne les décode pas)
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Upgrade-Insecure-Requests": "1",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            status = resp.status
-            headers_dump = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
-            raw = resp.read()
-            html = raw.decode("utf-8", errors="replace")
-            print(f"[casablanca-bourse] HTTP {status}, {len(raw)} bytes reçus")
-    except urllib.error.HTTPError as e:
-        status = e.code
-        try:
-            headers_dump = "\n".join(f"{k}: {v}" for k, v in e.headers.items())
-            html = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
-        print(f"[casablanca-bourse] HTTPError {status}: {e.reason}")
-    except (urllib.error.URLError, TimeoutError) as e:
-        print(f"[casablanca-bourse] erreur réseau: {e}")
-        (debug_dir / "casablanca_bourse_http_error.txt").write_text(f"{type(e).__name__}: {e}", encoding="utf-8")
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    return v if MIN_PRICE <= v <= MAX_PRICE else None
+
+
+def weekdays_between(start: datetime, end: datetime) -> int:
+    """Nombre de jours ouvrés (lun-ven) strictement après `start` et jusqu'à `end` inclus."""
+    d, n = start.date(), 0
+    while d < end.date():
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            n += 1
+    return n
+
+
+# ── TLS : racines certifi + intermédiaires AIA ────────────────────────────────────────
+def _base_ssl_context() -> ssl.SSLContext:
+    """Contexte vérifiant (CERT_REQUIRED + hostname) sur les racines certifi si dispo,
+    sinon le magasin système. PARTIAL_CHAIN explicitement désactivé : un intermédiaire
+    ajouté plus bas ne peut jamais servir d'ancre de confiance à lui seul."""
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    if hasattr(ssl, "VERIFY_X509_PARTIAL_CHAIN"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_PARTIAL_CHAIN
+    return ctx
+
+
+def _aia_issuer_urls(host: str, port: int = 443) -> list[str]:
+    """URLs « CA Issuers » (AIA) du certificat feuille présenté par `host`.
+
+    `ssl.get_server_certificate` ne fait que LIRE le certificat (aucune donnée applicative
+    n'est échangée) ; aucune requête n'est jamais envoyée sur une connexion non vérifiée.
+    Décodage via `_ssl._test_decode_cert` (interne CPython, stable depuis 3.x)."""
+    import tempfile
+    pem = ssl.get_server_certificate((host, port), timeout=15)
+    with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as f:
+        f.write(pem)
+        path = f.name
+    try:
+        decoded = ssl._ssl._test_decode_cert(path)  # noqa: SLF001
+    finally:
+        os.unlink(path)
+    return [u for u in decoded.get("caIssuers", ()) if u.startswith(("http://", "https://"))]
+
+
+_CTX_CACHE: dict[str, ssl.SSLContext] = {}
+
+
+def ssl_context_for(host: str) -> ssl.SSLContext:
+    """Contexte strict pour `host`, complété si besoin par l'intermédiaire AIA manquant.
+
+    L'intermédiaire téléchargé est chargé comme maillon ; la chaîne doit toujours remonter
+    à une racine certifi auto-signée, sinon la connexion échoue (PARTIAL_CHAIN off)."""
+    if host in _CTX_CACHE:
+        return _CTX_CACHE[host]
+    ctx = _base_ssl_context()
+    try:
+        import socket
+        with socket.create_connection((host, 443), timeout=15) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host):
+                pass
+    except ssl.SSLCertVerificationError as e:
+        print(f"[tls] {host}: chaîne incomplète ({e.verify_message}) → complétion AIA")
+        for url in _aia_issuer_urls(host):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": UA})
+                with urllib.request.urlopen(req, timeout=15, context=_base_ssl_context()) as r:
+                    blob = r.read()
+                pem = (blob.decode("ascii") if blob.lstrip().startswith(b"-----BEGIN")
+                       else ssl.DER_cert_to_PEM_cert(blob))
+                ctx.load_verify_locations(cadata=pem)
+                print(f"[tls] intermédiaire chargé depuis {url}")
+            except Exception as ex:  # noqa: BLE001
+                print(f"[tls] AIA {url} KO: {ex}")
+    except OSError:
+        pass  # erreur réseau : laissée à l'appel réel, qui la journalisera
+    _CTX_CACHE[host] = ctx
+    return ctx
+
+
+def http_get(url: str, accept: str = "*/*") -> tuple[int, str]:
+    host = urllib.parse.urlsplit(url).hostname
+    req = urllib.request.Request(url, headers={
+        "User-Agent": UA,
+        "Accept": accept,
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+        "Accept-Encoding": "identity",
+        "Cache-Control": "no-cache",
+    })
+    with urllib.request.urlopen(req, timeout=25, context=ssl_context_for(host)) as resp:
+        return resp.status, resp.read().decode("utf-8", errors="replace")
+
+
+# ── Sources ───────────────────────────────────────────────────────────────────────────
+def scrape_casablanca_bourse() -> dict | None:
+    """Cote officielle BVC : JSON Drupal embarqué dans /live-market/actions."""
+    print(f"[casablanca-bourse] GET {BVC_URL} ...")
+    try:
+        status, html = http_get(BVC_URL, "text/html,application/xhtml+xml")
+    except (urllib.error.URLError, OSError) as e:
+        print(f"[casablanca-bourse] ✗ erreur réseau/TLS: {e}")
+        return None
+    print(f"[casablanca-bourse] HTTP {status}, {len(html)} caractères")
+    m = re.search(r'<script[^>]*data-drupal-selector="drupal-settings-json"[^>]*>(.*?)</script>',
+                  html, re.S)
+    try:
+        lm = json.loads(m.group(1))["live_market"] if m else None
+    except (ValueError, KeyError):
+        lm = None
+    if not lm:
+        print("[casablanca-bourse] ✗ bloc drupal-settings-json/live_market introuvable")
+        (_debug_dir() / "casablanca_bourse.html").write_text(html, encoding="utf-8")
         return None
 
-    # Si l'HTML a bien été récupéré, tenter l'extraction
-    if html and status == 200:
-        # Chercher : <th>Cours (MAD)</th><td ...><span dir="ltr">826,00</span></td>
-        m = re.search(
-            r'Cours \(MAD\)</th>\s*<td[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>([^<]+)</span>',
-            html,
-            re.IGNORECASE,
-        )
-        if not m:
-            # Fallback : span avec classe "text-right" après "Cours (MAD)"
-            m = re.search(r'Cours \(MAD\)</th>.{0,500}?>(\d[\d\s.,]{0,15}\d)<', html, re.DOTALL | re.IGNORECASE)
-        if m:
-            raw_val = m.group(1).strip()
-            val = parse_french_number(raw_val)
-            if val is not None:
-                print(f"[casablanca-bourse] ✓ prix={val} MAD (raw='{raw_val}')")
-                return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw_val}
-            print(f"[casablanca-bourse] raw='{raw_val}' hors bornes [{MIN_PRICE}, {MAX_PRICE}]")
+    # Date de séance (epoch = minuit Casablanca du jour de séance) → rejet si figée.
+    session_ts = (lm.get("session") or {}).get("timestamp")
+    session_day = None
+    if session_ts:
+        # +1h (UTC+1 Maroc) pour retomber sur le jour calendaire local de la séance.
+        session_dt = datetime.fromtimestamp(int(session_ts) + 3600, timezone.utc)
+        session_day = session_dt.strftime("%Y-%m-%d")
+        age = weekdays_between(session_dt, datetime.now(timezone.utc))
+        if age > MAX_SESSION_AGE_WEEKDAYS:
+            print(f"[casablanca-bourse] ✗ séance {session_day} vieille de {age} jours ouvrés → rejet")
+            return None
 
-    # Échec : dump des infos HTTP pour debugging via artifact CI
-    print(f"[casablanca-bourse] ✗ échec (status={status}, html_len={len(html)})")
-    (debug_dir / "casablanca_bourse_status.txt").write_text(
-        f"Status: {status}\nHTML length: {len(html)}\n\n=== Headers ===\n{headers_dump}", encoding="utf-8"
-    )
-    if html:
-        (debug_dir / "casablanca_bourse.html").write_text(html, encoding="utf-8")
-    return None
-
-
-def scrape_casablanca_bourse_playwright(page: Page) -> dict | None:
-    """Fallback Playwright pour casablanca-bourse.com quand le HTTP direct échoue.
-    Certains runners GitHub Actions se font filtrer par le WAF du site officiel
-    (IP US datacenter + headers "browser-like" insuffisants). Playwright avec un
-    vrai Chromium + timezone Africa/Casablanca + locale fr-FR passe en général.
-    """
-    url = "https://www.casablanca-bourse.com/fr/live-market/instruments/GTM"
-    print(f"[casablanca-bourse-pw] Navigation vers {url} ...")
-    try:
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-    except PlaywrightTimeoutError:
-        print("[casablanca-bourse-pw] Timeout domcontentloaded — on continue")
-
-    # Attendre que "Cours (MAD)" apparaisse dans le DOM
-    try:
-        page.wait_for_function(
-            "() => (document.body.innerText || '').includes('Cours (MAD)')",
-            timeout=15000,
-        )
-    except PlaywrightTimeoutError:
-        print("[casablanca-bourse-pw] 'Cours (MAD)' introuvable dans le DOM")
-
-    # Extraire la valeur du td qui suit le th "Cours (MAD)"
-    raw = page.evaluate(
-        """() => {
-      const ths = Array.from(document.querySelectorAll('th'));
-      const th = ths.find(t => /Cours \\(MAD\\)/i.test(t.textContent || ''));
-      if (!th) return null;
-      // Le td peut être le suivant en DOM, ou dans la même row
-      const row = th.closest('tr');
-      if (!row) return null;
-      const td = row.querySelector('td');
-      if (!td) return null;
-      return td.textContent.trim();
-    }"""
-    )
-    if raw:
-        val = parse_french_number(raw)
-        if val is not None:
-            print(f"[casablanca-bourse-pw] ✓ prix={val} MAD (raw='{raw}')")
-            return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": raw}
-        print(f"[casablanca-bourse-pw] raw='{raw}' hors bornes")
-
-    # Fallback texte complet
-    text = page.evaluate("() => document.body.innerText || ''")
-    m = re.search(r"Cours\s*\(MAD\)[\s:]*([\d\s.,\u00a0]+)", text)
-    if m:
-        val = parse_french_number(m.group(1))
-        if val is not None:
-            print(f"[casablanca-bourse-pw] ✓ prix={val} MAD (fallback texte, raw='{m.group(1).strip()}')")
-            return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": m.group(1).strip()}
-
-    print("[casablanca-bourse-pw] Aucun prix extrait")
-    return None
-
-
-def scrape_idbourse(page: Page) -> dict | None:
-    """Cherche le prix SGTM sur idbourse.com. La page hydrate via Supabase client-side."""
-    print("[idbourse] Navigation vers https://www.idbourse.com/stocks/SGTM ...")
-    try:
-        page.goto("https://www.idbourse.com/stocks/SGTM", wait_until="networkidle", timeout=30000)
-    except PlaywrightTimeoutError:
-        print("[idbourse] Timeout networkidle — on continue")
-
-    # Attendre que le skeleton animate-pulse disparaisse OU qu'un prix apparaisse
-    try:
-        page.wait_for_function(
-            "() => { const t = document.body.innerText || ''; return /\\b[1-9]\\d{2}(,\\d{2,4})?\\b/.test(t) && !/Chargement/i.test(t); }",
-            timeout=15000,
-        )
-    except PlaywrightTimeoutError:
-        print("[idbourse] Timeout sur hydratation — on tente quand même")
-
-    # Extraire tout le texte et chercher un prix plausible
-    text = page.evaluate("() => document.body.innerText || ''")
-    # Chercher le 1er nombre XXX,XX ou XXX.XX à proximité de "MAD" ou de "SGTM"
-    # Pattern large: capturer le prix dans la zone d'en-tête
-    candidates = []
-    for m in re.finditer(r"([1-9]\d{2}(?:[ \u00a0]?\d{3})*[.,]\d{1,4})", text):
-        val = parse_french_number(m.group(1))
-        if val is not None:
-            # Score par distance à "SGTM" ou "MAD"
-            start = m.start()
-            sgtm_dist = min((abs(start - sm.start()) for sm in re.finditer(r"SGTM", text, re.I)), default=999999)
-            mad_dist = min((abs(start - mm.start()) for mm in re.finditer(r"MAD|DH", text, re.I)), default=999999)
-            candidates.append((min(sgtm_dist, mad_dist), val, m.group(1)))
-
-    if not candidates:
-        print("[idbourse] Aucun prix plausible trouvé dans le texte rendu")
-        print(f"[idbourse] Debug text excerpt: {text[:500]!r}")
+    row = next((a for a in lm.get("actions") or []
+                if str(a.get("symbol", "")).strip() == BVC_CODE), None)
+    val = _in_bounds(row.get("dernierCours")) if row else None
+    if val is None:  # repli : bandeau défilant (même page, autre structure)
+        item = next((t for t in (lm.get("ticker") or {}).get("items") or []
+                     if str(t.get("symbol", "")).strip() == BVC_CODE), None)
+        val = _in_bounds(item.get("price")) if item else None
+    if val is None:
+        print(f"[casablanca-bourse] ✗ {BVC_CODE} absent ou hors bornes [{MIN_PRICE}, {MAX_PRICE}]")
+        (_debug_dir() / "casablanca_bourse_live_market.json").write_text(
+            json.dumps(lm, ensure_ascii=False, indent=1), encoding="utf-8")
         return None
+    print(f"[casablanca-bourse] ✓ prix={val} MAD (séance {session_day})")
+    # `sessionDay` sert uniquement de clé d'historique (pas écrit dans sgtm_live.json).
+    return {"priceMAD": val, "source": "casablanca-bourse.com", "raw": f"{val:g}",
+            "sessionDay": session_day}
 
-    candidates.sort()
-    closest = candidates[0]
-    print(f"[idbourse] ✓ prix={closest[1]} MAD (raw='{closest[2]}', distance={closest[0]})")
-    return {"priceMAD": closest[1], "source": "idbourse.com", "raw": closest[2]}
 
-
-def scrape_leboursier(page: Page) -> dict | None:
-    """Cherche le prix SGTM sur leboursier.ma. Site marocain sans Cloudflare typique."""
-    url = "https://www.leboursier.ma/cours/SGTM"
-    print(f"[leboursier] Navigation vers {url} ...")
+def scrape_tradingview() -> dict | None:
+    """TradingView scanner (CSEMA:GTM) — cours différé 15 min, JSON plat."""
+    print(f"[tradingview] GET {TV_URL} ...")
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-    except PlaywrightTimeoutError:
-        print("[leboursier] Timeout — on continue")
-
-    # Attendre hydratation minimale
-    try:
-        page.wait_for_function(
-            "() => (document.body.innerText || '').match(/\\b[3-9]\\d{2}[.,]\\d{1,2}\\b/)",
-            timeout=15000,
-        )
-    except PlaywrightTimeoutError:
-        print("[leboursier] Timeout sur hydratation — on tente quand même")
-
-    # Scan du texte pour un prix plausible
-    text = page.evaluate("() => document.body.innerText || ''")
-    candidates = []
-    for m in re.finditer(r"([3-9]\d{2}(?:[ \u00a0]?\d{3})*[.,]\d{1,4})", text):
-        val = parse_french_number(m.group(1))
-        if val is None:
-            continue
-        start = m.start()
-        sgtm_dist = min((abs(start - sm.start()) for sm in re.finditer(r"SGTM", text, re.I)), default=999999)
-        cours_dist = min((abs(start - cm.start()) for cm in re.finditer(r"cours|dernier", text, re.I)), default=999999)
-        candidates.append((min(sgtm_dist, cours_dist), val, m.group(1)))
-
-    if not candidates:
-        print("[leboursier] Aucun prix plausible trouvé")
-        print(f"[leboursier] Debug text excerpt: {text[:400]!r}")
+        status, body = http_get(TV_URL, "application/json")
+        d = json.loads(body)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        print(f"[tradingview] ✗ {e}")
         return None
-
-    candidates.sort()
-    closest = candidates[0]
-    print(f"[leboursier] ✓ prix={closest[1]} MAD (raw='{closest[2]}', distance={closest[0]})")
-    return {"priceMAD": closest[1], "source": "leboursier.ma", "raw": closest[2]}
-
-
-def scrape_investing(page: Page) -> dict | None:
-    """Cherche le prix SGTM sur investing.com. Playwright passe Cloudflare."""
-    url = "https://fr.investing.com/equities/ste-generale-des-travaux-du-maroc"
-    print(f"[investing] Navigation vers {url} ...")
-    try:
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-    except PlaywrightTimeoutError:
-        print("[investing] Timeout — on continue")
-
-    # Attendre le selecteur du prix
-    try:
-        page.wait_for_selector('[data-test="instrument-price-last"]', timeout=20000)
-    except PlaywrightTimeoutError:
-        print("[investing] Selector instrument-price-last introuvable")
-        # Fallback: chercher n'importe où
-        pass
-
-    # Extraire
-    raw = page.evaluate(
-        """() => {
-      const el = document.querySelector('[data-test="instrument-price-last"]');
-      return el ? el.textContent.trim() : null;
-    }"""
-    )
-    if raw:
-        val = parse_french_number(raw)
-        if val is not None:
-            print(f"[investing] ✓ prix={val} MAD (raw='{raw}')")
-            return {"priceMAD": val, "source": "investing.com", "raw": raw}
-        print(f"[investing] Prix raw='{raw}' hors bornes")
-
-    # Fallback: chercher dans le texte
-    text = page.evaluate("() => document.body.innerText || ''")
-    m = re.search(r"aujourd[’']hui est de\s*([\d\s.,]+)", text, re.IGNORECASE)
-    if m:
-        val = parse_french_number(m.group(1))
-        if val is not None:
-            print(f"[investing] ✓ prix={val} MAD (fallback texte, raw='{m.group(1).strip()}')")
-            return {"priceMAD": val, "source": "investing.com", "raw": m.group(1).strip()}
-
-    print("[investing] Aucun prix extrait")
-    return None
-
-
-def _dump_debug(page: Page, tag: str) -> None:
-    """Écrit un screenshot + HTML dans le répertoire /tmp/scrape_debug pour
-    upload comme artifact CI en cas d'échec. Permet de voir ce que Playwright
-    a réellement vu (Cloudflare challenge, captcha, page vide, selecteur changé, etc.)."""
-    try:
-        debug_dir = Path(os.environ.get("DEBUG_DIR", "/tmp/scrape_debug"))
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        page.screenshot(path=str(debug_dir / f"{tag}.png"), full_page=True)
-        (debug_dir / f"{tag}.html").write_text(page.content(), encoding="utf-8")
-        print(f"[debug] dumped {tag}.png + {tag}.html → {debug_dir}")
-    except Exception as e:
-        print(f"[debug] dump failed for {tag}: {e}")
+    if (d.get("currency") or "MAD") != "MAD":
+        print(f"[tradingview] ✗ devise inattendue: {d.get('currency')}")
+        return None
+    val = _in_bounds(d.get("close"))
+    if val is None:
+        print(f"[tradingview] ✗ close={d.get('close')!r} absent ou hors bornes")
+        return None
+    print(f"[tradingview] ✓ prix={val} MAD")
+    return {"priceMAD": val, "source": "tradingview.com", "raw": f"{val:g}"}
 
 
 def scrape() -> dict | None:
-    """Tente chaque source dans l'ordre. Retourne le premier résultat valide.
-
-    Stratégie :
-      1. casablanca-bourse.com via HTTP direct (~1s, pas de Playwright) — source
-         officielle BVC, HTML rendu server-side. Path rapide quand il marche.
-      2. casablanca-bourse.com via Playwright — même URL, mais vrai Chromium
-         pour contourner un éventuel WAF qui filtrerait les IPs GitHub Actions.
-      3. idbourse.com (Playwright, SPA Next.js) — 2ème opinion.
-      4. investing.com (Playwright passe Cloudflare) — dernier recours.
-
-    leboursier.ma volontairement retiré : domaine mort (DNS SERVFAIL) au 19/04/2026.
-    Peut être réintroduit si le DNS revient.
-    """
-    # Tentative 1 : source officielle via HTTP simple. Si ça marche, on évite
-    # complètement le setup Playwright (gain ~30s).
-    result = scrape_casablanca_bourse_http()
-    if result is not None:
-        return result
-
-    # Tentatives 2, 3, 4 : Playwright (casablanca-bourse.com, puis idbourse, puis investing)
-    print("[scrape] HTTP casablanca-bourse.com KO → fallback Playwright (casablanca-bourse-pw, idbourse, investing)")
-    from playwright.sync_api import sync_playwright  # import paresseux (voir en-tête)
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            locale="fr-FR",
-            timezone_id="Africa/Casablanca",
-        )
-        page = context.new_page()
-
-        for scraper in (scrape_casablanca_bourse_playwright, scrape_idbourse, scrape_investing):
-            try:
-                result = scraper(page)
-                if result is not None:
-                    browser.close()
-                    return result
-                # Échec "propre" (aucun prix trouvé mais pas d'exception) → dump debug
-                _dump_debug(page, scraper.__name__)
-            except Exception as e:
-                print(f"[{scraper.__name__}] exception: {e}")
-                _dump_debug(page, f"{scraper.__name__}_exception")
-                continue
-
-        browser.close()
+    """Tente chaque source dans l'ordre ; retourne le premier résultat valide."""
+    for scraper in (scrape_casablanca_bourse, scrape_tradingview):
+        try:
+            result = scraper()
+        except Exception as e:  # noqa: BLE001 — une source cassée ne doit pas masquer l'autre
+            print(f"[{scraper.__name__}] exception: {type(e).__name__}: {e}")
+            continue
+        if result is not None:
+            return result
     return None
+
+
+def check_staleness(max_weekdays: int) -> int:
+    """Échoue (exit 1) si le dernier relevé committé a plus de `max_weekdays` jours ouvrés.
+
+    Garde-fou indépendant du scrape : attrape aussi un push raté, un workflow désactivé
+    puis réactivé, ou tout autre chemin où le JSON cesse d'avancer sans erreur visible."""
+    try:
+        snap = json.loads(OUT_PATH.read_text())
+        last = datetime.fromisoformat(snap["lastUpdate"].replace("Z", "+00:00"))
+    except Exception as e:  # noqa: BLE001
+        print(f"::error::sgtm_live.json illisible: {e}")
+        return 1
+    age = weekdays_between(last, datetime.now(timezone.utc))
+    msg = f"{OUT_PATH.name}: {snap.get('priceMAD')} MAD @ {snap['lastUpdate']} ({age} jour(s) ouvré(s))"
+    if age > max_weekdays:
+        print(f"::error::Prix SGTM périmé — {msg} > seuil {max_weekdays}")
+        return 1
+    print(f"[staleness] ✓ {msg} ≤ seuil {max_weekdays}")
+    return 0
 
 
 def _new_history_doc() -> dict:
@@ -522,6 +386,10 @@ def rebuild_history_from_git() -> int:
 def main() -> int:
     if "--backfill" in sys.argv:
         return rebuild_history_from_git()
+    if "--check-staleness" in sys.argv:
+        i = sys.argv.index("--check-staleness")
+        n = int(sys.argv[i + 1]) if len(sys.argv) > i + 1 else 3
+        return check_staleness(n)
 
     print(f"=== scrape_sgtm.py — {datetime.now(timezone.utc).isoformat()} ===")
 
@@ -541,7 +409,7 @@ def main() -> int:
 
     now = datetime.now(timezone.utc)
     snapshot = {
-        "ticker": "SGTM",
+        "ticker": TICKER,
         "priceMAD": round(result["priceMAD"], 2),
         "currency": "MAD",
         "lastUpdate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -568,7 +436,8 @@ def main() -> int:
     # prix observé. Le dernier commit de la séance = close de facto (séance BVC termine 15h30).
     # Le chart côté JS consomme cet historique pour peupler `SGTM_PRICES` à la volée.
     try:
-        today = now.strftime("%Y-%m-%d")
+        # Jour de séance BVC si connu (un run manuel un samedi ne crée pas d'entrée samedi).
+        today = result.get("sessionDay") or now.strftime("%Y-%m-%d")
         n = upsert_history_entry(today, snapshot["priceMAD"], snapshot["source"])
         print(f"[history] ✓ upsert {today}: {snapshot['priceMAD']} MAD ({n} jours dans l'historique)")
     except Exception as e:
