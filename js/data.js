@@ -48,7 +48,25 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 498734.07,   // Mashreq NEO PLUS, 2 comptes (Saver 498 508,95 + Current 225,12) — MAJ 19/09/2026 (capture app, solde disponible)
-      wioSavings: 498000,   // Wio — espaces d'épargne d'AMINE (mauves : 50K+54K+100,5K+7K+100K+100,5K+11K+75K) — MAJ 19/09/2026 ; total app 599 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED). +75 000 le 19/09 depuis Wio Business (espace jusqu'au 19/10)
+      wioSavings: 498000,   // Wio — espaces d'épargne d'AMINE (mauves), ventilés dans wioSavingsSpaces — MAJ 19/09/2026 ; total app 599 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED). +75 000 le 19/09 depuis Wio Business (espace jusqu'au 19/10)
+      // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
+      // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
+      // rendre impossible le double comptage d'un virement déjà placé : quand de l'argent arrive
+      // sur l'épargne Wio, il CRÉE ou ABONDE un espace ci-dessous, il ne s'ajoute pas au solde.
+      // Cas vérifié le 28/09/2026 : les 57 000 AED virés vers l'épargne sont déjà là, répartis
+      // entre les deux espaces ouverts avec cet argent (50 000 + 7 000 — seule paire d'espaces
+      // dont la somme fait 57 000). Les rajouter ferait apparaître 57 000 AED (~13 500 €) de
+      // patrimoine qui n'existe pas.
+      wioSavingsSpaces: [
+        { montant: 50000,  note: 'ouvert avec le virement de 57 000 AED (1/2)' },
+        { montant: 7000,   note: 'ouvert avec le virement de 57 000 AED (2/2)' },
+        { montant: 54000 },
+        { montant: 100500 },
+        { montant: 100000 },
+        { montant: 100500 },
+        { montant: 11000 },
+        { montant: 75000,  note: 'transfert du 19/09/2026 depuis Wio Business (espace jusqu\'au 19/10)' },
+      ],
       wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
@@ -695,34 +713,69 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     degiro: {
       closed: true,
-      closedDate: '2025-04-14',
+      closedDate: '2025-04-14',   // dernier gros retrait ; le compte est ramené à 0,00 € le 27/06/2025
+      // ══════════════════════════════════════════════════════════════════════════════
+      // ARCHIVE RGPD DEGIRO du 28/09/2026 (v551) — source de vérité des flux
+      // ══════════════════════════════════════════════════════════════════════════════
+      // 17 PDF / 117 pages reçus de flatexDEGIRO après demande RGPD (art. 15 et 20) :
+      // relevé de compte et transactions 10/01/2020 → 30/06/2025, rapports annuels
+      // 2019-2025, relevés de portefeuille aux 31/12/2020-2024, 06 et 07/04/2025, plus un
+      // relevé de compte daté du 25/09/2026 (fichier mal nommé « Portfolio 31-12-2029.pdf »,
+      // son contenu porte « Compte 2026-09-25 » : AUCUNE position, AUCUN titre transféré
+      // vers un autre compte — le compte est bien vide et clos).
+      // Fiche Notion : « DEGIRO — compte français — archive RGPD du 28 septembre 2026 ».
+      archiveRGPD: {
+        recueLe: '2026-09-28',
+        periodeReleve: { debut: '2020-01-10', fin: '2025-06-30' },
+        releveFinal: { dateContenu: '2026-09-25', nomFichier: 'Portfolio 31-12-2029.pdf', positions: 0, valeurEUR: 0 },
+      },
       // Total réalisé = somme gains - pertes toutes années
       // 2020: 7.06 + 2021: 9253.27 + 2023: -2520.48 + 2025: 43446.96 = 50186.81
       totalRealizedPL: 50186.81,  // EUR — gains/pertes trading uniquement (KPIs)
 
-      // Total P&L complet (tous composants des rapports annuels) :
-      // gains(50186.81) + dividendes(865.47) + FX(-397.39) + intérêts(-10.34) + promo(20) = 50664.55
-      // Utilisé pour le chart P&L (cohérent avec buildEquityHistoryChart)
-      totalPLAllComponents: 50664.55,  // EUR — vérifié = totalRetraits(76237.57) - totalDépôts(25573.02)
+      // Total P&L complet = ce que le compte a RENDU de plus qu'il n'a reçu. Le compte étant
+      // clos et vidé, l'identité est exacte : retraits(76 237,57) − dépôts(25 650,02) = 50 587,55.
+      // La v550 portait 50 664,55, obtenu en additionnant les composants des rapports annuels
+      // (gains 50 186,81 + dividendes 865,47 + FX −397,39 + intérêts −10,34 + promo 20) puis en
+      // DÉDUISANT les dépôts de ce total. Le relevé de compte donne les dépôts réels : l'écart de
+      // 77,00 € correspond aux frais que les composants des rapports annuels n'incluent pas —
+      // frais de détention d'ADR/GDR (−29,04 USD), intérêts débiteurs mensuels (−12,59 €),
+      // intérêts flatex (−6,57 €) et divers frais de place (−18,31 €).
+      totalPLAllComponents: 50587.55,  // EUR — retraits(76237.57) − dépôts réels(25650.02)
+      ecartComposantsRapports: 77.00,  // EUR — frais hors composants des rapports annuels (ci-dessus)
 
-      // ── Dépôts & Retraits Flatex ──
-      // Les flux passent par le compte Flatex (cash) lié au compte DEGIRO
-      // Dépôts = virements externes → Flatex; Retraits Flatex = Flatex → Boursorama
-      // Transferts DEGIRO↔Flatex = mouvements internes (pas des dépôts/retraits)
+      // ── Dépôts & Retraits (relevé de compte DEGIRO, archive RGPD 2026-09-28) ──
+      // Positif = argent entré (« Versement de fonds »), négatif = argent sorti (« Retrait flatex »).
+      // Les lignes « Degiro Cash Sweep Transfer » et « Virement vers/depuis le Compte de
+      // liquidités flatex » sont des mouvements INTERNES entre le compte d'investissement DEGIRO et
+      // le compte de liquidités flatex du même titulaire : elles ne créent ni ne détruisent de
+      // patrimoine et ne figurent donc pas ici.
       deposits: [
-        // 3 virements confirmés via emails Gmail (Boursorama → DEGIRO)
-        // ✅ Montants EXACTS — back-calculés à partir des rapports annuels DEGIRO :
-        //   totalDépôts = totalRetraits - totalPL = 76237.57 - 50664.55 = 25573.02 EUR
-        //   Divisé par 3 virements = 8524.34 EUR chacun
-        // Cette formule est exacte car le compte est clôturé (tout est réalisé)
-        { date: '2020-01-14', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #1 (confirmé email 14/01/2020) — montant back-calculé rapports annuels' },
-        { date: '2020-02-20', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #2 (confirmé email 20/02/2020) — montant back-calculé rapports annuels' },
-        { date: '2020-03-09', amount: 8524.34, currency: 'EUR', fxRateAtDate: 1, label: 'Virement #3 (confirmé email 09/03/2020) — montant back-calculé rapports annuels' },
-        // Retraits Flatex → Boursorama (montants exacts des rapports annuels)
-        { date: '2021-12-31', amount: -15669, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2021 (rapport annuel)' },
-        { date: '2023-12-31', amount: -5755, currency: 'EUR', fxRateAtDate: 1, label: 'Retraits Flatex 2023 (rapport annuel)' },
-        { date: '2025-04-14', amount: -54813.57, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait final Flatex 2025 — clôture compte (rapport annuel)' },
+        { date: '2020-01-14', amount: 0.01,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds — virement de contrôle (1 cent)' },
+        { date: '2020-02-21', amount: 500,      currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds' },
+        { date: '2020-02-24', amount: 350,      currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds' },
+        { date: '2020-03-12', amount: 800,      currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds' },
+        { date: '2020-04-09', amount: 5000,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds (1/4 du 09/04)' },
+        { date: '2020-04-09', amount: 1000,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds (2/4 du 09/04)' },
+        { date: '2020-04-09', amount: 5000,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds (3/4 du 09/04)' },
+        { date: '2020-04-09', amount: 3000,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds (4/4 du 09/04)' },
+        { date: '2020-04-30', amount: 10000,    currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds' },
+        { date: '2025-02-28', amount: 0.01,     currency: 'EUR', fxRateAtDate: 1, label: 'Versement de fonds — virement de contrôle (1 cent)' },
+        // Retraits (« Retrait flatex ») — dates et montants exacts du relevé de compte
+        { date: '2021-08-10', amount: -11000,   currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2021-09-27', amount: -4489,    currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2021-09-27', amount: -180,     currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2023-05-03', amount: -655,     currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2023-07-28', amount: -5100,    currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2025-03-04', amount: -1903,    currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex' },
+        { date: '2025-04-14', amount: -52910.56, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex — produit de la liquidation du 07/04/2025' },
+        { date: '2025-06-27', amount: -0.01,    currency: 'EUR', fxRateAtDate: 1, label: 'Retrait flatex — solde ramené à zéro, compte clos' },
       ],
+      // Contrôles (archive RGPD) : Σ dépôts = 25 650,02 · Σ retraits = −76 237,57.
+      // Les totaux par année correspondent aux annexes flatex des rapports annuels :
+      // 2021 : 15 669 · 2023 : 5 755 · 2025 : 54 813,57.
+      depositsTotalCheck: 25650.02,
+      withdrawalsTotalCheck: -76237.57,
 
       // ── Résumé annuel (source: rapports annuels DEGIRO) ──
       annualSummary: {
@@ -735,7 +788,67 @@ export const PORTFOLIO = {
         2025: { portfolioStart: 77802.18, portfolioEnd: 0, gains: 43446.96, losses: 0, netPL: 43446.96 },
       },
 
+      // ── Relevés de portefeuille (archive RGPD 2026-09-28) ──
+      // Positions détenues à chaque arrêté, telles que les relevés les listent. `total` = ligne
+      // « Valeur totale du portefeuille » du relevé, cash compris ; il est donc légèrement
+      // supérieur au `portfolioEnd` du rapport annuel, qui ne compte que les titres.
+      // Sert de trace de la reconstitution et alimente les tests ; aucun calcul n'en dépend.
+      yearEndPortfolio: {
+        '2020-12-31': { total: 32050.33, cashEUR: 1933.14, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 16.95, currency: 'USD', valueEUR: 4162.58 },
+          { ticker: 'SAP',  isin: 'US8030542042', qty: 42,  close: 130.39, currency: 'USD', valueEUR: 4482.96 },
+          { ticker: 'ATO',  isin: 'FR0000051732', qty: 20,  close: 74.78, currency: 'EUR', valueEUR: 1495.60 },
+          { ticker: 'EN',   isin: 'FR0000120503', qty: 50,  close: 33.65, currency: 'EUR', valueEUR: 1682.50 },
+          { ticker: 'CAP',  isin: 'FR0000125338', qty: 36,  close: 126.80, currency: 'EUR', valueEUR: 4564.80 },
+          { ticker: 'ACA',  isin: 'FR0000045072', qty: 140, close: 10.32, currency: 'EUR', valueEUR: 1444.80 },
+          { ticker: 'FDX',  isin: 'US31428X1063', qty: 17,  close: 259.62, currency: 'USD', valueEUR: 3612.92 },
+          { ticker: 'MC',   isin: 'FR0000121014', qty: 4,   close: 510.90, currency: 'EUR', valueEUR: 2043.60 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 7,   close: 522.20, currency: 'USD', valueEUR: 2992.31 },
+          { ticker: 'SPOT', isin: 'LU1778762911', qty: 2,   close: 314.65, currency: 'USD', valueEUR: 515.14 },
+          { ticker: 'DIS',  isin: 'US2546871060', qty: 15,  close: 181.18, currency: 'USD', valueEUR: 2224.71 },
+          { ticker: 'V',    isin: 'US92826C8394', qty: 5,   close: 218.73, currency: 'USD', valueEUR: 895.26 },
+        ] },
+        '2021-12-31': { total: 29954.48, cashEUR: 46.81, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 25.31, currency: 'USD', valueEUR: 6676.52 },
+          { ticker: 'SAP',  isin: 'US8030542042', qty: 27,  close: 140.10, currency: 'USD', valueEUR: 3326.01 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 58,  close: 294.11, currency: 'USD', valueEUR: 14999.43 },
+          { ticker: 'SPOT', isin: 'LU1778762911', qty: 2,   close: 234.03, currency: 'USD', valueEUR: 411.57 },
+          { ticker: 'DIS',  isin: 'US2546871060', qty: 5,   close: 154.91, currency: 'USD', valueEUR: 681.06 },
+          { ticker: 'VLTA', isin: 'US92873V1026', qty: 590, close: 7.35, currency: 'USD', valueEUR: 3813.08 },
+        ] },
+        '2022-12-31': { total: 16505.27, cashEUR: 189.13, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 18.01, currency: 'USD', valueEUR: 5046.94 },
+          { ticker: 'SAP',  isin: 'US8030542042', qty: 27,  close: 103.19, currency: 'USD', valueEUR: 2602.52 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 58,  close: 146.14, currency: 'USD', valueEUR: 7917.54 },
+          { ticker: 'SPOT', isin: 'LU1778762911', qty: 2,   close: 78.95, currency: 'USD', valueEUR: 147.49 },
+          { ticker: 'DIS',  isin: 'US2546871060', qty: 5,   close: 86.88, currency: 'USD', valueEUR: 405.77 },
+          { ticker: 'VLTA', isin: 'US92873V1026', qty: 590, close: 0.36, currency: 'USD', valueEUR: 195.87 },
+        ] },
+        '2023-12-31': { total: 30041.89, cashEUR: 71.87, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 18.38, currency: 'USD', valueEUR: 4995.13 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 54,  close: 495.22, currency: 'USD', valueEUR: 24225.47 },
+          { ticker: 'SPOT', isin: 'LU1778762911', qty: 2,   close: 187.91, currency: 'USD', valueEUR: 340.46 },
+          { ticker: 'DIS',  isin: 'US2546871060', qty: 5,   close: 90.29, currency: 'USD', valueEUR: 408.97 },
+        ] },
+        '2024-12-31': { total: 78019.69, cashEUR: 221.13, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 21.92, currency: 'USD', valueEUR: 6353.21 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 540, close: 134.29, currency: 'USD', valueEUR: 70043.78 },
+          { ticker: 'SPOT', isin: 'LU1778762911', qty: 2,   close: 447.10, currency: 'USD', valueEUR: 863.71 },
+          { ticker: 'DIS',  isin: 'US2546871060', qty: 5,   close: 111.37, currency: 'USD', valueEUR: 537.86 },
+        ] },
+        // Veille et lendemain de la liquidation : le 07/04 il ne reste que du cash.
+        '2025-04-06': { total: 51332.44, cashEUR: 3.78, positions: [
+          { ticker: 'INFY', isin: 'US4567881085', qty: 300, close: 16.58, currency: 'USD', valueEUR: 4567.13 },
+          { ticker: 'NVDA', isin: 'US67066G1040', qty: 540, close: 94.31, currency: 'USD', valueEUR: 46761.54 },
+        ] },
+        '2025-04-07': { total: 52910.57, cashEUR: 52910.57, positions: [] },
+        '2026-09-25': { total: 0, cashEUR: 0, positions: [] },
+      },
+
       // ── Flux Flatex par année (compte cash lié) ──
+      // `cashEnd` = annexe flatex du rapport annuel (compte de liquidités flatex seul). Le relevé de
+      // portefeuille agrège en plus le fonds monétaire DEGIRO : 1 933,14 € au 31/12/2020 contre
+      // 1 940,01 € ici. Les deux sont exacts, ils ne mesurent pas le même périmètre.
       flatexCashFlows: {
         2020: { cashStart: 0, cashEnd: 1940.01, deposits: 0, retraits: 0, transfersDegiro: 1943.93, interestPaid: 3.92 },
         2021: { cashStart: 1940.01, cashEnd: 46.81, deposits: 0, retraits: 15669, transfersDegiro: 13784.57, interestPaid: 6.24 },
@@ -1026,7 +1139,7 @@ export const PORTFOLIO = {
       // ──────────────────────────────────────────────────
       // 2023 TRADES
       // ──────────────────────────────────────────────────
-      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE',                        type: 'sell', qty: 27,    price: 135.2,  currency: 'EUR', cost: 3179,     proceeds: 3650, realizedPL: 471.19, commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR) — P/L vérifié rapport annuel 2023' },
+      { date: '2023-07-27', ticker: 'SAP',   label: 'SAP SE (ADR)',                  type: 'sell', qty: 27,    price: 135.2,  currency: 'USD', cost: 3179,     proceeds: 3650, realizedPL: 471.19, commission: '', costBasis: '', source: 'degiro', note: 'SAP on Xetra (EUR) — P/L vérifié rapport annuel 2023' },
       { date: '2023-07-27', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 4,     price: 473.4,  currency: 'USD', cost: '',     proceeds: 1894, realizedPL: 1191.53, commission: '', costBasis: '', source: 'degiro', splitFactor: 10, note: 'Pre 10:1 split (June 2024)' },
 
       // ──────────────────────────────────────────────────
@@ -1034,9 +1147,19 @@ export const PORTFOLIO = {
       // ──────────────────────────────────────────────────
       { date: '2025-02-27', ticker: 'DIS',   label: 'Walt Disney Company',           type: 'sell', qty: 5,     price: 112.9,  currency: 'USD', cost: 866,     proceeds: 565, realizedPL: -82.56, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025 (DISNEY total: -82.56)' },
       { date: '2025-02-27', ticker: 'SPOT',  label: 'Spotify Technology SA',         type: 'sell', qty: 2,     price: 606.89, currency: 'USD', cost: 242,     proceeds: 1214, realizedPL: 940.57, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
-      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 8973, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Lot 1/2 — total NVDA 2025 P/L: 41354.50 (rapport annuel)' },
-      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 440,   price: 89.73,  currency: 'USD', cost: '',     proceeds: 39481, realizedPL: 41354.50, commission: '', costBasis: '', source: 'degiro', note: 'Lot 2/2 — P/L total NVDA 2025: 41354.50 (rapport annuel). P/L porté sur ce lot.' },
-      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 300,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 5085, realizedPL: 1234.46, commission: '', costBasis: '', source: 'degiro', note: 'P/L vérifié rapport annuel 2025' },
+      // Liquidation du 07/04/2025 — les six exécutions réelles du relevé de transactions (archive
+      // RGPD 2026-09-28). La v550 portait deux lots à 89,73 USD : ce prix n'existe dans aucune
+      // pièce, il avait été déduit du produit net converti. Les prix ci-dessous sont ceux des avis
+      // d'exécution ; le P/L annuel NVIDIA (41 354,50 €) reste porté par la dernière ligne, pour
+      // que le total corresponde au rapport annuel sans répartition inventée entre les lots.
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 97.60,  currency: 'USD', cost: '',     proceeds: 9760, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Exécution ARCX 19:27 — 8 917,37 € bruts' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 97.60,  currency: 'USD', cost: '',     proceeds: 9760, realizedPL: '', commission: -2.00, costBasis: '', source: 'degiro', note: 'Exécution ARCX 19:27 — 8 917,37 € bruts' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 140,   price: 98.295, currency: 'USD', cost: '',     proceeds: 13761, realizedPL: '', commission: -2.00, costBasis: '', source: 'degiro', note: 'Exécution CDED 19:29 — 12 575,51 € bruts' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 77,    price: 98.40,  currency: 'USD', cost: '',     proceeds: 7577, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Exécution XNAS 19:39 — 6 922,66 € bruts' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 23,    price: 98.40,  currency: 'USD', cost: '',     proceeds: 2263, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Exécution XNAS 19:39 — 2 067,81 € bruts' },
+      { date: '2025-04-07', ticker: 'NVDA',  label: 'NVIDIA Corporation',            type: 'sell', qty: 100,   price: 98.40,  currency: 'USD', cost: '',     proceeds: 9840, realizedPL: 41354.50, commission: -2.00, costBasis: '', source: 'degiro', note: 'Exécution XNAS 19:39 — 8 990,46 € bruts. P/L NVIDIA 2025 complet (41 354,50 €, rapport annuel) porté sur cette ligne.' },
+      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 100,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 1695, realizedPL: '', commission: '', costBasis: '', source: 'degiro', note: 'Exécution XNYS 20:37 — 1 549,94 € bruts' },
+      { date: '2025-04-07', ticker: 'INFY',  label: 'Infosys Limited (ADR)',         type: 'sell', qty: 200,   price: 16.95,  currency: 'USD', cost: '',     proceeds: 3390, realizedPL: 1234.46, commission: -2.00, costBasis: '', source: 'degiro', note: 'Exécution XNAS 20:37 — 3 099,87 € bruts. P/L Infosys 2025 complet (1 234,46 €, rapport annuel) porté sur cette ligne.' },
     ],
 
     // ──────────────────────────────────────────────────────
@@ -1062,6 +1185,11 @@ export const PORTFOLIO = {
     // juste. Sans contrat, la facturation vaut désormais zéro et l'écran affiche
     // « indisponible ».
     // Source unique : https://lallakenza.github.io/2048/data/networth-bridge.json
+    //
+    // ── ARGENT QUI TRANSITE SANS APPARTENIR À AMINE ──────────────────────────────────────
+    // Le périmètre est déclaré dans FONDS_DE_TIERS (fin de fichier) : tout encaissement qui
+    // appartient à un tiers doit y figurer, et porter une contrepartie dès qu'il se trouve
+    // dans un solde suivi ici. Rien de tout cela n'est un revenu.
   },
 
   // ════════════════════════════════════════════════════════
@@ -1397,8 +1525,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '19/09/2026';
-export const APP_VERSION = 'v550';
+export const DATA_LAST_UPDATE = '28/09/2026';
+export const APP_VERSION = 'v551';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2735,6 +2863,49 @@ export const VILLEJUIF_ACTE = {
   },
 };
 
+// ════════════════════════════════════════════════════════════
+// FONDS DE TIERS ET FRAIS — ce qui traverse les comptes sans être du patrimoine (v551)
+// ════════════════════════════════════════════════════════════
+// Un crédit sur un compte n'est pas un revenu, et un écart de quelques euros n'est pas une
+// créance. Ce registre nomme les cas connus, dit où l'argent se trouve et ce que le patrimoine
+// doit en faire. Règle : si un montant appartenant à un tiers se trouve dans un solde suivi ici,
+// il DOIT porter une contrepartie du même montant (`contrepartieEUR` ≠ 0), sinon il gonfle le
+// patrimoine. Tant qu'il n'est pas encaissé sur un compte suivi, il n'y a rien à neutraliser —
+// mais la ligne reste, pour que personne ne le rajoute par erreur en revenu.
+export const FONDS_DE_TIERS = [
+  {
+    id: 'RTL-AZARKAN',
+    libelle: 'Facturation RTL — part revenant à Azarkan',
+    montant: 28900, devise: 'EUR',
+    proprietaire: 'Mohammed Azarkan',
+    nature: 'encaissement client destiné à un tiers',
+    // Facture INVRTL020 du 03/09/2026, échéance 03/10/2026 : prestation SAP réalisée par
+    // Azarkan chez RTL, facturée par Amine puis reversée. Sur les 116 450 € facturés à RTL en
+    // 2026, 87 550 € sont encaissés et ces 28 900 € ne le sont pas encore.
+    source: 'Notion « Augustin (AZCS) — mission RTL » + facture INVRTL020 (03/09/2026)',
+    dansUnSoldeSuivi: false,   // pas encore encaissé — vérifié le 28/09/2026
+    contrepartieEUR: 0,        // à passer à −28 900 le jour où l'encaissement entre dans un solde
+    jamaisEnRevenu: true,      // ni revenu personnel, ni facturation au sens du pont 2048
+    verifieLe: '2026-09-28',
+  },
+];
+
+// Écarts de règlement récurrents : leur nature est connue, ils ne créent donc ni créance ni
+// « écart inexpliqué ». Les frais sont une charge déjà subie par la trésorerie.
+export const ECARTS_DE_REGLEMENT = [
+  {
+    id: 'IGAL-FRAIS-PAIEMENT',
+    libelle: 'Écarts de 25 € sur les règlements Igal',
+    montant: 25, devise: 'EUR',
+    classification: 'frais bancaires et de paiement international',
+    explication: 'Frais de paiement international facturés par Igal : le virement arrive minoré de 25 €.',
+    estUneCreance: false,
+    estUnRevenu: false,
+    estUnEcartInexplique: false,
+    verifieLe: '2026-09-28',
+  },
+];
+
 export const VILLEJUIF_CONSTRAINTS = {
   summary: 'Revente dans les 5 ans suivant l\'achèvement réel : le gain contractuel positif est restitué à SADEV 94 (acte p.18)',
   // Livraison : UNE date contractuelle sourcée ; toute autre date est un scénario, et le dit.
@@ -2830,7 +3001,7 @@ export const EQUITY_HISTORY = [
   { date: '2020-09-30', degiro: 28500,  espp: 17765, ibkr: 0, total: 46265 },
   { date: '2020-10-31', degiro: 29000,  espp: 20165, ibkr: 0, total: 49165,  note: 'ESPP lot 5 (14 sh)' },
   { date: '2020-11-30', degiro: 30500,  espp: 21255, ibkr: 0, total: 51755 },
-  { date: '2020-12-31', degiro: 32058,  espp: 22563, ibkr: 0, total: 54621,  note: 'Rapport annuel: Degiro 30117.82 + Flatex 1940.01' },
+  { date: '2020-12-31', degiro: 32050,  espp: 22563, ibkr: 0, total: 54613,  note: 'Relevé de portefeuille DEGIRO au 31/12/2020 : 32 050,33 € (titres 30 117,19 + cash et fonds monétaire 1 933,14)' },
 
   // ── 2021 ── (Trading actif, LVMH/Europcar/FedEx gros gains, ESPP continue)
   // Points vérifiés: 2021-12 (portefeuille 29907.67 + Flatex 46.81, retrait 15669)
@@ -2845,7 +3016,7 @@ export const EQUITY_HISTORY = [
   { date: '2021-09-30', degiro: 24000,  espp: 34720, ibkr: 0, total: 58720 },
   { date: '2021-10-31', degiro: 26000,  espp: 35960, ibkr: 0, total: 61960 },
   { date: '2021-11-30', degiro: 28000,  espp: 41850, ibkr: 0, total: 69850,  note: 'ESPP lot 3 (11 sh)' },
-  { date: '2021-12-31', degiro: 29955,  espp: 43875, ibkr: 0, total: 73830,  note: 'Rapport annuel: Degiro 29907.67 + Flatex 46.81' },
+  { date: '2021-12-31', degiro: 29954,  espp: 43875, ibkr: 0, total: 73829,  note: 'Relevé de portefeuille DEGIRO au 31/12/2021 : 29 954,48 € (titres 29 907,67 + cash 46,81)' },
 
   // ── 2022 ── (Bear market, pas de trades, ESPP continue)
   // Points vérifiés: 2022-12 (portefeuille 16316.15 + Flatex 194.13)
@@ -2860,7 +3031,7 @@ export const EQUITY_HISTORY = [
   { date: '2022-09-30', degiro: 18700,  espp: 36750, ibkr: 0, total: 55450 },
   { date: '2022-10-31', degiro: 17900,  espp: 38250, ibkr: 0, total: 56150 },
   { date: '2022-11-30', degiro: 17100,  espp: 40500, ibkr: 0, total: 57600 },
-  { date: '2022-12-31', degiro: 16510,  espp: 37500, ibkr: 0, total: 54010,  note: 'Rapport annuel: Degiro 16316.15 + Flatex 194.13' },
+  { date: '2022-12-31', degiro: 16505,  espp: 37500, ibkr: 0, total: 54005,  note: 'Relevé de portefeuille DEGIRO au 31/12/2022 : 16 505,27 € (titres 16 316,14 + cash 189,13)' },
 
   // ── 2023 ── (SAP+NVDA vendus, VOLTA perte, ESPP lot final)
   // Points vérifiés: 2023-12 (portefeuille 29971.39 + Flatex 70.51, retrait 5755)
@@ -2893,9 +3064,9 @@ export const EQUITY_HISTORY = [
   { date: '2024-12-31', degiro: 78020,  espp: 57615, ibkr: 0, total: 135635,  note: 'Rapport annuel: Degiro 77802.18 + Flatex 217.51' },
 
   // ── 2025 ── (Liquidation Degiro → IBKR, gros flush août)
-  { date: '2025-01-31', degiro: 78000,  espp: 55110, ibkr: 0,      total: 133110 },
-  { date: '2025-02-28', degiro: 78000,  espp: 56780, ibkr: 0,      total: 134780,  note: 'Vente DIS+SPOT Degiro' },
-  { date: '2025-03-31', degiro: 78000,  espp: 57615, ibkr: 0,      total: 135615 },
+  { date: '2025-01-31', degiro: 70518,  espp: 55110, ibkr: 0,      total: 125628,  note: 'Positions du relevé 31/12/2024 valorisées aux clôtures du 31/01/2025 (NVDA 120,07 · INFY 21,95 · SPOT 548,55 · DIS 113,06 ; EUR/USD 1,0397) + 222,83 € de cash' },
+  { date: '2025-02-28', degiro: 72071,  espp: 56780, ibkr: 0,      total: 128851,  note: 'Après les ventes DIS et SPOT du 27/02 : NVDA 540 à 124,92 + INFY 300 à 20,10 (EUR/USD 1,0395) + 1 376,46 € de cash' },
+  { date: '2025-03-31', degiro: 59160,  espp: 57615, ibkr: 0,      total: 116775,  note: 'NVDA 540 à 108,38 + INFY 300 à 18,25 (EUR/USD 1,0819) ; cash ramené à 3,78 € après le retrait de 1 903 € du 04/03. La v550 portait 78 000 € : la chute de NVIDIA du 1er trimestre 2025 manquait à l\'historique' },
   { date: '2025-04-30', degiro: 0,      espp: 51770, ibkr: 10000,  total: 61770,   note: 'Clôture Degiro — IBKR ouvert (10K)' },
   { date: '2025-05-31', degiro: 0,      espp: 54275, ibkr: 20000,  total: 74275 },
   { date: '2025-06-30', degiro: 0,      espp: 53440, ibkr: 35000,  total: 88440 },

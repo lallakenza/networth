@@ -5056,6 +5056,54 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v551 (28 septembre 2026) — DEGIRO reconstitué sur l'archive RGPD ; périmètre des fonds de tiers
+
+**Archive RGPD DEGIRO du 28/09/2026** (17 PDF, 117 pages : relevé de compte et de transactions
+10/01/2020 → 30/06/2025, rapports annuels 2019-2025, relevés de portefeuille). Elle remplace la
+dernière reconstitution indirecte du dépôt.
+
+- **Versements et retraits réels, datés.** La v550 back-calculait les versements
+  (`retraits − P&L reconstitué = 25 573,02 €`) puis les étalait sur trois dates supposées, à
+  8 524,34 € chacune. Le relevé donne **dix versements** (25 650,02 €, dont quatre le 09/04/2020)
+  et **huit retraits** (76 237,57 €, aux dates réelles : 10/08 et 27/09/2021, 03/05 et 28/07/2023,
+  04/03, 14/04 et 27/06/2025). `js/data.js :: degiro.deposits` porte désormais ces 18 lignes.
+- **Moteur.** `charts.js :: computeAbsoluteTooltipArrays` et le bloc P&L DEGIRO de
+  `buildEquityHistoryChart` lisaient les rapports annuels pour deviner les dépôts ; ils lisent
+  maintenant `degiro.deposits`, comme le path IBKR. Les dates de la courbe « Déposé » ne sont plus
+  approximées à l'année.
+- **Identité du compte clos.** `totalPLAllComponents` passe de 50 664,55 à **50 587,55 €**
+  (= retraits − versements, exact puisque le compte est vidé). Les 77,00 € d'écart avec la somme
+  des composants des rapports annuels sont nommés (`ecartComposantsRapports`) : frais de détention
+  d'ADR/GDR, intérêts débiteurs, intérêts flatex et frais de place, que ces composants n'incluent pas.
+- **Liquidation du 07/04/2025.** Les deux lignes NVIDIA à 89,73 USD (prix déduit, absent des pièces)
+  deviennent les six exécutions réelles (97,60 / 98,295 / 98,40 USD) et Infosys ses deux lignes.
+  Les P&L annuels restent ceux des rapports, portés chacun par une ligne.
+- **Historique.** `EQUITY_HISTORY` : arrêtés de fin d'année alignés sur les relevés de portefeuille
+  (32 050 / 29 954 / 16 505 / 30 042 / 78 020) et **premier trimestre 2025 recalculé** — la colonne
+  DEGIRO restait à 78 000 € de janvier à mars alors que NVIDIA chutait : 70 518 / 72 071 / **59 160**.
+- **Traçabilité.** `degiro.yearEndPortfolio` conserve les positions de chaque relevé ; le fichier mal
+  nommé « Portfolio 31-12-2029.pdf » est enregistré pour ce qu'il est — un relevé du **25/09/2026**,
+  compte vide : aucune position n'a été transférée ailleurs.
+
+**Périmètre : ce qui traverse les comptes sans être du patrimoine.**
+- `wioSavingsSpaces` rend la ventilation de l'épargne Wio machine-lisible ; un test impose
+  `Σ espaces = wioSavings`, ce qui rend impossible de recompter un virement déjà placé (cas des
+  57 000 AED, présents dans les deux espaces de 50 000 et 7 000).
+- `FONDS_DE_TIERS` déclare les 28 900 € RTL appartenant à Azarkan : jamais un revenu, et
+  contrepartie obligatoire dès qu'ils dorment dans un solde suivi (pas encore encaissés au 28/09).
+- `ECARTS_DE_REGLEMENT` classe les écarts de 25 € en frais de paiement Igal — ni créance, ni écart
+  inexpliqué.
+
+**Tests** : `tests/degiro-archive.test.js` (11 contrôles : flux réels, identité du compte clos,
+neutralité des transferts internes, relevés, liquidation, historique) et
+`tests/perimetre-tiers.test.js` (9 contrôles : Wio, fonds de tiers, frais Igal, Villejuif — apport
+consommé en premier, frais de notaire et quote-part du règlement de copropriété à part).
+Le garde-fou IBAN de `tests/confidentialite.test.js` exige désormais cinq groupes de quatre
+chiffres, pour ne plus confondre un IBAN avec un code ISIN français (FR0000121014).
+
+**Patrimoine inchangé** : 773 110 € (Amine 617 333, Nezha 155 777). Seuls bougent le déposé brut
+DEGIRO (+77 €), son P&L (−77 €) et l'historique du premier trimestre 2025.
+
 ## v545 (19 septembre 2026) — mise à jour des données ; compte IBKR propre de Nezha ventilé ; zone « Monde » ; analyses après les chiffres
 - **Données (19/09/2026)** : IBKR Amine via le connecteur (achat VWCE 50 × 166,86 € le 01/09 ; cash EUR
   −2 511,62, JPY −1 601 380) ; Wio (épargne Amine 423 000 AED, Nezha 101 000 AED ; Business 77 975,63 AED) ;

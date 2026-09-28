@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=550';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=550';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=550';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=550';
-import { loadSnapshots } from './api.js?v=550'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=550'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=551';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=551';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=551';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=551';
+import { loadSnapshots } from './api.js?v=551'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=551'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -2697,39 +2697,27 @@ function _esppLotDeposit(lot, fallbackFx) {
 // TODO: unifier ce path avec depositHistory côté engine pour éliminer la
 // duplication (voir ARCHITECTURE.md §Accounting Model).
 function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, navDegiro, navTotal, historicalFxData) {
-  // ── 1) DEGIRO: back-compute from annual reports ──
+  // ── 1) DEGIRO : versements et retraits RÉELS (archive RGPD du 28/09/2026) ──
+  // Avant la v551, cette fonction déduisait le total des versements des rapports annuels
+  // (retraits − P&L reconstitué) puis l'étalait sur trois dates supposées. Le relevé de compte
+  // DEGIRO donne maintenant chaque mouvement à sa date : on le lit, comme pour IBKR, au lieu de
+  // le reconstruire. Un versement mal daté déplaçait la courbe « Déposé » de plusieurs mois.
   const dg = PORTFOLIO.amine.degiro || {};
-  const dgAnnual = dg.annualSummary || {};
-  const dgDiv = dg.dividends || {};
-  const dgFX = dg.fxCosts || {};
-  const dgFlatex = dg.flatexCashFlows || {};
 
-  let dgTotalPL = 0;
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    const as = dgAnnual[y] || {};
-    const div = dgDiv[y] || {};
-    const fx = dgFX[y] || {};
-    const fl = dgFlatex[y] || {};
-    dgTotalPL += (as.netPL || 0) + (div.net || 0)
-      + (fx.autoFX || 0) + (fx.manualFX || 0) - (fl.interestPaid || 0);
+  const dgDepositEvents = [];   // argent entré, daté
+  const dgWithdrawalEvents = []; // argent sorti, daté (montants positifs)
+  for (const d of (dg.deposits || [])) {
+    const eur = d.currency === 'EUR' ? d.amount : d.amount / (d.fxRateAtDate || 1);
+    if (eur >= 0) dgDepositEvents.push({ date: d.date, amount: eur });
+    else dgWithdrawalEvents.push({ date: d.date, amount: -eur });
   }
-  dgTotalPL += 20; // promo bonus 2020
+  dgDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
+  dgWithdrawalEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  let dgTotalWithdrawals = 0;
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    dgTotalWithdrawals += (dgFlatex[y] || {}).retraits || 0;
-  }
-  const dgTotalDeposits = dgTotalWithdrawals - dgTotalPL;
-
-  const dgWithdrawalEvents = [];
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    const ret = (dgFlatex[y] || {}).retraits || 0;
-    if (ret > 0) {
-      dgWithdrawalEvents.push({ date: y === 2025 ? '2025-04-14' : y + '-12-31', amount: ret });
-    }
-  }
-  const dgDepositDates = ['2020-01-14', '2020-02-20', '2020-03-09'];
-  const dgPerDeposit = dgTotalDeposits / dgDepositDates.length;
+  const dgTotalDeposits = dgDepositEvents.reduce((s, e) => s + e.amount, 0);
+  const dgTotalWithdrawals = dgWithdrawalEvents.reduce((s, e) => s + e.amount, 0);
+  // Le compte est clos et vidé : ce qui est sorti au-delà de ce qui est entré EST le P&L total.
+  const dgTotalPL = dgTotalWithdrawals - dgTotalDeposits;
 
   // ── 2) ESPP: all lots contribEUR ──
   // BUG-053 (v302) : utilise `_esppLotDeposit()` pour traitement uniforme
@@ -2787,8 +2775,8 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
     const snapDate = chartLabels[i];
 
     // Degiro
-    const depsIn = dgDepositDates.filter(d => d <= snapDate).length;
-    const cumDgDep = depsIn * dgPerDeposit;
+    let cumDgDep = 0;
+    for (const dpt of dgDepositEvents) { if (dpt.date <= snapDate) cumDgDep += dpt.amount; }
     let cumDgRet = 0;
     for (const w of dgWithdrawalEvents) { if (w.date <= snapDate) cumDgRet += w.amount; }
     absDepsDegiro.push(cumDgDep - cumDgRet);
@@ -5409,74 +5397,41 @@ export function buildEquityHistoryChart(period, options) {
   // P&L COMPUTATION — 3 sources, 3 approches différentes
   // ══════════════════════════════════════════════════════════════
 
-  // ── 1) DEGIRO P&L: basé sur les rapports annuels (pas de dépôts estimés) ──
-  // Méthode: totalPL = Σ(gains + dividendes + FX + intérêts) par année
-  //          totalDépôts = totalRetraits - totalPL (identité compte clôturé)
-  //          PL(mois) = NAV(mois) - totalDépôts + cumRetraits(mois)
+  // ── 1) DEGIRO P&L : mouvements réels du relevé de compte (archive RGPD du 28/09/2026) ──
+  // Méthode : chaque versement et chaque retrait porte sa date ; le compte étant clos et vidé,
+  //           P&L total = retraits − versements, et PL(mois) = NAV(mois) − cumVersements(mois)
+  //           + cumRetraits(mois). Plus aucune date supposée, plus aucun montant étalé.
   const dg = PORTFOLIO.amine.degiro || {};
-  const dgAnnual = dg.annualSummary || {};
-  const dgDiv = dg.dividends || {};
-  const dgFX = dg.fxCosts || {};
-  const dgFlatex = dg.flatexCashFlows || {};
 
-  // Compute total realized P&L from all annual report components
-  let dgTotalPL = 0;
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    const as = dgAnnual[y] || {};
-    const div = dgDiv[y] || {};
-    const fx = dgFX[y] || {};
-    const fl = dgFlatex[y] || {};
-    dgTotalPL += (as.netPL || 0)
-      + (div.net || 0)
-      + (fx.autoFX || 0) + (fx.manualFX || 0)
-      - (fl.interestPaid || 0);
-  }
-  dgTotalPL += 20; // bonus promo DEGIRO 2020
-
-  // Compute total withdrawals from annual reports
-  let dgTotalWithdrawals = 0;
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    dgTotalWithdrawals += (dgFlatex[y] || {}).retraits || 0;
-  }
-
-  // Back-compute exact deposits: deposits = withdrawals - totalPL
-  const dgTotalDeposits = dgTotalWithdrawals - dgTotalPL;
-
-  // Build withdrawal events (dates from flatexCashFlows, only years with retraits > 0)
+  const dgDepositEvents = [];
   const dgWithdrawalEvents = [];
-  for (const y of [2020, 2021, 2022, 2023, 2024, 2025]) {
-    const ret = (dgFlatex[y] || {}).retraits || 0;
-    if (ret > 0) {
-      // Withdrawals happen at year-end (or account close for 2025)
-      const date = y === 2025 ? '2025-04-14' : y + '-12-31';
-      dgWithdrawalEvents.push({ date, amount: ret });
-    }
+  for (const d of (dg.deposits || [])) {
+    const eur = d.currency === 'EUR' ? d.amount : d.amount / (d.fxRateAtDate || 1);
+    if (eur >= 0) dgDepositEvents.push({ date: d.date, amount: eur });
+    else dgWithdrawalEvents.push({ date: d.date, amount: -eur });
   }
+  dgDepositEvents.sort((a, b) => a.date.localeCompare(b.date));
+  dgWithdrawalEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Deposit schedule: 3 deposits confirmed by email, all in early 2020
-  // Dates are facts from emails; amounts = totalDeposits / 3 (back-computed)
-  const dgDepositDates = ['2020-01-14', '2020-02-20', '2020-03-09'];
-  const dgPerDeposit = dgTotalDeposits / dgDepositDates.length;
+  const dgTotalDeposits = dgDepositEvents.reduce((s, e) => s + e.amount, 0);
+  const dgTotalWithdrawals = dgWithdrawalEvents.reduce((s, e) => s + e.amount, 0);
+  const dgTotalPL = dgTotalWithdrawals - dgTotalDeposits;
 
   // Compute Degiro P&L at each snapshot
   const plValuesDegiro = [];
   const cumDepositsDegiro = [];
   for (let i = 0; i < labels.length; i++) {
     const snapDate = labels[i];
-    // Cumulative deposits up to this date
-    const depositsIn = dgDepositDates.filter(d => d <= snapDate).length;
-    const cumDep = depositsIn * dgPerDeposit;
-    // Cumulative withdrawals up to this date
+    let cumDep = 0;
+    for (const d of dgDepositEvents) { if (d.date <= snapDate) cumDep += d.amount; }
     let cumRet = 0;
-    for (const w of dgWithdrawalEvents) {
-      if (w.date <= snapDate) cumRet += w.amount;
-    }
+    for (const w of dgWithdrawalEvents) { if (w.date <= snapDate) cumRet += w.amount; }
     const pl = degiroValues[i] - cumDep + cumRet;
     plValuesDegiro.push(pl);
     cumDepositsDegiro.push(cumDep - cumRet); // net deposits for tooltip
   }
 
-  console.log('[equity-history] Degiro P&L (rapports annuels):',
+  console.log('[equity-history] Degiro P&L (relevé de compte, archive RGPD):',
     'totalPL=' + Math.round(dgTotalPL),
     '| totalDépôts=' + Math.round(dgTotalDeposits),
     '| totalRetraits=' + Math.round(dgTotalWithdrawals),

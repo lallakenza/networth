@@ -16,7 +16,10 @@ const MOI = path.relative(RACINE, __filename);
 const INTERDITS = [
   ['revenu locatif hors bail', new RegExp('esp' + '[eè]ces|non d' + '[ée]clar|loyer' + 'Cash|parking' + 'CashVoisin', 'i')],
   ['adresse d’un bien', new RegExp('Nathalie ' + 'Lemel|Maxime ' + 'Gorki|des ' + 'Glycines|Léon ' + 'Geffroy', 'i')],
-  ['IBAN', new RegExp('\\bFR\\d{2}(?: ?\\d{4}){2,}')],
+  // Un IBAN français fait 27 caractères : FR + 2 chiffres de contrôle + 23 chiffres. Exiger au
+  // moins cinq groupes de quatre chiffres (soit 20) évite de confondre un IBAN avec un code ISIN
+  // français (FR + 10 caractères, ex. FR0000121014), qui est une référence de marché publique.
+  ['IBAN', new RegExp('\\bFR\\d{2}(?: ?\\d{4}){5,}')],
   ['numéro de compte', new RegExp('#\\d{9,}')],
   ['identifiant de local fiscal', new RegExp('Local n° ' + '\\d{6,}')],
 ];

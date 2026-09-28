@@ -38,7 +38,9 @@ async function lire(rel) {
 const MOTIFS = [
   ['revenu hors bail',    new RegExp('esp' + '[eè]ces|non d' + '[ée]clar|loyer' + 'Cash|parking' + 'CashVoisin', 'i')],
   ['adresse de bien',     new RegExp('Nathalie ' + 'Lemel|Maxime ' + 'Gorki|des ' + 'Glycines|Léon ' + 'Geffroy', 'i')],
-  ['IBAN',                new RegExp('\\bFR\\d{2}(?: ?\\d{4}){2,}')],
+  // Cinq groupes de quatre chiffres au minimum : un IBAN français fait 27 caractères, alors qu'un
+  // code ISIN français (FR0000121014, référence de marché publique) n'en a que 12.
+  ['IBAN',                new RegExp('\\bFR\\d{2}(?: ?\\d{4}){5,}')],
   ['numéro de compte',    new RegExp('#\\d{9,}')],
 ];
 
