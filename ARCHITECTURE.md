@@ -5056,6 +5056,38 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v552 (28 septembre 2026) — historique DEGIRO fusionné : les 166 exécutions réelles
+
+La v551 avait corrigé les flux ; l'historique des trades, lui, restait la reconstitution faite à
+partir des e-mails et des rapports annuels (137 lignes). Il est remplacé par le relevé de
+transactions de l'archive RGPD : **166 exécutions** du 21/02/2020 au 07/04/2025, une ligne par avis
+d'exécution, avec ISIN, prix, frais (courtage + AutoFX, −338,20 € au total).
+
+Ce que la reconstitution ratait, et que le relevé rétablit :
+- **Les opérations sur titres.** Division par 10 de NVIDIA (10/06/2024, 54 → 540 titres) : absente.
+  Fusion de la SPAC Tortoise Acquisition II en Volta (27/08/2021, 590 titres) : datée du 01/09 et
+  ramenée à 200. Rachat de Fitbit par Google (18/01/2021, 200 titres sortis sans cours) : enregistré
+  comme une vente de 100 titres à 7,35 USD le 14/01.
+- **Des quantités fausses.** Volta vendu le 31/03/2023 : 590 titres au relevé, 200 dans le dépôt.
+  Fitbit acheté le 04/01/2021 : 200 titres (deux lots de 100), 100 dans le dépôt.
+- **Un instrument mal identifié.** Les achats de mars 2021 étaient étiquetés « Hyliion (ex-SHLL) » ;
+  c'était Tortoise Acquisition II (SNPR, ISIN KYG895541020), la SPAC devenue Volta. Deux SPAC
+  différentes portant le même nom de sponsor.
+- **Les exécutions fractionnées**, désormais conservées telles que la bourse les a exécutées
+  (Europcar, NVIDIA, Infosys…), au lieu d'un lot unique au prix moyen.
+
+Les P/L réalisés RESTENT ceux des rapports annuels (`perInstrumentPL`) : le total annuel d'un
+instrument est porté par sa DERNIÈRE vente de l'année, jamais réparti au jugé entre les lots. Un
+test interdit qu'un même couple instrument-année porte deux P/L.
+
+**Le contrôle qui prouve la complétude** : les positions reconstituées en rejouant les 166
+exécutions égalent, titre par titre, CHACUN des huit relevés de portefeuille (31/12/2020 à 2024,
+06 et 07/04/2025, 25/09/2026). Une exécution manquante ou une quantité fausse ferait diverger le
+stock dès le relevé suivant.
+
+Tableau des positions clôturées : 44 lignes, P/L total 50 187 € — l'écart de 3 € avec la v551 vient
+du P/L Disney 2025, qui n'était rattaché à aucune vente. Patrimoine inchangé.
+
 ## v551 (28 septembre 2026) — DEGIRO reconstitué sur l'archive RGPD ; périmètre des fonds de tiers
 
 **Archive RGPD DEGIRO du 28/09/2026** (17 PDF, 117 pages : relevé de compte et de transactions

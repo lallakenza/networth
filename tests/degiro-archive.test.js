@@ -158,6 +158,78 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     centimes(infy.reduce((x, l) => x + (l.realizedPL || 0), 0), 1234.46, 'P/L Infosys 2025');
   });
 
+  // ── 6. L'historique des transactions est celui de l'archive, pas une reconstitution ──
+  t('les 166 exécutions du relevé sont dans l’historique, ISIN compris', () => {
+    const tr = D.PORTFOLIO.amine.allTrades.filter((x) => x.source === 'degiro');
+    const marche = tr.filter((x) => x.isin);
+    assert.equal(marche.length, 166, 'le relevé de transactions compte 166 exécutions');
+    // Une seule ligne sans ISIN : le fonds monétaire, qui n'est pas une transaction de marché.
+    const horsMarche = tr.filter((x) => !x.isin);
+    assert.equal(horsMarche.length, 1);
+    assert.equal(horsMarche[0].ticker, 'MSLIQ');
+    const parAnnee = {};
+    for (const x of marche) parAnnee[x.date.slice(0, 4)] = (parAnnee[x.date.slice(0, 4)] || 0) + 1;
+    assert.deepEqual(parAnnee, { 2020: 100, 2021: 51, 2023: 3, 2024: 2, 2025: 10 });
+  });
+
+  t('les positions reconstituées depuis les trades égalent CHAQUE relevé de portefeuille', () => {
+    // C'est le contrôle qui prouve que l'historique est complet : si une exécution manquait, si
+    // une quantité était consolidée de travers ou si une opération sur titres était oubliée, le
+    // stock reconstitué s'écarterait du relevé à la première date suivante.
+    const tr = D.PORTFOLIO.amine.allTrades.filter((x) => x.source === 'degiro' && x.isin);
+    for (const [date, p] of Object.entries(dg.yearEndPortfolio)) {
+      const stock = {};
+      for (const x of tr) {
+        if (x.date <= date) stock[x.isin] = (stock[x.isin] || 0) + (x.type === 'sell' ? -x.qty : x.qty);
+      }
+      for (const ligne of p.positions) {
+        assert.equal(stock[ligne.isin] || 0, ligne.qty,
+          date + ' — ' + ligne.ticker + ' : relevé ' + ligne.qty + ', trades ' + (stock[ligne.isin] || 0));
+      }
+      for (const [isin, q] of Object.entries(stock)) {
+        if (Math.abs(q) < 1e-9) continue;
+        assert.ok(p.positions.some((l) => l.isin === isin),
+          date + ' — les trades laissent ' + q + ' titres ' + isin + ' que le relevé ne montre pas');
+      }
+    }
+  });
+
+  t('les opérations sur titres sont là : division NVIDIA, fusion Tortoise → Volta, rachat Fitbit', () => {
+    const tr = D.PORTFOLIO.amine.allTrades.filter((x) => x.source === 'degiro');
+    const le = (d, isin) => tr.filter((x) => x.date === d && x.isin === isin);
+    // 10/06/2024 : division par 10 de NVIDIA — 54 titres sortent, 540 entrent.
+    const split = le('2024-06-10', 'US67066G1040');
+    assert.equal(split.length, 2, 'la division NVIDIA de juin 2024 doit figurer');
+    assert.equal(split.reduce((x, l) => x + (l.type === 'sell' ? -l.qty : l.qty), 0), 486);
+    // 27/08/2021 : la SPAC Tortoise Acquisition II devient Volta — même jour, deux ISIN.
+    assert.equal(le('2021-08-27', 'KYG895541020')[0].type, 'sell');
+    assert.equal(le('2021-08-27', 'US92873V1026')[0].type, 'buy');
+    assert.equal(le('2021-08-27', 'KYG895541020')[0].qty, le('2021-08-27', 'US92873V1026')[0].qty);
+    // 18/01/2021 : Fitbit racheté par Google — les titres sortent sans prix de marché.
+    const fit = le('2021-01-18', 'US33812L1026');
+    assert.equal(fit.length, 1);
+    assert.equal(fit[0].qty, 200);
+    assert.equal(fit[0].price, 0, 'une opération sur titres n’a pas de cours');
+  });
+
+  t('les P/L portés par les trades restent ceux des rapports annuels', () => {
+    const tr = D.PORTFOLIO.amine.allTrades.filter((x) => x.source === 'degiro');
+    const somme = tr.reduce((x, l) => x + (typeof l.realizedPL === 'number' ? l.realizedPL : 0), 0);
+    assert.ok(Math.abs(somme - dg.totalRealizedPL) < 0.05,
+      'Σ realizedPL des trades ' + somme.toFixed(2) + ' ≠ totalRealizedPL ' + dg.totalRealizedPL);
+    // Aucun P/L inventé sur les lignes intermédiaires : un instrument ne porte qu'UNE valeur par an.
+    const parAnneeTicker = {};
+    for (const l of tr) {
+      if (typeof l.realizedPL !== 'number') continue;
+      const k = l.date.slice(0, 4) + '|' + l.ticker;
+      parAnneeTicker[k] = (parAnneeTicker[k] || 0) + 1;
+      assert.ok(parAnneeTicker[k] <= 1, 'deux P/L portés sur ' + k + ' : le total annuel serait compté deux fois');
+    }
+    const clos = av.degiroClosedPositions || [];
+    assert.ok(Math.abs(clos.reduce((x, c) => x + (c.pl || 0), 0) - dg.totalRealizedPL) < 5,
+      'le tableau des positions clôturées doit totaliser le P/L des rapports annuels');
+  });
+
   t('l’historique 2025 du graphe reflète la baisse de NVIDIA du 1er trimestre', () => {
     const h = Object.fromEntries(D.EQUITY_HISTORY.filter((r) => r.date.startsWith('2025-')).map((r) => [r.date, r]));
     assert.ok(h['2025-03-31'].degiro < h['2025-01-31'].degiro - 8000,
