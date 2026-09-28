@@ -5090,7 +5090,7 @@ dans le détail des transactions, à leur place.
 
 Positions clôturées après correction (contre la v550) : NVIDIA produit 43 907 → **47 837 €** (prix
 d'exécution réels), Volta coût 1 742 → **5 744 €** et produit 150 → **0 €** (le rachat par Shell est
-réglé en espèces hors cours), Fitbit coût 597 → **1 195 €** (200 titres, pas 100). P/L total
+réglé en numéraire, hors cours de bourse), Fitbit coût 597 → **1 195 €** (200 titres, pas 100). P/L total
 inchangé à 50 187 €, patrimoine inchangé.
 
 ## v552 (28 septembre 2026) — historique DEGIRO fusionné : les 166 exécutions réelles
