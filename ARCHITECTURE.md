@@ -5056,6 +5056,43 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v553 (28 septembre 2026) — divisions, regroupements et jambes d'opérations sur titres
+
+Deux défauts que la fusion de la v552 avait laissés — le premier hérité, le second créé par elle.
+
+**1. Les facteurs de division manquaient ou étaient incomplets.** `splitFactor` dit combien de
+titres d'aujourd'hui vaut UN titre de l'époque ; il ne sert qu'au « si gardé aujourd'hui », jamais
+au patrimoine ni au P/L réalisé. Le champ existait sur 15 lignes (NVIDIA, Air France-KLM, Canopy
+Growth, Juventus, Hertz) et la v552 l'avait perdu en régénérant l'historique. Il est rétabli sur
+**34 lignes**, à partir des événements de division publiés par Yahoo Finance :
+
+| Titre | Opération | Facteur |
+|---|---|---|
+| NVIDIA | 4:1 le 20/07/2021, 10:1 le 10/06/2024 | 40 avant 2021, 10 entre, 1 après |
+| Tesla | 5:1 le 31/08/2020, 3:1 le 25/08/2022 | 15 — **manquait** |
+| GameStop | 4:1 le 22/07/2022 | 4 — **manquait** |
+| Atos | 1:10 000 le 24/04/2025 | 0,0001 — **manquait** |
+| IBM | 1046:1000 le 04/11/2021 (scission Kyndryl) | 1,046 — **manquait** |
+| FedEx | 1241:1000 le 01/06/2026 (scission FedEx Freight) | 1,241 — **manquait** |
+| Air France-KLM · Canopy Growth · Juventus | regroupements 1:10 | 0,1 |
+
+Effet sur le « si gardé aujourd'hui » : Atos passe de 737 € à **0 €** (les 20 titres de 2021 valent
+0,002 titre après le regroupement — c'est bien le résultat réel), GameStop de 406 à 1 624 €, FedEx
+de 5 824 à 7 228 €, IBM de 1 948 à 2 037 €.
+
+**2. Une jambe d'opération sur titres n'est pas une opération de marché.** Le relevé enregistre une
+division comme une sortie puis une entrée : 54 NVIDIA sortent, 540 rentrent. En les agrégeant comme
+des ventes et des achats, la v552 gonflait le produit NVIDIA de 65 279 USD fictifs et la quantité
+« si gardé » de 540 titres. Les six jambes concernées (divisions NVIDIA 2021 et 2024, fusion
+Tortoise → Volta) portent `corporateAction: true` ; `engine.js` les exclut du coût, du produit, du
+compteur de ventes et de la quantité ajustée, `render.js` du « si gardé ». Elles restent visibles
+dans le détail des transactions, à leur place.
+
+Positions clôturées après correction (contre la v550) : NVIDIA produit 43 907 → **47 837 €** (prix
+d'exécution réels), Volta coût 1 742 → **5 744 €** et produit 150 → **0 €** (le rachat par Shell est
+réglé en espèces hors cours), Fitbit coût 597 → **1 195 €** (200 titres, pas 100). P/L total
+inchangé à 50 187 €, patrimoine inchangé.
+
 ## v552 (28 septembre 2026) — historique DEGIRO fusionné : les 166 exécutions réelles
 
 La v551 avait corrigé les flux ; l'historique des trades, lui, restait la reconstitution faite à

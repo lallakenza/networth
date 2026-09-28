@@ -230,6 +230,47 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
       'le tableau des positions clôturées doit totaliser le P/L des rapports annuels');
   });
 
+  // ── 7. Divisions et regroupements ──
+  t('chaque ligne antérieure à une division porte son facteur, les deux jambes comprises', () => {
+    const tr = D.PORTFOLIO.amine.allTrades.filter((x) => x.source === 'degiro');
+    const f = (date, tk, side) => {
+      const l = tr.find((x) => x.date === date && x.ticker === tk && x.type === side);
+      assert.ok(l, 'ligne introuvable : ' + date + ' ' + tk + ' ' + side);
+      return l.splitFactor === undefined ? 1 : l.splitFactor;
+    };
+    // NVIDIA : 4:1 le 20/07/2021 puis 10:1 le 10/06/2024.
+    assert.equal(f('2020-07-10', 'NVDA', 'buy'), 40, 'achat de 2020 : 4 × 10');
+    assert.equal(f('2021-07-20', 'NVDA', 'sell'), 40, 'jambe SORTANTE de la division : facteur d’avant');
+    assert.equal(f('2021-07-20', 'NVDA', 'buy'), 10, 'jambe ENTRANTE de la division : facteur d’après');
+    assert.equal(f('2021-08-17', 'NVDA', 'buy'), 10);
+    assert.equal(f('2024-06-10', 'NVDA', 'sell'), 10);
+    assert.equal(f('2024-06-10', 'NVDA', 'buy'), 1, 'après la dernière division, plus d’ajustement');
+    assert.equal(f('2025-04-07', 'NVDA', 'sell'), 1);
+    // Regroupements : un titre d'hier vaut une fraction de titre d'aujourd'hui.
+    assert.equal(f('2020-11-13', 'AF', 'sell'), 0.1, 'Air France-KLM 1:10 en 2023');
+    assert.equal(f('2021-03-01', 'JUVE', 'sell'), 0.1, 'Juventus 1:10 en 2024');
+    assert.equal(f('2020-08-25', 'CGC', 'sell'), 0.1, 'Canopy Growth 1:10 en 2023');
+    assert.equal(f('2021-02-10', 'ATO', 'sell'), 0.0001, 'Atos 1:10 000 en 2025');
+    // Divisions et scissions ignorées avant la v553.
+    assert.equal(f('2020-05-12', 'TSLA', 'sell'), 15, 'Tesla 5:1 puis 3:1');
+    assert.equal(f('2021-01-29', 'GME', 'sell'), 4, 'GameStop 4:1 en 2022');
+    assert.equal(f('2021-03-09', 'IBM', 'sell'), 1.046, 'scission Kyndryl');
+    assert.equal(f('2021-03-01', 'FDX', 'sell'), 1.241, 'scission FedEx Freight');
+  });
+
+  t('le facteur ne touche ni le patrimoine ni le P/L réalisé — seulement le « si gardé »', () => {
+    // Le P/L des positions clôturées vient des rapports annuels : il ne doit pas bouger d'un
+    // centime quand un facteur change. On le vérifie en recalculant avec des facteurs neutralisés.
+    const clone = JSON.parse(JSON.stringify(D.PORTFOLIO));
+    for (const l of clone.amine.allTrades) if (l.source === 'degiro') delete l.splitFactor;
+    const sansFacteurs = E.compute(clone, { ...D.FX_STATIC }, 'static');
+    const plAvec = (av.degiroClosedPositions || []).reduce((x, c) => x + (c.pl || 0), 0);
+    const plSans = (sansFacteurs.actionsView.degiroClosedPositions || []).reduce((x, c) => x + (c.pl || 0), 0);
+    centimes(plAvec, plSans, 'P/L des positions clôturées selon les facteurs');
+    assert.equal(Math.round(sansFacteurs.views.couple.nwRef), Math.round(s.views.couple.nwRef),
+      'le patrimoine ne doit dépendre d’aucun facteur de division');
+  });
+
   t('l’historique 2025 du graphe reflète la baisse de NVIDIA du 1er trimestre', () => {
     const h = Object.fromEntries(D.EQUITY_HISTORY.filter((r) => r.date.startsWith('2025-')).map((r) => [r.date, r]));
     assert.ok(h['2025-03-31'].degiro < h['2025-01-31'].degiro - 8000,

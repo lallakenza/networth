@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=552';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=552';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=553';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=553';
 
 // ---- Generic table sort utility ----
 /**
@@ -2892,7 +2892,8 @@ function renderActionsView(state) {
               const amt = isSell ? (t.proceeds || 0) : (t.cost || 0);
               const amtLabel = fmt(Math.round(amt));
               let ifHeldDetailCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
-              if (isSell && cp._ifHeldPriceEUR && t.qty) {
+              // Une jambe d'opération sur titres n'a pas été vendue : pas de « si gardé ».
+              if (isSell && cp._ifHeldPriceEUR && t.qty && !t.corporateAction) {
                 const hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
                 const pct = amt > 0 ? (diff / amt * 100) : 0;
@@ -8026,7 +8027,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=552').then(m => {
+  import('./charts.js?v=553').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

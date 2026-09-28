@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=552';
-import { lireContratEnCache } from './facturation_contract.js?v=552';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=553';
+import { lireContratEnCache } from './facturation_contract.js?v=553';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -962,7 +962,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allTradesUnified = [...ibkrTrades, ...(portfolio.amine.allTrades || [])];
   // Aggregate sells by ticker+source for total P/L per closed position
   const byTickerSource = {};
-  allTradesUnified.filter(t => t.type === 'sell').forEach(t => {
+  // v553 — une jambe d'opération sur titres N'EST PAS une opération de marché. Quand NVIDIA est
+  // divisée par 10, le courtier sort 54 titres et en rentre 540 : compter ces lignes gonflerait le
+  // coût, le produit et la quantité « si gardé » de dizaines de milliers d'euros fictifs. Elles
+  // restent dans _allTrades pour l'affichage du détail, mais sortent de tous les agrégats.
+  const estOperationSurTitres = (t) => t.corporateAction === true;
+  allTradesUnified.filter(t => t.type === 'sell' && !estOperationSurTitres(t)).forEach(t => {
     const key = (t.source || 'ibkr') + ':' + t.ticker;
     if (!byTickerSource[key]) byTickerSource[key] = { ticker: t.ticker, label: t.label, pl: 0, costEUR: 0, proceedsEUR: 0, currency: t.currency, sells: 0, source: t.source || 'ibkr', _trades: [], _hasReportPL: false, _reportPLCount: 0 };
     if (typeof t.realizedPL === 'number') { byTickerSource[key]._hasReportPL = true; byTickerSource[key]._reportPLCount++; }
@@ -982,12 +987,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const allForTicker = allTradesUnified.filter(t => t.ticker === cp.ticker && (t.source || 'ibkr') === cp.source);
     cp._allTrades = allForTicker.sort((a, b) => a.date.localeCompare(b.date));
     // Accumulate cost from buy trades (sell trades have cost:''), converted to EUR
-    cp.costEUR = allForTicker.filter(t => t.type === 'buy').reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
+    cp.costEUR = allForTicker.filter(t => t.type === 'buy' && !estOperationSurTitres(t)).reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
     // Fallback cost when no buy entries exist:
     // 1) Use cost field from sell entries (filled from proceeds-PL for EUR, or matched buys for USD)
     // 2) Derive from proceedsEUR - pl (when report P/L is available and proceeds known)
     if (cp.costEUR === 0) {
-      const sellCost = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
+      const sellCost = allForTicker.filter(t => t.type === 'sell' && !estOperationSurTitres(t)).reduce((s, t) => s + toEUR(t.cost || 0, t.currency, fx), 0);
       if (sellCost > 0) {
         cp.costEUR = sellCost;
       } else if (cp._hasReportPL && cp.proceedsEUR > 0) {
@@ -1014,7 +1019,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       }
     }
     // Total qty sold (adjusted for stock splits: qty * splitFactor for pre-split trades)
-    const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell').reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
+    const totalQtySoldAdj = allForTicker.filter(t => t.type === 'sell' && !estOperationSurTitres(t)).reduce((s, t) => s + (t.qty || 0) * (t.splitFactor || 1), 0);
     // "What if I held": look up current live price for this ticker
     // Priority: 1) live position in IBKR (exact or with .PA suffix), 2) sold stock prices from background fetch
     const livePos = ibkrPositions.find(p => p.ticker === cp.ticker)
