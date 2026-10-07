@@ -1598,6 +1598,11 @@
       "date": "2026-10-06",
       "priceMAD": 600.0,
       "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-10-07",
+      "priceMAD": 590.0,
+      "source": "casablanca-bourse.com"
     }
   ]
 }
