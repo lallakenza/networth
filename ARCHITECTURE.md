@@ -5056,6 +5056,15 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v556 (7 octobre 2026) — correction rétroactive bornée à l'instant, pas au jour
+
+Le snapshot daté du 07/10 a été écrit par le cron le 06/10 à 21:00 UTC — avant le remboursement de
+la carte (07/10, 08:46 UTC). Il portait donc encore la dette, et la période de la v555 (arrêtée au
+06/10) le laissait surévalué. Un champ optionnel `captureAvant` borne une période à un instant :
+sur le jour charnière, un snapshot pris avant est corrigé, un snapshot pris après (déjà au bon
+solde) ne l'est pas. `wio_credit` court désormais jusqu'au 07/10 avec `captureAvant` =
+2026-10-07T08:46:19Z.
+
 ## v555 (7 octobre 2026) — historique rétroactif : corriger un compte après coup
 
 Les snapshots quotidiens sont en **ajout seul** : un point passé n'est jamais réécrit en base. Mais

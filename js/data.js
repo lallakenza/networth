@@ -1560,7 +1560,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '07/10/2026';
-export const APP_VERSION = 'v555';
+export const APP_VERSION = 'v556';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2915,7 +2915,10 @@ export const VILLEJUIF_ACTE = {
 export const SOLDES_RETROACTIFS = {
   wio_credit: [
     {
-      du: '2026-09-09', au: '2026-10-06', natif: -69998.89, devise: 'AED', proprietaire: 'A',
+      // Jusqu'au remboursement du 07/10 à 08:46 UTC : le snapshot du 07/10 écrit par le cron (06/10 à
+      // 21:00 UTC) portait encore la dette, un snapshot pris après le remboursement ne la porte plus.
+      du: '2026-09-09', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z',
+      natif: -69998.89, devise: 'AED', proprietaire: 'A',
       statut: 'provisoire',
       source: 'Remboursement intégral de 69 998,89 AED le 07/10/2026 (mail Wio « Wio Credit repayment done ») ; relevé « Credit Statement SEPTEMBER 2026 » reçu le 09/09/2026',
       aConfirmer: 'Le montant est certain au 07/10. Le début (09/09, date du relevé) est une lecture du mail de relevé : le PDF du relevé donnera le solde arrêté et les dates d\'achat, donc la montée réelle de la dette.',

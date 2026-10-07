@@ -11,8 +11,8 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC } from './data.js?v=555';
-import { appliquerSoldesRetroactifs } from './engine.js?v=555';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC } from './data.js?v=556';
+import { appliquerSoldesRetroactifs } from './engine.js?v=556';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1097,7 +1097,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=555');
+    if (!_authMod) _authMod = await import('./auth.js?v=556');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }

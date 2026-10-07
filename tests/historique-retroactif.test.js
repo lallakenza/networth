@@ -114,6 +114,16 @@ const snap = (date, extra = {}) => ({
     assert.equal(r.corrections, null);
   });
 
+  t('le jour charnière : corrigé avant le remboursement, pas après', () => {
+    const S = { wio_credit: [{ du: '2026-09-09', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: -69998.89, devise: 'AED', proprietaire: 'A' }] };
+    const avant = { ...snap('2026-10-07'), capturedAt: '2026-10-06T21:00:05Z' };
+    const apres = { ...snap('2026-10-07'), capturedAt: '2026-10-07T21:00:05Z' };
+    E.appliquerSoldesRetroactifs([avant, apres], S, D.FX_STATIC);
+    assert.ok(avant.corrections, 'capturé avant le remboursement : la dette existait');
+    assert.equal(apres.corrections, null, 'capturé après : déjà au bon solde, aucune correction');
+    assert.equal(D.SOLDES_RETROACTIFS.wio_credit[0].captureAvant, '2026-10-07T08:46:19Z');
+  });
+
   t('un snapshot sans patrimoine (rétroactif « actions seulement ») est laissé tel quel', () => {
     const r = { date: '2026-09-20', data: { stocks: { positions: {} } } };
     E.appliquerSoldesRetroactifs([r], SOLDES, D.FX_STATIC);
