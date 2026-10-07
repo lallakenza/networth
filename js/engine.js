@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=554';
-import { lireContratEnCache } from './facturation_contract.js?v=554';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=555';
+import { lireContratEnCache } from './facturation_contract.js?v=555';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5406,6 +5406,65 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
 // Labels d'affichage (cashView) → ids stables. Fallback : slugify + warn (rename à mapper).
 // Exporté (v388) : l'explorateur de séries inverse ce mapping pour afficher les labels FR.
+/**
+ * Applique les soldes rétroactifs (data.js :: SOLDES_RETROACTIFS) aux snapshots chargés. v555.
+ *
+ * Les snapshots sont en ajout seul : on ne réécrit jamais un point en base. On corrige à la
+ * LECTURE. Pour chaque snapshot dont la date tombe dans une période déclarée, le solde du compte
+ * est remplacé par la valeur connue, et l'écart (au taux de change du snapshot, à défaut le taux
+ * statique) est reporté sur le cash et le patrimoine du titulaire, et sur le couple.
+ *
+ * Idempotent : la donnée brute est gardée dans `row._dataBrute` et chaque appel repart d'elle.
+ * On peut donc rappeler la fonction après le déverrouillage (registre rempli) sans double effet.
+ * Seuls les snapshots RÉELS (avec `total.couple`) sont touchés : les rétroactifs « stocks
+ * seulement » ne portent pas de patrimoine à corriger.
+ * Chaque ligne corrigée reçoit `row.corrections` = [{ compte, deltaEUR, statut }].
+ */
+export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
+  if (!Array.isArray(rows)) return rows;
+  const periodes = [];
+  for (const [compte, liste] of Object.entries(soldes || {})) {
+    for (const p of (liste || [])) periodes.push({ compte, ...p });
+  }
+  for (const row of rows) {
+    if (!row || !row.data) continue;
+    if (!row._dataBrute) row._dataBrute = row.data;
+    const brute = row._dataBrute;
+    row.data = brute;
+    row.corrections = null;
+    const reel = brute.total && brute.total.couple != null;
+    const actives = reel ? periodes.filter((c) => row.date >= c.du && row.date <= c.au) : [];
+    if (!actives.length) continue;
+    const d = JSON.parse(JSON.stringify(brute));
+    if (!d.cash) d.cash = {};
+    if (!d.cash.accounts) d.cash.accounts = {};
+    const notes = [];
+    for (const c of actives) {
+      const avant = d.cash.accounts[c.compte];
+      const natifEnregistre = avant && typeof avant.native === 'number' ? avant.native : 0;
+      const deltaNatif = c.natif - natifEnregistre;
+      if (Math.abs(deltaNatif) < 0.005) continue;
+      const taux = c.devise === 'EUR' ? 1 : ((d.meta && d.meta.fx && d.meta.fx[c.devise]) || (fxStatic && fxStatic[c.devise]));
+      if (!taux) continue;
+      const deltaEUR = deltaNatif / taux;
+      const qui = c.proprietaire === 'N' ? 'nezha' : 'amine';
+      d.cash.accounts[c.compte] = {
+        ...(avant || {}), native: c.natif, eur: Math.round(((avant && avant.eur) || 0) + deltaEUR),
+        ccy: c.devise, owner: c.proprietaire === 'N' ? 'N' : 'A', corrige: true,
+      };
+      const ajoute = (o, k) => { if (o && typeof o[k] === 'number') o[k] = Math.round(o[k] + deltaEUR); };
+      ajoute(d.cash, 'total'); ajoute(d.cash, qui);
+      ajoute(d.total, 'couple'); ajoute(d.total, qui);
+      for (const v of ['couple', qui]) {
+        if (d.views && d.views[v]) { ajoute(d.views[v], 'cash'); ajoute(d.views[v], 'nwRef'); }
+      }
+      notes.push({ compte: c.compte, deltaEUR: Math.round(deltaEUR), statut: c.statut || 'établi' });
+    }
+    if (notes.length) { row.data = d; row.corrections = notes; }
+  }
+  return rows;
+}
+
 /**
  * Solde dû sur la carte Wio Credit, en AED (≥ 0). v554.
  * Une valeur absente ou négative vaut 0 : un trop-perçu sur la carte n'est pas modélisé.

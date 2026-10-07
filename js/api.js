@@ -11,7 +11,8 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION } from './data.js?v=554';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC } from './data.js?v=555';
+import { appliquerSoldesRetroactifs } from './engine.js?v=555';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1096,7 +1097,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=554');
+    if (!_authMod) _authMod = await import('./auth.js?v=555');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }
@@ -1263,10 +1264,13 @@ export async function loadSnapshots(sinceISO) {
       if (v > vMax) vMax = v;
       gardees.push(row);
     }
-    return gardees.map(row => ({
+    const lignes = gardees.map(row => ({
       date: row.snap_date, quality: row.quality, capturedAt: row.captured_at,
       appVersion: _versionTxt(row), data: row.data,
     }));
+    // v555 — soldes connus après coup (data.js :: SOLDES_RETROACTIFS), appliqués à la lecture :
+    // la base reste en ajout seul, le brut est conservé dans row._dataBrute.
+    return appliquerSoldesRetroactifs(lignes, SOLDES_RETROACTIFS, FX_STATIC);
   } catch (e) { console.warn('[snapshot] load failed:', e && e.message); return []; }
 }
 

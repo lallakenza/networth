@@ -1560,7 +1560,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '07/10/2026';
-export const APP_VERSION = 'v554';
+export const APP_VERSION = 'v555';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2895,6 +2895,32 @@ export const VILLEJUIF_ACTE = {
     },
     travauxAcquereur: null,   // travaux de l'acquéreur hors prix : aucun montant sans pièce
   },
+};
+
+// ════════════════════════════════════════════════════════════
+// SOLDES RÉTROACTIFS — corriger l'historique sans réécrire les snapshots (v555)
+// ════════════════════════════════════════════════════════════
+// Les snapshots quotidiens sont en AJOUT SEUL : un point passé n'est jamais réécrit en base. Quand
+// on apprend après coup le vrai solde d'un compte sur une période (un relevé reçu tard, une dette
+// de carte découverte), on le déclare ici. À la LECTURE, chaque snapshot de la période voit le
+// solde du compte remplacé par la valeur connue, et l'écart est reporté sur le cash et le
+// patrimoine du même titulaire (au taux de change du snapshot). Le brut reste intact en base.
+//
+// Clé = id de compte du snapshot (CASH_ACCOUNT_IDS, engine.js). Chaque période :
+//   du, au      bornes incluses (AAAA-MM-JJ)
+//   natif       VRAI solde sur la période, en devise native (négatif pour une dette)
+//   devise      devise du compte ;  proprietaire 'A' (Amine) ou 'N' (Nezha)
+//   statut      'établi' ou 'provisoire' — un statut provisoire est signalé dans la vue Historique
+//   source      d'où vient le chiffre ;  aConfirmer : ce qui manque pour passer en « établi »
+export const SOLDES_RETROACTIFS = {
+  wio_credit: [
+    {
+      du: '2026-09-09', au: '2026-10-06', natif: -69998.89, devise: 'AED', proprietaire: 'A',
+      statut: 'provisoire',
+      source: 'Remboursement intégral de 69 998,89 AED le 07/10/2026 (mail Wio « Wio Credit repayment done ») ; relevé « Credit Statement SEPTEMBER 2026 » reçu le 09/09/2026',
+      aConfirmer: 'Le montant est certain au 07/10. Le début (09/09, date du relevé) est une lecture du mail de relevé : le PDF du relevé donnera le solde arrêté et les dates d\'achat, donc la montée réelle de la dette.',
+    },
+  ],
 };
 
 // ════════════════════════════════════════════════════════════

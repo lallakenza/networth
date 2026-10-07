@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF } from './data.js?v=554';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS } from './data.js?v=555';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=554';
-import { compute, getGrandTotal, buildDailySnapshot } from './engine.js?v=554';
-import { render, applySnapshotDeltas } from './render.js?v=554';
-import { chargerContratDistant } from './facturation_contract.js?v=554';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=554';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=554';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=554';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=554';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=555';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=555';
+import { render, applySnapshotDeltas } from './render.js?v=555';
+import { chargerContratDistant } from './facturation_contract.js?v=555';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=555';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=555';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=555';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=555';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -700,18 +700,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=554');
+  const auth = await import('./auth.js?v=555');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=554');
+  const auth = await import('./auth.js?v=555');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=554');
+  const auth = await import('./auth.js?v=555');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -733,7 +733,12 @@ function apresDeverrouillage() {
   else loadImmoRef().then(appliquerImmoRef).catch(() => {});
 
   // Idem pour les deltas « vs hier », qui ont été sautés faute de currentState.
-  if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState, currentSubView || currentView);
+  if (window._nwSnapCache && currentState) {
+    // v555 — ré-appliquer les soldes rétroactifs : si le cache a été chargé avant le
+    // déverrouillage, le registre était encore une coquille. Idempotent (repart du brut).
+    appliquerSoldesRetroactifs(window._nwSnapCache, SOLDES_RETROACTIFS, FX_STATIC);
+    applySnapshotDeltas(currentState, currentSubView || currentView);
+  }
 }
 
 window.nwUnlock = async (saisie) => {
@@ -787,7 +792,12 @@ function appliquerImmoRef(ref) {
   if (!donneesPretes()) return false;
   if (!applyImmoRef(ref)) return false;
   refresh();
-  if (window._nwSnapCache && currentState) applySnapshotDeltas(currentState, currentSubView || currentView);
+  if (window._nwSnapCache && currentState) {
+    // v555 — ré-appliquer les soldes rétroactifs : si le cache a été chargé avant le
+    // déverrouillage, le registre était encore une coquille. Idempotent (repart du brut).
+    appliquerSoldesRetroactifs(window._nwSnapCache, SOLDES_RETROACTIFS, FX_STATIC);
+    applySnapshotDeltas(currentState, currentSubView || currentView);
+  }
   return true;
 }
 

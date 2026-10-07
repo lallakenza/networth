@@ -5056,6 +5056,32 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v555 (7 octobre 2026) — historique rétroactif : corriger un compte après coup
+
+Les snapshots quotidiens sont en **ajout seul** : un point passé n'est jamais réécrit en base. Mais
+on apprend parfois tard le vrai solde d'un compte — la dette de carte Wio Credit, découverte le
+07/10, existait déjà en septembre, quand les snapshots la comptaient à zéro.
+
+- `data.js :: SOLDES_RETROACTIFS` — registre des soldes connus après coup, par id de compte de
+  snapshot : période (`du`, `au`), vrai solde natif, devise, titulaire, `statut` (établi /
+  provisoire), `source` et `aConfirmer`. Première entrée : `wio_credit` −69 998,89 AED du 09/09 au
+  06/10/2026, **provisoire** (le début est lu dans le mail du relevé ; le PDF du relevé donnera la
+  montée réelle de la dette).
+- `engine.js :: appliquerSoldesRetroactifs(rows, soldes, fx)` — corrige À LA LECTURE : le solde du
+  compte est remplacé par la valeur connue, l'écart (au taux du snapshot) est reporté sur le cash
+  et le patrimoine du titulaire et du couple, jamais sur l'autre titulaire ni sur les autres
+  catégories. Idempotente (repart de `row._dataBrute`) ; un snapshot qui portait déjà le bon solde
+  n'est pas touché.
+- Branchée dans `api.js :: loadSnapshots` et ré-appliquée par `app.js` avant les deltas « vs
+  hier » — le cache peut avoir été chargé avant le déverrouillage, registre encore vide.
+- Vue Historique : un bandeau dit quels comptes, quels jours, de combien, et si c'est provisoire.
+- Chiffrement : `SOLDES_RETROACTIFS`, et `FONDS_DE_TIERS` / `ECARTS_DE_REGLEMENT` (oubliés en
+  v551), rejoignent `scripts/_blocs_sensibles.mjs`. `tests/snapshot-chiffre.test.js` compare
+  désormais les blocs déchiffrés à cette liste au lieu de compter 13 en dur.
+
+Pour corriger un autre compte (épargne Wio, Mashreq…), il suffit d'ajouter une période au registre.
+Tests : `tests/historique-retroactif.test.js` (9 contrôles).
+
 ## v554 (7 octobre 2026) — carte Wio Credit : la dette de carte entre dans le patrimoine
 
 Amine utilise sa carte Wio Personal en **mode crédit** (2 % de cashback, jusqu'à 60 jours sans

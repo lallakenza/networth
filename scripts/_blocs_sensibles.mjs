@@ -20,6 +20,11 @@ export const BLOCS_SENSIBLES = [
   ['BUDGET_EXPENSES', '[]'],
   ['DEGIRO_STATIC_PRICES', '{}'],
   ['PRICE_REFS_AS_OF', '{}'],
+  // v555 — registres ajoutés en v551/v555, restés hors de la liste par oubli : ils nomment des
+  // tiers et des montants (fonds RTL d'Azarkan, frais Igal) et des soldes de comptes.
+  ['FONDS_DE_TIERS', '[]'],
+  ['ECARTS_DE_REGLEMENT', '[]'],
+  ['SOLDES_RETROACTIFS', '{}'],
 ];
 export const NOMS_SENSIBLES = BLOCS_SENSIBLES.map(([n]) => n);
 export const COQUILLES = Object.fromEntries(BLOCS_SENSIBLES);

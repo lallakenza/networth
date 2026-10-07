@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=554';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=554';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=554';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=554';
-import { loadSnapshots } from './api.js?v=554'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=554'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=555';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=555';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=555';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=555';
+import { loadSnapshots } from './api.js?v=555'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=555'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1011,6 +1011,28 @@ function _drawHistoriqueCharts() {
   const isReal = r => r.data && r.data.total && r.data.total.couple != null;
   const rowsNW = rows.filter(isReal);
   const allReal = all.filter(isReal);
+
+  // v555 — corrections rétroactives : dire quels jours, quels comptes, de combien, et si c'est provisoire.
+  const noteCorr = document.getElementById('histNoteCorrections');
+  if (noteCorr) {
+    const corriges = rowsNW.filter(r => r.corrections && r.corrections.length);
+    if (corriges.length) {
+      const parCompte = {};
+      for (const r of corriges) for (const c of r.corrections) {
+        const k = c.compte;
+        if (!parCompte[k]) parCompte[k] = { du: r.date, au: r.date, delta: c.deltaEUR, provisoire: false, n: 0 };
+        parCompte[k].au = r.date; parCompte[k].n++;
+        if (c.statut === 'provisoire') parCompte[k].provisoire = true;
+      }
+      const fr = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+      noteCorr.textContent = 'Historique corrigé après coup — '
+        + Object.entries(parCompte).map(([k, v]) => k.replace(/_/g, ' ') + ' du ' + fr(v.du) + ' au ' + fr(v.au)
+          + ' (' + v.n + ' jour' + (v.n > 1 ? 's' : '') + ', environ ' + fmt(v.delta) + ' par jour'
+          + (v.provisoire ? ', provisoire' : '') + ')').join(' ; ')
+        + '. Les relevés bruts restent intacts en base ; la correction est appliquée à l’affichage.';
+      noteCorr.style.display = 'block';
+    } else { noteCorr.style.display = 'none'; noteCorr.textContent = ''; }
+  }
 
   // KPI strip
   const last = rowsNW[rowsNW.length - 1] || allReal[allReal.length - 1] || null;

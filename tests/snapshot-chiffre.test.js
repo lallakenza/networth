@@ -17,6 +17,7 @@ const t = (nom, fn) => fn().then(() => console.log('  ✓', nom)).catch((e) => {
 
 (async () => {
   const { dechiffreBlobs } = await import('../scripts/_dechiffre.mjs');
+  const { NOMS_SENSIBLES } = await import('../scripts/_blocs_sensibles.mjs');
   console.log('\n── cron chiffré : déchiffrement ──');
 
   // Blob jetable, hors dépôt : NW_DATA_SOURCE = clair courant, NW_ENC_OUT = temp.
@@ -31,9 +32,11 @@ const t = (nom, fn) => fn().then(() => console.log('  ✓', nom)).catch((e) => {
   });
   const encSrc = fs.readFileSync(encOut, 'utf-8');
 
-  await t('la bonne phrase retrouve PORTFOLIO et les 13 blocs', async () => {
+  await t('la bonne phrase retrouve PORTFOLIO et TOUS les blocs sensibles', async () => {
     const blocs = await dechiffreBlobs(encSrc, PHRASE);
-    assert.equal(Object.keys(blocs).length, 13, '13 blocs attendus');
+    // Dérivé de la liste unique (scripts/_blocs_sensibles.mjs), pas d'un compte écrit en dur :
+    // ajouter un bloc sensible ne doit pas exiger de retoucher ce test, et en oublier un doit le casser.
+    assert.deepEqual(Object.keys(blocs).sort(), [...NOMS_SENSIBLES].sort(), 'blocs chiffrés ≠ liste des blocs sensibles');
     assert.ok(blocs.PORTFOLIO && blocs.PORTFOLIO.amine && blocs.PORTFOLIO.amine.ibkr, 'PORTFOLIO.amine.ibkr recouvré');
     assert.ok(blocs.VILLEJUIF_ACTE && blocs.VILLEJUIF_ACTE.prix, 'VILLEJUIF_ACTE recouvré (données v544)');
   });
