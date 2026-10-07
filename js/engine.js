@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=553';
-import { lireContratEnCache } from './facturation_contract.js?v=553';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=554';
+import { lireContratEnCache } from './facturation_contract.js?v=554';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1837,6 +1837,10 @@ function computeCashView(portfolio, fx) {
     { label: 'Wio Savings', native: p.amine.uae.wioSavings, currency: 'AED', yield: CASH_YIELDS.wioSavings, owner: 'Amine' },
     { label: 'Wio Current', native: p.amine.uae.wioCurrent, currency: 'AED', yield: CASH_YIELDS.wioCurrent, owner: 'Amine' },
     { label: 'Wio Business (Bairok)', native: p.amine.uae.wioBusiness || 0, currency: 'AED', yield: 0, owner: 'Amine', entreprise: 'Bairok' },
+    // v554 — carte Wio Credit : solde dû, en négatif. Ce n'est PAS une ligne `isDebt` : celles-ci
+    // (marge IBKR JPY) sont exclues du total cash parce qu'elles financent des titres. Un solde de
+    // carte, lui, se règle sur la trésorerie — il se retranche du cash, comme un découvert.
+    { label: 'Wio Credit (carte)', native: -wioCreditDuAED(p), currency: 'AED', yield: 0, owner: 'Amine' },
     { label: 'iBanq (Bairok)', native: p.amine.uae.ibanqBairok || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bairok' },  // v484
     { label: 'Wise (Bridgevale)', native: p.amine.uae.bridgevaleWise || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bridgevale' },  // v484
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
@@ -4553,7 +4557,10 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
   // ---- AMINE ----
   const amineWioBusiness = p.amine.uae.wioBusiness || 0;
-  const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent + amineWioBusiness;
+  // v554 — dette de la carte Wio Credit : un achat à crédit réduit le patrimoine DÈS qu'il est
+  // fait, pas au remboursement. Même retranchement que la ligne « Wio Credit (carte) » du cash.
+  const amineWioCreditDuAED = wioCreditDuAED(p);
+  const amineUaeAED = p.amine.uae.mashreq + p.amine.uae.wioSavings + p.amine.uae.wioCurrent + amineWioBusiness - amineWioCreditDuAED;
   const amineUae = toEUR(amineUaeAED, 'AED', fx);  // UAE = AED accounts only
   const amineRevolutEUR = p.amine.uae.revolutEUR;   // Revolut = French account (EUR)
   // v354 — nouveaux comptes : Banque Populaire (EUR) + Binance USDT (stablecoin ≈ USD)
@@ -5399,9 +5406,19 @@ export function compute(portfolio, fx, stockSource = 'statique') {
 
 // Labels d'affichage (cashView) → ids stables. Fallback : slugify + warn (rename à mapper).
 // Exporté (v388) : l'explorateur de séries inverse ce mapping pour afficher les labels FR.
+/**
+ * Solde dû sur la carte Wio Credit, en AED (≥ 0). v554.
+ * Une valeur absente ou négative vaut 0 : un trop-perçu sur la carte n'est pas modélisé.
+ */
+export function wioCreditDuAED(p) {
+  const c = p && p.amine && p.amine.uae && p.amine.uae.wioCredit;
+  const du = c && typeof c.soldeDuAED === 'number' ? c.soldeDuAED : 0;
+  return du > 0 ? du : 0;
+}
+
 export const CASH_ACCOUNT_IDS = {
   'Mashreq NEO+': 'mashreq', 'Wio Savings': 'wio_savings', 'Wio Current': 'wio_current',
-  'Wio Business (Bairok)': 'wio_business', 'Revolut EUR': 'revolut_amine',
+  'Wio Business (Bairok)': 'wio_business', 'Wio Credit (carte)': 'wio_credit', 'Revolut EUR': 'revolut_amine',
   'Banque Populaire': 'banque_populaire', 'Binance USDT': 'binance',
   'iBanq (Bairok)': 'ibanq_bairok', 'Wise (Bridgevale)': 'wise_bridgevale',
   'Attijariwafa': 'attijari_amine', 'Nabd (ex-SOGE)': 'nabd', 'CIH Bank': 'cih',

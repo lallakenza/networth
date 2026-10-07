@@ -33,10 +33,49 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
   console.log('\n── Périmètre : double comptage, fonds de tiers, frais ──');
 
   // ── 1. Les 57 000 AED sont DANS l'épargne Wio, pas en plus ──
-  t('les espaces d’épargne Wio somment exactement au solde porté au patrimoine', () => {
+  t('les espaces d’épargne Wio, plus les mouvements datés, somment exactement au solde porté', () => {
     const espaces = P.amine.uae.wioSavingsSpaces;
-    const somme = espaces.reduce((x, e) => x + e.montant, 0);
-    centimes(somme, P.amine.uae.wioSavings, 'Σ espaces Wio vs wioSavings');
+    const mouvements = P.amine.uae.wioSavingsMouvements || [];
+    const somme = espaces.reduce((x, e) => x + e.montant, 0) + mouvements.reduce((x, m) => x + m.montant, 0);
+    centimes(somme, P.amine.uae.wioSavings, 'Σ espaces + Σ mouvements Wio vs wioSavings');
+    for (const m of mouvements) {
+      assert.match(m.date, /^\d{4}-\d{2}-\d{2}$/, 'un mouvement doit être daté');
+      assert.ok(m.motif && m.source, 'un mouvement doit dire pourquoi et d’où vient l’information');
+    }
+  });
+
+  // ── 1 bis. La carte Wio Credit est une dette, comptée dès l'achat ──
+  t('le remboursement de la carte est financé par l’épargne, pas compté deux fois', () => {
+    const c = P.amine.uae.wioCredit;
+    assert.ok(c, 'la carte Wio Credit doit être déclarée');
+    assert.equal(c.soldeDuAED, 0, 'remboursée en totalité le 07/10/2026');
+    centimes(c.dernierRemboursement.montantAED, 69998.89, 'montant remboursé');
+    const retrait = (P.amine.uae.wioSavingsMouvements || []).find((m) => m.date === c.dernierRemboursement.date);
+    assert.ok(retrait, 'le retrait d’épargne qui finance le remboursement doit être tracé');
+    assert.ok(-retrait.montant >= c.dernierRemboursement.montantAED, 'le retrait couvre le remboursement');
+  });
+
+  t('un solde dû sur la carte réduit le patrimoine et le cash du même montant', () => {
+    const DU = 10000; // AED — solde hypothétique pour éprouver le branchement
+    const clone = JSON.parse(JSON.stringify(P));
+    clone.amine.uae.wioCredit.soldeDuAED = DU;
+    const avecDette = E.compute(clone, { ...D.FX_STATIC }, 'static');
+    const attendu = DU / D.FX_STATIC.AED;
+    for (const v of ['couple', 'amine']) {
+      const ecart = s.views[v].nwRef - avecDette.views[v].nwRef;
+      assert.ok(Math.abs(ecart - attendu) < 1, v + ' : le patrimoine doit baisser de ' + attendu.toFixed(0) + ' €, il baisse de ' + ecart.toFixed(0));
+    }
+    assert.equal(Math.round(avecDette.views.nezha.nwRef), Math.round(s.views.nezha.nwRef), 'la carte est à Amine, pas à Nezha');
+    const ligne = avecDette.cashView.accounts.find((a) => a.label === 'Wio Credit (carte)');
+    assert.ok(ligne, 'la carte apparaît dans la vue Cash');
+    assert.ok(Math.abs(ligne.native + DU) < 0.01, 'solde de la ligne = −dû');
+    // Le solde de carte se règle sur la trésorerie : il baisse le TOTAL cash, pas seulement le NW.
+    const baisseCash = s.cashView.totalCash - avecDette.cashView.totalCash;
+    assert.ok(Math.abs(baisseCash - attendu) < 1, 'le total cash doit baisser de ' + attendu.toFixed(0) + ' €, il baisse de ' + baisseCash.toFixed(0));
+    // Un solde négatif (trop-perçu) n'est pas modélisé : il ne doit pas créer de patrimoine.
+    clone.amine.uae.wioCredit.soldeDuAED = -500;
+    const tropPercu = E.compute(clone, { ...D.FX_STATIC }, 'static');
+    assert.equal(Math.round(tropPercu.views.couple.nwRef), Math.round(s.views.couple.nwRef));
   });
 
   t('les 57 000 AED virés à l’épargne sont déjà dans deux espaces — les rajouter est impossible', () => {

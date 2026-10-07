@@ -48,7 +48,7 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 498734.07,   // Mashreq NEO PLUS, 2 comptes (Saver 498 508,95 + Current 225,12) — MAJ 19/09/2026 (capture app, solde disponible)
-      wioSavings: 498000,   // Wio — espaces d'épargne d'AMINE (mauves), ventilés dans wioSavingsSpaces — MAJ 19/09/2026 ; total app 599 000 dont 101 000 en espaces roses = Nezha (nezha.cash.wioAED). +75 000 le 19/09 depuis Wio Business (espace jusqu'au 19/10)
+      wioSavings: 428000,   // Wio — espaces d'épargne d'AMINE (mauves) — ventilation du 19/09 dans wioSavingsSpaces (498 000), puis mouvements datés dans wioSavingsMouvements. MAJ 07/10/2026 : −70 000 retirés pour rembourser la carte Wio Credit. Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
       // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
       // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
       // rendre impossible le double comptage d'un virement déjà placé : quand de l'argent arrive
@@ -67,6 +67,23 @@ export const PORTFOLIO = {
         { montant: 11000 },
         { montant: 75000,  note: 'transfert du 19/09/2026 depuis Wio Business (espace jusqu\'au 19/10)' },
       ],
+      // Mouvements postérieurs à la ventilation ci-dessus, tant qu'une nouvelle capture des espaces
+      // n'a pas été faite. Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings.
+      wioSavingsMouvements: [
+        { date: '2026-10-07', montant: -70000, motif: 'retrait partiel du Fixed Saving Space (6 %, échéance 02/11/2026) pour rembourser intégralement la carte Wio Credit', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
+      ],
+      // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
+      // Dette de carte de crédit : 2 % de cashback, et jusqu'à 60 jours sans intérêts quand le
+      // relevé est remboursé en totalité. Le solde dû est une DETTE : le moteur le retranche du
+      // cash UAE (ligne « Wio Credit (carte) », isDebt). Avant la v554, la carte n'existait pas
+      // dans le site : les achats faits à crédit en septembre ne réduisaient pas le patrimoine
+      // tant qu'ils n'étaient pas remboursés — ~70 000 AED (~16 700 €) de patrimoine en trop.
+      wioCredit: {
+        soldeDuAED: 0,   // remboursé en totalité le 07/10/2026 — à remettre à jour à chaque relevé
+        dernierRemboursement: { date: '2026-10-07', montantAED: 69998.89, financement: 'épargne Wio (−70 000 AED, cf. wioSavingsMouvements)' },
+        dernierReleve: { mois: '2026-09', recuLe: '2026-09-09', note: 'PDF « Credit Statement SEPTEMBER 2026 » (Gmail)' },
+        _lastUpdate: '2026-10-07',
+      },
       wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
@@ -1542,8 +1559,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '28/09/2026';
-export const APP_VERSION = 'v553';
+export const DATA_LAST_UPDATE = '07/10/2026';
+export const APP_VERSION = 'v554';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

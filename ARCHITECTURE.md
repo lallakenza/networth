@@ -5056,6 +5056,31 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v554 (7 octobre 2026) — carte Wio Credit : la dette de carte entre dans le patrimoine
+
+Amine utilise sa carte Wio Personal en **mode crédit** (2 % de cashback, jusqu'à 60 jours sans
+intérêts si le relevé est soldé en totalité). La carte n'existait pas dans le site : un achat à
+crédit ne réduisait le patrimoine qu'au remboursement, et jusque-là le site comptait l'épargne
+sans la dette en face.
+
+Le 07/10/2026, Amine a retiré **70 000 AED** du Fixed Saving Space (6 %, échéance 02/11/2026) et
+remboursé **69 998,89 AED** sur la carte (mails Wio du jour). Ce que la v554 change :
+
+- `amine.uae.wioCredit` porte le solde dû (`soldeDuAED`, 0 après remboursement), le dernier
+  remboursement et le dernier relevé.
+- `wioSavings` passe de 498 000 à **428 000 AED**. La ventilation par espace reste celle du 19/09 ;
+  les mouvements postérieurs sont tracés dans `wioSavingsMouvements` et le test impose
+  Σ espaces + Σ mouvements = solde, ce qui garde la protection contre le double comptage.
+- `engine.js` : `wioCreditDuAED()` retranche le solde dû du cash UAE et d'une ligne
+  « Wio Credit (carte) » de la vue Cash (id de snapshot `wio_credit`). Ce n'est pas une ligne
+  `isDebt` : celles-ci (marge IBKR JPY) sont exclues du total cash parce qu'elles financent des
+  titres ; un solde de carte se règle sur la trésorerie, comme un découvert.
+
+**Effet** : patrimoine couple 773 430 → **756 808 €** (−16 622 €, soit 70 000 AED), entièrement côté
+Amine ; total cash −16 623 €. Ce n'est pas une perte du jour : c'est la dépense faite à crédit en
+septembre, enfin comptée. Les snapshots quotidiens de septembre restent tels qu'enregistrés
+(append-only) et surestiment donc d'autant la période où la carte était due.
+
 ## v553 (28 septembre 2026) — divisions, regroupements et jambes d'opérations sur titres
 
 Deux défauts que la fusion de la v552 avait laissés — le premier hérité, le second créé par elle.
