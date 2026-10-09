@@ -155,7 +155,7 @@ const snap = (date, extra = {}) => ({
     const le = (compte, date) => R[compte].find((p) => date >= p.du && date <= p.au && !p.captureApres);
     // Les trois jambes de l'échange : la sortie Wio (mouvement daté), la sortie Mashreq (veille et
     // lendemain tirés du relevé) et l'entrée Binance (USDT au coût).
-    const sortieWio = D.PORTFOLIO.amine.uae.wioSavingsMouvements.find((m) => m.date === '2026-10-04').montant;
+    const sortieWio = D.PORTFOLIO.amine.uae.wioSavingsJournal.find((m) => m.date === '2026-10-04').montant;
     const dMashreq = le('mashreq', '2026-10-05').natif - le('mashreq', '2026-10-04').natif;
     const dBinance = le('binance', '2026-10-05').natif - 3717;
     assert.equal(sortieWio, -35000);

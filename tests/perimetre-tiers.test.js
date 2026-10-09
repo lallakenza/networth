@@ -50,7 +50,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.ok(c, 'la carte Wio Credit doit être déclarée');
     assert.equal(c.soldeDuAED, 0, 'remboursée en totalité le 07/10/2026');
     centimes(c.dernierRemboursement.montantAED, 69998.89, 'montant remboursé');
-    const retrait = (P.amine.uae.wioSavingsMouvements || []).find((m) => m.date === c.dernierRemboursement.date && m.montant < 0);
+    const retrait = (P.amine.uae.wioSavingsJournal || []).find((m) => m.date === c.dernierRemboursement.date && m.montant < 0);
     assert.ok(retrait, 'le retrait d’épargne qui finance le remboursement doit être tracé');
     assert.ok(-retrait.montant >= c.dernierRemboursement.montantAED, 'le retrait couvre le remboursement');
   });
@@ -78,17 +78,12 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.equal(Math.round(tropPercu.views.couple.nwRef), Math.round(s.views.couple.nwRef));
   });
 
-  t('les 57 000 AED virés à l’épargne sont déjà dans deux espaces — les rajouter est impossible', () => {
-    const espaces = P.amine.uae.wioSavingsSpaces;
-    const issusDuVirement = espaces.filter((e) => /57 000 AED/.test(e.note || ''));
-    assert.equal(issusDuVirement.length, 2, 'les deux espaces ouverts avec ces 57 000 AED doivent être identifiés');
-    centimes(issusDuVirement.reduce((x, e) => x + e.montant, 0), 57000, 'somme des deux espaces');
-    // Le solde AED total du patrimoine ne doit pas bouger si on « re-crédite » les 57 000 :
-    // la seule façon de les compter deux fois serait d'augmenter wioSavings sans toucher la
-    // ventilation, ce que le test précédent interdit. On vérifie ici l'ordre de grandeur en EUR
-    // pour que l'erreur, si elle survenait, soit visible dans le message.
-    const eur = 57000 / D.FX_STATIC.AED;
-    assert.ok(eur > 10000 && eur < 20000, 'un double comptage ajouterait ~' + Math.round(eur) + ' € au patrimoine');
+  t('l’épargne Wio portée au site égale le total lu dans l’app : aucun virement ne s’y ajoute', () => {
+    // Capture du 09/10/2026 : « Your total savings » 554 140 AED = part d'Amine + part de Nezha. Les
+    // 57 000 AED virés le 19/09 sont dedans, comme tout virement passé : le solde est LU, pas reconstitué.
+    const total = P.amine.uae.wioSavings + P.nezha.cash.wioAED;
+    centimes(total, 554140, 'épargne Wio du couple vs total affiché dans l’app');
+    assert.deepEqual(P.amine.uae.wioSavingsMouvements, [], 'aucun mouvement en attente après une capture complète');
   });
 
   // ── 2. L'argent d'Azarkan n'est ni un revenu ni du patrimoine ──

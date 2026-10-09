@@ -48,31 +48,24 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 546262.52,   // Mashreq NEO PLUS — MAJ 09/10/2026, relevés téléchargés depuis l'espace en ligne : Saver ••7138 495 105,35 (≈ 6,25 %/an, intérêts mensuels) + Current ••9133 51 157,17 (dont +50 000 « Salary » versés par Bairok Consulting LLC le 09/10 depuis son compte Wio Business)
-      wioSavings: 453140,   // Wio — espaces d'épargne d'AMINE (mauves) — MAJ 07/10/2026 après le remboursement de la carte (lecture de l'app, Notion 🏦 Comptes). Ventilation du 19/09 dans wioSavingsSpaces (498 000), mouvements datés dans wioSavingsMouvements. Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
-      // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
-      // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
-      // rendre impossible le double comptage d'un virement déjà placé : quand de l'argent arrive
-      // sur l'épargne Wio, il CRÉE ou ABONDE un espace ci-dessous, il ne s'ajoute pas au solde.
-      // Cas vérifié le 28/09/2026 : les 57 000 AED virés vers l'épargne sont déjà là, répartis
-      // entre les deux espaces ouverts avec cet argent (50 000 + 7 000 — seule paire d'espaces
-      // dont la somme fait 57 000). Les rajouter ferait apparaître 57 000 AED (~13 500 €) de
-      // patrimoine qui n'existe pas.
+      wioSavings: 453140,   // Wio — épargne d'AMINE — capture de l'app du 09/10/2026 : Family Fixed Saving Space 399 000 + Fixed Saving Space 54 140 (wioSavingsSpaces). Les 101 000 de « Nezha money » (rose) = Nezha (nezha.cash.wioAED). 6 %/an, espaces à 1 mois renouvelables.
+      // Ventilation des espaces d'épargne d'Amine, en AED — capture de l'app du 09/10/2026 (épargne
+      // totale affichée 554 140 = 101 000 « Nezha money », rose, à Nezha + les deux espaces ci-dessous).
+      // Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings. Un virement vers l'épargne
+      // CRÉE ou ABONDE un espace, il ne s'ajoute jamais au solde : c'est ce qui a protégé les 57 000 AED
+      // virés le 19/09 (ventilation du 19/09 : 50 000 + 7 000 + 54 000 + 100 500 + 100 000 + 100 500 +
+      // 11 000 + 75 000 = 498 000), avant que les espaces soient regroupés en deux début octobre.
       wioSavingsSpaces: [
-        { montant: 50000,  note: 'ouvert avec le virement de 57 000 AED (1/2)' },
-        { montant: 7000,   note: 'ouvert avec le virement de 57 000 AED (2/2)' },
-        { montant: 54000 },
-        { montant: 100500 },
-        { montant: 100000 },
-        { montant: 100500 },
-        { montant: 11000 },
-        { montant: 75000,  note: 'transfert du 19/09/2026 depuis Wio Business (espace jusqu\'au 19/10)' },
+        { montant: 399000, nom: 'Family Fixed Saving Space', note: 'espace partagé avec Nezha, 1 mois renouvelable (échéance 02/11/2026) ; compté chez Amine selon la convention des couleurs (mauve = Amine, rose = Nezha)' },
+        { montant: 54140,  nom: 'Fixed Saving Space', note: '1 mois renouvelable (échéance 02/11/2026) ; 159 140 le 03/10, −35 000 le 04/10 (achat d\'USDT), −70 000 le 07/10 (carte Wio Credit)' },
       ],
-      // Mouvements postérieurs à la ventilation ci-dessus, tant qu'une nouvelle capture des espaces
-      // n'a pas été faite. Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings.
-      wioSavingsMouvements: [
-        { date: '2026-10-04', montant: -35000, motif: 'retrait partiel du Fixed Saving Space puis trois virements vers le compte courant Mashreq (5 000 + 25 000 + 5 000), pour acheter de l\'USDT en P2P Binance destiné aux dépenses au Maroc', source: 'mails Wio du 04/10/2026 « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » ; mails Mashreq du 04/10 (crédits Aani) ; confirmation d\'Amine le 09/10' },
-        { date: '2026-10-07', montant: 60140, motif: 'ÉCART DE RÉCONCILIATION — le solde lu dans l\'app le 07/10 (453 140, après le remboursement de la carte) dépasse de 60 140 AED la chaîne reconstituée depuis la ventilation du 19/09. Origine non identifiée par les mails : apports d\'épargne et réouvertures d\'espaces entre le 19/09 et le 03/10 (dont les trois espaces clôturés le 03/10). À ventiler avec une capture des espaces.', source: 'Notion 🏦 Comptes « Wio Savings », solde natif 453 140 au 07/10/2026 (session du 07/10, lecture de l\'app Wio)' },
-        { date: '2026-10-07', montant: -70000, motif: 'retrait partiel du Fixed Saving Space (6 %, échéance 02/11/2026) pour rembourser intégralement la carte Wio Credit', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
+      // Mouvements postérieurs à la capture ci-dessus (aucun au 09/10/2026).
+      wioSavingsMouvements: [],
+      // Journal des mouvements d'épargne DÉJÀ inclus dans la capture : traçabilité seulement, jamais
+      // additionné au solde (sinon double comptage). Sources : mails Wio et Mashreq.
+      wioSavingsJournal: [
+        { date: '2026-10-04', montant: -35000, motif: 'retrait du Fixed Saving Space, viré vers Mashreq (5 000 + 25 000 + 5 000) pour acheter de l\'USDT en P2P', source: 'mails Wio « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » du 04/10/2026' },
+        { date: '2026-10-07', montant: -70000, motif: 'retrait du Fixed Saving Space pour rembourser intégralement la carte Wio Credit (69 998,89 AED)', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
       ],
       // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
       // Dette de carte de crédit : 2 % de cashback, et jusqu'à 60 jours sans intérêts quand le
@@ -82,7 +75,7 @@ export const PORTFOLIO = {
       // tant qu'ils n'étaient pas remboursés — ~70 000 AED (~16 700 €) de patrimoine en trop.
       wioCredit: {
         soldeDuAED: 0,   // remboursé en totalité le 07/10/2026 — à remettre à jour à chaque relevé
-        dernierRemboursement: { date: '2026-10-07', montantAED: 69998.89, financement: 'épargne Wio (−70 000 AED, cf. wioSavingsMouvements)' },
+        dernierRemboursement: { date: '2026-10-07', montantAED: 69998.89, financement: 'épargne Wio (−70 000 AED, cf. wioSavingsJournal)' },
         dernierReleve: { mois: '2026-09', recuLe: '2026-09-09', note: 'PDF « Credit Statement SEPTEMBER 2026 » (Gmail)' },
         _lastUpdate: '2026-10-07',
       },
@@ -1239,7 +1232,7 @@ export const PORTFOLIO = {
       lclLivretA: 8015,        // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 19/09/2026 (déclaratif Amine)
       lclCompteDepots: 1240,   // EUR — LCL Compte principal (0%) — MAJ 19/09/2026 (déclaratif Amine)
       attijariwafarMAD: 5532.83, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 19/09/2026 : capture 25 532,83 (après 2 × 50 000 vers Amine) − 20 000 envoyés ensuite (déclaratif, hors frais)
-      wioAED: 101000,          // AED — Wio, espaces roses « Flouss nezha pas touchi » 61 000 (→ 25/09) + « Flouss nezha pas toucher » 40 000 (→ 19/10) = Nezha — MAJ 19/09/2026
+      wioAED: 101000,          // AED — Wio, espace rose « Nezha money » (1 mois renouvelable, échéance 02/11/2026) = Nezha — MAJ 09/10/2026 (capture de l'app ; les deux espaces roses du 19/09 ont été regroupés)
     },
     // ── IBKR Nezha — compte-titres PROPRE à Nezha (≠ compte d'Amine), ventilé comme celui d'Amine ──
     // Même schéma que amine.ibkr : positions (valorisées au prix live), trades (P&L de période),
@@ -1562,7 +1555,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v559';
+export const APP_VERSION = 'v560';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

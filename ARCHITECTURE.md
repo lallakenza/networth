@@ -5056,6 +5056,15 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v560 (9 octobre 2026) — épargne Wio : ventilation lue dans l'app
+
+Capture de l'app du 09/10/2026 : épargne totale **554 140 AED** = « Nezha money » 101 000 (rose,
+Nezha) + Family Fixed Saving Space 399 000 + Fixed Saving Space 54 140 (Amine, 453 140). Les huit
+espaces du 19/09 ont été regroupés en deux. `wioSavingsSpaces` porte la nouvelle ventilation ; les
+mouvements du 04/10 et du 07/10, déjà inclus dans la capture, passent dans `wioSavingsJournal`
+(traçabilité, jamais additionné). L'écart de réconciliation de la v559 disparaît : le solde est lu.
+Test : part d'Amine + part de Nezha = total affiché dans l'app.
+
 ## v559 (9 octobre 2026) — SAP & Tax : INVSNT008 payée, INVSNT009 émise ; Wio réconcilié ; carte au relevé
 
 - **INVSNT008** (14 560 €) : payée, confirmé par Amine le 09/10 → recouvré. **INVSNT009** (facture du
