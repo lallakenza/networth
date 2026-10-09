@@ -5056,6 +5056,26 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v564 (9 octobre 2026) — Villejuif au coût engagé dans tout l'historique
+
+Avant la v543 (14/09/2026), chaque snapshot portait Villejuif à une valeur hybride : appels payés + une
+plus-value latente « au prorata de l'avancement » (127 912 € en juillet, 141 100 à 141 159 € ensuite),
+d'où une marche de ≈ −26 800 € dans la courbe au 15/09. La méthode actuelle se recalcule pour toute date
+à partir de faits datés de l'acte : appels de fonds payés (114 352,20 €, inchangés depuis l'acte du
+05/06/2026 — l'appel « fondations » du 03/08 n'est pas réglé) − capital tiré sur les prêts LCL
+(`villejuifCrdADate`, la même lecture du tableau d'amortissement que le calcul du jour).
+
+- `engine.js :: restaterVillejuif` (dans `appliquerSoldesRetroactifs`) : toute ligne dont
+  `immo.properties.villejuif.valorisation` n'est pas `cout-engage` (donc écrite avant la v543, snapshots
+  reconstitués compris) est recalculée à la lecture ; l'écart part sur l'immobilier, le patrimoine de
+  Nezha et du couple. Une ligne déjà au coût engagé n'est jamais touchée.
+- Effet : −13 800 € par jour en juillet, −27 100 à −27 400 € en août-septembre ; la marche du 15/09 passe
+  de −31 631 à −4 622 € (variation ordinaire de cash et de cours).
+- Le bandeau « changement de définition » de la vue Historique dit désormais que l'historique est recalculé.
+- Restent dans l'immobilier deux marches qui ne viennent pas de Villejuif : Rueil le 08/08 (+9 600 €,
+  équité nette après frais de sortie) et Vitry le 27/08 (0 → 9 548 €).
+- Tests : 3 contrôles dans `tests/historique-fiable.test.js`.
+
 ## v563 (9 octobre 2026) — historique fiable : code périmé écarté, relevés jour par jour, jours reconstitués
 
 **BUG-124.** Audit des 249 snapshots complets (depuis le 18/07/2026) contre ce que l'on sait aujourd'hui.

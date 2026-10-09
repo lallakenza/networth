@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=563';
-import { lireContratEnCache } from './facturation_contract.js?v=563';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=564';
+import { lireContratEnCache } from './facturation_contract.js?v=564';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5469,7 +5469,10 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       }
     }
     const actives = reel ? duReleve.concat(periodes.filter(dansLaFenetre)) : [];
-    if (!actives.length) continue;
+    // v564 — Villejuif écrit avec l'ancienne méthode (valeur hybride) : à reporter au coût engagé.
+    const acteVJ = opts.villejuif !== undefined ? opts.villejuif : VILLEJUIF_ACTE;
+    const vjAncien = reel && villejuifARestater(brute, acteVJ);
+    if (!actives.length && !vjAncien) continue;
     const d = JSON.parse(JSON.stringify(brute));
     if (!d.cash) d.cash = {};
     if (!d.cash.accounts) d.cash.accounts = {};
@@ -5496,9 +5499,43 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       }
       notes.push({ compte: c.compte, deltaEUR: Math.round(deltaEUR), statut: c.statut || 'établi' });
     }
+    if (vjAncien) { const n = restaterVillejuif(d, row.date, acteVJ); if (n) notes.push(n); }
     if (notes.length) { row.data = d; row.corrections = notes; }
   }
   return rows;
+}
+
+// v564 — Villejuif au COÛT ENGAGÉ dans l'historique. Avant la v543 (14/09/2026), le snapshot portait une
+// valeur hybride : appels payés + plus-value latente « au prorata de l'avancement » (127 912 € en
+// juillet, 141 100 € en août). La méthode actuelle — appels de fonds payés − capital tiré sur les prêts
+// LCL — se recalcule pour n'importe quelle date à partir de faits datés de l'acte : les appels payés
+// (inchangés depuis l'acte du 05/06/2026 : l'appel « fondations » du 03/08 n'est pas réglé) et le tableau
+// du capital restant dû (un palier le 5 de chaque mois). Une ligne déjà écrite au coût engagé
+// (`valorisation: 'cout-engage'`) n'est jamais touchée.
+function villejuifARestater(d, acte) {
+  const vj = d && d.immo && d.immo.properties && d.immo.properties.villejuif;
+  return !!(vj && typeof vj.value === 'number' && vj.valorisation !== 'cout-engage'
+    && acte && acte.appelsPayes && acte.deblocageActe && acte.acte && acte.acte.date);
+}
+function restaterVillejuif(d, date, acte) {
+  if (date < acte.acte.date) return null;   // avant l'acte : réservation seule, autre régime
+  const crd = villejuifCrdADate(date, acte).crd;   // même lecture que le calcul du jour
+  const vj = d.immo.properties.villejuif;
+  const valeur = acte.appelsPayes.montant;
+  const equite = valeur - crd;
+  const avant = typeof vj.equityNet === 'number' ? vj.equityNet : (vj.value - (vj.crd || 0));
+  const deltaEUR = Math.round(equite - avant);
+  const dValeur = Math.round(valeur - vj.value), dCrd = Math.round(crd - (vj.crd || 0));
+  d.immo.properties.villejuif = { ...vj, value: Math.round(valeur), crd: Math.round(crd), equityGross: Math.round(equite),
+    equityNet: Math.round(equite), valorisation: 'cout-engage', corrige: true };
+  const ajoute = (o, k, x) => { if (o && typeof o[k] === 'number') o[k] = Math.round(o[k] + x); };
+  ajoute(d.immo, 'value', dValeur); ajoute(d.immo, 'crd', dCrd);
+  ajoute(d.immo, 'equityGross', deltaEUR); ajoute(d.immo, 'equityNet', deltaEUR);
+  ajoute(d.total, 'couple', deltaEUR); ajoute(d.total, 'nezha', deltaEUR);
+  for (const v of ['couple', 'nezha']) {
+    if (d.views && d.views[v]) { ajoute(d.views[v], 'immo', deltaEUR); ajoute(d.views[v], 'nwRef', deltaEUR); }
+  }
+  return deltaEUR ? { compte: 'Villejuif (coût engagé)', deltaEUR, statut: 'établi' } : null;
 }
 
 // v563 — solde d'un relevé quotidien (RELEVES_QUOTIDIENS) à l'instant de capture d'un snapshot.

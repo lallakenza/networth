@@ -61,7 +61,8 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     const lignes = sel.map((r) => ({ date: r.snap_date, capturedAt: r.captured_at, data: r.data, perime: r.perime }));
     E.appliquerSoldesRetroactifs(lignes, {}, D.FX_STATIC, { reconstruits: D.SNAPSHOTS_RECONSTRUITS });
     assert.ok(lignes[0].reconstruit);
-    assert.equal(lignes[0].data.total.couple, D.SNAPSHOTS_RECONSTRUITS['2026-09-07'].total.couple);
+    // La base est la reconstitution (la restatement Villejuif de la v564 ne touche que l'immobilier).
+    assert.equal(lignes[0].data.views.couple.stocks, D.SNAPSHOTS_RECONSTRUITS['2026-09-07'].views.couple.stocks);
     assert.equal(lignes[0]._dataBrute.total.couple, 737610, 'la ligne brute reste celle de la base');
   });
 
@@ -118,6 +119,50 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     const delta = (11932.37 - 18) / 4.25;
     assert.equal(r.data.total.amine, Math.round(640000 + delta));
     assert.equal(r.data.total.nezha, 160000);
+  });
+
+  // v564 — Villejuif au coût engagé dans tout l'historique.
+  const snapVJ = (date, valorisation) => ({
+    date, capturedAt: date + 'T00:30:00Z',
+    data: {
+      total: { couple: 800000, amine: 620000, nezha: 180000 },
+      views: { couple: { immo: 116000, nwRef: 800000 }, amine: { immo: 11000, nwRef: 620000 }, nezha: { immo: 105000, nwRef: 180000 } },
+      immo: { value: 677873, crd: 550862, equityNet: 116019, equityGross: 127011,
+        properties: { villejuif: { value: 141159, crd: 96569, equityNet: 44590, equityGross: 44590, conditional: true, ...(valorisation ? { valorisation } : {}) } } },
+    },
+  });
+
+  t('Villejuif d’avant la v543 est recalculé au coût engagé, sur le seul patrimoine de Nezha', () => {
+    const r = snapVJ('2026-09-06');
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, {});
+    const A = D.VILLEJUIF_ACTE;
+    const crd = E.villejuifCrdADate('2026-09-06').crd;
+    const attendu = Math.round(A.appelsPayes.montant - crd);
+    const vj = r.data.immo.properties.villejuif;
+    assert.equal(vj.value, Math.round(A.appelsPayes.montant));
+    assert.equal(vj.equityNet, attendu);
+    assert.equal(vj.valorisation, 'cout-engage');
+    const delta = attendu - 44590;
+    assert.ok(delta < -20000, 'la plus-value latente (≈ 27 k€) sort de l’historique : ' + delta);
+    assert.equal(r.data.total.nezha, 180000 + delta);
+    assert.equal(r.data.total.amine, 620000, 'Villejuif est à Nezha');
+    assert.equal(r.data.views.couple.immo, 116000 + delta);
+    assert.equal(r.data.views.amine.immo, 11000);
+    assert.equal(r.data.immo.equityNet, 116019 + delta);
+    assert.ok(r.corrections.some((c) => /Villejuif/.test(c.compte)));
+  });
+
+  t('une ligne déjà au coût engagé n’est pas recalculée', () => {
+    const r = snapVJ('2026-09-20', 'cout-engage');
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, {});
+    assert.equal(r.corrections, null);
+    assert.equal(r.data.immo.properties.villejuif.value, 141159);
+  });
+
+  t('restaté, l’historique rejoint le calcul du jour : même valeur portée qu’aujourd’hui', () => {
+    const s = E.compute(D.PORTFOLIO, { ...D.FX_STATIC }, 'static');
+    const vjJour = s.immoView.properties.find((p) => p.loanKey === 'villejuif');
+    assert.ok(Math.abs(vjJour.value - D.VILLEJUIF_ACTE.appelsPayes.montant) < 1, 'le calcul du jour porte les appels payés');
   });
 
   t('les nouveaux registres sont chiffrés avec les autres blocs sensibles', () => {
