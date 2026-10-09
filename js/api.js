@@ -11,8 +11,8 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC } from './data.js?v=560';
-import { appliquerSoldesRetroactifs } from './engine.js?v=560';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES } from './data.js?v=561';
+import { appliquerSoldesRetroactifs, normaliserRegroupements } from './engine.js?v=561';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1048,7 +1048,16 @@ export function getHistoricalBase(snapshot) {
   base._storeUpdated = store ? store._updated : null;
   base._backfilled = store ? !!store._backfilled : false; // v382 — historique complet déjà chargé ?
   if (store && store.sgtmHistory) base.sgtmHistory = store.sgtmHistory.map(x => ({ ...x }));
+  _normaliser(base, 'base');
   return base;
+}
+
+// v561 — divisions et regroupements : ramène chaque série dans les unités d'aujourd'hui, partout
+// où l'historique est assemblé (base locale, L2, delta), avant tout calcul et toute sauvegarde.
+function _normaliser(hist, ou) {
+  const c = normaliserRegroupements(hist, REGROUPEMENTS_TITRES);
+  if (c.length) console.log('[hist] v561 regroupements appliqués (' + ou + ') :', c.map(x => x.ticker + ' ' + x.jours + ' j').join(', '));
+  return c.length > 0;
 }
 
 // v382 — union de deux séries {dates,closes} par date (triée, dédupliquée ; le delta
@@ -1097,7 +1106,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=560');
+    if (!_authMod) _authMod = await import('./auth.js?v=561');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }
@@ -1450,6 +1459,7 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
         .then(d => { if (d) { result.tickers[t] = unionSeries(result.tickers[t], d); healed.push(t); } })
         .catch(() => {}); // échec ⇒ on retentera au prochain chargement (plus de gel silencieux)
     }));
+    _normaliser(result, 'rattrapage');
     if (healed.length) {
       // Rafraîchissement PARTIEL ⇒ on n'avance pas l'horodatage : le prochain chargement doit
       // pouvoir faire le gap-fetch complet (et corriger les bars provisoires des autres séries).
@@ -1471,6 +1481,7 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
     for (const [k, d] of Object.entries(server.fx || {})) result.fx[k] = unionSeries(result.fx[k], d);
     if (server.sgtmHistory && (!result.sgtmHistory || server.sgtmHistory.length > result.sgtmHistory.length)) result.sgtmHistory = server.sgtmHistory;
     if (server._backfilled) result._backfilled = true;
+    _normaliser(result, 'L2');
     console.log('[hist] L2 Supabase fusionné → coverage ' + getFirstDate(result) + ' → ' + getLastDate(result));
   }
 
@@ -1530,6 +1541,7 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   for (const [t, d] of Object.entries(delta.tickers)) result.tickers[t] = unionSeries(result.tickers[t], d);
   for (const [k, d] of Object.entries(delta.fx)) result.fx[k] = unionSeries(result.fx[k], d);
   result._backfilled = true; // le store est désormais complet → visites suivantes = gap-only
+  _normaliser(result, 'delta');
   saveHistStore(result);         // L1 (localStorage, cache local instantané)
   result._didFetch = true;       // v385 — signal : l'upload L2 se fait côté app.js APRÈS avoir
                                  // fusionné SGTM (sinon le blob L2 n'aurait jamais l'historique SGTM)

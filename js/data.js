@@ -278,7 +278,11 @@ export const PORTFOLIO = {
         { ticker: 'SAP.DE',  shares: 70,   price: 188.70, costBasis: 190.86, currency: 'EUR', label: 'SAP SE', sector: 'tech', geo: 'germany', ytdOpen: 201.95, mtdOpen: 140.88, oneMonthAgo: 134.0 }, // SAP.DE = Xetra (EUR), not 'SAP' which is NYSE ADR (USD)
         { ticker: '4911.T',  shares: 500,  price: 3699.00,   costBasis: 2180.74, currency: 'JPY', label: 'Shiseido (4911)', sector: 'consumer', geo: 'japan', ytdOpen: 2309.50, mtdOpen: 2633, oneMonthAgo: 2618.0 },
         { ticker: 'IBIT',    shares: 1200, price: 45.50,  costBasis: 44.97,  currency: 'USD', label: 'iShares Bitcoin (IBIT)', sector: 'crypto', geo: 'crypto', ytdOpen: 50.94, mtdOpen: 34.0, oneMonthAgo: 33.29 },
-        { ticker: 'ETHA',    shares: 1100, price: 18.97,  costBasis: 18.53,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 23.58, mtdOpen: 12.19, oneMonthAgo: 11.89 },
+        // v561 — regroupement 1:3 d'ETHA le 06/10/2026 (REGROUPEMENTS_TITRES) : 1 100 parts → 366,6667,
+        // prix et prix de revient ×3. Les achats de janvier-février restent au journal tels qu'exécutés
+        // (splitFactor 1/3). À confirmer sur le relevé IBKR : la fraction (0,6667 part) a pu être réglée
+        // en numéraire au lieu d'être conservée (≈ 35 USD, sans effet visible sur le patrimoine).
+        { ticker: 'ETHA',    shares: 366.6667, price: 56.27,  costBasis: 55.59,  currency: 'USD', label: 'iShares Ethereum (ETHA)', sector: 'crypto', geo: 'crypto', ytdOpen: 70.74, mtdOpen: 61.11, oneMonthAgo: 55.74 }, // clôtures Yahoo ajustées : 09/10 56,27 · 01/10 61,11 · 09/09 55,74
         // VWCE = Vanguard FTSE All-World UCITS ETF USD **Acc** (capitalisant, domicile Irlande), coté Xetra en EUR.
         // Ticker Yahoo = VWCE.DE. Acheté le 01/09/2026 : sharesAtStart=0 sur MTD/1M/YTD/1Y ⇒ les prix de
         // référence ne servent pas au P&L de période (clôtures Yahoo relevées le 19/09/2026, pour mémoire).
@@ -529,10 +533,10 @@ export const PORTFOLIO = {
         { date: '2026-01-21', ticker: 'SAP.DE',  label: 'SAP SE',            type: 'buy',  qty: 70,   price: 190.76,  currency: 'EUR', cost: 13353,  commission: -6.68, costBasis: 191.04 , source: 'ibkr' },
         // ─── IBIT renforcements jan/fév 2026 ───
         { date: '2026-01-29', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 500,  price: 47.44,   currency: 'USD', cost: 23720,  commission: -2.50, costBasis: 47.60, fxRate: 1.19740, source: 'ibkr' },
-        // ─── ETHA (iShares Ethereum) — 3 lots ───
-        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17, fxRate: 1.18537, source: 'ibkr' },
-        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50, fxRate: 1.17960, source: 'ibkr' },
-        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34, fxRate: 1.18036, source: 'ibkr' },
+        // ─── ETHA (iShares Ethereum) — 3 lots, en parts d'AVANT le regroupement 1:3 du 06/10/2026 ───
+        { date: '2026-01-30', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 500,  price: 20.59,   currency: 'USD', cost: 10295,  commission: -2.50, costBasis: 20.17, fxRate: 1.18537, source: 'ibkr', splitFactor: 1 / 3 },
+        { date: '2026-02-02', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 200,  price: 18.01,   currency: 'USD', cost: 3602,   commission: -1.00, costBasis: 17.50, fxRate: 1.17960, source: 'ibkr', splitFactor: 1 / 3 },
+        { date: '2026-02-04', ticker: 'ETHA',    label: 'iShares Ethereum',  type: 'buy',  qty: 400,  price: 16.20,   currency: 'USD', cost: 6480,   commission: -2.00, costBasis: 16.34, fxRate: 1.18036, source: 'ibkr', splitFactor: 1 / 3 },
         // ─── IBIT renforcements fév 2026 ───
         { date: '2026-02-03', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 300,  price: 42.50,   currency: 'USD', cost: 12750,  commission: -1.50, costBasis: 43.30, fxRate: 1.18129, source: 'ibkr' },
         { date: '2026-02-04', ticker: 'IBIT',    label: 'iShares Bitcoin',   type: 'buy',  qty: 100,  price: 41.75,   currency: 'USD', cost: 4175,   commission: -1.00, costBasis: 41.57, fxRate: 1.18036, source: 'ibkr' },
@@ -1493,7 +1497,7 @@ export const PORTFOLIO = {
       'SAP.DE':   253.0,    // SAP SE
       '4911.T':   2415.0,   // Shiseido (JPY)
       'IBIT':     66.37,     // iShares Bitcoin (USD)
-      'ETHA':     28.48,     // iShares Ethereum (USD)
+      'ETHA':     85.44,     // iShares Ethereum (USD) — v561 : 28,48 × 3, unités d'après le regroupement 1:3 du 06/10/2026
       'VWCE.DE':  139.04,    // Vanguard FTSE All-World (EUR) — clôture Yahoo 19/09/2025 (acheté 01/09/2026 : non utilisée)
       'ACN':      274.0,    // Accenture (USD) — même que acnOneYearAgo
       // Positions fermées depuis (prix au 16 juil 2025 ; sharesAtStart=0 si achetées après)
@@ -1555,7 +1559,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v560';
+export const APP_VERSION = 'v561';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2893,6 +2897,26 @@ export const VILLEJUIF_ACTE = {
 };
 
 // ════════════════════════════════════════════════════════════
+// REGROUPEMENTS ET DIVISIONS DES TITRES DÉTENUS (v561)
+// ════════════════════════════════════════════════════════════
+// Une division ou un regroupement change le NOMBRE de parts et leur prix, pas la valeur. Yahoo
+// réajuste alors TOUT l'historique du titre dans les nouvelles unités ; le store d'historique du
+// site, lui, ne fait qu'ajouter des clôtures : sans correction, il garde l'ancien historique dans
+// les anciennes unités et le colle au nouveau — d'où un saut fictif du facteur dans les graphes.
+//   facteur   parts d'APRÈS par part d'AVANT (1/3 pour un regroupement 1:3, 4 pour une division 4:1)
+//   date      première séance dans les nouvelles unités
+//   temoin    une clôture d'AVANT, en anciennes unités : sert à reconnaître une série restée
+//             entièrement dans les anciennes unités (aucune clôture postérieure pour voir le saut)
+// Pour chaque événement : la position (parts, prix, prix de revient, références) passe dans les
+// nouvelles unités, les trades antérieurs gardent leurs quantités exécutées avec splitFactor =
+// facteur, et une période de SOLDES_RETROACTIFS corrige les snapshots écrits entre-temps.
+export const REGROUPEMENTS_TITRES = [
+  { ticker: 'ETHA', date: '2026-10-06', facteur: 1 / 3, nature: 'regroupement 1:3',
+    temoin: { date: '2026-10-05', cours: 20.43 },
+    source: 'Yahoo Finance, événement de split « 1:3 » du 06/10/2026 ; clôture du 05/10 à 61,29 USD en unités ajustées' },
+];
+
+// ════════════════════════════════════════════════════════════
 // SOLDES RÉTROACTIFS — corriger l'historique sans réécrire les snapshots (v555)
 // ════════════════════════════════════════════════════════════
 // Les snapshots quotidiens sont en AJOUT SEUL : un point passé n'est jamais réécrit en base. Quand
@@ -2948,6 +2972,17 @@ export const SOLDES_RETROACTIFS = {
     { du: '2026-08-08', au: '2026-09-07', natif: -75640.89, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/08/2026' },
     { du: '2026-09-08', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: -62857.96, devise: 'AED', proprietaire: 'A', statut: 'établi',
       source: 'Relevé Wio Credit clos le 08/09/2026 ; remboursé le 07/10 à 08:46 UTC (69 998,89 AED, achats et intérêts du cycle compris)' },
+  ],
+  // v561 — une POSITION, pas un compte : `titre` désigne la ligne de stocks.positions et
+  // `facteurValeur` multiplie la valeur enregistrée. Regroupement 1:3 d'ETHA le 06/10/2026 (13:30 UTC,
+  // ouverture de New York) : jusqu'à la v561, le site multipliait 1 100 parts par le cours d'après
+  // le regroupement, soit trois fois la vraie valeur. Les snapshots pris dans l'intervalle portent
+  // donc la ligne ETHA ×3 ; on la ramène à un tiers, l'écart part des actions et du patrimoine d'Amine.
+  etha: [
+    { titre: 'ETHA', libelle: 'ETHA (regroupement 1:3)', du: '2026-10-06', au: '2026-10-10',
+      captureApres: '2026-10-06T13:30:00Z', captureAvant: '2026-10-09T21:00:00Z', avantVersion: 'v561', facteurValeur: 1 / 3,
+      proprietaire: 'A', statut: 'établi',
+      source: 'Yahoo Finance : split 1:3 du 06/10/2026 ; snapshots des 07, 08 et 09/10 à 59 526 / 57 047 / 54 598 € pour ETHA, contre 20 015 € le 06/10' },
   ],
 };
 

@@ -5056,6 +5056,36 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v561 (9 octobre 2026) — regroupement 1:3 d'ETHA : les titres détenus suivent les divisions
+
+**BUG-123.** L'iShares Ethereum Trust a regroupé ses parts par trois le 06/10/2026. Le cours est passé
+d'environ 20 à environ 60 USD, mais `data.js` gardait 1 100 parts : depuis le 07/10, la ligne ETHA valait
+trois fois sa valeur (≈ 59 500 € au lieu de ≈ 19 800 €), soit **≈ 39 600 € de patrimoine fictif** dans le
+site, les snapshots des 07, 08 et 09/10 et les graphes.
+
+- `data.js :: REGROUPEMENTS_TITRES` — registre des divisions et regroupements des titres DÉTENUS : `facteur`
+  (parts d'après par part d'avant), `date` (première séance en nouvelles unités), `temoin` (une clôture
+  d'avant, en anciennes unités). Données de marché publiques : hors des blocs chiffrés.
+- Position ETHA : 366,6667 parts, prix, prix de revient et références ×3. Les trois achats de
+  janvier-février restent tels qu'exécutés, avec `splitFactor: 1/3` (même convention que DEGIRO).
+- `engine.js :: normaliserRegroupements(hist, regroupements)` — le store d'historique ne fait qu'ajouter
+  des clôtures ; il collait l'ancien historique (anciennes unités) au nouveau (Yahoo réajusté). Chaque
+  saut d'un jour au facteur près est un raccord ; le dernier segment est en nouvelles unités s'il atteint
+  l'événement, sinon le témoin tranche ; en remontant, les segments alternent et ceux en anciennes unités
+  sont ramenés. Idempotente. Appelée par `api.js` partout où l'historique est assemblé (base locale ou
+  snapshot statique, L2 Supabase, rattrapage, delta), avant toute sauvegarde : les caches se réparent seuls.
+- `engine.js :: tradesDuringPeriod` et le détail des trades (`render.js`) appliquent `splitFactor` ; parts de
+  départ nulles comparées à 1e-3 près (366,6667 − 1 100/3 ≠ 0 pile).
+- `SOLDES_RETROACTIFS.etha` — premier usage du registre pour une POSITION (`titre`, `facteurValeur`) :
+  `appliquerSoldesRetroactifs` multiplie la ligne enregistrée et reporte l'écart sur les actions, l'IBKR,
+  le patrimoine d'Amine et du couple. Bornée : à partir du 06/10 13:30 UTC (ouverture de New York), jusqu'au
+  09/10 21:00 UTC (cron du soir, premier à tourner avec le correctif). Nouveau champ `avantVersion` : un
+  snapshot écrit par v561 ou plus porte déjà le correctif et n'est jamais corrigé deux fois.
+
+Les graphes en mémoire `charts.js :: splitUnitFactor` (v471) détectaient déjà un regroupement trade par
+trade : ils fonctionnent dès que l'historique est dans les nouvelles unités.
+Test : `tests/regroupement-titres.test.js` (9 contrôles).
+
 ## v560 (9 octobre 2026) — épargne Wio : ventilation lue dans l'app
 
 Capture de l'app du 09/10/2026 : épargne totale **554 140 AED** = « Nezha money » 101 000 (rose,

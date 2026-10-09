@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=560';
-import { lireContratEnCache } from './facturation_contract.js?v=560';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=561';
+import { lireContratEnCache } from './facturation_contract.js?v=561';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -194,11 +194,14 @@ function computeIBKRPositions(portfolio, fx, ibkr = portfolio.amine.ibkr, owner 
       let buyCostNative = 0, sellProceedsNative = 0;
       trades.forEach(t => {
         if (t.date >= periodStartDate) {
+          // v561 — quantités ramenées aux unités d'aujourd'hui (splitFactor : parts d'après par part
+          // d'avant une division ou un regroupement), comme pos.shares. Le montant ne change pas.
+          const f = t.splitFactor || 1;
           if (t.type === 'buy') {
-            buyShares += t.qty;
+            buyShares += t.qty * f;
             buyCostNative += (t.cost || t.qty * t.price);
           } else if (t.type === 'sell') {
-            sellShares += t.qty;
+            sellShares += t.qty * f;
             sellProceedsNative += (t.proceeds || t.qty * t.price);
           }
         }
@@ -217,7 +220,8 @@ function computeIBKRPositions(portfolio, fx, ibkr = portfolio.amine.ibkr, owner 
 
       if (periodStartDate && trades.length > 0) {
         const { sharesAtStart, netCashInvestedEUR } = tradesDuringPeriod(periodStartDate);
-        if (sharesAtStart === 0) {
+        // v561 — tolérance : après un regroupement, 366,6667 parts − 1 100 × 1/3 ne fait pas 0 pile
+        if (Math.abs(sharesAtStart) < 1e-3) {
           // Position fully bought during the period — no ref price needed
           // P&L = current value - total cost invested during the period
           return valEUR - netCashInvestedEUR;
@@ -5441,6 +5445,9 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
       if (row.date < c.du || row.date > c.au) return false;
       if (c.captureAvant && !(row.capturedAt && row.capturedAt < c.captureAvant)) return false;
       if (c.captureApres && !(row.capturedAt && row.capturedAt >= c.captureApres)) return false;
+      // v561 — `avantVersion` : un snapshot écrit par cette version ou une suivante porte déjà le
+      // correctif (le cron, sans numéro de version, reste soumis aux seules bornes horaires).
+      if (c.avantVersion && numVersion(row.appVersion || (brute.meta && brute.meta.appVersion)) >= numVersion(c.avantVersion)) return false;
       return true;
     };
     const actives = reel ? periodes.filter(dansLaFenetre) : [];
@@ -5450,6 +5457,7 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
     if (!d.cash.accounts) d.cash.accounts = {};
     const notes = [];
     for (const c of actives) {
+      if (c.titre) { const n = corrigerTitre(d, c); if (n) notes.push(n); continue; }
       const avant = d.cash.accounts[c.compte];
       const natifEnregistre = avant && typeof avant.native === 'number' ? avant.native : 0;
       const deltaNatif = c.natif - natifEnregistre;
@@ -5473,6 +5481,84 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
     if (notes.length) { row.data = d; row.corrections = notes; }
   }
   return rows;
+}
+
+function numVersion(v) { const m = /^v(\d+)/.exec(v || ''); return m ? Number(m[1]) : -1; }
+
+// v561 — correction d'une POSITION (période avec `titre` et `facteurValeur`) : la valeur
+// enregistrée de la ligne est multipliée par le facteur, et l'écart reporté sur les actions et le
+// patrimoine du titulaire et du couple. Une ligne absente du snapshot n'est pas inventée.
+function corrigerTitre(d, c) {
+  const pos = d.stocks && d.stocks.positions && d.stocks.positions[c.titre];
+  if (!pos || typeof pos.eur !== 'number' || !(c.facteurValeur > 0)) return null;
+  const deltaEUR = Math.round(pos.eur * c.facteurValeur) - pos.eur;
+  if (deltaEUR === 0) return null;
+  const qui = c.proprietaire === 'N' ? 'nezha' : 'amine';
+  const ajoute = (o, k) => { if (o && typeof o[k] === 'number') o[k] = Math.round(o[k] + deltaEUR); };
+  d.stocks.positions[c.titre] = { ...pos, eur: pos.eur + deltaEUR, ...(typeof pos.pl === 'number' ? { pl: pos.pl + deltaEUR } : {}), corrige: true };
+  ajoute(d.stocks, 'total'); ajoute(d.stocks, 'unrealizedPL');
+  ajoute(d.stocks, qui === 'nezha' ? 'ibkrNezhaNAV' : 'ibkrNAV');
+  ajoute(d.total, 'couple'); ajoute(d.total, qui);
+  for (const v of ['couple', qui]) {
+    if (d.views && d.views[v]) { ajoute(d.views[v], 'stocks'); ajoute(d.views[v], 'nwRef'); }
+  }
+  ajoute(d.kpis, 'liquid');
+  return { compte: c.libelle || c.titre, deltaEUR, statut: c.statut || 'établi' };
+}
+
+/**
+ * Ramène l'historique des prix dans les unités d'aujourd'hui après une division ou un regroupement
+ * (data.js :: REGROUPEMENTS_TITRES). v561.
+ *
+ * Yahoo réajuste tout l'historique d'un titre après l'événement ; le store du site ne fait
+ * qu'ajouter des clôtures, il peut donc porter un préfixe dans les anciennes unités collé à des
+ * clôtures dans les nouvelles. Chaque raccord est un saut d'un jour au facteur près (±25 %, alors
+ * qu'un regroupement 1:3 est un saut de ×3) et change d'unités. Le dernier segment est dans les
+ * nouvelles unités si la série atteint l'événement ; sinon sa dernière clôture est comparée au
+ * témoin. En remontant, les segments alternent ; ceux en anciennes unités sont ramenés aux
+ * nouvelles (prix ÷ facteur).
+ * Idempotente : une série déjà dans les nouvelles unités n'a ni saut ni proximité au témoin.
+ * Mute `hist.tickers` ; retourne la liste des séries corrigées.
+ */
+export function normaliserRegroupements(hist, regroupements) {
+  const corriges = [];
+  if (!hist || !hist.tickers) return corriges;
+  for (const ev of (regroupements || [])) {
+    const s = hist.tickers[ev.ticker];
+    if (!s || !Array.isArray(s.dates) || !s.dates.length || !(ev.facteur > 0) || ev.facteur === 1) continue;
+    const saut = 1 / ev.facteur;   // cours d'après / cours d'avant au raccord
+    const proche = (r, cible) => Math.abs(r - cible) / cible < 0.25;
+    // Raccords : un saut d'un jour au facteur près, dans un sens ou dans l'autre (une fusion de
+    // séries peut alterner les unités). Les anciennes unités n'existent qu'avant l'événement.
+    const raccords = [];
+    for (let i = 1; i < s.dates.length; i++) {
+      if (s.dates[i - 1] >= ev.date) break;
+      const a = s.closes[i - 1], b = s.closes[i];
+      if (!(a > 0 && b > 0)) continue;
+      if (proche(b / a, saut) || proche(a / b, saut)) raccords.push(i);
+    }
+    // Unités du dernier segment : nouvelles si la série atteint l'événement, sinon d'après le témoin.
+    let dernierAncien = false;
+    if (s.dates[s.dates.length - 1] < ev.date) {
+      let k = s.closes.length - 1;
+      while (k >= 0 && !(s.closes[k] > 0)) k--;
+      if (k < 0 || !(ev.temoin && ev.temoin.cours > 0)) continue;
+      const c = s.closes[k];
+      dernierAncien = Math.abs(Math.log(c / ev.temoin.cours)) < Math.abs(Math.log(c / (ev.temoin.cours / ev.facteur)));
+    }
+    // En remontant le temps, chaque raccord change d'unités.
+    let ancien = dernierAncien, fin = s.dates.length, jours = 0;
+    for (let r = raccords.length; r >= 0; r--) {
+      const debut = r > 0 ? raccords[r - 1] : 0;
+      if (ancien) {
+        for (let i = debut; i < fin; i++) if (typeof s.closes[i] === 'number') s.closes[i] = s.closes[i] / ev.facteur;
+        jours += fin - debut;
+      }
+      fin = debut; ancien = !ancien;
+    }
+    if (jours) corriges.push({ ticker: ev.ticker, jours });
+  }
+  return corriges;
 }
 
 /**

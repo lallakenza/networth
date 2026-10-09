@@ -2491,3 +2491,29 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   `ssl_context_for()` ; un hostname faux reste refusé ; `--check-staleness 3` sort 1 sur un JSON > 3 jours
   ouvrés ; après merge, `gh run list --workflow sgtm-scrape.yml` montre un run vert ET un commit
   `chore(sgtm): live price …`.
+
+## BUG-123 : regroupement 1:3 d'ETHA — patrimoine gonflé de ≈ 39 600 € depuis le 07/10/2026
+
+- **Version** : corrigé en v561 (09/10/2026). **Sévérité** : haute (NW couple, vue Actions, snapshots
+  quotidiens et graphes surévalués des deux tiers de la ligne ETHA).
+- **Détection** : vue Historique — actions 261 045 € le 06/10 puis 300 614 € le 07/10 (+15 % en une nuit) ;
+  la comparaison ligne à ligne des snapshots isole ETHA : 20 015 € → 59 526 €, les autres lignes stables.
+- **Symptôme** : ETHA valorisée à 1 100 parts × ≈ 58 USD au lieu de ≈ 366,67 parts × 58 USD.
+- **Cause** : regroupement 1:3 de l'iShares Ethereum Trust le 06/10/2026 (événement de split Yahoo « 1:3 »).
+  Le cours live passe de ≈ 20 à ≈ 60 USD ; `data.js` gardait 1 100 parts. Deux défauts latents en plus :
+  (1) le store d'historique (L1 localStorage, L2 Supabase, snapshot statique) ne fait qu'AJOUTER des
+  clôtures — l'historique d'avant reste en anciennes unités alors que Yahoo l'a réajusté, d'où un saut
+  ×3 dans les séries fusionnées ; (2) `tradesDuringPeriod` (engine) additionnait les quantités du journal
+  sans `splitFactor`, donc des parts de départ négatives pour une période.
+- **Correctif** : `REGROUPEMENTS_TITRES` (data.js) déclare l'événement ; position en nouvelles unités (366,6667
+  parts, prix et références ×3) ; trades antérieurs avec `splitFactor: 1/3` ; `normaliserRegroupements()`
+  (engine) ramène les séries aux nouvelles unités à chaque assemblage de l'historique (api.js : base, L2,
+  rattrapage, delta) ; `tradesDuringPeriod` et le détail des trades (render) appliquent `splitFactor` ;
+  `SOLDES_RETROACTIFS.etha` (période `titre` + `facteurValeur`) corrige à la lecture les snapshots écrits
+  entre le regroupement et le correctif.
+- **Tests de régression** : `tests/regroupement-titres.test.js` (9 contrôles : registre, position = Σ achats ×
+  splitFactor, valeur et P&L YTD, série fusionnée / alternée / arrêtée avant l'événement, idempotence,
+  correction des snapshots 07-09/10 et d'eux seuls).
+- **Pour le prochain événement** : ajouter une ligne à `REGROUPEMENTS_TITRES`, passer la position en
+  nouvelles unités, marquer les trades antérieurs, déclarer la période de snapshots à corriger. Le test
+  vérifie la cohérence position / journal pour chaque événement déclaré.
