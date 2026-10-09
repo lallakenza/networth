@@ -5056,6 +5056,19 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v558 (9 octobre 2026) — Mashreq au solde exact des relevés
+
+Relevés Excel et PDF des deux comptes Mashreq téléchargés depuis l'espace en ligne le 09/10/2026
+(historique complet : courant ouvert en janvier 2026, épargne en février).
+
+- `mashreq` : 492 707,07 → **546 262,52 AED** (épargne 495 105,35 + courant 51 157,17), dont
+  +50 000 « Salary » versés par Bairok Consulting LLC le 09/10 et +3 596,40 d'intérêts et de bonus
+  au 30/09.
+- `SOLDES_RETROACTIFS.mashreq` passe de « provisoire » à « établi » avec les soldes réels des
+  relevés : 502 289,52 du 01 au 04/10 (intérêts et bonus du 30/09 compris), 496 262,52 du 05 au
+  09/10. Le test de neutralité de la conversion du 04/10 compare désormais la veille et le
+  lendemain tirés du relevé (−6 027,00 AED).
+
 ## v557 (9 octobre 2026) — conversion AED → USDT du 04/10 et historique des comptes Wio
 
 Le 04/10/2026, Amine a viré 35 000 AED de son épargne Wio vers son compte courant Mashreq, y a

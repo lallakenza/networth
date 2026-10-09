@@ -142,9 +142,10 @@ const snap = (date, extra = {}) => ({
   t('la conversion AED → USDT du 04/10 ne crée ni ne détruit de patrimoine', () => {
     const R = D.SOLDES_RETROACTIFS;
     const le = (compte, date) => R[compte].find((p) => date >= p.du && date <= p.au && !p.captureApres);
-    // Écarts natifs par rapport aux soldes enregistrés avant (498 000 / 498 734,07 / 3 717)
+    // Écarts natifs entre la veille (04/10) et le lendemain (05/10) de la conversion. Pour Wio et
+    // Binance, la veille vaut le solde enregistré (498 000 / 3 717) ; pour Mashreq, le relevé.
     const dWio = le('wio_savings', '2026-10-05').natif - 498000;
-    const dMashreq = le('mashreq', '2026-10-05').natif - 498734.07;
+    const dMashreq = le('mashreq', '2026-10-05').natif - le('mashreq', '2026-10-04').natif;
     const dBinance = le('binance', '2026-10-05').natif - 3717;
     assert.equal(dWio, -35000);
     assert.ok(Math.abs(dMashreq + 6027) < 0.01);

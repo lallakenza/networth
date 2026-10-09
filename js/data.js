@@ -47,7 +47,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 492707.07,   // Mashreq NEO PLUS, 2 comptes — base 19/09/2026 (Saver 498 508,95 + Current 225,12 = 498 734,07, capture app) puis −6 027 le 04/10 : 6 000 du Saver vers le Current + 27 du Current, partis avec les 35 000 venus de Wio dans six paiements Aani à des vendeurs P2P Binance (41 027 AED d'achat d'USDT). Base de septembre non revérifiée : le relevé mensuel du 07/10 la donnera.
+      mashreq: 546262.52,   // Mashreq NEO PLUS — MAJ 09/10/2026, relevés téléchargés depuis l'espace en ligne : Saver ••7138 495 105,35 (≈ 6,25 %/an, intérêts mensuels) + Current ••9133 51 157,17 (dont +50 000 « Salary » versés par Bairok Consulting LLC le 09/10 depuis son compte Wio Business)
       wioSavings: 393000,   // Wio — espaces d'épargne d'AMINE (mauves) — ventilation du 19/09 dans wioSavingsSpaces (498 000), puis mouvements datés dans wioSavingsMouvements : −35 000 le 04/10 (vers Mashreq, achat d'USDT), −70 000 le 07/10 (remboursement de la carte Wio Credit). Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
       // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
       // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
@@ -1561,7 +1561,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v557';
+export const APP_VERSION = 'v558';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2924,10 +2924,12 @@ export const SOLDES_RETROACTIFS = {
     { du: '2026-10-07', au: '2026-10-09', captureApres: '2026-10-07T08:46:19Z', natif: 393000, devise: 'AED', proprietaire: 'A', statut: 'établi',
       source: '463 000 − 70 000 retirés le 07/10 à 08:46 UTC pour rembourser la carte Wio Credit' },
   ],
+  // Mashreq — soldes exacts tirés des relevés téléchargés le 09/10/2026 (épargne + courant).
   mashreq: [
-    { du: '2026-10-05', au: '2026-10-09', natif: 492707.07, devise: 'AED', proprietaire: 'A', statut: 'provisoire',
-      source: '498 734,07 (capture du 19/09) − 6 027 partis dans les achats P2P du 04/10 (mails Mashreq)',
-      aConfirmer: 'Le solde de base du 19/09 n\'a pas été revérifié : le relevé mensuel Mashreq du 07/10 le donnera.' },
+    { du: '2026-10-01', au: '2026-10-04', natif: 502289.52, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: 'Relevés Mashreq : 498 734,07 (19/09) − 40,95 (carte, 21/09) + 2 596,40 d\'intérêts et + 1 000 de bonus « Happiness Account » le 30/09' },
+    { du: '2026-10-05', au: '2026-10-09', natif: 496262.52, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: 'Relevés Mashreq : 502 289,52 − 6 027 partis dans les achats P2P du 04/10 ; le salaire Bairok du 09/10 est arrivé après le snapshot de 01:09 UTC' },
   ],
   binance: [
     { du: '2026-10-05', au: '2026-10-09', natif: 14888, devise: 'USD', proprietaire: 'A', statut: 'provisoire',
