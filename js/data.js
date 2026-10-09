@@ -47,8 +47,8 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 498734.07,   // Mashreq NEO PLUS, 2 comptes (Saver 498 508,95 + Current 225,12) — MAJ 19/09/2026 (capture app, solde disponible)
-      wioSavings: 428000,   // Wio — espaces d'épargne d'AMINE (mauves) — ventilation du 19/09 dans wioSavingsSpaces (498 000), puis mouvements datés dans wioSavingsMouvements. MAJ 07/10/2026 : −70 000 retirés pour rembourser la carte Wio Credit. Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
+      mashreq: 492707.07,   // Mashreq NEO PLUS, 2 comptes — base 19/09/2026 (Saver 498 508,95 + Current 225,12 = 498 734,07, capture app) puis −6 027 le 04/10 : 6 000 du Saver vers le Current + 27 du Current, partis avec les 35 000 venus de Wio dans six paiements Aani à des vendeurs P2P Binance (41 027 AED d'achat d'USDT). Base de septembre non revérifiée : le relevé mensuel du 07/10 la donnera.
+      wioSavings: 393000,   // Wio — espaces d'épargne d'AMINE (mauves) — ventilation du 19/09 dans wioSavingsSpaces (498 000), puis mouvements datés dans wioSavingsMouvements : −35 000 le 04/10 (vers Mashreq, achat d'USDT), −70 000 le 07/10 (remboursement de la carte Wio Credit). Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
       // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
       // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
       // rendre impossible le double comptage d'un virement déjà placé : quand de l'argent arrive
@@ -70,6 +70,7 @@ export const PORTFOLIO = {
       // Mouvements postérieurs à la ventilation ci-dessus, tant qu'une nouvelle capture des espaces
       // n'a pas été faite. Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings.
       wioSavingsMouvements: [
+        { date: '2026-10-04', montant: -35000, motif: 'retrait partiel du Fixed Saving Space puis trois virements vers le compte courant Mashreq (5 000 + 25 000 + 5 000), pour acheter de l\'USDT en P2P Binance destiné aux dépenses au Maroc', source: 'mails Wio du 04/10/2026 « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » ; mails Mashreq du 04/10 (crédits Aani) ; confirmation d\'Amine le 09/10' },
         { date: '2026-10-07', montant: -70000, motif: 'retrait partiel du Fixed Saving Space (6 %, échéance 02/11/2026) pour rembourser intégralement la carte Wio Credit', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
       ],
       // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
@@ -88,7 +89,7 @@ export const PORTFOLIO = {
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
-      binanceUSDT: 3717,    // Binance Funding — USDT (stablecoin ≈ USD, ~0%) — MAJ 12/07/2026 (nouveau compte suivi)
+      binanceUSDT: 14888,   // Binance — USDT (stablecoin ≈ USD, ~0 %). 3 717 au 12/07/2026 + 11 171 achetés en P2P le 04/10/2026 (41 027 AED payés depuis Mashreq, comptés AU COÛT à la parité 3,6725 AED/USD). PROVISOIRE : la prime P2P et une éventuelle revente en MAD pour les dépenses au Maroc ne sont pas connues — remplacer par le solde Binance réel.
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
       ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
       bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
@@ -1559,8 +1560,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '07/10/2026';
-export const APP_VERSION = 'v556';
+export const DATA_LAST_UPDATE = '09/10/2026';
+export const APP_VERSION = 'v557';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2913,6 +2914,26 @@ export const VILLEJUIF_ACTE = {
 //   statut      'établi' ou 'provisoire' — un statut provisoire est signalé dans la vue Historique
 //   source      d'où vient le chiffre ;  aConfirmer : ce qui manque pour passer en « établi »
 export const SOLDES_RETROACTIFS = {
+  // Conversion du 04/10/2026 : 41 027 AED (35 000 de Wio + 6 027 de Mashreq) échangés contre de
+  // l'USDT en P2P Binance. Les snapshots des 05 au 09/10 ont été écrits avec les soldes d'avant :
+  // on y remet les vrais soldes de chaque compte. La somme des trois écarts est nulle au coût —
+  // un échange ne crée ni ne détruit de patrimoine, il le déplace.
+  wio_savings: [
+    { du: '2026-10-05', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: 463000, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: '498 000 (ventilation du 19/09) − 35 000 virés vers Mashreq le 04/10 (mails Wio)' },
+    { du: '2026-10-07', au: '2026-10-09', captureApres: '2026-10-07T08:46:19Z', natif: 393000, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: '463 000 − 70 000 retirés le 07/10 à 08:46 UTC pour rembourser la carte Wio Credit' },
+  ],
+  mashreq: [
+    { du: '2026-10-05', au: '2026-10-09', natif: 492707.07, devise: 'AED', proprietaire: 'A', statut: 'provisoire',
+      source: '498 734,07 (capture du 19/09) − 6 027 partis dans les achats P2P du 04/10 (mails Mashreq)',
+      aConfirmer: 'Le solde de base du 19/09 n\'a pas été revérifié : le relevé mensuel Mashreq du 07/10 le donnera.' },
+  ],
+  binance: [
+    { du: '2026-10-05', au: '2026-10-09', natif: 14888, devise: 'USD', proprietaire: 'A', statut: 'provisoire',
+      source: '3 717 USDT (12/07) + 11 171 USDT achetés le 04/10, comptés au coût (41 027 AED à 3,6725)',
+      aConfirmer: 'Le nombre réel d\'USDT reçus (prime P2P) et ce qui a déjà été revendu en MAD ou dépensé au Maroc.' },
+  ],
   wio_credit: [
     {
       // Jusqu'au remboursement du 07/10 à 08:46 UTC : le snapshot du 07/10 écrit par le cron (06/10 à

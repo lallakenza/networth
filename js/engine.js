@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=556';
-import { lireContratEnCache } from './facturation_contract.js?v=556';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=557';
+import { lireContratEnCache } from './facturation_contract.js?v=557';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5433,10 +5433,17 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
     row.data = brute;
     row.corrections = null;
     const reel = brute.total && brute.total.couple != null;
-    // `captureAvant` (optionnel, horodatage ISO) : le solde n'était vrai que JUSQU'À cet instant. Sur
-    // le jour charnière, un snapshot pris après (déjà au bon solde) ne doit pas être corrigé.
-    const actives = reel ? periodes.filter((c) => row.date >= c.du && row.date <= c.au
-      && !(c.captureAvant && row.capturedAt && row.capturedAt >= c.captureAvant)) : [];
+    // `captureAvant` / `captureApres` (optionnels, horodatages ISO) bornent une période à l'instant
+    // près : sur un jour charnière, le solde d'avant vaut pour les snapshots capturés avant
+    // l'événement, celui d'après pour les snapshots capturés après. Sans heure de capture connue,
+    // une période bornée à l'instant ne s'applique pas — mieux vaut ne pas corriger que mal corriger.
+    const dansLaFenetre = (c) => {
+      if (row.date < c.du || row.date > c.au) return false;
+      if (c.captureAvant && !(row.capturedAt && row.capturedAt < c.captureAvant)) return false;
+      if (c.captureApres && !(row.capturedAt && row.capturedAt >= c.captureApres)) return false;
+      return true;
+    };
+    const actives = reel ? periodes.filter(dansLaFenetre) : [];
     if (!actives.length) continue;
     const d = JSON.parse(JSON.stringify(brute));
     if (!d.cash) d.cash = {};

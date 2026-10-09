@@ -5056,6 +5056,25 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v557 (9 octobre 2026) — conversion AED → USDT du 04/10 et historique des comptes Wio
+
+Le 04/10/2026, Amine a viré 35 000 AED de son épargne Wio vers son compte courant Mashreq, y a
+ajouté 6 000 AED de son épargne Mashreq, et a payé 41 027 AED en six virements Aani à six vendeurs
+P2P Binance (2 644 + 4 367 + 4 414 + 4 602 + 20 000 + 5 000), pour acheter de l'USDT destiné à ses
+dépenses au Maroc. C'est un échange, pas une dépense : le patrimoine ne bouge pas.
+
+- Wio Savings 428 000 → **393 000 AED** (mouvement daté du 04/10) ; Mashreq 498 734,07 →
+  **492 707,07 AED** ; Binance 3 717 → **14 888 USDT**, dont 11 171 comptés AU COÛT (41 027 AED
+  à la parité 3,6725). Provisoire : la prime P2P et ce qui a déjà été revendu ou dépensé au Maroc
+  ne sont pas connus.
+- **Historique** : `SOLDES_RETROACTIFS` remet les vrais soldes de Wio Savings, Mashreq et Binance
+  dans les snapshots du 05 au 09/10, écrits avec les soldes d'avant. La somme des écarts est nulle
+  au coût (testé).
+- `captureApres`, symétrique de `captureAvant` : sur le jour charnière du 07/10, le solde Wio
+  d'avant le remboursement (463 000) vaut pour le snapshot de 00:34 UTC, celui d'après (393 000)
+  pour un snapshot pris après 08:46. Sans heure de capture, une période bornée à l'instant ne
+  s'applique pas.
+
 ## v556 (7 octobre 2026) — correction rétroactive bornée à l'instant, pas au jour
 
 Le snapshot daté du 07/10 a été écrit par le cron le 06/10 à 21:00 UTC — avant le remboursement de

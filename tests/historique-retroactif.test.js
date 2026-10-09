@@ -124,6 +124,36 @@ const snap = (date, extra = {}) => ({
     assert.equal(D.SOLDES_RETROACTIFS.wio_credit[0].captureAvant, '2026-10-07T08:46:19Z');
   });
 
+  t('deux périodes qui se touchent un jour charnière ne s’appliquent jamais ensemble', () => {
+    const S = { wio_savings: [
+      { du: '2026-10-05', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: 463000, devise: 'AED', proprietaire: 'A' },
+      { du: '2026-10-07', au: '2026-10-09', captureApres: '2026-10-07T08:46:19Z', natif: 393000, devise: 'AED', proprietaire: 'A' },
+    ] };
+    const tot = { ...snap('2026-10-07'), capturedAt: '2026-10-07T00:34:10Z' };
+    const tard = { ...snap('2026-10-07'), capturedAt: '2026-10-07T20:00:00Z' };
+    const sansHeure = snap('2026-10-07');
+    E.appliquerSoldesRetroactifs([tot, tard, sansHeure], S, D.FX_STATIC);
+    assert.equal(tot.data.cash.accounts.wio_savings.native, 463000, 'avant 08:46 : 463 000');
+    assert.equal(tard.data.cash.accounts.wio_savings.native, 393000, 'après 08:46 : 393 000');
+    assert.equal(tot.corrections.length, 1, 'une seule période sur le jour charnière');
+    assert.equal(sansHeure.corrections, null, 'sans heure de capture, on ne devine pas de quel côté on est');
+  });
+
+  t('la conversion AED → USDT du 04/10 ne crée ni ne détruit de patrimoine', () => {
+    const R = D.SOLDES_RETROACTIFS;
+    const le = (compte, date) => R[compte].find((p) => date >= p.du && date <= p.au && !p.captureApres);
+    // Écarts natifs par rapport aux soldes enregistrés avant (498 000 / 498 734,07 / 3 717)
+    const dWio = le('wio_savings', '2026-10-05').natif - 498000;
+    const dMashreq = le('mashreq', '2026-10-05').natif - 498734.07;
+    const dBinance = le('binance', '2026-10-05').natif - 3717;
+    assert.equal(dWio, -35000);
+    assert.ok(Math.abs(dMashreq + 6027) < 0.01);
+    // Au coût, à la parité AED/USD : la somme des écarts en USD est nulle à 1 USDT près.
+    const sommeUSD = (dWio + dMashreq) / 3.6725 + dBinance;
+    assert.ok(Math.abs(sommeUSD) < 1, 'un échange au coût doit être neutre ; écart ' + sommeUSD.toFixed(2) + ' USD');
+    assert.equal(le('binance', '2026-10-05').statut, 'provisoire', 'le nombre réel d’USDT reste à confirmer');
+  });
+
   t('un snapshot sans patrimoine (rétroactif « actions seulement ») est laissé tel quel', () => {
     const r = { date: '2026-09-20', data: { stocks: { positions: {} } } };
     E.appliquerSoldesRetroactifs([r], SOLDES, D.FX_STATIC);
