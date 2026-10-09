@@ -5056,6 +5056,25 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v562 (9 octobre 2026) — connecteur IBKR : 11 319 AED comptés deux fois depuis le 19/09
+
+Lecture du connecteur IBKR le 09/10/2026 (compte d'Amine ; celui de Nezha n'y est pas visible).
+
+- **Positions** : les 13 lignes sont identiques à `data.js`, parts et prix de revient compris. ETHA :
+  366,6667 parts à 55,5886 USD — IBKR a CONSERVÉ la fraction du regroupement (v561 confirmée).
+- **AED** : le connecteur n'a plus de solde AED. Les 11 319,13 AED ont été retirés vers Wio le
+  31/08/2026 (e-mail IBKR « Withdrawal Activity »). `data.js` les gardait à l'IBKR, et la mise à jour
+  des soldes Wio de la v545 (19/09) les a comptés une seconde fois chez Wio : ≈ 2 650 € de trop.
+  `cashAED` passe à 0 ; le retrait entre dans `deposits` (−11 319,13 AED à 4,2642), sinon l'identité
+  NAV − apports nets compterait la sortie comme une perte. Historique : `SOLDES_RETROACTIFS.ibkr_cash_aed`
+  remet 0 AED dans les snapshots pris après la v545 (19/09, 02:27 UTC). Avant, le solde Wio était
+  antérieur au virement : le total était juste.
+- **EUR / JPY** : −2 517,19 € et −1 604 546 ¥ (−5,57 € et −3 166 ¥ depuis le 19/09, sans trade :
+  intérêts débiteurs de septembre, probablement). Pas de correction rétroactive : le connecteur ne
+  donne pas la date de passage, et l'écart est d'environ 23 €.
+- Test : `tests/perimetre-tiers.test.js` (AED compté une fois) ; `tests/acceptation.test.js` accepte un
+  solde AED nul.
+
 ## v561 (9 octobre 2026) — regroupement 1:3 d'ETHA : les titres détenus suivent les divisions
 
 **BUG-123.** L'iShares Ethereum Trust a regroupé ses parts par trois le 06/10/2026. Le cours est passé

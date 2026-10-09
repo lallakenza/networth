@@ -254,8 +254,9 @@ t('le pont graphe↔canonique expose ses composantes', () => {
   const positives = Math.max(0, r.cashEUR) + Math.max(0, r.cashUSDeur)
     + Math.max(0, r.cashAEDeur) + Math.max(0, r.cashJPYeur) + r.esppCashTotal + Math.max(0, r.cashIbkrNezha);
   proche(positives, r.cashCourtier, 1, 'recomposition du cash courtier');
-  // Le solde AED est la part que la reconstitution par les flux ne peut pas voir.
-  assert.ok(r.cashAEDeur > 0, 'le solde AED devrait être positif — sinon le pont perd son objet');
+  // Le solde AED est la part que la reconstitution par les flux ne peut pas voir. v562 : retiré
+  // vers Wio le 31/08/2026, il vaut 0 — la composante reste exposée, et ne peut pas être négative.
+  assert.ok(r.cashAEDeur >= 0, 'un solde AED négatif serait une dette inexpliquée');
 });
 
 t('toutes les lignes de titres (IBKR + ACN + SGTM), et un cash courtier non nul', () => {

@@ -176,6 +176,16 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.equal(D.VILLEJUIF_CONSTRAINTS.preemption, null, 'droit de préemption vérifié et écarté (p.42)');
   });
 
+  t('les AED retirés de l’IBKR vers Wio le 31/08 ne sont comptés qu’une fois', () => {
+    const ib = D.PORTFOLIO.amine.ibkr;
+    assert.equal(ib.cashAED, 0, 'le solde AED de l’IBKR est vide depuis le retrait (connecteur du 09/10)');
+    const retrait = ib.deposits.find((d) => d.date === '2026-08-31' && d.currency === 'AED');
+    assert.ok(retrait && retrait.amount < 0, 'le retrait doit sortir des apports nets, sinon NAV − apports gonfle le P/L');
+    const p = D.SOLDES_RETROACTIFS.ibkr_cash_aed[0];
+    assert.equal(p.natif, 0);
+    assert.ok(p.captureApres >= '2026-09-19T02:26:41Z', 'la double comptabilisation commence avec les soldes Wio de la v545');
+  });
+
   console.log(ko === 0 ? '\n✅ Périmètre : OK\n' : '\n❌ ' + ko + ' échec(s)\n');
   process.exit(ko === 0 ? 0 : 1);
 })();

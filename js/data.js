@@ -289,10 +289,11 @@ export const PORTFOLIO = {
         { ticker: 'VWCE.DE', shares: 50,   price: 167.14, costBasis: 166.94, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
-      cashEUR: -2511.62,     // Solde EUR chez IBKR (connecteur 19/09/2026) — après achat VWCE 01/09 (−8 347,17 €) ; +2,83 € non attribués par le connecteur
-      cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 12/07/2026)
-      cashJPY: -1601380.36, // Solde JPY chez IBKR (connecteur 19/09/2026) — +7 690 ¥ depuis le 28/08 sans trade (probablement dividende Shiseido net d'intérêts JPY ; à confirmer sur relevé)
-      cashAED: 11319,        // Solde AED chez IBKR — 11 319,13 (conversions EUR→AED 8-11/06/2026, connecteur 12/07/2026)
+      // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
+      cashEUR: -2517.19,     // Solde EUR chez IBKR (connecteur 09/10/2026). −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 09/10/2026)
+      cashJPY: -1604546.36, // Solde JPY chez IBKR (connecteur 09/10/2026). −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
+      cashAED: 0,            // v562 — 11 319,13 AED retirés vers Wio le 31/08/2026 (e-mail IBKR « Withdrawal Activity ») ; absent du connecteur le 09/10. Déjà dans le solde Wio lu dans l'app
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
       meta: {
@@ -439,6 +440,7 @@ export const PORTFOLIO = {
         { date: '2025-12-19', amount: 15000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement décembre' },
         { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement janvier 2026' },
         { date: '2026-08-28', amount: 10004,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement EUR (constaté connecteur 28/08 — exécuté entre le 12/07 et le 28/08, date exacte non tracée)' },
+        { date: '2026-08-31', amount: -11319.13, currency: 'AED', fxRateAtDate: 4.2642, label: 'Retrait AED vers Wio (e-mail IBKR « Withdrawal Activity » du 31/08/2026 ; montant masqué dans l\'e-mail = solde AED entier, absent du connecteur le 09/10)' },
         { date: '2026-03-31', amount: -2000,  currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (mars 2026)' },
         // ── AED deposits (statement IBKR lignes 312-315) ──
         { date: '2025-10-22', amount: 10000,  currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #1 (Mashreq→IBKR)' },
@@ -1559,7 +1561,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v561';
+export const APP_VERSION = 'v562';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2972,6 +2974,13 @@ export const SOLDES_RETROACTIFS = {
     { du: '2026-08-08', au: '2026-09-07', natif: -75640.89, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/08/2026' },
     { du: '2026-09-08', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: -62857.96, devise: 'AED', proprietaire: 'A', statut: 'établi',
       source: 'Relevé Wio Credit clos le 08/09/2026 ; remboursé le 07/10 à 08:46 UTC (69 998,89 AED, achats et intérêts du cycle compris)' },
+  ],
+  // v562 — 11 319 AED retirés de l'IBKR vers Wio le 31/08/2026. data.js les a gardés à l'IBKR, et la
+  // mise à jour des soldes Wio de la v545 (19/09, 02:26 UTC) les a comptés une seconde fois chez Wio.
+  // Avant la v545, le solde Wio était antérieur au virement : le total était juste.
+  ibkr_cash_aed: [
+    { du: '2026-09-19', au: '2026-10-10', captureApres: '2026-09-19T02:27:00Z', natif: 0, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: 'E-mail IBKR « Withdrawal Activity » du 31/08/2026 (vers Wio Bank) ; connecteur IBKR du 09/10/2026 sans solde AED' },
   ],
   // v561 — une POSITION, pas un compte : `titre` désigne la ligne de stocks.positions et
   // `facteurValeur` multiplie la valeur enregistrée. Regroupement 1:3 d'ETHA le 06/10/2026 (13:30 UTC,
