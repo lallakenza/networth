@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=566';
-import { DEPLOIEMENTS } from './deploiements.js?v=566';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=566';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=567';
+import { DEPLOIEMENTS } from './deploiements.js?v=567';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=567';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1107,7 +1107,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=566');
+    if (!_authMod) _authMod = await import('./auth.js?v=567');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }
@@ -1156,7 +1156,7 @@ export async function saveServerHistory(data) {
     const blob = { tickers, fx, _lastDate: getLastDate(data), _backfilled: !!data._backfilled };
     if (data.sgtmHistory && data.sgtmHistory.length) blob.sgtmHistory = data.sgtmHistory;
     const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SERVER_STORE.table;
-    await fetch(u, {
+    const r = await fetch(u, {
       method: 'POST',
       headers: {
         apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey,
@@ -1165,6 +1165,9 @@ export async function saveServerHistory(data) {
       body: JSON.stringify({ id: SERVER_STORE.row, data: blob }),
       signal: AbortSignal.timeout(15000),
     });
+    // v567 — fetch ne lève pas sur une erreur HTTP : sans ce contrôle, un refus (RLS, taille) était
+    // annoncé « OK » et la L2 restait figée sans que rien ne le dise.
+    if (!r.ok) { console.warn('[hist] L2 upload refusé HTTP ' + r.status); return; }
     console.log('[hist] L2 Supabase upload OK → coverage ' + blob._lastDate);
   } catch (e) { console.warn('[hist] L2 upload failed (non-bloquant):', e && e.message); }
 }
@@ -1409,33 +1412,49 @@ export async function fetchHistoricalPrices(tickers, snapshot, onProgress) {
   // Tolérance : une série peut légitimement avoir une séance de retard (fuseaux — Tokyo/Europe/US
   // ne clôturent pas le même jour, jour férié local). Au-delà de 4 jours calendaires (week-end +
   // 1 séance), c'est une dérive anormale à rattraper.
-  const _lagging = tickers.filter(t => {
-    const last = _lastOf(t);
-    return last && last < _coverage && (Date.parse(_coverage) - Date.parse(last)) > 4 * 86400000;
-  });
+  // v567 — les séries de change aussi : EUR/USD est resté figé au 15/09/2026 dans le store, que le
+  // rattrapage (tickers seulement) ne voyait pas.
+  const _FX_SYMBOLES = { usd: 'EURUSD=X', jpy: 'EURJPY=X', mad: 'EURMAD=X' };
+  const _lastFx = (k) => {
+    const d = result.fx[k];
+    return (d && d.dates && d.dates.length) ? d.dates[d.dates.length - 1] : null;
+  };
+  const _enRetard = (last) => last && last < _coverage && (Date.parse(_coverage) - Date.parse(last)) > 4 * 86400000;
+  let _lagging = tickers.filter(t => _enRetard(_lastOf(t)));
+  let _laggingFx = Object.keys(_FX_SYMBOLES).filter(k => _enRetard(_lastFx(k)));
 
   if (result._fromStore && result._storeUpdated === _todayISO() && result._backfilled) {
-    if (_lagging.length === 0) {
+    if (_lagging.length === 0 && _laggingFx.length === 0) {
       console.log('[hist] Store à jour + complet (maj ' + result._storeUpdated + ') → skip réseau, coverage → ' + _coverage);
       return result;
     }
     // Rattrapage CIBLÉ : le reste du store est à jour, on ne redemande que les retardataires.
-    console.warn('[hist] Store frais MAIS ' + _lagging.length + ' série(s) en retard sur ' + _coverage
-      + ' → rattrapage ciblé : ' + _lagging.map(t => t + ' (' + _lastOf(t) + ')').join(', '));
+    console.warn('[hist] Store frais MAIS ' + (_lagging.length + _laggingFx.length) + ' série(s) en retard sur ' + _coverage
+      + ' → rattrapage ciblé : ' + _lagging.map(t => t + ' (' + _lastOf(t) + ')').concat(_laggingFx.map(k => k + ' (' + _lastFx(k) + ')')).join(', '));
     const healed = [];
-    await Promise.all(_lagging.map(t => {
-      const p1 = Math.floor(new Date(_lastOf(t) + 'T00:00:00Z').getTime() / 1000) - 7 * 86400;
-      return getStockHistory({ ticker: t }, { period1: p1, period2: Math.floor(Date.now() / 1000) })
-        .then(d => { if (d) { result.tickers[t] = unionSeries(result.tickers[t], d); healed.push(t); } })
-        .catch(() => {}); // échec ⇒ on retentera au prochain chargement (plus de gel silencieux)
-    }));
+    // v567 — d'abord la L2 : le cron (scripts/refresh_price_history.mjs) la met à jour chaque soir,
+    // sans passer par les proxys CORS. Yahoo n'est appelé que pour ce qu'elle n'a pas.
+    const serveur = await loadServerHistory();
+    if (serveur) {
+      for (const t of _lagging) if (serveur.tickers && serveur.tickers[t]) { result.tickers[t] = unionSeries(result.tickers[t], serveur.tickers[t]); healed.push(t); }
+      for (const k of _laggingFx) if (serveur.fx && serveur.fx[k]) { result.fx[k] = unionSeries(result.fx[k], serveur.fx[k]); healed.push(k); }
+      _lagging = _lagging.filter(t => _enRetard(_lastOf(t)));
+      _laggingFx = _laggingFx.filter(k => _enRetard(_lastFx(k)));
+    }
+    const p2 = Math.floor(Date.now() / 1000);
+    const p1De = (last) => Math.floor(new Date(last + 'T00:00:00Z').getTime() / 1000) - 7 * 86400;
+    await Promise.all(_lagging.map(t => getStockHistory({ ticker: t }, { period1: p1De(_lastOf(t)), period2: p2 })
+      .then(d => { if (d) { result.tickers[t] = unionSeries(result.tickers[t], d); healed.push(t); } })
+      .catch(() => {})).concat(_laggingFx.map(k => getStockHistory({ ticker: _FX_SYMBOLES[k] }, { period1: p1De(_lastFx(k)), period2: p2 })
+      .then(d => { if (d) { result.fx[k] = unionSeries(result.fx[k], d); healed.push(k); } })
+      .catch(() => {})))); // échec ⇒ on retentera au prochain chargement (plus de gel silencieux)
     _normaliser(result, 'rattrapage');
     if (healed.length) {
       // Rafraîchissement PARTIEL ⇒ on n'avance pas l'horodatage : le prochain chargement doit
       // pouvoir faire le gap-fetch complet (et corriger les bars provisoires des autres séries).
       saveHistStore(result, { preserveFreshness: true });
       result._didFetch = true; // pousse la correction vers L2 (app.js, après fusion SGTM)
-      console.log('[hist] Rattrapage OK : ' + healed.join(', ') + ' → coverage ' + getLastDate(result));
+      console.log('[hist] Rattrapage OK : ' + [...new Set(healed)].join(', ') + ' → coverage ' + getLastDate(result));
     }
     return result;
   }

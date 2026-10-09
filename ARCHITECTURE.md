@@ -5056,6 +5056,28 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v567 (9 octobre 2026) — l'historique de cours partagé se met à jour chaque soir, côté serveur
+
+Le principe existait depuis la v382-v385 : le navigateur garde l'historique Yahoo en local (L1), le
+partage dans Supabase `price_history` (L2) et ne télécharge que le delta depuis la dernière clôture
+connue. Contrôle du 09/10/2026 : les actions étaient à jour, mais **EUR/USD était figé au 15/09 et EUR/JPY
+au 19/09**. Trois défauts :
+
+- Le navigateur n'atteint Yahoo qu'à travers des proxys CORS gratuits (allorigins, codetabs, corsproxy…),
+  de plus en plus souvent en échec ; les appels d'historique de change revenaient vides.
+- Le rattrapage d'une série en retard (store frais du jour) ne regardait que les tickers, jamais le change.
+- `saveServerHistory` annonçait « upload OK » sans lire la réponse HTTP.
+
+Correctifs :
+- `scripts/refresh_price_history.mjs`, nouvelle étape du workflow nocturne (après le snapshot,
+  `if: always()`) : lit la L2, télécharge le delta Yahoo de chaque série (tickers suivis, positions,
+  ACN, EUR/USD, EUR/JPY, EUR/MAD) directement depuis le runner, date chaque barre dans le fuseau de sa
+  place (comme le navigateur à Paris ou Dubaï), ramène les unités (REGROUPEMENTS_TITRES) et réécrit la L2.
+  Job rouge si une série échoue.
+- `api.js` : le rattrapage couvre aussi le change et puise d'abord dans la L2 (mise à jour chaque soir),
+  Yahoo seulement pour ce qui manque ; `saveServerHistory` contrôle la réponse.
+- Exécuté une première fois le 09/10 : 24 séries à jour, change jusqu'au 09/10.
+
 ## v566 (9 octobre 2026) — tout l'historique au modèle actuel : Vitry, Rueil, facturation, TVA, factures SAP
 
 Suite de la v564 (Villejuif). Chaque changement de méthode ou de donnée datée est désormais appliqué à
