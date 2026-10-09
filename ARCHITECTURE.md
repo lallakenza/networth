@@ -5056,6 +5056,18 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v568 (9 octobre 2026) — Attijari, dette Mehdi remboursée, Binance au solde réel
+
+Déclaratif d'Amine le 09/10/2026.
+- `attijari` 138 943,56 → **5 000 MAD** : 100 000 MAD ont remboursé Mehdi, ≈ 33 900 MAD dépensés au Maroc.
+- `CREP08` (dette envers Mehdi, −100 000 MAD) → recouvré. Neutre : le cash et la dette baissent ensemble.
+- `binanceUSDT` 14 888 (provisoire, au coût) → **11 003 USDT** réels. Conversion en MAD envisagée à
+  ≈ 10,2 MAD/USDT (P2P Maroc) : valorisé au dollar tant qu'elle n'est pas faite.
+- Effet : ≈ −6 600 € (≈ −3 100 € de dépenses Attijari, ≈ −3 470 € d'USDT dépensés ou revendus).
+- Historique : non corrigé, faute de dates. Le remboursement de Mehdi est neutre quelle que soit sa date ;
+  les ≈ 33 900 MAD et ≈ 3 885 USDT sont sortis entre le 19/09 (Attijari) ou le 04/10 (Binance) et le 09/10,
+  à des jours inconnus. La courbe d'Attijarinet (solde quotidien) permettrait de les dater.
+
 ## v567 (9 octobre 2026) — l'historique de cours partagé se met à jour chaque soir, côté serveur
 
 Le principe existait depuis la v382-v385 : le navigateur garde l'historique Yahoo en local (L1), le

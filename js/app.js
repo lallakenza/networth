@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=567';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=568';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=567';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=567';
-import { render, applySnapshotDeltas } from './render.js?v=567';
-import { chargerContratDistant } from './facturation_contract.js?v=567';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=567';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=567';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=567';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=567';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=568';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=568';
+import { render, applySnapshotDeltas } from './render.js?v=568';
+import { chargerContratDistant } from './facturation_contract.js?v=568';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=568';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=568';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=568';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=568';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -700,18 +700,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=567');
+  const auth = await import('./auth.js?v=568');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=567');
+  const auth = await import('./auth.js?v=568');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=567');
+  const auth = await import('./auth.js?v=568');
   auth.deconnecter();
   oublierAppareil();
 };

@@ -83,7 +83,7 @@ export const PORTFOLIO = {
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
-      binanceUSDT: 14888,   // Binance — USDT (stablecoin ≈ USD, ~0 %). 3 717 au 12/07/2026 + 11 171 achetés en P2P le 04/10/2026 (41 027 AED payés depuis Mashreq, comptés AU COÛT à la parité 3,6725 AED/USD). PROVISOIRE : la prime P2P et une éventuelle revente en MAD pour les dépenses au Maroc ne sont pas connues — remplacer par le solde Binance réel.
+      binanceUSDT: 11003,   // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 09/10/2026 (solde réel, déclaratif Amine). Remplace les 14 888 provisoires (3 717 + 11 171 achetés au coût le 04/10) : ≈ 3 885 USDT déjà dépensés ou revendus, date inconnue. Conversion en MAD envisagée à ≈ 10,2 MAD/USDT (P2P Maroc, ≈ 112 230 MAD) : valorisé au dollar tant qu'elle n'est pas faite.
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
       ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
       bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
@@ -95,7 +95,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 138943.56,  // Attijariwafa MRA current account (0% rendement) — MAJ 19/09/2026 (Attijarinet live ; inclut 3 virements reçus le 19/09 encore « en cours » : 50 000 + 50 000 + 18 000 ; ~100 000 MAD RÉSERVÉS pour un virement à Mehdi annoncé le 19/09 (pas encore parti — cash volontairement non placé))
+      attijari: 5000,       // Attijariwafa MRA current account (0% rendement) — MAJ 09/10/2026 (déclaratif Amine). Était 138 943,56 au 19/09 : 100 000 partis rembourser Mehdi (CREP08) + ≈ 33 900 de dépenses au Maroc, dates exactes non relevées
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
       cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app), confirmé inchangé le 19/09/2026 (Amine : « 29 275 MAD »)
       _lastUpdate: '2026-07-12',
@@ -718,7 +718,7 @@ export const PORTFOLIO = {
         { id: 'CREP07', label: 'Aby (Abdelkader) — EUR', amount: 1860, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
         // v484 — DETTE (montant négatif, sommé linéairement dans recvPersonal) : Mehdi a prêté
         // 100K MAD à Amine (« il me les a prêtés et je les ai utilisés ») — à rembourser.
-        { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-08-28', payments: [], notes: 'Emprunt utilisé — dette certaine, sans échéance convenue' },
+        { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: null, lastContact: '2026-10-09', payments: [{ amount: -100000, date: '2026-10-09', currency: 'MAD' }], notes: 'Remboursée depuis Attijari (déclaratif Amine le 09/10/2026 ; date exacte du virement non relevée, entre le 19/09 et le 09/10). Neutre sur le patrimoine : le cash et la dette baissent ensemble.' },
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
@@ -1561,7 +1561,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v567';
+export const APP_VERSION = 'v568';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3101,7 +3101,7 @@ export const SOLDES_RETROACTIFS = {
   binance: [
     { du: '2026-10-05', au: '2026-10-09', natif: 14888, devise: 'USD', proprietaire: 'A', statut: 'provisoire',
       source: '3 717 USDT (12/07) + 11 171 USDT achetés le 04/10, comptés au coût (41 027 AED à 3,6725)',
-      aConfirmer: 'Le nombre réel d\'USDT reçus (prime P2P) et ce qui a déjà été revendu en MAD ou dépensé au Maroc.' },
+      aConfirmer: 'Solde réel au 09/10 : 11 003 USDT. Inconnu : la date à laquelle ≈ 3 885 USDT ont été dépensés ou revendus (entre le 04/10 et le 09/10), et le nombre exact reçu le 04/10 (prime P2P).' },
   ],
   // Carte Wio Credit — soldes dus aux clôtures des relevés (le 8 de chaque mois), lus sur les neuf
   // relevés de décembre 2025 à septembre 2026 (Notion « Wio Credit (carte de crédit) »). Le solde arrêté
