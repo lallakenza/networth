@@ -5056,6 +5056,31 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v566 (9 octobre 2026) — tout l'historique au modèle actuel : Vitry, Rueil, facturation, TVA, factures SAP
+
+Suite de la v564 (Villejuif). Chaque changement de méthode ou de donnée datée est désormais appliqué à
+toute la courbe, à la lecture, avec la méthode du jour.
+
+- **Vitry / Rueil** — équité nette après frais de sortie : jusqu'au 27/08 (Vitry, porté à 0) et au 08/08
+  (Rueil), les snapshots portaient d'anciennes méthodes. `scripts/recalculer_immo_historique.mjs` recalcule
+  valeur, CRD et équité nette jour par jour avec le moteur actuel (horloge figée à 00:30 UTC) →
+  `IMMO_RECALCULE` ; `restaterImmo` remplace un écart ≥ 50 €. Le moteur reproduit le cron du 09/10 à l'euro.
+- **Facturation** — le cron et les navigateurs sans pont écrivaient la valeur figée de `data.js` (≈ −1 430 €),
+  et le cron écrit 0 (« indisponible ») depuis le 15/09. `FACTURATION_HISTORIQUE` date chaque position
+  publiée par le site de facturation (en MAD) ; `restaterFacturation` applique celle de l'instant de capture.
+  **BUG-125** : `scripts/daily_snapshot.mjs` charge désormais le contrat 2048 (magasin local en mémoire),
+  comme `app.js`.
+- **TVA** — pondérée à 25 % depuis la v548 (19/09) ; `restaterTva` ramène la TVA brute des lignes antérieures.
+- **Factures SAP & Tax** — `emiseLe` sur INVSNT006 → 009 ; `restaterFacturesPro` compte chaque facture de son
+  émission à son paiement, dans les snapshots écrits jusqu'au 09/10 (`FACTURES_RESTATEES_JUSQUAU` ; au-delà,
+  le modèle « encaissement réputé à échéance + 10 j » s'applique tel quel). INVSNT007 et 008 manquaient avant
+  le 05/09 ; la provision ACCSNT09 est remplacée par INVSNT009 dès le 01/10.
+
+Restent visibles, et vrais : la position de facturation publiée le 09/08 (+108 900 → −113 160 MAD), les flux
+réels du 21/08 (salaire de passage sur Wio), les comptes ajoutés le 28/08 (iBanq Bairok, virement IBKR non
+daté), et les paiements des factures (20/09, 09/10) dont l'argent est arrivé sur les comptes de Bairok, sans
+historique quotidien. Tests : 6 contrôles de plus dans `tests/historique-fiable.test.js`.
+
 ## v565 (9 octobre 2026) — le premier jour de l'historique (18/07) réapparaît
 
 Le filtre de régression de version de `selectionnerSnapshots` comptait aussi les lignes de backfill

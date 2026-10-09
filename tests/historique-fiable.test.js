@@ -171,8 +171,86 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(Math.abs(vjJour.value - D.VILLEJUIF_ACTE.appelsPayes.montant) < 1, 'le calcul du jour porte les appels payés');
   });
 
+  // v566 — Vitry / Rueil, facturation et TVA au modèle actuel.
+  const snapAutres = (date, capturedAt, extra = {}) => ({
+    date, capturedAt,
+    data: {
+      total: { couple: 700000, amine: 560000, nezha: 140000 },
+      views: { couple: { immo: 70000, other: 96000, nwRef: 700000 }, amine: { immo: 0, other: 84000, nwRef: 560000 }, nezha: { immo: 70000, other: 12000, nwRef: 140000 } },
+      autres: { total: 96000, facturation: -1436, tva: -16000 },
+      immo: { value: 707912, crd: 553097, equityNet: 109542, equityGross: 154815,
+        properties: {
+          vitry: { value: 280000, crd: 265181, equityGross: 14819, equityNet: 0 },
+          rueil: { value: 256240, crd: 191747, equityGross: 64493, equityNet: 52451 },
+        } },
+      meta: { fx: { MAD: 10.7 } },
+      ...extra,
+    },
+  });
+
+  t('Vitry et Rueil d’avant le 27/08 prennent l’équité nette du modèle actuel', () => {
+    const r = snapAutres('2026-07-18', '2026-07-18T21:07:00Z');
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { facturation: [], tva: null, villejuif: null });
+    const cible = D.IMMO_RECALCULE['2026-07-18'];
+    assert.equal(r.data.immo.properties.vitry.equityNet, cible.vitry[2]);
+    assert.equal(r.data.immo.properties.rueil.equityNet, cible.rueil[2]);
+    assert.equal(r.data.total.amine, 560000 + cible.vitry[2], 'Vitry est à Amine');
+    assert.equal(r.data.total.nezha, 140000 + cible.rueil[2] - 52451, 'Rueil est à Nezha');
+    assert.equal(r.data.views.couple.immo, 70000 + cible.vitry[2] + cible.rueil[2] - 52451);
+  });
+
+  t('facturation : la position publiée à l’instant de capture remplace la valeur figée', () => {
+    const r = snapAutres('2026-07-18', '2026-07-18T21:07:00Z');
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null });
+    const attendu = Math.round(108900 / 10.7);
+    assert.equal(r.data.autres.facturation, attendu);
+    assert.equal(r.data.total.amine, 560000 + attendu + 1436);
+    assert.equal(r.data.views.amine.other, 84000 + attendu + 1436);
+    assert.equal(r.data.total.nezha, 140000);
+    // Le cron « indisponible » (0) depuis le 15/09 reçoit la position du contrat.
+    const c = snapAutres('2026-09-20', '2026-09-19T22:52:00Z');
+    c.data.autres.facturation = 0;
+    E.appliquerSoldesRetroactifs([c], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null });
+    assert.equal(c.data.autres.facturation, Math.round(-5871 / 10.7));
+  });
+
+  t('facturation : une ligne déjà à la bonne position n’est pas touchée', () => {
+    const r = snapAutres('2026-08-30', '2026-08-30T03:14:00Z');
+    r.data.autres.facturation = Math.round(1150 / 10.7);
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null });
+    assert.equal(r.corrections, null);
+  });
+
+  t('TVA brute ramenée à la TVA pondérée, sur le patrimoine d’Amine', () => {
+    const r = snapAutres('2026-08-01', '2026-08-01T21:22:00Z');
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { immo: {}, facturation: [], villejuif: null });
+    const p = D.PORTFOLIO.amine.tvaProbability;
+    assert.equal(r.data.autres.tva, Math.round(D.PORTFOLIO.amine.tva * p));
+    assert.equal(r.data.total.amine, 560000 + Math.round(D.PORTFOLIO.amine.tva * p) + 16000);
+    const deja = snapAutres('2026-09-25', '2026-09-25T00:00:00Z');
+    deja.data.autres.tva = Math.round(D.PORTFOLIO.amine.tva * p);
+    E.appliquerSoldesRetroactifs([deja], {}, D.FX_STATIC, { immo: {}, facturation: [], villejuif: null });
+    assert.equal(deja.corrections, null);
+  });
+
+  t('créances SAP & Tax : chaque facture compte de son émission à son paiement, jusqu’à la date de restatement', () => {
+    const r = (date, capturedAt, crPro) => ({ date, capturedAt, data: {
+      total: { couple: 700000, amine: 560000, nezha: 140000 },
+      views: { couple: { other: 96000, nwRef: 700000 }, amine: { other: 84000, nwRef: 560000 } },
+      autres: { total: 96000, creancesPro: crPro } } });
+    const opts = { immo: {}, facturation: [], tva: null, villejuif: null };
+    const aout = r('2026-08-15', '2026-08-15T00:30:00Z', 19125);   // INVSNT007 émise le 01/08 manquait
+    const oct = r('2026-10-05', '2026-10-05T00:30:00Z', 27300);    // provision ACCSNT09 au lieu d'INVSNT009
+    const apres = r('2026-11-20', '2026-11-20T00:30:00Z', 0);      // modèle du jour, non contredit
+    E.appliquerSoldesRetroactifs([aout, oct, apres], {}, D.FX_STATIC, opts);
+    assert.equal(aout.data.autres.creancesPro, Math.round(19124.79 + 18655));
+    assert.equal(oct.data.autres.creancesPro, 14560 + 19110, 'INVSNT008 non encore payée + INVSNT009 émise le 01/10');
+    assert.equal(aout.data.total.amine, 560000 + Math.round(19124.79 + 18655) - 19125);
+    assert.equal(apres.corrections, null);
+  });
+
   t('les nouveaux registres sont chiffrés avec les autres blocs sensibles', () => {
-    for (const n of ['RELEVES_QUOTIDIENS', 'SNAPSHOTS_RECONSTRUITS']) assert.ok(NOMS_SENSIBLES.includes(n), n);
+    for (const n of ['RELEVES_QUOTIDIENS', 'SNAPSHOTS_RECONSTRUITS', 'IMMO_RECALCULE', 'FACTURATION_HISTORIQUE']) assert.ok(NOMS_SENSIBLES.includes(n), n);
   });
 
   console.log(ko === 0 ? '\n✅ Historique fiable : OK\n' : '\n❌ ' + ko + ' échec(s)\n');

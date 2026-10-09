@@ -19,7 +19,7 @@
  *   Requêtes non-GET, et tout ce qui n'est pas same-origin hors liste → JAMAIS caché.
  */
 
-const VERSION = 'v565';
+const VERSION = 'v566';
 const CACHE_COQUILLE = 'patrimoine-coquille-' + VERSION;
 const CACHE_DONNEES = 'patrimoine-donnees-' + VERSION;
 

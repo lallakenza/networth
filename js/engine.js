@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=565';
-import { lireContratEnCache } from './facturation_contract.js?v=565';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=566';
+import { lireContratEnCache } from './facturation_contract.js?v=566';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5472,7 +5472,14 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
     // v564 — Villejuif écrit avec l'ancienne méthode (valeur hybride) : à reporter au coût engagé.
     const acteVJ = opts.villejuif !== undefined ? opts.villejuif : VILLEJUIF_ACTE;
     const vjAncien = reel && villejuifARestater(brute, acteVJ);
-    if (!actives.length && !vjAncien) continue;
+    // v566 — Vitry / Rueil, facturation et TVA au modèle actuel (tables de data.js par défaut).
+    const tableImmo = opts.immo !== undefined ? opts.immo : IMMO_RECALCULE;
+    const histoFactu = opts.facturation !== undefined ? opts.facturation : FACTURATION_HISTORIQUE;
+    const tva = opts.tva !== undefined ? opts.tva
+      : (PORTFOLIO && PORTFOLIO.amine ? { montant: PORTFOLIO.amine.tva, probabilite: PORTFOLIO.amine.tvaProbability } : null);
+    const factures = opts.factures !== undefined ? opts.factures
+      : ((PORTFOLIO && PORTFOLIO.amine && PORTFOLIO.amine.creances && PORTFOLIO.amine.creances.items) || []);
+    if (!actives.length && !vjAncien && !reel) continue;
     const d = JSON.parse(JSON.stringify(brute));
     if (!d.cash) d.cash = {};
     if (!d.cash.accounts) d.cash.accounts = {};
@@ -5500,6 +5507,15 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       notes.push({ compte: c.compte, deltaEUR: Math.round(deltaEUR), statut: c.statut || 'établi' });
     }
     if (vjAncien) { const n = restaterVillejuif(d, row.date, acteVJ); if (n) notes.push(n); }
+    if (reel) {
+      for (const n of restaterImmo(d, row.date, tableImmo)) notes.push(n);
+      const nf = restaterFacturation(d, capturedAt, histoFactu, fxStatic); if (nf) notes.push(nf);
+      const nt = restaterTva(d, tva); if (nt) notes.push(nt);
+      const jusquau = opts.facturesJusquau !== undefined ? opts.facturesJusquau : FACTURES_RESTATEES_JUSQUAU;
+      if (capturedAt && jusquau && capturedAt.slice(0, 10) <= jusquau) {
+        const nc = restaterFacturesPro(d, capturedAt, factures); if (nc) notes.push(nc);
+      }
+    }
     if (notes.length) { row.data = d; row.corrections = notes; }
   }
   return rows;
@@ -5536,6 +5552,97 @@ function restaterVillejuif(d, date, acte) {
     if (d.views && d.views[v]) { ajoute(d.views[v], 'immo', deltaEUR); ajoute(d.views[v], 'nwRef', deltaEUR); }
   }
   return deltaEUR ? { compte: 'Villejuif (coût engagé)', deltaEUR, statut: 'établi' } : null;
+}
+
+// v566 — report d'un écart sur une catégorie de vue, le patrimoine du titulaire et du couple.
+function reporter(d, qui, categorie, deltaEUR) {
+  const ajoute = (o, k) => { if (o && typeof o[k] === 'number') o[k] = Math.round(o[k] + deltaEUR); };
+  ajoute(d.total, 'couple'); ajoute(d.total, qui);
+  for (const v of ['couple', qui]) {
+    if (d.views && d.views[v]) { ajoute(d.views[v], categorie); ajoute(d.views[v], 'nwRef'); }
+  }
+}
+
+// v566 — Vitry et Rueil au modèle actuel (IMMO_RECALCULE) : valeur, CRD et équité nette après frais de
+// sortie. Un écart de moins de 50 € (arrondis, cours du jour) n'est pas une différence de méthode.
+function restaterImmo(d, date, table) {
+  const notes = [];
+  const jour = table && table[date];
+  const props = d.immo && d.immo.properties;
+  if (!jour || !props) return notes;
+  for (const [id, qui] of [['vitry', 'amine'], ['rueil', 'nezha']]) {
+    const p = props[id], cible = jour[id];
+    if (!p || !cible || typeof p.equityNet !== 'number') continue;
+    const [valeur, crd, eqN] = cible;
+    const deltaEUR = eqN - p.equityNet;
+    if (Math.abs(deltaEUR) < 50) continue;
+    const dValeur = valeur - (p.value || 0), dCrd = crd - (p.crd || 0);
+    const dBrute = (valeur - crd) - (typeof p.equityGross === 'number' ? p.equityGross : (p.value || 0) - (p.crd || 0));
+    props[id] = { ...p, value: valeur, crd, equityGross: valeur - crd, equityNet: eqN, corrige: true };
+    const ajoute = (o, k, x) => { if (o && typeof o[k] === 'number') o[k] = Math.round(o[k] + x); };
+    ajoute(d.immo, 'value', dValeur); ajoute(d.immo, 'crd', dCrd);
+    ajoute(d.immo, 'equityGross', dBrute); ajoute(d.immo, 'equityNet', deltaEUR);
+    reporter(d, qui, 'immo', deltaEUR);
+    notes.push({ compte: (id === 'vitry' ? 'Vitry' : 'Rueil') + ' (modèle actuel)', deltaEUR: Math.round(deltaEUR), statut: 'établi' });
+  }
+  return notes;
+}
+
+// v566 — facturation : la position publiée par le site de facturation à l'instant de capture
+// (FACTURATION_HISTORIQUE, en MAD), au taux du snapshot. Corrige les lignes écrites sans le pont
+// (valeur figée de data.js, ou 0 « indisponible ») et celles d'un navigateur au pont périmé.
+function restaterFacturation(d, capturedAt, histo, fxStatic) {
+  if (!Array.isArray(histo) || !histo.length || !capturedAt || !d.autres || typeof d.autres.facturation !== 'number') return null;
+  let pos = null;
+  for (const h of histo) { if (h.depuis <= capturedAt) pos = h; else break; }
+  if (!pos) return null;
+  const taux = (d.meta && d.meta.fx && d.meta.fx.MAD) || (fxStatic && fxStatic.MAD);
+  if (!taux) return null;
+  const deltaEUR = Math.round(pos.mad / taux - d.autres.facturation);
+  if (Math.abs(deltaEUR) < 5) return null;
+  d.autres.facturation += deltaEUR;
+  if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
+  reporter(d, 'amine', 'other', deltaEUR);
+  return { compte: 'Facturation (position publiée)', deltaEUR, statut: 'établi' };
+}
+
+// v566 — créances pro : les factures datées (`emiseLe`) comptent de leur émission à leur encaissement.
+// Avant le 05/09/2026, le registre ne portait qu'INVSNT006 alors qu'INVSNT007 (01/08) et INVSNT008
+// (01/09) étaient émises ; du 20/09 au 09/10, il portait un provisionnement de septembre (ACCSNT09)
+// remplacé depuis par la vraie facture INVSNT009 (01/10). Les factures sans `emiseLe` sont ignorées.
+function restaterFacturesPro(d, capturedAt, factures) {
+  if (!capturedAt || !d.autres || typeof d.autres.creancesPro !== 'number') return null;
+  const datees = (factures || []).filter((c) => c && c.type === 'pro' && c.emiseLe && c.currency === 'EUR');
+  if (!datees.length) return null;
+  const jour = capturedAt.slice(0, 10);
+  let attendu = 0;
+  for (const c of datees) {
+    if (c.emiseLe > jour) continue;
+    const paiements = (c.payments || []).map((p) => p.date).filter(Boolean).sort();
+    const soldeLe = paiements.length && (c.payments || []).reduce((t, p) => t + (p.amount || 0), 0) >= c.amount - 0.01
+      ? paiements[paiements.length - 1] : null;
+    if (soldeLe && soldeLe <= jour) continue;
+    attendu += (c.amount || 0) * (c.probability != null ? c.probability : 1);
+  }
+  const deltaEUR = Math.round(attendu - d.autres.creancesPro);
+  if (Math.abs(deltaEUR) < 5) return null;
+  d.autres.creancesPro += deltaEUR;
+  if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
+  reporter(d, 'amine', 'other', deltaEUR);
+  return { compte: 'Créances SAP & Tax (factures datées)', deltaEUR, statut: 'établi' };
+}
+
+// v566 — TVA pondérée par sa probabilité (v548, 19/09/2026) : une ligne qui porte la TVA brute est
+// ramenée à tva × probabilité, comme le calcul du jour.
+function restaterTva(d, tva) {
+  if (!tva || typeof tva.montant !== 'number' || !(tva.probabilite >= 0 && tva.probabilite < 1)) return null;
+  if (!d.autres || typeof d.autres.tva !== 'number' || Math.abs(d.autres.tva - tva.montant) > 1) return null;
+  const deltaEUR = Math.round(tva.montant * tva.probabilite - d.autres.tva);
+  if (!deltaEUR) return null;
+  d.autres.tva += deltaEUR;
+  if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
+  reporter(d, 'amine', 'other', deltaEUR);
+  return { compte: 'TVA (pondérée ' + Math.round(tva.probabilite * 100) + ' %)', deltaEUR, statut: 'établi' };
 }
 
 // v563 — solde d'un relevé quotidien (RELEVES_QUOTIDIENS) à l'instant de capture d'un snapshot.

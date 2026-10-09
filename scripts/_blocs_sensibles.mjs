@@ -28,6 +28,9 @@ export const BLOCS_SENSIBLES = [
   // v563 — soldes bancaires jour par jour et patrimoines reconstitués.
   ['RELEVES_QUOTIDIENS', '{}'],
   ['SNAPSHOTS_RECONSTRUITS', '{}'],
+  // v566 — historique recalculé au modèle actuel (immobilier, facturation).
+  ['IMMO_RECALCULE', '{}'],
+  ['FACTURATION_HISTORIQUE', '[]'],
 ];
 export const NOMS_SENSIBLES = BLOCS_SENSIBLES.map(([n]) => n);
 export const COQUILLES = Object.fromEntries(BLOCS_SENSIBLES);

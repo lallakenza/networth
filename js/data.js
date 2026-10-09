@@ -686,7 +686,7 @@ export const PORTFOLIO = {
         // INVSNT003 — SAP & Tax mars — SOLDÉ
         { id: 'INVSNT003', label: 'SAP & Tax — INVSNT003 (mars, 21.5j × 910€)', amount: 19565, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-05-01', lastContact: '2026-07-13', payments: [{ amount: 19565, date: '2026-05-01', currency: 'EUR' }], notes: 'Soldé — encaissé (cash à jour 13/07/2026).' },
         // INVSNT006 — SAP & Tax (facture 01/06/2026) — SOLDÉ (constaté 19/09/2026)
-        { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-07-01', lastContact: '2026-09-19', payments: [{ amount: 19124.79, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
+        { id: 'INVSNT006', label: 'SAP & Tax — INVSNT006 (15j × 910€ + frais Melbourne/Paris)', amount: 19124.79, currency: 'EUR', type: 'pro', emiseLe: '2026-06-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-07-01', lastContact: '2026-09-19', payments: [{ amount: 19124.79, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/06/2026 : SAP FICO 15j×910 = 13 650 + Melbourne 4 684,38 + Paris 790,41 = 19 124,79 (TVA 0). Échéance 01/07/2026 (30j). Client SAP & Tax (L\'Oréal).' },
         // INVSNT007 — PAYÉE (constaté 19/09/2026). INVSNT008 — émise, NON ENCAISSÉE.
         // Le client paie en général ~1 mois après l'échéance de facture, vers le 3-4 du mois suivant.
         // Elles manquaient au registre : jusqu'ici INVSNT006 était présentée comme la SEULE
@@ -698,12 +698,12 @@ export const PORTFOLIO = {
         // `payments: []` : aucune date de règlement n'est connue, aucune n'est inventée.
         // Vérifié avant ajout : aucun encaissement de 18 655 ni 14 560 EUR n'existe déjà dans
         // les données — pas de double comptage avec le cash.
-        { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-09-01', lastContact: '2026-09-19', payments: [{ amount: 18655, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
-        { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026, août, 16j × 910€)', amount: 14560, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-10-01', lastContact: '2026-10-09', payments: [{ amount: 14560, date: '2026-10-09', currency: 'EUR' }], notes: 'Payée — confirmé par Amine le 09/10/2026 (date d\'encaissement exacte non relevée). Encaissée par Bairok ; Bairok a versé 50 000 AED de salaire à Amine le 09/10 (relevé Mashreq). Preuve facture : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
+        { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', emiseLe: '2026-08-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-09-01', lastContact: '2026-09-19', payments: [{ amount: 18655, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
+        { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026, août, 16j × 910€)', amount: 14560, currency: 'EUR', type: 'pro', emiseLe: '2026-09-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-10-01', lastContact: '2026-10-09', payments: [{ amount: 14560, date: '2026-10-09', currency: 'EUR' }], notes: 'Payée — confirmé par Amine le 09/10/2026 (date d\'encaissement exacte non relevée). Encaissée par Bairok ; Bairok a versé 50 000 AED de salaire à Amine le 09/10 (relevé Mashreq). Preuve facture : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
         // Accrual septembre 2026 — travaillé, PAS ENCORE FACTURÉ (facture attendue 01/10, encaissement ~03-04/11).
         // Jours = timesheet Notion « Timesheet 2026 - LOREAL / NEO » : 01-04, 07-11, 14-18/09 = 14 j × 910 € (arrêté au 18/09).
         // INVSNT009 remplace l'accrual de septembre (14 j au 18/09) : 21 jours facturés (confirmé 09/10/2026).
-        { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-10-09', payments: [], notes: 'Facture du 01/10/2026 envoyée depuis la boîte de Bairok (pièce fournie par Amine le 09/10/2026) : 21 jours × 910 € = 19 110 € HT, TVA 0, paiement à 30 jours, échéance 01/11/2026, règlement sur le compte IFX Payments de Bairok (iBanq). Réputée encaissée à l\'échéance + 10 j (règle v549).' },
+        { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', emiseLe: '2026-10-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-10-09', payments: [], notes: 'Facture du 01/10/2026 envoyée depuis la boîte de Bairok (pièce fournie par Amine le 09/10/2026) : 21 jours × 910 € = 19 110 € HT, TVA 0, paiement à 30 jours, échéance 01/11/2026, règlement sur le compte IFX Payments de Bairok (iBanq). Réputée encaissée à l\'échéance + 10 j (règle v549).' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
@@ -1561,7 +1561,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v565';
+export const APP_VERSION = 'v566';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2916,6 +2916,118 @@ export const REGROUPEMENTS_TITRES = [
   { ticker: 'ETHA', date: '2026-10-06', facteur: 1 / 3, nature: 'regroupement 1:3',
     temoin: { date: '2026-10-05', cours: 20.43 },
     source: 'Yahoo Finance, événement de split « 1:3 » du 06/10/2026 ; clôture du 05/10 à 61,29 USD en unités ajustées' },
+];
+
+// ════════════════════════════════════════════════════════════
+// HISTORIQUE AU MODÈLE ACTUEL — méthodes changées en cours de route (v566)
+// ════════════════════════════════════════════════════════════
+// Vitry et Rueil : valeur, CRD et équité nette (après frais de sortie) recalculés jour par jour par le
+// moteur ACTUEL (scripts/recalculer_immo_historique.mjs, horloge figée à 00:30 UTC). Les snapshots
+// d'avant le 27/08 (Vitry) et le 08/08 (Rueil) portaient d'anciennes méthodes de frais de sortie.
+// Format : { jour: { vitry: [valeur, crd, équitéNette], rueil: [...] } }. À régénérer si la méthode change.
+export const IMMO_RECALCULE = {
+  '2026-07-18': {"vitry":[280000,265181,9249],"rueil":[256500,191747,59608]},
+  '2026-07-19': {"vitry":[280000,265153,9277],"rueil":[256500,191722,59633]},
+  '2026-07-20': {"vitry":[280000,265126,9304],"rueil":[256500,191697,59658]},
+  '2026-07-21': {"vitry":[280000,265099,9331],"rueil":[256500,191672,59683]},
+  '2026-07-22': {"vitry":[280000,265071,9359],"rueil":[256500,191647,59708]},
+  '2026-07-23': {"vitry":[280000,265044,9386],"rueil":[256500,191622,59733]},
+  '2026-07-24': {"vitry":[280000,265016,9414],"rueil":[256500,191597,59758]},
+  '2026-07-25': {"vitry":[280000,264989,9441],"rueil":[256500,191572,59784]},
+  '2026-07-26': {"vitry":[280000,264962,9468],"rueil":[256500,191546,59810]},
+  '2026-07-27': {"vitry":[280000,264934,9496],"rueil":[256500,191521,59835]},
+  '2026-07-28': {"vitry":[280000,264907,9523],"rueil":[256500,191496,59860]},
+  '2026-07-29': {"vitry":[280000,264879,9551],"rueil":[256500,191471,59885]},
+  '2026-07-30': {"vitry":[280000,264852,9578],"rueil":[256500,191446,59910]},
+  '2026-07-31': {"vitry":[280000,264825,9605],"rueil":[256500,191421,59935]},
+  '2026-08-01': {"vitry":[280000,264797,9641],"rueil":[256500,191396,59848]},
+  '2026-08-02': {"vitry":[280000,264770,9668],"rueil":[256500,191371,59873]},
+  '2026-08-03': {"vitry":[280000,264742,9696],"rueil":[256500,191346,59898]},
+  '2026-08-04': {"vitry":[280000,264715,9723],"rueil":[256500,191321,59923]},
+  '2026-08-05': {"vitry":[280000,264687,9751],"rueil":[256500,191296,59948]},
+  '2026-08-06': {"vitry":[280000,264660,9778],"rueil":[256500,191270,59974]},
+  '2026-08-07': {"vitry":[280000,264633,9805],"rueil":[256500,191245,60000]},
+  '2026-08-08': {"vitry":[280000,264605,9833],"rueil":[256500,191220,60025]},
+  '2026-08-09': {"vitry":[280000,264578,9860],"rueil":[256500,191195,60050]},
+  '2026-08-10': {"vitry":[280000,264550,9888],"rueil":[256500,191170,60075]},
+  '2026-08-11': {"vitry":[280000,264523,9915],"rueil":[256500,191145,60100]},
+  '2026-08-12': {"vitry":[280000,264495,9943],"rueil":[256500,191120,60125]},
+  '2026-08-13': {"vitry":[280000,264468,9970],"rueil":[256500,191095,60150]},
+  '2026-08-14': {"vitry":[280000,264441,9997],"rueil":[256500,191070,60176]},
+  '2026-08-15': {"vitry":[280000,264413,10025],"rueil":[256500,191045,60201]},
+  '2026-08-16': {"vitry":[280000,264386,10052],"rueil":[256500,191019,60227]},
+  '2026-08-17': {"vitry":[280000,264358,10080],"rueil":[256500,190994,60252]},
+  '2026-08-18': {"vitry":[280000,264331,10107],"rueil":[256500,190969,60277]},
+  '2026-08-19': {"vitry":[280000,264303,10135],"rueil":[256500,190944,60302]},
+  '2026-08-20': {"vitry":[280000,264276,10162],"rueil":[256500,190919,60327]},
+  '2026-08-21': {"vitry":[280000,264249,10189],"rueil":[256500,190894,60353]},
+  '2026-08-22': {"vitry":[280000,264221,10217],"rueil":[256500,190869,60378]},
+  '2026-08-23': {"vitry":[280000,264194,10244],"rueil":[256500,190844,60403]},
+  '2026-08-24': {"vitry":[280000,264166,10272],"rueil":[256500,190819,60428]},
+  '2026-08-25': {"vitry":[280000,264139,10299],"rueil":[256500,190794,60453]},
+  '2026-08-26': {"vitry":[280000,264111,10327],"rueil":[256500,190768,60479]},
+  '2026-08-27': {"vitry":[280000,264084,10354],"rueil":[256500,190743,60505]},
+  '2026-08-28': {"vitry":[280000,264057,10381],"rueil":[256500,190718,60530]},
+  '2026-08-29': {"vitry":[280000,264029,10409],"rueil":[256500,190693,60555]},
+  '2026-08-30': {"vitry":[280000,264002,10436],"rueil":[256500,190668,60580]},
+  '2026-08-31': {"vitry":[280000,263974,10464],"rueil":[256500,190643,60605]},
+  '2026-09-01': {"vitry":[280000,263947,10498],"rueil":[256714,190618,60658]},
+  '2026-09-02': {"vitry":[280000,263918,10527],"rueil":[256714,190592,60684]},
+  '2026-09-03': {"vitry":[280000,263890,10555],"rueil":[256714,190566,60711]},
+  '2026-09-04': {"vitry":[280000,263862,10583],"rueil":[256714,190540,60737]},
+  '2026-09-05': {"vitry":[280000,263833,10612],"rueil":[256714,190514,60763]},
+  '2026-09-06': {"vitry":[280000,263805,10640],"rueil":[256714,190488,60789]},
+  '2026-09-07': {"vitry":[280000,263776,10669],"rueil":[256714,190462,60815]},
+  '2026-09-08': {"vitry":[280000,263748,10697],"rueil":[256714,190436,60841]},
+  '2026-09-09': {"vitry":[280000,263720,10725],"rueil":[256714,190410,60868]},
+  '2026-09-10': {"vitry":[280000,263691,10754],"rueil":[256714,190384,60894]},
+  '2026-09-11': {"vitry":[280000,263663,10782],"rueil":[256714,190358,60920]},
+  '2026-09-12': {"vitry":[280000,263634,10811],"rueil":[256714,190332,60946]},
+  '2026-09-13': {"vitry":[280000,263606,10839],"rueil":[256714,190306,60972]},
+  '2026-09-14': {"vitry":[280000,263578,10867],"rueil":[256714,190280,60998]},
+  '2026-09-15': {"vitry":[280000,263549,10896],"rueil":[256714,190254,61024]},
+  '2026-09-16': {"vitry":[280000,263521,10924],"rueil":[256714,190228,61051]},
+  '2026-09-17': {"vitry":[280000,263492,10953],"rueil":[256714,190202,61077]},
+  '2026-09-18': {"vitry":[280000,263464,10981],"rueil":[256714,190176,61103]},
+  '2026-09-19': {"vitry":[280000,263436,11009],"rueil":[256714,190150,61129]},
+  '2026-09-20': {"vitry":[280000,263407,11038],"rueil":[256714,190124,61155]},
+  '2026-09-21': {"vitry":[280000,263379,11066],"rueil":[256714,190098,61181]},
+  '2026-09-22': {"vitry":[280000,263351,11094],"rueil":[256714,190072,61208]},
+  '2026-09-23': {"vitry":[280000,263322,11123],"rueil":[256714,190047,61233]},
+  '2026-09-24': {"vitry":[280000,263294,11151],"rueil":[256714,190021,61259]},
+  '2026-09-25': {"vitry":[280000,263265,11180],"rueil":[256714,189995,61285]},
+  '2026-09-26': {"vitry":[280000,263237,11208],"rueil":[256714,189969,61311]},
+  '2026-09-27': {"vitry":[280000,263209,11236],"rueil":[256714,189943,61337]},
+  '2026-09-28': {"vitry":[280000,263180,11265],"rueil":[256714,189917,61363]},
+  '2026-09-29': {"vitry":[280000,263152,11293],"rueil":[256714,189891,61390]},
+  '2026-09-30': {"vitry":[280000,263123,11322],"rueil":[256714,189865,61416]},
+  '2026-10-01': {"vitry":[280000,263095,11358],"rueil":[256928,189839,61470]},
+  '2026-10-02': {"vitry":[280000,263067,11386],"rueil":[256928,189814,61495]},
+  '2026-10-03': {"vitry":[280000,263040,11413],"rueil":[256928,189788,61521]},
+  '2026-10-04': {"vitry":[280000,263012,11441],"rueil":[256928,189763,61546]},
+  '2026-10-05': {"vitry":[280000,262985,11468],"rueil":[256928,189738,61572]},
+  '2026-10-06': {"vitry":[280000,262957,11496],"rueil":[256928,189713,61597]},
+  '2026-10-07': {"vitry":[280000,262930,11523],"rueil":[256928,189688,61622]},
+  '2026-10-08': {"vitry":[280000,262902,11551],"rueil":[256928,189663,61647]},
+  '2026-10-09': {"vitry":[280000,262875,11578],"rueil":[256928,189638,61672]},
+  '2026-10-10': {"vitry":[280000,262847,11606],"rueil":[256928,189612,61698]},
+};
+
+// Facturation (net Augustin − Benoit) : la position publiée par le site de facturation, en MAD, datée
+// de sa première apparition. Relevée sur les snapshots écrits avec la vraie source (pont localStorage,
+// puis contrat 2048). Le cron et les navigateurs sans ce pont écrivaient la valeur figée de data.js
+// (≈ −15 300 MAD), et le cron « indisponible » = 0 depuis le 15/09.
+// Créances SAP & Tax : dans les snapshots déjà écrits, chaque facture datée (`emiseLe`) compte de son
+// émission à son encaissement. Au-delà de cette date, le modèle du jour (encaissement réputé à
+// échéance + 10 j, v549) s'applique tel quel : la restatement ne le contredit pas.
+export const FACTURES_RESTATEES_JUSQUAU = '2026-10-09';
+
+export const FACTURATION_HISTORIQUE = [
+  { depuis: '2026-07-12T00:00:00Z', mad: 108900, source: 'pont localStorage du 12/07 puis du 21/07 (108 870 à 108 960 MAD selon le change)' },
+  { depuis: '2026-08-09T17:12:11Z', mad: -113160, source: 'pont localStorage du 09/08 17:12, confirmé le 09/08 18:42 et le 10/08' },
+  { depuis: '2026-08-27T23:18:06Z', mad: 1150, source: 'pont localStorage du 27/08 23:18, confirmé jusqu\'au 05/09 18:31' },
+  { depuis: '2026-09-05T21:27:57Z', mad: -8566, source: 'pont localStorage du 05/09 21:27 ; contrat 2048 au 04/09' },
+  { depuis: '2026-09-15T00:00:00Z', mad: -5871, source: 'contrat 2048, données au 15/09/2026' },
 ];
 
 // ════════════════════════════════════════════════════════════

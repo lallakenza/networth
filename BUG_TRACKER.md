@@ -2533,3 +2533,16 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
 - **Tests de régression** : `tests/historique-fiable.test.js`.
 - **À faire côté appareils** : retrouver l'onglet ou l'appareil resté en v433 (cache de service worker) et le
   recharger ; il ne peut plus fausser l'historique, mais il continue d'écrire.
+
+## BUG-125 : le cron écrivait une facturation « indisponible » = 0 depuis le 15/09/2026
+
+- **Version** : corrigé en v566 (09/10/2026). **Sévérité** : moyenne (≈ −540 € par snapshot, et l'écart
+  avec les lignes du navigateur fabriquait des allers-retours quotidiens dans la courbe).
+- **Cause** : depuis la v533, la facturation vient du contrat publié par 2048 ; `app.js` le télécharge et le
+  dépose dans `localStorage`, où l'engine le relit. `scripts/daily_snapshot.mjs` ne le téléchargeait pas, et
+  n'avait pas de `localStorage` : l'engine retombait sur « indisponible » (avant la v533 : la valeur figée de
+  data.js, ≈ −15 300 MAD).
+- **Correctif** : magasin local en mémoire + `chargerContratDistant` dans le cron (dry-run : contrat du
+  15/09, −5 871 MAD). Historique : `FACTURATION_HISTORIQUE` + `restaterFacturation` (v566).
+- **Test** : `node scripts/daily_snapshot.mjs --dry-run` affiche « facturation : contrat … » ;
+  `tests/historique-fiable.test.js`.

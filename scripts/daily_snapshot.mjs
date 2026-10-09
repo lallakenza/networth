@@ -35,6 +35,14 @@ for (const f of ['data.js', 'engine.js', 'facturation_contract.js']) {
   const src = await readFile(join(ROOT, 'js', f), 'utf8');
   await writeFile(join(tmp, f), src.replace(/\?v=\d+/g, ''));
 }
+// v566 — magasin local en mémoire : l'engine lit le contrat de facturation 2048 dans `localStorage`
+// (le navigateur l'y dépose après l'avoir téléchargé). Sans lui, le cron écrivait une facturation
+// « indisponible » = 0 au lieu de la position publiée (−5 871 MAD au 15/09/2026).
+const _magasin = new Map();
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: { getItem: (k) => (_magasin.has(k) ? _magasin.get(k) : null), setItem: (k, v) => _magasin.set(k, String(v)), removeItem: (k) => _magasin.delete(k) },
+});
 const { PORTFOLIO, FX_STATIC, APP_VERSION } = await import(pathToFileURL(join(tmp, 'data.js')).href);
 const { compute, buildDailySnapshot } = await import(pathToFileURL(join(tmp, 'engine.js')).href);
 
@@ -135,6 +143,13 @@ try {
   }
 } catch (e) { console.warn('[cron-snap] sgtm_live.json illisible:', e.message); }
 console.log(`[cron-snap] prix live ${live}/${total} | SGTM ${sgtmSource}`);
+
+// ── 4bis. Contrat de facturation publié par 2048 (v566) — même chargement que app.js ──
+try {
+  const { chargerContratDistant } = await import(pathToFileURL(join(tmp, 'facturation_contract.js')).href);
+  const r = await chargerContratDistant(fetch, globalThis.localStorage);
+  console.log('[cron-snap] facturation : ' + (r.contrat ? 'contrat ' + r.contrat.dataAsOf + ', net ' + r.contrat.netMAD + ' ' + r.contrat.devise : 'non retenu (' + r.code + ')'));
+} catch (e) { console.warn('[cron-snap] contrat de facturation illisible :', e.message); }
 
 // ── 5. Compute + snapshot ──
 const state = compute(PORTFOLIO, fx, live > 0 ? 'live' : 'statique');
