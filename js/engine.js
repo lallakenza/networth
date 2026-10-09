@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=564';
-import { lireContratEnCache } from './facturation_contract.js?v=564';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=565';
+import { lireContratEnCache } from './facturation_contract.js?v=565';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5594,7 +5594,10 @@ export function selectionnerSnapshots(rows, deploiements = {}) {
       continue;
     }
     const r = meilleure(valides);
-    const v = num(r);
+    // v565 — seules les lignes de patrimoine complet comptent pour la régression : les lignes de
+    // backfill (« backfill-v393 », actions seules) faisaient écarter le 18/07, écrit en v386.
+    const complet = !!(r.data && r.data.total && r.data.total.couple != null);
+    const v = complet ? num(r) : 0;
     if (v && vMax && v < vMax) {
       console.warn('[snapshot] ' + jour + ' ignoré : écrit par ' + txt(r) + ' alors que l\'historique est déjà en v' + vMax);
       continue;

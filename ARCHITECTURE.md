@@ -5056,6 +5056,13 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v565 (9 octobre 2026) — le premier jour de l'historique (18/07) réapparaît
+
+Le filtre de régression de version de `selectionnerSnapshots` comptait aussi les lignes de backfill
+(« backfill-v393 », actions seules, antérieures) : la journée du 18/07, écrite en v386, passait pour une
+régression et disparaissait de la vue Historique chargée en entier. Seules les lignes de patrimoine
+complet comptent désormais. Test dans `tests/historique-fiable.test.js`.
+
 ## v564 (9 octobre 2026) — Villejuif au coût engagé dans tout l'historique
 
 Avant la v543 (14/09/2026), chaque snapshot portait Villejuif à une valeur hybride : appels payés + une

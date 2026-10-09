@@ -48,6 +48,12 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(!r.perime);
   });
 
+  t('une ligne de backfill (actions seules) ne fait pas écarter le premier vrai jour', () => {
+    const backfill = { snap_date: '2026-07-17', captured_at: '2026-07-18T23:30:00Z', quality: 'static', data: { stocks: { total: 1 }, meta: { appVersion: 'backfill-v393' } } };
+    const sel = E.selectionnerSnapshots([backfill, ligne('2026-07-18', '2026-07-18T19:40:00Z', 'v386', 709561)], DEPLOIEMENTS);
+    assert.ok(sel.some((r) => r.snap_date === '2026-07-18'), 'le 18/07 (v386) a disparu');
+  });
+
   t('une version à jour au moment de sa capture reste préférée au cron', () => {
     const rows = [ligne('2026-09-19', '2026-09-19T00:20:00Z', 'cron', 780000), ligne('2026-09-19', '2026-09-19T12:00:00Z', 'v550', 787000)];
     assert.equal(E.selectionnerSnapshots(rows, DEPLOIEMENTS)[0].data.total.couple, 787000);
