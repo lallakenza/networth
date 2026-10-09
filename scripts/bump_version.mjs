@@ -28,4 +28,12 @@ for (const f of readdirSync(join(RACINE, 'js')).filter((f) => f.endsWith('.js'))
 total += remplaceFichier('index.html', [[reV, '?v=' + cible]]);
 remplaceFichier('js/data.js', [[/APP_VERSION = 'v\d+'/, "APP_VERSION = 'v" + cible + "'"]]);
 remplaceFichier('sw.js', [[/const VERSION = 'v\d+'/, "const VERSION = 'v" + cible + "'"]]);
-console.log(`✓ v${cur} → v${cible} (${total} suffixes ?v= mis à jour + APP_VERSION + sw VERSION)`);
+// v563 — journal des mises en ligne (js/deploiements.js) : l'heure du bump précède la mise en ligne
+// de quelques minutes ; selectionnerSnapshots (engine.js) s'en sert pour reconnaître le code périmé.
+const pDep = join(RACINE, 'js', 'deploiements.js');
+const dep = readFileSync(pDep, 'utf-8');
+if (!new RegExp('^  ' + cible + ':', 'm').test(dep)) {
+  const ligne = '  ' + cible + ": '" + new Date().toISOString().replace(/\.\d{3}Z$/, 'Z') + "',\n";
+  writeFileSync(pDep, dep.replace(/\n\};\s*$/, '\n' + ligne + '};\n'));
+}
+console.log(`✓ v${cur} → v${cible} (${total} suffixes ?v= mis à jour + APP_VERSION + sw VERSION + journal des mises en ligne)`);

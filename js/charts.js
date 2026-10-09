@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=562';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=562';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=562';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=562';
-import { loadSnapshots } from './api.js?v=562'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=562'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=563';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=563';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=563';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=563';
+import { loadSnapshots } from './api.js?v=563'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=563'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1016,19 +1016,26 @@ function _drawHistoriqueCharts() {
   const noteCorr = document.getElementById('histNoteCorrections');
   if (noteCorr) {
     const corriges = rowsNW.filter(r => r.corrections && r.corrections.length);
-    if (corriges.length) {
+    // v563 — journées que seul du code périmé avait écrites, reconstituées avec le code de l'époque
+    const reconstruits = rowsNW.filter(r => r.reconstruit).map(r => r.date);
+    if (corriges.length || reconstruits.length) {
       const parCompte = {};
       for (const r of corriges) for (const c of r.corrections) {
         const k = c.compte;
-        if (!parCompte[k]) parCompte[k] = { du: r.date, au: r.date, delta: c.deltaEUR, provisoire: false, n: 0 };
+        if (!parCompte[k]) parCompte[k] = { du: r.date, au: r.date, min: c.deltaEUR, max: c.deltaEUR, provisoire: false, n: 0 };
         parCompte[k].au = r.date; parCompte[k].n++;
+        parCompte[k].min = Math.min(parCompte[k].min, c.deltaEUR); parCompte[k].max = Math.max(parCompte[k].max, c.deltaEUR);
         if (c.statut === 'provisoire') parCompte[k].provisoire = true;
       }
       const fr = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
       noteCorr.textContent = 'Historique corrigé après coup — '
         + Object.entries(parCompte).map(([k, v]) => k.replace(/_/g, ' ') + ' du ' + fr(v.du) + ' au ' + fr(v.au)
-          + ' (' + v.n + ' jour' + (v.n > 1 ? 's' : '') + ', environ ' + fmt(v.delta) + ' par jour'
+          + ' (' + v.n + ' jour' + (v.n > 1 ? 's' : '') + ', '
+          + (Math.abs(v.max - v.min) < 50 ? 'environ ' + fmt(v.min) : 'de ' + fmt(v.min) + ' à ' + fmt(v.max)) + ' par jour'
           + (v.provisoire ? ', provisoire' : '') + ')').join(' ; ')
+        + (reconstruits.length ? ' ; ' + reconstruits.length + ' journée' + (reconstruits.length > 1 ? 's' : '')
+          + ' écrite' + (reconstruits.length > 1 ? 's' : '') + ' par un onglet périmé, reconstituée' + (reconstruits.length > 1 ? 's' : '')
+          + ' avec le code et les données en ligne ce jour-là (' + reconstruits.map(fr).join(', ') + ')' : '')
         + '. Les relevés bruts restent intacts en base ; la correction est appliquée à l’affichage.';
       noteCorr.style.display = 'block';
     } else { noteCorr.style.display = 'none'; noteCorr.textContent = ''; }

@@ -2517,3 +2517,19 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
 - **Pour le prochain événement** : ajouter une ligne à `REGROUPEMENTS_TITRES`, passer la position en
   nouvelles unités, marquer les trades antérieurs, déclarer la période de snapshots à corriger. Le test
   vérifie la cohérence position / journal pour chaque événement déclaré.
+
+## BUG-124 : un onglet resté en v433 a réécrit l'historique de septembre (≈ −50 000 €)
+
+- **Version** : corrigé en v563 (09/10/2026). **Sévérité** : haute (vue Historique fausse du 04 au 20/09).
+- **Détection** : audit de toutes les lignes `nw_snapshots` après la v562 : 69 lignes v433 écrites entre le
+  09/08 et le 20/09, 30 000 à 50 000 € sous les lignes du cron du même jour.
+- **Cause** : `loadSnapshots` choisissait « la plus haute version » par jour ; le cron écrit `cron`, sans
+  numéro, donc perdait toujours contre un vieil onglet. Le filtre de régression de version ne voyait le
+  problème que si une journée antérieure de la fenêtre chargée portait une version plus haute (dépendant
+  de la date de début du chargement). Huit jours n'avaient d'ailleurs aucune autre ligne (cron arrêté).
+- **Correctif** : `js/deploiements.js` + `selectionnerSnapshots` (ligne périmée = version remplacée depuis
+  30 min à la capture) ; `SNAPSHOTS_RECONSTRUITS` pour les huit jours orphelins
+  (`scripts/reconstruire_snapshot.mjs`) ; neutralisation d'un jour périmé non reconstitué.
+- **Tests de régression** : `tests/historique-fiable.test.js`.
+- **À faire côté appareils** : retrouver l'onglet ou l'appareil resté en v433 (cache de service worker) et le
+  recharger ; il ne peut plus fausser l'historique, mais il continue d'écrire.

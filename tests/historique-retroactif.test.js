@@ -151,18 +151,22 @@ const snap = (date, extra = {}) => ({
   });
 
   t('la conversion AED → USDT du 04/10 ne crée ni ne détruit de patrimoine', () => {
-    const R = D.SOLDES_RETROACTIFS;
-    const le = (compte, date) => R[compte].find((p) => date >= p.du && date <= p.au && !p.captureApres);
-    // Les trois jambes de l'échange : la sortie Wio (mouvement daté), la sortie Mashreq (veille et
-    // lendemain tirés du relevé) et l'entrée Binance (USDT au coût).
-    const sortieWio = D.PORTFOLIO.amine.uae.wioSavingsJournal.find((m) => m.date === '2026-10-04').montant;
-    const dMashreq = le('mashreq', '2026-10-05').natif - le('mashreq', '2026-10-04').natif;
-    const dBinance = le('binance', '2026-10-05').natif - 3717;
-    assert.equal(sortieWio, -35000);
-    assert.ok(Math.abs(dMashreq + 6027) < 0.01);
-    const sommeUSD = (sortieWio + dMashreq) / 3.6725 + dBinance;
+    // v563 : les sorties Wio et Mashreq se lisent dans les relevés quotidiens (fin de journée du 03/10
+    // contre fin de journée du 05/10) ; l'entrée Binance, au coût, dans le registre.
+    const fin = (compte, date) => {
+      const s = D.RELEVES_QUOTIDIENS[compte].soldes;
+      return Object.keys(s).sort().filter((d) => d <= date).map((d) => s[d]).pop();
+    };
+    const dWio = fin('wio_savings', '2026-10-05') - fin('wio_savings', '2026-10-03');
+    const dMashreq = fin('mashreq', '2026-10-05') - fin('mashreq', '2026-10-03');
+    const binance = D.SOLDES_RETROACTIFS.binance.find((p) => p.du === '2026-10-05');
+    const dBinance = binance.natif - 3717;
+    assert.equal(dWio, -35000);
+    assert.ok(Math.abs(dMashreq + 6027) < 0.01, 'Mashreq : ' + dMashreq);
+    assert.equal(D.PORTFOLIO.amine.uae.wioSavingsJournal.find((m) => m.date === '2026-10-04').montant, dWio, 'le journal et le relevé disent la même chose');
+    const sommeUSD = (dWio + dMashreq) / 3.6725 + dBinance;
     assert.ok(Math.abs(sommeUSD) < 1, 'un échange au coût doit être neutre ; écart ' + sommeUSD.toFixed(2) + ' USD');
-    assert.equal(le('binance', '2026-10-05').statut, 'provisoire', 'le nombre réel d’USDT reste à confirmer');
+    assert.equal(binance.statut, 'provisoire', 'le nombre réel d’USDT reste à confirmer');
   });
 
   t('un snapshot sans patrimoine (rétroactif « actions seulement ») est laissé tel quel', () => {

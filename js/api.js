@@ -11,8 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES } from './data.js?v=562';
-import { appliquerSoldesRetroactifs, normaliserRegroupements } from './engine.js?v=562';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=563';
+import { DEPLOIEMENTS } from './deploiements.js?v=563';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=563';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1106,7 +1107,7 @@ function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKe
 let _authMod = null;
 async function _jwtSession() {
   try {
-    if (!_authMod) _authMod = await import('./auth.js?v=562');
+    if (!_authMod) _authMod = await import('./auth.js?v=563');
     return (await _authMod.jetonSession()) || null;
   } catch (e) { return null; }
 }
@@ -1240,46 +1241,15 @@ export async function loadSnapshots(sinceISO) {
     if (sinceISO) u += '&snap_date=gte.' + sinceISO;
     const rows = await _lectureSupabaseRows(u, 12000);   // JWT si session, anon sinon (item 3)
     if (!rows) return [];
-    const byDate = new Map();
-    for (const row of rows) {
-      const prev = byDate.get(row.snap_date);
-      // La VERSION prime sur la qualité. Un onglet resté ouvert sur du vieux code écrit des
-      // lignes au périmètre périmé : le 04/09/2026, trois lignes v433 ont ainsi enregistré un
-      // net worth inférieur de 41 584 € à celui de la veille en v502, puis le 05/09 en v502 a
-      // « rebondi » d'autant. Deux variations quotidiennes entièrement fictives.
-      const better = !prev
-        || _versionNum(row) > _versionNum(prev)
-        || (_versionNum(row) === _versionNum(prev) && (
-             (_QUALITY_RANK[row.quality] || 0) > (_QUALITY_RANK[prev.quality] || 0)
-             || ((_QUALITY_RANK[row.quality] || 0) === (_QUALITY_RANK[prev.quality] || 0) && row.captured_at > prev.captured_at)));
-      if (better) byDate.set(row.snap_date, row);
-    }
-
-    // RÉGRESSION DE VERSION = ligne écrite par du code périmé. Les versions croissent avec le
-    // temps : une journée dont la version est INFÉRIEURE à celle d'un jour antérieur ne peut pas
-    // être une évolution du patrimoine, c'est un artefact. On l'écarte plutôt que de la laisser
-    // fabriquer une variation. Les vieilles journées légitimes, elles, ont des versions
-    // croissantes et ne sont jamais touchées.
-    const ordonnees = [...byDate.values()].sort((a, b) => a.snap_date.localeCompare(b.snap_date));
-    const gardees = [];
-    let vMax = 0;
-    for (const row of ordonnees) {
-      const v = _versionNum(row);
-      if (v && vMax && v < vMax) {
-        console.warn('[snapshot] ' + row.snap_date + ' ignoré : écrit par ' + _versionTxt(row)
-          + ' alors que l\'historique est déjà en v' + vMax + ' (code périmé, périmètre différent)');
-        continue;
-      }
-      if (v > vMax) vMax = v;
-      gardees.push(row);
-    }
+    // v563 — choix d'une ligne par jour, lignes de code périmé écartées (engine.js).
+    const gardees = selectionnerSnapshots(rows, DEPLOIEMENTS);
     const lignes = gardees.map(row => ({
       date: row.snap_date, quality: row.quality, capturedAt: row.captured_at,
-      appVersion: _versionTxt(row), data: row.data,
+      appVersion: _versionTxt(row), data: row.data, ...(row.perime ? { perime: true } : {}),
     }));
     // v555 — soldes connus après coup (data.js :: SOLDES_RETROACTIFS), appliqués à la lecture :
     // la base reste en ajout seul, le brut est conservé dans row._dataBrute.
-    return appliquerSoldesRetroactifs(lignes, SOLDES_RETROACTIFS, FX_STATIC);
+    return appliquerSoldesRetroactifs(lignes, SOLDES_RETROACTIFS, FX_STATIC, { releves: RELEVES_QUOTIDIENS, reconstruits: SNAPSHOTS_RECONSTRUITS });
   } catch (e) { console.warn('[snapshot] load failed:', e && e.message); return []; }
 }
 

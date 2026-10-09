@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=562';
-import { lireContratEnCache } from './facturation_contract.js?v=562';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=563';
+import { lireContratEnCache } from './facturation_contract.js?v=563';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5424,16 +5424,25 @@ export function compute(portfolio, fx, stockSource = 'statique') {
  * seulement » ne portent pas de patrimoine à corriger.
  * Chaque ligne corrigée reçoit `row.corrections` = [{ compte, deltaEUR, statut }].
  */
-export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
+export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
   if (!Array.isArray(rows)) return rows;
   const periodes = [];
   for (const [compte, liste] of Object.entries(soldes || {})) {
     for (const p of (liste || [])) periodes.push({ compte, ...p });
   }
+  const releves = opts.releves || {}, reconstruits = opts.reconstruits || {};
   for (const row of rows) {
     if (!row || !row.data) continue;
     if (!row._dataBrute) row._dataBrute = row.data;
-    const brute = row._dataBrute;
+    // v563 — jour écrit seulement par du code périmé (selectionnerSnapshots) : on part du snapshot
+    // reconstitué s'il existe, sinon le jour est neutralisé (aucun total → ignoré par les vues).
+    let brute = row._dataBrute;
+    row.reconstruit = false;
+    if (row.perime) {
+      brute = reconstruits[row.date] || { perime: true };
+      row.reconstruit = !!reconstruits[row.date];
+    }
+    const capturedAt = row.reconstruit ? row.date + 'T00:30:00Z' : row.capturedAt;
     row.data = brute;
     row.corrections = null;
     const reel = brute.total && brute.total.couple != null;
@@ -5443,14 +5452,23 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
     // une période bornée à l'instant ne s'applique pas — mieux vaut ne pas corriger que mal corriger.
     const dansLaFenetre = (c) => {
       if (row.date < c.du || row.date > c.au) return false;
-      if (c.captureAvant && !(row.capturedAt && row.capturedAt < c.captureAvant)) return false;
-      if (c.captureApres && !(row.capturedAt && row.capturedAt >= c.captureApres)) return false;
+      if (c.captureAvant && !(capturedAt && capturedAt < c.captureAvant)) return false;
+      if (c.captureApres && !(capturedAt && capturedAt >= c.captureApres)) return false;
       // v561 — `avantVersion` : un snapshot écrit par cette version ou une suivante porte déjà le
       // correctif (le cron, sans numéro de version, reste soumis aux seules bornes horaires).
       if (c.avantVersion && numVersion(row.appVersion || (brute.meta && brute.meta.appVersion)) >= numVersion(c.avantVersion)) return false;
       return true;
     };
-    const actives = reel ? periodes.filter(dansLaFenetre) : [];
+    // v563 — relevés quotidiens d'abord (solde réel à l'instant de capture), puis les périodes du
+    // registre, qui l'emportent sur le même compte.
+    const duReleve = [];
+    if (reel) {
+      for (const [compte, rel] of Object.entries(releves)) {
+        const natif = soldeReleveA(rel, capturedAt);
+        if (natif != null) duReleve.push({ compte, natif, devise: rel.devise, proprietaire: rel.proprietaire, statut: 'établi', releve: true });
+      }
+    }
+    const actives = reel ? duReleve.concat(periodes.filter(dansLaFenetre)) : [];
     if (!actives.length) continue;
     const d = JSON.parse(JSON.stringify(brute));
     if (!d.cash) d.cash = {};
@@ -5481,6 +5499,73 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic) {
     if (notes.length) { row.data = d; row.corrections = notes; }
   }
   return rows;
+}
+
+// v563 — solde d'un relevé quotidien (RELEVES_QUOTIDIENS) à l'instant de capture d'un snapshot.
+// Heure de Dubaï (UTC+4, sans heure d'été) : une capture après 18 h voit le solde de fin de ce jour,
+// avant 18 h celui de la veille (les relevés ne datent les opérations qu'au jour).
+export function soldeReleveA(rel, capturedAt) {
+  if (!rel || !rel.soldes || !capturedAt) return null;
+  const t = new Date(Date.parse(capturedAt) + 4 * 3600e3);
+  if (isNaN(t.getTime())) return null;
+  const jour = t.toISOString().slice(0, 10);
+  const ref = t.getUTCHours() >= 18 ? jour : new Date(Date.parse(jour + 'T00:00:00Z') - 864e5).toISOString().slice(0, 10);
+  if (ref < rel.du || ref > rel.au) return null;
+  let v = null;
+  for (const d of Object.keys(rel.soldes).sort()) { if (d <= ref) v = rel.soldes[d]; else break; }
+  return v;
+}
+
+/**
+ * Choisit UNE ligne de snapshot par jour (v563, extrait de api.js :: loadSnapshots).
+ *
+ * Un onglet resté ouvert sur une vieille version continue d'écrire avec le code et les données de
+ * sa version : en septembre 2026, un onglet v433 (août) a écrit des journées ≈ 50 000 € trop basses,
+ * et la règle « la plus haute version gagne » les préférait aux lignes du cron (sans numéro).
+ * Une ligne est PÉRIMÉE quand une version plus récente était déjà en ligne depuis 30 min au moment
+ * de la capture (DEPLOIEMENTS). Par jour : on écarte les lignes périmées ; s'il n'en reste aucune,
+ * la meilleure ligne périmée est rendue avec `perime: true` — appliquerSoldesRetroactifs la
+ * remplace par le snapshot reconstitué, ou la neutralise.
+ * Ensuite, comme avant : version > qualité > capture la plus récente, puis on écarte les régressions
+ * de version (une journée écrite par une version inférieure à celle d'un jour antérieur).
+ * @param rows lignes brutes {snap_date, captured_at, quality, data}
+ */
+export function selectionnerSnapshots(rows, deploiements = {}) {
+  const RANG = { live: 3, partial: 2, static: 1 };
+  const txt = (r) => (r && r.data && r.data.meta && r.data.meta.appVersion) || '';
+  const num = (r) => { const m = /v?(\d+)/.exec(txt(r)); return m ? parseInt(m[1], 10) : 0; };
+  const versions = Object.keys(deploiements).map(Number).filter((v) => v > 0).sort((a, b) => a - b);
+  const suivante = (v) => { const w = versions.find((x) => x > v); return w ? Date.parse(deploiements[w]) : Infinity; };
+  const perimee = (r) => /^v\d+/.test(txt(r)) && Date.parse(r.captured_at) > suivante(num(r)) + 30 * 60000;
+  const meilleure = (lignes) => lignes.reduce((p, r) => (!p
+    || num(r) > num(p)
+    || (num(r) === num(p) && ((RANG[r.quality] || 0) > (RANG[p.quality] || 0)
+      || ((RANG[r.quality] || 0) === (RANG[p.quality] || 0) && r.captured_at > p.captured_at)))) ? r : p, null);
+  const parJour = new Map();
+  for (const r of rows || []) {
+    if (!parJour.has(r.snap_date)) parJour.set(r.snap_date, []);
+    parJour.get(r.snap_date).push(r);
+  }
+  const jours = [...parJour.keys()].sort();
+  const gardees = [];
+  let vMax = 0;
+  for (const jour of jours) {
+    const lignes = parJour.get(jour);
+    const valides = lignes.filter((r) => !perimee(r));
+    if (!valides.length) {
+      gardees.push({ ...meilleure(lignes), perime: true });
+      continue;
+    }
+    const r = meilleure(valides);
+    const v = num(r);
+    if (v && vMax && v < vMax) {
+      console.warn('[snapshot] ' + jour + ' ignoré : écrit par ' + txt(r) + ' alors que l\'historique est déjà en v' + vMax);
+      continue;
+    }
+    if (v > vMax) vMax = v;
+    gardees.push(r);
+  }
+  return gardees;
 }
 
 function numVersion(v) { const m = /^v(\d+)/.exec(v || ''); return m ? Number(m[1]) : -1; }

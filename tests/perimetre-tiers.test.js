@@ -183,7 +183,9 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.ok(retrait && retrait.amount < 0, 'le retrait doit sortir des apports nets, sinon NAV − apports gonfle le P/L');
     const p = D.SOLDES_RETROACTIFS.ibkr_cash_aed[0];
     assert.equal(p.natif, 0);
-    assert.ok(p.captureApres >= '2026-09-19T02:26:41Z', 'la double comptabilisation commence avec les soldes Wio de la v545');
+    // v563 : le relevé Wio place les 11 319 AED sur le compte courant dès le 31/08 au soir.
+    assert.equal(p.du, '2026-08-31');
+    assert.equal(p.captureApres, '2026-08-31T14:00:00Z', 'même borne que les relevés : 18 h à Dubaï');
   });
 
   console.log(ko === 0 ? '\n✅ Périmètre : OK\n' : '\n❌ ' + ko + ' échec(s)\n');

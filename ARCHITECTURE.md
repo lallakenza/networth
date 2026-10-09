@@ -5056,6 +5056,36 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v563 (9 octobre 2026) — historique fiable : code périmé écarté, relevés jour par jour, jours reconstitués
+
+**BUG-124.** Audit des 249 snapshots complets (depuis le 18/07/2026) contre ce que l'on sait aujourd'hui.
+
+- **Code périmé.** Un onglet resté sur la v433 (code et données d'août) a écrit 69 lignes jusqu'au
+  20/09, ≈ 50 000 € trop basses. La règle « la plus haute version gagne » les préférait aux lignes du
+  cron (sans numéro) : du 04 au 20/09, la vue Historique affichait ces valeurs. `js/deploiements.js`
+  journalise la mise en ligne de chaque version (reconstitué depuis git, puis tenu par
+  `npm run bump`) ; `engine.js :: selectionnerSnapshots` (extrait de `api.js`) écarte une ligne écrite
+  par une version déjà remplacée depuis 30 min. 113 lignes concernées.
+- **Jours sans ligne valide.** Les 04, 07 → 12 et 14/09, seul l'onglet périmé avait écrit.
+  `scripts/reconstruire_snapshot.mjs` reconstitue ce qu'aurait écrit le code en ligne : moteur et données
+  du commit (v542 ; v502 pour le 04/09, avec la source en clair du 30/08 car les données de ce commit
+  étaient chiffrées dans git), clôtures de la veille ramenées aux unités de l'époque
+  (REGROUPEMENTS_TITRES), horloge figée à 00:30 UTC. Stockés dans `SNAPSHOTS_RECONSTRUITS` et
+  substitués à la lecture ; un jour périmé sans reconstitution est neutralisé (jamais affiché faux).
+- **Relevés quotidiens.** `RELEVES_QUOTIDIENS` porte le solde de fin de journée de Mashreq (relevés
+  Excel) et de Wio (relevé annuel CSV : épargne d'Amine, courant, espaces roses de Nezha à partir du
+  26/08) du 10/07 au 09/10. Chaque snapshot reçoit le solde de son instant de capture (heure de Dubaï :
+  après 18 h, fin de ce jour ; avant, fin de la veille) ; `soldeReleveA` + `appliquerSoldesRetroactifs`
+  (options `releves`, `reconstruits`). Les périodes manuelles Mashreq / Wio de la v557-v560 sont
+  remplacées. Contrôles : les relevés redonnent les lectures d'app du 19/09 et du 07/10 au dirham près.
+- **AED IBKR** : la sortie commence le 31/08 (arrivée sur le courant Wio au relevé), plus le 19/09.
+- Vue Historique : le bandeau cite les journées reconstituées et la fourchette d'écart par compte.
+
+Effet sur l'historique affiché : 04 → 20/09 relevé de ≈ 30 000 à 70 000 € selon les jours ; 07/10 brut
+818 486 → 776 213 €. Restent, sans être des erreurs de capture : les changements de méthode (Villejuif au
+coût engagé le 15/09, −26 500 €) et, en juillet-août, l'alternance cron / navigateur sur la facturation
+(le cron n'a pas le pont localStorage). Tests : `tests/historique-fiable.test.js` (10 contrôles).
+
 ## v562 (9 octobre 2026) — connecteur IBKR : 11 319 AED comptés deux fois depuis le 19/09
 
 Lecture du connecteur IBKR le 09/10/2026 (compte d'Amine ; celui de Nezha n'y est pas visible).
