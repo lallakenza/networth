@@ -48,7 +48,7 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 546262.52,   // Mashreq NEO PLUS — MAJ 09/10/2026, relevés téléchargés depuis l'espace en ligne : Saver ••7138 495 105,35 (≈ 6,25 %/an, intérêts mensuels) + Current ••9133 51 157,17 (dont +50 000 « Salary » versés par Bairok Consulting LLC le 09/10 depuis son compte Wio Business)
-      wioSavings: 393000,   // Wio — espaces d'épargne d'AMINE (mauves) — ventilation du 19/09 dans wioSavingsSpaces (498 000), puis mouvements datés dans wioSavingsMouvements : −35 000 le 04/10 (vers Mashreq, achat d'USDT), −70 000 le 07/10 (remboursement de la carte Wio Credit). Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
+      wioSavings: 453140,   // Wio — espaces d'épargne d'AMINE (mauves) — MAJ 07/10/2026 après le remboursement de la carte (lecture de l'app, Notion 🏦 Comptes). Ventilation du 19/09 dans wioSavingsSpaces (498 000), mouvements datés dans wioSavingsMouvements. Les 101 000 des espaces roses = Nezha (nezha.cash.wioAED).
       // Ventilation des espaces d'épargne d'Amine, en AED. Leur somme DOIT valoir wioSavings :
       // c'est ce que vérifie le test « les espaces Wio somment au solde ». Cette liste existe pour
       // rendre impossible le double comptage d'un virement déjà placé : quand de l'argent arrive
@@ -71,6 +71,7 @@ export const PORTFOLIO = {
       // n'a pas été faite. Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings.
       wioSavingsMouvements: [
         { date: '2026-10-04', montant: -35000, motif: 'retrait partiel du Fixed Saving Space puis trois virements vers le compte courant Mashreq (5 000 + 25 000 + 5 000), pour acheter de l\'USDT en P2P Binance destiné aux dépenses au Maroc', source: 'mails Wio du 04/10/2026 « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » ; mails Mashreq du 04/10 (crédits Aani) ; confirmation d\'Amine le 09/10' },
+        { date: '2026-10-07', montant: 60140, motif: 'ÉCART DE RÉCONCILIATION — le solde lu dans l\'app le 07/10 (453 140, après le remboursement de la carte) dépasse de 60 140 AED la chaîne reconstituée depuis la ventilation du 19/09. Origine non identifiée par les mails : apports d\'épargne et réouvertures d\'espaces entre le 19/09 et le 03/10 (dont les trois espaces clôturés le 03/10). À ventiler avec une capture des espaces.', source: 'Notion 🏦 Comptes « Wio Savings », solde natif 453 140 au 07/10/2026 (session du 07/10, lecture de l\'app Wio)' },
         { date: '2026-10-07', montant: -70000, motif: 'retrait partiel du Fixed Saving Space (6 %, échéance 02/11/2026) pour rembourser intégralement la carte Wio Credit', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
       ],
       // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
@@ -85,7 +86,7 @@ export const PORTFOLIO = {
         dernierReleve: { mois: '2026-09', recuLe: '2026-09-09', note: 'PDF « Credit Statement SEPTEMBER 2026 » (Gmail)' },
         _lastUpdate: '2026-10-07',
       },
-      wioCurrent: 18,       // Wio Personal Current (0% rendement) — MAJ 19/07/2026 (relevé Wio : 18,33 AED, tout balayé vers l'épargne ; l'ancien 810 était une lecture manuelle erronée)
+      wioCurrent: 54.45,    // Wio Personal Current (0% rendement) — MAJ 07/10/2026 (lecture de l'app, Notion 🏦 Comptes)
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
@@ -699,11 +700,11 @@ export const PORTFOLIO = {
         // Vérifié avant ajout : aucun encaissement de 18 655 ni 14 560 EUR n'existe déjà dans
         // les données — pas de double comptage avec le cash.
         { id: 'INVSNT007', label: 'SAP & Tax — INVSNT007 (facture 01/08/2026)', amount: 18655, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-09-01', lastContact: '2026-09-19', payments: [{ amount: 18655, date: '2026-09-19', currency: 'EUR' }], notes: 'Payée — constaté le 19/09/2026 (date d\'encaissement exacte non relevée ; cash à jour au 19/09). Facture 01/08/2026, échéance 01/09/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c704481ff969af7ff7dda25bd.' },
-        { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026)', amount: 14560, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-10-01', lastContact: '2026-09-01', payments: [], notes: 'Facture 01/09/2026, échéance 01/10/2026 (30j). Statut Notion : En cours. Preuve : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
+        { id: 'INVSNT008', label: 'SAP & Tax — INVSNT008 (facture 01/09/2026, août, 16j × 910€)', amount: 14560, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-10-01', lastContact: '2026-10-09', payments: [{ amount: 14560, date: '2026-10-09', currency: 'EUR' }], notes: 'Payée — confirmé par Amine le 09/10/2026 (date d\'encaissement exacte non relevée). Encaissée par Bairok ; Bairok a versé 50 000 AED de salaire à Amine le 09/10 (relevé Mashreq). Preuve facture : Notion 3d20b87c7044816e9b3bce7581fb0e77.' },
         // Accrual septembre 2026 — travaillé, PAS ENCORE FACTURÉ (facture attendue 01/10, encaissement ~03-04/11).
         // Jours = timesheet Notion « Timesheet 2026 - LOREAL / NEO » : 01-04, 07-11, 14-18/09 = 14 j × 910 € (arrêté au 18/09).
-        // À remplacer par la facture INVSNT009 dès son émission (et à compléter des jours du 21 au 30/09).
-        { id: 'ACCSNT09', label: 'SAP & Tax — accrual septembre (14j × 910€, au 18/09)', amount: 12740, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-09-19', payments: [], notes: 'Non facturé : 14 jours travaillés du 01/09 au 18/09 (timesheet Notion) × 910 €. Facture attendue 01/10/2026, encaissement attendu ~03-04/11/2026.' },
+        // INVSNT009 remplace l'accrual de septembre (14 j au 18/09) : 21 jours facturés (confirmé 09/10/2026).
+        { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-10-09', payments: [], notes: 'Facture du 01/10/2026 envoyée depuis la boîte de Bairok (pièce fournie par Amine le 09/10/2026) : 21 jours × 910 € = 19 110 € HT, TVA 0, paiement à 30 jours, échéance 01/11/2026, règlement sur le compte IFX Payments de Bairok (iBanq). Réputée encaissée à l\'échéance + 10 j (règle v549).' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
@@ -1561,7 +1562,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v558';
+export const APP_VERSION = 'v559';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2919,10 +2920,14 @@ export const SOLDES_RETROACTIFS = {
   // on y remet les vrais soldes de chaque compte. La somme des trois écarts est nulle au coût —
   // un échange ne crée ni ne détruit de patrimoine, il le déplace.
   wio_savings: [
-    { du: '2026-10-05', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: 463000, devise: 'AED', proprietaire: 'A', statut: 'établi',
-      source: '498 000 (ventilation du 19/09) − 35 000 virés vers Mashreq le 04/10 (mails Wio)' },
-    { du: '2026-10-07', au: '2026-10-09', captureApres: '2026-10-07T08:46:19Z', natif: 393000, devise: 'AED', proprietaire: 'A', statut: 'établi',
-      source: '463 000 − 70 000 retirés le 07/10 à 08:46 UTC pour rembourser la carte Wio Credit' },
+    // Lecture de l'app le 07/10 (453 140, après remboursement). Le matin, avant le retrait de 70 000 :
+    // 523 140, et ce depuis le 04/10 (aucun autre mouvement d'épargne entre le 04 et le 07/10).
+    // AVANT le 04/10, le vrai solde (~558 140) n'est pas restitué : on ne sait pas quand les 60 140
+    // de l'écart de réconciliation sont arrivés.
+    { du: '2026-10-05', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: 523140, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: '453 140 lus dans l\'app le 07/10 + 70 000 retirés à 08:46 UTC pour la carte' },
+    { du: '2026-10-07', au: '2026-10-09', captureApres: '2026-10-07T08:46:19Z', natif: 453140, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: 'Lecture de l\'app Wio le 07/10 (Notion 🏦 Comptes)' },
   ],
   // Mashreq — soldes exacts tirés des relevés téléchargés le 09/10/2026 (épargne + courant).
   mashreq: [
@@ -2936,16 +2941,20 @@ export const SOLDES_RETROACTIFS = {
       source: '3 717 USDT (12/07) + 11 171 USDT achetés le 04/10, comptés au coût (41 027 AED à 3,6725)',
       aConfirmer: 'Le nombre réel d\'USDT reçus (prime P2P) et ce qui a déjà été revendu en MAD ou dépensé au Maroc.' },
   ],
+  // Carte Wio Credit — soldes dus aux clôtures des relevés (le 8 de chaque mois), lus sur les neuf
+  // relevés de décembre 2025 à septembre 2026 (Notion « Wio Credit (carte de crédit) »). Le solde arrêté
+  // à une clôture vaut jusqu'à la clôture suivante : les achats d'un cycle sont reconnus à sa clôture.
+  // Avant le 08/02/2026, chaque relevé était payé en totalité (solde dû 0).
   wio_credit: [
-    {
-      // Jusqu'au remboursement du 07/10 à 08:46 UTC : le snapshot du 07/10 écrit par le cron (06/10 à
-      // 21:00 UTC) portait encore la dette, un snapshot pris après le remboursement ne la porte plus.
-      du: '2026-09-09', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z',
-      natif: -69998.89, devise: 'AED', proprietaire: 'A',
-      statut: 'provisoire',
-      source: 'Remboursement intégral de 69 998,89 AED le 07/10/2026 (mail Wio « Wio Credit repayment done ») ; relevé « Credit Statement SEPTEMBER 2026 » reçu le 09/09/2026',
-      aConfirmer: 'Le montant est certain au 07/10. Le début (09/09, date du relevé) est une lecture du mail de relevé : le PDF du relevé donnera le solde arrêté et les dates d\'achat, donc la montée réelle de la dette.',
-    },
+    { du: '2026-02-08', au: '2026-03-07', natif: -21804.05, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/02/2026' },
+    { du: '2026-03-08', au: '2026-04-07', natif: -40525.90, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/03/2026' },
+    { du: '2026-04-08', au: '2026-05-07', natif: -50004.51, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/04/2026' },
+    { du: '2026-05-08', au: '2026-06-07', natif: -50956.54, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/05/2026' },
+    { du: '2026-06-08', au: '2026-07-07', natif: -64673.41, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/06/2026' },
+    { du: '2026-07-08', au: '2026-08-07', natif: -62495.83, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/07/2026' },
+    { du: '2026-08-08', au: '2026-09-07', natif: -75640.89, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/08/2026' },
+    { du: '2026-09-08', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: -62857.96, devise: 'AED', proprietaire: 'A', statut: 'établi',
+      source: 'Relevé Wio Credit clos le 08/09/2026 ; remboursé le 07/10 à 08:46 UTC (69 998,89 AED, achats et intérêts du cycle compris)' },
   ],
 };
 

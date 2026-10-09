@@ -5056,6 +5056,22 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v559 (9 octobre 2026) — SAP & Tax : INVSNT008 payée, INVSNT009 émise ; Wio réconcilié ; carte au relevé
+
+- **INVSNT008** (14 560 €) : payée, confirmé par Amine le 09/10 → recouvré. **INVSNT009** (facture du
+  01/10/2026, septembre, 21 j × 910 € = **19 110 €**, échéance 01/11) remplace l'accrual ACCSNT09
+  (14 j au 18/09). Le test interdit que les deux coexistent.
+- **Wio Savings 393 000 → 453 140 AED, Wio Current 18 → 54,45** : lecture de l'app du 07/10
+  (Notion 🏦 Comptes), postérieure au remboursement de la carte. La chaîne reconstituée depuis la
+  ventilation du 19/09 donnait 60 140 AED de moins ; l'écart est porté comme mouvement daté
+  « écart de réconciliation », d'origine non identifiée (apports et réouvertures d'espaces entre
+  le 19/09 et le 03/10), à ventiler avec une capture des espaces.
+- **Carte Wio Credit — historique exact** : la v555 supposait la dette née en septembre. Les neuf
+  relevés (Notion « Wio Credit (carte de crédit) ») montrent un solde reporté **depuis le
+  08/02/2026** : 21 804 → 75 641 AED au plus haut (08/08), 12 021,76 AED d'intérêts payés à 39 %/an.
+  `SOLDES_RETROACTIFS.wio_credit` porte désormais un solde par cycle, statut établi.
+- `SOLDES_RETROACTIFS.wio_savings` : 523 140 du 05 au 07/10 avant 08:46 UTC, 453 140 ensuite.
+
 ## v558 (9 octobre 2026) — Mashreq au solde exact des relevés
 
 Relevés Excel et PDF des deux comptes Mashreq téléchargés depuis l'espace en ligne le 09/10/2026

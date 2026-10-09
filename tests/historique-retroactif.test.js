@@ -51,14 +51,25 @@ const snap = (date, extra = {}) => ({
 
   console.log('\n── Historique rétroactif : soldes connus après coup ──');
 
-  t('le registre déclare la dette de carte Wio sur la période connue', () => {
+  t('le registre suit la dette de carte Wio relevé par relevé, sans trou ni chevauchement', () => {
     const p = D.SOLDES_RETROACTIFS.wio_credit;
-    assert.ok(Array.isArray(p) && p.length >= 1);
-    assert.equal(p[0].natif, -69998.89);
-    assert.equal(p[0].proprietaire, 'A');
-    assert.ok(p[0].du <= p[0].au);
-    assert.ok(p[0].source && p[0].statut, 'chaque période dit sa source et son statut');
-    if (p[0].statut === 'provisoire') assert.ok(p[0].aConfirmer, 'un statut provisoire dit ce qui manque');
+    assert.ok(Array.isArray(p) && p.length >= 8, 'un solde par cycle de relevé, de février à octobre 2026');
+    assert.equal(p[0].du, '2026-02-08', 'la dette commence au relevé de février (premier non soldé)');
+    for (let i = 1; i < p.length; i++) {
+      const veille = new Date(new Date(p[i].du + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+      assert.equal(p[i - 1].au, veille, 'trou ou chevauchement entre ' + p[i - 1].au + ' et ' + p[i].du);
+    }
+    for (const x of p) {
+      assert.ok(x.natif < 0, 'une dette de carte est négative');
+      assert.equal(x.proprietaire, 'A');
+      assert.equal(x.statut, 'établi', 'les soldes viennent des relevés');
+      assert.ok(x.source);
+    }
+    const max = Math.min(...p.map((x) => x.natif));
+    assert.equal(max, -75640.89, 'point haut du 08/08/2026');
+    const dernier = p[p.length - 1];
+    assert.equal(dernier.natif, -62857.96, 'relevé clos le 08/09/2026');
+    assert.equal(dernier.captureAvant, '2026-10-07T08:46:19Z', 'la dette cesse au remboursement du 07/10');
   });
 
   t('un snapshot de la période voit le compte, le cash et le patrimoine d’Amine corrigés', () => {
@@ -121,7 +132,7 @@ const snap = (date, extra = {}) => ({
     E.appliquerSoldesRetroactifs([avant, apres], S, D.FX_STATIC);
     assert.ok(avant.corrections, 'capturé avant le remboursement : la dette existait');
     assert.equal(apres.corrections, null, 'capturé après : déjà au bon solde, aucune correction');
-    assert.equal(D.SOLDES_RETROACTIFS.wio_credit[0].captureAvant, '2026-10-07T08:46:19Z');
+    assert.ok(D.SOLDES_RETROACTIFS.wio_credit.some((p) => p.captureAvant === '2026-10-07T08:46:19Z'));
   });
 
   t('deux périodes qui se touchent un jour charnière ne s’appliquent jamais ensemble', () => {
@@ -142,15 +153,14 @@ const snap = (date, extra = {}) => ({
   t('la conversion AED → USDT du 04/10 ne crée ni ne détruit de patrimoine', () => {
     const R = D.SOLDES_RETROACTIFS;
     const le = (compte, date) => R[compte].find((p) => date >= p.du && date <= p.au && !p.captureApres);
-    // Écarts natifs entre la veille (04/10) et le lendemain (05/10) de la conversion. Pour Wio et
-    // Binance, la veille vaut le solde enregistré (498 000 / 3 717) ; pour Mashreq, le relevé.
-    const dWio = le('wio_savings', '2026-10-05').natif - 498000;
+    // Les trois jambes de l'échange : la sortie Wio (mouvement daté), la sortie Mashreq (veille et
+    // lendemain tirés du relevé) et l'entrée Binance (USDT au coût).
+    const sortieWio = D.PORTFOLIO.amine.uae.wioSavingsMouvements.find((m) => m.date === '2026-10-04').montant;
     const dMashreq = le('mashreq', '2026-10-05').natif - le('mashreq', '2026-10-04').natif;
     const dBinance = le('binance', '2026-10-05').natif - 3717;
-    assert.equal(dWio, -35000);
+    assert.equal(sortieWio, -35000);
     assert.ok(Math.abs(dMashreq + 6027) < 0.01);
-    // Au coût, à la parité AED/USD : la somme des écarts en USD est nulle à 1 USDT près.
-    const sommeUSD = (dWio + dMashreq) / 3.6725 + dBinance;
+    const sommeUSD = (sortieWio + dMashreq) / 3.6725 + dBinance;
     assert.ok(Math.abs(sommeUSD) < 1, 'un échange au coût doit être neutre ; écart ' + sommeUSD.toFixed(2) + ' USD');
     assert.equal(le('binance', '2026-10-05').statut, 'provisoire', 'le nombre réel d’USDT reste à confirmer');
   });

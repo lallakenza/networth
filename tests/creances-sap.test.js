@@ -21,11 +21,14 @@ const ATTENDUES = {
   INVSNT006: { montant: 19124.79, echeance: '2026-07-01' },
   INVSNT007: { montant: 18655,    echeance: '2026-09-01' },
   INVSNT008: { montant: 14560,    echeance: '2026-10-01' },
+  INVSNT009: { montant: 19110,    echeance: '2026-11-01' },
 };
 // v548 : INVSNT006/007 payées (recouvré) ; restent INVSNT008 (14 560) + accrual septembre ACCSNT09 (12 740).
+// v559 : INVSNT008 payée (confirmé 09/10/2026) ; l'accrual ACCSNT09 est remplacé par la facture
+// INVSNT009 du 01/10/2026 (21 j × 910 € = 19 110 €, échéance 01/11). Seule INVSNT009 reste due.
 // v549 : chacune sort du NW à échéance + 10 j (règle autoSettle) — le total attendu dépend du jour.
 const AUJ_ISO = new Date().toISOString().slice(0, 10);
-const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-10-11' ? 14560 : 0) + (AUJ_ISO < '2026-11-11' ? 12740 : 0);
+const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0);
 
 (async () => {
   const echecs = [];
@@ -71,6 +74,9 @@ const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-10-11' ? 14560 : 0) + (AUJ_ISO < '202
     applyCreancesAutoSettle(apres, new Date('2026-12-01T00:00:00Z'));
     if (f.payments.length !== 1) echecs.push('autoSettle : non idempotente (paiement doublé)');
   }
+
+  // L'accrual de septembre et la facture qui le remplace ne doivent jamais coexister.
+  if (items.some(i => i.id === 'ACCSNT09')) echecs.push('ACCSNT09 (accrual septembre) coexiste avec INVSNT009 — septembre compté deux fois');
 
   // Total des créances pro
   const totalPro = Math.round(s.amine.recvPro * 100) / 100;

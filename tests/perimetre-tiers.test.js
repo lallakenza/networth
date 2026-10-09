@@ -50,7 +50,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.ok(c, 'la carte Wio Credit doit être déclarée');
     assert.equal(c.soldeDuAED, 0, 'remboursée en totalité le 07/10/2026');
     centimes(c.dernierRemboursement.montantAED, 69998.89, 'montant remboursé');
-    const retrait = (P.amine.uae.wioSavingsMouvements || []).find((m) => m.date === c.dernierRemboursement.date);
+    const retrait = (P.amine.uae.wioSavingsMouvements || []).find((m) => m.date === c.dernierRemboursement.date && m.montant < 0);
     assert.ok(retrait, 'le retrait d’épargne qui finance le remboursement doit être tracé');
     assert.ok(-retrait.montant >= c.dernierRemboursement.montantAED, 'le retrait couvre le remboursement');
   });
