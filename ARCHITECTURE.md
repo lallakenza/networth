@@ -5056,6 +5056,18 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v571 (31 octobre 2026) — revue de la v569-v570 : derniers défauts d'affichage
+
+- Panneau de détail des positions (chemin de repli, avant le premier rendu du tableau) : l'ACN restait
+  une ligne unique « ESPP » ; désormais une ligne par courtier, comme le tableau.
+- Une position cotée à sa dernière clôture (v570) était marquée « STATIC » comme un prix figé de
+  data.js : badge « CLÔTURE jj/mm » et note distincte sous le tableau ; elle ne compte plus dans le
+  pourcentage « données statiques ».
+- Sous-carte UBS : « (live) » suivait l'état global des cours et pas celui de l'ACN ; elle dit désormais
+  live, clôture du jj/mm, ou statique.
+- Carte TWR : « TWR compte IBKR (hors ACN) » — la carte voisine IBKR inclut l'ACN depuis la v569, le
+  TWR mesure le compte de trading seul.
+
 ## v570 (31 octobre 2026) — sans cours live, la dernière clôture de l'historique plutôt que le prix figé
 
 Contrôle du 31/10 après la v569 : 5 cours live sur 15 seulement (proxys CORS gratuits en échec). Les

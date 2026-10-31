@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=570';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=570';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=571';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=571';
 
 // ---- Generic table sort utility ----
 /**
@@ -637,7 +637,10 @@ function renderExpandSubs(state, view, options = {}) {
   }
 
   // ESPP detail label — v320 strict: Amine shares only, pas de mention Nezha
-  const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
+  // v570 — l'état du cours ACN lui-même (live, dernière clôture ou prix figé), pas celui du portefeuille
+  const _m = state.portfolio.market;
+  const srcLabel = _m._acnLive ? ' (live)'
+    : (_m._acnCloture ? ' (clôture du ' + _m._acnCloture.slice(8, 10) + '/' + _m._acnCloture.slice(5, 7) + ')' : ' (statique)');
   const amineESPPShares = p.amine.espp.shares;
   const nezhaESPPShares = p.nezha.espp ? p.nezha.espp.shares : 0;
   // v569 — la sous-carte UBS ne compte que l'ACN encore détenue chez UBS.
@@ -1961,7 +1964,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   }
 
   let totalVal = 0, totalCost = 0, totalEvoPL = 0, totalFxPL = 0;
-  let hasStatic = false, staticVal = 0, liveVal = 0;
+  let hasStatic = false, staticVal = 0, liveVal = 0, hasCloture = false, clotureVal = 0; // v570 — + dernière clôture
 
   // First pass: detect if there are any static positions
   // Une position est "statique" si son flag _live est faux OU si sa source
@@ -1970,7 +1973,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   // TradingView (scanner CSEMA:<ticker>, direct navigateur) ; seul le fallback
   // ultime « static-bootstrap » (toutes sources KO) est traité comme statique.
   function isPositionStatic(pos) {
-    if (pos._live !== true) return true;
+    if (pos._live !== true && !pos._cloture) return true;   // v570 — dernière clôture ≠ prix figé
     const src = pos._source || '';
     if (src === 'static-bootstrap' || src === 'repo:static-bootstrap') return true;
     return false;
@@ -1984,6 +1987,7 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   sorted.forEach(pos => {
     const isStatic = isPositionStatic(pos);
     const isMoroccanNoYahoo = pos.ticker === 'SGTM' || pos.broker === 'Attijari';
+    if (pos._cloture && pos._live !== true) { clotureVal += pos.valEUR; hasCloture = true; }
     if (isStatic) {
       staticVal += pos.valEUR;
       if (!isMoroccanNoYahoo) hasStatic = true;
@@ -2046,7 +2050,11 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
     } else if (src.startsWith('repo:') && _lastUpdateTxt) {
       // Live via CI scraping — afficher date/heure du dernier snapshot au survol
       liveBadge = ' <span style="display:inline-block;background:#c6f6d5;color:#22543d;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px;cursor:help" title="CI scraping · dernier snapshot : ' + _lastUpdateTxt + (_ageTxt ? ' (il y a ' + _ageTxt + ')' : '') + '">LIVE ✓</span>';
-    } else if (hasStatic) {
+    } else if (pos._cloture && pos._live !== true) {
+      // v570 — cours live indisponible : dernière clôture de l'historique (mis à jour chaque soir)
+      const _j = pos._cloture.slice(8, 10) + '/' + pos._cloture.slice(5, 7);
+      liveBadge = ' <span style="display:inline-block;background:#fefcbf;color:#975a16;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px;cursor:help" title="Cours live indisponible : clôture du ' + _j + ' (historique mis à jour chaque soir)">CLÔTURE ' + _j + '</span>';
+    } else if (hasStatic || hasCloture) {
       liveBadge = ' <span style="display:inline-block;background:#bee3f8;color:#2b6cb0;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:4px">LIVE</span>';
     }
 
@@ -2305,12 +2313,16 @@ function renderAllPositions(allPositions, sortKey, sortDir) {
   // Footnote for static prices
   const footnote = document.getElementById('actionsStaticFootnote');
   if (footnote) {
+    const _notes = [];
     if (hasStatic) {
       const staticPct = totalVal > 0 ? (staticVal / totalVal * 100).toFixed(0) : 0;
-      footnote.textContent = '* Cours statique \u2014 API indisponible, prix de la derni\u00e8re mise \u00e0 jour data.js (' + staticPct + '% du portefeuille soit ' + fmt(staticVal) + ')';
-    } else {
-      footnote.textContent = '';
+      _notes.push('* Cours statique \u2014 API indisponible, prix de la derni\u00e8re mise \u00e0 jour data.js (' + staticPct + '% du portefeuille soit ' + fmt(staticVal) + ')');
     }
+    if (hasCloture) {
+      const cloturePct = totalVal > 0 ? (clotureVal / totalVal * 100).toFixed(0) : 0;
+      _notes.push('Cours live indisponible pour ' + cloturePct + '% du portefeuille (' + fmt(clotureVal) + ') : derni\u00e8re cl\u00f4ture de l\u2019historique.');
+    }
+    footnote.textContent = _notes.join(' ');
   }
 
   // Asterisk on KPIs when some positions use static prices
@@ -2662,6 +2674,7 @@ function renderActionsView(state) {
       sector: 'tech',
       geo: 'us',
       _live: av._acnLive,
+      _cloture: p.market._acnCloture || null,   // v570 — cours repris de la dernière clôture
       _trades: membres.flatMap((m) => m.trades),
     });
   }
@@ -3359,16 +3372,25 @@ function setupKPIDetailPanels(state) {
     ? (window._totalPositionsAffichees || allPos.reduce((s2, p) => s2 + (p.valEUR || 0), 0))
     : av.totalStocks;
   if (!_scopees) {
-  // Merge ACN Amine + Nezha into single entry
-  const acnTotalVal = av.esppCurrentVal + (av.nezhaEsppCurrentVal || 0);
-  const acnTotalCost = av.esppCostBasisEUR + (av.nezhaEsppCostBasisEUR || 0);
-  const acnTotalPL = av.esppUnrealizedPL + (av.nezhaEsppUnrealizedPL || 0);
-  allPos.push({
-    label: 'Accenture (ACN)', ticker: 'ACN', broker: 'ESPP',
-    valEUR: acnTotalVal, costEUR: acnTotalCost,
-    unrealizedPL: acnTotalPL,
-    pctPL: acnTotalCost > 0 ? (acnTotalPL / acnTotalCost * 100) : 0,
-  });
+  // v569 — une ligne ACN par courtier (ESPP = mode d'acquisition), comme le tableau des positions.
+  const _acn = new Map();
+  for (const [courtier, val, cout, pl] of [
+    [av.acnCourtierAmine || 'UBS', av.esppCurrentVal || 0, av.esppCostBasisEUR || 0, av.esppUnrealizedPL || 0],
+    [av.acnCourtierNezha || 'UBS', av.nezhaEsppCurrentVal || 0, av.nezhaEsppCostBasisEUR || 0, av.nezhaEsppUnrealizedPL || 0],
+  ]) {
+    if (!(val > 0)) continue;
+    const g = _acn.get(courtier) || { val: 0, cout: 0, pl: 0 };
+    g.val += val; g.cout += cout; g.pl += pl;
+    _acn.set(courtier, g);
+  }
+  for (const [courtier, g] of _acn) {
+    allPos.push({
+      label: 'Accenture (ACN, plan ESPP)', ticker: 'ACN', broker: courtier === 'UBS' ? 'UBS (plan ESPP)' : courtier,
+      valEUR: g.val, costEUR: g.cout,
+      unrealizedPL: g.pl,
+      pctPL: g.cout > 0 ? (g.pl / g.cout * 100) : 0,
+    });
+  }
   if (av.sgtmCostBasisEUR != null) {
     const sgtmPL = av.sgtmTotal - av.sgtmCostBasisEUR;
     allPos.push({
@@ -8046,7 +8068,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=570').then(m => {
+  import('./charts.js?v=571').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
