@@ -5056,6 +5056,18 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v574 (31 octobre 2026) — Cash IBKR : comparaison à montant égal (10 000 dans la devise d'affichage)
+
+À la demande d'Amine, la colonne « Coût /an » (coût du solde réel) est remplacée par une comparaison à
+montant égal, exprimée dans la devise d'affichage (€, $, AED, DH) :
+- **Emprunter 10 000 /an** : coût annuel de la contre-valeur de 10 000 empruntée dans la devise de la
+  ligne au change du jour (`engine.js :: coutEmpruntAnnuel`, taux par tranche, 365/base) ;
+- **10 000 sur Wio /an** : 10 000 placés à 6 % en AED. Stable en $ et en AED (dirham arrimé au dollar),
+  convertie au change du jour en € ou en DH (signalé en infobulle) ;
+- **Rapatrier ?** : bilan d'un rapatriement de 10 000 = marge économisée − intérêts Wio perdus, par an,
+  plus les frais de virement une fois (et leur amortissement si le bilan est positif).
+Le coût mensuel du solde réel et la synthèse sous le tableau restent inchangés.
+
 ## v573 (31 octobre 2026) — Cash IBKR : coût réel de chaque solde débiteur, comparé à l'épargne Wio
 
 Le tableau « Cash IBKR multi-devises » (page Actions) donne désormais, pour chaque devise en négatif,

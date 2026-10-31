@@ -67,6 +67,16 @@ const proche = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg} : $
     proche(c.moisAmortissement, c.fraisEUR / (c.ecartAnnuelEUR / 12), 1e-9, 'mois');
   });
 
+  t('emprunter 10 000 (devise d\'affichage) : même taux quelle que soit l\'unité, tranche 1', () => {
+    const enUSD = E.coutEmpruntAnnuel(10000 / fx.USD, 'EUR', fx);   // 10 000 $ empruntés en euros
+    proche(enUSD.montantNatif, 10000 / fx.USD, 1e-9, 'montant en €');
+    proche(enUSD.coutEUR * fx.USD, 10000 * 0.04049 * 365 / 360, 1e-6, 'coût exprimé en $');
+    const jpy = E.coutEmpruntAnnuel(10000, 'JPY', fx);              // 10 000 € empruntés en yens
+    proche(jpy.montantNatif, 10000 * fx.JPY, 1e-6, 'montant en ¥');
+    proche(jpy.coutEUR, 10000 * 0.02663, 1e-6, 'JPY en ACT/365');
+    assert.equal(E.coutEmpruntAnnuel(0, 'USD', fx), null);
+  });
+
   t('la vue Actions expose un coût pour chaque devise débitrice', () => {
     const s = E.compute(D.PORTFOLIO, fx, 'statique');
     const a = s.actionsView || s.actions;

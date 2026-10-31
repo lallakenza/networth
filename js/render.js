@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=573';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=573';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=574';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=574';
 
 // ---- Generic table sort utility ----
 /**
@@ -3011,18 +3011,39 @@ function renderActionsView(state) {
 
   const IBKR_MARGE_VERIFIEE_LE = IBKR_CONFIG.margeVerifieeLe;
   // IBKR cash table
-  // v573 — pour chaque solde débiteur : taux de marge IBKR réellement appliqué, coût par
-  // mois et par an, et comparaison avec le rapatriement de la somme depuis l'épargne Wio.
+  // v573 — pour chaque solde débiteur : taux de marge IBKR réellement appliqué, coût par mois,
+  // et verdict face au rapatriement depuis l'épargne Wio.
+  // v574 — comparaison à montant égal : emprunter 10 000 (devise d'affichage) dans la devise de
+  // la ligne, contre placer 10 000 sur Wio — au lieu du coût annuel du solde réel.
   const cashTbody = document.getElementById('actionsCashTbody');
   if (cashTbody) {
     cashTbody.innerHTML = '';
     const fx = state.fx;
     const couts = av.ibkrCoutsMarge || {};
     const pct = (x, d = 2) => (x * 100).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' %';
-    const natif = (cur, v) => cur === 'USD' ? '$' + Math.round(v).toLocaleString('en-US')
-      : cur === 'JPY' ? '\u00a5' + Math.round(v).toLocaleString('ja-JP')
-      : Math.round(v).toLocaleString('fr-FR') + ' \u20ac';
-    // Risque de change d'un rapatriement AED → devise (le dirham est arrimé au dollar)
+    const natif = (cur, v) => {
+      const n = Math.round(Math.abs(v)), s = v < 0 ? '\u2212' : '';
+      return cur === 'USD' ? s + '$' + n.toLocaleString('en-US')
+        : cur === 'JPY' ? s + '\u00a5' + n.toLocaleString('ja-JP')
+        : cur === 'AED' ? s + n.toLocaleString('fr-FR') + ' AED'
+        : s + n.toLocaleString('fr-FR') + ' \u20ac';
+    };
+    // Montant de comparaison : 10 000 dans la devise d'affichage, ramené en EUR au change du jour
+    const NOTIONNEL = 10000;
+    const notionnelEUR = NOTIONNEL / (fx[_currency] || 1);
+    const libNotionnel = fmt(notionnelEUR);
+    const tauxWio = CASH_YIELDS.wioSavings;
+    const gainWioEUR = notionnelEUR * tauxWio;
+    // Le dirham est arrimé au dollar : en $ ou en AED, le rendement Wio est sans risque de change
+    const wioStable = _currency === 'USD' || _currency === 'AED';
+    const titreWio = natif('AED', notionnelEUR * fx.AED) + ' plac\u00e9s \u00e0 ' + pct(tauxWio, 0) + ' = '
+      + natif('AED', notionnelEUR * fx.AED * tauxWio) + '/an'
+      + (wioStable ? ' \u2014 AED arrim\u00e9 au dollar : montant stable' : ' \u2014 converti au change du jour, varie avec le cours AED');
+    const thE = document.getElementById('actionsCashThEmprunt');
+    const thW = document.getElementById('actionsCashThWio');
+    if (thE) thE.textContent = 'Emprunter ' + libNotionnel + ' /an';
+    if (thW) thW.textContent = libNotionnel + ' sur Wio /an';
+    // Risque de change d'un rapatriement AED → devise
     const risqueFX = { USD: 'AED arrim\u00e9 au dollar : pas de risque de change',
       EUR: 'change AED \u2192 EUR au jour du virement',
       JPY: 'rembourser ferme le short yen (fin du risque si le yen remonte)' };
@@ -3033,8 +3054,12 @@ function renderActionsView(state) {
       ['JPY', av.ibkrCashJPY, av.ibkrCashJPY / fx.JPY],
     ].forEach(([cur, montant, eur]) => {
       const c = couts[cur];
+      const e = coutEmpruntAnnuel(notionnelEUR, cur, fx);
       const tr = document.createElement('tr');
       const cls = montant < 0 ? 'pl-neg' : '';
+      const colsComparaison = '<td class="num pl-neg" title="' + natif(cur, e.montantNatif) + ' emprunt\u00e9s \u00e0 ' + pct(e.tauxEffectif)
+          + ' = ' + natif(cur, e.coutNatif) + '/an">\u2212' + fmt(e.coutEUR) + '</td>'
+        + '<td class="num pl-pos" title="' + titreWio + '">+' + fmt(gainWioEUR) + '</td>';
       let cols;
       if (c) {
         totMois += c.coutMensuelEUR; totAn += c.coutAnnuelEUR;
@@ -3042,20 +3067,28 @@ function renderActionsView(state) {
           + (c.base === 360 ? ' \u2192 ' + pct(c.tauxEffectif, 3) + ' sur 365 jours' : '')
           + ' \u2014 accrual quotidien';
         const jour = cur === 'JPY' ? '\u00a5' + Math.round(c.coutJourNatif) : cur === 'USD' ? '$' + c.coutJourNatif.toFixed(2) : c.coutJourNatif.toFixed(2).replace('.', ',') + ' \u20ac';
-        const verdict = c.rapatrier
-          ? '<span class="pl-pos"><strong>Oui</strong></span> \u2014 \u00e9conomie ' + fmt(c.ecartAnnuelEUR) + '/an'
-            + (c.moisAmortissement != null ? ', frais amortis en ' + Math.max(1, Math.ceil(c.moisAmortissement)) + ' mois' : '')
-          : '<strong>Non</strong> \u2014 la marge co\u00fbte ' + (-c.ecartPts).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            + ' pt de moins que Wio ne rapporte : ' + fmt(-c.ecartAnnuelEUR) + '/an en faveur de la marge';
+        // Rapatrier 10 000 depuis Wio : on cesse de payer la marge, on renonce aux intérêts Wio,
+        // et on paie une fois les frais de virement.
+        const fraisEUR = notionnelEUR * (IBKR_CONFIG.rapatriementFraisPct || 0);
+        const netEUR = e.coutEUR - gainWioEUR;   // > 0 ⇒ rapatrier fait gagner
+        const signe = (v) => (v >= 0 ? '+' : '\u2212') + fmt(Math.abs(v));
+        const verdict = (netEUR > 0
+          ? '<span class="pl-pos"><strong>Oui</strong></span>'
+          : '<strong>Non</strong>')
+          + ' \u2014 rapatrier ' + libNotionnel + ' : marge \u00e9conomis\u00e9e <span class="pl-pos">+' + fmt(e.coutEUR) + '</span>'
+          + ', int\u00e9r\u00eats Wio perdus <span class="pl-neg">\u2212' + fmt(gainWioEUR) + '</span>'
+          + ' = <strong class="' + (netEUR > 0 ? 'pl-pos' : 'pl-neg') + '">' + signe(netEUR) + '/an</strong>'
+          + ', plus <span class="pl-neg">\u2212' + fmt(fraisEUR) + '</span> de frais une fois'
+          + (netEUR > 0 ? ' (amortis en ' + Math.max(1, Math.ceil(fraisEUR / (netEUR / 12))) + ' mois)' : '');
         cols = '<td class="num" title="' + tauxTitre + '">' + pct(c.tauxEffectif)
           + '<br><span style="font-size:11px;color:#718096;">' + jour + '/jour</span></td>'
-          + '<td class="num pl-neg" title="' + natif(cur, c.coutMensuelNatif) + ' par mois">\u2212' + fmt(c.coutMensuelEUR) + '</td>'
-          + '<td class="num pl-neg" title="' + natif(cur, c.coutAnnuelNatif) + ' par an">\u2212' + fmt(c.coutAnnuelEUR) + '</td>'
+          + '<td class="num pl-neg" title="' + natif(cur, c.coutMensuelNatif) + ' par mois sur le solde r\u00e9el">\u2212' + fmt(c.coutMensuelEUR) + '</td>'
+          + colsComparaison
           + '<td style="font-size:12px;line-height:1.35;">' + verdict
           + '<br><span style="color:#718096;">' + risqueFX[cur] + '</span></td>';
       } else {
-        cols = '<td class="num" style="color:#a0aec0;">\u2014</td><td class="num" style="color:#a0aec0;">\u2014</td>'
-          + '<td class="num" style="color:#a0aec0;">\u2014</td><td style="color:#a0aec0;font-size:12px;">solde cr\u00e9diteur</td>';
+        cols = '<td class="num" style="color:#a0aec0;">' + pct(e.tauxEffectif) + '</td><td class="num" style="color:#a0aec0;">\u2014</td>'
+          + colsComparaison + '<td style="color:#a0aec0;font-size:12px;">solde cr\u00e9diteur</td>';
       }
       tr.innerHTML = '<td>' + cur + '</td><td class="num ' + cls + '">' + natif(cur, montant) + '</td><td class="num ' + cls + '">' + fmt(eur) + '</td>' + cols;
       cashTbody.appendChild(tr);
@@ -3063,8 +3096,7 @@ function renderActionsView(state) {
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
     tr.innerHTML = '<td><strong>Total Cash IBKR</strong></td><td></td><td class="num"><strong>' + fmt(av.ibkrCashTotal) + '</strong></td><td></td>'
-      + '<td class="num pl-neg"><strong>' + (totMois ? '\u2212' + fmt(totMois) : '\u2014') + '</strong></td>'
-      + '<td class="num pl-neg"><strong>' + (totAn ? '\u2212' + fmt(totAn) : '\u2014') + '</strong></td><td></td>';
+      + '<td class="num pl-neg"><strong>' + (totMois ? '\u2212' + fmt(totMois) : '\u2014') + '</strong></td><td></td><td></td><td></td>';
     cashTbody.appendChild(tr);
 
     // Synthèse sous le tableau : combien coûte la marge, et ce que changerait un rapatriement
@@ -8134,7 +8166,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=573').then(m => {
+  import('./charts.js?v=574').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

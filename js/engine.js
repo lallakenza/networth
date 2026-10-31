@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=573';
-import { lireContratEnCache } from './facturation_contract.js?v=573';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=574';
+import { lireContratEnCache } from './facturation_contract.js?v=574';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -336,6 +336,16 @@ export function tauxMargeIBKR(montantAbs, devise) {
     plancher = t.limit;
   }
   return cout / montantAbs;
+}
+
+// Coût annuel d'un emprunt de `montantEUR` (contre-valeur au change du jour) dans `devise`,
+// sur 365 jours : sert à comparer à montant égal la marge et l'épargne Wio (tableau Cash IBKR).
+export function coutEmpruntAnnuel(montantEUR, devise, fx) {
+  const conf = IBKR_CONFIG.marge && IBKR_CONFIG.marge[devise];
+  if (!conf || !(montantEUR > 0)) return null;
+  const montantNatif = devise === 'EUR' ? montantEUR : montantEUR * fx[devise];
+  const tauxEffectif = tauxMargeIBKR(montantNatif, devise) * 365 / conf.base;
+  return { montantNatif, tauxEffectif, coutNatif: montantNatif * tauxEffectif, coutEUR: montantEUR * tauxEffectif };
 }
 
 // Coût annuel et mensuel d'un solde négatif, et comparaison avec le rapatriement de la
