@@ -5056,6 +5056,25 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v572 (31 octobre 2026) — positions clôturées : regroupements et fusions postérieurs, devise du cours
+
+Contrôle des 50 positions clôturées contre les événements de split Yahoo et les communiqués des sociétés.
+Les facteurs DEGIRO de la v553 étaient justes ; trois défauts restaient sur le « si gardé aujourd'hui ».
+
+- **Worldline** (IBKR, vendue le 25/02/2026) : regroupement 1:40 le 15/06/2026, précédé en mars d'une
+  augmentation de capital avec DPS (6 nouvelles pour 1 à 0,202 €). Sans facteur, le cours d'aujourd'hui
+  (≈ 9,85 €, unités post-regroupement) multipliait 3 000 titres : valeur « si gardé » ×40.
+  `splitFactor: 1/40` → 75 actions ; la souscription et la valeur des droits ne sont pas comptées.
+- **Peugeot SA** (DEGIRO, 2020) : fusion dans Stellantis le 16/01/2021 à 1,742 action par action PSA ;
+  le « si gardé » lit STLAP.PA. `splitFactor: 1.742` (distribution Faurecia de 2021 non comptée).
+- **Devise** : le cours d'un titre vendu était converti avec la devise du PREMIER TRADE. United Airlines,
+  achetée en EUR chez DEGIRO, se cote en USD sur Yahoo : le cours en dollars était lu en euros.
+  `engine.js :: deviseCotation()` — la devise de la place du symbole Yahoo interrogé.
+- Clariane (ex-Korian) : pas de regroupement (l'augmentation de capital de 2024 ne change pas le nombre
+  de titres détenus) ; aucun autre titre vendu n'a d'événement postérieur non couvert.
+- Test : `tests/positions-cloturees.test.js` (facteurs connus figés, devise, valeur « si gardé »).
+- Le graphe d'évolution, lui, rapproche déjà chaque trade de la clôture ajustée (`splitUnitFactor`, v471).
+
 ## v571 (31 octobre 2026) — revue de la v569-v570 : derniers défauts d'affichage
 
 - Panneau de détail des positions (chemin de repli, avant le premier rendu du tableau) : l'ACN restait

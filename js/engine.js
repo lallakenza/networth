@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=571';
-import { lireContratEnCache } from './facturation_contract.js?v=571';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=572';
+import { lireContratEnCache } from './facturation_contract.js?v=572';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -305,6 +305,20 @@ function computeIBKRPositions(portfolio, fx, ibkr = portfolio.amine.ibkr, owner 
 export function courtierACN(portfolio, titulaire) {
   const e = portfolio && portfolio[titulaire] && portfolio[titulaire].espp;
   return (e && e.garde && e.garde.courtier) || 'UBS';
+}
+
+/**
+ * v572 — devise de cotation Yahoo d'une ligne vendue, déduite du symbole interrogé (même règle que
+ * app.js pour les cours des positions vendues) : suffixe de place européenne → EUR, .T → JPY, sans
+ * suffixe → USD. Repli sur la devise du premier trade.
+ */
+export function deviseCotation(trades) {
+  const t = (trades || []).find((x) => x && x.ticker) || {};
+  const sym = t.yahooTicker || (t.currency === 'EUR' && t.ticker && !t.ticker.includes('.') ? t.ticker + '.PA' : t.ticker) || '';
+  if (/\.(PA|MI|DE|AS|BR|MC|LS|F)$/.test(sym)) return 'EUR';
+  if (/\.T$/.test(sym)) return 'JPY';
+  if (sym && !sym.includes('.')) return 'USD';
+  return t.currency || 'EUR';
 }
 
 function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp, nezhaIbkrPositions = []) {
@@ -1049,7 +1063,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     } else if (soldPrices[cp.ticker] && totalQtySoldAdj > 0) {
       // Use background-fetched sold stock price (post-split price from Yahoo)
       const sp = soldPrices[cp.ticker];
-      const cur = cp._allTrades.length > 0 ? cp._allTrades[0].currency : 'EUR';
+      // v572 — la devise du COURS, pas celle du trade : United Airlines a été achetée en EUR chez DEGIRO
+      // mais se cote en USD sur Yahoo ; le cours en dollars était lu comme des euros.
+      const cur = sp.currency || deviseCotation(cp._allTrades);
       const priceEUR = cur === 'USD' ? sp.price / fx.USD : cur === 'JPY' ? sp.price / fx.JPY : sp.price;
       cp._ifHeldPriceEUR = priceEUR;
       cp._ifHeldValueEUR = totalQtySoldAdj * priceEUR;

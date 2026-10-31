@@ -504,7 +504,10 @@ export const PORTFOLIO = {
         // ─── P911 (Porsche) — position ouverte ───
         { date: '2025-08-18', ticker: 'P911.DE', label: 'Porsche',           type: 'buy',  qty: 400,  price: 45.20,   currency: 'EUR', cost: 18080,  commission: -9.04, costBasis: 45.50 , source: 'ibkr' },
         // ─── WLN (Worldline) — achat août/oct 2025, coupé fév 2026 ───
-        { date: '2025-08-19', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 1000, price: 3.028,   currency: 'EUR', cost: 3028,   commission: -3.00, costBasis: 3.022 , source: 'ibkr' },
+        // v572 — Worldline : regroupement 1:40 le 15/06/2026 (et augmentation de capital avec DPS en mars
+        // 2026, 6 actions nouvelles pour 1 à 0,202 €). Vendues le 25/02/2026, avant les deux : « si gardé »
+        // = 3 000 / 40 = 75 actions, sans souscription (la valeur des droits, cessibles à l'époque, n'est pas comptée).
+        { date: '2025-08-19', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 1000, price: 3.028,   currency: 'EUR', cost: 3028,   commission: -3.00, costBasis: 3.022 , source: 'ibkr', splitFactor: 1 / 40 },
         // ─── DG (Vinci) — position ouverte ───
         { date: '2025-08-25', ticker: 'DG.PA',   label: 'Vinci',             type: 'buy',  qty: 200,  price: 122.40,  currency: 'EUR', cost: 24480,  commission: -12.24, costBasis: 121.50 , source: 'ibkr' },
         // ─── FGR (Eiffage) — position ouverte ───
@@ -526,7 +529,7 @@ export const PORTFOLIO = {
         { date: '2025-10-03', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 300,  price: 21.29,   currency: 'EUR', proceeds: 6387,  realizedPL: 395.81,  commission: -3.19, costBasis: 21.47 , source: 'ibkr' },
         // ─── NXI renfort + WLN renfort ───
         { date: '2025-10-28', ticker: 'NXI',  label: 'Nexity',            type: 'buy',  qty: 500,  price: 9.34,    currency: 'EUR', cost: 4670,   commission: -3.00, costBasis: 9.15 , source: 'ibkr' },
-        { date: '2025-10-29', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 2000, price: 2.295,   currency: 'EUR', cost: 4590,   commission: -3.00, costBasis: 2.315 , source: 'ibkr' },
+        { date: '2025-10-29', ticker: 'WLN',  label: 'Worldline',         type: 'buy',  qty: 2000, price: 2.295,   currency: 'EUR', cost: 4590,   commission: -3.00, costBasis: 2.315 , source: 'ibkr', splitFactor: 1 / 40 },
         // ─── OR (L'Oréal) — position ouverte ───
         { date: '2025-11-03', ticker: 'OR.PA',   label: "L'Oréal",           type: 'buy',  qty: 30,   price: 361.50,  currency: 'EUR', cost: 10845,  commission: -5.42, costBasis: 361.85 , source: 'ibkr' },
         // ─── 4911.T (Shiseido) — position ouverte (JPY) ───
@@ -558,7 +561,7 @@ export const PORTFOLIO = {
         // ─── GLE sell — vente totale ───
         { date: '2026-02-25', ticker: 'GLE',  label: 'Société Générale',  type: 'sell', qty: 200,  price: 75.34,   currency: 'EUR', proceeds: 15068, realizedPL: 4807.34, commission: -7.53, costBasis: 76.24 , source: 'ibkr' },
         // ─── WLN sell — coupure perte ───
-        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',         type: 'sell', qty: 3000, price: 1.475,   currency: 'EUR', proceeds: 4425,  realizedPL: -3202,   commission: -3.00, costBasis: 1.4435 , source: 'ibkr' },
+        { date: '2026-02-25', ticker: 'WLN',  label: 'Worldline',         type: 'sell', qty: 3000, price: 1.475,   currency: 'EUR', proceeds: 4425,  realizedPL: -3202,   commission: -3.00, costBasis: 1.4435 , source: 'ibkr', splitFactor: 1 / 40 },
         // ─── EDEN ventes finales (2 lots) ───
         { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 600,  price: 19.38,   currency: 'EUR', proceeds: 11628, realizedPL: -353.80, commission: -5.81, costBasis: 19.59 , source: 'ibkr' },
         { date: '2026-02-26', ticker: 'EDEN', label: 'Edenred',           type: 'sell', qty: 800,  price: 19.45,   currency: 'EUR', proceeds: 15560, realizedPL: 173.73,  commission: -7.78, costBasis: 19.59 , source: 'ibkr' },
@@ -1038,7 +1041,9 @@ export const PORTFOLIO = {
       // contre une pièce, et 0 n'est donc PAS un fait établi — à confirmer avant de s'y fier.
       { date: '2020-02-21', ticker: 'LI', label: 'Klépierre SA', type: 'buy', qty: 1, price: 30.36, currency: 'EUR', cost: 30.36, realizedPL: '', commission: -0.01, costBasis: '', source: 'degiro', yahooTicker: 'LI.PA', isin: 'FR0000121964' },
       { date: '2020-02-24', ticker: 'AC', label: 'Accor SA', type: 'buy', qty: 4, price: 36.11, currency: 'EUR', cost: 144.44, realizedPL: '', commission: -0.06, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA', isin: 'FR0000120404' },
-      { date: '2020-02-24', ticker: 'UG', label: 'Peugeot SA', type: 'buy', qty: 3, price: 18.495, currency: 'EUR', cost: 55.48, realizedPL: '', commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', isin: 'FR0000121501' },
+      // v572 — Peugeot SA : fusion dans Stellantis le 16/01/2021 à 1,742 action Stellantis par action PSA
+      // (splitFactor = parité, pour « si gardé » ; la distribution de titres Faurecia de 2021 n'est pas comptée).
+      { date: '2020-02-24', ticker: 'UG', label: 'Peugeot SA', type: 'buy', qty: 3, price: 18.495, currency: 'EUR', cost: 55.48, realizedPL: '', commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', splitFactor: 1.742, isin: 'FR0000121501' },
       { date: '2020-02-24', ticker: 'RNO', label: 'Renault SA', type: 'buy', qty: 5, price: 30.75, currency: 'EUR', cost: 153.75, realizedPL: '', commission: -0.06, costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA', isin: 'FR0000131906' },
       { date: '2020-02-24', ticker: 'AIR', label: 'Airbus SE', type: 'buy', qty: 1, price: 125.5, currency: 'EUR', cost: 125.5, realizedPL: '', commission: -0.05, costBasis: '', source: 'degiro', yahooTicker: 'AIR.PA', isin: 'NL0000235190' },
       { date: '2020-02-25', ticker: 'ACA', label: 'Crédit Agricole', type: 'buy', qty: 5, price: 12.36, currency: 'EUR', cost: 61.8, realizedPL: '', commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'ACA.PA', isin: 'FR0000045072' },
@@ -1084,7 +1089,7 @@ export const PORTFOLIO = {
       { date: '2020-05-06', ticker: 'SOP', label: 'Sopra Steria Group', type: 'buy', qty: 7, price: 107.2, currency: 'EUR', cost: 750.4, realizedPL: '', commission: -0.3, costBasis: '', source: 'degiro', yahooTicker: 'SOP.PA', isin: 'FR0000050809' },
       { date: '2020-05-06', ticker: 'AC', label: 'Accor SA', type: 'sell', qty: 2, price: 23.75, currency: 'EUR', proceeds: 47.5, realizedPL: -92.35, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'AC.PA', isin: 'FR0000120404', note: 'P/L ACCOR 2020 du rapport annuel, porté sur cette ligne' },
       { date: '2020-05-06', ticker: 'EN', label: 'Bouygues SA', type: 'sell', qty: 1, price: 27.4, currency: 'EUR', proceeds: 27.4, realizedPL: -1.7, commission: -0.01, costBasis: '', source: 'degiro', yahooTicker: 'EN.PA', isin: 'FR0000120503', note: 'P/L BOUYGUES 2020 du rapport annuel, porté sur cette ligne' },
-      { date: '2020-05-06', ticker: 'UG', label: 'Peugeot SA', type: 'sell', qty: 3, price: 13.18, currency: 'EUR', proceeds: 39.54, realizedPL: -16.16, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', isin: 'FR0000121501', note: 'P/L PEUGEOT 2020 du rapport annuel, porté sur cette ligne' },
+      { date: '2020-05-06', ticker: 'UG', label: 'Peugeot SA', type: 'sell', qty: 3, price: 13.18, currency: 'EUR', proceeds: 39.54, realizedPL: -16.16, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'STLAP.PA', splitFactor: 1.742, isin: 'FR0000121501', note: 'P/L PEUGEOT 2020 du rapport annuel, porté sur cette ligne' },
       { date: '2020-05-06', ticker: 'RNO', label: 'Renault SA', type: 'sell', qty: 2, price: 17.62, currency: 'EUR', proceeds: 35.24, realizedPL: -41.91, commission: -0.01, costBasis: '', source: 'degiro', yahooTicker: 'RNO.PA', isin: 'FR0000131906', note: 'P/L RENAULT 2020 du rapport annuel, porté sur cette ligne' },
       { date: '2020-05-06', ticker: 'AIR', label: 'Airbus SE', type: 'sell', qty: 1, price: 55.01, currency: 'EUR', proceeds: 55.01, realizedPL: -70.56, commission: -0.02, costBasis: '', source: 'degiro', yahooTicker: 'AIR.PA', isin: 'NL0000235190', note: 'P/L AIRBUS 2020 du rapport annuel, porté sur cette ligne' },
       { date: '2020-05-06', ticker: 'DIS', label: 'Walt Disney Company', type: 'buy', qty: 5, price: 99.8, currency: 'USD', cost: 499, realizedPL: '', commission: -0.98, costBasis: '', source: 'degiro', yahooTicker: 'DIS', isin: 'US2546871060' },
@@ -1573,7 +1578,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v571';
+export const APP_VERSION = 'v572';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
