@@ -1485,7 +1485,7 @@ export const PORTFOLIO = {
   market: {
     sgtmPriceMAD: 707,       // Bootstrap SGTM en MAD — fallback de DERNIER recours uniquement. v372 : le prix live vient en runtime de l'API TradingView (scanner CSEMA:GTM, direct navigateur), puis en repli data/sgtm_live.json, puis scraping proxy. Cette valeur figée ne sert que si TOUTES ces sources échouent.
     sgtmCostBasisMAD: 420,   // Prix d'achat IPO (offre grand public, déc 2025)
-    acnPriceUSD: 144.61,     // Cours Accenture en USD — clôture 16/07/2026 (bootstrap ; écrasé par l'API si dispo)
+    acnPriceUSD: 258.24,     // Cours Accenture en USD — clôture 30/10/2026 (repli ; écrasé par l'API ou, à défaut, par la dernière clôture de l'historique — v569)
     // Prix de référence historiques pour P&L (stockés une fois, pas re-fetchés)
     acnYtdOpen: 259.95,      // ACN clôture 2 jan 2026
     acnMtdOpen: 131.13,  // ACN clôture 1er juil 2026
@@ -1573,7 +1573,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v569';
+export const APP_VERSION = 'v570';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

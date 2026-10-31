@@ -5056,6 +5056,21 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v570 (31 octobre 2026) — sans cours live, la dernière clôture de l'historique plutôt que le prix figé
+
+Contrôle du 31/10 après la v569 : 5 cours live sur 15 seulement (proxys CORS gratuits en échec). Les
+autres positions gardaient le prix figé de `data.js` — ACN à 144,61 USD (clôture du 16/07) au lieu de
+258,24 : ≈ −17 000 € sur les 167 parts d'Amine.
+
+- `app.js :: repliDerniereCloture(hist)`, appelé en tête de `buildChartsFromHist` : une position IBKR
+  (deux comptes) ou l'ACN sans cours live prend la dernière clôture de l'historique partagé, mis à jour
+  chaque soir par le cron (v567). Jamais sur un cours live ; ignorée au-delà de 10 jours.
+- `engine.js :: selectionnerSnapshots` : la QUALITÉ prime désormais sur la version (live > partial >
+  static). Le code périmé étant écarté en amont (v563), une ligne « partial » du navigateur (cours
+  manquants) ne l'emporte plus sur la ligne « live » du cron du même jour. Rejoué sur tout
+  l'historique : aucune nouvelle marche.
+- `data.js` : repli ACN à 258,24 USD (clôture du 30/10).
+
 ## v569 (31 octobre 2026) — ACN d'Amine chez IBKR : ESPP est un mode d'acquisition, pas un courtier
 
 Amine a transféré ses 167 ACN (plan ESPP Accenture) de UBS vers IBKR (UBS exécuté le 09/10/2026, réf.

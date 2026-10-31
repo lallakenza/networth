@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=569';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=570';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=569';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=569';
-import { render, applySnapshotDeltas } from './render.js?v=569';
-import { chargerContratDistant } from './facturation_contract.js?v=569';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=569';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=569';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=569';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=569';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=570';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=570';
+import { render, applySnapshotDeltas } from './render.js?v=570';
+import { chargerContratDistant } from './facturation_contract.js?v=570';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=570';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=570';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=570';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=570';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -706,18 +706,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=569');
+  const auth = await import('./auth.js?v=570');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=569');
+  const auth = await import('./auth.js?v=570');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=569');
+  const auth = await import('./auth.js?v=570');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1708,7 +1708,37 @@ async function loadStockPrices(forceRefresh) {
           } catch (e) { console.warn('[refs] auto-refresh impossible :', e && e.message); }
         }
 
+        // v569 — REPLI SUR LA DERNIÈRE CLÔTURE. Les cours live passent par des proxys CORS gratuits qui
+        // échouent souvent (31/10/2026 : 5 cours live sur 15) ; une position sans cours live gardait
+        // alors le prix figé de data.js (ACN à 144,61 USD au lieu de 258,24 : ≈ −17 000 €). L'historique
+        // partagé est mis à jour chaque soir par le cron (v567) : sa dernière clôture est bien plus
+        // juste. Ne touche jamais un cours live ; ignore une clôture de plus de 10 jours.
+        function repliDerniereCloture(hist) {
+          try {
+            if (!hist || !hist.tickers) return;
+            const derniere = (t) => {
+              const sr = hist.tickers[t];
+              if (!sr || !sr.dates || !sr.dates.length) return null;
+              for (let i = sr.dates.length - 1; i >= 0; i--) if (sr.closes[i] > 0) return { date: sr.dates[i], cours: sr.closes[i] };
+              return null;
+            };
+            const recente = (c) => c && (Date.now() - Date.parse(c.date + 'T00:00:00Z')) < 10 * 86400000;
+            const repris = [];
+            _positionsIbkrApp().forEach((p) => {
+              if (p._live) return;
+              const c = derniere(p.ticker);
+              if (recente(c)) { p.price = c.cours; p._cloture = c.date; repris.push(p.ticker); }
+            });
+            if (!PORTFOLIO.market._acnLive) {
+              const c = derniere('ACN');
+              if (recente(c)) { PORTFOLIO.market.acnPriceUSD = c.cours; PORTFOLIO.market._acnCloture = c.date; repris.push('ACN'); }
+            }
+            if (repris.length) console.log('[prix] sans cours live → dernière clôture de l\'historique : ' + repris.join(', '));
+          } catch (e) { console.warn('[prix] repli sur la dernière clôture impossible :', e && e.message); }
+        }
+
         function buildChartsFromHist(hist, opts) {
+          repliDerniereCloture(hist); // v569 — avant les références et le refresh() de ce build
           applyPriceRefs(hist); // v483 — avant le refresh() que ce build déclenche
           if (!(opts && opts.skipUnify)) unifyPrices(hist);
           // YTD (rendu visible) — scope 'all' (Tous) par défaut

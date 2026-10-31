@@ -54,6 +54,12 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(sel.some((r) => r.snap_date === '2026-07-18'), 'le 18/07 (v386) a disparu');
   });
 
+  t('une ligne « partial » du navigateur ne l’emporte pas sur la ligne « live » du cron', () => {
+    const partielle = { ...ligne('2026-10-31', '2026-10-31T12:58:00Z', 'v569', 758775), quality: 'partial' };
+    const rows = [ligne('2026-10-31', '2026-10-31T00:37:00Z', 'cron', 773522), partielle];
+    assert.equal(E.selectionnerSnapshots(rows, DEPLOIEMENTS)[0].data.total.couple, 773522);
+  });
+
   t('une version à jour au moment de sa capture reste préférée au cron', () => {
     const rows = [ligne('2026-09-19', '2026-09-19T00:20:00Z', 'cron', 780000), ligne('2026-09-19', '2026-09-19T12:00:00Z', 'v550', 787000)];
     assert.equal(E.selectionnerSnapshots(rows, DEPLOIEMENTS)[0].data.total.couple, 787000);

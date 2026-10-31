@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=569';
-import { lireContratEnCache } from './facturation_contract.js?v=569';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=570';
+import { lireContratEnCache } from './facturation_contract.js?v=570';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5708,10 +5708,14 @@ export function selectionnerSnapshots(rows, deploiements = {}) {
   const versions = Object.keys(deploiements).map(Number).filter((v) => v > 0).sort((a, b) => a - b);
   const suivante = (v) => { const w = versions.find((x) => x > v); return w ? Date.parse(deploiements[w]) : Infinity; };
   const perimee = (r) => /^v\d+/.test(txt(r)) && Date.parse(r.captured_at) > suivante(num(r)) + 30 * 60000;
+  // v569 — la QUALITÉ d'abord (live > partial > static), puis la version, puis la capture la plus
+  // récente. Le code périmé étant écarté en amont, la version n'a plus à primer : une ligne
+  // « partial » du navigateur (cours manquants) ne doit plus l'emporter sur la ligne « live » du cron.
+  const rang = (r) => RANG[r.quality] || 0;
   const meilleure = (lignes) => lignes.reduce((p, r) => (!p
-    || num(r) > num(p)
-    || (num(r) === num(p) && ((RANG[r.quality] || 0) > (RANG[p.quality] || 0)
-      || ((RANG[r.quality] || 0) === (RANG[p.quality] || 0) && r.captured_at > p.captured_at)))) ? r : p, null);
+    || rang(r) > rang(p)
+    || (rang(r) === rang(p) && (num(r) > num(p)
+      || (num(r) === num(p) && r.captured_at > p.captured_at)))) ? r : p, null);
   const parJour = new Map();
   for (const r of rows || []) {
     if (!parJour.has(r.snap_date)) parJour.set(r.snap_date, []);
