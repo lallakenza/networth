@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=574';
-import { lireContratEnCache } from './facturation_contract.js?v=574';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=575';
+import { lireContratEnCache } from './facturation_contract.js?v=575';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -398,6 +398,34 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     EUR: coutMargeIBKR(ibkrCashEUR, 'EUR', fx, CASH_YIELDS.wioSavings),
     USD: coutMargeIBKR(ibkrCashUSD, 'USD', fx, CASH_YIELDS.wioSavings),
     JPY: coutMargeIBKR(ibkrCashJPY, 'JPY', fx, CASH_YIELDS.wioSavings),
+  };
+  // v575 — exposition nette au yen : la dette de marge JPY face aux titres cotés en yen du même
+  // compte (couverture naturelle). « regroupement » = si les soldes débiteurs EUR et USD étaient
+  // eux aussi convertis en dette yen au change du jour.
+  const _titresJPY = ibkrPositions.filter((x) => x.currency === 'JPY')
+    .map((x) => ({ ticker: x.ticker, label: x.label, natif: x.shares * x.price }));
+  const _actifsJPY = _titresJPY.reduce((s2, x) => s2 + x.natif, 0);
+  const _expoYen = (detteNatif) => {
+    const netNatif = _actifsJPY + detteNatif;
+    const netEUR = toEUR(netNatif, 'JPY', fx);
+    return {
+      detteNatif, netNatif, netEUR,
+      couverture: detteNatif < 0 ? _actifsJPY / -detteNatif : null,
+      // Mouvement du yen de ±10 % face à l'euro : la position nette gagne ou perd 10 % de sa valeur
+      impactHausseEUR: netEUR * 0.10,
+      impactBaisseEUR: -netEUR * 0.10,
+      complementNatif: Math.max(0, -netNatif),
+      complementEUR: Math.max(0, -netEUR),
+    };
+  };
+  const expositionYen = {
+    titres: _titresJPY,
+    actifsNatif: _actifsJPY,
+    actifsEUR: toEUR(_actifsJPY, 'JPY', fx),
+    actuelle: _expoYen(Math.min(0, ibkrCashJPY)),
+    regroupement: _expoYen(Math.min(0, ibkrCashJPY)
+      + Math.min(0, ibkrCashEUR) * fx.JPY
+      + Math.min(0, ibkrCashUSD) / fx.USD * fx.JPY),
   };
 
   // IBKR positions P/L (using historical FX for cost basis)
@@ -1626,7 +1654,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     nezhaIbkrNAV,
     nezhaIbkrLatent,
     ibkrNAV,
-    ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal, ibkrCoutsMarge,
+    ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal, ibkrCoutsMarge, expositionYen,
     ibkrCashAED,
     wioSavingsEUR: toEUR(portfolio.amine.uae.wioSavings || 0, 'AED', fx),
     reconciliation, concentration,

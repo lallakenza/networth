@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=574';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=574';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=575';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=575';
 
 // ---- Generic table sort utility ----
 /**
@@ -3126,6 +3126,42 @@ function renderActionsView(state) {
           + 'L\u2019\u00e9pargne Wio est bloqu\u00e9e par espaces d\u2019un mois : retirer avant l\u2019\u00e9ch\u00e9ance peut co\u00fbter les int\u00e9r\u00eats du mois en cours.</span>';
       }
     }
+  }
+
+  // v575 — exposition nette au yen : dette JPY face aux titres en yen, aujourd'hui et si toute la
+  // dette de marge passait en yen ; impact d'un mouvement du yen de ±10 %.
+  const yenEl = document.getElementById('actionsYenExpo');
+  const ey = av.expositionYen;
+  if (yenEl && ey) {
+    const yen = (v) => (v < 0 ? '\u2212' : '') + '\u00a5' + Math.round(Math.abs(v)).toLocaleString('fr-FR');
+    const signe = (v) => (v >= 0 ? '+' : '\u2212') + fmt(Math.abs(v));
+    const cl = (v) => (v >= 0 ? 'pl-pos' : 'pl-neg');
+    const ligne = (titre, x) => '<tr><td>' + titre + '</td>'
+      + '<td class="num pl-neg">' + yen(x.detteNatif) + '</td>'
+      + '<td class="num">' + yen(ey.actifsNatif) + '</td>'
+      + '<td class="num ' + cl(x.netNatif) + '">' + yen(x.netNatif) + '<br><span style="font-size:11px;">' + signe(x.netEUR) + '</span></td>'
+      + '<td class="num">' + (x.couverture != null ? Math.round(x.couverture * 100) + ' %' : '\u2014') + '</td>'
+      + '<td class="num ' + cl(x.impactHausseEUR) + '">' + signe(x.impactHausseEUR) + '</td>'
+      + '<td class="num ' + cl(x.impactBaisseEUR) + '">' + signe(x.impactBaisseEUR) + '</td></tr>';
+    const r = ey.regroupement;
+    const titres = ey.titres.length
+      ? ey.titres.map((t) => t.label + ' ' + yen(t.natif)).join(', ')
+      : 'aucun titre en yen';
+    yenEl.innerHTML = '<h3 style="margin-top:22px;">Exposition nette au yen</h3>'
+      + '<p style="font-size:13px;color:#4a5568;margin:4px 0 10px;">Emprunter en yen revient \u00e0 vendre du yen ; d\u00e9tenir des titres cot\u00e9s en yen revient \u00e0 en acheter. '
+      + 'Quand les deux s\u2019\u00e9quilibrent, un mouvement du yen ne change rien \u00e0 ton patrimoine. Titres compt\u00e9s : ' + titres + '.</p>'
+      + '<div style="overflow-x:auto;"><table><thead><tr><th></th><th class="num">Dette en \u00a5</th><th class="num">Titres en \u00a5</th>'
+      + '<th class="num">Position nette</th><th class="num">Couverture</th><th class="num">Yen +10 %</th><th class="num">Yen \u221210 %</th></tr></thead><tbody>'
+      + ligne('Aujourd\u2019hui', ey.actuelle)
+      + ligne('Si toute la dette passe en yen', r)
+      + '</tbody></table></div>'
+      + '<div class="highlight" style="margin-top:10px;font-size:13px;line-height:1.5;">'
+      + (r.complementNatif > 0
+        ? 'Apr\u00e8s regroupement, il manquerait <strong>' + yen(r.complementNatif) + ' (\u2248 ' + fmt(r.complementEUR) + ')</strong> d\u2019actifs en yen pour \u00eatre couvert. '
+          + '\u00c0 financer en vendant des actifs en euros ou en dollars : acheter avec de nouveaux yens emprunt\u00e9s ne couvrirait que ce nouvel achat. '
+        : 'Apr\u00e8s regroupement, les titres en yen couvriraient toute la dette. ')
+      + '<span style="color:#718096;">Un ETF Japon non couvert compte comme un titre en yen, m\u00eame cot\u00e9 en euros ; une part \u00ab EUR-hedged \u00bb ne couvre rien. '
+      + 'La couverture neutralise le change, pas la baisse des actions japonaises, et se d\u00e9r\u00e8gle quand leur cours bouge : \u00e0 r\u00e9\u00e9quilibrer.</span></div>';
   }
 
   // (Degiro closed positions table removed — merged into unified allClosedTable above)
@@ -8166,7 +8202,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=574').then(m => {
+  import('./charts.js?v=575').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

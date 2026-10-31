@@ -5056,6 +5056,15 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v575 (31 octobre 2026) — Cash IBKR : exposition nette au yen
+
+Sous le tableau Cash IBKR, un bloc « Exposition nette au yen » met face à face la dette de marge JPY et
+les titres cotés en yen du compte d'Amine (aujourd'hui : Shiseido), pour deux cas : la situation
+actuelle, et « si toute la dette passe en yen » (soldes débiteurs EUR et USD convertis au change du jour).
+Pour chacun : position nette en ¥ et en €, taux de couverture, impact d'un mouvement du yen de ±10 %,
+et le montant d'actifs en yen qu'il manquerait pour être couvert (à financer par vente d'actifs EUR/USD,
+pas par un nouvel emprunt yen). `actionsView.expositionYen` (engine), test dans `tests/cout-marge.test.js`.
+
 ## v574 (31 octobre 2026) — Cash IBKR : comparaison à montant égal (10 000 dans la devise d'affichage)
 
 À la demande d'Amine, la colonne « Coût /an » (coût du solde réel) est remplacée par une comparaison à

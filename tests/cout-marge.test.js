@@ -77,6 +77,19 @@ const proche = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg} : $
     assert.equal(E.coutEmpruntAnnuel(0, 'USD', fx), null);
   });
 
+  t('exposition nette au yen : dette JPY face aux titres en yen, et après regroupement', () => {
+    const s = E.compute(D.PORTFOLIO, fx, 'statique');
+    const a = s.actionsView || s.actions;
+    const ey = a.expositionYen;
+    const titres = D.PORTFOLIO.amine.ibkr.positions.filter((x) => x.currency === 'JPY');
+    assert.ok(ey.titres.length === titres.length, 'tous les titres en yen sont comptés');
+    proche(ey.actuelle.netNatif, ey.actifsNatif + Math.min(0, a.ibkrCashJPY), 1e-6, 'net = titres + dette');
+    proche(ey.actuelle.impactHausseEUR, ey.actuelle.netEUR * 0.1, 1e-9, 'yen +10 %');
+    const attendu = Math.min(0, a.ibkrCashJPY) + Math.min(0, a.ibkrCashEUR) * fx.JPY + Math.min(0, a.ibkrCashUSD) / fx.USD * fx.JPY;
+    proche(ey.regroupement.detteNatif, attendu, 1e-6, 'dette regroupée');
+    proche(ey.regroupement.complementNatif, Math.max(0, -ey.regroupement.netNatif), 1e-9, 'complément');
+  });
+
   t('la vue Actions expose un coût pour chaque devise débitrice', () => {
     const s = E.compute(D.PORTFOLIO, fx, 'statique');
     const a = s.actionsView || s.actions;
