@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v577 (31 octobre 2026) — nouvelle dette envers Mehdi (120 000 MAD)
+
+Données seules : créance négative `CREP10` (−120 000 MAD, en cours, déclarée par Amine le 31/10),
+même schéma que CREP08 (remboursée le 09/10). Elle entre dans `amineRecvPersonal`, donc dans le
+patrimoine et dans les dettes de la vue Créances.
+
 ## v576 (31 octobre 2026) — iBanq et Attijari au 31/10 (encaissement RTL, virements Azarkan)
 
 Données seules.

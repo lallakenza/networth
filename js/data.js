@@ -733,6 +733,9 @@ export const PORTFOLIO = {
         // v484 — DETTE (montant négatif, sommé linéairement dans recvPersonal) : Mehdi a prêté
         // 100K MAD à Amine (« il me les a prêtés et je les ai utilisés ») — à rembourser.
         { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: null, lastContact: '2026-10-09', payments: [{ amount: -100000, date: '2026-10-09', currency: 'MAD' }], notes: 'Remboursée depuis Attijari (déclaratif Amine le 09/10/2026 ; date exacte du virement non relevée, entre le 19/09 et le 09/10). Neutre sur le patrimoine : le cash et la dette baissent ensemble.' },
+        // v577 — nouvelle DETTE envers Mehdi (déclaratif Amine le 31/10/2026) : 120 000 MAD, en cours.
+        // Montant négatif = Amine doit. Date et forme du prêt non précisées ; échéance non convenue.
+        { id: 'CREP10', label: 'Dette envers Mehdi (emprunt 120K MAD à rembourser)', amount: -120000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-10-31', payments: [], notes: 'Déclarée par Amine le 31/10/2026. Date et forme du prêt non précisées ; échéance non convenue.' },
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
@@ -1578,7 +1581,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v576';
+export const APP_VERSION = 'v577';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
