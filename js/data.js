@@ -85,7 +85,7 @@ export const PORTFOLIO = {
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
       binanceUSDT: 11003,   // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 09/10/2026 (solde réel, déclaratif Amine). Remplace les 14 888 provisoires (3 717 + 11 171 achetés au coût le 04/10) : ≈ 3 885 USDT déjà dépensés ou revendus, date inconnue. Conversion en MAD envisagée à ≈ 10,2 MAD/USDT (P2P Maroc, ≈ 112 230 MAD) : valorisé au dollar tant qu'elle n'est pas faite.
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
-      ibanqBairok: 0,        // iBanq — Bairok Consulting LLC — VIDE au 19/09/2026 (Amine) ; était 16 176,91 € au 28/08 (fonds passés sur Wio Business, cf. wioBusiness)
+      ibanqBairok: 12765.55, // iBanq — Bairok Consulting LLC — MAJ 31/10/2026 (capture du site) : 15,55 € + INVRTL020 encaissée le 22/10 (SEPA CLT-UFA, 12 750 €). Le sous-compte AED (1,58) est négligé. Part Azarkan de la facture : nettée dans le pont 2048 (virements Maroc des 12/10 et 29/10)
       bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
       _lastUpdate: '2026-08-28',
     },
@@ -95,7 +95,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     maroc: {
-      attijari: 5000,       // Attijariwafa MRA current account (0% rendement) — MAJ 09/10/2026 (déclaratif Amine). Était 138 943,56 au 19/09 : 100 000 partis rembourser Mehdi (CREP08) + ≈ 33 900 de dépenses au Maroc, dates exactes non relevées
+      attijari: 88135.70,   // Attijariwafa MRA current account (0% rendement) — MAJ 31/10/2026 (relevé Attijarinet temps réel). 5 918,90 au soir du 09/10 (déclaré 5 000), puis : +127 400 de virements reçus le 12/10, −80 000 vers Azarkan le 12/10, +100 000 versés au guichet le 23/10, −50 000 vers Azarkan le 29/10, ≈ −15 200 de dépenses
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
       cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app), confirmé inchangé le 19/09/2026 (Amine : « 29 275 MAD »)
       _lastUpdate: '2026-07-12',
@@ -1578,7 +1578,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v575';
+export const APP_VERSION = 'v576';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

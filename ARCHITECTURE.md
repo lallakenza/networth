@@ -5056,6 +5056,18 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v576 (31 octobre 2026) — iBanq et Attijari au 31/10 (encaissement RTL, virements Azarkan)
+
+Données seules.
+- **iBanq (Bairok)** : 0 → 12 765,55 € — INVRTL020 (12 750 €) encaissée le 22/10.
+- **Attijari** : 5 000 → 88 135,70 MAD (relevé temps réel du 31/10).
+- **Pont 2048** (publié le même jour, données au 29/10) : INVRTL020 payée, et les virements Azarkan
+  du 12/10 (50 000 + 30 000 DH) et du 29/10 (50 000 DH) imputés au netting Augustin.
+  Augustin −66 → −881 DH, net −167 295 → −168 110 DH.
+- **Historique non restaté** : l'affectation de 127 400 MAD reçus le 12/10 (vente USDT en P2P ?) et
+  d'un versement de 100 000 MAD le 23/10 reste à confirmer. Les corriger sans le solde Binance
+  correspondant créerait un faux saut dans l'historique.
+
 ## v575 (31 octobre 2026) — Cash IBKR : exposition nette au yen
 
 Sous le tableau Cash IBKR, un bloc « Exposition nette au yen » met face à face la dette de marge JPY et
