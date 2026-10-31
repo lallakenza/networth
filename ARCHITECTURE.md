@@ -5056,6 +5056,28 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v573 (31 octobre 2026) — Cash IBKR : coût réel de chaque solde débiteur, comparé à l'épargne Wio
+
+Le tableau « Cash IBKR multi-devises » (page Actions) donne désormais, pour chaque devise en négatif,
+le taux de marge appliqué, le coût par jour, par mois et par an, et s'il vaut mieux rapatrier la somme
+depuis l'épargne Wio (6 %).
+
+- **Taux vérifiés, pas supposés** : page IBKR Pro du 31/10/2026, recoupée sur les relevés quotidiens
+  du compte (section Interest Accruals). EUR 4,049 % en ACT/360 (1,12 € le 26/10 = 4 jours × −2 520 € ;
+  1,23 € le 29/10 = 2 × −2 520 + 1 × −5 923), JPY 2,663 % en ACT/365 (351 ¥ pour 3 jours sur −1,60 M¥).
+  USD 5,38 % ACT/360 : rien facturé au 30/10, l'intérêt courant sur le solde RÉGLÉ (achat GOOGL du
+  30/10 réglé le 02/11), d'où 1,27 $/jour à partir de cette date.
+- **Source unique** : `IBKR_CONFIG.marge[devise] = { base, tiers }`. `MARGIN_RATES` (module Financement)
+  et `IBKR_CONFIG.jpyTiers` (vue Cash) en dérivent. Avant : MARGIN_RATES saisi à la main (JPY 1,5 %
+  au lieu de 2,66 %), tranches JPY de mars (2,204 %).
+- `engine.js :: tauxMargeIBKR(montant, devise)` (pondéré par tranches) et `coutMargeIBKR(solde, devise,
+  fx, tauxWio)` → `actionsView.ibkrCoutsMarge.{EUR,USD,JPY}` (null si solde ≥ 0). Coût annuel = taux ×
+  365/base ; rapatrier = renoncer à 6 % sur la même somme + frais de virement estimés
+  (`IBKR_CONFIG.rapatriementFraisPct` = 0,5 %, Wise AED → devise).
+- Résultat au 31/10 : les trois taux sont sous 6 % ⇒ garder la marge (≈ 900 €/an de coût contre
+  ≈ 1 360 €/an d'intérêts Wio perdus). Le JPY reste un short yen : risque de change signalé.
+- Test : `tests/cout-marge.test.js` (accruals réels, tranches, verdict, exposition dans la vue Actions).
+
 ## v572 (31 octobre 2026) — positions clôturées : regroupements et fusions postérieurs, devise du cours
 
 Contrôle des 50 positions clôturées contre les événements de split Yahoo et les communiqués des sociétés.

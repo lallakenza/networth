@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=572';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=572';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=573';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=573';
 
 // ---- Generic table sort utility ----
 /**
@@ -3009,25 +3009,91 @@ function renderActionsView(state) {
     makeTableSortable(allClosedTable, allClosedData, renderAllClosedRows);
   }
 
+  const IBKR_MARGE_VERIFIEE_LE = IBKR_CONFIG.margeVerifieeLe;
   // IBKR cash table
+  // v573 — pour chaque solde débiteur : taux de marge IBKR réellement appliqué, coût par
+  // mois et par an, et comparaison avec le rapatriement de la somme depuis l'épargne Wio.
   const cashTbody = document.getElementById('actionsCashTbody');
   if (cashTbody) {
     cashTbody.innerHTML = '';
     const fx = state.fx;
+    const couts = av.ibkrCoutsMarge || {};
+    const pct = (x, d = 2) => (x * 100).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' %';
+    const natif = (cur, v) => cur === 'USD' ? '$' + Math.round(v).toLocaleString('en-US')
+      : cur === 'JPY' ? '\u00a5' + Math.round(v).toLocaleString('ja-JP')
+      : Math.round(v).toLocaleString('fr-FR') + ' \u20ac';
+    // Risque de change d'un rapatriement AED → devise (le dirham est arrimé au dollar)
+    const risqueFX = { USD: 'AED arrim\u00e9 au dollar : pas de risque de change',
+      EUR: 'change AED \u2192 EUR au jour du virement',
+      JPY: 'rembourser ferme le short yen (fin du risque si le yen remonte)' };
+    let totMois = 0, totAn = 0;
     [
-      ['EUR', av.ibkrCashEUR.toLocaleString('fr-FR'), fmt(av.ibkrCashEUR)],
-      ['USD', '$' + av.ibkrCashUSD.toLocaleString('en-US'), fmt(av.ibkrCashUSD / fx.USD)],
-      ['JPY', '\u00a5' + av.ibkrCashJPY.toLocaleString('ja-JP'), fmt(av.ibkrCashJPY / fx.JPY)],
-    ].forEach(([cur, native, eur]) => {
+      ['EUR', av.ibkrCashEUR, av.ibkrCashEUR],
+      ['USD', av.ibkrCashUSD, av.ibkrCashUSD / fx.USD],
+      ['JPY', av.ibkrCashJPY, av.ibkrCashJPY / fx.JPY],
+    ].forEach(([cur, montant, eur]) => {
+      const c = couts[cur];
       const tr = document.createElement('tr');
-      const cls = cur === 'JPY' ? 'pl-neg' : '';
-      tr.innerHTML = '<td>' + cur + '</td><td class="num ' + cls + '">' + native + '</td><td class="num ' + cls + '">' + eur + '</td>';
+      const cls = montant < 0 ? 'pl-neg' : '';
+      let cols;
+      if (c) {
+        totMois += c.coutMensuelEUR; totAn += c.coutAnnuelEUR;
+        const tauxTitre = 'Taux IBKR Pro ' + pct(c.tauxNominal, 3) + ' en base ACT/' + c.base
+          + (c.base === 360 ? ' \u2192 ' + pct(c.tauxEffectif, 3) + ' sur 365 jours' : '')
+          + ' \u2014 accrual quotidien';
+        const jour = cur === 'JPY' ? '\u00a5' + Math.round(c.coutJourNatif) : cur === 'USD' ? '$' + c.coutJourNatif.toFixed(2) : c.coutJourNatif.toFixed(2).replace('.', ',') + ' \u20ac';
+        const verdict = c.rapatrier
+          ? '<span class="pl-pos"><strong>Oui</strong></span> \u2014 \u00e9conomie ' + fmt(c.ecartAnnuelEUR) + '/an'
+            + (c.moisAmortissement != null ? ', frais amortis en ' + Math.max(1, Math.ceil(c.moisAmortissement)) + ' mois' : '')
+          : '<strong>Non</strong> \u2014 la marge co\u00fbte ' + (-c.ecartPts).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            + ' pt de moins que Wio ne rapporte : ' + fmt(-c.ecartAnnuelEUR) + '/an en faveur de la marge';
+        cols = '<td class="num" title="' + tauxTitre + '">' + pct(c.tauxEffectif)
+          + '<br><span style="font-size:11px;color:#718096;">' + jour + '/jour</span></td>'
+          + '<td class="num pl-neg" title="' + natif(cur, c.coutMensuelNatif) + ' par mois">\u2212' + fmt(c.coutMensuelEUR) + '</td>'
+          + '<td class="num pl-neg" title="' + natif(cur, c.coutAnnuelNatif) + ' par an">\u2212' + fmt(c.coutAnnuelEUR) + '</td>'
+          + '<td style="font-size:12px;line-height:1.35;">' + verdict
+          + '<br><span style="color:#718096;">' + risqueFX[cur] + '</span></td>';
+      } else {
+        cols = '<td class="num" style="color:#a0aec0;">\u2014</td><td class="num" style="color:#a0aec0;">\u2014</td>'
+          + '<td class="num" style="color:#a0aec0;">\u2014</td><td style="color:#a0aec0;font-size:12px;">solde cr\u00e9diteur</td>';
+      }
+      tr.innerHTML = '<td>' + cur + '</td><td class="num ' + cls + '">' + natif(cur, montant) + '</td><td class="num ' + cls + '">' + fmt(eur) + '</td>' + cols;
       cashTbody.appendChild(tr);
     });
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td><strong>Total Cash IBKR</strong></td><td></td><td class="num"><strong>' + fmt(av.ibkrCashTotal) + '</strong></td>';
+    tr.innerHTML = '<td><strong>Total Cash IBKR</strong></td><td></td><td class="num"><strong>' + fmt(av.ibkrCashTotal) + '</strong></td><td></td>'
+      + '<td class="num pl-neg"><strong>' + (totMois ? '\u2212' + fmt(totMois) : '\u2014') + '</strong></td>'
+      + '<td class="num pl-neg"><strong>' + (totAn ? '\u2212' + fmt(totAn) : '\u2014') + '</strong></td><td></td>';
     cashTbody.appendChild(tr);
+
+    // Synthèse sous le tableau : combien coûte la marge, et ce que changerait un rapatriement
+    const note = document.getElementById('actionsCashMargeNote');
+    if (note) {
+      const debiteurs = Object.values(couts).filter(Boolean);
+      if (!debiteurs.length) {
+        note.style.display = 'none';
+      } else {
+        const tauxWio = debiteurs[0].tauxWio;
+        const besoinEUR = debiteurs.reduce((s2, c) => s2 + c.absEUR, 0);
+        const renonce = debiteurs.reduce((s2, c) => s2 + c.renoncementWioEUR, 0);
+        const frais = debiteurs.reduce((s2, c) => s2 + c.fraisEUR, 0);
+        const aRapatrier = debiteurs.filter(c => c.rapatrier).map(c => c.devise);
+        const solde = av.wioSavingsEUR || 0;
+        note.style.display = '';
+        note.innerHTML = '<strong>Co\u00fbt de la marge :</strong> ' + fmt(besoinEUR) + ' emprunt\u00e9s co\u00fbtent '
+          + fmt(totAn) + '/an (' + fmt(totMois) + '/mois). Les rapatrier de l\u2019\u00e9pargne Wio (' + pct(tauxWio, 0)
+          + ', ' + fmt(solde) + ' disponibles) ferait perdre ' + fmt(renonce) + '/an d\u2019int\u00e9r\u00eats, plus ~'
+          + fmt(frais) + ' de frais de virement une fois. '
+          + (aRapatrier.length
+            ? '<strong>Rapatrier vaut le coup pour : ' + aRapatrier.join(', ') + '.</strong>'
+            : '<strong>Garder la marge reste moins cher</strong> : chaque taux IBKR est sous les ' + pct(tauxWio, 0) + ' de Wio.')
+          + '<br><span style="color:#718096;font-size:12px;">Taux IBKR Pro tranche 1 (benchmark + 1,5 %), recoup\u00e9s sur les relev\u00e9s du compte le '
+          + new Date(IBKR_MARGE_VERIFIEE_LE).toLocaleDateString('fr-FR') + '. Les int\u00e9r\u00eats courent sur le solde <em>r\u00e9gl\u00e9</em> : '
+          + 'un achat n\u2019est factur\u00e9 qu\u2019\u00e0 son r\u00e8glement (J+1). Int\u00e9r\u00eat du jour = solde r\u00e9gl\u00e9 \u00d7 taux \u00f7 360 (EUR, USD) ou \u00f7 365 (JPY), m\u00e9thode v\u00e9rifi\u00e9e au centime sur les relev\u00e9s. '
+          + 'L\u2019\u00e9pargne Wio est bloqu\u00e9e par espaces d\u2019un mois : retirer avant l\u2019\u00e9ch\u00e9ance peut co\u00fbter les int\u00e9r\u00eats du mois en cours.</span>';
+      }
+    }
   }
 
   // (Degiro closed positions table removed — merged into unified allClosedTable above)
@@ -8068,7 +8134,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=572').then(m => {
+  import('./charts.js?v=573').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

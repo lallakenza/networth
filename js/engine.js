@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=572';
-import { lireContratEnCache } from './facturation_contract.js?v=572';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=573';
+import { lireContratEnCache } from './facturation_contract.js?v=573';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -321,6 +321,57 @@ export function deviseCotation(trades) {
   return t.currency || 'EUR';
 }
 
+// ── v573 — Coût de la marge IBKR par devise ─────────────────────────────────
+// Taux moyen pondéré par tranches (IBKR_CONFIG.marge[devise].tiers) pour un emprunt de
+// `montantAbs` en devise native. Taux NOMINAL, avant convention de jours.
+export function tauxMargeIBKR(montantAbs, devise) {
+  const conf = IBKR_CONFIG.marge && IBKR_CONFIG.marge[devise];
+  if (!conf || !(montantAbs > 0)) return 0;
+  let reste = montantAbs, cout = 0, plancher = 0;
+  for (const t of conf.tiers) {
+    const tranche = Math.min(reste, t.limit - plancher);
+    if (tranche <= 0) break;
+    cout += tranche * t.rate;
+    reste -= tranche;
+    plancher = t.limit;
+  }
+  return cout / montantAbs;
+}
+
+// Coût annuel et mensuel d'un solde négatif, et comparaison avec le rapatriement de la
+// même somme depuis l'épargne Wio. null si le solde n'est pas débiteur.
+//   tauxEffectif = taux nominal × 365 / base (ACT/360 en EUR/USD ⇒ 4,049 % coûte 4,105 %)
+//   garder la marge coûte  coutAnnuelEUR
+//   rapatrier coûte        renoncementWioEUR (6 % non perçus) + fraisEUR une fois
+//   ecartAnnuelEUR > 0 ⇒ la marge coûte plus cher que l'épargne Wio ne rapporte
+export function coutMargeIBKR(soldeNatif, devise, fx, tauxWio) {
+  if (!(soldeNatif < 0)) return null;
+  const conf = IBKR_CONFIG.marge && IBKR_CONFIG.marge[devise];
+  if (!conf) return null;
+  const absNatif = -soldeNatif;
+  const tauxNominal = tauxMargeIBKR(absNatif, devise);
+  const tauxEffectif = tauxNominal * 365 / conf.base;
+  const coutAnnuelNatif = absNatif * tauxEffectif;
+  const absEUR = toEUR(absNatif, devise, fx);
+  const coutAnnuelEUR = absEUR * tauxEffectif;
+  const renoncementWioEUR = absEUR * tauxWio;
+  const fraisEUR = absEUR * (IBKR_CONFIG.rapatriementFraisPct || 0);
+  const ecartAnnuelEUR = coutAnnuelEUR - renoncementWioEUR;
+  return {
+    devise, absNatif, absEUR, base: conf.base,
+    tauxNominal, tauxEffectif, tauxWio,
+    // Accrual IBKR d'un jour : solde réglé × taux nominal / base (méthode recoupée sur les relevés)
+    coutJourNatif: absNatif * tauxNominal / conf.base,
+    coutAnnuelNatif, coutMensuelNatif: coutAnnuelNatif / 12,
+    coutAnnuelEUR, coutMensuelEUR: coutAnnuelEUR / 12,
+    renoncementWioEUR, fraisEUR, ecartAnnuelEUR,
+    ecartPts: (tauxEffectif - tauxWio) * 100,
+    rapatrier: ecartAnnuelEUR > 0,
+    // Mois pour que l'économie rembourse les frais de virement (si rapatrier est rentable)
+    moisAmortissement: ecartAnnuelEUR > 0 ? fraisEUR / (ecartAnnuelEUR / 12) : null,
+  };
+}
+
 function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp, nezhaIbkrPositions = []) {
   const ibkr = portfolio.amine.ibkr;
   const espp = portfolio.amine.espp;
@@ -332,6 +383,12 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const ibkrCashJPY = ibkr.cashJPY;
   const ibkrCashAED = ibkr.cashAED || 0; // v351 — solde AED IBKR (conversions EUR→AED juin 2026)
   const ibkrCashTotal = ibkrCashEUR + toEUR(ibkrCashUSD, 'USD', fx) + toEUR(ibkrCashJPY, 'JPY', fx) + toEUR(ibkrCashAED, 'AED', fx);
+  // v573 — coût de chaque solde débiteur, comparé au rapatriement depuis l'épargne Wio
+  const ibkrCoutsMarge = {
+    EUR: coutMargeIBKR(ibkrCashEUR, 'EUR', fx, CASH_YIELDS.wioSavings),
+    USD: coutMargeIBKR(ibkrCashUSD, 'USD', fx, CASH_YIELDS.wioSavings),
+    JPY: coutMargeIBKR(ibkrCashJPY, 'JPY', fx, CASH_YIELDS.wioSavings),
+  };
 
   // IBKR positions P/L (using historical FX for cost basis)
   const totalPositionsVal = ibkrPositions.reduce((s, p) => s + p.valEUR, 0);
@@ -1559,7 +1616,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     nezhaIbkrNAV,
     nezhaIbkrLatent,
     ibkrNAV,
-    ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal,
+    ibkrCashEUR, ibkrCashUSD, ibkrCashJPY, ibkrCashTotal, ibkrCoutsMarge,
+    ibkrCashAED,
+    wioSavingsEUR: toEUR(portfolio.amine.uae.wioSavings || 0, 'AED', fx),
     reconciliation, concentration,
     totalPositionsVal, totalCostBasis, totalUnrealizedPL, totalFxPL, totalStockPL,
     // ESPP detail
@@ -1847,25 +1906,10 @@ function computeCashView(portfolio, fx) {
   }
 
   // ── IBKR JPY Emprunt (margin) — taux par tranche ──────
-  // Source : interactivebrokers.com/en/trading/margin-rates.php
-  // IBKR Pro — Benchmark (BM) JPY = 0.75% (BOJ Unsecured Overnight Call Rate, 31 mars 2026)
-  //
-  // ⚠️  POUR METTRE À JOUR : modifier les taux ci-dessous
-  //     Tier 1: 0 → ¥11M    = BM + 1.5%  (actuellement 2.25%)
-  //     Tier 2: ¥11M → ¥114M = BM + 1.0%  (actuellement 1.75%)
-  //     Tier 3: > ¥114M      = BM + 0.75% (actuellement 1.50%)
+  // v573 : tranches dans IBKR_CONFIG.marge.JPY (taux vérifiés le 31/10/2026), calcul
+  // partagé avec le tableau Cash IBKR via tauxMargeIBKR().
   function ibkrJPYBorrowCost(absJPY) {
-    const tiers = IBKR_CONFIG.jpyTiers;
-    let remaining = absJPY, totalCost = 0, prev = 0;
-    for (const t of tiers) {
-      const slice = Math.min(remaining, t.limit - prev);
-      if (slice <= 0) break;
-      totalCost += slice * t.rate;
-      remaining -= slice;
-      prev = t.limit;
-    }
-    // Return effective blended rate (negative = cost)
-    return absJPY > 0 ? -(totalCost / absJPY) : 0;
+    return absJPY > 0 ? -tauxMargeIBKR(absJPY, 'JPY') : 0;
   }
 
   const accounts = [

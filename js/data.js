@@ -1578,7 +1578,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v572';
+export const APP_VERSION = 'v573';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1745,7 +1745,7 @@ export const INFLATION_RATE = 0.03; // 3% annuel
 // See engine.js pour implémentation (ibkrJPYBorrowCost, ibkrCashYield)
 //
 // Source : https://www.interactivebrokers.com/en/trading/margin-rates.php
-// Dernière vérification : 31 mars 2026 — BOJ rate 0.75% (verified), IBKR rates via website
+// Dernière vérification : 31 octobre 2026 — taux de marge relevés sur la page IBKR Pro et recoupés sur les relevés du compte (v573)
 // ════════════════════════════════════════════════════════════
 export const IBKR_CONFIG = {
   // ── Seuil cash EUR/USD ──
@@ -1753,18 +1753,37 @@ export const IBKR_CONFIG = {
   // Au-delà : appliqué taux IBKR_CONFIG.CASH_YIELDS
   cashThreshold: 10000,
 
-  // ── Tiers d'emprunt JPY (marge) ──
-  // Utilisé pour calcul intérêt/coût carry trade JPY short
-  // Benchmark JPY mars 2026 = 0.75% (BOJ Unsecured Overnight Call Rate, vérifiée)
-  // Note: Dernière vérification 31 mars 2026. Pour taux complets IBKR Pro:
-  //       consulter https://www.interactivebrokers.com/en/trading/margin-rates.php
-  // Taux = Benchmark + spread (spread dépend du tier)
-  // Calcul: engine.js ibkrJPYBorrowCost()
-  jpyTiers: [
-    { limit: 11000000,  rate: 0.02204 },  // Tier 1: 0 → ¥11M   (BM + 1.5% = 0.75% + 1.5% = 2.25%)
-    { limit: 114000000, rate: 0.01704 },  // Tier 2: ¥11M → ¥114M (BM + 1.0% = 0.75% + 1.0% = 1.75%)
-    { limit: Infinity,  rate: 0.01454 },  // Tier 3: > ¥114M      (BM + 0.75% = 0.75% + 0.75% = 1.5%)
-  ],
+  // ── Taux de marge IBKR Pro (v573) — par devise, par tranche ──
+  // Source : page officielle IBKR Pro (interactivebrokers.com/en/trading/margin-rates.php),
+  // relevée le 31/10/2026, ET recoupée sur les relevés d'activité du compte (accruals) :
+  //   EUR : 1,12 € le 26/10 = 4 jours sur −2 520 € ; 1,23 € le 29/10 = 2×(−2 520) + 1×(−5 923)
+  //         jours → 4,049 % en base ACT/360, au centime près.
+  //   JPY : 351 ¥ le 26/10 = 3 jours, 117-119 ¥/jour sur −1 604 546 ¥ → 2,663 % en ACT/365.
+  //   USD : rien encore facturé au 30/10 — l'intérêt court sur le solde RÉGLÉ, et l'achat GOOGL
+  //         du 30/10 (qui fait passer l'USD en négatif) se règle le 02/11.
+  // Tranche 1 = Benchmark + 1,5 %. `limit` = plafond de la tranche en devise native.
+  // `base` = convention de calcul des jours (360 ⇒ coût annuel réel = taux × 365/360).
+  // Pour mettre à jour : relever la page IBKR (ou un relevé daily, section Interest Accruals).
+  margeVerifieeLe: '2026-10-31',
+  marge: {
+    EUR: { base: 360, tiers: [
+      { limit: 90000,   rate: 0.04049 },   // 0 → 90 k€      (BM + 1,5 %)
+      { limit: Infinity, rate: 0.03549 },  // > 90 k€ (BM + 1,0 % jusqu'à 900 k€ ; au-delà non relevé, sans objet)
+    ] },
+    USD: { base: 360, tiers: [
+      { limit: 100000,  rate: 0.05380 },   // 0 → 100 k$     (BM + 1,5 %)
+      { limit: Infinity, rate: 0.04880 },  // > 100 k$ (BM + 1,0 % jusqu'à 1 M$ ; au-delà non relevé, sans objet)
+    ] },
+    JPY: { base: 365, tiers: [
+      { limit: 11000000,  rate: 0.02663 }, // 0 → ¥11 M      (BM + 1,5 %)
+      { limit: Infinity,  rate: 0.02163 }, // > ¥11 M (BM + 1,0 % jusqu'à ¥114 M ; au-delà non relevé, sans objet)
+    ] },
+  },
+
+  // ── Rapatriement depuis Wio (comparaison du tableau Cash IBKR) ──
+  // Coût ponctuel estimé d'un virement AED → EUR/USD/JPY via Wise (change + frais),
+  // ordre de grandeur constaté sur le transfert UBS → IBKR d'octobre 2026. Estimation.
+  rapatriementFraisPct: 0.005,
 
   // ── Gestion de trésorerie ──
   // Solde EUR optimal = seuil recommandé pour éviter frais margin
@@ -1775,6 +1794,8 @@ export const IBKR_CONFIG = {
   // Taux benchmark pour calcul coût d'opportunité (6% = rendement médian cash)
   refYield: 0.06,
 };
+// Alias historique : les tranches JPY vivent désormais dans IBKR_CONFIG.marge.JPY.
+IBKR_CONFIG.jpyTiers = IBKR_CONFIG.marge.JPY.tiers;
 
 // ════════════════════════════════════════════════════════════
 // TAUX DE CHANGE STATIQUES — Fallback si API indisponible
@@ -3599,10 +3620,12 @@ export const RESIDENCE_FISCALE = {
   },
 };
 
+// v573 — tranche 1 IBKR Pro, dérivée de IBKR_CONFIG.marge (source unique, vérifiée le 31/10/2026).
+// Avant : 4,3 % / 4,8 % / 1,5 % saisis à la main, le JPY sous-estimé de moitié.
 export const MARGIN_RATES = {
-  EUR: 0.043,    // 4.3% — €STR ~3.0% + spread 1.3%
-  USD: 0.048,    // 4.8% — SOFR ~3.3% + spread 1.5%
-  JPY: 0.015,    // 1.5% — TONA ~0.1% + spread 1.4% — ⚠ risque FX si yen s'apprécie
+  EUR: IBKR_CONFIG.marge.EUR.tiers[0].rate,   // 4,049 %
+  USD: IBKR_CONFIG.marge.USD.tiers[0].rate,   // 5,380 %
+  JPY: IBKR_CONFIG.marge.JPY.tiers[0].rate,   // 2,663 % — ⚠ risque FX si le yen s'apprécie
 };
 
 // ════════════════════════════════════════════════════════════
