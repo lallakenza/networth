@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=568';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=568';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=568';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=568';
-import { loadSnapshots } from './api.js?v=568'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=568'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=569';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=569';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=569';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=569';
+import { loadSnapshots } from './api.js?v=569'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=569'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -345,8 +345,11 @@ function buildAmineDonut(state) {
   const s = state.amine;
   const p = state.portfolio;
   const items = [
-    { label: 'IBKR (' + fmt(s.ibkr, true) + ')', val: s.ibkr, color: '#2b6cb0' },
-    { label: 'ESPP (' + p.amine.espp.shares + ' ACN)', val: s.espp, color: '#3182ce' },
+    // v569 — l'ACN (plan ESPP) est chez IBKR depuis le 09/10/2026
+    ...(s.acnCourtier === 'IBKR'
+      ? [{ label: 'IBKR (' + fmt(s.ibkr + s.espp, true) + ', dont ' + p.amine.espp.shares + ' ACN)', val: s.ibkr + s.espp, color: '#2b6cb0' }]
+      : [{ label: 'IBKR (' + fmt(s.ibkr, true) + ')', val: s.ibkr, color: '#2b6cb0' },
+         { label: 'UBS (' + p.amine.espp.shares + ' ACN, plan ESPP)', val: s.espp, color: '#3182ce' }]),
     { label: 'SGTM (' + p.amine.sgtm.shares + ' actions)', val: s.sgtm, color: '#ed8936' },
     { label: 'Cash UAE', val: s.uae, color: '#48bb78' },
     { label: 'Cash Maroc', val: s.moroccoCash, color: '#9ae6b4' },
@@ -1168,7 +1171,13 @@ function _drawEquityDepthChart() {
   });
   charts.eqHistDepth = new Chart(el, {
     type: 'line',
-    data: { labels, datasets: [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#718096')] },
+    // v569 — la colonne `espp` d'EQUITY_HISTORY porte l'ACN d'Amine : chez IBKR depuis le 09/10/2026,
+    // elle est rangée avec IBKR sur tout l'historique (le total ne change pas).
+    data: { labels, datasets: acnAmineChezIBKR()
+      ? [mk('Total', 'total', '#1a365d', true),
+         { ...mk('IBKR (dont ACN, plan ESPP)', 'ibkr', '#3182ce'), data: rows.map(r => (typeof r.ibkr === 'number' || typeof r.espp === 'number') ? (r.ibkr || 0) + (r.espp || 0) : null) },
+         mk('Degiro', 'degiro', '#718096')]
+      : [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#718096')] },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
@@ -1186,6 +1195,11 @@ function _drawEquityDepthChart() {
 const _ACCOUNT_LABELS = Object.fromEntries(Object.entries(CASH_ACCOUNT_IDS).map(([label, id]) => [id, label]));
 const _PROP_LABELS = { vitry: 'Vitry', rueil: 'Rueil', villejuif: 'Villejuif' };
 
+// v569 — ids stables des snapshots (jamais renommés) ; libellés par courtier : ESPP = mode d'acquisition.
+const _POS_LABELS = {
+  'ACN.ESPP.A': 'ACN — Amine (IBKR ; chez UBS jusqu\'au 09/10/2026, plan ESPP)',
+  'ACN.ESPP.N': 'ACN — Nezha (UBS, plan ESPP)',
+};
 function _histSeriesCatalog(all) {
   const cat = [];
   const add = (group, id, label, fn) => cat.push({ group, id, label, fn });
@@ -1217,7 +1231,7 @@ function _histSeriesCatalog(all) {
   // Positions (union)
   const posIds = new Set(); all.forEach(r => Object.keys((r.data.stocks || {}).positions || {}).forEach(k => posIds.add(k)));
   [...posIds].sort().forEach(t => {
-    add('Positions', 'pos.' + t, t, d => { const x = d.stocks.positions[t]; return x && x.eur; });
+    add('Positions', 'pos.' + t, _POS_LABELS[t] || t, d => { const x = d.stocks.positions[t]; return x && x.eur; });
   });
   // Créances (union)
   const crIds = new Set(); all.forEach(r => Object.keys((r.data.creances || {}).items || {}).forEach(k => crIds.add(k)));
@@ -2905,6 +2919,53 @@ function computeAbsoluteTooltipPerOwnerESPP(chartLabels, navESPPAmine, navESPPNe
 // ESPP = séries par-owner (pas un ratio) ; SGTM = proportionnel aux parts (50/50).
 // GARANTIE ANTI-RÉGRESSION : owner==='both' → renvoie null ⇒ les appelants gardent leur chemin
 // « both » actuel (byte-identique à v373). Toute la logique owner est layerée par-dessus.
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// v569 — REGROUPEMENT PAR COURTIER (affichage). ESPP est un mode d'acquisition, pas un courtier :
+// les ACN d'Amine sont chez IBKR depuis le 09/10/2026 (`espp.garde`). Le calcul garde ses séries par
+// lot (contributions, décote, FRAC) ; seul l'objet AFFICHÉ range la part d'Amine dans les séries IBKR,
+// sur tout l'historique, et ne laisse dans les séries « ESPP » (bouton UBS) que ce qui est encore chez
+// UBS. Sommes, total et invariants inchangés. Copies uniquement : les séries de calcul (TWR) ne
+// bougent pas. Nezha : son ACN reste dans la série UBS tant que son propre compte IBKR n'est pas dans
+// le graphe (la série « ibkr » est celle du compte d'Amine).
+// ══════════════════════════════════════════════════════════════════════════════════════════
+function acnAmineChezIBKR() {
+  return !!(PORTFOLIO.amine && PORTFOLIO.amine.espp && PORTFOLIO.amine.espp.garde
+    && PORTFOLIO.amine.espp.garde.courtier === 'IBKR');
+}
+function regrouperParCourtier(d) {
+  if (!d || !acnAmineChezIBKR() || d._regroupeCourtier) return d;
+  const plus = (a, b) => (a || []).map((v, i) => Math.round((v || 0) + ((b && b[i]) || 0)));
+  const moins = (a, b) => (a || []).map((v, i) => Math.round((v || 0) - ((b && b[i]) || 0)));
+  const zero = (a) => (a || []).map(() => 0);
+  const out = { ...d, _regroupeCourtier: true };
+  if (d.esppValuesAmine) {
+    out.ibkrValues = plus(d.ibkrValues, d.esppValuesAmine);
+    out.esppValues = moins(d.esppValues, d.esppValuesAmine);
+    out.esppValuesAmine = zero(d.esppValuesAmine);
+  }
+  if (d.plValuesESPPAmine) {
+    out.plValuesIBKR = plus(d.plValuesIBKR, d.plValuesESPPAmine);
+    out.plValuesESPP = moins(d.plValuesESPP, d.plValuesESPPAmine);
+    out.plValuesESPPAmine = zero(d.plValuesESPPAmine);
+  }
+  if (d.cumDepositsESPPAmine) {
+    if (d.cumDepositsAtPoint) out.cumDepositsAtPoint = plus(d.cumDepositsAtPoint, d.cumDepositsESPPAmine);
+    if (d.cumDepositsESPP) out.cumDepositsESPP = moins(d.cumDepositsESPP, d.cumDepositsESPPAmine);
+    out.cumDepositsESPPAmine = zero(d.cumDepositsESPPAmine);
+  }
+  const t = d._absoluteTooltip, o = d._absoluteTooltipPerOwner;
+  if (t && o && o.absDepsESPPAmine) {
+    out._absoluteTooltip = { ...t,
+      absDepsIBKR: plus(t.absDepsIBKR, o.absDepsESPPAmine), absDepsESPP: moins(t.absDepsESPP, o.absDepsESPPAmine),
+      absPLIBKR: plus(t.absPLIBKR, o.absPLESPPAmine), absPLESPP: moins(t.absPLESPP, o.absPLESPPAmine) };
+    out._absoluteTooltipPerOwner = { ...o, absDepsESPPAmine: zero(o.absDepsESPPAmine), absPLESPPAmine: zero(o.absPLESPPAmine) };
+  }
+  // La valeur de départ du scope suit les séries regroupées.
+  if (d.scope === 'ibkr' && out.ibkrValues) out.startValue = out.ibkrValues[0];
+  if (d.scope === 'espp' && out.esppValues) out.startValue = out.esppValues[0];
+  return out;
+}
+
 function ownerRatios(owner) {
   const aS = PORTFOLIO.amine?.sgtm?.shares || 32;
   const nS = PORTFOLIO.nezha?.sgtm?.shares || 32;
@@ -3043,7 +3104,7 @@ export function renderPortfolioChart(overrides = {}) {
     switch (scope) {
       case 'espp':
         mainData = slicedPLESPP;
-        scopeLabel = 'ESPP';
+        scopeLabel = 'UBS';
         break;
       case 'maroc':
         mainData = slicedPLSGTM;
@@ -3070,7 +3131,7 @@ export function renderPortfolioChart(overrides = {}) {
     switch (scope) {
       case 'espp':
         mainData = slicedESPP;
-        scopeLabel = 'ESPP';
+        scopeLabel = 'UBS';
         break;
       case 'maroc':
         mainData = slicedSGTM;
@@ -3446,7 +3507,7 @@ export function renderPortfolioChart(overrides = {}) {
     };
 
     if (nav.degiro > 0 || pl.degiro !== 0) html += row('Degiro', nav.degiro, dep.degiro, pl.degiro);
-    if (nav.espp > 0 || pl.espp !== 0) html += row('ESPP', nav.espp, dep.espp, pl.espp);
+    if (nav.espp > 0 || pl.espp !== 0) html += row('UBS (plan ESPP)', nav.espp, dep.espp, pl.espp);
     if (nav.ibkr > 0 || pl.ibkr !== 0) html += row('IBKR', nav.ibkr, dep.ibkr, pl.ibkr);
     if (nav.sgtm > 0 || pl.sgtm !== 0) html += row('SGTM', nav.sgtm, dep.sgtm, pl.sgtm);
     html += row('<strong>Total</strong>', nav.total, dep.total, pl.total);
@@ -4898,24 +4959,32 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       // (zone morte temporelle) → on recalcule localement avec la MÊME formule.
       const _showAll = includeESPP || includeSGTM;
       const _scope = (options && options.scope) || (_showAll ? 'all' : 'ibkr');
-      const scopeHasESPP = (_scope === 'all' || _scope === 'espp');
+      // v569 — l'ACN d'Amine est chez IBKR : elle entre dans le panneau du scope IBKR, et celui du
+      // scope UBS ne garde que la part encore chez UBS.
+      const _acnIBKR = acnAmineChezIBKR();
+      const scopeHasESPP = (_scope === 'all' || _scope === 'espp' || (_scope === 'ibkr' && _acnIBKR));
       const scopeHasSGTM = (_scope === 'all' || _scope === 'maroc');
       if (!scopeHasESPP && !scopeHasSGTM) return; // scope IBKR/Degiro : rien à injecter
 
       // ESPP P&L for this period
       if (scopeHasESPP) {
-        const esppStart = arrayValAtDate(chartValuesESPP, startDate);
-        const esppEnd = arrayValAtDate(chartValuesESPP, endDate);
+        // Séries selon le scope : IBKR → part d'Amine ; UBS → le reste ; Tous → l'ensemble.
+        const _sel = (tout, amine) => (!_acnIBKR || _scope === 'all') ? tout
+          : (_scope === 'ibkr' ? amine : tout.map((v, i) => (v || 0) - ((amine && amine[i]) || 0)));
+        const _navACN = _sel(chartValuesESPP, chartValuesESPPAmine);
+        const _depACN = _sel(cumDepositsESPP, cumDepositsESPPAmine);
+        const esppStart = arrayValAtDate(_navACN, startDate);
+        const esppEnd = arrayValAtDate(_navACN, endDate);
         // ESPP deposits in this period (from cumDepositsESPP)
-        const cumESPPStart = arrayValAtDate(cumDepositsESPP, startDate);
-        const cumESPPEnd = arrayValAtDate(cumDepositsESPP, endDate);
+        const cumESPPStart = arrayValAtDate(_depACN, startDate);
+        const cumESPPEnd = arrayValAtDate(_depACN, endDate);
         const esppDeposits = cumESPPEnd - cumESPPStart;
         const esppPL = Math.round(esppEnd - esppStart - esppDeposits);
         if (Math.abs(esppPL) >= 1) {
           const esppCapital = esppStart + esppDeposits;
           const esppPct = esppCapital > 0 ? Math.round((esppPL / esppCapital) * 1000) / 10 : null;
           bd.breakdown.push({
-            label: 'Accenture ESPP (ACN)',
+            label: (_acnIBKR && _scope === 'ibkr') ? 'Accenture (ACN, plan ESPP)' : 'Accenture (ACN, plan ESPP' + (_acnIBKR && _scope === 'espp' ? ', UBS' : '') + ')',
             ticker: 'ACN',
             pl: esppPL,
             pct: esppPct,
@@ -5127,7 +5196,9 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
 
   // ── 'alltime' mode: cache and return early (no chart rendering) ──
   if (mode === 'alltime') {
-    window._simulationAllTimeCache = {
+    // Source de calcul du graphe 5 ans (P&L par plateforme recalculé depuis les dépôts) : NON
+    // regroupée — le regroupement par courtier se fait à l'affichage de ce graphe.
+    window._simulationAllTimeCache = ({
       labels: chartLabels.slice(),
       ibkrValues: chartValues.slice(),
       totalValues: chartValuesTotal.slice(),
@@ -5136,11 +5207,11 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       esppValuesNezha: chartValuesESPPNezha.slice(),  // v276
       sgtmValues: chartValuesSGTM.slice(),
       degiroValues: chartValuesDegiro.slice(),
-    };
+    });
     // v269: also store alltime P&L data for cross-mode validation
     // v276: includes per-owner ESPP data
     // v303: plValues* now unified (lifetime P&L from absTooltip)
-    window._chartDataByMode.alltime = {
+    window._chartDataByMode.alltime = regrouperParCourtier({
       labels: chartLabels.slice(),
       ibkrValues: chartValues.slice(),
       totalValues: chartValuesTotal.slice(),
@@ -5164,7 +5235,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
       _absoluteTooltipPerOwner: absTooltipPerOwner,  // v303
       degiroRealizedPL,
       mode: 'alltime',
-    };
+    });
     console.log('[sim-alltime] Cached all-time simulation: ' + chartLabels.length + ' pts, ' + chartLabels[0] + ' → ' + chartLabels[chartLabels.length - 1]);
     console.log('[sim-alltime] IBKR NAV first: €' + chartValues[0] + ', last: €' + chartValues[chartValues.length - 1]);
     console.log('[sim-alltime] Lifetime P&L Total: €' + Math.round(plValuesTotalUnified[plValuesTotalUnified.length - 1]));
@@ -5181,7 +5252,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
   // v303 — plValues* are the UNIFIED lifetime series (navX[t] − absDepsX[t]).
   // This guarantees cross-mode parity: YTD / 1Y / alltime all expose the same
   // canonical P&L for any given date t.
-  const _chartFullData = {
+  const _chartFullData = regrouperParCourtier({
     labels: chartLabels,
     ibkrValues: chartValues,
     totalValues: chartValuesTotal,
@@ -5217,7 +5288,7 @@ export function buildPortfolioYTDChart(portfolio, historicalData, fxStatic, opti
     degiroRealizedPL,
     mode,
     currentPeriod: 'YTD',
-  };
+  });
 
   // ── v303 regression guards — invariants that MUST hold ──
   // These console.assert checks fail loudly if a future refactor drifts
@@ -5367,6 +5438,9 @@ export function buildEquityHistoryChart(period, options) {
     for (const h of ehBefore) {
       dataPoints.push({
         date: h.date, degiro: h.degiro, espp: h.espp,
+        // v569 — la colonne `espp` d'EQUITY_HISTORY est l'ACN d'AMINE (lots depuis 2020 ; 36 250 € au
+        // 31/03/2026 = ses 167 parts) : attribuée à Amine, ce qui permet aussi le regroupement par courtier.
+        esppAmine: h.espp || 0, esppNezha: 0,
         ibkr: h.ibkr || 0, sgtm: 0, note: h.note,
       });
     }
@@ -5404,7 +5478,7 @@ export function buildEquityHistoryChart(period, options) {
     // No simulation data cached — fall back to EQUITY_HISTORY only
     dataPoints = filtered.map(h => ({
       date: h.date, degiro: h.degiro, espp: h.espp,
-      esppAmine: 0, esppNezha: 0,  // v276: no per-owner data for pre-simulation EH entries
+      esppAmine: h.espp || 0, esppNezha: 0,  // v569 — colonne `espp` d'EQUITY_HISTORY = ACN d'Amine
       ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
     }));
     console.log('[equity-history] No alltime cache — using EQUITY_HISTORY only (' + dataPoints.length + ' points)');
@@ -5650,9 +5724,11 @@ export function buildEquityHistoryChart(period, options) {
     _equityEntries: dataPoints,  // BUG-035: keep full array for index alignment with chart data (consumers check .note before display)
   };
   // v273: Store in per-mode data store AND set active mode (fixes 5Y/MAX rendering)
-  window._chartDataByMode[modeKey] = chartData;
+  // v569 — affichage regroupé par courtier (ACN d'Amine chez IBKR), comme les autres périodes.
+  const _affiche = regrouperParCourtier(chartData);
+  window._chartDataByMode[modeKey] = _affiche;
   window._activeChartMode = modeKey;
-  window._ytdChartFullData = chartData;
+  window._ytdChartFullData = _affiche;
 
   // Render
   renderPortfolioChart({ period, scope: (options && options.scope) || 'all' });

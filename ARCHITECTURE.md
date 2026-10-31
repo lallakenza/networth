@@ -5056,6 +5056,32 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v569 (31 octobre 2026) — ACN d'Amine chez IBKR : ESPP est un mode d'acquisition, pas un courtier
+
+Amine a transféré ses 167 ACN (plan ESPP Accenture) de UBS vers IBKR (UBS exécuté le 09/10/2026, réf.
+W320261009E6Q3 ; un numéro DTC erroné, 0547 au lieu de 0534, a retardé l'arrivée) et le cash UBS via Wise
+(2 729,33 USD reçus le 18/10). Connecteur IBKR du 31/10 : ACN 167 au PRU 215,88 USD (= coût ESPP
+36 052 / 167), +20 VWCE le 26/10 (170,14 €), 40 GOOGL le 30/10 (281 USD), cash EUR −5 922,99 et
+USD −8 511,67 (reconstitués au centime). Nezha garde ses 40 ACN chez UBS pour l'instant.
+
+- `espp.garde` = { courtier, depuis, avant, note } : où sont DÉTENUES les actions du plan. `engine.js ::
+  courtierACN()` ; agrégats d'affichage `ibkrAvecACN` / `ubsForActions` et contributions ventilées
+  (`esppDepositsAmine/Nezha`). Les agrégats de calcul (`ibkrForActions`, compte IBKR reconstitué par
+  trades, TWR) ne changent pas ; les lots restent la source du coût (contributions, décote, FRAC).
+- Affichage regroupé par courtier sur tout l'historique, avec la mention « chez UBS jusqu'au 09/10/2026 » :
+  cartes, tableaux, positions (une ligne ACN par courtier), donut, bouton « UBS » (ex-« ESPP ») du graphe.
+  `charts.js :: regrouperParCourtier` agit sur les COPIES affichées (séries, P&L, contributions, données
+  absolues de l'infobulle) : la part d'Amine passe dans IBKR, sommes et invariants inchangés. Le graphe
+  5 ans attribue la colonne `espp` d'EQUITY_HISTORY à Amine (ses lots depuis 2020).
+- Historique : `SOLDES_RETROACTIFS` remet le cash UBS à 0 et les 2 729,33 USD chez IBKR dans les snapshots
+  du 18 au 31/10 écrits avant la v569 (+437 €). Les achats VWCE/GOOGL, neutres à la date d'achat, ne sont
+  pas reconstitués dans ces snapshots.
+- **Correctif v566** : `restaterFacturation` écrasait la position publiée par le contrat 2048 dans les
+  lignes qui l'avaient lue — le contrat a été republié le 11/10 (−167 295 MAD, données au 10/10) et la
+  table s'arrêtait au 15/09 : +14 800 € fictifs par jour depuis le 12/10. Une ligne au contrat n'est
+  plus jamais restatée ; la table porte la position du 11/10.
+- Tests : `tests/courtiers.test.js` ; un contrôle de plus dans `tests/historique-fiable.test.js`.
+
 ## v568 (9 octobre 2026) — Attijari, dette Mehdi remboursée, Binance au solde réel
 
 Déclaratif d'Amine le 09/10/2026.

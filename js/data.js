@@ -151,8 +151,14 @@ export const PORTFOLIO = {
     //   - Prix ACN live: mis à jour via API (market.acnPriceUSD)
     //
     espp: {
-      shares: 167,          // 164 actions ESPP + 3 FRAC (dividendes réinvestis) — toutes chez UBS
-      cashEUR: 2000,        // Cash résiduel en EUR dans le compte UBS
+      shares: 167,          // 164 actions ESPP + 3 FRAC (dividendes réinvestis)
+      // v569 — ESPP = mode d'ACQUISITION (plan d'actionnariat salarié Accenture), pas un courtier.
+      // `garde` dit où les actions sont DÉTENUES. Le site les affiche chez ce courtier sur tout
+      // l'historique, avec la mention de l'ancien dépositaire. Les lots restent la source du coût
+      // (contributions salariales, décote 15 %, FRAC à coût nul).
+      garde: { courtier: 'IBKR', depuis: '2026-10-09', avant: 'UBS',
+        note: 'Détenues chez UBS (plan ESPP Accenture) jusqu\'au transfert vers IBKR (UBS exécuté le 09/10/2026, réf. W320261009E6Q3)' },
+      cashEUR: 0,           // v569 — le cash UBS est parti chez IBKR via Wise (2 729,33 USD reçus le 18/10/2026)
       // Lots détaillés — costBasis = FMV at Purchase (USD/action) = cost basis fiscal
       // Triés par date décroissante (plus récent en premier)
       // Note: pour le lot 1, costBasis = Discounted Price (pas FMV) — historique, conservé tel quel
@@ -286,12 +292,14 @@ export const PORTFOLIO = {
         // VWCE = Vanguard FTSE All-World UCITS ETF USD **Acc** (capitalisant, domicile Irlande), coté Xetra en EUR.
         // Ticker Yahoo = VWCE.DE. Acheté le 01/09/2026 : sharesAtStart=0 sur MTD/1M/YTD/1Y ⇒ les prix de
         // référence ne servent pas au P&L de période (clôtures Yahoo relevées le 19/09/2026, pour mémoire).
-        { ticker: 'VWCE.DE', shares: 50,   price: 167.14, costBasis: 166.94, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
+        { ticker: 'VWCE.DE', shares: 70,   price: 168.82, costBasis: 167.90, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 }, // v569 — 50 + 20 (26/10/2026) ; PRU IBKR 167,8996
+        // v569 — Alphabet (GOOGL), 40 actions achetées le 30/10/2026 à 281 USD (lendemain d'une baisse de 12,7 % sur résultats).
+        { ticker: 'GOOGL',   shares: 40,   price: 279.84, costBasis: 281.03, currency: 'USD', label: 'Alphabet (GOOGL)', sector: 'tech', geo: 'us', ytdOpen: 315.15, mtdOpen: 338.24, oneMonthAgo: 344.08 }, // clôtures Yahoo : 02/01 315,15 · 01/10 338,24 · 30/09 344,08
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
-      cashEUR: -2517.19,     // Solde EUR chez IBKR (connecteur 09/10/2026). −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
-      cashUSD: 0,            // Solde USD chez IBKR — 0 (connecteur 09/10/2026)
+      cashEUR: -5922.99,     // v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1604546.36, // Solde JPY chez IBKR (connecteur 09/10/2026). −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
       cashAED: 0,            // v562 — 11 319,13 AED retirés vers Wio le 31/08/2026 (e-mail IBKR « Withdrawal Activity ») ; absent du connecteur le 09/10. Déjà dans le solde Wio lu dans l'app
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
@@ -440,6 +448,7 @@ export const PORTFOLIO = {
         { date: '2025-12-19', amount: 15000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement décembre' },
         { date: '2026-01-09', amount: 3000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement janvier 2026' },
         { date: '2026-08-28', amount: 10004,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement EUR (constaté connecteur 28/08 — exécuté entre le 12/07 et le 28/08, date exacte non tracée)' },
+        { date: '2026-10-18', amount: 2729.33, currency: 'USD', fxRateAtDate: 1.1213, label: 'Virement Wise → IBKR (cash du compte UBS d\'Amine ; montant déduit des soldes IBKR, l\'e-mail le masque)' },
         { date: '2026-08-31', amount: -11319.13, currency: 'AED', fxRateAtDate: 4.2642, label: 'Retrait AED vers Wio (e-mail IBKR « Withdrawal Activity » du 31/08/2026 ; montant masqué dans l\'e-mail = solde AED entier, absent du connecteur le 09/10)' },
         { date: '2026-03-31', amount: -2000,  currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR (mars 2026)' },
         // ── AED deposits (statement IBKR lignes 312-315) ──
@@ -563,7 +572,9 @@ export const PORTFOLIO = {
         { date: '2026-04-08', ticker: 'DG.PA',  label: 'Vinci',             type: 'sell', qty: 100,  price: 136.65,  currency: 'EUR', proceeds: 13665, realizedPL: 1419.00, commission: -6.83, costBasis: 122.46 , source: 'ibkr' },  // 100×(136.65-122.46)
 
         // ─── VWCE (Vanguard FTSE All-World, Acc, Xetra) — position ouverte 1er sept 2026 ───
-        { date: '2026-09-01', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 166.86, currency: 'EUR', cost: 8343, commission: -4.17, costBasis: 166.94, source: 'ibkr' },  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
+        { date: '2026-09-01', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 166.86, currency: 'EUR', cost: 8343, commission: -4.17, costBasis: 166.94, source: 'ibkr' },
+        { date: '2026-10-26', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 20, price: 170.14, currency: 'EUR', cost: 3402.8, commission: -3.00, costBasis: 170.29, source: 'ibkr' },  // v569 — connecteur IBKR : IBIS2, limite 170,14, commission 3 €
+        { date: '2026-10-30', ticker: 'GOOGL',   label: 'Alphabet',                type: 'buy', qty: 40, price: 281.00, currency: 'USD', cost: 11240,  commission: -1.00, costBasis: 281.03, fxRate: 1.11828, source: 'ibkr' },  // v569 — connecteur IBKR : ISLAND, limite 281, commission 1,00 USD  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
 
         // ═══════════════════════════════════════════════════
         //  FX TRADES — conversions de devises & carry trade
@@ -1299,6 +1310,7 @@ export const PORTFOLIO = {
     //
     espp: {
       shares: 40,
+      garde: { courtier: 'UBS' },   // v569 — toujours chez UBS (transfert vers IBKR prévu plus tard)
       cashUSD: 109.56,   // Cash résiduel dans le compte UBS (dividendes accumulés)
       totalCostBasisUSD: 10544.20,  // Somme des cost basis de tous les lots
       // Lots détaillés — source: UBS statement p.5 "Your assets → Equities"
@@ -1561,7 +1573,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v568';
+export const APP_VERSION = 'v569';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3028,6 +3040,9 @@ export const FACTURATION_HISTORIQUE = [
   { depuis: '2026-08-27T23:18:06Z', mad: 1150, source: 'pont localStorage du 27/08 23:18, confirmé jusqu\'au 05/09 18:31' },
   { depuis: '2026-09-05T21:27:57Z', mad: -8566, source: 'pont localStorage du 05/09 21:27 ; contrat 2048 au 04/09' },
   { depuis: '2026-09-15T00:00:00Z', mad: -5871, source: 'contrat 2048, données au 15/09/2026' },
+  // v569 — contrat republié avec les données au 10/10/2026 (lu par le cron dès le 12/10). Une ligne
+  // qui a lu le contrat n'est de toute façon jamais restatée : cette entrée sert aux autres sources.
+  { depuis: '2026-10-11T21:51:06Z', mad: -167295, source: 'contrat 2048, données au 10/10/2026, publié le 11/10 à 21:51 UTC' },
 ];
 
 // ════════════════════════════════════════════════════════════
@@ -3117,6 +3132,18 @@ export const SOLDES_RETROACTIFS = {
     { du: '2026-08-08', au: '2026-09-07', natif: -75640.89, devise: 'AED', proprietaire: 'A', statut: 'établi', source: 'Relevé Wio Credit clos le 08/08/2026' },
     { du: '2026-09-08', au: '2026-10-07', captureAvant: '2026-10-07T08:46:19Z', natif: -62857.96, devise: 'AED', proprietaire: 'A', statut: 'établi',
       source: 'Relevé Wio Credit clos le 08/09/2026 ; remboursé le 07/10 à 08:46 UTC (69 998,89 AED, achats et intérêts du cycle compris)' },
+  ],
+  // v569 — cash du compte UBS d'Amine (≈ 2 000 € estimés) parti chez IBKR via Wise : 2 729,33 USD reçus
+  // le 18/10/2026. Les snapshots écrits avant la v569 portaient encore le cash UBS et rien chez IBKR.
+  // Les achats de VWCE (26/10) et GOOGL (30/10), absents de ces snapshots, n'y sont pas ajoutés : neutres
+  // à la date d'achat (le cash sort, les titres entrent), l'écart depuis est de quelques dizaines d'euros.
+  espp_cash_amine: [
+    { du: '2026-10-18', au: '2026-10-31', natif: 0, devise: 'EUR', proprietaire: 'A', statut: 'établi', avantVersion: 'v569',
+      source: 'Virement Wise → IBKR reçu le 18/10/2026 (e-mail IBKR « Deposit Activity ») ; date de sortie du compte UBS non relevée' },
+  ],
+  ibkr_cash_usd: [
+    { du: '2026-10-18', au: '2026-10-31', natif: 2729.33, devise: 'USD', proprietaire: 'A', statut: 'établi', avantVersion: 'v569',
+      source: 'Virement Wise du 18/10/2026 ; montant déduit des soldes IBKR du connecteur (31/10)' },
   ],
   // v562 — 11 319 AED retirés de l'IBKR vers Wio le 31/08/2026. data.js les a gardés à l'IBKR. v563 :
   // le relevé Wio montre leur arrivée sur le compte courant le 31/08 (11 900,68 AED en fin de

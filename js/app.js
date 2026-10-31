@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=568';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=569';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=568';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=568';
-import { render, applySnapshotDeltas } from './render.js?v=568';
-import { chargerContratDistant } from './facturation_contract.js?v=568';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=568';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=568';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=568';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=568';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=569';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=569';
+import { render, applySnapshotDeltas } from './render.js?v=569';
+import { chargerContratDistant } from './facturation_contract.js?v=569';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=569';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=569';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=569';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=569';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -121,8 +121,10 @@ function updateStaticKPIsForScope(scope) {
       const fmt0 = n => Math.round(n).toLocaleString('fr-FR') + ' €';
       const parts = [];
       if (scope === 'all') {
-        parts.push('IBKR ' + fmt0(av.ibkrDepositsTotal));
-        parts.push('ESPP ' + fmt0(av.esppDeposits));
+        // v569 — par courtier : les contributions ESPP d'Amine comptent chez IBKR, où sont ses ACN.
+        const _acnIBKR = av.acnCourtierAmine === 'IBKR';
+        parts.push('IBKR ' + fmt0(av.ibkrDepositsTotal + (_acnIBKR ? (av.esppDepositsAmine || 0) : 0)));
+        parts.push('UBS ' + fmt0((av.esppDeposits || 0) - (_acnIBKR ? (av.esppDepositsAmine || 0) : 0)));
         parts.push('SGTM ' + fmt0(av.sgtmDepositsEUR));
         if (av.degiroDepositsNet !== undefined) {
           const dgNet = av.degiroDepositsNet;
@@ -136,18 +138,22 @@ function updateStaticKPIsForScope(scope) {
     }
   };
 
-  const esppTotal = (av.esppCurrentVal || 0) + (av.nezhaEsppCurrentVal || 0);
-  const esppPL = (av.esppUnrealizedPL || 0) + (av.nezhaEsppUnrealizedPL || 0);
+  // v569 — regroupement par courtier : l'ACN d'Amine (plan ESPP) est chez IBKR depuis le 09/10/2026.
+  const _acnA = av.acnCourtierAmine === 'IBKR';
+  const esppTotal = (_acnA ? 0 : (av.esppCurrentVal || 0)) + (av.nezhaEsppCurrentVal || 0);
+  const esppPL = (_acnA ? 0 : (av.esppUnrealizedPL || 0)) + (av.nezhaEsppUnrealizedPL || 0);
+  const esppDep = (av.esppDeposits || 0) - (_acnA ? (av.esppDepositsAmine || 0) : 0);
 
   switch (scope) {
     case 'all':
       setKPI(av.totalStocks, av.combinedUnrealizedPL, av.combinedRealizedPL, av.totalDeposits, av.dividends, 'Tous');
       break;
     case 'ibkr':
-      setKPI(av.ibkrNAV, av.totalUnrealizedPL, av.realizedPL, av.ibkrDepositsTotal, av.dividends, 'IBKR');
+      setKPI(av.ibkrNAV + (_acnA ? (av.esppCurrentVal || 0) : 0), av.totalUnrealizedPL + (_acnA ? (av.esppUnrealizedPL || 0) : 0),
+        av.realizedPL, av.ibkrDepositsTotal + (_acnA ? (av.esppDepositsAmine || 0) : 0), av.dividends, 'IBKR');
       break;
     case 'espp':
-      setKPI(esppTotal, esppPL, 0, av.esppDeposits || 0, 0, 'ESPP');
+      setKPI(esppTotal, esppPL, 0, esppDep, 0, 'UBS');
       break;
     case 'degiro':
       // v280 (BUG-014): Degiro NAV=0 (clôturé), Net Déployé = dépôts − retraits ≈ −50,664 €
@@ -700,18 +706,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=568');
+  const auth = await import('./auth.js?v=569');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=568');
+  const auth = await import('./auth.js?v=569');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=568');
+  const auth = await import('./auth.js?v=569');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -914,7 +920,9 @@ function updateKPIsFromChart(chartData, base) {
       break;
     case 'ibkr':
     default:
-      values = ibkrValues;
+      // v569 — la série affichée (regroupée par courtier : ACN d'Amine comprise) ; `ibkrValues`
+      // reste celle du compte seul, pour le TWR.
+      values = fullData?.ibkrValues || ibkrValues;
       plSeries = fullData?.plValuesIBKR;
       cumDeposits = fullData?.cumDepositsAtPoint;
       break;

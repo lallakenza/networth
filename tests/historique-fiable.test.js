@@ -214,6 +214,15 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.equal(c.data.autres.facturation, Math.round(-5871 / 10.7));
   });
 
+  t('facturation : une ligne qui a lu le contrat publié n’est jamais restatée', () => {
+    const r = snapAutres('2026-10-12', '2026-10-12T00:25:00Z');
+    r.data.autres.facturation = -15357;
+    r.data.meta.facturationSource = 'contrat 2048 1.0.0 (http, 2026-10-10)';
+    E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null });
+    assert.equal(r.corrections, null);
+    assert.equal(r.data.autres.facturation, -15357);
+  });
+
   t('facturation : une ligne déjà à la bonne position n’est pas touchée', () => {
     const r = snapAutres('2026-08-30', '2026-08-30T03:14:00Z');
     r.data.autres.facturation = Math.round(1150 / 10.7);

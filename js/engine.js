@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=568';
-import { lireContratEnCache } from './facturation_contract.js?v=568';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=569';
+import { lireContratEnCache } from './facturation_contract.js?v=569';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -297,6 +297,16 @@ function computeIBKRPositions(portfolio, fx, ibkr = portfolio.amine.ibkr, owner 
  * @param {Array} [nezhaIbkrPositions] - v545 — lignes du compte IBKR PROPRE de Nezha (owner 'Nezha')
  * @returns {Object} { ibkrNav, esppNav, sgtmNav, totalNav, positions: {...}, dividends, allocation, ... }
  */
+/**
+ * v569 — Courtier qui DÉTIENT les actions ACN acquises via le plan ESPP d'un titulaire.
+ * ESPP est un mode d'acquisition, pas un courtier : la garde (`espp.garde.courtier`) dit où elles
+ * sont. Sans indication : UBS, le dépositaire historique du plan Accenture.
+ */
+export function courtierACN(portfolio, titulaire) {
+  const e = portfolio && portfolio[titulaire] && portfolio[titulaire].espp;
+  return (e && e.garde && e.garde.courtier) || 'UBS';
+}
+
 function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, amineSgtm, nezhaSgtm, amineEspp, nezhaEspp, nezhaIbkrPositions = []) {
   const ibkr = portfolio.amine.ibkr;
   const espp = portfolio.amine.espp;
@@ -552,6 +562,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
 
   const ibkrDepositsTotal = netDeposits('IBKR');
   const esppDeposits      = netDeposits('ESPP (UBS)');
+  // v569 — même total, ventilé par titulaire : l'affichage range l'ACN de chacun chez son courtier.
+  const esppDepositsAmine = depositHistory.filter(d => d.platform === 'ESPP (UBS)' && d.owner === 'Amine').reduce((s, d) => s + d.amountEUR, 0);
+  const esppDepositsNezha = esppDeposits - esppDepositsAmine;
   const sgtmDepositsEUR   = netDeposits('Attijari (SGTM)');
   const degiroDepositsNet = netDeposits('Degiro'); // négatif attendu (compte clôturé à profit)
   const degiroDepositsTotal = degiroDepositsNet;   // alias rétro-compatible pour la suite du fichier
@@ -1585,6 +1598,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     whtYTD: costsYtd.whtEUR,           // v340 — retenue à la source YTD (corrige "WHT toujours 0")
     ibkrDepositsTotal: ibkrDepositsTotal,
     esppDeposits: esppDeposits,
+    esppDepositsAmine, esppDepositsNezha,              // v569
+    acnCourtierAmine: courtierACN(portfolio, 'amine'), // v569 — 'IBKR' | 'UBS'
+    acnCourtierNezha: courtierACN(portfolio, 'nezha'),
     sgtmDepositsEUR: sgtmDepositsEUR,
     // v280 (BUG-014): Degiro net déployé (peut être négatif si compte clôturé à profit)
     degiroDepositsNet: degiroDepositsNet,
@@ -4733,6 +4749,11 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     ibkrForActions: amineIbkrForActions, // positions + JPY carry (excl. EUR/USD cash → moved to Cash)
     espp: amineEspp,           // full ESPP value (shares + cash)
     esppForActions: amineEsppShares,     // shares only (cash → moved to Cash)
+    // v569 — regroupement par COURTIER pour l'affichage : l'ACN (plan ESPP) rejoint le courtier qui
+    // la détient. Les agrégats ci-dessus restent ceux du calcul (IBKR = compte reconstitué par trades).
+    acnCourtier: courtierACN(p, 'amine'),
+    ibkrAvecACN: amineIbkrForActions + (courtierACN(p, 'amine') === 'IBKR' ? amineEsppShares : 0),
+    ubsForActions: courtierACN(p, 'amine') === 'UBS' ? amineEsppShares : 0,
     brokerCash: amineBrokerCash,         // IBKR EUR/USD + ESPP cash (in Cash category)
     sgtm: amineSgtm,
     uae: amineUae,
@@ -4901,6 +4922,9 @@ export function compute(portfolio, fx, stockSource = 'statique') {
     sgtm: nezhaSgtm,
     espp: nezhaEspp,             // full ESPP (shares + cash)
     esppForActions: nezhaEsppForActions, // shares only (cash → moved to Cash)
+    acnCourtier: courtierACN(p, 'nezha'),                                               // v569
+    ibkrAvecACN: (nezhaIbkrForActions || 0) + (courtierACN(p, 'nezha') === 'IBKR' ? nezhaEsppForActions : 0),
+    ubsForActions: courtierACN(p, 'nezha') === 'UBS' ? nezhaEsppForActions : 0,
     brokerCash: nezhaBrokerCash,
     esppShares: nezhaEsppShares,
     esppCostBasisEUR: nezhaEsppCostBasisEUR,
@@ -5593,6 +5617,9 @@ function restaterImmo(d, date, table) {
 // (valeur figée de data.js, ou 0 « indisponible ») et celles d'un navigateur au pont périmé.
 function restaterFacturation(d, capturedAt, histo, fxStatic) {
   if (!Array.isArray(histo) || !histo.length || !capturedAt || !d.autres || typeof d.autres.facturation !== 'number') return null;
+  // v569 — une ligne qui a lu le contrat publié porte déjà la vraie position (le contrat a été
+  // republié le 10/10/2026 avec −167 295 MAD : la table ne doit jamais l'écraser).
+  if (/^contrat 2048/.test((d.meta && d.meta.facturationSource) || '')) return null;
   let pos = null;
   for (const h of histo) { if (h.depuis <= capturedAt) pos = h; else break; }
   if (!pos) return null;

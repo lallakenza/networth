@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=568';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=568';
+import { CURRENCY_CONFIG, CASH_YIELDS, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=569';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee } from './engine.js?v=569';
 
 // ---- Generic table sort utility ----
 /**
@@ -448,8 +448,13 @@ function renderKPIs(state, view) {
   setEur('kpiNzActions', s.nezha.esppForActions + s.nezha.sgtm + (s.nezha.ibkrForActions || 0)); // v545 — + son compte IBKR
 
   // Amine detail KPIs (show positions-only, matching Actions category)
-  setEur('kpiAmIBKR', s.amine.ibkrForActions);
+  // v569 — l'ACN (plan ESPP) est rangée chez le courtier qui la détient : IBKR depuis le transfert.
+  setEur('kpiAmIBKR', s.amine.ibkrAvecACN);
   setEur('kpiAmESPP', s.amine.esppForActions);
+  const _lblACN = document.getElementById('kpiAmESPPLabel');
+  if (_lblACN) _lblACN.textContent = s.amine.acnCourtier === 'IBKR'
+    ? 'dont ' + state.portfolio.amine.espp.shares + ' ACN (plan ESPP, ex-UBS)'
+    : 'ACN — UBS (' + state.portfolio.amine.espp.shares + ', plan ESPP)';
   setEur('kpiAmSGTM', s.amine.sgtm);
   setEur('kpiAmCash', s.amine.cashTotal);
 
@@ -533,8 +538,10 @@ function renderExpandSubs(state, view, options = {}) {
   if (catH2) catH2.textContent = strict ? 'Patrimoine par Catégorie — Amine' : 'Patrimoine par Catégorie';
 
   // Sub expand card values
-  setEur('subIBKR', strict ? s.amine.ibkrForActions : (s.amine.ibkrForActions + (s.nezha.ibkrForActions || 0))); // v545 — sous-carte du couple : les deux comptes IBKR
-  setEur('subESPP', strict ? s.amine.esppForActions : (s.amine.esppForActions + s.nezha.esppForActions));
+  // v569 — regroupement par courtier : l'ACN détenue chez IBKR compte dans la sous-carte IBKR,
+  // celle encore chez UBS dans la sous-carte UBS.
+  setEur('subIBKR', strict ? s.amine.ibkrAvecACN : (s.amine.ibkrAvecACN + (s.nezha.ibkrAvecACN || 0))); // v545 — sous-carte du couple : les deux comptes IBKR
+  setEur('subESPP', strict ? s.amine.ubsForActions : (s.amine.ubsForActions + s.nezha.ubsForActions));
   setEur('subSGTM', strict ? s.amine.sgtm : (s.amine.sgtm + s.nezha.sgtm));
   setEur('subUAE', s.amine.uae);
   setEur('subRevolutEUR', s.amine.revolutEUR);
@@ -633,11 +640,16 @@ function renderExpandSubs(state, view, options = {}) {
   const srcLabel = state.stockSource === 'live' ? ' (live)' : ' (statique)';
   const amineESPPShares = p.amine.espp.shares;
   const nezhaESPPShares = p.nezha.espp ? p.nezha.espp.shares : 0;
+  // v569 — la sous-carte UBS ne compte que l'ACN encore détenue chez UBS.
+  const _ubsA = (p.amine.espp.garde && p.amine.espp.garde.courtier === 'IBKR') ? 0 : amineESPPShares;
+  const _ubsN = (p.nezha.espp && p.nezha.espp.garde && p.nezha.espp.garde.courtier === 'IBKR') ? 0 : nezhaESPPShares;
   if (strict) {
-    setHTML('subESPPDetail', amineESPPShares + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine seul)');
+    setHTML('subESPPDetail', _ubsA ? _ubsA + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine seul)'
+      : 'Aucune : les ' + amineESPPShares + ' ACN d\'Amine sont chez IBKR depuis le 09/10/2026');
     setHTML('subSGTMDetail', p.amine.sgtm.shares + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine seul)<br>Bourse de Casablanca');
   } else {
-    setHTML('subESPPDetail', (amineESPPShares + nezhaESPPShares) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine ' + amineESPPShares + ' + Nezha ' + nezhaESPPShares + ')');
+    setHTML('subESPPDetail', (_ubsA + _ubsN) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel
+      + (_ubsA ? ' (Amine ' + _ubsA + ' + Nezha ' + _ubsN + ')' : ' (Nezha ; les ' + amineESPPShares + ' d\'Amine sont chez IBKR)'));
     setHTML('subSGTMDetail', (p.amine.sgtm.shares + p.nezha.sgtm.shares) + ' actions @ ' + p.market.sgtmPriceMAD + ' DH (Amine + Nezha)<br>Bourse de Casablanca');
   }
 
@@ -1222,8 +1234,11 @@ function renderAmineTable(state) {
   const acnPrice = '$' + p.market.acnPriceUSD.toFixed(0);
   const sgtmPrice = p.market.sgtmPriceMAD.toFixed(0) + ' DH';
   const rows = [
-    ['Portefeuille IBKR (actions + ETFs)', s.amine.ibkrForActions],
-    ['ESPP Accenture (' + p.amine.espp.shares + ' ACN @ ' + acnPrice + ')', s.amine.esppForActions],
+    // v569 — l'ACN (plan ESPP) est chez IBKR depuis le 09/10/2026 : une ligne IBKR qui la contient.
+    ...(s.amine.acnCourtier === 'IBKR'
+      ? [['Portefeuille IBKR (actions + ETFs, dont ' + p.amine.espp.shares + ' ACN du plan ESPP @ ' + acnPrice + ', chez UBS jusqu\'au 09/10/2026)', s.amine.ibkrAvecACN]]
+      : [['Portefeuille IBKR (actions + ETFs)', s.amine.ibkrForActions],
+         ['ACN — UBS, plan ESPP (' + p.amine.espp.shares + ' @ ' + acnPrice + ')', s.amine.esppForActions]]),
     ['SGTM (' + p.amine.sgtm.shares + ' actions @ ' + sgtmPrice + ')', s.amine.sgtm],
     ['Cash UAE (' + Math.round(s.amine.uaeAED).toLocaleString('fr-FR') + ' AED)', s.amine.uae],
     ['Revolut EUR', s.amine.revolutEUR],
@@ -1250,7 +1265,7 @@ function renderNezhaTable(state, view) {
   const esppLabel = (p.nezha.espp ? p.nezha.espp.shares : 0) + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0);
   const rows = [
     ['\u00c9quit\u00e9 Rueil-Malmaison', s.nezha.rueilEquity],
-    ['ESPP Accenture (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.esppForActions],
+    ['ACN — ' + (s.nezha.acnCourtier || 'UBS') + ', plan ESPP (' + esppLabel + ')' + (s.nezha.esppUnrealizedPL ? ' [P&L ' + (s.nezha.esppUnrealizedPL >= 0 ? '+' : '') + fmt(Math.round(s.nezha.esppUnrealizedPL)) + ']' : ''), s.nezha.esppForActions],
     ['Revolut EUR', s.nezha.revolutEUR],
     ['Crédit Mutuel (CC)', s.nezha.creditMutuel],
     ['Livret A — LCL (1.5%)', s.nezha.livretA],
@@ -2587,66 +2602,69 @@ function renderActionsView(state) {
     costBasis: l.costBasis, currency: 'USD', cost: l.shares * l.costBasis,
     label: 'ESPP (' + l.source + ')', owner: 'Nezha',
   }));
-  // v374 — ESPP par propriétaire (lots distincts, pas de ratio)
-  const esppAllTrades = [...(showAmine ? esppLotsAmine : []), ...(showNezha ? esppLotsNezha : [])];
-
-  const esppTotalShares = (showAmine ? av.esppShares : 0) + (showNezha ? (av.nezhaEsppShares || 0) : 0);
-  // Une ligne de POSITION ne porte que des titres. Le cash du compte ESPP y était additionné
-  // (« 207 ACN + 2 094 cash ») parce que le P&L de l'engine mêlait les deux :
-  // `esppUnrealizedPL = parts + cash − cotisations`. La correction est comptable, pas
-  // numérique — le cash au compte est la part des cotisations restée non investie, donc
-  //     (parts + cash) − cotisations  =  parts − (cotisations − cash).
-  // La ligne montre désormais les titres seuls face au coût des titres seuls, avec le MÊME
-  // P&L qu'avant ; le cash est compté une fois, dans le cash courtier.
-  const esppTotalValParts = (showAmine ? av.esppCurrentVal : 0) + (showNezha ? (av.nezhaEsppCurrentVal || 0) : 0);
-  const esppCashCompte = (showAmine ? (av.esppCashEUR || 0) : 0) + (showNezha ? (av.nezhaEsppCashEUR || 0) : 0);
-  const esppTotalPL = (showAmine ? av.esppUnrealizedPL : 0) + (showNezha ? (av.nezhaEsppUnrealizedPL || 0) : 0);
-  const esppTotalCost = (showAmine ? av.esppCostBasisEUR : 0) + (showNezha ? (av.nezhaEsppCostBasisEUR || 0) : 0)
-    - esppCashCompte;                                        // coût des PARTS
-  const esppTotalVal = esppTotalValParts;                    // titres seuls
-  // Compute ESPP period P&L (approximate from breakdown when available, else from ref prices)
-  // Le P&L de période de la ligne ESPP était pris ENTIER quel que soit le propriétaire actif :
-  // en vue Nezha, sa ligne Accenture portait le mouvement des 187 parts d'Amine plus les
-  // siennes. Le P&L de période est du pur mark-to-market (Δprix × parts), donc le prorata des
-  // parts est EXACT — c'est déjà ce que fait `scopePeriodPLByOwner` pour la carte et le widget.
+  // v569 — coût (parts seules : le cash du compte est compté une fois, dans le cash courtier) et
+  // P&L de période par titulaire, regroupés plus bas par courtier. Le P&L de période est du pur
+  // mark-to-market (Δprix × parts) : le prorata des parts est exact.
   const _partsEsppTotal = (av.esppShares || 0) + (av.nezhaEsppShares || 0);
-  const _ratioEspp = _partsEsppTotal > 0
-    ? (owner === 'both' ? 1 : (owner === 'amine' ? (av.esppShares || 0) : (av.nezhaEsppShares || 0)) / _partsEsppTotal)
-    : 0;
-  const esppPeriodPL = (period) => {
-    const bd = av.periodPL[period]?.breakdown;
-    if (bd) {
-      const acnItems = bd.filter(b => b.ticker === 'ACN');
-      if (acnItems.length) return acnItems.reduce((s2, b) => s2 + b.pl, 0) * _ratioEspp;
-    }
-    return null;
-  };
-  if (esppTotalShares > 0) allPositions.push({ // v374 : ne pas afficher une ligne ACN à 0 part (ex. Nezha sans ESPP)
-    label: 'Accenture (' + esppTotalShares + ' ACN)',
-    broker: 'UBS (ESPP)',
-    ticker: 'ACN',
-    shares: esppTotalShares,
-    price: av.esppPrice,
-    previousClose: av.acnPreviousClose,
-    priceLabel: '$' + av.esppPrice.toFixed(2),
-    costEUR: esppTotalCost,
-    valEUR: esppTotalVal,
-    unrealizedPL: esppTotalPL,
-    pctPL: esppTotalCost > 0 ? (esppTotalPL / esppTotalCost * 100) : 0,
-    dailyPL: esppPeriodPL('daily'),
-    mtdPL: esppPeriodPL('mtd'),
-    ytdPL: esppPeriodPL('ytd'),
-    oneMonthPL: esppPeriodPL('oneMonth'),
-    dailyPct: pctFromRef(av.esppPrice, av.acnPreviousClose),
-    mtdPct: pctFromRef(av.esppPrice, av.acnMtdOpen),
-    ytdPct: pctFromRef(av.esppPrice, av.acnYtdOpen),
-    oneMonthPct: pctFromRef(av.esppPrice, av.acnOneMonthAgo),
-    weight: totalAllVal > 0 ? (esppTotalVal / totalAllVal * 100) : 0,
-    sector: 'tech',
-    geo: 'us',
-    _live: av._acnLive,
-    _trades: esppAllTrades,
-  });
+  // v569 — une ligne ACN par COURTIER (ESPP = mode d'acquisition, pas un courtier) : les parts
+  // d'Amine chez IBKR depuis le 09/10/2026, celles de Nezha encore chez UBS. Deux titulaires chez le
+  // même courtier restent sur une seule ligne, comme avant. Coût et P&L par titulaire, inchangés.
+  const _membresACN = [
+    showAmine && (av.esppShares || 0) > 0 && { courtier: av.acnCourtierAmine || 'UBS', parts: av.esppShares, val: av.esppCurrentVal,
+      cash: av.esppCashEUR || 0, pl: av.esppUnrealizedPL, cout: av.esppCostBasisEUR, trades: esppLotsAmine,
+      garde: p.amine.espp.garde },
+    showNezha && (av.nezhaEsppShares || 0) > 0 && { courtier: av.acnCourtierNezha || 'UBS', parts: av.nezhaEsppShares, val: av.nezhaEsppCurrentVal || 0,
+      cash: av.nezhaEsppCashEUR || 0, pl: av.nezhaEsppUnrealizedPL || 0, cout: av.nezhaEsppCostBasisEUR || 0, trades: esppLotsNezha,
+      garde: p.nezha.espp && p.nezha.espp.garde },
+  ].filter(Boolean);
+  const _parCourtier = new Map();
+  for (const m of _membresACN) {
+    if (!_parCourtier.has(m.courtier)) _parCourtier.set(m.courtier, []);
+    _parCourtier.get(m.courtier).push(m);
+  }
+  const _fmtJour = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
+  for (const [courtier, membres] of _parCourtier) {
+    const parts = membres.reduce((t, m) => t + m.parts, 0);
+    const val = membres.reduce((t, m) => t + m.val, 0);
+    const pl = membres.reduce((t, m) => t + m.pl, 0);
+    const cout = membres.reduce((t, m) => t + m.cout - m.cash, 0);   // coût des PARTS
+    const garde = membres.map((m) => m.garde).find((g) => g && g.depuis);
+    const ratio = _partsEsppTotal > 0 ? parts / _partsEsppTotal : 0;
+    const periode = (period) => {
+      const bd = av.periodPL[period]?.breakdown;
+      if (bd) {
+        const acnItems = bd.filter(b => b.ticker === 'ACN');
+        if (acnItems.length) return acnItems.reduce((s2, b) => s2 + b.pl, 0) * ratio;
+      }
+      return null;
+    };
+    allPositions.push({
+      label: 'Accenture (' + parts + ' ACN)' + (garde && garde.avant ? ' — plan ESPP, chez ' + garde.avant + ' jusqu\'au ' + _fmtJour(garde.depuis) : ''),
+      broker: courtier === 'UBS' ? 'UBS (plan ESPP)' : courtier,
+      ticker: 'ACN',
+      shares: parts,
+      price: av.esppPrice,
+      previousClose: av.acnPreviousClose,
+      priceLabel: '$' + av.esppPrice.toFixed(2),
+      costEUR: cout,
+      valEUR: val,
+      unrealizedPL: pl,
+      pctPL: cout > 0 ? (pl / cout * 100) : 0,
+      dailyPL: periode('daily'),
+      mtdPL: periode('mtd'),
+      ytdPL: periode('ytd'),
+      oneMonthPL: periode('oneMonth'),
+      dailyPct: pctFromRef(av.esppPrice, av.acnPreviousClose),
+      mtdPct: pctFromRef(av.esppPrice, av.acnMtdOpen),
+      ytdPct: pctFromRef(av.esppPrice, av.acnYtdOpen),
+      oneMonthPct: pctFromRef(av.esppPrice, av.acnOneMonthAgo),
+      weight: totalAllVal > 0 ? (val / totalAllVal * 100) : 0,
+      sector: 'tech',
+      geo: 'us',
+      _live: av._acnLive,
+      _trades: membres.flatMap((m) => m.trades),
+    });
+  }
 
   // ESPP Cash moved to cashView (v91) — no longer shown in Actions table
 
@@ -8028,7 +8046,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=568').then(m => {
+  import('./charts.js?v=569').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
