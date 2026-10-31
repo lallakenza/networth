@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=577';
-import { lireContratEnCache } from './facturation_contract.js?v=577';
+import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=578';
+import { lireContratEnCache } from './facturation_contract.js?v=578';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5633,6 +5633,7 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       for (const n of restaterImmo(d, row.date, tableImmo)) notes.push(n);
       const nf = restaterFacturation(d, capturedAt, histoFactu, fxStatic); if (nf) notes.push(nf);
       const nt = restaterTva(d, tva); if (nt) notes.push(nt);
+      const nd = restaterCreancesDatees(d, capturedAt, factures, fxStatic); if (nd) notes.push(nd);
       const jusquau = opts.facturesJusquau !== undefined ? opts.facturesJusquau : FACTURES_RESTATEES_JUSQUAU;
       if (capturedAt && jusquau && capturedAt.slice(0, 10) <= jusquau) {
         const nc = restaterFacturesPro(d, capturedAt, factures); if (nc) notes.push(nc);
@@ -5715,12 +5716,13 @@ function restaterImmo(d, date, table) {
 // (valeur figée de data.js, ou 0 « indisponible ») et celles d'un navigateur au pont périmé.
 function restaterFacturation(d, capturedAt, histo, fxStatic) {
   if (!Array.isArray(histo) || !histo.length || !capturedAt || !d.autres || typeof d.autres.facturation !== 'number') return null;
-  // v569 — une ligne qui a lu le contrat publié porte déjà la vraie position (le contrat a été
-  // republié le 10/10/2026 avec −167 295 MAD : la table ne doit jamais l'écraser).
-  if (/^contrat 2048/.test((d.meta && d.meta.facturationSource) || '')) return null;
   let pos = null;
   for (const h of histo) { if (h.depuis <= capturedAt) pos = h; else break; }
   if (!pos) return null;
+  // v569 — une ligne qui a lu le contrat publié porte déjà la vraie position (le contrat a été
+  // republié le 10/10/2026 avec −167 295 MAD : la table ne doit jamais l'écraser). v578 — sauf une
+  // position `surContrat` : le contrat en ligne à ce moment-là était en retard sur les faits.
+  if (/^contrat 2048/.test((d.meta && d.meta.facturationSource) || '') && !pos.surContrat) return null;
   const taux = (d.meta && d.meta.fx && d.meta.fx.MAD) || (fxStatic && fxStatic.MAD);
   if (!taux) return null;
   const deltaEUR = Math.round(pos.mad / taux - d.autres.facturation);
@@ -5757,6 +5759,31 @@ function restaterFacturesPro(d, capturedAt, factures) {
   return { compte: 'Créances SAP & Tax (factures datées)', deltaEUR, statut: 'établi' };
 }
 
+// v578 — dette ou créance perso datée : `contracteeLe` (jour, borne à 18 h à Dubaï comme les relevés)
+// et `enregistreeLe` (instant où elle est entrée dans data.js). Une ligne capturée entre les deux ne la
+// porte pas : on l'ajoute, au taux du snapshot. Après `enregistreeLe`, la ligne la porte déjà.
+function restaterCreancesDatees(d, capturedAt, items, fxStatic) {
+  if (!capturedAt || !d.autres || typeof d.autres.creancesPerso !== 'number') return null;
+  const jour = jourDeReference(capturedAt);
+  if (!jour) return null;
+  let deltaEUR = 0;
+  const ids = [];
+  for (const c of items || []) {
+    if (!c || c.type !== 'perso' || !c.contracteeLe || !c.enregistreeLe || c.status === 'recouvré') continue;
+    if (jour < c.contracteeLe || capturedAt >= c.enregistreeLe) continue;
+    const taux = c.currency === 'EUR' ? 1 : ((d.meta && d.meta.fx && d.meta.fx[c.currency]) || (fxStatic && fxStatic[c.currency]));
+    if (!taux) continue;
+    deltaEUR += (c.amount || 0) * (c.probability != null ? c.probability : 1) / taux;
+    ids.push(c.id);
+  }
+  deltaEUR = Math.round(deltaEUR);
+  if (!deltaEUR) return null;
+  d.autres.creancesPerso += deltaEUR;
+  if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
+  reporter(d, 'amine', 'other', deltaEUR);
+  return { compte: 'Créances perso datées (' + ids.join(', ') + ')', deltaEUR, statut: 'établi' };
+}
+
 // v566 — TVA pondérée par sa probabilité (v548, 19/09/2026) : une ligne qui porte la TVA brute est
 // ramenée à tva × probabilité, comme le calcul du jour.
 function restaterTva(d, tva) {
@@ -5770,16 +5797,22 @@ function restaterTva(d, tva) {
   return { compte: 'TVA (pondérée ' + Math.round(tva.probabilite * 100) + ' %)', deltaEUR, statut: 'établi' };
 }
 
+// Jour dont un snapshot voit la fin de journée : heure de Dubaï, capture après 18 h → ce jour-là,
+// avant → la veille.
+function jourDeReference(capturedAt) {
+  const t = new Date(Date.parse(capturedAt) + 4 * 3600e3);
+  if (isNaN(t.getTime())) return null;
+  const jour = t.toISOString().slice(0, 10);
+  return t.getUTCHours() >= 18 ? jour : new Date(Date.parse(jour + 'T00:00:00Z') - 864e5).toISOString().slice(0, 10);
+}
+
 // v563 — solde d'un relevé quotidien (RELEVES_QUOTIDIENS) à l'instant de capture d'un snapshot.
 // Heure de Dubaï (UTC+4, sans heure d'été) : une capture après 18 h voit le solde de fin de ce jour,
 // avant 18 h celui de la veille (les relevés ne datent les opérations qu'au jour).
 export function soldeReleveA(rel, capturedAt) {
   if (!rel || !rel.soldes || !capturedAt) return null;
-  const t = new Date(Date.parse(capturedAt) + 4 * 3600e3);
-  if (isNaN(t.getTime())) return null;
-  const jour = t.toISOString().slice(0, 10);
-  const ref = t.getUTCHours() >= 18 ? jour : new Date(Date.parse(jour + 'T00:00:00Z') - 864e5).toISOString().slice(0, 10);
-  if (ref < rel.du || ref > rel.au) return null;
+  const ref = jourDeReference(capturedAt);
+  if (!ref || ref < rel.du || ref > rel.au) return null;
   let v = null;
   for (const d of Object.keys(rel.soldes).sort()) { if (d <= ref) v = rel.soldes[d]; else break; }
   return v;

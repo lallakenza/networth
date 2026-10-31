@@ -5056,6 +5056,32 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v578 (31 octobre 2026) — Binance relu sur l'historique P2P, octobre restaté jour par jour
+
+**Aujourd'hui.** Binance 3 910,33 USDT (et non 11 003) : 12 774,91 USDT vendus contre 131 000 MAD
+(127 500 payés sur Attijari, 3 500 sur CIH) et 5 713,04 achetés contre 20 881,21 AED (Aani, compte
+courant Mashreq, confirmé par Amine) les 10 et 11/10. CIH +3 500 MAD, Mashreq −20 881,21 AED.
+En remontant les 152 ordres P2P (frais déduits) depuis le solde du 31/10, on retombe à 0,01 près sur
+les 11 003,37 USDT du 09/10.
+
+**Historique** (lecture seule, base intacte) :
+- `RELEVES_QUOTIDIENS.binance` du 11/07 au 31/10 (fin de journée tirée des ordres) remplace la
+  période provisoire « au coût » de `SOLDES_RETROACTIFS` ; `attijari_amine`, `cih` et
+  `ibanq_bairok` en octobre ; `mashreq` prolongé au 31/10 avec les paiements Aani.
+- `FACTURATION_HISTORIQUE` : positions `surContrat` (−87 295 le 10/10, −218 110 le 22/10,
+  −168 110 le 29/10). Le contrat publié du 11 au 31/10 (données au 10/10) ignorait les virements à
+  Augustin ; ces positions corrigent aussi les lignes qui l'ont lu (`restaterFacturation`).
+- `restaterCreancesDatees` : une créance perso avec `contracteeLe` et `enregistreeLe` est ajoutée aux
+  lignes capturées entre les deux. CREP10 (Mehdi) date du 23/10, jour où ses 100 000 MAD sont versés
+  sur Attijari ; les deux mouvements tombent sur la même ligne.
+- `jourDeReference` (18 h à Dubaï) est commun aux relevés et aux créances datées.
+
+Effet sur la courbe : −1,1 k€ du 25/09 au 04/10 (USDT vendus le 19/09), −3,5 k€ du 06 au 09/10,
+puis de +0,6 à +1,5 k€ jusqu'au 23/10 et −0,4 k€ ensuite. Le saut de facturation passe du 12/10 au
+10/10, date des données du contrat. Limites : les MAD des ventes antérieures à octobre restent
+sur des soldes marocains non relevés jour par jour, et 100 MAD des ventes du 10-11/10 ne sont pas
+retrouvés sur Attijari.
+
 ## v577 (31 octobre 2026) — nouvelle dette envers Mehdi (120 000 MAD)
 
 Données seules : créance négative `CREP10` (−120 000 MAD, en cours, déclarée par Amine le 31/10),

@@ -111,7 +111,7 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.equal(fin('wio_savings', '2026-10-09'), D.PORTFOLIO.amine.uae.wioSavings);
     assert.equal(fin('wio_nezha', '2026-10-09'), D.PORTFOLIO.nezha.cash.wioAED);
     assert.equal(fin('wio_current', '2026-10-09'), D.PORTFOLIO.amine.uae.wioCurrent);
-    assert.ok(Math.abs(fin('mashreq', '2026-10-09') - D.PORTFOLIO.amine.uae.mashreq) < 0.01);
+    assert.ok(Math.abs(fin('mashreq', '2026-10-09') - 546262.52) < 0.01, 'relevés Mashreq du 09/10 (data.js en déduit depuis les achats Aani des 10-11/10)');
     assert.equal(fin('wio_savings', '2026-09-19'), 498000, 'ventilation lue le 19/09');
   });
 
@@ -220,13 +220,64 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.equal(c.data.autres.facturation, Math.round(-5871 / 10.7));
   });
 
-  t('facturation : une ligne qui a lu le contrat publié n’est jamais restatée', () => {
-    const r = snapAutres('2026-10-12', '2026-10-12T00:25:00Z');
-    r.data.autres.facturation = -15357;
-    r.data.meta.facturationSource = 'contrat 2048 1.0.0 (http, 2026-10-10)';
+  t('facturation : une ligne qui a lu le contrat publié n’est pas restatée, sauf position « surContrat »', () => {
+    const r = snapAutres('2026-09-20', '2026-09-20T00:25:00Z');
+    r.data.autres.facturation = -549;
+    r.data.meta.facturationSource = 'contrat 2048 1.0.0 (http, 2026-09-15)';
     E.appliquerSoldesRetroactifs([r], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null });
     assert.equal(r.corrections, null);
-    assert.equal(r.data.autres.facturation, -15357);
+    assert.equal(r.data.autres.facturation, -549);
+    // v578 — du 10 au 31/10, le contrat (données au 10/10) ignorait les virements à Augustin.
+    const oct = snapAutres('2026-10-15', '2026-10-15T00:25:00Z');
+    oct.data.autres.facturation = Math.round(-167295 / 10.7);
+    oct.data.meta.facturationSource = 'contrat 2048 1.0.0 (http, 2026-10-10)';
+    E.appliquerSoldesRetroactifs([oct], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: [] });
+    assert.equal(oct.data.autres.facturation, Math.round(-87295 / 10.7));
+    const fin = snapAutres('2026-10-31', '2026-10-31T16:00:00Z');
+    fin.data.autres.facturation = Math.round(-168110 / 10.7);
+    fin.data.meta.facturationSource = 'contrat 2048 1.0.0 (http, 2026-10-29)';
+    E.appliquerSoldesRetroactifs([fin], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: [] });
+    assert.equal(fin.corrections, null, 'le contrat republié porte déjà la bonne position');
+  });
+
+  t('octobre 2026 : chaque relevé finit sur le solde de data.js', () => {
+    const R = D.RELEVES_QUOTIDIENS, u = D.PORTFOLIO.amine.uae, m = D.PORTFOLIO.amine.maroc;
+    const fin = (c) => { const s = R[c].soldes; return s[Object.keys(s).sort().pop()]; };
+    assert.ok(Math.abs(fin('binance') - u.binanceUSDT) < 0.01, 'Binance');
+    assert.ok(Math.abs(fin('attijari_amine') - m.attijari) < 0.01, 'Attijari');
+    assert.ok(Math.abs(fin('cih') - m.cih) < 0.01, 'CIH');
+    assert.ok(Math.abs(fin('mashreq') - u.mashreq) < 0.01, 'Mashreq');
+    assert.ok(Math.abs(fin('ibanq_bairok') - u.ibanqBairok) < 0.01, 'iBanq');
+    assert.ok(Object.values(R.binance.soldes).every((v) => v >= 0), 'la chaîne Binance ne passe jamais sous zéro');
+  });
+
+  t('ventes P2P des 10-11/10 : USDT vendus = MAD reçus, AED payés = USDT achetés', () => {
+    const R = D.RELEVES_QUOTIDIENS;
+    const fin = (c, d) => { const s = R[c].soldes; return Object.keys(s).sort().filter((x) => x <= d).map((x) => s[x]).pop(); };
+    const dUSDT = fin('binance', '2026-10-11') - fin('binance', '2026-10-09');
+    const dMAD = (fin('attijari_amine', '2026-10-11') - fin('attijari_amine', '2026-10-09') + 80000) + (fin('cih', '2026-10-11') - 29275.5);
+    const dAED = fin('mashreq', '2026-10-11') - fin('mashreq', '2026-10-09');
+    assert.equal(Math.round(dMAD), 131000 - 100, '131 000 MAD vendus, 100 non retrouvés');
+    // ≈ 10,26 MAD et 3,655 AED par USDT : en USDT, l'écart se limite aux frais P2P (≈ 31 USDT)
+    // et aux 100 MAD non retrouvés.
+    const ecartUSDT = dUSDT + dMAD / 10.26 + dAED / 3.655;
+    assert.ok(Math.abs(ecartUSDT) < 60, 'écart ' + ecartUSDT.toFixed(2) + ' USDT');
+  });
+
+  t('dette datée : ajoutée aux lignes capturées entre la date du prêt et sa saisie', () => {
+    const items = [{ id: 'CREP10', type: 'perso', amount: -120000, currency: 'MAD', probability: 1, status: 'en_cours', contracteeLe: '2026-10-23', enregistreeLe: '2026-10-31T10:51:48Z' }];
+    const mk = (cap) => { const r = snapAutres(cap.slice(0, 10), cap); r.data.autres.creancesPerso = 1000; r.data.autres.facturation = null; return r; };
+    const veille = mk('2026-10-23T10:00:00Z');   // 14 h à Dubaï → fin du 22/10
+    const soir = mk('2026-10-23T15:00:00Z');     // 19 h à Dubaï → fin du 23/10
+    const apres = mk('2026-10-31T12:00:00Z');    // après la saisie : la ligne la porte déjà
+    E.appliquerSoldesRetroactifs([veille, soir, apres], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: items });
+    assert.equal(veille.corrections, null);
+    assert.equal(soir.data.autres.creancesPerso, 1000 + Math.round(-120000 / 10.7));
+    assert.equal(soir.data.total.amine, 560000 + Math.round(-120000 / 10.7));
+    assert.equal(apres.corrections, null);
+    const crep10 = D.PORTFOLIO.amine.creances.items.find((c) => c.id === 'CREP10');
+    assert.equal(crep10.contracteeLe, '2026-10-23');
+    assert.equal(crep10.enregistreeLe, '2026-10-31T10:51:48Z', 'mise en ligne de la v577');
   });
 
   t('facturation : une ligne déjà à la bonne position n’est pas touchée', () => {

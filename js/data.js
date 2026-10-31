@@ -47,7 +47,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 546262.52,   // Mashreq NEO PLUS — MAJ 09/10/2026, relevés téléchargés depuis l'espace en ligne : Saver ••7138 495 105,35 (≈ 6,25 %/an, intérêts mensuels) + Current ••9133 51 157,17 (dont +50 000 « Salary » versés par Bairok Consulting LLC le 09/10 depuis son compte Wio Business)
+      mashreq: 525381.31,   // Mashreq NEO PLUS — relevés du 09/10/2026 (546 262,52 : Saver ••7138 495 105,35 + Current ••9133 51 157,17, dont +50 000 « Salary » de Bairok le 09/10) MOINS 20 881,21 AED payés par Aani les 10 et 11/10 pour acheter 5 713 USDT (historique P2P Binance), payés depuis le compte courant (confirmé par Amine le 31/10). Solde à recaler au prochain relevé
       wioSavings: 453140,   // Wio — épargne d'AMINE — capture de l'app du 09/10/2026 : Family Fixed Saving Space 399 000 + Fixed Saving Space 54 140 (wioSavingsSpaces). Les 101 000 de « Nezha money » (rose) = Nezha (nezha.cash.wioAED). 6 %/an, espaces à 1 mois renouvelables.
       // Ventilation des espaces d'épargne d'Amine, en AED — capture de l'app du 09/10/2026 (épargne
       // totale affichée 554 140 = 101 000 « Nezha money », rose, à Nezha + les deux espaces ci-dessous).
@@ -83,7 +83,7 @@ export const PORTFOLIO = {
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
-      binanceUSDT: 11003,   // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 09/10/2026 (solde réel, déclaratif Amine). Remplace les 14 888 provisoires (3 717 + 11 171 achetés au coût le 04/10) : ≈ 3 885 USDT déjà dépensés ou revendus, date inconnue. Conversion en MAD envisagée à ≈ 10,2 MAD/USDT (P2P Maroc, ≈ 112 230 MAD) : valorisé au dollar tant qu'elle n'est pas faite.
+      binanceUSDT: 3910.33, // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 31/10/2026 (portefeuille Financement 3 910,32 + Earn 0,02). Historique P2P relu le 31/10 : 11 003,37 au 09/10, puis 12 774,91 USDT vendus contre 131 000 MAD (127 500 sur Attijari, 3 500 sur CIH) et 5 713,04 achetés contre 20 881 AED (Aani) les 10 et 11/10. Détail jour par jour : RELEVES_QUOTIDIENS.binance
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
       ibanqBairok: 12765.55, // iBanq — Bairok Consulting LLC — MAJ 31/10/2026 (capture du site) : 15,55 € + INVRTL020 encaissée le 22/10 (SEPA CLT-UFA, 12 750 €). Le sous-compte AED (1,58) est négligé. Part Azarkan de la facture : nettée dans le pont 2048 (virements Maroc des 12/10 et 29/10)
       bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
@@ -97,7 +97,7 @@ export const PORTFOLIO = {
     maroc: {
       attijari: 88135.70,   // Attijariwafa MRA current account (0% rendement) — MAJ 31/10/2026 (relevé Attijarinet temps réel). 5 918,90 au soir du 09/10 (déclaré 5 000), puis : +127 400 de virements reçus le 12/10, −80 000 vers Azarkan le 12/10, +100 000 versés au guichet le 23/10, −50 000 vers Azarkan le 29/10, ≈ −15 200 de dépenses
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
-      cih: 29275.50,        // CIH Bank — compte chèques (0% rendement) — MAJ 28/08/2026 (capture app), confirmé inchangé le 19/09/2026 (Amine : « 29 275 MAD »)
+      cih: 32775.50,        // CIH Bank — compte chèques (0% rendement) — 29 275,50 au 28/08/2026 (capture app), confirmé inchangé le 19/09 (Amine) ; +2 500 le 10/10 et +1 000 le 11/10 : ventes P2P Binance payées sur CIH (historique des ordres relu le 31/10). Solde à confirmer à la prochaine capture
       _lastUpdate: '2026-07-12',
     },
 
@@ -735,7 +735,7 @@ export const PORTFOLIO = {
         { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: null, lastContact: '2026-10-09', payments: [{ amount: -100000, date: '2026-10-09', currency: 'MAD' }], notes: 'Remboursée depuis Attijari (déclaratif Amine le 09/10/2026 ; date exacte du virement non relevée, entre le 19/09 et le 09/10). Neutre sur le patrimoine : le cash et la dette baissent ensemble.' },
         // v577 — nouvelle DETTE envers Mehdi (déclaratif Amine le 31/10/2026) : 120 000 MAD, en cours.
         // Montant négatif = Amine doit. Date et forme du prêt non précisées ; échéance non convenue.
-        { id: 'CREP10', label: 'Dette envers Mehdi (emprunt 120K MAD à rembourser)', amount: -120000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-10-31', payments: [], notes: 'Déclarée par Amine le 31/10/2026. Date et forme du prêt non précisées ; échéance non convenue.' },
+        { id: 'CREP10', label: 'Dette envers Mehdi (emprunt 120K MAD à rembourser)', amount: -120000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-10-31', payments: [], contracteeLe: '2026-10-23', enregistreeLe: '2026-10-31T10:51:48Z', notes: 'Déclarée par Amine le 31/10/2026. Les 100 000 MAD versés au guichet Attijari le 23/10 viennent de ce prêt (confirmé par Amine le 31/10) ; forme des 20 000 restants non précisée ; échéance non convenue.' },
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
@@ -1581,7 +1581,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v577';
+export const APP_VERSION = 'v578';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3069,9 +3069,12 @@ export const FACTURATION_HISTORIQUE = [
   { depuis: '2026-08-27T23:18:06Z', mad: 1150, source: 'pont localStorage du 27/08 23:18, confirmé jusqu\'au 05/09 18:31' },
   { depuis: '2026-09-05T21:27:57Z', mad: -8566, source: 'pont localStorage du 05/09 21:27 ; contrat 2048 au 04/09' },
   { depuis: '2026-09-15T00:00:00Z', mad: -5871, source: 'contrat 2048, données au 15/09/2026' },
-  // v569 — contrat republié avec les données au 10/10/2026 (lu par le cron dès le 12/10). Une ligne
-  // qui a lu le contrat n'est de toute façon jamais restatée : cette entrée sert aux autres sources.
-  { depuis: '2026-10-11T21:51:06Z', mad: -167295, source: 'contrat 2048, données au 10/10/2026, publié le 11/10 à 21:51 UTC' },
+  // v578 — du 10 au 31/10, le contrat publié (données au 10/10, −167 295 MAD) ignorait les virements
+  // du 10/10 (tenus « en cours ») et ce qui a suivi. `surContrat` : ces positions corrigent AUSSI les
+  // lignes qui ont lu le contrat. Bornes à 18 h à Dubaï, comme les relevés.
+  { depuis: '2026-10-10T14:00:00Z', mad: -87295, surContrat: true, source: 'contrat 2048 au 10/10 (−167 295) + 80 000 MAD virés à Augustin le 10/10 (valeur 12/10), imputés le 31/10' },
+  { depuis: '2026-10-22T14:00:00Z', mad: -218110, surContrat: true, source: 'INVRTL020 encaissée le 22/10 : part d\'Augustin 130 815 MAD (12 750 € × 10,26)' },
+  { depuis: '2026-10-29T14:00:00Z', mad: -168110, surContrat: true, source: '50 000 MAD virés à Augustin le 29/10 ; contrat 2048 republié le 31/10 (données au 29/10)' },
 ];
 
 // ════════════════════════════════════════════════════════════
@@ -3085,9 +3088,9 @@ export const FACTURATION_HISTORIQUE = [
 //   du, au   période couverte par la pièce (au-delà, aucune correction)
 // Une période de SOLDES_RETROACTIFS sur le même compte s'applique APRÈS et l'emporte.
 export const RELEVES_QUOTIDIENS = {
-  mashreq: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-09',
-    source: 'Relevés Mashreq courant ••9133 + épargne ••7138 (Excel, téléchargés le 09/10/2026), somme des deux comptes',
-    soldes: { '2026-07-10': 526021.92, '2026-07-11': 493838.71, '2026-07-21': 493797.76, '2026-07-24': 513797.76, '2026-07-27': 514214.42, '2026-07-31': 501896.09, '2026-08-17': 495896.09, '2026-08-21': 535635.14, '2026-08-24': 505333.14, '2026-08-25': 502706.14, '2026-08-29': 503122.84, '2026-08-31': 505791.43, '2026-09-04': 505735.12, '2026-09-19': 498734.07, '2026-09-21': 498693.12, '2026-09-30': 502289.52, '2026-10-05': 496262.52, '2026-10-09': 546262.52 } },
+  mashreq: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-31',
+    source: 'Relevés Mashreq courant ••9133 + épargne ••7138 (Excel, téléchargés le 09/10/2026), somme des deux comptes ; 10 et 11/10 : achats d\'USDT payés par Aani depuis le courant (15 581,21 puis 5 300 AED, historique P2P Binance ; compte confirmé par Amine le 31/10)',
+    soldes: { '2026-07-10': 526021.92, '2026-07-11': 493838.71, '2026-07-21': 493797.76, '2026-07-24': 513797.76, '2026-07-27': 514214.42, '2026-07-31': 501896.09, '2026-08-17': 495896.09, '2026-08-21': 535635.14, '2026-08-24': 505333.14, '2026-08-25': 502706.14, '2026-08-29': 503122.84, '2026-08-31': 505791.43, '2026-09-04': 505735.12, '2026-09-19': 498734.07, '2026-09-21': 498693.12, '2026-09-30': 502289.52, '2026-10-05': 496262.52, '2026-10-09': 546262.52, '2026-10-10': 530681.31, '2026-10-11': 525381.31 } },
   wio_savings: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-09',
     source: 'Relevé annuel Wio (CSV, 07/10/2025 → 07/10/2026) : espaces d\'épargne hors espaces roses de Nezha ; 09/10 = lecture de l\'app (inchangé)',
     soldes: { '2026-07-10': 299000, '2026-07-11': 289000, '2026-07-14': 389000, '2026-07-24': 370000, '2026-08-09': 363000, '2026-08-12': 413000, '2026-08-17': 405000, '2026-08-25': 455000, '2026-08-26': 412000, '2026-09-19': 498000, '2026-10-03': 558140, '2026-10-04': 523140, '2026-10-07': 453140 } },
@@ -3099,6 +3102,27 @@ export const RELEVES_QUOTIDIENS = {
   wio_nezha: { devise: 'AED', proprietaire: 'N', du: '2026-08-26', au: '2026-10-09',
     source: 'Relevé annuel Wio (CSV) : espaces roses « Flouss nezha pas touchi/toucher », puis « Nezha money »',
     soldes: { '2026-08-26': 61000, '2026-09-19': 101000 } },
+  // v578 — Binance, Attijari, CIH, iBanq et le courant Mashreq après le 09/10, relevés le 31/10.
+  // Binance : historique des 152 ordres P2P (06/05 → 11/10), frais déduits. En remontant depuis le
+  // solde du 31/10 (3 910,33 USDT), la chaîne retombe à 0,01 près sur les 11 003,37 du 09/10 et ne
+  // passe jamais sous zéro. Aucun ordre ni dépôt après le 11/10.
+  binance: { devise: 'USD', proprietaire: 'A', du: '2026-07-11', au: '2026-10-31',
+    source: 'Historique P2P Binance (ordres terminés, frais déduits), relu le 31/10/2026 ; USDT compté au dollar',
+    soldes: { '2026-07-11': 6444.79, '2026-07-12': 3707.17, '2026-07-20': 309.73, '2026-07-31': 4400.29, '2026-08-16': 5763.05, '2026-08-17': 8490.07, '2026-08-21': 11275.57, '2026-08-22': 1737.65, '2026-08-24': 8481.78, '2026-08-25': 4286.84, '2026-09-19': 2459.5, '2026-10-04': 13600.46, '2026-10-05': 11003.37, '2026-10-10': 5489.07, '2026-10-11': 3910.33 } },
+  // Attijari : 5 918,90 au soir du 09/10 (relevé), ventes P2P payées sur Attijari le jour de la vente
+  // (97 500 le 10/10, 30 000 le 11/10 ; la banque les date au 12/10, valeur après le week-end, et en
+  // crédite 127 400 : 100 MAD non retrouvés), 80 000 vers Azarkan ordonnés le 10/10, 100 000 du prêt
+  // de Mehdi versés au guichet le 23/10, 50 000 vers Azarkan le 29/10. Les ≈ 15 183 MAD de petites
+  // dépenses du mois, non datées, tombent au 31/10.
+  attijari_amine: { devise: 'MAD', proprietaire: 'A', du: '2026-10-09', au: '2026-10-31',
+    source: 'Relevé Attijarinet relu le 31/10/2026 + dates des ordres P2P Binance (10 et 11/10)',
+    soldes: { '2026-10-09': 5918.90, '2026-10-10': 23418.90, '2026-10-11': 53318.90, '2026-10-23': 153318.90, '2026-10-29': 103318.90, '2026-10-31': 88135.70 } },
+  cih: { devise: 'MAD', proprietaire: 'A', du: '2026-10-10', au: '2026-10-31',
+    source: 'Ordres P2P Binance payés sur CIH (2 500 le 10/10, 1 000 le 11/10) ; solde de départ 29 275,50 (capture du 28/08, confirmé le 19/09)',
+    soldes: { '2026-10-10': 31775.50, '2026-10-11': 32775.50 } },
+  ibanq_bairok: { devise: 'EUR', proprietaire: 'A', du: '2026-10-22', au: '2026-10-31',
+    source: 'iBanq : INVRTL020 (12 750 €) encaissée le 22/10/2026 sur un solde de 15,55 €',
+    soldes: { '2026-10-22': 12765.55 } },
 };
 
 // ════════════════════════════════════════════════════════════
@@ -3140,13 +3164,8 @@ export const SOLDES_RETROACTIFS = {
   // v563 — les soldes Mashreq et Wio (épargne, courant, espaces de Nezha) vivent désormais dans
   // RELEVES_QUOTIDIENS, jour par jour, tirés des relevés. Seuls restent ici les comptes sans relevé
   // quotidien.
-  // Conversion du 04/10/2026 : 41 027 AED (35 000 de Wio + 6 027 de Mashreq) échangés contre de
-  // l'USDT en P2P Binance. Les deux sorties sont dans les relevés ; l'entrée Binance, au coût, ici.
-  binance: [
-    { du: '2026-10-05', au: '2026-10-09', natif: 14888, devise: 'USD', proprietaire: 'A', statut: 'provisoire',
-      source: '3 717 USDT (12/07) + 11 171 USDT achetés le 04/10, comptés au coût (41 027 AED à 3,6725)',
-      aConfirmer: 'Solde réel au 09/10 : 11 003 USDT. Inconnu : la date à laquelle ≈ 3 885 USDT ont été dépensés ou revendus (entre le 04/10 et le 09/10), et le nombre exact reçu le 04/10 (prime P2P).' },
-  ],
+  // v578 — Binance n'est plus ici : son solde jour par jour, tiré de l'historique P2P, vit dans
+  // RELEVES_QUOTIDIENS (il remplace la période provisoire du 05 au 09/10, comptée au coût).
   // Carte Wio Credit — soldes dus aux clôtures des relevés (le 8 de chaque mois), lus sur les neuf
   // relevés de décembre 2025 à septembre 2026 (Notion « Wio Credit (carte de crédit) »). Le solde arrêté
   // à une clôture vaut jusqu'à la clôture suivante : les achats d'un cycle sont reconnus à sa clôture.
