@@ -5056,6 +5056,18 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v580 (1er novembre 2026) — Mashreq relu en ligne, 30 000 AED passés sur Wio
+
+Soldes lus sur les deux comptes : Saver 497 773,10 + Current 209,22 disponibles = 497 982,32 AED, contre
+525 381,31 calculés en v578. L'écart s'explique au centime : −30 000 vers Wio le 31/10, +2 667,75
+d'intérêts d'octobre, −40,95 et −26 de carte, +0,21 d'arrondi (Aani : 20 881,00 côté banque, 20 881,21
+côté Binance). Le virement vers Wio est ajouté au courant Wio (30 054,45) pour que le patrimoine n'en
+perde pas 30 000 : côté Wio, il reste à confirmer, l'app n'ayant pas été relue depuis le 09/10.
+
+Historique : les quatre paiements Aani sont datés du 10/10 par la banque, alors que Binance date le
+dernier achat (5 300 AED) du 11/10. La banque fait foi pour Mashreq ; le point du 10/10 est donc bas
+d'environ 1,3 k€ sur cette seule journée, le temps que les USDT arrivent le 11/10.
+
 ## v579 (1er novembre 2026) — confirmations CIH et dette Mehdi
 
 Données seules, aucun montant ne change. Amine confirme le solde CIH à 32 775 MAD (les 32 775,50 calculés
