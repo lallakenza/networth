@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v581 (1er novembre 2026) — les 30 000 AED de Mashreq sont chez IBKR, pas sur Wio
+
+Correction de la v580, sur l'indication d'Amine et lecture du connecteur IBKR : `cashAED` 30 000, dépôt
+daté du 31/10 (net déployé, pour que le P/L n'en soit pas gonflé), relevé `ibkr_cash_aed` à la même date
+que le débit Mashreq. Le courant Wio revient à 54,45 AED, sans le virement supposé de la v580.
+
 ## v580 (1er novembre 2026) — Mashreq relu en ligne, 30 000 AED passés sur Wio
 
 Soldes lus sur les deux comptes : Saver 497 773,10 + Current 209,22 disponibles = 497 982,32 AED, contre

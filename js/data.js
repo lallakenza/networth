@@ -47,7 +47,7 @@ export const PORTFOLIO = {
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
     // ──────────────────────────────────────────────────────
     uae: {
-      mashreq: 497982.32,   // Mashreq NEO PLUS — lecture du 01/11/2026 : Saver ••7138 497 773,10 + Current ••9133 209,22 disponibles (235,22 moins 26 d'achat carte en cours). Depuis le 09/10 : −20 881 Aani (USDT), −40,95 carte, −30 000 vers Wio le 31/10, +2 667,75 d'intérêts du mois
+      mashreq: 497982.32,   // Mashreq NEO PLUS — lecture du 01/11/2026 : Saver ••7138 497 773,10 + Current ••9133 209,22 disponibles (235,22 moins 26 d'achat carte en cours). Depuis le 09/10 : −20 881 Aani (USDT), −40,95 carte, −30 000 vers IBKR le 31/10 (cashAED), +2 667,75 d'intérêts du mois
       wioSavings: 453140,   // Wio — épargne d'AMINE — capture de l'app du 09/10/2026 : Family Fixed Saving Space 399 000 + Fixed Saving Space 54 140 (wioSavingsSpaces). Les 101 000 de « Nezha money » (rose) = Nezha (nezha.cash.wioAED). 6 %/an, espaces à 1 mois renouvelables.
       // Ventilation des espaces d'épargne d'Amine, en AED — capture de l'app du 09/10/2026 (épargne
       // totale affichée 554 140 = 101 000 « Nezha money », rose, à Nezha + les deux espaces ci-dessous).
@@ -79,7 +79,7 @@ export const PORTFOLIO = {
         dernierReleve: { mois: '2026-09', recuLe: '2026-09-09', note: 'PDF « Credit Statement SEPTEMBER 2026 » (Gmail)' },
         _lastUpdate: '2026-10-07',
       },
-      wioCurrent: 30054.45, // Wio Personal Current (0% rendement) — 54,45 au 07/10/2026 (lecture de l'app, Notion 🏦 Comptes) + 30 000 reçus de Mashreq le 31/10 (relevé Mashreq, côté émetteur). À confirmer à la prochaine lecture de l'app Wio
+      wioCurrent: 54.45,    // Wio Personal Current (0% rendement) — MAJ 07/10/2026 (lecture de l'app, Notion 🏦 Comptes). Non relu depuis le 09/10
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
       revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
@@ -301,7 +301,7 @@ export const PORTFOLIO = {
       cashEUR: -5922.99,     // v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
       cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1604546.36, // Solde JPY chez IBKR (connecteur 09/10/2026). −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
-      cashAED: 0,            // v562 — 11 319,13 AED retirés vers Wio le 31/08/2026 (e-mail IBKR « Withdrawal Activity ») ; absent du connecteur le 09/10. Déjà dans le solde Wio lu dans l'app
+      cashAED: 30000,        // v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
       meta: {
@@ -456,6 +456,7 @@ export const PORTFOLIO = {
         { date: '2025-10-22', amount: 100000, currency: 'AED', fxRateAtDate: 4.255, label: 'Virement AED #2 (Mashreq→IBKR)' },
         { date: '2025-11-03', amount: 70000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #3 (Mashreq→IBKR)' },
         { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
+        { date: '2026-10-31', amount: 30000,  currency: 'AED', fxRateAtDate: 4.0988, label: 'Virement AED #5 (Mashreq→IBKR ; taux du connecteur IBKR au 01/11/2026)' },
       ],
       // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
       // ══════════════════════════════════════════════════════════════
@@ -1581,7 +1582,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v580';
+export const APP_VERSION = 'v581';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3089,14 +3090,18 @@ export const FACTURATION_HISTORIQUE = [
 // Une période de SOLDES_RETROACTIFS sur le même compte s'applique APRÈS et l'emporte.
 export const RELEVES_QUOTIDIENS = {
   mashreq: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-31',
-    source: 'Relevés Mashreq courant ••9133 + épargne ••7138 (Excel, téléchargés le 09/10/2026), somme des deux comptes ; après le 09/10 : activité des deux comptes lue en ligne le 01/11/2026 (20 881 Aani le 10/10, −40,95 carte le 21/10, le 31/10 : −30 000 vers Wio, +2 667,75 d\'intérêts, −26 carte en cours)',
+    source: 'Relevés Mashreq courant ••9133 + épargne ••7138 (Excel, téléchargés le 09/10/2026), somme des deux comptes ; après le 09/10 : activité des deux comptes lue en ligne le 01/11/2026 (20 881 Aani le 10/10, −40,95 carte le 21/10, le 31/10 : −30 000 vers IBKR, +2 667,75 d\'intérêts, −26 carte en cours)',
     soldes: { '2026-07-10': 526021.92, '2026-07-11': 493838.71, '2026-07-21': 493797.76, '2026-07-24': 513797.76, '2026-07-27': 514214.42, '2026-07-31': 501896.09, '2026-08-17': 495896.09, '2026-08-21': 535635.14, '2026-08-24': 505333.14, '2026-08-25': 502706.14, '2026-08-29': 503122.84, '2026-08-31': 505791.43, '2026-09-04': 505735.12, '2026-09-19': 498734.07, '2026-09-21': 498693.12, '2026-09-30': 502289.52, '2026-10-05': 496262.52, '2026-10-09': 546262.52, '2026-10-10': 525381.52, '2026-10-21': 525340.57, '2026-10-31': 497982.32 } },
   wio_savings: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-09',
     source: 'Relevé annuel Wio (CSV, 07/10/2025 → 07/10/2026) : espaces d\'épargne hors espaces roses de Nezha ; 09/10 = lecture de l\'app (inchangé)',
     soldes: { '2026-07-10': 299000, '2026-07-11': 289000, '2026-07-14': 389000, '2026-07-24': 370000, '2026-08-09': 363000, '2026-08-12': 413000, '2026-08-17': 405000, '2026-08-25': 455000, '2026-08-26': 412000, '2026-09-19': 498000, '2026-10-03': 558140, '2026-10-04': 523140, '2026-10-07': 453140 } },
-  wio_current: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-31',
-    source: 'Relevé annuel Wio (CSV) : compte courant AED d\'Amine ; 09/10 = lecture de l\'app (inchangé) ; 31/10 : 30 000 reçus de Mashreq (relevé Mashreq, Wio non relu depuis le 09/10)',
-    soldes: { '2026-07-10': 0, '2026-07-11': 18.33, '2026-07-24': 94.33, '2026-07-30': 439.33, '2026-08-01': 613.1, '2026-08-08': 0, '2026-08-09': 287.55, '2026-08-13': 787.55, '2026-08-17': 311.55, '2026-08-21': 50311.55, '2026-08-25': 311.55, '2026-08-29': 581.55, '2026-08-31': 11900.68, '2026-09-01': 11932.37, '2026-09-08': 0, '2026-09-12': 500, '2026-09-19': 57500, '2026-09-24': 57750, '2026-09-28': 58020, '2026-10-01': 58122.17, '2026-10-03': 0.84, '2026-10-04': 6.67, '2026-10-07': 54.45, '2026-10-31': 30054.45 } },
+  wio_current: { devise: 'AED', proprietaire: 'A', du: '2026-07-10', au: '2026-10-09',
+    source: 'Relevé annuel Wio (CSV) : compte courant AED d\'Amine ; 09/10 = lecture de l\'app (inchangé)',
+    soldes: { '2026-07-10': 0, '2026-07-11': 18.33, '2026-07-24': 94.33, '2026-07-30': 439.33, '2026-08-01': 613.1, '2026-08-08': 0, '2026-08-09': 287.55, '2026-08-13': 787.55, '2026-08-17': 311.55, '2026-08-21': 50311.55, '2026-08-25': 311.55, '2026-08-29': 581.55, '2026-08-31': 11900.68, '2026-09-01': 11932.37, '2026-09-08': 0, '2026-09-12': 500, '2026-09-19': 57500, '2026-09-24': 57750, '2026-09-28': 58020, '2026-10-01': 58122.17, '2026-10-03': 0.84, '2026-10-04': 6.67, '2026-10-07': 54.45 } },
+  // v581 — 30 000 AED débités de Mashreq le 31/10 et lus chez IBKR le 01/11 : même date des deux côtés.
+  ibkr_cash_aed: { devise: 'AED', proprietaire: 'A', du: '2026-10-31', au: '2026-10-31',
+    source: 'Relevé Mashreq du 31/10 + connecteur IBKR du 01/11/2026 (30 000 AED)',
+    soldes: { '2026-10-31': 30000 } },
   // Avant le 26/08, Nezha n'a aucun espace Wio à son nom dans ce relevé : ses 18 385 AED de juillet
   // vivaient ailleurs (compte personnel non couvert). On ne corrige donc qu'à partir du 26/08.
   wio_nezha: { devise: 'AED', proprietaire: 'N', du: '2026-08-26', au: '2026-10-09',

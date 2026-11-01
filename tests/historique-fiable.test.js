@@ -110,8 +110,7 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.equal(fin('wio_savings', '2026-10-07') + fin('wio_nezha', '2026-10-07'), 554140, 'épargne Wio totale lue dans l’app');
     assert.equal(fin('wio_savings', '2026-10-09'), D.PORTFOLIO.amine.uae.wioSavings);
     assert.equal(fin('wio_nezha', '2026-10-09'), D.PORTFOLIO.nezha.cash.wioAED);
-    assert.equal(fin('wio_current', '2026-10-09'), 54.45, 'courant Wio lu dans l’app');
-    assert.equal(fin('wio_current', '2026-10-31'), D.PORTFOLIO.amine.uae.wioCurrent);
+    assert.equal(fin('wio_current', '2026-10-09'), D.PORTFOLIO.amine.uae.wioCurrent);
     assert.ok(Math.abs(fin('mashreq', '2026-10-09') - 546262.52) < 0.01, 'relevés Mashreq du 09/10 (data.js en déduit depuis les achats Aani des 10-11/10)');
     assert.equal(fin('wio_savings', '2026-09-19'), 498000, 'ventilation lue le 19/09');
   });
@@ -257,6 +256,10 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(Math.abs(497773.10 + 209.22 - D.PORTFOLIO.amine.uae.mashreq) < 0.01, 'épargne + courant disponible');
     assert.ok(Math.abs(fin('2026-10-09') - 20881 - 40.95 - 30000 - 26 + 2667.75 - fin('2026-10-31')) < 0.01, 'mouvements du 10 au 31/10');
     assert.ok(Math.abs(fin('2026-10-31') - D.PORTFOLIO.amine.uae.mashreq) < 0.01, 'relevé = data.js');
+    const ibkr = D.PORTFOLIO.amine.ibkr;
+    assert.equal(ibkr.cashAED, 30000, 'les 30 000 AED sont lus chez IBKR');
+    assert.equal(D.RELEVES_QUOTIDIENS.ibkr_cash_aed.soldes['2026-10-31'], ibkr.cashAED, 'même date que le débit Mashreq');
+    assert.ok(ibkr.deposits.some((x) => x.date === '2026-10-31' && x.amount === 30000 && x.currency === 'AED'), 'dépôt compté dans le net déployé');
   });
 
   t('ventes P2P des 10-11/10 : USDT vendus = MAD reçus, AED payés = USDT achetés', () => {
