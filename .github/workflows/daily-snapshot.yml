@@ -2,8 +2,8 @@ name: Daily NW snapshot
 
 # v390 — Snapshot quotidien du patrimoine SANS visite du site (confirmé par Amine, 18/07/2026).
 # ~22h/23h Paris (21h UTC, après clôture US 16h ET). Prix live Yahoo depuis le runner,
-# SGTM via data/sgtm_live.json (cron horaire existant), INSERT Supabase append-only.
-# Aucun secret requis : la clé publishable Supabase est publique par design (cf. docs/SERVER_STORE_SETUP.md).
+# SGTM via data/sgtm_live.json (cron horaire existant), INSERT Neon append-only (v582).
+# Aucun secret requis : le jeton anonyme Neon s'obtient sans compte ; GRANT + RLS limitent ses droits.
 
 on:
   schedule:
@@ -27,7 +27,7 @@ jobs:
           node-version: '20'
       - name: Capture + insert daily snapshot
         run: node scripts/daily_snapshot.mjs
-      # v567 — historique de cours partagé (Supabase price_history) : le delta Yahoo du jour, appelé
+      # v567 — historique de cours partagé (Neon price_history) : le delta Yahoo du jour, appelé
       # directement depuis le runner. Les visites du site n'ont plus à passer par les proxys CORS.
       # Après le snapshot et même s'il échoue : les deux sont indépendants.
       - name: Refresh shared price history (Yahoo delta)

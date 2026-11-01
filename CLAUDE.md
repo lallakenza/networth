@@ -51,7 +51,13 @@ Where:
 - Facturation receivables (positive amounts like Augustin) are injected into `activeItems` for display
 - KPIs computed AFTER injection so totals include facturation items
 
-### Référentiel immo Supabase (v402)
+### Base de données Neon (v582)
+- Projet Neon `curly-cherry-82481284` (Frankfurt, branche `production`), dédié à networth : `nw_snapshots`, `price_history`, `immo_*`. Avant la v582 : projet Supabase partagé avec Lalla Kenza.
+- Accès : Data API compatible PostgREST, avec un jeton anonyme demandé à `<authUrl>/token/anonymous` (sans compte ni secret, 1 h). URL dans `SERVER_STORE` (`js/api.js`) et `scripts/daily_snapshot.mjs`.
+- Droits du rôle `anonymous` : lecture de tout, INSERT `nw_snapshots`, INSERT/UPDATE `price_history`. Aucun droit pour `authenticated`. Écriture immo : SQL admin uniquement.
+- Le cron quotidien alimente seul l'historique : la capture navigateur est coupée. La connexion (`js/auth.js`) et `nw_secrets` restent sur Supabase, hors de la v582 ; ils ne servent qu'au déverrouillage du blob chiffré, inactif tant que `js/data.js` est en clair.
+
+### Référentiel immo (v402, table Neon depuis la v582)
 - Tables `immo_properties` (valeurs, loyers, charges, VEFA, fiscal, appréciation) + `immo_loans`
   (6 prêts, paliers `periods` JSONB) + `immo_crd_obs` (observations datées). RLS : anon SELECT
   uniquement, écriture via Management API (admin).
@@ -62,7 +68,7 @@ Where:
 - `IMMO_CONSTANTS.loans.vitryLoans[0]` DOIT rester Action Logement (l'engine lit `[0]`).
 - HORS base (privacy/stabilité) : adresses & lots, EXIT_COSTS, VITRY_CONSTRAINTS,
   VILLEJUIF_REGIMES, IMMO_PRESETS, IMMO_MAROC_FEES.
-- Éditer une valeur : SQL admin sur Supabase puis hard-refresh ; garder data.js en phase
+- Éditer une valeur : SQL admin sur Neon puis hard-refresh ; garder data.js en phase
   (c'est le fallback ET la source du test d'équivalence).
 
 ### Facturation localStorage bridge
@@ -149,7 +155,7 @@ js/api.js :: fetchSGTMFromRepo()       ← fetch('./data/<ticker>_live.json?h=<h
 | Module Financement render | `js/render.js` | `renderImmoFinancingView` ~6595 |
 | Plan & Fiscalité render | `js/render.js` | `renderPlanFiscalView` ~6908 |
 | Snapshot quotidien NW (builder + ids stables) | `js/engine.js` | `buildDailySnapshot`, `CASH_ACCOUNT_IDS` (fin de fichier) |
-| Snapshots Supabase (append-only) | `js/api.js` | `saveDailySnapshot`/`loadSnapshots`/`maybeSaveDailySnapshot` |
+| Snapshots Neon (append-only) | `js/api.js` | `saveDailySnapshot`/`loadSnapshots`/`maybeSaveDailySnapshot` |
 | Capture snapshot (gating live) | `js/app.js` | après `buildChartsFromHist` (try/catch dédié) |
 | Vue Historique (courbes + explorateur) | `js/charts.js` | `buildHistoriqueCharts`/`_drawSerieExplorer` |
 | Deltas « vs hier » cartes NW | `js/render.js` | `applySnapshotDeltas` |
@@ -176,7 +182,7 @@ schémas détaillés + exemples, voir `ARCHITECTURE.md §11 "Data Model Referenc
 | **Annuelle (janvier)** | `DATA_LAST_UPDATE` + version badge | `DATA_LAST_UPDATE` | footer, header badge |
 | **Événementiel** | Nouvelle créance / remboursement | `PORTFOLIO.amine.creances.items` | créances view, NW (si statut ≠ recouvré) |
 | **Événementiel** | Facturation (Augustin/Benoit) | `PORTFOLIO.amine.facturation` OR localStorage | `amineFacturationNet`, créances view |
-| **Événementiel** | Nouveau prêt immo / modification CRD | **Supabase `immo_properties`/`immo_loans`** (v402, admin SQL) — `data.js` = fallback à garder en phase | immo view, NW, budget |
+| **Événementiel** | Nouveau prêt immo / modification CRD | **Neon `immo_properties`/`immo_loans`** (v402, admin SQL) — `data.js` = fallback à garder en phase | immo view, NW, budget |
 | **Événementiel** | Nouveau projet immo (preset) | `IMMO_PRESETS` (prix, devise, feesPct, apportRatio) | Module Financement (v306+) |
 | **Mensuelle** | Facturation / salaires (cash-flow) | `MONTHLY_INCOMES` | Budget view, Alertes (v308+) |
 | **Semestrielle** | Taux margin IBKR (suivi BCE/Fed) | `MARGIN_RATES` (EUR/USD/JPY) | Module Financement scénarios C/D |

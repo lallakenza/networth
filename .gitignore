@@ -15,3 +15,6 @@ data.source.js
 *.avant-chiffrement
 js/data.js.avant-chiffrement
 .env
+.env.local
+.env.*.local
+.neon

@@ -19,12 +19,13 @@
  *   Requêtes non-GET, et tout ce qui n'est pas same-origin hors liste → JAMAIS caché.
  */
 
-const VERSION = 'v581';
+const VERSION = 'v582';
 const CACHE_COQUILLE = 'patrimoine-coquille-' + VERSION;
 const CACHE_DONNEES = 'patrimoine-donnees-' + VERSION;
 
 // Hôtes qui servent des données vivantes : toujours tenter le réseau en premier.
 const HOTES_DONNEES = [
+  'neon.tech',
   'supabase.co',
   'query1.finance.yahoo.com',
   'query2.finance.yahoo.com',

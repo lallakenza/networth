@@ -1,5 +1,7 @@
 # Store serveur Supabase — clés, tables et RLS
 
+> **Historique depuis la v582 :** networth lit et écrit sur Neon (voir `CLAUDE.md`, « Base de données Neon »). Ce document décrit l'ancienne installation Supabase ; seuls la connexion (`js/auth.js`) et `nw_secrets` y restent.
+
 Projet `mjbmtubkhlspwfqhqgvq`, **partagé avec Lalla Kenza**. Les tables Net Worth s'y distinguent
 par leur nom ; aucune règle ne doit reposer sur « tout utilisateur authentifié ».
 

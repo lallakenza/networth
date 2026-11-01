@@ -5056,6 +5056,23 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v582 (1er novembre 2026) — networth quitte Supabase pour une base Neon dédiée
+
+**Pourquoi.** Le projet Supabase, partagé avec Lalla Kenza, a été trouvé en pause le 01/11 (dernière
+sauvegarde le 31/10 à 18:52 UTC) : plus de capture, plus d'historique, référentiel immo en secours.
+
+**Migration.** Tables recréées à l'identique sur Neon et importées depuis la sauvegarde : 869 captures,
+1 ligne de prix, 3 biens, 6 prêts, 8 observations de CRD, comparées ligne à ligne sans écart. `nw_secrets`
+n'a pas été copiée. Les règles d'accès reprennent celles de Supabase, sans droits en plus.
+
+**Ce qui change.** La Data API exige un JWT, même en anonyme : le site et les deux scripts du cron
+demandent un jeton à `/token/anonymous` (sans secret). La capture depuis le navigateur est coupée, car le
+JWT de session Supabase n'est pas valable sur Neon. Le cron alimente seul l'historique.
+
+**Reste à faire.** La connexion et `nw_secrets` dépendent encore de Supabase : si les données passent en
+chiffré, il faudra les déplacer et donner au cron une écriture authentifiée (`_snapshot_auth.mjs` refuse
+d'écrire sans clé serveur). `scripts/backfill_positions.mjs`, outil ponctuel, vise toujours Supabase.
+
 ## v581 (1er novembre 2026) — les 30 000 AED de Mashreq sont chez IBKR, pas sur Wio
 
 Correction de la v580, sur l'indication d'Amine et lecture du connecteur IBKR : `cashAED` 30 000, dépôt

@@ -23,9 +23,11 @@ const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
 // Même configuration L2 que js/api.js (SERVER_STORE), lue dans le source pour ne pas la dupliquer.
 const api = await readFile(join(ROOT, 'js', 'api.js'), 'utf8');
 const champ = (k) => (api.match(new RegExp(k + ":\\s*'([^']+)'")) || [])[1];
-const URL_L2 = champ('url'), CLE = champ('anonKey'), TABLE = champ('table'), LIGNE = champ('row');
-if (!URL_L2 || !CLE || !TABLE || !LIGNE) { console.error('✗ configuration L2 introuvable dans js/api.js'); process.exit(1); }
-const ENTETES = { apikey: CLE, Authorization: 'Bearer ' + CLE };
+const URL_L2 = champ('url'), URL_AUTH = champ('authUrl'), TABLE = champ('table'), LIGNE = champ('row');
+if (!URL_L2 || !URL_AUTH || !TABLE || !LIGNE) { console.error('✗ configuration L2 introuvable dans js/api.js'); process.exit(1); }
+const jeton = await fetch(URL_AUTH + '/token/anonymous', { signal: AbortSignal.timeout(30000) });
+if (!jeton.ok) { console.error('✗ jeton anonyme HTTP ' + jeton.status); process.exit(1); }
+const ENTETES = { Authorization: 'Bearer ' + (await jeton.json()).token };
 
 // Registres du dépôt : positions (tickers à suivre) et regroupements (unités des séries).
 const tmp = await mkdtemp(join(tmpdir(), 'nw-hist-'));

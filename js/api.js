@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=581';
-import { DEPLOIEMENTS } from './deploiements.js?v=581';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=581';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=582';
+import { DEPLOIEMENTS } from './deploiements.js?v=582';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=582';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1079,55 +1079,42 @@ function unionSeries(base, delta) {
 //  Yahoo) ; seul le delta manquant est chargé de Yahoo/TradingView, rendu, puis ré-uploadé
 //  vers L2 en arrière-plan. Donnée = prix d'actions PUBLICS (non sensible) → clé anon dans le
 //  client = pratique standard Supabase, RLS permissive suffit.
-//  ⚠ url + anonKey VIDES ⇒ L2 no-op (comportement L1-only v382 strictement inchangé).
+//  ⚠ url + authUrl VIDES ⇒ L2 no-op (comportement L1-only v382 strictement inchangé).
 //  À remplir après provisioning (voir docs/SERVER_STORE_SETUP.md).
 // ════════════════════════════════════════════════════════════════════
-// v384 — L2 activé sur le projet Supabase existant (clé PUBLISHABLE, faite pour le client ;
-// RLS anon + contraintes single-row/taille = le pire cas reste « écraser le cache prix de
-// networth », jamais toucher les autres tables ni saturer le stockage). Donnée = prix publics.
+// v582 — base Neon dédiée à networth (Data API, compatible PostgREST). Avant : projet Supabase partagé
+// avec Lalla Kenza, mis en pause le 31/10/2026. Même périmètre d'accès qu'avant : le rôle anonymous lit,
+// insère des snapshots et écrit le cache de prix ; le référentiel immo reste en lecture seule.
+// Rien de secret ici : le jeton anonyme s'obtient sans compte, ce sont GRANT + RLS qui font la règle.
 const SERVER_STORE = {
-  url: 'https://mjbmtubkhlspwfqhqgvq.supabase.co',
-  anonKey: 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO',
+  url: 'https://ep-green-mountain-b91jna2h.apirest.c-7.eu-central-1.aws.neon.tech/neondb',
+  authUrl: 'https://ep-green-mountain-b91jna2h.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth',
   table: 'price_history',
   row: 'singleton',
 };
-function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.anonKey); }
+function _serverConfigured() { return !!(SERVER_STORE.url && SERVER_STORE.authUrl); }
 
-// ── Lectures Supabase avec le JWT de session (item 3, v545-ready) ──────────────────────────
-// Les tables patrimoniales (nw_snapshots, immo_properties + immo_loans) doivent, une fois la RLS
-// restrictive posée, n'être lisibles QUE par le compte autorisé. On envoie donc le jeton de la
-// session quand il existe, la clé anon sinon.
-//
-// COMPATIBILITÉ pré/post-RLS, sans coordination fragile :
-//   · Pré-RLS (politique `to anon using(true)`) : une requête AUTHENTIFIÉE tombe sur un rôle sans
-//     politique et PostgREST renvoie [] (pas 401). On réessaie alors en anon → rien ne casse.
-//   · Post-RLS (`to authenticated where auth.uid()=…`) : la requête authentifiée renvoie les
-//     données ; pas de second appel. L'anonyme, lui, obtient [] et ne voit rien (voulu).
-// Une table réellement vide renvoie [] dans les deux régimes — comportement inchangé.
-let _authMod = null;
-async function _jwtSession() {
-  try {
-    if (!_authMod) _authMod = await import('./auth.js?v=581');
-    return (await _authMod.jetonSession()) || null;
-  } catch (e) { return null; }
+// ── Jeton anonyme Neon (v582) ──────────────────────────────────────────────────────────────
+// La Data API refuse toute requête sans JWT, même pour le rôle anonymous. Le jeton vaut 1 h et
+// se demande sans cookie ni compte ; on partage la même demande entre les appels simultanés.
+let _jetonAnon = null;
+function _enTetesAnon() {
+  if (!_jetonAnon || Date.now() > _jetonAnon.exp) {
+    const demande = fetch(SERVER_STORE.authUrl + '/token/anonymous', { signal: AbortSignal.timeout(10000) })
+      .then(async (r) => {
+        if (!r.ok) throw new Error('jeton anonyme HTTP ' + r.status);
+        return { Authorization: 'Bearer ' + (await r.json()).token };
+      });
+    _jetonAnon = { exp: Date.now() + 50 * 60000, demande };
+    demande.catch(() => { _jetonAnon = null; });
+  }
+  return _jetonAnon.demande;
 }
 async function _lectureSupabaseRows(url, timeoutMs) {
-  const tenter = async (auth) => {
-    try {
-      const r = await fetch(url, {
-        headers: { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + (auth || SERVER_STORE.anonKey) },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      return r.ok ? { ok: true, rows: await r.json(), status: r.status } : { ok: false, rows: null, status: r.status };
-    } catch (e) { return { ok: false, rows: null, err: e }; }
-  };
-  const jwt = await _jwtSession();
-  const out = await tenter(jwt);
-  if (jwt && out.ok && Array.isArray(out.rows) && out.rows.length === 0) {
-    const anon = await tenter(null);   // fenêtre pré-RLS : l'authentifié renvoie [] → repli anon
-    if (anon.ok && Array.isArray(anon.rows) && anon.rows.length) return anon.rows;
-  }
-  return out.ok ? out.rows : null;
+  try {
+    const r = await fetch(url, { headers: await _enTetesAnon(), signal: AbortSignal.timeout(timeoutMs) });
+    return r.ok ? await r.json() : null;
+  } catch (e) { return null; }
 }
 
 /** Lit le blob d'historique depuis Supabase (L2). Retourne {tickers,fx,sgtmHistory?,_lastDate,_backfilled} ou null. */
@@ -1136,10 +1123,7 @@ export async function loadServerHistory() {
   try {
     const u = SERVER_STORE.url.replace(/\/$/, '') + '/rest/v1/' + SERVER_STORE.table
       + '?id=eq.' + SERVER_STORE.row + '&select=data';
-    const r = await fetch(u, {
-      headers: { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey },
-      signal: AbortSignal.timeout(9000),
-    });
+    const r = await fetch(u, { headers: await _enTetesAnon(), signal: AbortSignal.timeout(9000) });
     if (!r.ok) return null;
     const rows = await r.json();
     return (rows && rows[0] && rows[0].data) || null;
@@ -1159,7 +1143,7 @@ export async function saveServerHistory(data) {
     const r = await fetch(u, {
       method: 'POST',
       headers: {
-        apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + SERVER_STORE.anonKey,
+        ...(await _enTetesAnon()),
         'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({ id: SERVER_STORE.row, data: blob }),
@@ -1194,11 +1178,9 @@ export function parisDateISO() {
 
 // v545 : en-têtes AUTHENTIFIÉS (apikey = clé publique du projet, identité via le Bearer JWT).
 // Retourne null si aucune session → l'appelant s'abstient (pas de repli anonyme sur cette table).
-async function _snapHeadersAuthed() {
-  const jwt = await _jwtSession();
-  if (!jwt) return null;
-  return { apikey: SERVER_STORE.anonKey, Authorization: 'Bearer ' + jwt, 'Content-Type': 'application/json' };
-}
+// v582 — la session de connexion reste chez Supabase, dont le JWT n'est pas valable sur Neon :
+// la capture depuis le navigateur est coupée, le cron quotidien alimente seul l'historique.
+async function _snapHeadersAuthed() { return null; }
 
 /** INSERT une ligne de snapshot (append-only — jamais d'update). v545 : exige le JWT de session. */
 export async function saveDailySnapshot(snapDateISO, quality, data) {

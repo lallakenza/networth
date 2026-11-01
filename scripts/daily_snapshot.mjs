@@ -172,16 +172,21 @@ if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'i
 //   historique) ; données chiffrées → échec FERMÉ, aucune écriture.
 // Le secret arrive par l'environnement GitHub Actions, JAMAIS dans js/ ni dans un fichier suivi, et
 // n'est jamais imprimé.
-const SUPA = 'https://mjbmtubkhlspwfqhqgvq.supabase.co';
-const PUBLISHABLE_KEY = 'sb_publishable_V_Xa4lXSCnobfUT940sktA_EU7I2PQO';   // publique par design
+// v582 — base Neon : mêmes URL que js/api.js (SERVER_STORE). Le jeton anonyme s'obtient sans secret ;
+// il prend la place de l'ancienne clé publishable. Ce sont GRANT + RLS qui limitent ce qu'il permet.
+const NEON = 'https://ep-green-mountain-b91jna2h.apirest.c-7.eu-central-1.aws.neon.tech/neondb';
+const NEON_AUTH = 'https://ep-green-mountain-b91jna2h.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth';
 const snapDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 if (DRY) { console.log('[cron-snap] DRY RUN — insert sauté. Blob:', JSON.stringify(snap).length, 'octets, date', snapDate); process.exit(0); }
+const jetonRes = await fetch(NEON_AUTH + '/token/anonymous', { signal: AbortSignal.timeout(30000) });
+if (!jetonRes.ok) { console.error('[cron-snap] jeton anonyme HTTP', jetonRes.status); process.exit(1); }
+const JETON_ANONYME = (await jetonRes.json()).token;
 let auth;
 try {
   auth = resolveSnapshotWriteAuth({
     donneesChiffrees: DONNEES_CHIFFREES,
     secretKey: process.env.NW_SUPABASE_SECRET_KEY,
-    publishableKey: PUBLISHABLE_KEY,
+    publishableKey: JETON_ANONYME,
   });
 } catch (e) {
   console.error('[cron-snap] ✗ ' + (e && e.message) + ' — AUCUNE écriture (échec fermé).');
@@ -190,11 +195,11 @@ try {
 }
 if (auth.warning) console.warn('[cron-snap] ⚠ ' + auth.warning);
 console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ', données ' + (DONNEES_CHIFFREES ? 'chiffrées' : 'en clair') + ')');
-const res = await fetch(SUPA + '/rest/v1/nw_snapshots', {
+const res = await fetch(NEON + '/rest/v1/nw_snapshots', {
   method: 'POST',
   headers: auth.headers,
   body: JSON.stringify({ snap_date: snapDate, quality, data: snap }),
-  signal: AbortSignal.timeout(15000),
+  signal: AbortSignal.timeout(30000),
 });
 if (!res.ok) { console.error('[cron-snap] insert HTTP', res.status, await res.text()); process.exit(1); }
 console.log('[cron-snap] ✅ snapshot', snapDate, '(' + quality + ') inséré — NW', snap.total.couple, '€');
