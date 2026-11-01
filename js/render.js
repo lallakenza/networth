@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=582';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=582';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=583';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=583';
 
 // ---- Generic table sort utility ----
 /**
@@ -1201,6 +1201,15 @@ function renderDynamicInsights(state, view) {
   }
 }
 
+// v583 — le libellé citait une facture en dur (INVSNT006, soldée) devant le montant de la facture en
+// cours : il se lit désormais dans les créances actives, comme le montant.
+function libelleCreancesPro(s) {
+  const dateFR = (iso) => iso ? iso.split('-').reverse().join('/') : 'non datée';
+  const factures = ((s.creancesView || {}).activeItems || []).filter((c) => /^(INVSNT|ACCSNT)/.test(c.id || ''));
+  if (!factures.length) return 'Creances SAP & Tax';
+  return 'Creances SAP & Tax (' + factures.map((c) => c.id + ', éch. ' + dateFR(c.dueDate)).join(' ; ') + ')';
+}
+
 function renderCoupleTable(state) {
   const s = state;
   const p = state.portfolio;
@@ -1219,7 +1228,7 @@ function renderCoupleTable(state) {
     ...(s.nezha.cautionRueil > 0 ? [['Caution Rueil (dette locataire)', -s.nezha.cautionRueil]] : []),
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
     ...((s.nezha.rolexDatejust || 0) > 0 ? [['Rolex Datejust 31 Rolesor Everose (Nezha)', s.nezha.rolexDatejust]] : []),
-    ['Creances SAP & Tax (garanti, 45j)', s.amine.recvPro],
+    [libelleCreancesPro(s), s.amine.recvPro],
     ['Creances personnelles Amine (recouvrement incertain)', s.amine.recvPersonal],
     // Le libellé annonçait « 40K MAD » (= 3 717 \u20ac) alors que la colonne affiche la valeur
     // PONDÉRÉE par la probabilité de recouvrement (2 602 \u20ac) : deux chiffres contradictoires
@@ -1253,7 +1262,7 @@ function renderAmineTable(state) {
     ['Cash Courtiers (IBKR EUR/USD + ESPP)', s.amine.brokerCash],
     ['Immobilier Vitry (equity nette' + (s.amine.vitryEquityBrute > s.amine.vitryEquity ? ' \u2014 brute ' + fmt(s.amine.vitryEquityBrute) : '') + ')', s.amine.vitryEquity],
     ['Vehicules (Porsche Cayenne + Mercedes A)', s.amine.vehicles],
-    ['Creances SAP & Tax (INVSNT006 — 15j + frais, éch. 01/07/2026)', s.amine.recvPro],
+    [libelleCreancesPro(s), s.amine.recvPro],
     ['Creances personnelles (recouvrement incertain)', s.amine.recvPersonal],
     [libelleFacturation(s), s.amine.facturationNet],
     ['TVA a payer', s.amine.tva],
@@ -8202,7 +8211,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=582').then(m => {
+  import('./charts.js?v=583').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

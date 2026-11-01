@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v583 (1er novembre 2026) — le libellé des créances SAP & Tax suit la facture en cours
+
+Les tableaux de répartition affichaient « INVSNT006 — éch. 01/07/2026 », facture soldée, devant les 19 110 €
+d'INVSNT009, et le tableau couple un « garanti, 45j » périmé. Libellé lu dans `creancesView.activeItems`.
+Aucun montant ne change : INVSNT001 (janvier) est recouvrée depuis le 12/04 et hors du patrimoine.
+
 ## v582 (1er novembre 2026) — networth quitte Supabase pour une base Neon dédiée
 
 **Pourquoi.** Le projet Supabase, partagé avec Lalla Kenza, a été trouvé en pause le 01/11 (dernière
