@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v579 (1er novembre 2026) — confirmations CIH et dette Mehdi
+
+Données seules, aucun montant ne change. Amine confirme le solde CIH à 32 775 MAD (les 32 775,50 calculés
+depuis les ordres P2P de la v578 sont conservés) et que les 20 000 MAD du prêt de Mehdi non versés sur
+Attijari ont été dépensés : l'écart de −20 000 MAD entre `CREP10` et le dépôt du 23/10 est donc correct.
+
 ## v578 (31 octobre 2026) — Binance relu sur l'historique P2P, octobre restaté jour par jour
 
 **Aujourd'hui.** Binance 3 910,33 USDT (et non 11 003) : 12 774,91 USDT vendus contre 131 000 MAD

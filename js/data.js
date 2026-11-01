@@ -97,7 +97,7 @@ export const PORTFOLIO = {
     maroc: {
       attijari: 88135.70,   // Attijariwafa MRA current account (0% rendement) — MAJ 31/10/2026 (relevé Attijarinet temps réel). 5 918,90 au soir du 09/10 (déclaré 5 000), puis : +127 400 de virements reçus le 12/10, −80 000 vers Azarkan le 12/10, +100 000 versés au guichet le 23/10, −50 000 vers Azarkan le 29/10, ≈ −15 200 de dépenses
       nabd: 52304,          // Nabd (ex-Société Générale Maroc, 0% rendement) — MAJ 12/07/2026 (relevé app)
-      cih: 32775.50,        // CIH Bank — compte chèques (0% rendement) — 29 275,50 au 28/08/2026 (capture app), confirmé inchangé le 19/09 (Amine) ; +2 500 le 10/10 et +1 000 le 11/10 : ventes P2P Binance payées sur CIH (historique des ordres relu le 31/10). Solde à confirmer à la prochaine capture
+      cih: 32775.50,        // CIH Bank — compte chèques (0% rendement) — 29 275,50 au 28/08/2026 (capture app), confirmé inchangé le 19/09 (Amine) ; +2 500 le 10/10 et +1 000 le 11/10 : ventes P2P Binance payées sur CIH (historique des ordres relu le 31/10). Solde de 32 775 MAD confirmé par Amine le 01/11
       _lastUpdate: '2026-07-12',
     },
 
@@ -735,7 +735,7 @@ export const PORTFOLIO = {
         { id: 'CREP08', label: 'Dette envers Mehdi (emprunt 100K MAD à rembourser)', amount: -100000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'recouvré', dueDate: null, lastContact: '2026-10-09', payments: [{ amount: -100000, date: '2026-10-09', currency: 'MAD' }], notes: 'Remboursée depuis Attijari (déclaratif Amine le 09/10/2026 ; date exacte du virement non relevée, entre le 19/09 et le 09/10). Neutre sur le patrimoine : le cash et la dette baissent ensemble.' },
         // v577 — nouvelle DETTE envers Mehdi (déclaratif Amine le 31/10/2026) : 120 000 MAD, en cours.
         // Montant négatif = Amine doit. Date et forme du prêt non précisées ; échéance non convenue.
-        { id: 'CREP10', label: 'Dette envers Mehdi (emprunt 120K MAD à rembourser)', amount: -120000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-10-31', payments: [], contracteeLe: '2026-10-23', enregistreeLe: '2026-10-31T10:51:48Z', notes: 'Déclarée par Amine le 31/10/2026. Les 100 000 MAD versés au guichet Attijari le 23/10 viennent de ce prêt (confirmé par Amine le 31/10) ; forme des 20 000 restants non précisée ; échéance non convenue.' },
+        { id: 'CREP10', label: 'Dette envers Mehdi (emprunt 120K MAD à rembourser)', amount: -120000, currency: 'MAD', type: 'perso', guaranteed: true, probability: 1.0, status: 'en_cours', dueDate: null, lastContact: '2026-10-31', payments: [], contracteeLe: '2026-10-23', enregistreeLe: '2026-10-31T10:51:48Z', notes: 'Déclarée par Amine le 31/10/2026. Les 100 000 MAD versés au guichet Attijari le 23/10 viennent de ce prêt (confirmé par Amine le 31/10) ; les 20 000 restants ont été dépensés (confirmé par Amine le 01/11) ; échéance non convenue.' },
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
@@ -1581,7 +1581,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v578';
+export const APP_VERSION = 'v579';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
