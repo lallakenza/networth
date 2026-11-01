@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v584 (1er novembre 2026) — accrual SAP & Tax d'octobre (13 j × 910 € = 11 830 €)
+
+Congé paternité jusqu'au 09/10 (timesheet Notion), off le 21 et le 27/10 (déclaré par Amine) : 13 jours
+du 12 au 30/10. `ACCSNT10` est à retirer quand la facture sera saisie. L'historique porte chaque jour à
+sa date via `ACCRUALS_HISTORIQUE`, qui survit à ce remplacement.
+
 ## v583 (1er novembre 2026) — le libellé des créances SAP & Tax suit la facture en cours
 
 Les tableaux de répartition affichaient « INVSNT006 — éch. 01/07/2026 », facture soldée, devant les 19 110 €

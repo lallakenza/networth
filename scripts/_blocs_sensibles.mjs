@@ -31,6 +31,7 @@ export const BLOCS_SENSIBLES = [
   // v566 — historique recalculé au modèle actuel (immobilier, facturation).
   ['IMMO_RECALCULE', '{}'],
   ['FACTURATION_HISTORIQUE', '[]'],
+  ['ACCRUALS_HISTORIQUE', '[]'],
 ];
 export const NOMS_SENSIBLES = BLOCS_SENSIBLES.map(([n]) => n);
 export const COQUILLES = Object.fromEntries(BLOCS_SENSIBLES);

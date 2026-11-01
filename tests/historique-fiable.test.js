@@ -326,8 +326,23 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.equal(apres.corrections, null);
   });
 
+  t('accrual d\'octobre : 13 jours à leur date, ni le 21 ni le 27/10, jamais après la saisie', () => {
+    const a = D.ACCRUALS_HISTORIQUE.find((x) => x.id === 'ACCSNT10');
+    const item = D.PORTFOLIO.amine.creances.items.find((c) => c.id === 'ACCSNT10');
+    assert.equal(a.jours.length * a.tarifJour, 11830);
+    if (item) assert.equal(item.amount, 11830);
+    for (const j of ['2026-10-09', '2026-10-21', '2026-10-27']) assert.ok(!a.jours.includes(j), j);
+    const mk = (cap) => { const r = snapAutres(cap.slice(0, 10), cap); r.data.autres.creancesPro = 19110; r.data.autres.facturation = null; return r; };
+    const avant = mk('2026-10-11T15:00:00Z'), j1 = mk('2026-10-12T15:00:00Z'), fin = mk('2026-10-31T00:30:00Z'), apres = mk('2026-11-02T00:30:00Z');
+    E.appliquerSoldesRetroactifs([avant, j1, fin, apres], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: [] });
+    assert.equal(avant.data.autres.creancesPro, 19110);
+    assert.equal(j1.data.autres.creancesPro, 19110 + 910);
+    assert.equal(fin.data.autres.creancesPro, 19110 + 11830);
+    assert.equal(apres.data.autres.creancesPro, 19110, 'après la saisie, la ligne le porte déjà');
+  });
+
   t('les nouveaux registres sont chiffrés avec les autres blocs sensibles', () => {
-    for (const n of ['RELEVES_QUOTIDIENS', 'SNAPSHOTS_RECONSTRUITS', 'IMMO_RECALCULE', 'FACTURATION_HISTORIQUE']) assert.ok(NOMS_SENSIBLES.includes(n), n);
+    for (const n of ['ACCRUALS_HISTORIQUE', 'RELEVES_QUOTIDIENS', 'SNAPSHOTS_RECONSTRUITS', 'IMMO_RECALCULE', 'FACTURATION_HISTORIQUE']) assert.ok(NOMS_SENSIBLES.includes(n), n);
   });
 
   console.log(ko === 0 ? '\n✅ Historique fiable : OK\n' : '\n❌ ' + ko + ' échec(s)\n');

@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=583';
-import { lireContratEnCache } from './facturation_contract.js?v=583';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=584';
+import { lireContratEnCache } from './facturation_contract.js?v=584';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -5634,6 +5634,7 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       const nf = restaterFacturation(d, capturedAt, histoFactu, fxStatic); if (nf) notes.push(nf);
       const nt = restaterTva(d, tva); if (nt) notes.push(nt);
       const nd = restaterCreancesDatees(d, capturedAt, factures, fxStatic); if (nd) notes.push(nd);
+      const na = restaterAccruals(d, capturedAt, opts.accruals !== undefined ? opts.accruals : ACCRUALS_HISTORIQUE); if (na) notes.push(na);
       const jusquau = opts.facturesJusquau !== undefined ? opts.facturesJusquau : FACTURES_RESTATEES_JUSQUAU;
       if (capturedAt && jusquau && capturedAt.slice(0, 10) <= jusquau) {
         const nc = restaterFacturesPro(d, capturedAt, factures); if (nc) notes.push(nc);
@@ -5782,6 +5783,28 @@ function restaterCreancesDatees(d, capturedAt, items, fxStatic) {
   if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
   reporter(d, 'amine', 'other', deltaEUR);
   return { compte: 'Créances perso datées (' + ids.join(', ') + ')', deltaEUR, statut: 'établi' };
+}
+
+// v584 — accrual : chaque jour travaillé s'ajoute à sa date aux lignes capturées avant `enregistreeLe`.
+// Après cette date, la ligne porte déjà l'accrual ou la facture qui l'a remplacé.
+function restaterAccruals(d, capturedAt, accruals) {
+  if (!capturedAt || !d.autres || typeof d.autres.creancesPro !== 'number') return null;
+  const jour = jourDeReference(capturedAt);
+  if (!jour) return null;
+  let deltaEUR = 0;
+  const ids = [];
+  for (const a of accruals || []) {
+    if (capturedAt >= a.enregistreeLe) continue;
+    const n = a.jours.filter((j) => j <= jour).length;
+    if (!n) continue;
+    deltaEUR += n * a.tarifJour;
+    ids.push(a.id);
+  }
+  if (!deltaEUR) return null;
+  d.autres.creancesPro += deltaEUR;
+  if (typeof d.autres.total === 'number') d.autres.total += deltaEUR;
+  reporter(d, 'amine', 'other', deltaEUR);
+  return { compte: 'Accruals (' + ids.join(', ') + ')', deltaEUR, statut: 'établi' };
 }
 
 // v566 — TVA pondérée par sa probabilité (v548, 19/09/2026) : une ligne qui porte la TVA brute est

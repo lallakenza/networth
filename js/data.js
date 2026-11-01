@@ -719,6 +719,9 @@ export const PORTFOLIO = {
         // Jours = timesheet Notion « Timesheet 2026 - LOREAL / NEO » : 01-04, 07-11, 14-18/09 = 14 j × 910 € (arrêté au 18/09).
         // INVSNT009 remplace l'accrual de septembre (14 j au 18/09) : 21 jours facturés (confirmé 09/10/2026).
         { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', emiseLe: '2026-10-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-10-09', payments: [], notes: 'Facture du 01/10/2026 envoyée depuis la boîte de Bairok (pièce fournie par Amine le 09/10/2026) : 21 jours × 910 € = 19 110 € HT, TVA 0, paiement à 30 jours, échéance 01/11/2026, règlement sur le compte IFX Payments de Bairok (iBanq). Réputée encaissée à l\'échéance + 10 j (règle v549).' },
+        // v584 — accrual d'octobre, à retirer quand la facture sera saisie (jamais les deux ensemble).
+        // 13 j : congé paternité jusqu'au 09/10 (timesheet Notion), off le 21 et le 27/10 (déclaré par Amine le 01/11).
+        { id: 'ACCSNT10', label: 'SAP & Tax — accrual octobre (13j × 910€)', amount: 11830, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-12-01', lastContact: '2026-11-01', payments: [], notes: 'Non facturé : 13 jours travaillés du 12/10 au 30/10 × 910 €. Timesheet Notion remplie jusqu\'au 19/10 (brouillon), le reste déclaré par Amine le 01/11/2026. Facture attendue 01/11/2026, échéance 01/12/2026.' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
@@ -1582,7 +1585,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v583';
+export const APP_VERSION = 'v584';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3063,6 +3066,13 @@ export const IMMO_RECALCULE = {
 // émission à son encaissement. Au-delà de cette date, le modèle du jour (encaissement réputé à
 // échéance + 10 j, v549) s'applique tel quel : la restatement ne le contredit pas.
 export const FACTURES_RESTATEES_JUSQUAU = '2026-10-09';
+
+// v584 — accruals : chaque jour travaillé compte à sa date dans les snapshots écrits avant la saisie
+// (`enregistreeLe`). Ce registre survit à la facture qui remplacera l'accrual dans les créances.
+export const ACCRUALS_HISTORIQUE = [
+  { id: 'ACCSNT10', tarifJour: 910, enregistreeLe: '2026-11-01T11:16:59Z',
+    jours: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-19', '2026-10-20', '2026-10-22', '2026-10-23', '2026-10-26', '2026-10-28', '2026-10-29', '2026-10-30'] },
+];
 
 export const FACTURATION_HISTORIQUE = [
   { depuis: '2026-07-12T00:00:00Z', mad: 108900, source: 'pont localStorage du 12/07 puis du 21/07 (108 870 à 108 960 MAD selon le change)' },

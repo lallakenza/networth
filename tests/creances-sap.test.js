@@ -28,7 +28,8 @@ const ATTENDUES = {
 // INVSNT009 du 01/10/2026 (21 j × 910 € = 19 110 €, échéance 01/11). Seule INVSNT009 reste due.
 // v549 : chacune sort du NW à échéance + 10 j (règle autoSettle) — le total attendu dépend du jour.
 const AUJ_ISO = new Date().toISOString().slice(0, 10);
-const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0);
+// v584 : + accrual d'octobre ACCSNT10 (13 j × 910 €), réputé encaissé à échéance + 10 j (11/12).
+const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0) + (AUJ_ISO < '2026-12-11' ? 11830 : 0);
 
 (async () => {
   const echecs = [];
