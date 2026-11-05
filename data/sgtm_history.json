@@ -1703,6 +1703,11 @@
       "date": "2026-11-04",
       "priceMAD": 548.0,
       "source": "casablanca-bourse.com"
+    },
+    {
+      "date": "2026-11-05",
+      "priceMAD": 590.0,
+      "source": "casablanca-bourse.com"
     }
   ]
 }
