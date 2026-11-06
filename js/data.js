@@ -1854,6 +1854,7 @@ export const DEGIRO_STATIC_PRICES = {
   FDJ:   { price: 21.68,  currency: 'EUR' },
   PE500: { price: 54.58,  currency: 'EUR' },
   PTPXE: { price: 37.70,  currency: 'EUR' },
+  WLN:   { price: 11.50,  currency: 'EUR' },  // après regroupement 1:40 du 15/06/2026
   EUCAR: { price: 0.50,   currency: 'EUR', delisted: true, note: 'VW squeeze-out at €0.50/share (Jul 2022)' },
 };
 

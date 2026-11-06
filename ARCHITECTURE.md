@@ -5060,7 +5060,7 @@ Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/
 
 Cours de repli (`DEGIRO_STATIC_PRICES`, Yahoo du 06/11/2026) pour les 8 titres du PEA dont le cours
 vendu ne se télécharge pas toujours au chargement (Renault, Valeo, Soitec, Dior, Kering, FDJ, ETF S&P 500
-et Japon). Le tableau des positions clôturées affiche ainsi une valeur « si gardé » sur chaque ligne.
+et Japon) et Worldline. Le tableau des positions clôturées affiche ainsi une valeur « si gardé » sur chaque ligne.
 
 ## v585 (7 novembre 2026) — PEA Boursorama intégré (juillet 2021 → mars 2025)
 
