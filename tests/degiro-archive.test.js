@@ -278,7 +278,7 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
     assert.ok(Math.abs(h['2025-03-31'].degiro - 59160) < 1500, 'valeur de mars 2025 hors fourchette attendue');
     assert.equal(h['2025-04-30'].degiro, 0, 'le compte est clos fin avril 2025');
     for (const r of Object.values(h)) {
-      assert.equal(r.total, r.degiro + r.espp + r.ibkr, r.date + ' : le total doit rester la somme des colonnes');
+      assert.equal(r.total, r.degiro + r.espp + r.ibkr + (r.pea || 0), r.date + ' : le total doit rester la somme des colonnes (v585 : + PEA Boursorama)');
     }
   });
 

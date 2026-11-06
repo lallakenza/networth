@@ -5056,6 +5056,27 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v585 (7 novembre 2026) — PEA Boursorama intégré (juillet 2021 → mars 2025)
+
+**Source.** Archive RGPD BoursoBank reçue le 06/11/2026 : 54 avis d'opéré du PEA (export du 28/10/2026)
+et IFU 2018-2025. L'IFU 2025 porte la clôture : ouverture fiscale 20/07/2021, premier retrait 17/03/2025,
+valeur liquidative 69 052 €, versements cumulés 66 000 €, gain 3 052 €. Fiche Notion du même nom.
+
+**Données.** `PORTFOLIO.amine.pea` (compte clos, comme DEGIRO) et 54 lignes `source: 'pea'` dans
+`allTrades`, montants NETS des avis (commission et taxe sur les transactions incluses). Les dates des
+versements sont estimées (chacun au plus tard le jour de l'achat qu'il finance, `estime: true`) ; leur
+total et le retrait de clôture sont exacts. P&L total = 3 052 € = titres +705,65 + dividendes estimés
+2 483,00 (détachements Yahoo × titres détenus) − 136,65 non détaillés.
+
+**Historique.** `EQUITY_HISTORY` reçoit une colonne `pea` (fin de mois, juillet 2021 → mars 2025) et
+`total` l'inclut : titres aux clôtures Yahoo, ajustées sur les cours exécutés pour Atos (augmentation de
+capital de décembre 2024, regroupement) et Worldline, plus la trésorerie reconstituée. Europcar, radiée,
+est valorisée entre ses deux cours exécutés.
+
+**Affichage.** Positions clôturées : 14 lignes PEA (source « PEA »). P&L réalisé combiné et net déployé
+incluent le PEA (l'invariant comptable reste équilibré). Le graphe d'évolution regroupe les deux comptes
+clos dans la portée « Degiro + PEA » ; la profondeur mensuelle affiche une ligne PEA à part.
+
 ## v584 (1er novembre 2026) — accrual SAP & Tax d'octobre (13 j × 910 € = 11 830 €)
 
 Congé paternité jusqu'au 09/10 (timesheet Notion), off le 21 et le 27/10 (déclaré par Amine) : 13 jours

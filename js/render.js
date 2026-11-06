@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=584';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=584';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=585';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=585';
 
 // ---- Generic table sort utility ----
 /**
@@ -2848,7 +2848,8 @@ function renderActionsView(state) {
     // Merge IBKR closed + Degiro closed into one array
     const ibkrClosed = (av.closedPositions || []).map(cp => ({ ...cp, source: 'ibkr', hasCost: true }));
     const degiroClosed = (av.degiroClosedPositions || []).map(cp => ({ ...cp, source: 'degiro' }));
-    const allClosedData = [...ibkrClosed, ...degiroClosed].map(cp => ({
+    const peaClosed = (av.peaClosedPositions || []).map(cp => ({ ...cp, source: 'pea' }));
+    const allClosedData = [...ibkrClosed, ...degiroClosed, ...peaClosed].map(cp => ({
       ...cp, label: cp.label + ' (' + cp.ticker + ')'
     }));
     let _expandedClosed = null;
@@ -2880,7 +2881,7 @@ function renderActionsView(state) {
         tr.style.cursor = 'pointer';
         // Source badge
         const srcColor = cp.source === 'ibkr' ? '#3182ce' : '#d69e2e';
-        const srcLabel = cp.source === 'ibkr' ? 'IBKR' : 'Degiro';
+        const srcLabel = cp.source === 'ibkr' ? 'IBKR' : cp.source === 'pea' ? 'PEA' : 'Degiro';
         const srcBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + srcColor + '15;color:' + srcColor + ';font-weight:600">' + srcLabel + '</span>';
         // If held columns
         let ifHeldCols = '';
@@ -3897,13 +3898,14 @@ function setupKPIDetailPanels(state) {
       if (_ownerPanneau === 'nezha') {
         return '<div class="detail-header"><h4>P/L R\u00e9alis\u00e9</h4></div>'
           + '<div style="padding:20px;text-align:center;color:#718096;">'
-          + 'Aucune op\u00e9ration cl\u00f4tur\u00e9e pour Nezha \u2014 les comptes IBKR et Degiro sont ceux d\u2019Amine.</div>';
+          + 'Aucune op\u00e9ration cl\u00f4tur\u00e9e pour Nezha \u2014 les comptes IBKR, Degiro et PEA sont ceux d\u2019Amine.</div>';
       }
       // IBKR closed + Degiro closed
       const ibkrClosed = av.closedPositions || [];
       const degiroClosed = av.degiroClosedPositions || [];
       const allClosed = ibkrClosed.map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'IBKR' }))
-        .concat(degiroClosed.map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'Degiro' })));
+        .concat(degiroClosed.map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'Degiro' })))
+        .concat((av.peaClosedPositions || []).map(t => ({ label: t.label || t.ticker, pl: t.pl || 0, source: 'PEA' })));
       allClosed.sort((a, b) => b.pl - a.pl); // best first
       const items = allClosed.map(t => ({
         label: t.label + ' (' + t.source + ')',
@@ -7841,7 +7843,7 @@ function attachKPIInsights(state, view) {
     const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
     const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
     insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '.';
-    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro).';
+    insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro + PEA).';
     insights['kpiActionsTotalDeposits'] = 'Total inject\u00e9 dans les march\u00e9s. P/L total = ' + (av.combinedUnrealizedPL + av.combinedRealizedPL >= 0 ? '+' : '') + '\u20ac' + f(av.combinedUnrealizedPL + av.combinedRealizedPL) + ' (' + ((av.combinedUnrealizedPL + av.combinedRealizedPL) / av.totalDeposits * 100).toFixed(1) + '% du capital).';
     insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (25% France, 30% US, 15% JP).';
   }
@@ -8211,7 +8213,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=584').then(m => {
+  import('./charts.js?v=585').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

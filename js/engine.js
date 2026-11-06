@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=584';
-import { lireContratEnCache } from './facturation_contract.js?v=584';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=585';
+import { lireContratEnCache } from './facturation_contract.js?v=585';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -547,6 +547,9 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // v246: use totalPLAllComponents (includes dividends, FX, interest) for consistency with chart
   // Previously used totalRealizedPL (trading gains only), causing a ~€478 gap
   const degiroRealizedPL = degiro.totalPLAllComponents || degiro.totalRealizedPL || 0;
+  // v585 — PEA Boursorama (clos le 17/03/2025) : P&L total = retraits − versements (IFU 2025).
+  const pea = portfolio.amine.pea || {};
+  const peaRealizedPL = pea.totalPLAllComponents || 0;
 
   // Combined realized P/L (IBKR + Degiro)
   // Compute IBKR realized P/L dynamically from trade data (not hardcoded meta)
@@ -557,7 +560,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
       ibkrRealizedPL += toEUR(t.realizedPL, t.currency, fx);
     }
   });
-  let combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL;
+  let combinedRealizedPL = ibkrRealizedPL + degiroRealizedPL + peaRealizedPL;
   // v246: adjusted below (after costs computed) to include IBKR dividends and subtract costs
 
   // ── Authoritative Degiro P/L per ticker from annual reports ──
@@ -620,6 +623,11 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // ✅ Montants exacts — back-calculés des rapports annuels DEGIRO (v243)
   (degiro.deposits || []).forEach(d => {
     addDeposit(d.date, d.label || 'Dépôt Degiro', 'Amine', 'Degiro', d.amount, d.currency, d.fxRateAtDate || 1);
+  });
+
+  // 1c. PEA Boursorama (Amine) — versements estimés (total exact), retrait de clôture exact
+  (pea.deposits || []).forEach(d => {
+    addDeposit(d.date, d.label || 'Versement PEA', 'Amine', 'PEA (Boursorama)', d.amount, d.currency, d.fxRateAtDate || 1);
   });
 
   // 2. ESPP lots (Amine) — v246: use esppLotCostEUR (same as unrealized P&L)
@@ -691,7 +699,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   // exactement cash + coût des titres détenus (identité, pas estimation). À remplacer par les
   // versements réels quand son compte sera connecté.
   const nezhaIbkrDeposits = nezhaIbkrCash + nezhaIbkrCout;
-  const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + esppDeposits + sgtmDepositsEUR + nezhaIbkrDeposits;
+  const peaDepositsNet = netDeposits('PEA (Boursorama)'); // négatif : compte clos à profit
+  const totalDeposits = ibkrDepositsTotal + degiroDepositsTotal + peaDepositsNet + esppDeposits + sgtmDepositsEUR + nezhaIbkrDeposits;
 
   // Cross-platform combined unrealized P/L (includes SGTM)
   // SGTM: use historical FX at IPO date (10.8 MAD/EUR) for cost basis
@@ -1052,7 +1061,8 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
         '| ESPP:', esppDeposits.toFixed(0),
         '| SGTM:', sgtmDepositsEUR.toFixed(0),
         '| IBKR Nezha:', nezhaIbkrDeposits.toFixed(0),
-        '| Degiro:', degiroDepositsNet.toFixed(0), ')'
+        '| Degiro:', degiroDepositsNet.toFixed(0),
+        '| PEA:', peaDepositsNet.toFixed(0), ')'
       );
     } else {
       console.log(
@@ -1178,6 +1188,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
   const allClosed = Object.values(byTickerSource);
   const ibkrOnlyClosed = allClosed.filter(p => p.source === 'ibkr');
   const degiroOnlyClosed = allClosed.filter(p => p.source === 'degiro');
+  const peaOnlyClosed = allClosed.filter(p => p.source === 'pea');
   // Sanity check: IBKR per-trade table P/L should match ibkrRealizedPL
   // - Degiro uses annual-report totals (totalPLAllComponents) which naturally differ from per-trade sum → excluded
   // - dividends/costs excluded via tradeOnlyRealizedPL snapshot (v298 fix for false-positive since v246)
@@ -1645,6 +1656,22 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     // dénominateur et le latent des seules positions vivantes au numérateur.
     plLatentPct: _coutTitres > 0 ? _latentTitres / _coutTitres * 100 : 0,
   };
+  // Ligne du tableau des positions clôturées, pour un compte fermé (DEGIRO, PEA) — agrégée par titre.
+  const versLigneClose = (t) => {
+    const cost = t.costEUR || 0;
+    const proceeds = t.proceedsEUR || 0;
+    // Use t.pl directly (already set from degiroPerTickerPL in byTickerSource enrichment)
+    // Use !== undefined to preserve pl=0 (some positions like INFY 2020 have zero P/L)
+    const pl = (typeof t.pl === 'number') ? t.pl : (cost > 0 ? (proceeds - cost) : 0);
+    // hasCost: true if we have buy cost data OR report-based P/L (can show meaningful numbers)
+    const hasCost = cost > 0 || t._hasReportPL;
+    return {
+      ticker: t.ticker, label: t.label, pl, hasCost, _hasReportPL: t._hasReportPL,
+      costEUR: cost, proceedsEUR: proceeds,
+      _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
+    };
+  };
+
   return {
     ibkrPositions,
     // v545 — compte IBKR PROPRE de Nezha (tenu à part des agrégats du compte d'Amine)
@@ -1725,21 +1752,14 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     trades: allTradesUnified,
     depositHistory: depositHistory,
     // Degiro — aggregated by ticker (pre-split + post-split merged)
-    degiroClosedPositions: degiroOnlyClosed.map(t => {
-      const cost = t.costEUR || 0;
-      const proceeds = t.proceedsEUR || 0;
-      // Use t.pl directly (already set from degiroPerTickerPL in byTickerSource enrichment)
-      // Use !== undefined to preserve pl=0 (some positions like INFY 2020 have zero P/L)
-      const pl = (typeof t.pl === 'number') ? t.pl : (cost > 0 ? (proceeds - cost) : 0);
-      // hasCost: true if we have buy cost data OR report-based P/L (can show meaningful numbers)
-      const hasCost = cost > 0 || t._hasReportPL;
-      return {
-        ticker: t.ticker, label: t.label, pl, hasCost, _hasReportPL: t._hasReportPL,
-        costEUR: cost, proceedsEUR: proceeds,
-        _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
-      };
-    }),
+    degiroClosedPositions: degiroOnlyClosed.map(versLigneClose),
+    peaClosedPositions: peaOnlyClosed.map(versLigneClose),
     degiroRealizedPL,
+    // v585 — PEA Boursorama, et les deux comptes clos ensemble (portée « Degiro + PEA » du graphe)
+    peaRealizedPL,
+    peaDepositsNet,
+    comptesClosRealizedPL: degiroRealizedPL + peaRealizedPL,
+    comptesClosDepositsNet: degiroDepositsNet + peaDepositsNet,
     // Cross-platform
     combinedRealizedPL,
     combinedUnrealizedPL,

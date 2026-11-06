@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=584';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=584';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=584';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=584';
-import { loadSnapshots } from './api.js?v=584'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=584'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=585';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=585';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=585';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=585';
+import { loadSnapshots } from './api.js?v=585'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=585'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1141,6 +1141,9 @@ function _drawHistoriqueCharts() {
   try { _drawEquityDepthChart(); } catch (e) { console.warn('[historique] equity depth:', e); }
 }
 
+// v585 — la portée « degiro » du graphe d'évolution couvre les deux comptes clos.
+const LIBELLE_COMPTES_CLOS = 'Degiro + PEA';
+
 function _drawEquityDepthChart() {
   const el = document.getElementById('eqHistDepthChart');
   if (!el || !EQUITY_HISTORY || !EQUITY_HISTORY.length) return;
@@ -1157,7 +1160,7 @@ function _drawEquityDepthChart() {
       const [fy, fm] = fin.split('-').map(Number);
       const now = new Date();
       const retard = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm);
-      legende.innerHTML = 'Série <strong>actions uniquement</strong> (IBKR + ESPP + Degiro, hors cash/immo/créances)'
+      legende.innerHTML = 'Série <strong>actions uniquement</strong> (IBKR + ESPP + Degiro + PEA Boursorama, hors cash/immo/créances)'
         + ' — saisie mensuelle, dernière ligne <strong>' + fin + '</strong>'
         + (retard >= 2 ? ' <span style="color:#b45309">(' + retard + ' mois de retard — série à compléter)</span>' : '')
         + '. Volontairement séparée de la courbe NW : le net worth complet n’existe qu’à partir des snapshots quotidiens ci-dessus.';
@@ -1176,8 +1179,8 @@ function _drawEquityDepthChart() {
     data: { labels, datasets: acnAmineChezIBKR()
       ? [mk('Total', 'total', '#1a365d', true),
          { ...mk('IBKR (dont ACN, plan ESPP)', 'ibkr', '#3182ce'), data: rows.map(r => (typeof r.ibkr === 'number' || typeof r.espp === 'number') ? (r.ibkr || 0) + (r.espp || 0) : null) },
-         mk('Degiro', 'degiro', '#718096')]
-      : [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#718096')] },
+         mk('Degiro', 'degiro', '#718096'), mk('PEA Boursorama', 'pea', '#9f7aea')]
+      : [mk('Total', 'total', '#1a365d', true), mk('IBKR', 'ibkr', '#3182ce'), mk('ESPP', 'espp', '#48bb78'), mk('Degiro', 'degiro', '#718096'), mk('PEA Boursorama', 'pea', '#9f7aea')] },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
@@ -2749,7 +2752,8 @@ function computeAbsoluteTooltipArrays(chartLabels, navIBKR, navESPP, navSGTM, na
 
   const dgDepositEvents = [];   // argent entré, daté
   const dgWithdrawalEvents = []; // argent sorti, daté (montants positifs)
-  for (const d of (dg.deposits || [])) {
+  // v585 — + versements (estimés) et retrait de clôture du PEA Boursorama : portée « comptes clos ».
+  for (const d of [...(dg.deposits || []), ...((PORTFOLIO.amine.pea || {}).deposits || [])]) {
     const eur = d.currency === 'EUR' ? d.amount : d.amount / (d.fxRateAtDate || 1);
     if (eur >= 0) dgDepositEvents.push({ date: d.date, amount: eur });
     else dgWithdrawalEvents.push({ date: d.date, amount: -eur });
@@ -3112,7 +3116,7 @@ export function renderPortfolioChart(overrides = {}) {
         break;
       case 'degiro':
         mainData = slicedPLDegiro;
-        scopeLabel = 'Degiro';
+        scopeLabel = LIBELLE_COMPTES_CLOS;
         break;
       case 'all':
         mainData = slicedPLTotal;
@@ -3139,7 +3143,7 @@ export function renderPortfolioChart(overrides = {}) {
         break;
       case 'degiro':
         mainData = slicedDegiro;
-        scopeLabel = 'Degiro';
+        scopeLabel = LIBELLE_COMPTES_CLOS;
         break;
       case 'all':
         mainData = slicedTotal;
@@ -3277,12 +3281,12 @@ export function renderPortfolioChart(overrides = {}) {
       const degiroColor = '#718096';
       if (displayMode === 'pl') {
         titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
-          'P&L Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
+          'P&L ' + LIBELLE_COMPTES_CLOS + ' ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
           (endVal >= 0 ? '+' : '') + fmt(endVal) + '</span>' +
           ' <small style="color:#718096;font-weight:normal">(compte clôturé — P/L réalisé)</small>';
       } else {
         titleEl.innerHTML = '<span class="section-icon" style="background:var(--accent)">📈</span>' +
-          'Evolution Degiro ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
+          'Evolution ' + LIBELLE_COMPTES_CLOS + ' ' + periodLabel + ' — <span style="color:' + degiroColor + '">' +
           fmt(endVal) + '</span>' +
           ' <small style="color:#718096;font-weight:normal">(compte clôturé)</small>';
       }
@@ -3506,7 +3510,7 @@ export function renderPortfolioChart(overrides = {}) {
         '<td style="text-align:right;padding:3px 8px;color:' + color(p) + '">' + pct + '</td></tr>';
     };
 
-    if (nav.degiro > 0 || pl.degiro !== 0) html += row('Degiro', nav.degiro, dep.degiro, pl.degiro);
+    if (nav.degiro > 0 || pl.degiro !== 0) html += row(LIBELLE_COMPTES_CLOS, nav.degiro, dep.degiro, pl.degiro);
     if (nav.espp > 0 || pl.espp !== 0) html += row('UBS (plan ESPP)', nav.espp, dep.espp, pl.espp);
     if (nav.ibkr > 0 || pl.ibkr !== 0) html += row('IBKR', nav.ibkr, dep.ibkr, pl.ibkr);
     if (nav.sgtm > 0 || pl.sgtm !== 0) html += row('SGTM', nav.sgtm, dep.sgtm, pl.sgtm);
@@ -5437,7 +5441,8 @@ export function buildEquityHistoryChart(period, options) {
     dataPoints = [];
     for (const h of ehBefore) {
       dataPoints.push({
-        date: h.date, degiro: h.degiro, espp: h.espp,
+        // v585 — la série des comptes clos porte DEGIRO + PEA Boursorama (colonne `pea`).
+        date: h.date, degiro: (h.degiro || 0) + (h.pea || 0), espp: h.espp,
         // v569 — la colonne `espp` d'EQUITY_HISTORY est l'ACN d'AMINE (lots depuis 2020 ; 36 250 € au
         // 31/03/2026 = ses 167 parts) : attribuée à Amine, ce qui permet aussi le regroupement par courtier.
         esppAmine: h.espp || 0, esppNezha: 0,
@@ -5477,7 +5482,7 @@ export function buildEquityHistoryChart(period, options) {
   } else {
     // No simulation data cached — fall back to EQUITY_HISTORY only
     dataPoints = filtered.map(h => ({
-      date: h.date, degiro: h.degiro, espp: h.espp,
+      date: h.date, degiro: (h.degiro || 0) + (h.pea || 0), espp: h.espp,
       esppAmine: h.espp || 0, esppNezha: 0,  // v569 — colonne `espp` d'EQUITY_HISTORY = ACN d'Amine
       ibkr: h.ibkr || 0, sgtm: 0, total: h.total, note: h.note,
     }));
@@ -5508,7 +5513,8 @@ export function buildEquityHistoryChart(period, options) {
 
   const dgDepositEvents = [];
   const dgWithdrawalEvents = [];
-  for (const d of (dg.deposits || [])) {
+  // v585 — + versements (estimés) et retrait de clôture du PEA Boursorama : portée « comptes clos ».
+  for (const d of [...(dg.deposits || []), ...((PORTFOLIO.amine.pea || {}).deposits || [])]) {
     const eur = d.currency === 'EUR' ? d.amount : d.amount / (d.fxRateAtDate || 1);
     if (eur >= 0) dgDepositEvents.push({ date: d.date, amount: eur });
     else dgWithdrawalEvents.push({ date: d.date, amount: -eur });

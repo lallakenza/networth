@@ -1008,12 +1008,112 @@ export const PORTFOLIO = {
       // Degiro trades migrated to unified trades[] below
     },
 
+    // ──────────────────────────────────────────────────────
+    // PEA BOURSORAMA (ouvert le 20/07/2021, clos le 17/03/2025 — v585)
+    // ──────────────────────────────────────────────────────
+    // Archive RGPD BoursoBank reçue le 06/11/2026 (SecureShare) : 54 avis d'opéré du PEA (export du
+    // 28/10/2026) et IFU 2018-2025. Fiche Notion : « PEA Boursorama — archive RGPD du 6 novembre 2026 ».
+    // Faits sourcés (IFU 2025, cadre PEA) : ouverture fiscale 20/07/2021, premier retrait 17/03/2025
+    // (clôture avant 5 ans), valeur liquidative 69 052 €, versements cumulés 66 000 €, gain 3 052 €.
+    // Toutes les lignes ont été vendues du 07 au 11/03/2025 (trades : `allTrades`, source 'pea').
+    pea: {
+      closed: true,
+      ouverture: '2021-07-20',
+      closedDate: '2025-03-17',
+      archiveRGPD: { recueLe: '2026-11-06', avisOperes: 54, exportDu: '2026-10-28', ifu: [2018, 2025] },
+      cloture: { valeurLiquidative: 69052, versementsCumules: 66000, gain: 3052 },
+      // Identité du compte clos et vidé : P&L total = retraits − versements.
+      totalPLAllComponents: 3052,
+      // Décomposition : titres +705,65 € (ventes − achats nets des avis) + dividendes estimés
+      // 2 483,00 € (détachements Yahoo × titres détenus) + écart non détaillé −136,65 € (frais,
+      // arrondis, montants de dividendes réellement versés). Seul le total est sourcé.
+      resultatTitres: 705.65,
+      dividendesEstimes: 2483.00,
+      ecartNonDetaille: -136.65,
+      // PEA-PME ouvert le 23/09/2024 : 10 € versés, retirés le 02/06/2025, sans gain (hors calcul).
+      peaPme: { ouverture: '2024-09-23', retrait: '2025-06-02', montant: 10 },
+      // Versements : seul le TOTAL (66 000 €) est connu. Dates estimées : chaque versement au plus
+      // tard le jour de l'achat qu'il finance (trésorerie jamais négative), le reliquat de 128,86 €
+      // sur le premier. À remplacer par le relevé de trésorerie du PEA quand il sera obtenu.
+      deposits: [
+        { date: '2021-07-22', amount: 2590.9, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-07-22', amount: 1270.08, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-07-26', amount: 5573.85, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-07-27', amount: 3441.9, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-08-16', amount: 985.32, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-08-17', amount: 10394.77, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-08-19', amount: 3112.7, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-08-19', amount: 939.96, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2021-09-15', amount: 433.44, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-01-20', amount: 2374.21, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-01-21', amount: 2727.65, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-01-27', amount: 2584.51, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-02-11', amount: 2423.23, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-03-18', amount: 1361.95, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-04-01', amount: 1230.26, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-05-20', amount: 3816.59, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-09-16', amount: 1669.25, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2022-09-16', amount: 335.22, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2023-03-15', amount: 625.62, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2023-04-05', amount: 1138.04, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2023-05-04', amount: 421.98, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2023-05-04', amount: 490.69, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2023-07-26', amount: 3925.24, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-07-30', amount: 98.64, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-08-01', amount: 1308.18, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-08-01', amount: 691.89, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-08-05', amount: 1929.81, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-08-05', amount: 1918.09, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-08-06', amount: 2123.67, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-09-10', amount: 1756.74, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-09-10', amount: 1357.22, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-09-11', amount: 670.34, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2024-09-20', amount: 278.06, currency: 'EUR', fxRateAtDate: 1, estime: true, label: 'Versement estimé (au plus tard à l\'achat qu\'il finance)' },
+        { date: '2025-03-17', amount: -69052, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait de clôture (IFU 2025 : premier retrait le 17/03/2025, valeur liquidative 69 052 €)' },
+      ],
+      dividendesEstimesDetail: [
+        { date: '2021-11-30', ticker: 'CDI', qty: 5, parAction: 3, montant: 15 },
+        { date: '2021-11-30', ticker: 'MC', qty: 20, parAction: 3, montant: 60 },
+        { date: '2022-01-13', ticker: 'KER', qty: 10, parAction: 3.5, montant: 35 },
+        { date: '2022-02-21', ticker: 'RMS', qty: 7, parAction: 2.5, montant: 17.5 },
+        { date: '2022-04-25', ticker: 'RMS', qty: 7, parAction: 5.5, montant: 38.5 },
+        { date: '2022-04-26', ticker: 'CDI', qty: 5, parAction: 7, montant: 35 },
+        { date: '2022-04-26', ticker: 'MC', qty: 20, parAction: 7, montant: 140 },
+        { date: '2022-05-02', ticker: 'FDJ', qty: 50, parAction: 1.24, montant: 62 },
+        { date: '2022-05-03', ticker: 'KER', qty: 10, parAction: 8.5, montant: 85 },
+        { date: '2022-12-01', ticker: 'CDI', qty: 5, parAction: 5, montant: 25 },
+        { date: '2022-12-01', ticker: 'MC', qty: 20, parAction: 5, montant: 100 },
+        { date: '2023-01-16', ticker: 'KER', qty: 10, parAction: 4.5, montant: 45 },
+        { date: '2023-02-20', ticker: 'RMS', qty: 11, parAction: 3.5, montant: 38.5 },
+        { date: '2023-04-25', ticker: 'CDI', qty: 5, parAction: 7, montant: 35 },
+        { date: '2023-04-25', ticker: 'MC', qty: 20, parAction: 7, montant: 140 },
+        { date: '2023-04-25', ticker: 'RMS', qty: 11, parAction: 9.5, montant: 104.5 },
+        { date: '2023-05-02', ticker: 'KER', qty: 12, parAction: 9.5, montant: 114 },
+        { date: '2023-05-05', ticker: 'FDJ', qty: 50, parAction: 1.37, montant: 68.5 },
+        { date: '2023-05-30', ticker: 'CAP', qty: 20, parAction: 3.25, montant: 65 },
+        { date: '2023-12-04', ticker: 'CDI', qty: 5, parAction: 5.5, montant: 27.5 },
+        { date: '2023-12-04', ticker: 'MC', qty: 25, parAction: 5.5, montant: 137.5 },
+        { date: '2024-01-15', ticker: 'KER', qty: 14, parAction: 4.5, montant: 63 },
+        { date: '2024-02-13', ticker: 'RMS', qty: 11, parAction: 3.5, montant: 38.5 },
+        { date: '2024-04-23', ticker: 'CDI', qty: 5, parAction: 7.5, montant: 37.5 },
+        { date: '2024-04-23', ticker: 'MC', qty: 25, parAction: 7.5, montant: 187.5 },
+        { date: '2024-05-02', ticker: 'KER', qty: 14, parAction: 9.5, montant: 133 },
+        { date: '2024-05-02', ticker: 'RMS', qty: 11, parAction: 21.5, montant: 236.5 },
+        { date: '2024-05-03', ticker: 'FDJ', qty: 50, parAction: 1.78, montant: 89 },
+        { date: '2024-05-29', ticker: 'CAP', qty: 20, parAction: 3.4, montant: 68 },
+        { date: '2024-12-02', ticker: 'CDI', qty: 5, parAction: 5.5, montant: 27.5 },
+        { date: '2024-12-02', ticker: 'MC', qty: 25, parAction: 5.5, montant: 137.5 },
+        { date: '2025-01-14', ticker: 'KER', qty: 19, parAction: 2, montant: 38 },
+        { date: '2025-02-17', ticker: 'RMS', qty: 11, parAction: 3.5, montant: 38.5 },
+      ],
+    },
+
     // ════════════════════════════════════════════════════════════
     // HISTORIQUE UNIFIÉ DE TOUS LES TRADES — toutes plateformes
     // ════════════════════════════════════════════════════════════
     // Format: { date, ticker, label, type, qty, price, currency, cost|proceeds,
     //           realizedPL, commission, costBasis, source, note }
-    // source: 'ibkr' | 'degiro' | 'espp'
+    // source: 'ibkr' | 'degiro' | 'pea' | 'espp'
     // Champs manquants = données non disponibles (trades historiques Degiro)
     allTrades: [
       // ══════════════════════════════════════════════════════════════════════════════
@@ -1218,6 +1318,67 @@ export const PORTFOLIO = {
       // pas au relevé de transactions. La ligne est conservée pour que le −3,42 € du rapport
       // annuel 2020 reste visible dans le tableau des positions clôturées.
       { date: '2020-06-01', ticker: 'MSLIQ', label: 'MS Liquidity Fund', type: 'sell', qty: 0, price: '', currency: 'EUR', proceeds: '', realizedPL: -3.42, commission: '', costBasis: '', source: 'degiro', note: 'Fonds monétaire — P/L du rapport annuel 2020, hors relevé de transactions' },
+      // ══════════════════════════════════════════════════════════════════════════════
+      //  PEA BOURSORAMA — 54 avis d'opéré (archive RGPD BoursoBank du 06/11/2026)
+      // ══════════════════════════════════════════════════════════════════════════════
+      // Une ligne par avis, du 22/07/2021 au 11/03/2025. `cost` et `proceeds` sont les montants NETS
+      // de l'avis (commission et taxe sur les transactions incluses) : le P/L par titre les intègre.
+      // `splitFactor` = titres d'aujourd'hui par titre de l'époque, comme pour DEGIRO : Atos 1:10 000
+      // (24/04/2025), Worldline 1:40 (15/06/2026). Sert au « si gardé » des positions clôturées.
+      { date: '2021-07-22', ticker: 'RMS', label: 'Hermès International', type: 'buy', qty: 1, price: 1260, currency: 'EUR', cost: 1270.08, realizedPL: '', commission: -6.3, ftt: -3.78, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2021-07-22', ticker: 'FDJ', label: 'La Française des Jeux', type: 'buy', qty: 50, price: 48.85, currency: 'EUR', cost: 2462.04, realizedPL: '', commission: -12.21, ftt: -7.33, costBasis: '', source: 'pea', yahooTicker: 'FDJU.PA', isin: 'FR0013451333' },
+      { date: '2021-07-26', ticker: 'EUCAR', label: 'Europcar Mobility Group', type: 'buy', qty: 12000, price: 0.4631, currency: 'EUR', cost: 5573.85, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', isin: 'FR0012789949' },
+      { date: '2021-07-27', ticker: 'CDI', label: 'Christian Dior', type: 'buy', qty: 5, price: 683, currency: 'EUR', cost: 3441.9, realizedPL: '', commission: -16.65, ftt: -10.25, costBasis: '', source: 'pea', yahooTicker: 'CDI.PA', isin: 'FR0000130403' },
+      { date: '2021-08-16', ticker: 'SOI', label: 'Soitec', type: 'buy', qty: 5, price: 195.5, currency: 'EUR', cost: 985.32, realizedPL: '', commission: -4.89, ftt: -2.93, costBasis: '', source: 'pea', yahooTicker: 'SOI.PA', isin: 'FR0013227113' },
+      { date: '2021-08-17', ticker: 'MC', label: 'LVMH Moët Hennessy', type: 'buy', qty: 15, price: 689.4, currency: 'EUR', cost: 10394.77, realizedPL: '', commission: -22.75, ftt: -31.02, costBasis: '', source: 'pea', yahooTicker: 'MC.PA', isin: 'FR0000121014' },
+      { date: '2021-08-19', ticker: 'SOI', label: 'Soitec', type: 'buy', qty: 5, price: 186.5, currency: 'EUR', cost: 939.96, realizedPL: '', commission: -4.66, ftt: -2.8, costBasis: '', source: 'pea', yahooTicker: 'SOI.PA', isin: 'FR0013227113' },
+      { date: '2021-08-19', ticker: 'MC', label: 'LVMH Moët Hennessy', type: 'buy', qty: 5, price: 617.6, currency: 'EUR', cost: 3112.7, realizedPL: '', commission: -15.44, ftt: -9.26, costBasis: '', source: 'pea', yahooTicker: 'MC.PA', isin: 'FR0000121014' },
+      { date: '2021-09-07', ticker: 'EUCAR', label: 'Europcar Mobility Group', type: 'sell', qty: 12000, price: 0.5, currency: 'EUR', proceeds: 5983.35, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', isin: 'FR0012789949' },
+      { date: '2021-09-15', ticker: 'KER', label: 'Kering', type: 'buy', qty: 10, price: 638.1, currency: 'EUR', cost: 6416.79, realizedPL: '', commission: -16.65, ftt: -19.14, costBasis: '', source: 'pea', yahooTicker: 'KER.PA', isin: 'FR0000121485' },
+      { date: '2022-01-20', ticker: 'SOI', label: 'Soitec', type: 'buy', qty: 15, price: 164.3, currency: 'EUR', cost: 2484.21, realizedPL: '', commission: -12.32, ftt: -7.39, costBasis: '', source: 'pea', yahooTicker: 'SOI.PA', isin: 'FR0013227113' },
+      { date: '2022-01-21', ticker: 'RMS', label: 'Hermès International', type: 'buy', qty: 2, price: 1353, currency: 'EUR', cost: 2727.65, realizedPL: '', commission: -13.53, ftt: -8.12, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2022-01-27', ticker: 'RMS', label: 'Hermès International', type: 'buy', qty: 2, price: 1282, currency: 'EUR', cost: 2584.51, realizedPL: '', commission: -12.82, ftt: -7.69, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2022-02-11', ticker: 'RMS', label: 'Hermès International', type: 'buy', qty: 2, price: 1202, currency: 'EUR', cost: 2423.23, realizedPL: '', commission: -12.02, ftt: -7.21, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2022-03-18', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 50, price: 27.37, currency: 'EUR', cost: 1379.45, realizedPL: '', commission: -6.84, ftt: -4.11, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2022-04-01', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 50, price: 24.41, currency: 'EUR', cost: 1230.26, realizedPL: '', commission: -6.1, ftt: -3.66, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2022-05-20', ticker: 'RMS', label: 'Hermès International', type: 'buy', qty: 4, price: 1037, currency: 'EUR', cost: 4177.09, realizedPL: '', commission: -16.65, ftt: -12.44, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2022-09-16', ticker: 'CAP', label: 'Capgemini', type: 'buy', qty: 10, price: 165.6, currency: 'EUR', cost: 1669.25, realizedPL: '', commission: -8.28, ftt: -4.97, costBasis: '', source: 'pea', yahooTicker: 'CAP.PA', isin: 'FR0000125338' },
+      { date: '2022-09-16', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 40, price: 8.314, currency: 'EUR', cost: 335.22, realizedPL: '', commission: -1.66, ftt: -1, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2023-03-15', ticker: 'CAP', label: 'Capgemini', type: 'buy', qty: 5, price: 165.5, currency: 'EUR', cost: 834.12, realizedPL: '', commission: -4.14, ftt: -2.48, costBasis: '', source: 'pea', yahooTicker: 'CAP.PA', isin: 'FR0000125338' },
+      { date: '2023-04-05', ticker: 'KER', label: 'Kering', type: 'buy', qty: 2, price: 564.5, currency: 'EUR', cost: 1138.04, realizedPL: '', commission: -5.65, ftt: -3.39, costBasis: '', source: 'pea', yahooTicker: 'KER.PA', isin: 'FR0000121485' },
+      { date: '2023-05-04', ticker: 'CAP', label: 'Capgemini', type: 'buy', qty: 5, price: 161.8, currency: 'EUR', cost: 815.48, realizedPL: '', commission: -4.05, ftt: -2.43, costBasis: '', source: 'pea', yahooTicker: 'CAP.PA', isin: 'FR0000125338' },
+      { date: '2023-05-04', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 40, price: 12.17, currency: 'EUR', cost: 490.69, realizedPL: '', commission: -2.43, ftt: -1.46, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2023-07-26', ticker: 'SOI', label: 'Soitec', type: 'sell', qty: 25, price: 170.5, currency: 'EUR', proceeds: 4245.85, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'SOI.PA', isin: 'FR0013227113' },
+      { date: '2023-07-26', ticker: 'MC', label: 'LVMH Moët Hennessy', type: 'buy', qty: 5, price: 806, currency: 'EUR', cost: 4058.74, realizedPL: '', commission: -16.65, ftt: -12.09, costBasis: '', source: 'pea', yahooTicker: 'MC.PA', isin: 'FR0000121014' },
+      { date: '2023-09-26', ticker: 'KER', label: 'Kering', type: 'buy', qty: 2, price: 429.05, currency: 'EUR', cost: 864.96, realizedPL: '', commission: -4.29, ftt: -2.57, costBasis: '', source: 'pea', yahooTicker: 'KER.PA', isin: 'FR0000121485' },
+      { date: '2024-01-19', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 79, price: 3.301, currency: 'EUR', cost: 262.08, realizedPL: '', commission: -1.3, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2024-06-28', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 500, price: 0.987, currency: 'EUR', cost: 495.97, realizedPL: '', commission: -2.47, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2024-07-18', ticker: 'PE500', label: 'Amundi PEA S&P 500 ESG', type: 'buy', qty: 29, price: 42.549, currency: 'EUR', cost: 1240.09, realizedPL: '', commission: -6.17, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'PE500.PA', isin: 'FR0013412285' },
+      { date: '2024-07-24', ticker: 'KER', label: 'Kering', type: 'buy', qty: 5, price: 299.65, currency: 'EUR', cost: 1510.23, realizedPL: '', commission: -7.49, ftt: -4.49, costBasis: '', source: 'pea', yahooTicker: 'KER.PA', isin: 'FR0000121485' },
+      { date: '2024-07-30', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 1200, price: 0.8202, currency: 'EUR', cost: 989.16, realizedPL: '', commission: -4.92, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2024-08-01', ticker: 'WLN', label: 'Worldline', type: 'buy', qty: 150, price: 8.652, currency: 'EUR', cost: 1308.18, realizedPL: '', commission: -6.49, ftt: -3.89, costBasis: '', source: 'pea', splitFactor: 0.025, yahooTicker: 'WLN.PA', isin: 'FR0011981968' },
+      { date: '2024-08-01', ticker: 'WLN', label: 'Worldline', type: 'buy', qty: 80, price: 8.58, currency: 'EUR', cost: 691.89, realizedPL: '', commission: -3.43, ftt: -2.06, costBasis: '', source: 'pea', splitFactor: 0.025, yahooTicker: 'WLN.PA', isin: 'FR0011981968' },
+      { date: '2024-08-05', ticker: 'WLN', label: 'Worldline', type: 'buy', qty: 250, price: 7.658, currency: 'EUR', cost: 1929.81, realizedPL: '', commission: -9.57, ftt: -5.74, costBasis: '', source: 'pea', splitFactor: 0.025, yahooTicker: 'WLN.PA', isin: 'FR0011981968' },
+      { date: '2024-08-05', ticker: 'PE500', label: 'Amundi PEA S&P 500 ESG', type: 'buy', qty: 49, price: 38.95, currency: 'EUR', cost: 1918.09, realizedPL: '', commission: -9.54, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'PE500.PA', isin: 'FR0013412285' },
+      { date: '2024-08-06', ticker: 'PTPXE', label: 'Amundi PEA Japon TOPIX', type: 'buy', qty: 85, price: 24.86, currency: 'EUR', cost: 2123.67, realizedPL: '', commission: -10.57, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'PTPXE.PA', isin: 'FR0013411980' },
+      { date: '2024-09-10', ticker: 'RNO', label: 'Renault', type: 'buy', qty: 35, price: 38.47, currency: 'EUR', cost: 1357.22, realizedPL: '', commission: -6.73, ftt: -4.04, costBasis: '', source: 'pea', yahooTicker: 'RNO.PA', isin: 'FR0000131906' },
+      { date: '2024-09-10', ticker: 'FR', label: 'Valeo', type: 'buy', qty: 200, price: 8.714, currency: 'EUR', cost: 1756.74, realizedPL: '', commission: -8.71, ftt: -5.23, costBasis: '', source: 'pea', yahooTicker: 'FR.PA', isin: 'FR0013176526' },
+      { date: '2024-09-11', ticker: 'ATO', label: 'Atos SE', type: 'buy', qty: 1000, price: 0.667, currency: 'EUR', cost: 670.34, realizedPL: '', commission: -3.34, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2024-09-20', ticker: 'WLN', label: 'Worldline', type: 'buy', qty: 45, price: 6.13, currency: 'EUR', cost: 278.06, realizedPL: '', commission: -1.38, ftt: -0.83, costBasis: '', source: 'pea', splitFactor: 0.025, yahooTicker: 'WLN.PA', isin: 'FR0011981968' },
+      { date: '2025-03-07', ticker: 'WLN', label: 'Worldline', type: 'sell', qty: 525, price: 7.156, currency: 'EUR', proceeds: 3740.25, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.025, yahooTicker: 'WLN.PA', isin: 'FR0011981968' },
+      { date: '2025-03-10', ticker: 'FR', label: 'Valeo', type: 'sell', qty: 200, price: 10.36, currency: 'EUR', proceeds: 2061.64, realizedPL: '', commission: -10.36, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'FR.PA', isin: 'FR0013176526' },
+      { date: '2025-03-10', ticker: 'ATO', label: 'Atos SE', type: 'sell', qty: 2959, price: 0.0044, currency: 'EUR', proceeds: 12.95, realizedPL: '', commission: -0.07, ftt: -0, costBasis: '', source: 'pea', splitFactor: 0.0001, yahooTicker: 'ATO.PA', isin: 'FR0000051732' },
+      { date: '2025-03-10', ticker: 'KER', label: 'Kering', type: 'sell', qty: 19, price: 255.7, currency: 'EUR', proceeds: 4841.65, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'KER.PA', isin: 'FR0000121485' },
+      { date: '2025-03-11', ticker: 'PTPXE', label: 'Amundi PEA Japon TOPIX', type: 'sell', qty: 85, price: 28.16, currency: 'EUR', proceeds: 2381.63, realizedPL: '', commission: -11.97, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'PTPXE.PA', isin: 'FR0013411980' },
+      { date: '2025-03-11', ticker: 'FDJ', label: 'La Française des Jeux', type: 'sell', qty: 50, price: 31.88, currency: 'EUR', proceeds: 1586.03, realizedPL: '', commission: -7.97, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'FDJU.PA', isin: 'FR0013451333' },
+      { date: '2025-03-11', ticker: 'MC', label: 'LVMH Moët Hennessy', type: 'sell', qty: 24, price: 632.9, currency: 'EUR', proceeds: 15156.18, realizedPL: '', commission: -33.42, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'MC.PA', isin: 'FR0000121014' },
+      { date: '2025-03-11', ticker: 'MC', label: 'LVMH Moët Hennessy', type: 'sell', qty: 1, price: 632.9, currency: 'EUR', proceeds: 629.74, realizedPL: '', commission: -3.16, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'MC.PA', isin: 'FR0000121014' },
+      { date: '2025-03-11', ticker: 'CDI', label: 'Christian Dior', type: 'buy', qty: 5, price: 581.5, currency: 'EUR', cost: 2922.04, realizedPL: '', commission: -14.54, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'CDI.PA', isin: 'FR0000130403' },
+      { date: '2025-03-11', ticker: 'RMS', label: 'Hermès International', type: 'sell', qty: 11, price: 2518, currency: 'EUR', proceeds: 27637.06, realizedPL: '', commission: -60.94, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'RMS.PA', isin: 'FR0000052292' },
+      { date: '2025-03-11', ticker: 'RNO', label: 'Renault', type: 'sell', qty: 35, price: 48.09, currency: 'EUR', proceeds: 1674.73, realizedPL: '', commission: -8.42, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'RNO.PA', isin: 'FR0000131906' },
+      { date: '2025-03-11', ticker: 'CAP', label: 'Capgemini', type: 'sell', qty: 20, price: 152.85, currency: 'EUR', proceeds: 3041.71, realizedPL: '', commission: -15.29, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'CAP.PA', isin: 'FR0000125338' },
+      { date: '2025-03-11', ticker: 'PE500', label: 'Amundi PEA S&P 500 ESG', type: 'sell', qty: 78, price: 41.92, currency: 'EUR', proceeds: 3253.41, realizedPL: '', commission: -16.35, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'PE500.PA', isin: 'FR0013412285' },
+      { date: '2025-03-11', ticker: 'CDI', label: 'Christian Dior', type: 'sell', qty: 10, price: 574, currency: 'EUR', proceeds: 5723.35, realizedPL: '', commission: -16.65, ftt: -0, costBasis: '', source: 'pea', yahooTicker: 'CDI.PA', isin: 'FR0000130403' },
     ],
 
     // ──────────────────────────────────────────────────────
@@ -1585,7 +1746,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v584';
+export const APP_VERSION = 'v585';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3352,6 +3513,9 @@ export const NW_HISTORY = [];
 //   degiro inclut Flatex cash (ex: dec 2020 = 30117.82 portefeuille + 1940.01 Flatex = 32058)
 // ════════════════════════════════════════════════════════════
 export const EQUITY_HISTORY = [
+  // v585 — colonne `pea` : PEA Boursorama (juil. 2021 → mars 2025), valeur de fin de mois = titres aux
+  // cours de clôture Yahoo (ajustés sur les cours exécutés pour Atos et Worldline) + liquidités
+  // reconstituées (versements estimés, avis d'opéré, dividendes estimés). `total` l'inclut.
   // ── 2020 ── (Degiro ouvert, premiers trades)
   // Dépôts exacts: 3 × 8524.34 = 25573.02 EUR (back-calculé rapports annuels)
   // Points vérifiés: 2020-12 (portefeuille 30117.82 + Flatex 1940.01 = 32058)
@@ -3376,62 +3540,62 @@ export const EQUITY_HISTORY = [
   { date: '2021-04-30', degiro: 30500,  espp: 29140, ibkr: 0, total: 59640,  note: 'ESPP lot 4 (15 sh)' },
   { date: '2021-05-31', degiro: 30200,  espp: 29760, ibkr: 0, total: 59960 },
   { date: '2021-06-30', degiro: 22000,  espp: 31000, ibkr: 0, total: 53000,  note: 'Ventes EUCAR/LVMH — retrait 15.7K' },
-  { date: '2021-07-31', degiro: 21000,  espp: 32240, ibkr: 0, total: 53240 },
-  { date: '2021-08-31', degiro: 20500,  espp: 33728, ibkr: 0, total: 54228,  note: 'Achat NVDA 30sh + vente LVMH 16sh' },
-  { date: '2021-09-30', degiro: 24000,  espp: 34720, ibkr: 0, total: 58720 },
-  { date: '2021-10-31', degiro: 26000,  espp: 35960, ibkr: 0, total: 61960 },
-  { date: '2021-11-30', degiro: 28000,  espp: 41850, ibkr: 0, total: 69850,  note: 'ESPP lot 3 (11 sh)' },
-  { date: '2021-12-31', degiro: 29954,  espp: 43875, ibkr: 0, total: 73829,  note: 'Relevé de portefeuille DEGIRO au 31/12/2021 : 29 954,48 € (titres 29 907,67 + cash 46,81)' },
+  { date: '2021-07-31', degiro: 21000,  espp: 32240, ibkr: 0, pea: 12702, total: 65942 },
+  { date: '2021-08-31', degiro: 20500,  espp: 33728, ibkr: 0, pea: 27242, total: 81470,  note: 'Achat NVDA 30sh + vente LVMH 16sh' },
+  { date: '2021-09-30', degiro: 24000,  espp: 34720, ibkr: 0, pea: 27111, total: 85831 },
+  { date: '2021-10-31', degiro: 26000,  espp: 35960, ibkr: 0, pea: 29456, total: 91416 },
+  { date: '2021-11-30', degiro: 28000,  espp: 41850, ibkr: 0, pea: 30104, total: 99954,  note: 'ESPP lot 3 (11 sh)' },
+  { date: '2021-12-31', degiro: 29954,  espp: 43875, ibkr: 0, pea: 31098, total: 104927,  note: 'Relevé de portefeuille DEGIRO au 31/12/2021 : 29 954,48 € (titres 29 907,67 + cash 46,81)' },
 
   // ── 2022 ── (Bear market, pas de trades, ESPP continue)
   // Points vérifiés: 2022-12 (portefeuille 16316.15 + Flatex 194.13)
-  { date: '2022-01-31', degiro: 28500,  espp: 44835, ibkr: 0, total: 73335 },
-  { date: '2022-02-28', degiro: 27000,  espp: 42630, ibkr: 0, total: 69630 },
-  { date: '2022-03-31', degiro: 25500,  espp: 44835, ibkr: 0, total: 70335 },
-  { date: '2022-04-30', degiro: 24000,  espp: 42630, ibkr: 0, total: 66630 },
-  { date: '2022-05-31', degiro: 22500,  espp: 40425, ibkr: 0, total: 62925,  note: 'ESPP lot 2 (12 sh)' },
-  { date: '2022-06-30', degiro: 21500,  espp: 37485, ibkr: 0, total: 58985 },
-  { date: '2022-07-31', degiro: 20500,  espp: 40500, ibkr: 0, total: 61000 },
-  { date: '2022-08-31', degiro: 19500,  espp: 42000, ibkr: 0, total: 61500,  note: 'ESPP FRAC 3sh (div reinvested)' },
-  { date: '2022-09-30', degiro: 18700,  espp: 36750, ibkr: 0, total: 55450 },
-  { date: '2022-10-31', degiro: 17900,  espp: 38250, ibkr: 0, total: 56150 },
-  { date: '2022-11-30', degiro: 17100,  espp: 40500, ibkr: 0, total: 57600 },
-  { date: '2022-12-31', degiro: 16505,  espp: 37500, ibkr: 0, total: 54005,  note: 'Relevé de portefeuille DEGIRO au 31/12/2022 : 16 505,27 € (titres 16 316,14 + cash 189,13)' },
+  { date: '2022-01-31', degiro: 28500,  espp: 44835, ibkr: 0, pea: 36991, total: 110326 },
+  { date: '2022-02-28', degiro: 27000,  espp: 42630, ibkr: 0, pea: 37146, total: 106776 },
+  { date: '2022-03-31', degiro: 25500,  espp: 44835, ibkr: 0, pea: 38321, total: 108656 },
+  { date: '2022-04-30', degiro: 24000,  espp: 42630, ibkr: 0, pea: 37563, total: 104193 },
+  { date: '2022-05-31', degiro: 22500,  espp: 40425, ibkr: 0, pea: 40693, total: 103618,  note: 'ESPP lot 2 (12 sh)' },
+  { date: '2022-06-30', degiro: 21500,  espp: 37485, ibkr: 0, pea: 37548, total: 96533 },
+  { date: '2022-07-31', degiro: 20500,  espp: 40500, ibkr: 0, pea: 44011, total: 105011 },
+  { date: '2022-08-31', degiro: 19500,  espp: 42000, ibkr: 0, pea: 41496, total: 102996,  note: 'ESPP FRAC 3sh (div reinvested)' },
+  { date: '2022-09-30', degiro: 18700,  espp: 36750, ibkr: 0, pea: 40574, total: 96024 },
+  { date: '2022-10-31', degiro: 17900,  espp: 38250, ibkr: 0, pea: 43038, total: 99188 },
+  { date: '2022-11-30', degiro: 17100,  espp: 40500, ibkr: 0, pea: 49999, total: 107599 },
+  { date: '2022-12-31', degiro: 16505,  espp: 37500, ibkr: 0, pea: 46428, total: 100433,  note: 'Relevé de portefeuille DEGIRO au 31/12/2022 : 16 505,27 € (titres 16 316,14 + cash 189,13)' },
 
   // ── 2023 ── (SAP+NVDA vendus, VOLTA perte, ESPP lot final)
   // Points vérifiés: 2023-12 (portefeuille 29971.39 + Flatex 70.51, retrait 5755)
-  { date: '2023-01-31', degiro: 17000,  espp: 37296, ibkr: 0, total: 54296 },
-  { date: '2023-02-28', degiro: 17500,  espp: 38385, ibkr: 0, total: 55885 },
-  { date: '2023-03-31', degiro: 15500,  espp: 37500, ibkr: 0, total: 53000,  note: 'VOLTA liquidé (-4183)' },
-  { date: '2023-04-30', degiro: 18000,  espp: 39855, ibkr: 0, total: 57855 },
-  { date: '2023-05-31', degiro: 20000,  espp: 45925, ibkr: 0, total: 65925,  note: 'ESPP lot 1 final (17 sh) — 167 sh total' },
-  { date: '2023-06-30', degiro: 22000,  espp: 45925, ibkr: 0, total: 67925 },
-  { date: '2023-07-31', degiro: 22500,  espp: 47595, ibkr: 0, total: 70095,  note: 'Vente SAP+NVDA partielles' },
-  { date: '2023-08-31', degiro: 24000,  espp: 48430, ibkr: 0, total: 72430 },
-  { date: '2023-09-30', degiro: 25500,  espp: 46760, ibkr: 0, total: 72260 },
-  { date: '2023-10-31', degiro: 27000,  espp: 45925, ibkr: 0, total: 72925 },
-  { date: '2023-11-30', degiro: 28500,  espp: 50100, ibkr: 0, total: 78600 },
-  { date: '2023-12-31', degiro: 30042,  espp: 52605, ibkr: 0, total: 82647,  note: 'Rapport annuel: Degiro 29971.39 + Flatex 70.51' },
+  { date: '2023-01-31', degiro: 17000,  espp: 37296, ibkr: 0, pea: 53677, total: 107973 },
+  { date: '2023-02-28', degiro: 17500,  espp: 38385, ibkr: 0, pea: 53532, total: 109417 },
+  { date: '2023-03-31', degiro: 15500,  espp: 37500, ibkr: 0, pea: 57401, total: 110401,  note: 'VOLTA liquidé (-4183)' },
+  { date: '2023-04-30', degiro: 18000,  espp: 39855, ibkr: 0, pea: 60087, total: 117942 },
+  { date: '2023-05-31', degiro: 20000,  espp: 45925, ibkr: 0, pea: 58091, total: 124016,  note: 'ESPP lot 1 final (17 sh) — 167 sh total' },
+  { date: '2023-06-30', degiro: 22000,  espp: 45925, ibkr: 0, pea: 61046, total: 128971 },
+  { date: '2023-07-31', degiro: 22500,  espp: 47595, ibkr: 0, pea: 64785, total: 134880,  note: 'Vente SAP+NVDA partielles' },
+  { date: '2023-08-31', degiro: 24000,  espp: 48430, ibkr: 0, pea: 61075, total: 133505 },
+  { date: '2023-09-30', degiro: 25500,  espp: 46760, ibkr: 0, pea: 56024, total: 128284 },
+  { date: '2023-10-31', degiro: 27000,  espp: 45925, ibkr: 0, pea: 54389, total: 127314 },
+  { date: '2023-11-30', degiro: 28500,  espp: 50100, ibkr: 0, pea: 57390, total: 135990 },
+  { date: '2023-12-31', degiro: 30042,  espp: 52605, ibkr: 0, pea: 58931, total: 141578,  note: 'Rapport annuel: Degiro 29971.39 + Flatex 70.51' },
 
   // ── 2024 ── (NVDA explose, pas de trades, dividendes seulement)
   // Points vérifiés: 2024-12 (portefeuille 77802.18 + Flatex 217.51)
-  { date: '2024-01-31', degiro: 34000,  espp: 53440, ibkr: 0, total: 87440 },
-  { date: '2024-02-29', degiro: 38000,  espp: 55110, ibkr: 0, total: 93110 },
-  { date: '2024-03-31', degiro: 42000,  espp: 56780, ibkr: 0, total: 98780 },
-  { date: '2024-04-30', degiro: 44500,  espp: 54275, ibkr: 0, total: 98775 },
-  { date: '2024-05-31', degiro: 49000,  espp: 54275, ibkr: 0, total: 103275 },
-  { date: '2024-06-30', degiro: 54000,  espp: 46760, ibkr: 0, total: 100760,  note: 'NVDA split 10:1 (juin)' },
-  { date: '2024-07-31', degiro: 58000,  espp: 48430, ibkr: 0, total: 106430 },
-  { date: '2024-08-31', degiro: 62000,  espp: 51770, ibkr: 0, total: 113770 },
-  { date: '2024-09-30', degiro: 66000,  espp: 53440, ibkr: 0, total: 119440 },
-  { date: '2024-10-31', degiro: 70000,  espp: 54275, ibkr: 0, total: 124275 },
-  { date: '2024-11-30', degiro: 74000,  espp: 56780, ibkr: 0, total: 130780 },
-  { date: '2024-12-31', degiro: 78020,  espp: 57615, ibkr: 0, total: 135635,  note: 'Rapport annuel: Degiro 77802.18 + Flatex 217.51' },
+  { date: '2024-01-31', degiro: 34000,  espp: 53440, ibkr: 0, pea: 60460, total: 147900 },
+  { date: '2024-02-29', degiro: 38000,  espp: 55110, ibkr: 0, pea: 67006, total: 160116 },
+  { date: '2024-03-31', degiro: 42000,  espp: 56780, ibkr: 0, pea: 66041, total: 164821 },
+  { date: '2024-04-30', degiro: 44500,  espp: 54275, ibkr: 0, pea: 62388, total: 161163 },
+  { date: '2024-05-31', degiro: 49000,  espp: 54275, ibkr: 0, pea: 60318, total: 163593 },
+  { date: '2024-06-30', degiro: 54000,  espp: 46760, ibkr: 0, pea: 59299, total: 160059,  note: 'NVDA split 10:1 (juin)' },
+  { date: '2024-07-31', degiro: 58000,  espp: 48430, ibkr: 0, pea: 55756, total: 162186 },
+  { date: '2024-08-31', degiro: 62000,  espp: 51770, ibkr: 0, pea: 65614, total: 179384 },
+  { date: '2024-09-30', degiro: 66000,  espp: 53440, ibkr: 0, pea: 70115, total: 189555 },
+  { date: '2024-10-31', degiro: 70000,  espp: 54275, ibkr: 0, pea: 64728, total: 189003 },
+  { date: '2024-11-30', degiro: 74000,  espp: 56780, ibkr: 0, pea: 62007, total: 192787 },
+  { date: '2024-12-31', degiro: 78020,  espp: 57615, ibkr: 0, pea: 68224, total: 203859,  note: 'Rapport annuel: Degiro 77802.18 + Flatex 217.51' },
 
   // ── 2025 ── (Liquidation Degiro → IBKR, gros flush août)
-  { date: '2025-01-31', degiro: 70518,  espp: 55110, ibkr: 0,      total: 125628,  note: 'Positions du relevé 31/12/2024 valorisées aux clôtures du 31/01/2025 (NVDA 120,07 · INFY 21,95 · SPOT 548,55 · DIS 113,06 ; EUR/USD 1,0397) + 222,83 € de cash' },
-  { date: '2025-02-28', degiro: 72071,  espp: 56780, ibkr: 0,      total: 128851,  note: 'Après les ventes DIS et SPOT du 27/02 : NVDA 540 à 124,92 + INFY 300 à 20,10 (EUR/USD 1,0395) + 1 376,46 € de cash' },
-  { date: '2025-03-31', degiro: 59160,  espp: 57615, ibkr: 0,      total: 116775,  note: 'NVDA 540 à 108,38 + INFY 300 à 18,25 (EUR/USD 1,0819) ; cash ramené à 3,78 € après le retrait de 1 903 € du 04/03. La v550 portait 78 000 € : la chute de NVIDIA du 1er trimestre 2025 manquait à l\'historique' },
+  { date: '2025-01-31', degiro: 70518,  espp: 55110, ibkr: 0, pea: 75771,      total: 201399,  note: 'Positions du relevé 31/12/2024 valorisées aux clôtures du 31/01/2025 (NVDA 120,07 · INFY 21,95 · SPOT 548,55 · DIS 113,06 ; EUR/USD 1,0397) + 222,83 € de cash' },
+  { date: '2025-02-28', degiro: 72071,  espp: 56780, ibkr: 0, pea: 73969,      total: 202820,  note: 'Après les ventes DIS et SPOT du 27/02 : NVDA 540 à 124,92 + INFY 300 à 20,10 (EUR/USD 1,0395) + 1 376,46 € de cash' },
+  { date: '2025-03-31', degiro: 59160,  espp: 57615, ibkr: 0, pea: 0,      total: 116775,  note: 'NVDA 540 à 108,38 + INFY 300 à 18,25 (EUR/USD 1,0819) ; cash ramené à 3,78 € après le retrait de 1 903 € du 04/03. La v550 portait 78 000 € : la chute de NVIDIA du 1er trimestre 2025 manquait à l\'historique' },
   { date: '2025-04-30', degiro: 0,      espp: 51770, ibkr: 10000,  total: 61770,   note: 'Clôture Degiro — IBKR ouvert (10K)' },
   { date: '2025-05-31', degiro: 0,      espp: 54275, ibkr: 20000,  total: 74275 },
   { date: '2025-06-30', degiro: 0,      espp: 53440, ibkr: 35000,  total: 88440 },

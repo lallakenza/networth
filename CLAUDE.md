@@ -288,6 +288,7 @@ git -c user.name="Amine" -c user.email="amine.koraibi@gmail.com" commit -m "vN: 
 - IBKR (stocks: GOOGL, META, AMZN, MSFT, etc.)
 - ESPP (Microsoft employee stock purchase)
 - SGTM (Moroccan fund)
+- PEA Boursorama (closed 17/03/2025, `PORTFOLIO.amine.pea` + `allTrades` source `pea`; deposit dates estimated, total exact from IFU 2025)
 - UAE: Mashreq, Wio Savings, Wio Current, Wio Business (Bairok)
 - EUR: Revolut
 - Morocco: Attijari
