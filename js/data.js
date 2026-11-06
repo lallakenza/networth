@@ -1746,7 +1746,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v585';
+export const APP_VERSION = 'v586';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1845,6 +1845,15 @@ export const DEGIRO_STATIC_PRICES = {
   ATO:   { price: 36.86,  currency: 'EUR' },
   SAN:   { price: 83.00,  currency: 'EUR' },
   JUVE:  { price: 2.17,   currency: 'EUR' },  // post reverse split 10:1
+  // v585 — titres du PEA Boursorama (cours Yahoo du 06/11/2026), même rôle que les lignes ci-dessus.
+  RNO:   { price: 28.90,  currency: 'EUR' },
+  FR:    { price: 10.96,  currency: 'EUR' },
+  SOI:   { price: 94.34,  currency: 'EUR' },
+  CDI:   { price: 441.40, currency: 'EUR' },
+  KER:   { price: 187.20, currency: 'EUR' },
+  FDJ:   { price: 21.68,  currency: 'EUR' },
+  PE500: { price: 54.58,  currency: 'EUR' },
+  PTPXE: { price: 37.70,  currency: 'EUR' },
   EUCAR: { price: 0.50,   currency: 'EUR', delisted: true, note: 'VW squeeze-out at €0.50/share (Jul 2022)' },
 };
 

@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v586 (7 novembre 2026) — « si gardé » des lignes du PEA
+
+Cours de repli (`DEGIRO_STATIC_PRICES`, Yahoo du 06/11/2026) pour les 8 titres du PEA dont le cours
+vendu ne se télécharge pas toujours au chargement (Renault, Valeo, Soitec, Dior, Kering, FDJ, ETF S&P 500
+et Japon). Le tableau des positions clôturées affiche ainsi une valeur « si gardé » sur chaque ligne.
+
 ## v585 (7 novembre 2026) — PEA Boursorama intégré (juillet 2021 → mars 2025)
 
 **Source.** Archive RGPD BoursoBank reçue le 06/11/2026 : 54 avis d'opéré du PEA (export du 28/10/2026)
