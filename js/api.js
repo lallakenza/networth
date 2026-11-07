@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=591';
-import { DEPLOIEMENTS } from './deploiements.js?v=591';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=591';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=592';
+import { DEPLOIEMENTS } from './deploiements.js?v=592';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=592';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1590,7 +1590,7 @@ const IMMO_REF_CACHE_KEY = 'nw_immo_ref_v1';
 
 /**
  * Charge le référentiel immo (propriétés + prêts).
- * @returns {Promise<{properties: Array, source: 'supabase'|'cache'}|null>} null ⇒ fallback data.js
+ * @returns {Promise<{properties: Array, source: 'neon'|'cache'}|null>} null ⇒ fallback data.js
  */
 export async function loadImmoRef() {
   if (!_serverConfigured()) return null;
@@ -1601,12 +1601,12 @@ export async function loadImmoRef() {
     {
       if (Array.isArray(rows) && rows.length >= 3) {
         try { localStorage.setItem(IMMO_REF_CACHE_KEY, JSON.stringify({ at: Date.now(), rows })); } catch (_) {}
-        console.log('[immo-ref] Supabase OK —', rows.length, 'propriétés,',
+        console.log('[immo-ref] Neon OK —', rows.length, 'propriétés,',
           rows.reduce((s, p) => s + (p.immo_loans || []).length, 0), 'prêts');
-        return { properties: rows, source: 'supabase' };
+        return { properties: rows, source: 'neon' };
       }
     }
-    console.warn('[immo-ref] réponse Supabase invalide ou refusée → cache/fallback');
+    console.warn('[immo-ref] réponse Neon invalide ou refusée → cache/fallback');
   } catch (e) { console.warn('[immo-ref] fetch échoué (' + (e && e.message) + ') → cache/fallback'); }
   try {
     const c = JSON.parse(localStorage.getItem(IMMO_REF_CACHE_KEY) || 'null');

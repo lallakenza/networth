@@ -6100,3 +6100,8 @@ Le compteur header affiche désormais SGTM comme un ticker normal (`Actions: N/N
   chiffrement de `data.js` (phrase saisie par lui), sort des champs hors bail de `immo_properties.rent`,
   historique Git.
 - Tests : `tests/snapshot-auth.test.js` réécrit (12 cas Neon).
+
+## v592 (7 novembre 2026) — libellé du référentiel immo
+
+- `loadImmoRef` journalisait « Supabase OK » / `source=supabase` alors que la table est sur Neon depuis la v582 :
+  libellés corrigés (`neon`). Aucun consommateur ne lisait cette valeur ; aucun effet de calcul.
