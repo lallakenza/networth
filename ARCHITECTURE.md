@@ -5056,6 +5056,13 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v588 (7 novembre 2026) — UBS retiré de la vue d'Amine
+
+Les 167 ACN d'Amine et son cash UBS sont chez IBKR (v569, confirmé au connecteur le 07/11). UBS n'apparaît
+plus que s'il garde des ACN pour le titulaire affiché (les 40 de Nezha, en attendant leur transfert) :
+titre du tableau des positions, bouton « UBS » du graphe d'évolution, sous-carte « UBS — ACN » et détail
+du cash courtier. Libellés d'Amine : « Portefeuille (IBKR) », ligne « Accenture (167 ACN, plan ESPP) ».
+
 ## v587 (7 novembre 2026) — IBKR au connecteur du 07/11 : 100 VWCE de plus, intérêts d'octobre
 
 Le connecteur confirme le transfert UBS → IBKR déjà enregistré en v569 (167 ACN au PRU de 215,88 $, cash

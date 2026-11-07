@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=587';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=587';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=588';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=588';
 
 // ---- Generic table sort utility ----
 /**
@@ -453,7 +453,7 @@ function renderKPIs(state, view) {
   setEur('kpiAmESPP', s.amine.esppForActions);
   const _lblACN = document.getElementById('kpiAmESPPLabel');
   if (_lblACN) _lblACN.textContent = s.amine.acnCourtier === 'IBKR'
-    ? 'dont ' + state.portfolio.amine.espp.shares + ' ACN (plan ESPP, ex-UBS)'
+    ? 'dont ' + state.portfolio.amine.espp.shares + ' ACN (plan ESPP)'
     : 'ACN — UBS (' + state.portfolio.amine.espp.shares + ', plan ESPP)';
   setEur('kpiAmSGTM', s.amine.sgtm);
   setEur('kpiAmCash', s.amine.cashTotal);
@@ -646,6 +646,11 @@ function renderExpandSubs(state, view, options = {}) {
   // v569 — la sous-carte UBS ne compte que l'ACN encore détenue chez UBS.
   const _ubsA = (p.amine.espp.garde && p.amine.espp.garde.courtier === 'IBKR') ? 0 : amineESPPShares;
   const _ubsN = (p.nezha.espp && p.nezha.espp.garde && p.nezha.espp.garde.courtier === 'IBKR') ? 0 : nezhaESPPShares;
+  // v588 — la sous-carte UBS disparaît quand le titulaire affiché n'y garde plus rien.
+  const _carteUBS = document.getElementById('subCardESPP');
+  if (_carteUBS) _carteUBS.style.display = (strict ? _ubsA : _ubsA + _ubsN) ? '' : 'none';
+  const _cashCourtiers = document.getElementById('subBrokerCashDetail');
+  if (_cashCourtiers) _cashCourtiers.textContent = (strict ? _ubsA : _ubsA + _ubsN) ? 'IBKR + UBS' : 'IBKR';
   if (strict) {
     setHTML('subESPPDetail', _ubsA ? _ubsA + ' actions ACN @ $' + p.market.acnPriceUSD.toFixed(0) + srcLabel + ' (Amine seul)'
       : 'Aucune : les ' + amineESPPShares + ' ACN d\'Amine sont chez IBKR depuis le 09/10/2026');
@@ -1248,7 +1253,7 @@ function renderAmineTable(state) {
   const rows = [
     // v569 — l'ACN (plan ESPP) est chez IBKR depuis le 09/10/2026 : une ligne IBKR qui la contient.
     ...(s.amine.acnCourtier === 'IBKR'
-      ? [['Portefeuille IBKR (actions + ETFs, dont ' + p.amine.espp.shares + ' ACN du plan ESPP @ ' + acnPrice + ', chez UBS jusqu\'au 09/10/2026)', s.amine.ibkrAvecACN]]
+      ? [['Portefeuille IBKR (actions + ETFs, dont ' + p.amine.espp.shares + ' ACN du plan ESPP @ ' + acnPrice + ')', s.amine.ibkrAvecACN]]
       : [['Portefeuille IBKR (actions + ETFs)', s.amine.ibkrForActions],
          ['ACN — UBS, plan ESPP (' + p.amine.espp.shares + ' @ ' + acnPrice + ')', s.amine.esppForActions]]),
     ['SGTM (' + p.amine.sgtm.shares + ' actions @ ' + sgtmPrice + ')', s.amine.sgtm],
@@ -2638,18 +2643,29 @@ function renderActionsView(state) {
       cash: av.nezhaEsppCashEUR || 0, pl: av.nezhaEsppUnrealizedPL || 0, cout: av.nezhaEsppCostBasisEUR || 0, trades: esppLotsNezha,
       garde: p.nezha.espp && p.nezha.espp.garde },
   ].filter(Boolean);
+  // v588 — UBS n'apparaît que s'il garde encore des ACN pour le titulaire affiché (Nezha, en attendant
+  // son transfert) : titre du tableau et bouton « UBS » du graphe d'évolution.
+  const _ubsAffiche = _membresACN.some((m) => m.courtier === 'UBS');
+  const _titrePos = document.getElementById('allPositionsTitle');
+  if (_titrePos) _titrePos.textContent = 'Toutes les Positions — IBKR' + (_ubsAffiche ? ' + UBS (plan ESPP)' : '') + ' + SGTM (Attijari)';
+  const _btnUBS = document.querySelector('#ytdScopeToggle button[data-scope="espp"]');
+  if (_btnUBS) {
+    _btnUBS.style.display = _ubsAffiche ? '' : 'none';
+    if (!_ubsAffiche && window._currentScope === 'espp') {
+      const _btnTous = document.querySelector('#ytdScopeToggle button[data-scope="all"]');
+      if (_btnTous) _btnTous.click();
+    }
+  }
   const _parCourtier = new Map();
   for (const m of _membresACN) {
     if (!_parCourtier.has(m.courtier)) _parCourtier.set(m.courtier, []);
     _parCourtier.get(m.courtier).push(m);
   }
-  const _fmtJour = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
   for (const [courtier, membres] of _parCourtier) {
     const parts = membres.reduce((t, m) => t + m.parts, 0);
     const val = membres.reduce((t, m) => t + m.val, 0);
     const pl = membres.reduce((t, m) => t + m.pl, 0);
     const cout = membres.reduce((t, m) => t + m.cout - m.cash, 0);   // coût des PARTS
-    const garde = membres.map((m) => m.garde).find((g) => g && g.depuis);
     const ratio = _partsEsppTotal > 0 ? parts / _partsEsppTotal : 0;
     const periode = (period) => {
       const bd = av.periodPL[period]?.breakdown;
@@ -2660,7 +2676,7 @@ function renderActionsView(state) {
       return null;
     };
     allPositions.push({
-      label: 'Accenture (' + parts + ' ACN)' + (garde && garde.avant ? ' — plan ESPP, chez ' + garde.avant + ' jusqu\'au ' + _fmtJour(garde.depuis) : ''),
+      label: 'Accenture (' + parts + ' ACN, plan ESPP)',
       broker: courtier === 'UBS' ? 'UBS (plan ESPP)' : courtier,
       ticker: 'ACN',
       shares: parts,
@@ -8213,7 +8229,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=587').then(m => {
+  import('./charts.js?v=588').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

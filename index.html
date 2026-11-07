@@ -3323,7 +3323,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 <!-- KPIs AMINE -->
 <div id="kpi-amine" class="kpi-strip hidden" style="grid-template-columns: repeat(5, 1fr);">
   <div class="kpi gold"><div class="value" id="kpiAmNW" data-eur="0">--</div><div class="label">Net Worth</div></div>
-  <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR + UBS)</div></div>
+  <div class="kpi green"><div class="value" id="kpiAmPortfolio" data-eur="0">--</div><div class="label">Portefeuille (IBKR)</div></div>
   <div class="kpi"><div class="value" id="kpiAmTWR">--</div><div class="label">TWR IBKR</div></div>
   <div class="kpi"><div class="value" id="kpiAmVitry" data-eur="0">--</div><div class="label">&Eacute;quit&eacute; Vitry</div></div>
   <div class="kpi"><div class="value" id="kpiAmCash" data-eur="0">--</div><div class="label">Cash Total</div></div>
@@ -3407,7 +3407,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
         <div class="sub-equity pos" id="subIBKR" data-eur="0">--</div>
         <div class="sub-badge" id="subIBKRBadge" style="background:#c6f6d5;color:#276749">--</div>
       </a>
-      <div class="sub-card" style="cursor:default;">
+      <div class="sub-card" id="subCardESPP" style="cursor:default;">
         <div class="sub-icon">&#x1F4BC;</div>
         <div class="sub-title">UBS — ACN (plan ESPP)</div>
         <div class="sub-detail" id="subESPPDetail">--</div>
@@ -3451,7 +3451,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
         <div class="sub-icon">&#x1F3E6;</div>
         <div class="sub-title">Cash Courtiers</div>
         <div class="sub-equity pos" id="subBrokerCash" data-eur="0">--</div>
-        <div class="sub-detail" style="margin-top:6px;font-style:italic">IBKR + UBS</div>
+        <div class="sub-detail" id="subBrokerCashDetail" style="margin-top:6px;font-style:italic">IBKR + UBS</div>
       </div>
     </div>
     <div style="padding: 12px 20px 4px;">
@@ -3561,7 +3561,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-strip">
     <div class="kpi green"><div class="value" id="kpiAmIBKR" data-eur="0">--</div><div class="label">IBKR NAV</div></div>
     <div class="kpi green"><div class="value" id="kpiAmTWR2">--</div><div class="label" title="Performance pondérée par le temps du compte de trading IBKR (achats et ventes), hors ACN du plan ESPP dont le rendement inclut la décote de 15 %">TWR compte IBKR (hors ACN)</div></div>
-    <div class="kpi"><div class="value" id="kpiAmESPP" data-eur="0">--</div><div class="label" id="kpiAmESPPLabel">dont 167 ACN (plan ESPP, ex-UBS)</div></div>
+    <div class="kpi"><div class="value" id="kpiAmESPP" data-eur="0">--</div><div class="label" id="kpiAmESPPLabel">dont 167 ACN (plan ESPP)</div></div>
     <div class="kpi"><div class="value" id="kpiAmSGTM" data-eur="0">--</div><div class="label">SGTM (32 actions)</div></div>
   </div>
   <div class="grid2">
@@ -3775,7 +3775,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-insight-bar" id="insight-actions"></div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-    <h3 style="margin:0">Toutes les Positions — IBKR + UBS (plan ESPP) + SGTM (Attijari)</h3>
+    <h3 id="allPositionsTitle" style="margin:0">Toutes les Positions — IBKR + UBS (plan ESPP) + SGTM (Attijari)</h3>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <div id="posViewToggle" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #cbd5e0;font-size:11px;font-weight:600">
         <button data-mode="total" class="active" style="padding:4px 12px;border:none;cursor:pointer;background:#2d3748;color:#fff;transition:all .15s">Total</button>
@@ -4764,7 +4764,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=587"></script>
+<script type="module" src="js/app.js?v=588"></script>
 
 </body>
 </html>
