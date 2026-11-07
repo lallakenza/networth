@@ -275,6 +275,29 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(Math.abs(ecartUSDT) < 60, 'écart ' + ecartUSDT.toFixed(2) + ' USDT');
   });
 
+  t('INVSNT009 : avant le crédit la facture compte, après le crédit seul l\'écart de 25 € de frais subsiste', () => {
+    const items = D.PORTFOLIO.amine.creances.items;
+    const mk = (cap) => { const r = snapAutres(cap.slice(0, 10), cap); r.data.autres.creancesPro = 19110 + 11830; r.data.autres.facturation = null;
+      r.data.cash = { total: 300000, amine: 250000, nezha: 50000, accounts: { ibanq_bairok: { eur: 12766, native: 12765.55, ccy: 'EUR', owner: 'A' } } }; return r; };
+    const avant = mk('2026-11-03T06:00:00Z'), apres = mk('2026-11-04T06:00:00Z');
+    const t0 = avant.data.total.couple;
+    E.appliquerSoldesRetroactifs([avant, apres], D.SOLDES_RETROACTIFS, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: items, accruals: D.ACCRUALS_HISTORIQUE });
+    assert.equal(avant.data.autres.creancesPro, 19110 + 11830, 'capturé le 03/11 avant 12:45 UTC : INVSNT009 encore due');
+    assert.equal(apres.data.autres.creancesPro, 11830, 'après le crédit : seule INVSNT010');
+    assert.equal(apres.data.cash.accounts.ibanq_bairok.native, 31850.55, 'iBanq reconstruit : 12 765,55 + 19 085');
+    assert.equal(apres.data.total.couple - t0, -25, 'le patrimoine ne perd que les frais');
+  });
+
+  t('INVSNT010 remplace ACCSNT10 sans créer de revenu le 1er novembre', () => {
+    const items = D.PORTFOLIO.amine.creances.items;
+    const mk = (cap, pro) => { const r = snapAutres(cap.slice(0, 10), cap); r.data.autres.creancesPro = pro; r.data.autres.facturation = null; return r; };
+    const fin = mk('2026-10-31T00:37:00Z', 19110), nov = mk('2026-11-01T10:31:00Z', 19110), soir = mk('2026-11-01T18:00:00Z', 19110 + 11830);
+    E.appliquerSoldesRetroactifs([fin, nov, soir], {}, D.FX_STATIC, { immo: {}, tva: null, villejuif: null, factures: items, accruals: D.ACCRUALS_HISTORIQUE });
+    assert.equal(fin.data.autres.creancesPro, 19110 + 11830, 'fin octobre : les 13 jours travaillés');
+    assert.equal(nov.data.autres.creancesPro, 19110 + 11830, '1er novembre : la facture, pas la facture + l\'accrual');
+    assert.equal(soir.data.autres.creancesPro, 19110 + 11830);
+  });
+
   t('dette datée : ajoutée aux lignes capturées entre la date du prêt et sa saisie', () => {
     const items = [{ id: 'CREP10', type: 'perso', amount: -120000, currency: 'MAD', probability: 1, status: 'en_cours', contracteeLe: '2026-10-23', enregistreeLe: '2026-10-31T10:51:48Z' }];
     const mk = (cap) => { const r = snapAutres(cap.slice(0, 10), cap); r.data.autres.creancesPerso = 1000; r.data.autres.facturation = null; return r; };

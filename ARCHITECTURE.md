@@ -5056,6 +5056,29 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v589 (7 novembre 2026) — audit v586, points 1 et 2 : INVSNT009 rapprochée, plus d'encaissement présumé
+
+**INVSNT009.** Payée le 03/11/2026 à 12:45 UTC : 19 085 € crédités sur iBanq (notification IFX Payments,
+extrait vérifié lors de l'audit du 07/11/2026) + 25 € de frais de paiement international = facture de
+19 110 € soldée. `payments[].frais` compte dans le règlement (`montantRegle`), pas dans le cash. Le
+crédit porte `compteCredite: 'ibanqBairok'` et `rapprochement: 'à rapprocher'`.
+
+**iBanq.** `ibanqBairok` reste le solde OBSERVÉ (12 765,55 € au 31/10, `ibanqBairokObserveLe`) ;
+`soldeIbanqBairok()` y ajoute les crédits constatés après cette date et marque le compte « reconstruit »
+(31 850,55 €). Saisir un relevé postérieur au crédit l'absorbe sans double comptage. Historique : période
+provisoire `SOLDES_RETROACTIFS.ibanq_bairok` à partir du 03/11 12:45 UTC.
+
+**INVSNT010** (01/11/2026, octobre, 13 j × 910 € = 11 830 €, envoyée le 04/11, échéance 01/12) remplace
+la provision ACCSNT10 : patrimoine courant inchangé. `ACCRUALS_HISTORIQUE.ACCSNT10.remplaceePar` évite de
+compter la facture et la provision sur une même ligne ; les factures sont restatées avant les accruals.
+
+**Encaissement présumé supprimé.** `applyCreancesAutoSettle()` passait une facture à « recouvré » à
+échéance + 10 j avec un paiement fictif, sans créditer aucun compte : −19 110 € le 11/11 à cash constant.
+La règle devient `creances.encaissementAttendu` : une prévision (date attendue, alerte orange si dépassée),
+jamais un paiement. `FACTURES_RESTATEES_JUSQUAU` passe au 07/11/2026.
+
+**Effet.** Patrimoine courant : −25 € (les frais). Historique : −25 € à partir des captures du 04/11.
+
 ## v588 (7 novembre 2026) — UBS retiré de la vue d'Amine
 
 Les 167 ACN d'Amine et son cash UBS sont chez IBKR (v569, confirmé au connecteur le 07/11). UBS n'apparaît

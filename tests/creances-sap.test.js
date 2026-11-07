@@ -22,14 +22,11 @@ const ATTENDUES = {
   INVSNT007: { montant: 18655,    echeance: '2026-09-01' },
   INVSNT008: { montant: 14560,    echeance: '2026-10-01' },
   INVSNT009: { montant: 19110,    echeance: '2026-11-01' },
+  INVSNT010: { montant: 11830,    echeance: '2026-12-01' },
 };
-// v548 : INVSNT006/007 payées (recouvré) ; restent INVSNT008 (14 560) + accrual septembre ACCSNT09 (12 740).
-// v559 : INVSNT008 payée (confirmé 09/10/2026) ; l'accrual ACCSNT09 est remplacé par la facture
-// INVSNT009 du 01/10/2026 (21 j × 910 € = 19 110 €, échéance 01/11). Seule INVSNT009 reste due.
-// v549 : chacune sort du NW à échéance + 10 j (règle autoSettle) — le total attendu dépend du jour.
-const AUJ_ISO = new Date().toISOString().slice(0, 10);
-// v584 : + accrual d'octobre ACCSNT10 (13 j × 910 €), réputé encaissé à échéance + 10 j (11/12).
-const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0) + (AUJ_ISO < '2026-12-11' ? 11830 : 0);
+// v589 : INVSNT009 soldée le 03/11 (19 085 crédités sur iBanq + 25 € de frais) ; INVSNT010 (octobre)
+// remplace la provision ACCSNT10. Plus aucun encaissement présumé : le total ne dépend plus du jour.
+const TOTAL_PRO_ATTENDU = 11830;
 
 (async () => {
   const echecs = [];
@@ -56,28 +53,58 @@ const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0) + (AUJ_ISO < '202
     }
   }
 
-  // Règle autoSettle, à dates fixes (indépendant du jour) : facture échue 01/10 → réputée
-  // encaissée le 11/10, pas avant ; une seconde application ne change rien (idempotence).
+  // v589 — le temps ne fabrique ni paiement ni recouvrement : aucun paiement présumé, et compute()
+  // ne modifie pas les créances, même appelé plusieurs fois et longtemps après l'échéance.
   {
-    const { applyCreancesAutoSettle } = await import('file://' + path.join(TMP, 'engine.js'));
-    const mk = () => ({ autoSettle: { idPrefixes: ['INVSNT', 'ACCSNT'], graceDaysAfterDue: 10 }, items: [
-      { id: 'INVSNT099', amount: 1000, currency: 'EUR', status: 'en_cours', dueDate: '2026-10-01', payments: [] },
-      { id: 'CREP099', amount: 500, currency: 'EUR', status: 'en_cours', dueDate: '2026-01-01', payments: [] },
-    ] });
-    const avant = mk(); applyCreancesAutoSettle(avant, new Date('2026-10-10T12:00:00Z'));
-    if (avant.items[0].status !== 'en_cours') echecs.push('autoSettle : réglée dès le 10/10 (échéance + 9 j)');
-    const apres = mk(); applyCreancesAutoSettle(apres, new Date('2026-10-11T00:00:00Z'));
-    const f = apres.items[0];
-    if (f.status !== 'recouvré' || f.payments.length !== 1 || f.payments[0].amount !== 1000 || f.payments[0].date !== '2026-10-11') {
-      echecs.push('autoSettle : INVSNT099 non réputée encaissée le 11/10 (' + JSON.stringify(f) + ')');
+    const E = await import('file://' + path.join(TMP, 'engine.js'));
+    if ('applyCreancesAutoSettle' in E) echecs.push('applyCreancesAutoSettle existe encore');
+    if (items.some(c => (c.payments || []).some(pay => pay.presumed))) echecs.push('paiement présumé dans le registre');
+    const avant = JSON.stringify(items);
+    compute(D.PORTFOLIO, { ...D.FX_STATIC }, 'static'); compute(D.PORTFOLIO, { ...D.FX_STATIC }, 'static');
+    if (JSON.stringify(items) !== avant) echecs.push('compute() modifie les créances');
+    // Facture fictive échue depuis longtemps, sans paiement : reste entière dans le patrimoine.
+    const P2 = JSON.parse(JSON.stringify(D.PORTFOLIO));
+    P2.amine.creances.items.push({ id: 'INVSNT099', amount: 1000, currency: 'EUR', type: 'pro', probability: 1, status: 'en_cours', dueDate: '2020-01-01', payments: [] });
+    const s2 = compute(P2, { ...D.FX_STATIC }, 'static');
+    if (Math.abs(s2.amine.recvPro - s.amine.recvPro - 1000) > 0.01) echecs.push('facture échue retirée du patrimoine sans paiement');
+    if (!computeAlerts(s2).some(a => (a.title || '').includes('INVSNT099') && a.severity === 'orange')) echecs.push('pas d\'alerte « encaissement attendu non constaté » après la date attendue');
+    // Paiement partiel : seul le reste dû est compté.
+    const P3 = JSON.parse(JSON.stringify(P2));
+    P3.amine.creances.items.at(-1).payments = [{ amount: 400, date: '2020-02-01', currency: 'EUR' }];
+    const s3 = compute(P3, { ...D.FX_STATIC }, 'static');
+    if (Math.abs(s3.amine.recvPro - s.amine.recvPro - 600) > 0.01) echecs.push('paiement partiel : le reste dû n\'est pas 600');
+    // Paiement complet net de frais : la facture est soldée, il ne reste pas de faux impayé.
+    const P4 = JSON.parse(JSON.stringify(P2));
+    Object.assign(P4.amine.creances.items.at(-1), { status: 'recouvré', payments: [{ amount: 975, frais: 25, date: '2020-02-01', currency: 'EUR' }] });
+    const s4 = compute(P4, { ...D.FX_STATIC }, 'static');
+    if (Math.abs(s4.amine.recvPro - s.amine.recvPro) > 0.01) echecs.push('paiement net de frais : faux impayé de 25 €');
+  }
+
+  // v589 — INVSNT009 : facture 19 110 = crédit 19 085 + frais 25, crédit porté sur iBanq (reconstruit).
+  {
+    const f9 = items.find(i => i.id === 'INVSNT009');
+    const E = await import('file://' + path.join(TMP, 'engine.js'));
+    if (f9.status !== 'recouvré') echecs.push('INVSNT009 non soldée');
+    if (Math.abs(E.montantRegle(f9) - 19110) > 0.01) echecs.push('INVSNT009 : crédit + frais ≠ 19 110');
+    if (Math.abs(E.fraisReglement(f9) - 25) > 0.01) echecs.push('INVSNT009 : frais ≠ 25');
+    const ib = E.soldeIbanqBairok(D.PORTFOLIO);
+    if (Math.abs(ib.observe - 12765.55) > 0.01 || Math.abs(ib.montant - 31850.55) > 0.01 || !ib.reconstruit) {
+      echecs.push('iBanq : attendu observé 12 765,55 au 31/10 + 19 085 = 31 850,55 reconstruit (' + JSON.stringify(ib) + ')');
     }
-    if (apres.items[1].status !== 'en_cours') echecs.push('autoSettle : une créance hors préfixe a été réglée');
-    applyCreancesAutoSettle(apres, new Date('2026-12-01T00:00:00Z'));
-    if (f.payments.length !== 1) echecs.push('autoSettle : non idempotente (paiement doublé)');
+    // Un relevé postérieur au crédit l'absorbe : plus de crédit ajouté, pas de double comptage.
+    const P5 = JSON.parse(JSON.stringify(D.PORTFOLIO));
+    P5.amine.uae.ibanqBairokObserveLe = '2026-11-05'; P5.amine.uae.ibanqBairok = 31850.55;
+    const ib5 = E.soldeIbanqBairok(P5);
+    if (Math.abs(ib5.montant - 31850.55) > 0.01 || ib5.reconstruit) echecs.push('rapprochement ultérieur : le crédit est compté deux fois');
+    const cv = s.creancesView.recoveredItems.find(i => i.id === 'INVSNT009');
+    if (!cv || Math.abs(cv.paymentsTotal - 19085) > 0.01 || Math.abs(cv.fraisTotal - 25) > 0.01 || Math.abs(cv.remainingEUR) > 0.01) {
+      echecs.push('vue créances : INVSNT009 doit montrer 19 085 crédités, 25 de frais, 0 restant');
+    }
   }
 
   // L'accrual de septembre et la facture qui le remplace ne doivent jamais coexister.
   if (items.some(i => i.id === 'ACCSNT09')) echecs.push('ACCSNT09 (accrual septembre) coexiste avec INVSNT009 — septembre compté deux fois');
+  if (items.some(i => i.id === 'ACCSNT10')) echecs.push('ACCSNT10 (accrual octobre) coexiste avec INVSNT010 — octobre compté deux fois');
 
   // Total des créances pro
   const totalPro = Math.round(s.amine.recvPro * 100) / 100;
@@ -112,6 +139,6 @@ const TOTAL_PRO_ATTENDU = (AUJ_ISO < '2026-11-11' ? 19110 : 0) + (AUJ_ISO < '202
     for (const e of echecs) console.error('   - ' + e);
     process.exit(1);
   }
-  console.log('✓ registre SAP & Tax : 3 factures uniques, règle échéance + 10 j, échéances correctes, total pro '
+  console.log('✓ registre SAP & Tax : factures uniques, aucun paiement présumé, INVSNT009 rapprochée (19 085 + 25), total pro '
     + TOTAL_PRO_ATTENDU + ' EUR, aucun double comptage, aucune alerte de retard (paiement contractuel)');
 })();

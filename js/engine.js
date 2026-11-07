@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=588';
-import { lireContratEnCache } from './facturation_contract.js?v=588';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=589';
+import { lireContratEnCache } from './facturation_contract.js?v=589';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1979,7 +1979,9 @@ function computeCashView(portfolio, fx) {
     // (marge IBKR JPY) sont exclues du total cash parce qu'elles financent des titres. Un solde de
     // carte, lui, se règle sur la trésorerie — il se retranche du cash, comme un découvert.
     { label: 'Wio Credit (carte)', native: -wioCreditDuAED(p), currency: 'AED', yield: 0, owner: 'Amine' },
-    { label: 'iBanq (Bairok)', native: p.amine.uae.ibanqBairok || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bairok' },  // v484
+    // v589 — solde reconstruit tant qu'un crédit constaté n'a pas été revu sur un relevé (libellé = id stable)
+    (() => { const ib = soldeIbanqBairok(p); return { label: 'iBanq (Bairok)', native: ib.montant, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bairok',
+      ...(ib.reconstruit ? { reconstruit: true, soldeObserve: ib.observe, soldeObserveLe: ib.observeLe, creditsARapprocher: ib.credits } : {}) }; })(),
     { label: 'Wise (Bridgevale)', native: p.amine.uae.bridgevaleWise || 0, currency: 'EUR', yield: 0, owner: 'Amine', entreprise: 'Bridgevale' },  // v484
     { label: 'Revolut EUR', native: p.amine.uae.revolutEUR, currency: 'EUR', yield: CASH_YIELDS.revolutEUR, owner: 'Amine' },
     { label: 'Banque Populaire', native: p.amine.uae.banquePopulaire || 0, currency: 'EUR', yield: CASH_YIELDS.banquePopulaire || 0, owner: 'Amine' },
@@ -4067,12 +4069,12 @@ export function tvaPonderee(amine) {
   return (amine.tva || 0) * prob;
 }
 
-// Presumed-settlement rule (data: creances.autoSettle). An `en_cours` item whose id starts with one
-// of `idPrefixes` is flipped to `recouvré` once `dueDate + graceDaysAfterDue` has passed, with a
-// presumed payment of the remaining amount dated at that cutoff. Mutates in place and is idempotent,
-// so every downstream reader (NW, créances view, render, alerts) sees the same status.
-// Contractual payer (creances.autoSettle): the client pays on the agreed schedule, so an item is
-// never "late" or "to chase" before its presumed-settlement date — it is not a doubtful receivable.
+// v589 — expected settlement (data: creances.encaissementAttendu). For a contractual payer (SAP & Tax)
+// the expected payment date is dueDate + graceDaysAfterDue. It is a FORECAST and an alert threshold
+// only: the passage of time never creates a payment nor removes a receivable from the net worth.
+// Only recorded payments (`payments`, each with its own date, optional `frais` and reconciliation
+// status) settle an invoice. Before v589, applyCreancesAutoSettle() flipped the item to `recouvré`
+// with a presumed payment at that date, which erased the asset without crediting any account.
 function creanceContractuelle(c, rule) {
   return !!(rule && (rule.idPrefixes || []).some(pre => String(c.id || '').startsWith(pre)));
 }
@@ -4082,39 +4084,43 @@ function dateEncaissementAttendu(c, rule) {
   d.setUTCDate(d.getUTCDate() + ((rule && rule.graceDaysAfterDue) || 0));
   return d.toISOString().slice(0, 10);
 }
-
-export function applyCreancesAutoSettle(creances, today = new Date()) {
-  const rule = creances && creances.autoSettle;
-  if (!rule || !Array.isArray(creances.items)) return [];
-  const settled = [];
-  const todayISO = today.toISOString().slice(0, 10);
-  for (const c of creances.items) {
-    if (c.status !== 'en_cours' || !c.dueDate) continue;
-    if (!creanceContractuelle(c, rule)) continue;
-    const cutoffISO = dateEncaissementAttendu(c, rule);
-    if (todayISO < cutoffISO) continue;
-    const paid = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
-    const remaining = c.amount - paid;
-    c.status = 'recouvré';
-    c.autoSettled = cutoffISO;
-    if (remaining > 0) c.payments = [...(c.payments || []), { amount: remaining, date: cutoffISO, currency: c.currency, presumed: true }];
-    c.notes = (c.notes ? c.notes + ' ' : '') + '[Réputée encaissée le ' + cutoffISO + ' — règle échéance + ' + (rule.graceDaysAfterDue || 0) + ' j.]';
-    settled.push(c.id);
+// Amount of a receivable already settled, in its native currency: what was credited plus the fees
+// withheld on the way (a 25 € international payment fee settles the invoice as much as the 19 085 €).
+export function montantRegle(c) {
+  return (c.payments || []).reduce((t, pay) => t + (pay.amount || 0) + (pay.frais || 0), 0);
+}
+export function fraisReglement(c) {
+  return (c.payments || []).reduce((t, pay) => t + (pay.frais || 0), 0);
+}
+// iBanq (Bairok) balance: the OBSERVED statement balance plus the credits recorded on receivables
+// after the observation date. Reconstructed, not certified, until a newer statement is entered:
+// once `ibanqBairokObserveLe` reaches the credit date, the credit is part of the observed balance.
+export function soldeIbanqBairok(p) {
+  const observe = (p.amine.uae.ibanqBairok || 0);
+  const le = p.amine.uae.ibanqBairokObserveLe || null;
+  const credits = [];
+  for (const c of ((p.amine.creances || {}).items || [])) {
+    for (const pay of (c.payments || [])) {
+      if (pay.compteCredite !== 'ibanqBairok') continue;
+      if (le && pay.date <= le) continue;
+      credits.push({ id: c.id, date: pay.date, montant: pay.amount || 0, rapprochement: pay.rapprochement || null });
+    }
   }
-  return settled;
+  const total = credits.reduce((t, x) => t + x.montant, 0);
+  return { montant: observe + total, observe, observeLe: le, credits, reconstruit: credits.length > 0 };
 }
 
 function computeCreancesView(portfolio, fx) {
-  applyCreancesAutoSettle(portfolio.amine && portfolio.amine.creances);
   const allItems = [];
   const today = new Date();
-  const ruleAmine = portfolio.amine && portfolio.amine.creances && portfolio.amine.creances.autoSettle;
+  const ruleAmine = portfolio.amine && portfolio.amine.creances && portfolio.amine.creances.encaissementAttendu;
 
   function processCreance(c, owner) {
     const contractuel = owner === 'Amine' && creanceContractuelle(c, ruleAmine);
     const amountEUR = toEUR(c.amount, c.currency, fx);
     const paymentsTotal = (c.payments || []).reduce((s, p) => s + toEUR(p.amount, c.currency, fx), 0);
-    const remainingEUR = amountEUR - paymentsTotal;
+    const fraisTotal = toEUR(fraisReglement(c), c.currency, fx);
+    const remainingEUR = amountEUR - paymentsTotal - fraisTotal;
     const expectedValue = remainingEUR * (c.probability || 1);
     // v347 — coût d'opportunité (inflation) sur TOUTE créance en cours. delayDays = délai de
     // paiement estimé (30-45j), pas un flag : l'ancien `!c.delayDays ? … : 0` zéro-tait justement
@@ -4139,6 +4145,7 @@ function computeCreancesView(portfolio, fx) {
       ...c,
       amountEUR,
       paymentsTotal,
+      fraisTotal,
       remainingEUR,
       expectedValue,
       monthlyInflationCost,
@@ -4677,8 +4684,6 @@ export function sessionOuverteAujourdhui(lastTradeTs, exchangeTz) {
 
 export function compute(portfolio, fx, stockSource = 'statique') {
   const p = portfolio;
-  // Must run before any créance read (NW, views, render all consume the same items).
-  applyCreancesAutoSettle(p.amine && p.amine.creances);
   const m = p.market;
 
   // ---- IMMO VIEW (computed early so CRDs are available for NW) ----
@@ -4705,7 +4710,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineBanquePopulaire = p.amine.uae.banquePopulaire || 0;                       // EUR
   const amineBinanceUSDT = toEUR(p.amine.uae.binanceUSDT || 0, 'USD', fx);             // USDT ≈ USD
   // v484 — comptes sociétés (EUR) : iBanq (Bairok Consulting LLC) + Wise (Bridgevale Consulting UK)
-  const amineIbanqBairok = p.amine.uae.ibanqBairok || 0;
+  const amineIbanqBairok = soldeIbanqBairok(p).montant;   // v589 — relevé observé + crédits constatés depuis
   const amineBridgevale = p.amine.uae.bridgevaleWise || 0;
   // Weighted average yield for Cash UAE bucket (AED accounts only)
   const amineUaeYield = amineUae > 0
@@ -4747,8 +4752,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   if (p.amine.creances.items) {
     p.amine.creances.items.forEach(c => {
       if (c.status === 'recouvré') return; // already in cash — skip to avoid double-count
-      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
-      const remaining = c.amount - paymentsTotal;
+      const remaining = c.amount - montantRegle(c);   // v589 — crédits + frais retenus
       const val = toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
       if (c.type === 'pro') amineRecvPro += val;
       else amineRecvPersonal += val;
@@ -4981,8 +4985,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   if (p.nezha.creances && p.nezha.creances.items) {
     p.nezha.creances.items.forEach(c => {
       if (c.status === 'recouvré') return; // same rule as Amine: skip recouvré
-      const paymentsTotal = (c.payments || []).reduce((s, pay) => s + pay.amount, 0);
-      const remaining = c.amount - paymentsTotal;
+      const remaining = c.amount - montantRegle(c);   // v589 — crédits + frais retenus
       const prob = (c.probability !== undefined ? c.probability : 1);
       nezhaRecvOmar += toEUR(remaining * prob, c.currency, fx);
       if (c.currency === 'MAD') { nezhaRecvOmarGrossMAD += remaining; nezhaRecvOmarWeightedMAD += remaining * prob; }
@@ -5654,11 +5657,13 @@ export function appliquerSoldesRetroactifs(rows, soldes, fxStatic, opts = {}) {
       const nf = restaterFacturation(d, capturedAt, histoFactu, fxStatic); if (nf) notes.push(nf);
       const nt = restaterTva(d, tva); if (nt) notes.push(nt);
       const nd = restaterCreancesDatees(d, capturedAt, factures, fxStatic); if (nd) notes.push(nd);
-      const na = restaterAccruals(d, capturedAt, opts.accruals !== undefined ? opts.accruals : ACCRUALS_HISTORIQUE); if (na) notes.push(na);
+      // v589 — invoices first, then accruals: an accrual adds worked days on top of the invoices
+      // outstanding that day, and gives way to the invoice that replaced it once that one is counted.
       const jusquau = opts.facturesJusquau !== undefined ? opts.facturesJusquau : FACTURES_RESTATEES_JUSQUAU;
       if (capturedAt && jusquau && capturedAt.slice(0, 10) <= jusquau) {
         const nc = restaterFacturesPro(d, capturedAt, factures); if (nc) notes.push(nc);
       }
+      const na = restaterAccruals(d, capturedAt, opts.accruals !== undefined ? opts.accruals : ACCRUALS_HISTORIQUE, factures); if (na) notes.push(na);
     }
     if (notes.length) { row.data = d; row.corrections = notes; }
   }
@@ -5766,10 +5771,11 @@ function restaterFacturesPro(d, capturedAt, factures) {
   let attendu = 0;
   for (const c of datees) {
     if (c.emiseLe > jour) continue;
-    const paiements = (c.payments || []).map((p) => p.date).filter(Boolean).sort();
-    const soldeLe = paiements.length && (c.payments || []).reduce((t, p) => t + (p.amount || 0), 0) >= c.amount - 0.01
-      ? paiements[paiements.length - 1] : null;
-    if (soldeLe && soldeLe <= jour) continue;
+    // v589 — settled at the last payment (credits + fees); `at` gives the exact instant when known, so a
+    // snapshot captured earlier that day still carries the receivable (the cash side is restated the same way).
+    const paiements = (c.payments || []).filter((p) => p.date).map((p) => p.at || p.date).sort();
+    const soldeLe = paiements.length && montantRegle(c) >= c.amount - 0.01 ? paiements[paiements.length - 1] : null;
+    if (soldeLe && (soldeLe.length > 10 ? capturedAt >= soldeLe : soldeLe <= jour)) continue;
     attendu += (c.amount || 0) * (c.probability != null ? c.probability : 1);
   }
   const deltaEUR = Math.round(attendu - d.autres.creancesPro);
@@ -5807,7 +5813,7 @@ function restaterCreancesDatees(d, capturedAt, items, fxStatic) {
 
 // v584 — accrual : chaque jour travaillé s'ajoute à sa date aux lignes capturées avant `enregistreeLe`.
 // Après cette date, la ligne porte déjà l'accrual ou la facture qui l'a remplacé.
-function restaterAccruals(d, capturedAt, accruals) {
+function restaterAccruals(d, capturedAt, accruals, factures) {
   if (!capturedAt || !d.autres || typeof d.autres.creancesPro !== 'number') return null;
   const jour = jourDeReference(capturedAt);
   if (!jour) return null;
@@ -5815,6 +5821,9 @@ function restaterAccruals(d, capturedAt, accruals) {
   const ids = [];
   for (const a of accruals || []) {
     if (capturedAt >= a.enregistreeLe) continue;
+    // v589 — once the replacing invoice is issued, the invoice carries the amount (no double count).
+    const facture = a.remplaceePar && (factures || []).find((c) => c.id === a.remplaceePar);
+    if (facture && facture.emiseLe && facture.emiseLe <= capturedAt.slice(0, 10)) continue;
     const n = a.jours.filter((j) => j <= jour).length;
     if (!n) continue;
     deltaEUR += n * a.tarifJour;
@@ -7023,9 +7032,20 @@ export function computeAlerts(state) {
         });
         continue;
       }
-      // Contractual payer (SAP & Tax): no late alert — it settles on schedule and leaves the
-      // NW on its expected payment date (applyCreancesAutoSettle).
-      if (c.contractuel) continue;
+      // Contractual payer (SAP & Tax): not late before its expected payment date (forecast only).
+      // Past that date with no recorded payment, it is flagged — the asset stays in the NW.
+      if (c.contractuel) {
+        if (c.status !== 'recouvré' && c.expectedPaymentDate && new Date(c.expectedPaymentDate + 'T00:00:00') < new Date()) {
+          alerts.push({
+            severity: 'orange', owner: c.owner || 'Amine',
+            title: 'Encaissement attendu non constaté : ' + (c.label || c.id),
+            msg: 'Paiement attendu vers le ' + c.expectedPaymentDate.split('-').reverse().join('/')
+              + ', aucun crédit enregistré. La facture reste comptée au patrimoine jusqu’au paiement constaté.',
+            action: 'Voir créances', view: 'creances',
+          });
+        }
+        continue;
+      }
       const due = new Date(c.dueDate + 'T00:00:00');
       const overdue = -daysDiff(due);
       if (overdue > 0 && overdue < 9000) {  // filter sentinel dates

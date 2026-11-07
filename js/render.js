@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=588';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=588';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=589';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=589';
 
 // ---- Generic table sort utility ----
 /**
@@ -1213,6 +1213,15 @@ function libelleCreancesPro(s) {
   const factures = ((s.creancesView || {}).activeItems || []).filter((c) => /^(INVSNT|ACCSNT)/.test(c.id || ''));
   if (!factures.length) return 'Creances SAP & Tax';
   return 'Creances SAP & Tax (' + factures.map((c) => c.id + ', éch. ' + dateFR(c.dueDate)).join(' ; ') + ')';
+}
+
+// v589 — un solde de compte reconstruit (relevé observé + crédits constatés depuis) le dit, avec sa date.
+function _mentionReconstruit(a) {
+  if (!a || !a.reconstruit) return '';
+  const le = a.soldeObserveLe ? a.soldeObserveLe.split('-').reverse().join('/') : '?';
+  const credits = (a.creditsARapprocher || []).map(c => c.id + ' ' + fmt(c.montant)).join(', ');
+  return ' <span style="font-size:10px;color:#b45309;" title="Solde reconstruit, pas encore vu sur un relevé">(reconstruit : relevé du ' + le
+    + ' ' + fmt(a.soldeObserve) + ' + ' + credits + ' à rapprocher)</span>';
 }
 
 function renderCoupleTable(state) {
@@ -4180,7 +4189,7 @@ function renderCashView(state) {
           tr.style.borderLeft = '3px solid ' + borderColor;
           if (acctIndex % 2 === 1) tr.style.background = '#fafaf9';
           if (isNeg) tr.style.background = '#fff5f5';
-          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
+          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + _mentionReconstruit(a) + '</td>'
             + '<td>' + a.owner + '</td>'
             + '<td>' + a.currency + '</td>'
             + '<td class="num"' + cls + '>' + nativeStr + '</td>'
@@ -4241,7 +4250,7 @@ function renderCashView(state) {
         const tr = document.createElement('tr');
         tr.style.borderLeft = '3px solid ' + ownerColor;
         if (isNeg) tr.style.background = '#fff5f5';
-        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + '</td>'
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + _mentionReconstruit(a) + '</td>'
           + '<td>' + a.owner + '</td>'
           + '<td>' + a.currency + '</td>'
           + '<td class="num"' + cls + '>' + nativeStr + '</td>'
@@ -8229,7 +8238,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=588').then(m => {
+  import('./charts.js?v=589').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

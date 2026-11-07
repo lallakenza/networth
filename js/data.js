@@ -85,6 +85,9 @@ export const PORTFOLIO = {
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
       binanceUSDT: 3910.33, // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 31/10/2026 (portefeuille Financement 3 910,32 + Earn 0,02). Historique P2P relu le 31/10 : 11 003,37 au 09/10, puis 12 774,91 USDT vendus contre 131 000 MAD (127 500 sur Attijari, 3 500 sur CIH) et 5 713,04 achetés contre 20 881 AED (Aani) les 10 et 11/10. Détail jour par jour : RELEVES_QUOTIDIENS.binance
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
+      // v589 — solde OBSERVÉ (relevé du 31/10). Les crédits constatés après cette date (`payments` des
+      // créances avec compteCredite: 'ibanqBairok') s'y ajoutent dans un solde dit RECONSTRUIT.
+      ibanqBairokObserveLe: '2026-10-31',
       ibanqBairok: 12765.55, // iBanq — Bairok Consulting LLC — MAJ 31/10/2026 (capture du site) : 15,55 € + INVRTL020 encaissée le 22/10 (SEPA CLT-UFA, 12 750 €). Le sous-compte AED (1,58) est négligé. Part Azarkan de la facture : nettée dans le pont 2048 (virements Maroc des 12/10 et 29/10)
       bridgevaleWise: 1500,  // Wise — Bridgevale Consulting (UK), EUR — MAJ 19/09/2026 (Amine : « 1 500 € ») ; était 300 € au 28/08
       _lastUpdate: '2026-08-28',
@@ -685,12 +688,10 @@ export const PORTFOLIO = {
     //   - notes: contexte/explications
     // ──────────────────────────────────────────────────────
     creances: {
-      // Règle de règlement présumé (v549, 19/09/2026) : le client SAP & Tax paie en général ~1 mois
-      // après l'échéance, vers le 3-4 du mois suivant. Une créance dont l'id commence par l'un de ces
-      // préfixes est réputée ENCAISSÉE (→ recouvré, sortie du NW) une fois « un mois et 10 jours »
-      // passés depuis la facture, soit dueDate (facture + 1 mois) + graceDaysAfterDue. Le cash, lui,
-      // doit être mis à jour à la main depuis les relevés : c'est lui qui porte alors l'argent.
-      autoSettle: { idPrefixes: ['INVSNT', 'ACCSNT'], graceDaysAfterDue: 10 },
+      // Encaissement attendu (v589) : le client SAP & Tax paie en général vers l'échéance + 10 jours.
+      // Cette date sert de PRÉVISION et de seuil d'alerte ; elle ne fabrique aucun paiement et ne
+      // retire aucune créance du patrimoine. Seul un paiement constaté (`payments`) solde une facture.
+      encaissementAttendu: { idPrefixes: ['INVSNT', 'ACCSNT'], graceDaysAfterDue: 10 },
       items: [
         // ── CRÉANCES PROFESSIONNELLES (2 items) ──
         // Sources: factures, notes de frais, baux locatifs
@@ -721,10 +722,12 @@ export const PORTFOLIO = {
         // Accrual septembre 2026 — travaillé, PAS ENCORE FACTURÉ (facture attendue 01/10, encaissement ~03-04/11).
         // Jours = timesheet Notion « Timesheet 2026 - LOREAL / NEO » : 01-04, 07-11, 14-18/09 = 14 j × 910 € (arrêté au 18/09).
         // INVSNT009 remplace l'accrual de septembre (14 j au 18/09) : 21 jours facturés (confirmé 09/10/2026).
-        { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', emiseLe: '2026-10-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-11-01', lastContact: '2026-10-09', payments: [], notes: 'Facture du 01/10/2026 envoyée depuis la boîte de Bairok (pièce fournie par Amine le 09/10/2026) : 21 jours × 910 € = 19 110 € HT, TVA 0, paiement à 30 jours, échéance 01/11/2026, règlement sur le compte IFX Payments de Bairok (iBanq). Réputée encaissée à l\'échéance + 10 j (règle v549).' },
-        // v584 — accrual d'octobre, à retirer quand la facture sera saisie (jamais les deux ensemble).
-        // 13 j : congé paternité jusqu'au 09/10 (timesheet Notion), off le 21 et le 27/10 (déclaré par Amine le 01/11).
-        { id: 'ACCSNT10', label: 'SAP & Tax — accrual octobre (13j × 910€)', amount: 11830, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-12-01', lastContact: '2026-11-01', payments: [], notes: 'Non facturé : 13 jours travaillés du 12/10 au 30/10 × 910 €. Timesheet Notion remplie jusqu\'au 19/10 (brouillon), le reste déclaré par Amine le 01/11/2026. Facture attendue 01/11/2026, échéance 01/12/2026.' },
+        // v589 — payée le 03/11/2026 : 19 085 € crédités sur iBanq (Bairok), 25 € de frais de paiement
+        // international retenus par l'émetteur (explication d'Amine). Facture soldée : 19 085 + 25 = 19 110.
+        { id: 'INVSNT009', label: 'SAP & Tax — INVSNT009 (facture 01/10/2026, septembre, 21j × 910€)', amount: 19110, currency: 'EUR', type: 'pro', emiseLe: '2026-10-01', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-11-01', lastContact: '2026-11-03', payments: [{ amount: 19085, frais: 25, date: '2026-11-03', at: '2026-11-03T12:45:00Z', currency: 'EUR', compteCredite: 'ibanqBairok', rapprochement: 'à rapprocher', source: 'Notification IFX Payments du 03/11/2026 « Confirmation of credit EUR 19085 », donneur d\'ordre SAP AND TAX LTD, réf. INVSNT009, transaction 12:45 UTC — extrait vérifié lors de l\'audit du 07/11/2026' }], notes: 'Facture du 01/10/2026 : 21 jours × 910 € = 19 110 € HT, TVA 0, échéance 01/11/2026. Soldée le 03/11/2026 : crédit net 19 085 € sur iBanq + 25 € de frais de paiement international. Crédit à rapprocher d\'un relevé iBanq postérieur au 31/10.' },
+        // v589 — INVSNT010 remplace l'accrual ACCSNT10 (v584) : même montant, même période (octobre).
+        // Facture du 01/11/2026 envoyée le 04/11/2026 à 02:17 (Dubaï) depuis la boîte de Bairok.
+        { id: 'INVSNT010', label: 'SAP & Tax — INVSNT010 (facture 01/11/2026, octobre, 13j × 910€)', amount: 11830, currency: 'EUR', type: 'pro', emiseLe: '2026-11-01', envoyeeLe: '2026-11-04', statutFacture: 'envoyée', guaranteed: true, probability: 1.0, delayDays: 30, status: 'en_cours', dueDate: '2026-12-01', lastContact: '2026-11-04', payments: [], notes: 'Facture INVSNT010 (PDF contrôlé lors de l\'audit du 07/11/2026) : période octobre 2026, 13 jours × 910 € = 11 830 € HT, TVA 0, échéance imprimée 01/12/2026. Envoyée à Igal le 04/11/2026. Encaissement non constaté. Remplace la provision ACCSNT10.' },
         // Malt — frais déplacement désormais facturés dans INVSNT006 (Melbourne + Paris) → plus en créance séparée
         { id: 'CREB01', label: 'Malt — Frais déplacement NZ', amount: 4847, currency: 'EUR', type: 'pro', guaranteed: true, probability: 1.0, delayDays: 30, status: 'recouvré', dueDate: '2026-04-15', lastContact: '2026-07-13', payments: [{ amount: 4847, date: '2026-06-01', currency: 'EUR' }], notes: 'Frais déplacement consolidés/facturés dans INVSNT006 — plus en créance séparée.' },
         // Loyers impayés janv + fév → PAYÉS le 12/04/2026
@@ -1749,7 +1752,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v588';
+export const APP_VERSION = 'v589';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3239,12 +3242,12 @@ export const IMMO_RECALCULE = {
 // Créances SAP & Tax : dans les snapshots déjà écrits, chaque facture datée (`emiseLe`) compte de son
 // émission à son encaissement. Au-delà de cette date, le modèle du jour (encaissement réputé à
 // échéance + 10 j, v549) s'applique tel quel : la restatement ne le contredit pas.
-export const FACTURES_RESTATEES_JUSQUAU = '2026-10-09';
+export const FACTURES_RESTATEES_JUSQUAU = '2026-11-07';  // v589 — étendu : plus d'encaissement présumé, les paiements constatés font foi
 
 // v584 — accruals : chaque jour travaillé compte à sa date dans les snapshots écrits avant la saisie
 // (`enregistreeLe`). Ce registre survit à la facture qui remplacera l'accrual dans les créances.
 export const ACCRUALS_HISTORIQUE = [
-  { id: 'ACCSNT10', tarifJour: 910, enregistreeLe: '2026-11-01T11:16:59Z',
+  { id: 'ACCSNT10', remplaceePar: 'INVSNT010', tarifJour: 910, enregistreeLe: '2026-11-01T11:16:59Z',
     jours: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-19', '2026-10-20', '2026-10-22', '2026-10-23', '2026-10-26', '2026-10-28', '2026-10-29', '2026-10-30'] },
 ];
 
@@ -3350,6 +3353,12 @@ export const SNAPSHOTS_RECONSTRUITS = {
 //   statut      'établi' ou 'provisoire' — un statut provisoire est signalé dans la vue Historique
 //   source      d'où vient le chiffre ;  aConfirmer : ce qui manque pour passer en « établi »
 export const SOLDES_RETROACTIFS = {
+  // v589 — iBanq RECONSTRUIT : relevé du 31/10 (12 765,55) + crédit INVSNT009 du 03/11 (19 085, 12:45 UTC,
+  // extrait vérifié lors de l'audit du 07/11/2026). Aucun relevé observé depuis : statut provisoire.
+  ibanq_bairok: [
+    { du: '2026-11-03', au: '2026-11-07', captureApres: '2026-11-03T12:45:00Z', natif: 31850.55, devise: 'EUR', proprietaire: 'A', statut: 'provisoire',
+      source: 'Reconstruit : relevé iBanq du 31/10/2026 + crédit IFX du 03/11/2026 (INVSNT009, 19 085 €)' },
+  ],
   // v563 — les soldes Mashreq et Wio (épargne, courant, espaces de Nezha) vivent désormais dans
   // RELEVES_QUOTIDIENS, jour par jour, tirés des relevés. Seuls restent ici les comptes sans relevé
   // quotidien.
