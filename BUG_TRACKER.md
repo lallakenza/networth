@@ -2579,8 +2579,9 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   visibles.
 - **Correctif** :
   - `insightsPour(périmètre)` dans `computeActionsView`, avec un jeu par vue : couple, amine, nezha ;
-  - `fetchBenchmarks` (api.js) : YTD en euros depuis Yahoo, cache 6 h. Le relevé manuel ne sert plus que de
-    repli et n'est pas classé ;
+  - benchmarks YTD en euros tirés de l'historique de cours déjà chargé (v597 : MWRD, SXR8, VWCE, IBIT),
+    complétés par `fetchBenchmarks` (CAC 40, or) quand les proxys répondent. Le relevé manuel ne sert plus
+    que de repli et n'est pas classé ;
   - `prochainesExDates` (engine.js) projette les détachements passés d'un an et les marque « estimée ». Les
     `exDates` acceptent un `dps` par date (acompte ≠ solde) ;
   - les valeurs radiées (`DEGIRO_STATIC_PRICES[].delisted`) passent avant tout cours live ;

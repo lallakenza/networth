@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=596';
-import { DEPLOIEMENTS } from './deploiements.js?v=596';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=596';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=597';
+import { DEPLOIEMENTS } from './deploiements.js?v=597';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=597';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1819,4 +1819,45 @@ export async function fetchBenchmarks(forceRefresh) {
   try { localStorage.setItem(BENCH_CACHE_KEY, JSON.stringify(res)); } catch (e) { /* quota */ }
   console.log('[bench] ✓ ' + items.length + '/' + BENCHMARKS.length + ' indices YTD au ' + asOf);
   return res;
+}
+
+// v596 — mêmes benchmarks, calculés depuis l'historique de cours DÉJÀ chargé (rafraîchi chaque soir
+// par le cron, v567) : aucun appel réseau, donc disponibles même quand tous les proxys CORS tombent
+// (cas du 07/11/2026). Ce sont des ETF capitalisants cotés en euros (dividendes réinvestis) ; le
+// Bitcoin passe par l'ETF IBIT converti avec EUR/USD. Une série absente est simplement omise.
+const BENCHMARKS_HIST = [
+  { cle: 'world', label: 'MSCI World (EUR)', ticker: 'MWRD.PA', note: 'Amundi Core MSCI World (Acc), coté en euros' },
+  { cle: 'sp500', label: 'S&P 500 (EUR)', ticker: 'SXR8.DE', note: 'iShares Core S&P 500 (Acc), coté en euros' },
+  { cle: 'allworld', label: 'FTSE All-World (EUR)', ticker: 'VWCE.DE', note: 'Vanguard FTSE All-World (Acc), coté en euros' },
+  { cle: 'btc', label: 'Bitcoin (EUR)', ticker: 'IBIT', devise: 'USD', note: 'via l’ETF IBIT, converti en euros' },
+];
+export function benchmarksDepuisHistorique(hist) {
+  if (!hist || !hist.tickers) return null;
+  const annee = new Date().getFullYear();
+  const fxYtd = _ytdDepuis(hist.fx && hist.fx.usd, annee);
+  const items = [];
+  let asOf = null;
+  BENCHMARKS_HIST.forEach((b) => {
+    const y = _ytdDepuis(hist.tickers[b.ticker], annee);
+    if (!y) return;
+    let base = y.base.close, fin = y.fin.close;
+    if (b.devise === 'USD') {
+      if (!fxYtd) return;
+      base /= fxYtd.base.close; fin /= fxYtd.fin.close;
+    }
+    items.push({ cle: b.cle, label: b.label, ytd: (fin / base - 1) * 100, note: b.note, dateBase: y.base.date, dateFin: y.fin.date });
+    if (!asOf || y.fin.date > asOf) asOf = y.fin.date;
+  });
+  return items.length ? { asOf, items, source: 'historique' } : null;
+}
+
+/** Fusionne deux relevés de benchmarks par clé ; `b` (en ligne, plus large) l'emporte. */
+export function fusionnerBenchmarks(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const parCle = new Map(a.items.map((it) => [it.cle, it]));
+  b.items.forEach((it) => parCle.set(it.cle, it));
+  const ordre = ['world', 'sp500', 'allworld', 'cac40', 'or', 'btc', 'immo'];
+  const items = [...parCle.values()].sort((x, y) => ordre.indexOf(x.cle) - ordre.indexOf(y.cle));
+  return { asOf: a.asOf > b.asOf ? a.asOf : b.asOf, items };
 }
