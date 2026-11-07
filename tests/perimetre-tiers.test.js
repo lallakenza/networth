@@ -81,8 +81,9 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
   t('l’épargne Wio portée au site égale le total lu dans l’app : aucun virement ne s’y ajoute', () => {
     // Capture du 09/10/2026 : « Your total savings » 554 140 AED = part d'Amine + part de Nezha. Les
     // 57 000 AED virés le 19/09 sont dedans, comme tout virement passé : le solde est LU, pas reconstitué.
+    // Capture du 07/11/2026 : 436 143 AED (Family 315 000 + « Nezha money pas touchi » 121 143).
     const total = P.amine.uae.wioSavings + P.nezha.cash.wioAED;
-    centimes(total, 554140, 'épargne Wio du couple vs total affiché dans l’app');
+    centimes(total, 436143, 'épargne Wio du couple vs total affiché dans l’app');
     assert.deepEqual(P.amine.uae.wioSavingsMouvements, [], 'aucun mouvement en attente après une capture complète');
   });
 

@@ -48,24 +48,25 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     uae: {
       mashreq: 497982.32,   // Mashreq NEO PLUS — lecture du 01/11/2026 : Saver ••7138 497 773,10 + Current ••9133 209,22 disponibles (235,22 moins 26 d'achat carte en cours). Depuis le 09/10 : −20 881 Aani (USDT), −40,95 carte, −30 000 vers IBKR le 31/10 (cashAED), +2 667,75 d'intérêts du mois
-      wioSavings: 453140,   // Wio — épargne d'AMINE — capture de l'app du 09/10/2026 : Family Fixed Saving Space 399 000 + Fixed Saving Space 54 140 (wioSavingsSpaces). Les 101 000 de « Nezha money » (rose) = Nezha (nezha.cash.wioAED). 6 %/an, espaces à 1 mois renouvelables.
-      // Ventilation des espaces d'épargne d'Amine, en AED — capture de l'app du 09/10/2026 (épargne
-      // totale affichée 554 140 = 101 000 « Nezha money », rose, à Nezha + les deux espaces ci-dessous).
+      wioSavings: 315000,   // Wio — épargne d'AMINE — capture de l'app du 07/11/2026 : Family Fixed Saving Space 315 000 (wioSavingsSpaces). Les 121 143 de « Nezha money pas touchi » (rose) = Nezha (nezha.cash.wioAED). 6 %/an, espaces à 1 mois renouvelables. Avant : 453 140 (09/10)
+      // Ventilation des espaces d'épargne d'Amine, en AED — capture de l'app du 07/11/2026 (épargne
+      // totale affichée 436 143 = 121 143 « Nezha money pas touchi », rose, à Nezha + l'espace ci-dessous).
+      // Le 09/10 : 554 140 = 101 000 (Nezha) + Family 399 000 + Fixed 54 140.
       // Règle vérifiée par test : Σ espaces + Σ mouvements = wioSavings. Un virement vers l'épargne
       // CRÉE ou ABONDE un espace, il ne s'ajoute jamais au solde : c'est ce qui a protégé les 57 000 AED
       // virés le 19/09 (ventilation du 19/09 : 50 000 + 7 000 + 54 000 + 100 500 + 100 000 + 100 500 +
       // 11 000 + 75 000 = 498 000), avant que les espaces soient regroupés en deux début octobre.
       wioSavingsSpaces: [
-        { montant: 399000, nom: 'Family Fixed Saving Space', note: 'espace partagé avec Nezha, 1 mois renouvelable (échéance 02/11/2026) ; compté chez Amine selon la convention des couleurs (mauve = Amine, rose = Nezha)' },
-        { montant: 54140,  nom: 'Fixed Saving Space', note: '1 mois renouvelable (échéance 02/11/2026) ; 159 140 le 03/10, −35 000 le 04/10 (achat d\'USDT), −70 000 le 07/10 (carte Wio Credit)' },
+        { montant: 315000, nom: 'Family Fixed Saving Space', note: 'espace partagé avec Nezha, 1 mois renouvelable (échéance 02/12/2026) ; compté chez Amine selon la convention des couleurs (mauve = Amine, rose = Nezha)' },
       ],
-      // Mouvements postérieurs à la capture ci-dessus (aucun au 09/10/2026).
+      // Mouvements postérieurs à la capture ci-dessus (aucun au 07/11/2026).
       wioSavingsMouvements: [],
       // Journal des mouvements d'épargne DÉJÀ inclus dans la capture : traçabilité seulement, jamais
       // additionné au solde (sinon double comptage). Sources : mails Wio et Mashreq.
       wioSavingsJournal: [
         { date: '2026-10-04', montant: -35000, motif: 'retrait du Fixed Saving Space, viré vers Mashreq (5 000 + 25 000 + 5 000) pour acheter de l\'USDT en P2P', source: 'mails Wio « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » du 04/10/2026' },
         { date: '2026-10-07', montant: -70000, motif: 'retrait du Fixed Saving Space pour rembourser intégralement la carte Wio Credit (69 998,89 AED)', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
+        { date: '2026-11-07', montant: -138140, motif: 'variation nette depuis le 09/10 (Fixed Saving Space soldé, Family 399 000 → 315 000) : loyer du logement payé à l\'année (145 000 + 5 % de dépôt + 5 % d\'agence = 159 500 AED, cf. CREP11 pour le dépôt) et 20 000 AED donnés à Nezha, intérêts déduits ; dates et ventilation exactes non relevées', source: 'captures de l\'app Wio du 07/11/2026 + déclaration d\'Amine' },
       ],
       // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
       // Dette de carte de crédit : 2 % de cashback, et jusqu'à 60 jours sans intérêts quand le
@@ -79,9 +80,9 @@ export const PORTFOLIO = {
         dernierReleve: { mois: '2026-09', recuLe: '2026-09-09', note: 'PDF « Credit Statement SEPTEMBER 2026 » (Gmail)' },
         _lastUpdate: '2026-10-07',
       },
-      wioCurrent: 54.45,    // Wio Personal Current (0% rendement) — MAJ 07/10/2026 (lecture de l'app, Notion 🏦 Comptes). Non relu depuis le 09/10
+      wioCurrent: 5470.54,  // Wio Personal — total des comptes (« Accounts », 0% rendement) — MAJ 07/11/2026 (capture de l'app). Avant : 54,45 (07/10)
       wioBusiness: 2975.63,  // Wio Business (Bairok Consulting LLC, 0%) — MAJ 19/09/2026 (capture app 04:56 : 2 975,63 AED après transfert de 75 000 vers l'épargne Wio ; sous-compte USD 0)
-      revolutEUR: 2311,     // Revolut TOTAL toutes poches en EUR — MAJ 19/09/2026 (déclaré par Amine)
+      revolutEUR: 1324,     // Revolut TOTAL toutes poches en EUR — MAJ 07/11/2026 (déclaré par Amine, après +5 000 reçus de Nezha et −6 000 virés vers IBKR). Avant : 2 311 (19/09)
       banquePopulaire: 218, // Banque Populaire Rives de Paris — compte individuel (EUR) — MAJ 19/09/2026 (déclaré par Amine)
       binanceUSDT: 3910.33, // Binance — USDT (stablecoin ≈ USD, ~0 %) — MAJ 31/10/2026 (portefeuille Financement 3 910,32 + Earn 0,02). Historique P2P relu le 31/10 : 11 003,37 au 09/10, puis 12 774,91 USDT vendus contre 131 000 MAD (127 500 sur Attijari, 3 500 sur CIH) et 5 713,04 achetés contre 20 881 AED (Aani) les 10 et 11/10. Détail jour par jour : RELEVES_QUOTIDIENS.binance
       // v484 — comptes SOCIÉTÉS (28/08/2026) :
@@ -301,7 +302,7 @@ export const PORTFOLIO = {
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
-      cashEUR: -22361.85,    // v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashEUR: -16361.85,    // v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
       cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1608111.36, // v587 — connecteur IBKR du 07/11/2026 : −3 565 ¥ d'intérêts de marge d'octobre. Avant : connecteur du 09/10/2026. −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
       cashAED: 30000,        // v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
@@ -462,6 +463,8 @@ export const PORTFOLIO = {
         { date: '2025-11-03', amount: 70000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #3 (Mashreq→IBKR)' },
         { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
         { date: '2026-10-31', amount: 30000,  currency: 'AED', fxRateAtDate: 4.0988, label: 'Virement AED #5 (Mashreq→IBKR ; taux du connecteur IBKR au 01/11/2026)' },
+        // v595 — 5 000 € reçus de Nezha (2 000 LCL + 3 000 Revolut) + 1 000 € d'Amine. Pas de créance : Amine a donné 20 000 AED à Nezha (Wio), « on est quittes ».
+        { date: '2026-11-07', amount: 6000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement Revolut → IBKR (déclaré par Amine le 07/11/2026 ; en transit, pas encore lu par le connecteur)' },
       ],
       // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
       // ══════════════════════════════════════════════════════════════
@@ -749,6 +752,8 @@ export const PORTFOLIO = {
         { id: 'CREP05', label: 'Akram', amount: 1500, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'recouvré', dueDate: '2026-01-31', lastContact: '2026-08-28', payments: [{ amount: 1500, date: '2026-08-28', currency: 'EUR' }], notes: 'Réglé (28/08/2026)' },
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
+        // v595 — loyer du logement payé à l'année le 07/11/2026 (déclaré par Amine) : 145 000 AED de loyer et 7 250 de frais d'agence sont des DÉPENSES ; seul le dépôt de garantie (5 %) est récupérable en fin de bail. Échéance = fin de bail estimée à un an ; probabilité 0,9 (retenues possibles à la sortie).
+        { id: 'CREP11', label: 'Dépôt de garantie — logement (EAU)', amount: 7250, currency: 'AED', type: 'perso', guaranteed: true, probability: 0.9, status: 'en_cours', dueDate: '2027-11-07', lastContact: '2026-11-07', payments: [], notes: '5 % de 145 000 AED, versé avec le loyer annuel le 07/11/2026 ; restitué en fin de bail (date de fin à confirmer)' },
       ],
     },
 
@@ -1423,12 +1428,12 @@ export const PORTFOLIO = {
   nezha: {
     // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
     cash: {
-      revolutEUR: 4322.41,     // EUR — Revolut France, tous comptes (0%) — MAJ 07/11/2026 (capture app). Avant : 4 403,76 (19/09)
+      revolutEUR: 1322.41,     // EUR — Revolut France, tous comptes (0%) — MAJ 07/11/2026 : capture app 4 322,41 − 3 000 envoyés à Amine le même jour. Avant : 4 403,76 (19/09)
       creditMutuelCC: 1004.19, // EUR — Crédit Mutuel compte courant (0%) — MAJ 07/11/2026 (capture app, après l'échéance de prêt de 987,62 le 06/11 ; série dans RELEVES_QUOTIDIENS.credit_mutuel)
       lclLivretA: 10,          // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 07/11/2026 (déclaratif Amine : LCL 3 525,50 au total, dont Livret A 10). Les 8 000 € versés sur IBKR le 05/11 en sont partis
-      lclCompteDepots: 3515.5, // EUR — LCL Compte principal (0%) — MAJ 07/11/2026 (déclaratif : 3 525,50 − 10 du Livret A)
+      lclCompteDepots: 1515.5, // EUR — LCL Compte principal (0%) — MAJ 07/11/2026 (déclaratif : 3 525,50 − 10 du Livret A − 2 000 envoyés à Amine le même jour)
       attijariwafarMAD: 14299.47, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 07/11/2026 (capture app). Avant : 5 532,83 (19/09, déclaratif)
-      wioAED: 101000,          // AED — Wio, espace rose « Nezha money » (1 mois renouvelable, échéance 02/11/2026) = Nezha — MAJ 09/10/2026 (capture de l'app ; les deux espaces roses du 19/09 ont été regroupés)
+      wioAED: 121143,          // AED — Wio, espace rose « Nezha money pas touchi » (1 mois renouvelable, échéance 07/12/2026) = Nezha — MAJ 07/11/2026 (capture de l'app ; inclut les 20 000 AED donnés par Amine). Avant : 101 000 (09/10)
     },
     // ── IBKR Nezha — compte-titres PROPRE à Nezha (≠ compte d'Amine), ventilé comme celui d'Amine ──
     // Même schéma que amine.ibkr : positions (valorisées au prix live), trades (P&L de période),
@@ -1767,7 +1772,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '07/11/2026';
-export const APP_VERSION = 'v594';
+export const APP_VERSION = 'v595';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

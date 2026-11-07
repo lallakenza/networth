@@ -108,9 +108,10 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     const R = D.RELEVES_QUOTIDIENS;
     const fin = (c, d) => { const s = R[c].soldes; return Object.keys(s).sort().filter((x) => x <= d).map((x) => s[x]).pop(); };
     assert.equal(fin('wio_savings', '2026-10-07') + fin('wio_nezha', '2026-10-07'), 554140, 'épargne Wio totale lue dans l’app');
-    assert.equal(fin('wio_savings', '2026-10-09'), D.PORTFOLIO.amine.uae.wioSavings);
-    assert.equal(fin('wio_nezha', '2026-10-09'), D.PORTFOLIO.nezha.cash.wioAED);
-    assert.equal(fin('wio_current', '2026-10-09'), D.PORTFOLIO.amine.uae.wioCurrent);
+    // Lectures de l'app du 09/10 (data.js a depuis été relu le 07/11 : 315 000 / 121 143 / 5 470,54).
+    assert.equal(fin('wio_savings', '2026-10-09'), 453140);
+    assert.equal(fin('wio_nezha', '2026-10-09'), 101000);
+    assert.equal(fin('wio_current', '2026-10-09'), 54.45);
     assert.ok(Math.abs(fin('mashreq', '2026-10-09') - 546262.52) < 0.01, 'relevés Mashreq du 09/10 (data.js en déduit depuis les achats Aani des 10-11/10)');
     assert.equal(fin('wio_savings', '2026-09-19'), 498000, 'ventilation lue le 19/09');
   });

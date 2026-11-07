@@ -60,11 +60,14 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     assert.equal(pos('VWCE.DE').shares, 170);
     assert.equal(pos('GOOGL').shares, 40);
     assert.equal(P.amine.espp.shares, 167, 'les 167 ACN venues d\'UBS, chez IBKR depuis le 09/10');
-    assert.equal(P.amine.ibkr.cashEUR, -22361.85);
+    // v595 — +6 000 € virés depuis Revolut le 07/11, en transit : le connecteur lit encore −22 361,85.
+    const transit = P.amine.ibkr.deposits.filter((d) => d.date === '2026-11-07' && d.currency === 'EUR').reduce((s, d) => s + d.amount, 0);
+    assert.equal(transit, 6000);
+    assert.ok(Math.abs(P.amine.ibkr.cashEUR - transit - (-22361.85)) < 0.01, 'cash EUR = connecteur + virement en transit');
     assert.equal(P.amine.ibkr.cashUSD, -8511.67);
     assert.equal(P.amine.ibkr.cashJPY, -1608111.36);
     // Les soldes se reconstituent au centime à partir des mouvements depuis le 09/10.
-    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 - P.amine.ibkr.cashEUR) < 0.01, 'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre');
+    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + transit - P.amine.ibkr.cashEUR) < 0.01, 'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre');
     assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = cash UBS via Wise − 40 GOOGL');
   });
 
