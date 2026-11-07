@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=597';
-import { DEPLOIEMENTS } from './deploiements.js?v=597';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=597';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=598';
+import { DEPLOIEMENTS } from './deploiements.js?v=598';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=598';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1758,8 +1758,8 @@ export function applyImmoRef(ref) {
 // v596 — BENCHMARKS YTD EN EUROS (carte « Performance vs Benchmarks »)
 // ============================================================
 // La carte comparait le portefeuille du jour à un relevé saisi à la main le 21/03/2026 : figé
-// depuis, il ne permettait plus aucun classement. Ici : variation depuis la dernière clôture de
-// l'année précédente, en euros (l'or, coté en dollars, est converti avec EURUSD aux deux dates).
+// depuis, il ne permettait plus aucun classement. Ici : variation depuis la première clôture de
+// l'année, en euros (l'or, coté en dollars, est converti avec EURUSD aux deux dates).
 // Un indice indisponible est simplement omis ; tous indisponibles ⇒ null (repli manuel daté).
 const BENCHMARKS = [
   { cle: 'world', label: 'MSCI World (EUR)', symbol: 'IWDA.AS', note: 'iShares Core MSCI World, coté en euros' },
@@ -1773,16 +1773,20 @@ const BENCH_CACHE_KEY = 'nw_benchmarks_v1';
 const BENCH_TTL_MS = 6 * 3600 * 1000;
 
 function _ytdDepuis(serie, annee) {
+  // Base = PREMIÈRE clôture de l'année : même convention que le YTD du portefeuille (`ytdOpen`,
+  // applyPriceRefs dans app.js). Les deux chiffres comparés partent ainsi du même jour, et une série
+  // téléchargée en « range=ytd » (sans décembre) reste utilisable.
   if (!serie || !serie.dates || !serie.dates.length) return null;
   const borne = annee + '-01-01';
   let base = null, fin = null;
   for (let i = 0; i < serie.dates.length; i++) {
     const c = serie.closes[i];
-    if (!(c > 0)) continue;
-    if (serie.dates[i] < borne) base = { date: serie.dates[i], close: c };
+    if (!(c > 0) || serie.dates[i] < borne) continue;
+    if (!base) base = { date: serie.dates[i], close: c };
     fin = { date: serie.dates[i], close: c };
   }
-  return base && fin && fin.date >= borne ? { base, fin } : null;
+  // Une série qui ne commence qu'en cours d'année n'a pas de YTD (base > 10 janvier).
+  return base && fin && base.date <= annee + '-01-10' && fin.date > base.date ? { base, fin } : null;
 }
 
 export async function fetchBenchmarks(forceRefresh) {
@@ -1794,7 +1798,7 @@ export async function fetchBenchmarks(forceRefresh) {
     }
   } catch (e) { /* cache illisible : on refait */ }
   const annee = new Date().getFullYear();
-  const debut = Date.UTC(annee - 1, 11, 15) / 1000;   // couvre la dernière séance de l'an passé
+  const debut = Date.UTC(annee, 0, 1) / 1000;
   const [series, eurusd] = await Promise.all([
     Promise.all(BENCHMARKS.map(b => fetchTickerHistory(b.symbol, { period1: debut }).catch(() => null))),
     fetchTickerHistory('EURUSD%3DX', { period1: debut }).catch(() => null),
