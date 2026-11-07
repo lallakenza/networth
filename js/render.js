@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=595';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=595';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=596';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=596';
 
 // ---- Generic table sort utility ----
 /**
@@ -2880,26 +2880,36 @@ function renderActionsView(state) {
     let _expandedClosed = null;
     let _closedShowAll = false;
     const CLOSED_TOP_N = 15;
+    // v596 — comparaison « si gardé » calculée pour TOUTES les lignes avant tri ni rendu. Elle
+    // n'était posée que sur les 15 lignes visibles : trier par « +/- value » ou « % » rangeait les
+    // autres sur une valeur absente. Sans produit de vente connu (rachat en numéraire non saisi)
+    // ou sans prix « si gardé », il n'y a pas de comparaison : null, affiché « — », jamais « +0 % ».
+    allClosedData.forEach(cp => {
+      const ifHeldVal = cp._ifHeldValueEUR || 0;
+      const produit = cp.proceedsEUR || 0;
+      const comparable = ifHeldVal > 0 && produit > 0;
+      cp._ifHeldPLvsProceeds = comparable ? ifHeldVal - produit : null;
+      cp._ifHeldPctVsSale = comparable ? (ifHeldVal - produit) / produit * 100 : null;
+    });
     function renderAllClosedRows(items) {
       allClosedTbody.innerHTML = '';
-      // Compute totals on ALL items
-      let totalCost = 0, totalProceeds = 0, totalPL = 0, totalIfHeld = 0, totalIfHeldDiff = 0;
+      // Totals on ALL items. Le % du total se rapporte au produit des seules lignes comparées.
+      let totalCost = 0, totalProceeds = 0, totalPL = 0, totalIfHeld = 0, totalIfHeldDiff = 0, totalProduitCompare = 0;
       items.forEach(cp => {
         totalCost += (cp.costEUR || 0);
         totalProceeds += (cp.proceedsEUR || 0);
         totalPL += cp.pl;
-        const ifHeldVal = cp._ifHeldValueEUR || 0;
-        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
-        if (ifHeldVal) { totalIfHeld += ifHeldVal; totalIfHeldDiff += diffVsSale; }
+        if (cp._ifHeldPLvsProceeds != null) {
+          totalIfHeld += cp._ifHeldValueEUR; totalIfHeldDiff += cp._ifHeldPLvsProceeds;
+          totalProduitCompare += cp.proceedsEUR;
+        }
       });
       // Visible rows (top N or all)
       const visibleItems = _closedShowAll ? items : items.slice(0, CLOSED_TOP_N);
       visibleItems.forEach(cp => {
         const ifHeldVal = cp._ifHeldValueEUR || 0;
-        const diffVsSale = ifHeldVal - (cp.proceedsEUR || 0);
-        const pctVsSale = (cp.proceedsEUR || 0) > 0 ? (diffVsSale / (cp.proceedsEUR || 1) * 100) : 0;
-        cp._ifHeldPLvsProceeds = diffVsSale;
-        cp._ifHeldPctVsSale = pctVsSale;
+        const diffVsSale = cp._ifHeldPLvsProceeds;
+        const pctVsSale = cp._ifHeldPctVsSale;
         const cls = cp.pl >= 0 ? 'pl-pos' : 'pl-neg';
         const s = cp.pl >= 0 ? '+' : '';
         const tr = document.createElement('tr');
@@ -2910,7 +2920,8 @@ function renderActionsView(state) {
         const srcBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + srcColor + '15;color:' + srcColor + ';font-weight:600">' + srcLabel + '</span>';
         // If held columns
         let ifHeldCols = '';
-        if (ifHeldVal) {
+        const tipRadiee = cp._radiee ? ' title="Valeur radiée : ' + String(cp._radiee).replace(/"/g, '&quot;') + '"' : '';
+        if (diffVsSale != null) {
           const dCls = diffVsSale >= 0 ? 'pl-pos' : 'pl-neg';
           const dS = diffVsSale >= 0 ? '+' : '';
           const pS = pctVsSale >= 0 ? '+' : '';
@@ -2918,13 +2929,19 @@ function renderActionsView(state) {
             + '<td class="num ' + dCls + '">' + dS + fmt(Math.round(diffVsSale)) + '</td>'
             + '<td class="num ' + dCls + '">' + pS + pctVsSale.toFixed(0) + '%</td>';
         } else {
-          ifHeldCols = '<td class="num">\u2014</td><td class="num">\u2014</td><td class="num">\u2014</td>';
+          // Prix « si gardé » connu mais produit de vente inconnu : on montre la valeur, pas l'écart.
+          ifHeldCols = '<td class="num"' + tipRadiee + '>' + (ifHeldVal ? fmt(Math.round(ifHeldVal)) : '\u2014')
+            + (cp._radiee ? ' <span style="font-size:10px;color:#718096">radi\u00e9e</span>' : '') + '</td>'
+            + '<td class="num">\u2014</td><td class="num">\u2014</td>';
         }
         // Cost & proceeds — show n/a for Degiro positions without cost data
         const naCss = 'color:#cbd5e0;font-size:11px';
         const hasCost = cp.hasCost !== false && (cp.costEUR > 0 || cp._hasReportPL);
         const costCell = hasCost ? fmt(cp.costEUR || 0) : '<span style="' + naCss + '">n/a</span>';
-        const proceedsCell = fmt(cp.proceedsEUR || 0);
+        // Produit nul alors que la position est soldée = encaissement non saisi (rachat en numéraire,
+        // radiation) : « n/c » plutôt qu'un 0 qui contredit le P/L affiché à côté.
+        const proceedsCell = (cp.proceedsEUR || 0) > 0 ? fmt(cp.proceedsEUR)
+          : '<span style="' + naCss + '" title="Produit de cession non saisi (encaissement hors relevé de vente)">n/c</span>';
         const plCell = hasCost ? (s + fmt(cp.pl)) : '<span style="' + naCss + '">n/a</span>';
         const plCls = hasCost ? cls : '';
         tr.innerHTML = '<td>' + cp.label + '</td><td>' + srcBadge + '</td><td class="num">' + costCell + '</td><td class="num">' + proceedsCell + '</td><td class="num ' + plCls + '">' + plCell + '</td>' + ifHeldCols;
@@ -2960,7 +2977,7 @@ function renderActionsView(state) {
               const amtLabel = fmt(Math.round(amt));
               let ifHeldDetailCols = '<td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td><td class="num" style="' + hp + '">\u2014</td>';
               // Une jambe d'opération sur titres n'a pas été vendue : pas de « si gardé ».
-              if (isSell && cp._ifHeldPriceEUR && t.qty && !t.corporateAction) {
+              if (isSell && cp._ifHeldPriceEUR && t.qty && !t.corporateAction && amt > 0) {
                 const hypothetical = t.qty * (t.splitFactor || 1) * cp._ifHeldPriceEUR;
                 const diff = hypothetical - amt;
                 const pct = amt > 0 ? (diff / amt * 100) : 0;
@@ -2987,7 +3004,7 @@ function renderActionsView(state) {
                 + ifHeldDetailCols
                 + '</tr>';
             });
-            if (cp._ifHeldValueEUR) {
+            if (cp._ifHeldPLvsProceeds != null) {
               const diff = cp._ifHeldValueEUR - (cp.proceedsEUR || 0);
               const pct = (cp.proceedsEUR || 0) > 0 ? (diff / (cp.proceedsEUR || 1) * 100) : 0;
               const diffCls = diff >= 0 ? 'color:#38a169' : 'color:#c53030';
@@ -3027,7 +3044,7 @@ function renderActionsView(state) {
       if (totalIfHeld > 0) {
         const tDCls = totalIfHeldDiff >= 0 ? 'pl-pos' : 'pl-neg';
         const tDS = totalIfHeldDiff >= 0 ? '+' : '';
-        const tPct = totalProceeds > 0 ? (totalIfHeldDiff / totalProceeds * 100) : 0;
+        const tPct = totalProduitCompare > 0 ? (totalIfHeldDiff / totalProduitCompare * 100) : 0;
         const tPS = tPct >= 0 ? '+' : '';
         totalIfHeldCols = '<td class="num"><strong>' + fmt(Math.round(totalIfHeld)) + '</strong></td>'
           + '<td class="num ' + tDCls + '"><strong>' + tDS + fmt(Math.round(totalIfHeldDiff)) + '</strong></td>'
@@ -3242,7 +3259,7 @@ function renderActionsView(state) {
         // pas le résultat d'une opération unique — et le win rate compte des positions, pas
         // des ordres. Les libellés le disent maintenant.
         if (ins.topWin) html += '<div style="font-size:12px;margin-top:6px;color:#718096;">Meilleure position cl\u00f4tur\u00e9e : ' + ins.topWin.label + ' (+' + fmt(ins.topWin.pl) + ', cumul des ventes)</div>';
-        if (ins.topLoss) html += '<div style="font-size:12px;color:#718096;">Pire trade : ' + ins.topLoss.label + ' (' + fmt(ins.topLoss.pl) + ')</div>';
+        if (ins.topLoss) html += '<div style="font-size:12px;color:#718096;">Pire position cl\u00f4tur\u00e9e : ' + ins.topLoss.label + ' (' + fmt(ins.topLoss.pl) + ')</div>';
       }
 
       else if (ins.type === 'holdings') {
@@ -3310,7 +3327,7 @@ function renderActionsView(state) {
 
         // Summary line (always visible) — shows total cost + net impact
         html += '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:8px 0;" onclick="this.parentElement.querySelector(\'[data-costs-detail]\').classList.toggle(\'costs-hidden\')">';
-        html += '<div style="font-size:15px;font-weight:600;">Coûts totaux : <span class="pl-neg">-' + fmt(totalCostsYTD) + '</span>';
+        html += '<div style="font-size:15px;font-weight:600;">Coûts depuis le 1er janvier : <span class="pl-neg">-' + fmt(totalCostsYTD) + '</span>';
         html += ' <span style="font-size:12px;color:#718096;">(' + costPctNAV.toFixed(2) + '% NAV)</span></div>';
         html += '<span style="font-size:11px;color:var(--accent);font-weight:500;">▼ Détails</span>';
         html += '</div>';
@@ -3367,8 +3384,8 @@ function renderActionsView(state) {
         html += '<div style="font-size:13px;line-height:1.6;">';
         // TWR banner
         html += '<div style="margin-bottom:10px;padding:8px 12px;background:' + (recTWR >= 0 ? '#f0fff4' : '#fff5f5') + ';border-radius:6px;font-size:14px;">';
-        html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong>';
-        html += ' &nbsp;|&nbsp; ' + ins.nbPositions + ' lignes de titres'
+        if (ins.historique !== false) html += '📊 TWR YTD : <strong style="color:' + (recTWR >= 0 ? '#276749' : '#c53030') + ';">' + (recTWR >= 0 ? '+' : '') + recTWR.toFixed(1) + '%</strong> &nbsp;|&nbsp; ';
+        html += ins.nbPositions + ' lignes de titres'
           + ' &nbsp;|&nbsp; Cash courtier ' + fmt(Math.round(ins.cashCourtier || 0))
           + ' (' + ins.cashPct.toFixed(1) + '%)'
           + (ins.detteMarge < 0 ? ' &nbsp;|&nbsp; dette de marge \u2212' + fmt(Math.round(Math.abs(ins.detteMarge)))
@@ -3380,15 +3397,16 @@ function renderActionsView(state) {
           html += '<div style="margin-bottom:6px;"><strong>✅ Points positifs :</strong></div>';
           html += '<div style="margin-left:8px;margin-bottom:8px;">';
           ins.positives.forEach(function(p) { html += '- ' + p + '<br>'; });
-          if (recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '%<br>';
+          if (ins.historique !== false && recTWR > 0) html += '- TWR positif de +' + recTWR.toFixed(1) + '%<br>';
           html += '</div>';
         }
 
         // Alertes (dynamiques)
-        if (recTWR < 0 || (ins.alerts && ins.alerts.length > 0)) {
+        const twrNeg = ins.historique !== false && recTWR < 0;
+        if (twrNeg || (ins.alerts && ins.alerts.length > 0)) {
           html += '<div style="margin-bottom:6px;"><strong style="color:#c53030;">⚠ Alertes :</strong></div>';
           html += '<div style="margin-left:8px;margin-bottom:8px;">';
-          if (recTWR < 0) html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — sous-performe le cash<br>';
+          if (twrNeg) html += '- TWR de ' + recTWR.toFixed(1) + '% YTD — sous-performe le cash<br>';
           if (ins.alerts) ins.alerts.forEach(function(a) { html += '- ' + a + '<br>'; });
           html += '</div>';
         }
@@ -3415,8 +3433,8 @@ function renderActionsView(state) {
           html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">'
             + (GEO_LABELS[p2.cle] || p2.cle) + ' ' + p2.pct.toFixed(0) + '%</span>';
         });
-        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">Win ' + ins.winRate.toFixed(0) + '%</span>';
-        html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">PF ' + (ins.profitFactor === Infinity ? '∞' : ins.profitFactor.toFixed(1)) + 'x</span>';
+        if (ins.winRate != null) html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">Win ' + ins.winRate.toFixed(0) + '%</span>';
+        if (ins.profitFactor != null) html += '<span style="font-size:10px;padding:2px 6px;background:#edf2f7;border-radius:4px;">PF ' + (ins.profitFactor === Infinity ? '∞' : ins.profitFactor.toFixed(1)) + 'x</span>';
         html += '</div>';
         html += '</div>';
       }
@@ -3445,8 +3463,9 @@ function renderActionsView(state) {
         html += '<span style="flex:1;font-size:12px;font-weight:600;color:#4a5568;">' + b.ibkr.label + ' <span style="font-weight:400;font-size:10px;color:#718096;">(TWR ' + (twr >= 0 ? '+' : '') + twr.toFixed(1) + '%)</span></span>';
         html += '<span style="font-size:14px;font-weight:700;color:' + (ibkrYtd >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (ibkrYtd >= 0 ? '+' : '') + ibkrYtd.toFixed(1) + '%</span></div>';
         // Benchmark bars
-        html += '<div style="font-size:11px;color:#718096;margin:10px 0 4px;">Indices \u2014 relev\u00e9 manuel du '
-          + b.date + (b.date ? ', \u00e0 rafra\u00eechir' : '') + '</div>';
+        html += '<div style="font-size:11px;color:#718096;margin:10px 0 4px;">' + (b.live
+          ? 'Indices en euros depuis le 1er janvier \u2014 Yahoo Finance, cl\u00f4ture du ' + b.date
+          : 'Indices \u2014 relev\u00e9 manuel du ' + b.date + ' (cours en ligne indisponibles)') + '</div>';
         b.items.forEach(function(item) {
           var barColor = item.ytd >= 0 ? '#22c55e' : '#ef4444';
           var barWidth = Math.min(Math.abs(item.ytd) * 2.5, 100);
@@ -3467,14 +3486,17 @@ function renderActionsView(state) {
           html += '<div style="margin-top:10px;padding:8px;background:#fffaf0;border-radius:6px;font-size:12px;">';
           html += '\u26a0 Pas de classement : les indices datent du ' + b.date + ' ('
             + b.ageJours + ' jours) alors que la performance du portefeuille est du jour. '
-            + 'Rafra\u00eechir le relev\u00e9 dans <code>benchmarks</code> (engine.js) pour r\u00e9tablir la comparaison.';
+            + 'Le classement revient d\u00e8s que les cours des indices sont charg\u00e9s.';
           html += '</div>';
         } else {
           var beaten = b.items.filter(function(i) { return totalYtd > i.ytd; }).length;
-          html += '<div style="margin-top:10px;padding:8px;background:' + (beaten >= 4 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
-          html += (beaten >= 4 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
-          if (totalYtd < b.items[1].ytd) html += 'Sous-performe le S&P 500 \u2014 consid\u00e9rer plus d\'exposition US via ETF (VOO/CSPX).';
-          else html += 'Surperforme le S&P 500 \u2014 stock picking cr\u00e9ateur de valeur cette ann\u00e9e.';
+          html += '<div style="margin-top:10px;padding:8px;background:' + (beaten > b.items.length / 2 ? '#f0fff4' : '#fffff0') + ';border-radius:6px;font-size:12px;">';
+          html += (beaten > b.items.length / 2 ? '\uD83C\uDFC6' : '\uD83D\uDCCA') + ' Portefeuille bat <strong>' + beaten + '/' + b.items.length + '</strong> benchmarks. ';
+          // L'index [1] désignait le MSCI World, pas le S&P 500 : le verdict citait le mauvais indice.
+          const sp = b.items.find(function(i) { return i.cle === 'sp500'; });
+          if (sp) html += totalYtd < sp.ytd
+            ? 'Sous-performe le S&P 500 (' + (sp.ytd >= 0 ? '+' : '') + sp.ytd.toFixed(1) + '\u202f%).'
+            : 'Surperforme le S&P 500 (' + (sp.ytd >= 0 ? '+' : '') + sp.ytd.toFixed(1) + '\u202f%).';
           html += '</div>';
         }
       }
@@ -3497,7 +3519,8 @@ function renderActionsView(state) {
         ins.upcoming.forEach(function(d) {
           var urgColor = d.daysUntil <= 30 ? '#e53e3e' : d.daysUntil <= 60 ? '#dd6b20' : '#718096';
           html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #edf2f7;font-size:12px;">';
-          html += '<div><strong>' + d.label + '</strong><br><span style="color:' + urgColor + ';">Ex-date : ' + d.exDate + ' (J-' + d.daysUntil + ')</span></div>';
+          html += '<div><strong>' + d.label + '</strong><br><span style="color:' + urgColor + ';">Ex-date : ' + d.exDate.split('-').reverse().join('/') + ' (J-' + d.daysUntil + ')</span>'
+            + (d.estimee ? ' <span title="' + String(d.note || 'date estimée').replace(/"/g, '&quot;') + '" style="font-size:10px;color:#718096;">estim\u00e9e</span>' : (d.confirmed ? ' <span style="font-size:10px;color:#276749;">\u2713 confirm\u00e9e</span>' : '')) + '</div>';
           html += '<div style="text-align:right;"><span class="pl-neg">WHT \u20ac' + Math.round(d.whtCost) + '</span><br><span style="color:#718096;">' + (d.whtRate * 100).toFixed(0) + '% sur \u20ac' + Math.round(d.grossDivEUR) + '</span></div>';
           html += '</div>';
         });
@@ -7704,17 +7727,23 @@ function renderWHTRows() {
       // l'historique. Tooltip sur le badge affiche la source (ex: "Airbus
       // AGM press release 2026-03-12") pour traçabilité.
       let statusBadge = '';
-      if (p.nextExConfirmed) {
+      if (p.nextExEstimee) {
+        // v596 — date projetée (détachement de l'an passé + 1 an, ou date d'usage non annoncée).
+        statusBadge = '<span title="' + String(p.nextExNote || 'Date estimée').replace(/"/g, '&quot;') + '" style="display:inline-block;margin-top:2px;background:#fefcbf;color:#975a16;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">≈ estimée</span>';
+      } else if (p.nextExConfirmed) {
         const tip = p.divSource ? ' title="Source : ' + p.divSource.replace(/"/g, '&quot;') + '"' : '';
         statusBadge = '<span' + tip + ' style="display:inline-block;margin-top:2px;background:#c6f6d5;color:#276749;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">✓ confirmé</span>';
       } else {
         statusBadge = '<span title="Projection basée sur le DPS et le calendrier de l&#39;an passé — non confirmé officiellement" style="display:inline-block;margin-top:2px;background:#edf2f7;color:#718096;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.2px">⏳ projeté</span>';
       }
-      const noteHtml = p.nextExNote
+      const noteHtml = (p.nextExNote && !p.nextExEstimee)
         ? '<br><span style="font-size:9px;color:#718096;font-style:italic">' + p.nextExNote + '</span>'
         : '';
+      const montantDate = (p.nextExDps != null && Math.abs(p.nextExDps - p.dpsNative) > 1e-9)
+        ? ' · ' + (p.dpsCurrency === 'JPY' ? '¥' + Math.round(p.nextExDps) : (currSymbols[p.dpsCurrency] || '') + p.nextExDps.toFixed(2))
+        : '';
       deadlineHtml = '<span style="' + urgency + '">' + dateStr + '</span>'
-        + '<br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + '</span>'
+        + '<br><span style="font-size:10px;color:var(--gray)">J-' + p.daysUntilEx + montantDate + '</span>'
         + '<br>' + statusBadge + noteHtml;
     }
 
@@ -7882,12 +7911,18 @@ function attachKPIInsights(state, view) {
         + ', plus \u20ac' + f(r.cashCourtier) + ' de cash aux comptes-titres, moins \u20ac'
         + f(Math.abs(r.detteMarge)) + ' de dette de marge en yens \u2014 soit la NAV affich\u00e9e.';
     })();
-    const losers = av.ibkrPositions.filter(p => p.unrealizedPL < 0);
-    const winners = av.ibkrPositions.filter(p => p.unrealizedPL >= 0);
+    // v596 — les deux comptes IBKR (celui de Nezha depuis la v545), comme le tableau des positions.
+    const _lignesIbkr = av.ibkrPositions.concat(av.nezhaIbkrPositions || []);
+    const losers = _lignesIbkr.filter(p => p.unrealizedPL < 0);
+    const winners = _lignesIbkr.filter(p => p.unrealizedPL >= 0);
     insights['kpiActionsUnrealizedPL'] = winners.length + ' positions en gain, ' + losers.length + ' en perte. Perte latente totale : \u20ac' + f(losers.reduce((s,p) => s + p.unrealizedPL, 0)) + '.';
     insights['kpiActionsRealizedPL'] = '+\u20ac' + f(av.combinedRealizedPL) + ' r\u00e9alis\u00e9 (IBKR + Degiro + PEA).';
     insights['kpiActionsTotalDeposits'] = 'Total inject\u00e9 dans les march\u00e9s. P/L total = ' + (av.combinedUnrealizedPL + av.combinedRealizedPL >= 0 ? '+' : '') + '\u20ac' + f(av.combinedUnrealizedPL + av.combinedRealizedPL) + ' (' + ((av.combinedUnrealizedPL + av.combinedRealizedPL) / av.totalDeposits * 100).toFixed(1) + '% du capital).';
-    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. WHT pr\u00e9lev\u00e9e \u00e0 la source (25% France, 30% US, 15% JP).';
+    insights['kpiActionsDividends'] = '\u20ac' + f(av.dividends) + ' de dividendes bruts re\u00e7us. Retenue \u00e0 la source selon le pays de l\u2019\u00e9metteur : '
+      // v596 — taux lus dans WHT_RATES (l'Allemagne et les Pays-Bas manquaient au texte figé).
+      + [['france', 'France'], ['netherlands', 'Pays-Bas'], ['germany', 'Allemagne'], ['us', '\u00c9tats-Unis'], ['japan', 'Japon']]
+        .filter(([k]) => WHT_RATES[k] != null)
+        .map(([k, nom]) => nom + ' ' + (WHT_RATES[k] * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + '\u202f%').join(', ') + '.';
   }
 
   // ── Cash view ──
@@ -8255,7 +8290,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=595').then(m => {
+  import('./charts.js?v=596').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

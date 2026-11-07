@@ -3901,7 +3901,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     <h3 style="margin-top:20px;">Positions Ferm&eacute;es (IBKR + Degiro + PEA)</h3>
     <div class="table-wrap" style="--tbl-min: 740px">
     <table id="allClosedTable">
-      <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th data-sort="source" data-sort-type="string">Source</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale">%</th></tr></thead>
+      <thead><tr><th data-sort="label" data-sort-type="string">Position</th><th data-sort="source" data-sort-type="string">Source</th><th class="num" data-sort="costEUR">Co&ucirc;t</th><th class="num" data-sort="proceedsEUR">Produit</th><th class="num" data-sort="pl">P/L R&eacute;alis&eacute;</th><th class="num" data-sort="_ifHeldValueEUR">Si gard&eacute; auj.</th><th class="num" data-sort="_ifHeldPLvsProceeds">+/- value</th><th class="num" data-sort="_ifHeldPctVsSale" title="Écart entre la valeur si gardé et le produit de la vente, en % du produit">% vs vente</th></tr></thead>
       <tbody id="allClosedTbody"></tbody>
     </table>
     </div>
@@ -3947,7 +3947,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     </div>
     <div class="table-wrap" style="--tbl-min: 900px">
     <table id="whtTable">
-      <thead><tr><th>Position</th><th class="num">Valeur</th><th class="num">DPS</th><th class="num">Div Projet&eacute;</th><th class="num">WHT Rate</th><th class="num">WHT Projet&eacute;</th><th class="num">&#x23F0; Vendre avant</th><th>Reco</th><th>Alternative ETF</th></tr></thead>
+      <thead><tr><th>Position</th><th class="num">Valeur</th><th class="num">DPS</th><th class="num">Div Projet&eacute;</th><th class="num">WHT Rate</th><th class="num">WHT Projet&eacute;</th><th class="num" title="Prochaine date de détachement (ex-date) : confirmée, ou estimée d’après le calendrier de l’an passé">&#x23F0; Vendre avant (ex-date)</th><th>Reco</th><th>Alternative ETF</th></tr></thead>
       <tbody id="whtTbody"></tbody>
     </table>
     </div>
@@ -4771,7 +4771,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=595"></script>
+<script type="module" src="js/app.js?v=596"></script>
 
 </body>
 </html>

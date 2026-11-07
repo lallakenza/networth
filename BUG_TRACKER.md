@@ -2554,3 +2554,35 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   15/09, −5 871 MAD). Historique : `FACTURATION_HISTORIQUE` + `restaterFacturation` (v566).
 - **Test** : `node scripts/daily_snapshot.mjs --dry-run` affiche « facturation : contrat … » ;
   `tests/historique-fiable.test.js`.
+
+## BUG-126 : insights de la page Actions figés ou hors périmètre, « Vendre avant » vide
+
+- **Version** : corrigé en v596 (07/11/2026). **Sévérité** : moyenne (affichage seul, aucun effet sur le
+  patrimoine), mais plusieurs cartes affirmaient des faits faux ou périmés.
+- **Symptômes** :
+  - carte Benchmarks : relevé manuel du 21/03/2026, 231 jours d'âge, donc aucun classement. Le verdict
+    citait le MSCI World (`items[1]`) sous le nom de S&P 500 ;
+  - vue Nezha : son compte IBKR (v545) absent ; carte géo à l'ancien format (sans `parts`), affichée vide ;
+  - vue Amine : répartition et concentration du couple, lignes de Nezha comprises ;
+  - vue Couple : positions en perte, crypto et tech US calculées sur le seul compte d'Amine ;
+  - tableau des dividendes : colonne « Vendre avant » à « - » sur toutes les lignes, toutes les dates
+    saisies étant passées ; l'acompte LVMH de décembre n'y figurait pas ;
+  - positions fermées :
+    - tri par « +/- value » ou « % » faux au-delà des 15 lignes visibles ;
+    - « +0 % » pour une ligne sans produit de vente (Volta) ;
+    - cours live d'une autre société pour une valeur radiée (Hertz) ;
+    - % du total rapporté au produit de toutes les lignes, y compris celles sans comparaison ;
+  - « Coûts totaux » montrait le cumul depuis le 1er janvier ; l'infobulle dividendes omettait l'Allemagne
+    et les Pays-Bas.
+- **Cause** : un seul jeu d'insights pour trois périmètres. Les relevés de marché et les calendriers étaient
+  saisis à la main sans projection. La comparaison « si gardé » n'était calculée qu'au rendu des lignes
+  visibles.
+- **Correctif** :
+  - `insightsPour(périmètre)` dans `computeActionsView`, avec un jeu par vue : couple, amine, nezha ;
+  - `fetchBenchmarks` (api.js) : YTD en euros depuis Yahoo, cache 6 h. Le relevé manuel ne sert plus que de
+    repli et n'est pas classé ;
+  - `prochainesExDates` (engine.js) projette les détachements passés d'un an et les marque « estimée ». Les
+    `exDates` acceptent un `dps` par date (acompte ≠ solde) ;
+  - les valeurs radiées (`DEGIRO_STATIC_PRICES[].delisted`) passent avant tout cours live ;
+  - produit nul affiché « n/c ».
+- **Test** : `tests/insights-actions.test.js`.

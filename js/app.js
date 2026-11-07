@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=595';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=596';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=595';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=595';
-import { render, applySnapshotDeltas } from './render.js?v=595';
-import { chargerContratDistant } from './facturation_contract.js?v=595';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef } from './api.js?v=595';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=595';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=595';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=595';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=596';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=596';
+import { render, applySnapshotDeltas } from './render.js?v=596';
+import { chargerContratDistant } from './facturation_contract.js?v=596';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef, fetchBenchmarks } from './api.js?v=596';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=596';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=596';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=596';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -707,18 +707,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=595');
+  const auth = await import('./auth.js?v=596');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=595');
+  const auth = await import('./auth.js?v=596');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=595');
+  const auth = await import('./auth.js?v=596');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1502,6 +1502,11 @@ async function loadStockPrices(forceRefresh) {
         }).catch(() => {});
       }
     }
+
+    // v596 — indices de comparaison (carte Benchmarks) : en tâche de fond, sans bloquer le graphe.
+    fetchBenchmarks().then(b => {
+      if (b) { PORTFOLIO.market.benchmarks = b; refresh(); }
+    }).catch(e => console.warn('[bench] échec :', e && e.message));
 
     // ════════════════════════════════════════════════════════════
     //  HISTORICAL PRICES — YTD portfolio evolution chart

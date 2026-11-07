@@ -1772,7 +1772,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '07/11/2026';
-export const APP_VERSION = 'v595';
+export const APP_VERSION = 'v596';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -1859,6 +1859,7 @@ export const DEGIRO_STATIC_PRICES = {
   HYLN:  { price: 2.01,   currency: 'USD' },
   HTZ:   { price: 0.00,   currency: 'USD', delisted: true, note: 'Ch.11 bankruptcy — old shares cancelled (Jun 2021)' },
   VLTA:  { price: 0.86,   currency: 'USD', delisted: true, note: 'Acquired by Shell at $0.86/share (Mar 2023)' },
+  FIT:   { price: 7.35,   currency: 'USD', delisted: true, note: 'Acquired by Google at $7.35/share in cash (Jan 2021)' },
   // European stocks (EUR)
   MC:    { price: 479.00, currency: 'EUR' },
   CAP:   { price: 107.80, currency: 'EUR' },
@@ -3798,16 +3799,29 @@ export const DIV_CALENDAR = {
   'BN.PA':   { dps: 2.25,  exDates: ['2026-05-04'], frequency: 'annual', confirmed: true, source: 'Danone AGM 25 avril 2026' },
   'AIR.PA':  { dps: 2.00,  exDates: ['2026-04-22'], frequency: 'annual', confirmed: true, source: 'Airbus AGM 15 avril 2026' },
   'P911.DE': { dps: 0.82,  exDates: ['2026-05-22'], frequency: 'annual', confirmed: true, source: 'Porsche AG résultats FY2025 (mars 2026)' },
-  'MC.PA':   { dps: 13.00, exDates: ['2026-04-28'], frequency: 'semi-annual',
+  // v596 — un acompte et un solde ont des montants différents : `dps` par date. Les dates à venir
+  // non annoncées portent `estimee: true` (badge « estimée » dans le tableau, jamais « confirmé »).
+  'MC.PA':   { dps: 13.00, exDates: [
+                 { date: '2026-04-28', dps: 7.50, note: 'solde' },
+                 { date: '2026-12-02', dps: 5.50, estimee: true, confirmed: false,
+                   note: 'acompte 5,50 € — date calquée sur 2025 (sites tiers : 1er ou 2 déc.), à confirmer fin novembre' },
+               ], frequency: 'semi-annual',
                confirmed: true, source: 'LVMH AGM 16 avril 2026',
                note: 'Solde 7.50€ avr (confirmé) + acompte 5.50€ déc (projeté)' },
   'OR.PA':   { dps: 7.20,  exDates: ['2026-04-29'], frequency: 'annual', confirmed: true, source: 'L\'Oréal AGM 22 avril 2026' },
   'SAN.PA':  { dps: 4.12,  exDates: ['2026-05-04'], frequency: 'annual', confirmed: true, source: 'Sanofi AGM 30 avril 2026' },
-  'RMS.PA':  { dps: 16.00, exDates: ['2026-05-06'], frequency: 'semi-annual',
+  'RMS.PA':  { dps: 16.00, exDates: [
+                 { date: '2026-02-16', dps: 5.00, note: 'acompte 5 € (avis BALO du 11/03/2026)' },
+                 { date: '2026-05-06', dps: 11.00, note: 'solde (total 16 € − acompte 5 €) — date et montant à revérifier' },
+               ], frequency: 'semi-annual',
                confirmed: true, source: 'Hermès AGM 29 avril 2026',
                note: 'Solde ~12€ mai (confirmé) + acompte ~4€ fév (déjà passé)' },
   'SAP.DE':  { dps: 2.50,  exDates: ['2026-05-06'], frequency: 'annual', confirmed: true, source: 'SAP AGM 8 mai 2026' },
-  '4911.T':  { dps: 30,    exDates: ['2026-06-28'], frequency: 'semi-annual',
+  '4911.T':  { dps: 30,    exDates: [
+                 { date: '2026-06-28', dps: 20 },
+                 { date: '2026-12-29', dps: 10, estimee: true, confirmed: false,
+                   note: 'fin d\'exercice (enregistrement au 31/12) — date et montant à confirmer' },
+               ], frequency: 'semi-annual',
                confirmed: true, source: 'Shiseido FY2025 results (mars 2026)',
                note: 'Final ¥20 juin + interim ¥10 déc' },
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },

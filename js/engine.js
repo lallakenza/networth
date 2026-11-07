@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=595';
-import { lireContratEnCache } from './facturation_contract.js?v=595';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=596';
+import { lireContratEnCache } from './facturation_contract.js?v=596';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -1161,7 +1161,21 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     const livePos = ibkrPositions.find(p => p.ticker === cp.ticker)
       || ibkrPositions.find(p => p.ticker === cp.ticker + '.PA');
     const soldPrices = portfolio._soldPrices || {};
-    if (livePos && totalQtySoldAdj > 0) {
+    // v596 — une valeur RADIÉE (rachat en numéraire, faillite) n'a plus de cours : Yahoo renvoie
+    // soit une cotation figée, soit celle d'une AUTRE société sous le même symbole (Hertz). « Si
+    // gardé » = ce que l'actionnaire a touché à la radiation (prix déclaré dans data.js), jamais un
+    // cours live. Prix 0 ou inconnu ⇒ pas de comparaison.
+    const radiee = DEGIRO_STATIC_PRICES[cp.ticker] && DEGIRO_STATIC_PRICES[cp.ticker].delisted
+      ? DEGIRO_STATIC_PRICES[cp.ticker] : null;
+    if (radiee) {
+      cp._radiee = radiee.note || 'radiée';
+      if (radiee.price > 0 && totalQtySoldAdj > 0) {
+        const priceEUR = radiee.currency === 'USD' ? radiee.price / fx.USD : radiee.currency === 'JPY' ? radiee.price / fx.JPY : radiee.price;
+        cp._ifHeldPriceEUR = priceEUR;
+        cp._ifHeldValueEUR = totalQtySoldAdj * priceEUR;
+        cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
+      }
+    } else if (livePos && totalQtySoldAdj > 0) {
       cp._ifHeldPriceEUR = livePos.valEUR / livePos.shares; // EUR per share (post-split price)
       cp._ifHeldValueEUR = totalQtySoldAdj * cp._ifHeldPriceEUR;
       cp._ifHeldPL = cp._ifHeldValueEUR - cp.costEUR;
@@ -1222,389 +1236,306 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     topLoss: losers.length > 0 ? losers.sort((a, b) => a.pl - b.pl)[0] : null,
   });
 
-  // 2. Concentration risk — top 3 positions weight
-  // La mesure canonique (`concentration`) porte sur le périmètre RÉELLEMENT listé : IBKR,
-  // ESPP et SGTM. Elle était ici calculée sur l'IBKR seul (48 % sur 12 lignes) tandis que
-  // l'infobulle du portefeuille en donnait une autre sur l'ensemble (42 %), devant un
-  // tableau de 14 lignes. Un seul chiffre, une seule définition.
-  insights.push({
-    type: 'concentration',
-    title: 'Concentration du Portefeuille',
-    top3: concentration.top3,
-    top3Pct: concentration.top3Pct,
-    totalPositions: concentration.nbLignes,
-  });
-
-  // 3. Losers currently in portfolio
-  const currentLosers = ibkrPositions.filter(p => p.pctPL < -10).sort((a, b) => a.pctPL - b.pctPL);
-  if (currentLosers.length > 0) {
-    insights.push({
-      type: 'underperformers',
-      title: 'Positions en Souffrance (> -10%)',
-      positions: currentLosers.map(p => ({ label: p.label, pctPL: p.pctPL, unrealizedPL: p.unrealizedPL, valEUR: p.valEUR })),
-      totalLossEUR: currentLosers.reduce((s, p) => s + p.unrealizedPL, 0),
-    });
-  }
-
-  // 4. Geo diversification assessment
-  const totalGeo = Object.values(geoAllocation).reduce((s, v) => s + v, 0);
-  const francePct = totalGeo > 0 ? ((geoAllocation.france || 0) / totalGeo * 100) : 0;
-  // Cette insight n'exposait que quatre postes FIXES — France, US, Crypto, et « Autres »
-  // limité à Maroc + Japon. L'ALLEMAGNE n'entrait dans aucun : le total affiché plafonnait
-  // à 87,8 % au lieu de 100 %. Les deux camemberts avaient été corrigés (v503), pas ce
-  // troisième producteur. On énumère donc TOUTES les zones présentes : une zone nouvelle
-  // apparaît d'elle-même, et le total ne peut plus fuir.
-  const partsGeo = Object.entries(geoAllocation)
-    .filter(([, v]) => isFinite(v) && v > 0)
-    .map(([cle, v]) => ({ cle, pct: totalGeo > 0 ? (v / totalGeo * 100) : 0, valEUR: v }))
-    .sort((a, b) => b.pct - a.pct);
-  insights.push({
-    type: 'geo',
-    title: 'Diversification G\u00e9ographique',
-    parts: partsGeo,
-    totalPct: partsGeo.reduce((acc, p2) => acc + p2.pct, 0),
-    francePct: francePct,
-  });
-
-  // 5. Cost efficiency
-  const commissions = Math.abs(meta.commissions || 0);
-  const commPct = totalPositionsVal > 0 ? commissions / totalPositionsVal * 100 : 0;
-  insights.push({
-    type: 'costs',
-    title: 'Co\u00fbts & Efficience',
-    commissions: commissions,
-    commPct: commPct,
-    dividends: meta.dividends || 0,
-    divYield: totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0,
-  });
-
-  // Pre-compute JPY debt for use in recommendations + macro risks
-  const jpyDebtEUR = Math.abs(toEUR(ibkr.cashJPY, 'JPY', fx));
-
-  // 6. Strategic recommendation — 100% dynamique
-  // Toutes les recommandations sont générées à partir des données réelles du portefeuille
-  const recs = [];
-  const recTWR = meta.twr || 0; // overridden by window._chartKPIData?.twr in render.js
-
-  // --- Points positifs (dynamiques) ---
-  const positives = [];
-  if (combinedRealizedPL > 0) positives.push('P/L réalisé cumulé ' + (combinedRealizedPL >= 0 ? '+' : '') + '€' + Math.round(Math.abs(combinedRealizedPL)).toLocaleString('fr-FR') + ' — historique rentable');
-  if (winRate > 55) positives.push('Win rate de ' + winRate.toFixed(0) + '% — bon flair de sélection');
-  if (totalWins > 0 && totalLosses > 0) {
-    const pf = totalWins / totalLosses;
-    if (pf > 2) positives.push('Profit factor ' + pf.toFixed(1) + 'x — les gains dominent largement les pertes');
-  }
-  const divYield = totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0;
-  if (divYield > 1.5) positives.push('Rendement dividendes ' + divYield.toFixed(1) + '% — flux de revenus récurrent');
-  if (combinedUnrealizedPL > 0) positives.push('Plus-value latente +€' + Math.round(combinedUnrealizedPL).toLocaleString('fr-FR') + ' — portefeuille en territoire positif');
-
-  // --- Alertes performance (dynamiques) ---
-  const alerts = [];
-  // Identify biggest detractors dynamically
-  const bigLosers = ibkrPositions.filter(p => p.unrealizedPL < -500).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
-  const bigLoserNames = bigLosers.slice(0, 3).map(p => p.label + ' (' + Math.round(p.unrealizedPL).toLocaleString('fr-FR') + '€)');
-  if (bigLosers.length > 0) {
-    alerts.push('Principaux détracteurs : ' + bigLoserNames.join(', '));
-  }
-
-  // --- Axes d'amélioration (100% data-driven) ---
-
-  // a) Geo concentration
-  const usPct = totalGeo > 0 ? ((geoAllocation.us || 0) / totalGeo * 100) : 0;
-  const europePct = totalGeo > 0 ? (((geoAllocation.france || 0) + (geoAllocation.europe || 0)) / totalGeo * 100) : 0;
-  if (francePct > 40) {
-    recs.push({ priority: 1, icon: '🌍', title: 'Réduire le biais France (' + francePct.toFixed(0) + '%)',
-      detail: 'Allouer davantage en ETF World (IWDA/VWCE) pour capturer la croissance US/Asie. Cible : France < 30%.' });
-  } else if (europePct > 60) {
-    recs.push({ priority: 1, icon: '🌍', title: 'Diversifier hors Europe (' + europePct.toFixed(0) + '% Europe)',
-      detail: 'Exposition Europe élevée. Renforcer l\'exposition US/Asie via ETFs internationaux.' });
-  }
-
-  // b) Number of positions vs portfolio size
-  const nbPositions = ibkrPositions.length;
-  if (nbPositions > 12) {
-    const costTotal = Math.abs(costsAllTime.commissionsEUR) + Math.abs(costsAllTime.fttEUR); // v340 — fttEUR est négatif : abs() pour additionner, pas soustraire
-    recs.push({ priority: 2, icon: '🎯', title: 'Trop de lignes (' + nbPositions + ' positions)',
-      detail: nbPositions + ' positions génèrent des frais (€' + Math.round(costTotal).toLocaleString('fr-FR') + ' cumulés) et du stress. Un cœur ETF (80%) + satellites stock picking (20%) serait plus efficace.' });
-  }
-
-  // c) DCA opportunity
-  const avgTradesPerMonth = withKnownPL.length > 0 ? (withKnownPL.length / ((new Date().getFullYear() - 2020 + 1) * 12)) : 0;
-  if (avgTradesPerMonth < 1) {
-    recs.push({ priority: 3, icon: '📅', title: 'Stratégie DCA',
-      detail: 'Automatiser des versements mensuels sur 2-3 ETFs plutôt que du timing de marché. Régularité > timing.' });
-  }
-
-  // d) Dead positions
-  if (currentLosers.length > 2) {
-    const deadVal = currentLosers.reduce((s, p) => s + Math.abs(p.unrealizedPL), 0);
-    recs.push({ priority: 2, icon: '✂️', title: 'Couper les positions mortes (' + currentLosers.length + ' à -10%+)',
-      detail: '€' + Math.round(deadVal).toLocaleString('fr-FR') + ' de perte latente sur ces positions. Évaluer si la thèse d\'investissement tient toujours pour chacune.' });
-  }
-
-  // e) Gold exposure check
-  const hasGold = ibkrPositions.some(p => ['GLD', 'SGOL', 'IAU', 'GOLD', 'PHAU'].includes(p.ticker));
-  if (!hasGold) {
-    recs.push({ priority: 3, icon: '🥇', title: 'Zéro exposition Or',
-      detail: 'Aucune couverture or dans le portefeuille. Considérer GLD/SGOL (5-10%) comme hedge géopolitique et inflation.' });
-  }
-
-  // f) Tech US exposure check
-  const techUSTickers = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'QQQ', 'VGT'];
-  const hasTechUS = ibkrPositions.some(p => techUSTickers.includes(p.ticker));
-  const techUSPct = totalGeo > 0 ? (ibkrPositions.filter(p => techUSTickers.includes(p.ticker)).reduce((s, p) => s + p.valEUR, 0) / totalGeo * 100) : 0;
-  if (!hasTechUS || techUSPct < 5) {
-    recs.push({ priority: 3, icon: '💻', title: 'Peu/pas de tech US directe' + (techUSPct > 0 ? ' (' + techUSPct.toFixed(0) + '%)' : ''),
-      detail: 'Manque d\'exposition aux Magnificent 7 / GAFAM. Considérer un ETF Nasdaq (QQQ/EQQQ) ou S&P 500 Tech.' });
-  }
-
-  // g) Cash drag — too much cash vs portfolio
-  // « Cash 0 % ». Le garde `ibkrCashTotal > 0` renvoyait zéro dès que la dette de marge en
-  // yens dépassait les soldes créditeurs — ce qui est le cas — et l'écran annonçait donc
-  // qu'il n'y avait pas de cash au compte-titres alors qu'il y en a plus de dix mille euros.
-  // Deux faits distincts, deux mesures : le cash disponible, et la dette qui le finance.
-  const cashPct = ibkrNAV > 0 ? (_cashCourtier / ibkrNAV * 100) : 0;
-  const dettePct = ibkrNAV > 0 ? (Math.abs(_detteMarge) / ibkrNAV * 100) : 0;
-  if (cashPct > 15) {
-    recs.push({ priority: 1, icon: '💰', title: 'Cash élevé (' + cashPct.toFixed(0) + '% du portefeuille)',
-      detail: '€' + Math.round(ibkrCashTotal).toLocaleString('fr-FR') + ' non investis. Ce cash ne travaille pas — déployer progressivement en DCA.' });
-  }
-
-  // h) Currency risk — JPY debt
-  if (jpyDebtEUR > 5000) {
-    recs.push({ priority: 2, icon: '💴', title: 'Risque carry trade JPY (€' + Math.round(jpyDebtEUR).toLocaleString('fr-FR') + ')',
-      detail: 'Si le yen se renforce (flight-to-safety), la dette en EUR augmente. Surveiller la BoJ.' });
-  }
-
-  // i) Crypto allocation check
-  const cryptoVal = ibkrPositions.filter(p => (p.sector === 'crypto' || p.ticker === 'IBIT' || p.ticker === 'ETHA')).reduce((s, p) => s + p.valEUR, 0);
-  // Le dénominateur était `totalPositionsVal` (IBKR SEUL) alors que la carte d'allocation
-  // divise par le portefeuille entier : la même position crypto était annoncée à 30 % ici et
-  // 26 % deux cartes plus loin. Même base que l'allocation désormais.
-  const _baseCrypto = Object.values(geoAllocation).reduce((a, b) => a + b, 0) || totalPositionsVal;
-  const cryptoPctPortfolio = _baseCrypto > 0 ? (cryptoVal / _baseCrypto * 100) : 0;
-  if (cryptoPctPortfolio > 15) {
-    recs.push({ priority: 1, icon: '⚡', title: 'Crypto > 15% du portefeuille (' + cryptoPctPortfolio.toFixed(0) + '%)',
-      detail: 'Volatilité extrême. Considérer un rééquilibrage pour limiter le risque crypto à 5-10%.' });
-  }
-
-  // j) Sector concentration
-  const sectorEntries = Object.entries(sectorAllocation).sort((a, b) => b[1] - a[1]);
-  const totalSectorVal = sectorEntries.reduce((s, [, v]) => s + v, 0);
-  if (sectorEntries.length > 0 && totalSectorVal > 0) {
-    const topSector = sectorEntries[0];
-    const topSectorPct = topSector[1] / totalSectorVal * 100;
-    if (topSectorPct > 35) {
-      recs.push({ priority: 2, icon: '📊', title: 'Concentration sectorielle : ' + topSector[0] + ' (' + topSectorPct.toFixed(0) + '%)',
-        detail: 'Plus d\'un tiers du portefeuille est dans un seul secteur. Diversifier pour réduire le risque spécifique.' });
-    }
-  }
-
-  // Sort by priority
-  recs.sort((a, b) => a.priority - b.priority);
-
-  insights.push({
-    type: 'recommendation',
-    title: 'Recommandations Stratégiques',
-    twr: recTWR,
-    combinedRealizedPL: combinedRealizedPL,
-    combinedUnrealizedPL: combinedUnrealizedPL,
-    totalDeposits: totalDeposits,
-    francePct: francePct,
-    usPct: usPct,
-    europePct: europePct,
-    currentLosersCount: currentLosers.length,
-    winRate: winRate,
-    profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
-    // `nbPositions` comptait les seules lignes IBKR (12) devant un tableau qui en affiche 14.
-    nbPositions: concentration.nbLignes,
-    nbPositionsIbkr: nbPositions,
-    cashPct: cashPct,
-    cashCourtier: _cashCourtier,
-    dettePct: dettePct,
-    detteMarge: _detteMarge,
-    cryptoPct: cryptoPctPortfolio,
-    // Mêmes parts que l'insight « geo » : ces badges affichaient France + US + Crypto
-    // seulement, soit 82 % — quatrième endroit où une répartition géographique fuyait.
-    partsGeo,
-    divYield: divYield,
-    positives: positives,
-    alerts: alerts,
-    recommendations: recs,
-  });
-
-  // 7. Benchmark comparison (YTD 2026 — updated 21 mars 2026)
-  // Sources : Yahoo Finance (clôture 20/03/2026)
-  // Rendements USD convertis en EUR (EUR/USD passé de ~1.08 à 1.1575 = +7.2% appréciation EUR)
-  // Commentaire de marché saisi À LA MAIN (aucune API ne l'alimente). Deux chiffres d'or
-  // contradictoires cohabitaient dans ce fichier : « +61 % YTD, $4 575/oz » ici et « +21 % YTD
-  // 2026, record $5 602 » dans les risques macro ~50 lignes plus bas, écrits à des dates
-  // différentes et jamais réconciliés. Une seule déclaration désormais, utilisée aux deux
-  // endroits — à rafraîchir en même temps que `date`.
-  const OR_XAU = { ytdPct: 21.0, prixUSD: 5602, note: 'record, haven demand (tensions géopolitiques)' };
-
-  // Ce relevé est MANUEL et daté ; la performance du portefeuille, elle, est du jour. Comparer
-  // les deux et proclamer « bat 5/7 benchmarks » revient à confronter deux dates différentes :
-  // le verdict est donc conditionné à la fraîcheur du relevé, et la date est publiée sous forme
-  // exploitable pour que l'écran puisse le dire plutôt que de le laisser deviner.
-  const BENCH_AS_OF = '2026-03-21';
-  const _joursBench = Math.floor((Date.now() - new Date(BENCH_AS_OF + 'T00:00:00').getTime()) / 86400000);
-  const benchmarks = {
-    asOf: BENCH_AS_OF,
-    ageJours: _joursBench,
-    // Au-delà d'un mois, un YTD d'indice a bougé assez pour que la comparaison n'ait plus de sens.
-    comparable: _joursBench <= 31,
-    date: '21 mars 2026',
-    ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' }, // NOTE: twr overridden by window._chartKPIData?.twr in render.js
-    total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
-    items: [
-      { label: 'Or (XAU/USD)',       ytd: OR_XAU.ytdPct, note: '$' + OR_XAU.prixUSD.toLocaleString('fr-FR') + '/oz — ' + OR_XAU.note },
-      { label: 'MSCI World (EUR)',    ytd: 7.5,  note: 'URTH +14.7% USD, -7.2% FX = +7.5% en EUR' },
-      { label: 'S&P 500',            ytd: -5.4, note: '6 506 pts — correction tech, vol \u00e9lev\u00e9e' },
-      { label: 'CAC 40',             ytd: -10.7, note: '7 666 pts — stress g\u00e9opolitique, industrials sous pression' },
-      { label: 'Bitcoin (BTC)',       ytd: -10.2, note: '~$70K — correction depuis $93K fin 2025' },
-      { label: 'Immobilier mondial',  ytd: 2.0,   note: 'REIT stable, taux en d\u00e9tente partielle' },
-      { label: 'Inflation (FR)',      ytd: 1.0,   note: 'IPC f\u00e9vrier 2026 = 1%/an' },
-    ],
+  // v596 — LES INSIGHTS SUIVENT LE PÉRIMÈTRE AFFICHÉ.
+  // Avant : un seul jeu, servi tel quel à la vue Couple ET à la vue Amine, alors que ses répartitions
+  // incluaient le compte IBKR de Nezha (v545) et que ses alertes (positions en perte, crypto, tech US)
+  // ne regardaient que celui d'Amine. La vue Nezha ignorait son compte IBKR (MWRD, SXR8, VWCE, IBKR)
+  // et sa carte géographique, encore à l'ancien format, s'affichait vide. Chaque périmètre déclare
+  // désormais ses lignes, sa répartition, son cash et sa dette ; les mêmes règles s'y appliquent.
+  const _trackRecord = insights[0];
+  const _jpyDebtEUR = Math.abs(Math.min(0, toEUR(ibkr.cashJPY, 'JPY', fx)));
+  const _partsDe = (geo) => {
+    const tot = Object.values(geo).reduce((s2, v) => s2 + (isFinite(v) ? v : 0), 0);
+    return Object.entries(geo).filter(([, v]) => isFinite(v) && v > 0)
+      .map(([cle, v]) => ({ cle, pct: tot > 0 ? v / tot * 100 : 0, valEUR: v }))
+      .sort((a, b) => b.pct - a.pct);
   };
-  insights.push({
-    type: 'benchmark',
-    title: 'Performance vs Benchmarks (YTD 2026)',
-    benchmarks: benchmarks,
-  });
-
-  // 8. Macro risk assessment
-  // Ces encarts citaient des positions et des poids ÉCRITS EN DUR, jamais recalculés : ils
-  // nommaient Vinci (vendu en avril 2026), annonçaient « 40 %+ » pour une industrie qui pèse
-  // 22 %, et « ~30 % » pour une exposition USD qui dépasse 37 %. Tout est dérivé désormais.
-  const macroRisks = [];
-  const _baseAlloc = Object.values(sectorAllocation).reduce((a, b) => a + b, 0) || 1;
-  const _pctIndus = (sectorAllocation.industrials || 0) / _baseAlloc * 100;
-  const _nomsIndus = ibkrPositions.filter(p => p.sector === 'industrials')
-    .sort((a, b) => b.valEUR - a.valEUR)
-    .map(p => String(p.label || p.ticker).split(' (')[0]);
-  if (amineSgtm + nezhaSgtm > 0) _nomsIndus.push('SGTM');
-  macroRisks.push({
-    severity: _pctIndus > 35 ? 'high' : 'medium',
-    label: 'Concentration industrielle',
-    detail: 'Les valeurs industrielles p\u00e8sent ' + _pctIndus.toFixed(0) + ' % de l\u2019allocation actions ('
-      + _nomsIndus.join(', ') + '). Elles r\u00e9agissent ensemble au cycle et au prix de l\u2019\u00e9nergie.',
-  });
-  // Exposition USD : positions libellées en dollars + ESPP (Accenture est en USD).
-  const _valUSD = ibkrPositions.filter(p => p.currency === 'USD').reduce((sum, p) => sum + p.valEUR, 0)
-    + amineEspp + nezhaEspp;
-  const _pctUSD = _valUSD / _baseAlloc * 100;
-  macroRisks.push({
-    severity: _pctUSD > 35 ? 'high' : 'medium',
-    label: 'Volatilit\u00e9 EUR/USD',
-    detail: 'Exposition USD = ' + _pctUSD.toFixed(0) + ' % de l\u2019allocation actions (positions en dollars + ESPP). '
-      + 'Un euro qui se renforce fait m\u00e9caniquement baisser leur valeur en EUR, cours inchang\u00e9s.',
-  });
-  // Crypto drawdown
-  if (ibkrPositions.some(p => p.ticker === 'IBIT' || p.ticker === 'ETHA')) {
-    const cryptoPL = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s2, p) => s2 + p.unrealizedPL, 0);
-    const cryptoVal = ibkrPositions.filter(p => p.ticker === 'IBIT' || p.ticker === 'ETHA').reduce((s2, p) => s2 + p.valEUR, 0);
-    const pctCrypto = cryptoVal / _baseAlloc * 100;
-    // `Math.abs()` sous le mot « Perte » annonçait une perte même quand la position était en
-    // gain : +3 132 € s'affichaient « Perte latente crypto : 3 132 € ». Le libellé suit le signe.
-    macroRisks.push({
-      severity: pctCrypto > 20 ? 'high' : 'medium',
-      label: 'Exposition Crypto',
-      detail: 'La crypto p\u00e8se ' + pctCrypto.toFixed(0) + ' % de l\u2019allocation actions, avec '
-        + (cryptoPL >= 0 ? 'une plus-value latente de ' : 'une perte latente de ')
-        + '\u20ac' + Math.abs(Math.round(cryptoPL)).toLocaleString('fr-FR')
-        + '. Classe la plus volatile du portefeuille.',
-    });
-  }
-  // JPY carry trade risk (jpyDebtEUR pre-computed above)
-  macroRisks.push({
-    severity: jpyDebtEUR > 100000 ? 'high' : 'medium',
-    label: 'Carry Trade JPY (\u00a5' + Math.round(Math.abs(ibkr.cashJPY)/1000000) + 'M)',
-    detail: 'Emprunt JPY = \u20ac' + Math.round(jpyDebtEUR).toLocaleString('fr-FR') + '. Si le yen se renforce (flight-to-safety), la dette en EUR augmente. BoJ hawkish = risque de squeeze.',
-  });
-  // No gold exposure
-  macroRisks.push({
-    severity: 'low',
-    label: 'Z\u00e9ro exposition Or',
-    detail: 'L\u2019or a gagn\u00e9 ' + (OR_XAU.ytdPct >= 0 ? '+' : '') + OR_XAU.ytdPct + '% YTD (record $' + OR_XAU.prixUSD.toLocaleString('fr-FR') + '). Aucune exposition directe. Consid\u00e9rer GLD ou SGOL (5-10% du portefeuille) comme hedge g\u00e9opolitique.',
-  });
-  insights.push({
-    type: 'macro-risks',
-    title: 'Risques Macro\u00e9conomiques',
-    risks: macroRisks,
-  });
-
-  // 9. Dividend WHT deadlines (upcoming ex-dates for sell-before strategy)
-  const today = new Date();
-  const upcoming = [];
-  ibkrPositions.forEach(pos => {
-    const cal = DIV_CALENDAR[pos.ticker];
-    if (!cal || !cal.exDates || cal.exDates.length === 0 || cal.dps === 0) return;
-    cal.exDates.forEach(d => {
-      const exDate = new Date(d);
-      const daysUntil = Math.round((exDate - today) / 86400000);
-      if (daysUntil > 0 && daysUntil <= 90) {
-        const whtRate = WHT_RATES[pos.whtCountry || pos.geo] || 0.30;   // v493 — pays de SOURCE
-        const grossDiv = pos.shares * cal.dps;
-        const grossDivEUR = toEUR(grossDiv, pos.currency, fx);
-        const whtCost = grossDivEUR * whtRate;
-        upcoming.push({
-          ticker: pos.ticker,
-          label: pos.label,
-          exDate: d,
-          daysUntil: daysUntil,
-          dps: cal.dps,
-          grossDivEUR: grossDivEUR,
-          whtRate: whtRate,
-          whtCost: whtCost,
-          currency: pos.currency,
-        });
-      }
-    });
-  });
-  upcoming.sort((a, b) => a.daysUntil - b.daysUntil);
-  if (upcoming.length > 0) {
-    insights.push({
-      type: 'dividend-wht',
-      title: 'Calendrier Dividendes — WHT \u00e0 \u00e9viter',
-      upcoming: upcoming,
-      totalWHTAtRisk: upcoming.reduce((s, d) => s + d.whtCost, 0),
-    });
-  }
-
-  // ── v380 — INSIGHTS DEDIES PAR PROPRIETAIRE (toggle owner) ──
-  // Amine : les insights ci-dessus SONT les siens (IBKR = 100% Amine → track-record, concentration,
-  // couts, dividendes… lui appartiennent). Nezha : elle ne detient que de l'ESPP Accenture + du SGTM
-  // (aucun trade IBKR) → un jeu dedie « portefeuille + geo », sans track-record/couts/recommandations.
+  const _concentrationDe = (lignes) => {
+    const l2 = lignes.filter((x) => x.valEUR > 0).sort((a, b) => b.valEUR - a.valEUR);
+    const tot = l2.reduce((s2, x) => s2 + x.valEUR, 0);
+    return {
+      nbLignes: l2.length,
+      top3: l2.slice(0, 3).map((x) => ({ label: x.label, pct: tot > 0 ? x.valEUR / tot * 100 : 0 })),
+      top3Pct: tot > 0 ? l2.slice(0, 3).reduce((s2, x) => s2 + x.valEUR, 0) / tot * 100 : 0,
+    };
+  };
+  const _ligneAcn = (val) => (val > 0 ? [{ label: 'Accenture (ACN)', valEUR: val }] : []);
+  const _ligneSgtm = (val) => (val > 0 ? [{ label: 'SGTM', valEUR: val }] : []);
   const _nezhaSgtmShares = (portfolio.nezha.sgtm && portfolio.nezha.sgtm.shares) || 0;
-  const _nezhaSgtmCostEUR = toEUR(_nezhaSgtmShares * (m.sgtmCostBasisMAD || portfolio.market.sgtmCostBasisMAD || 420), 'MAD', fx);
-  const _nezhaSgtmPL = nezhaSgtm - _nezhaSgtmCostEUR;
-  const _nezhaHoldings = [];
-  if (nezhaEsppCurrentVal > 0) _nezhaHoldings.push({ label: 'ESPP Accenture (ACN)', valEUR: nezhaEsppCurrentVal, pl: nezhaEsppUnrealizedPL, shares: nezhaEsppShares });
-  if (nezhaSgtm > 0) _nezhaHoldings.push({ label: 'SGTM (Maroc)', valEUR: nezhaSgtm, pl: _nezhaSgtmPL, shares: _nezhaSgtmShares });
-  const _nezhaTotalVal = _nezhaHoldings.reduce((s, h) => s + h.valEUR, 0);
-  const _nezhaTotalPL = _nezhaHoldings.reduce((s, h) => s + h.pl, 0);
-  const nezhaInsights = [];
-  if (_nezhaHoldings.length > 0) {
-    nezhaInsights.push({
-      type: 'holdings',
-      title: 'Portefeuille Actions de Nezha',
-      positions: _nezhaHoldings.map(h => ({ ...h, pct: _nezhaTotalVal > 0 ? (h.valEUR / _nezhaTotalVal * 100) : 0 })),
-      totalVal: _nezhaTotalVal,
-      totalPL: _nezhaTotalPL,
-    });
-    const _nzGeo = geoAllocationOwner.nezha || {};
-    const _nzGeoTot = Object.values(_nzGeo).reduce((s, v) => s + v, 0);
-    nezhaInsights.push({
-      type: 'geo',
-      title: 'Diversification Geographique',
-      francePct: 0,
-      usPct: _nzGeoTot > 0 ? ((_nzGeo.us || 0) / _nzGeoTot * 100) : 0,
-      cryptoPct: 0,
-      emergingPct: _nzGeoTot > 0 ? (((_nzGeo.morocco || 0) + (_nzGeo.japan || 0)) / _nzGeoTot * 100) : 0,
-    });
+
+  // Les trois périmètres. `historique` : track record, coûts et benchmark n'existent que pour le
+  // compte d'Amine (seul à avoir des ventes, des frais et un historique de performance).
+  const PERIMETRES = {
+    couple: {
+      positions: ibkrPositions.concat(_nzPos), geo: geoAllocation, sector: sectorAllocation,
+      concentration, cash: _cashCourtier, dette: _detteMarge, nav: ibkrNAV + nezhaIbkrNAV,
+      valEspp: amineEspp + nezhaEspp, valSgtm: amineSgtm + nezhaSgtm, jpyDebtEUR: _jpyDebtEUR,
+      historique: true,
+    },
+    amine: {
+      positions: ibkrPositions, geo: geoAllocationOwner.amine, sector: sectorAllocationOwner.amine,
+      concentration: _concentrationDe([...ibkrPositions.map((p) => ({ label: p.label, valEUR: p.valEUR })),
+        ..._ligneAcn(esppCurrentVal), ..._ligneSgtm(amineSgtm)]),
+      cash: Math.max(0, ibkrCashEUR) + Math.max(0, _cashUSDeur) + Math.max(0, _cashAEDeur) + Math.max(0, _cashJPYeur) + esppCashEUR,
+      dette: Math.min(0, ibkrCashEUR) + Math.min(0, _cashUSDeur) + Math.min(0, _cashAEDeur) + Math.min(0, _cashJPYeur),
+      nav: ibkrNAV, valEspp: amineEspp, valSgtm: amineSgtm, jpyDebtEUR: _jpyDebtEUR, historique: true,
+    },
+    nezha: {
+      positions: _nzPos, geo: geoAllocationOwner.nezha, sector: sectorAllocationOwner.nezha,
+      concentration: _concentrationDe([..._nzPos.map((p) => ({ label: p.label, valEUR: p.valEUR })),
+        ..._ligneAcn(nezhaEsppCurrentVal), ..._ligneSgtm(nezhaSgtm)]),
+      cash: nezhaCashEUR + Math.max(0, nezhaIbkrCash), dette: Math.min(0, nezhaIbkrCash),
+      nav: nezhaIbkrNAV, valEspp: nezhaEspp, valSgtm: nezhaSgtm, jpyDebtEUR: 0, historique: false,
+    },
+  };
+
+  // Benchmarks. Le relevé manuel du 21/03/2026 était figé depuis 231 jours : la carte ne pouvait
+  // plus rien classer. Les indices viennent désormais de Yahoo (api.js `fetchBenchmarks`, YTD en
+  // euros, posés dans `market.benchmarks`) ; le relevé manuel ne sert plus que de repli, et le
+  // verdict reste suspendu tant que les deux dates ne coïncident pas.
+  const _benchLive = m.benchmarks && Array.isArray(m.benchmarks.items) && m.benchmarks.items.length
+    ? m.benchmarks : null;
+  const _ageJ = (iso) => (iso ? Math.floor((Date.now() - new Date(iso + 'T00:00:00').getTime()) / 86400000) : null);
+  let benchmarks;
+  if (_benchLive) {
+    const age = _ageJ(_benchLive.asOf);
+    benchmarks = {
+      live: true, asOf: _benchLive.asOf, ageJours: age,
+      // Week-end et jours fériés compris : au-delà de 5 jours, la série a manqué des séances.
+      comparable: age != null && age <= 5,
+      date: _benchLive.asOf.split('-').reverse().join('/'),
+      ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' },
+      total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
+      items: _benchLive.items.map((it) => ({ cle: it.cle, label: it.label, ytd: it.ytd, note: it.note })),
+    };
+  } else {
+    const BENCH_AS_OF = '2026-03-21';
+    benchmarks = {
+      live: false, asOf: BENCH_AS_OF, ageJours: _ageJ(BENCH_AS_OF),
+      comparable: _ageJ(BENCH_AS_OF) <= 31,
+      date: '21 mars 2026',
+      ibkr: { twr: meta.twr || 0, ytdPct: ibkrYtdPct, label: 'Portefeuille IBKR' },
+      total: { ytdPct: totalYtdPct, label: 'Portefeuille Total' },
+      items: [
+        { cle: 'or', label: 'Or (XAU/USD)', ytd: 21.0, note: '$5 602/oz' },
+        { cle: 'world', label: 'MSCI World (EUR)', ytd: 7.5, note: 'URTH +14.7% USD, -7.2% FX' },
+        { cle: 'sp500', label: 'S&P 500 (USD)', ytd: -5.4, note: '6 506 pts' },
+        { cle: 'cac40', label: 'CAC 40', ytd: -10.7, note: '7 666 pts' },
+        { cle: 'btc', label: 'Bitcoin (USD)', ytd: -10.2, note: '~$70K' },
+      ],
+    };
   }
-  const insightsOwner = { amine: insights, nezha: nezhaInsights };
+  const _orLive = _benchLive ? _benchLive.items.find((it) => it.cle === 'or') : null;
+
+  // Échéances de dividendes (insight « WHT à éviter ») — même projection que le tableau.
+  const _dividendesProches = (positions) => {
+    const auj = new Date();
+    const res = [];
+    positions.forEach((pos) => {
+      const cal = DIV_CALENDAR[pos.ticker];
+      if (!cal || !(cal.dps > 0)) return;
+      prochainesExDates(cal, auj).forEach((e) => {
+        if (e.joursRestants <= 0 || e.joursRestants > 90) return;
+        const whtRate = WHT_RATES[pos.whtCountry || pos.geo] || 0.30;   // v493 — pays de SOURCE
+        const grossDivEUR = toEUR(pos.shares * e.dps, pos.currency, fx);
+        res.push({
+          ticker: pos.ticker, label: pos.label, exDate: e.iso, daysUntil: e.joursRestants, dps: e.dps,
+          grossDivEUR, whtRate, whtCost: grossDivEUR * whtRate, currency: pos.currency,
+          confirmed: e.confirmed, estimee: e.estimee, note: e.note,
+        });
+      });
+    });
+    return res.sort((a, b) => a.daysUntil - b.daysUntil);
+  };
+
+  function insightsPour(sc, cle) {
+    const out = [];
+    const pos = sc.positions;
+    if (sc.historique) out.push(_trackRecord);
+
+    // Nezha : la liste de ses lignes (compte IBKR + ESPP + SGTM) tient lieu de track record.
+    if (cle === 'nezha') {
+      const lignes = [
+        ...pos.map((p) => ({ label: p.label, valEUR: p.valEUR, pl: p.unrealizedPL || 0, shares: p.shares })),
+        ...(nezhaEsppCurrentVal > 0 ? [{ label: 'ESPP Accenture (ACN)', valEUR: nezhaEsppCurrentVal, pl: nezhaEsppUnrealizedPL, shares: nezhaEsppShares }] : []),
+        ...(nezhaSgtm > 0 ? [{ label: 'SGTM (Maroc)', valEUR: nezhaSgtm,
+          pl: nezhaSgtm - toEUR(_nezhaSgtmShares * (m.sgtmCostBasisMAD || 420), 'MAD', fx), shares: _nezhaSgtmShares }] : []),
+      ].sort((a, b) => b.valEUR - a.valEUR);
+      const totV = lignes.reduce((s2, h) => s2 + h.valEUR, 0);
+      if (lignes.length) out.push({
+        type: 'holdings', title: 'Portefeuille Actions de Nezha',
+        positions: lignes.map((h) => ({ ...h, pct: totV > 0 ? h.valEUR / totV * 100 : 0 })),
+        totalVal: totV, totalPL: lignes.reduce((s2, h) => s2 + h.pl, 0),
+      });
+    }
+
+    // Concentration — une seule définition, sur les lignes listées du périmètre.
+    out.push({ type: 'concentration', title: 'Concentration du Portefeuille',
+      top3: sc.concentration.top3, top3Pct: sc.concentration.top3Pct, totalPositions: sc.concentration.nbLignes });
+
+    // Positions en perte de plus de 10 %.
+    const enPerte = pos.filter((p) => p.pctPL < -10).sort((a, b) => a.pctPL - b.pctPL);
+    if (enPerte.length) out.push({
+      type: 'underperformers', title: 'Positions en Souffrance (> -10%)',
+      positions: enPerte.map((p) => ({ label: p.label, pctPL: p.pctPL, unrealizedPL: p.unrealizedPL, valEUR: p.valEUR })),
+      totalLossEUR: enPerte.reduce((s2, p) => s2 + p.unrealizedPL, 0),
+    });
+
+    // Répartition géographique — toutes les zones présentes.
+    const partsGeo = _partsDe(sc.geo);
+    const totalGeo = partsGeo.reduce((s2, p2) => s2 + p2.valEUR, 0);
+    const pctGeo = (k) => { const p2 = partsGeo.find((x) => x.cle === k); return p2 ? p2.pct : 0; };
+    const francePct = pctGeo('france');
+    out.push({ type: 'geo', title: 'Diversification Géographique', parts: partsGeo,
+      totalPct: partsGeo.reduce((acc, p2) => acc + p2.pct, 0), francePct });
+
+    if (sc.historique) {
+      const commissions = Math.abs(meta.commissions || 0);
+      out.push({ type: 'costs', title: 'Coûts & Efficience', commissions,
+        commPct: totalPositionsVal > 0 ? commissions / totalPositionsVal * 100 : 0,
+        dividends: meta.dividends || 0,
+        divYield: totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0 });
+    }
+
+    // Recommandations — toutes dérivées du périmètre.
+    const recs = [];
+    const positives = [];
+    const alerts = [];
+    if (sc.historique) {
+      if (combinedRealizedPL > 0) positives.push('P/L réalisé cumulé +€' + Math.round(combinedRealizedPL).toLocaleString('fr-FR') + ' — historique rentable');
+      if (winRate > 55) positives.push('Win rate de ' + winRate.toFixed(0) + '% — bon flair de sélection');
+      if (totalWins > 0 && totalLosses > 0 && totalWins / totalLosses > 2) positives.push('Profit factor ' + (totalWins / totalLosses).toFixed(1) + 'x — les gains dominent largement les pertes');
+    }
+    const latent = pos.reduce((s2, p) => s2 + (p.unrealizedPL || 0), 0);
+    if (latent > 0) positives.push('Plus-value latente des lignes IBKR +€' + Math.round(latent).toLocaleString('fr-FR'));
+    const detracteurs = pos.filter((p) => p.unrealizedPL < -500).sort((a, b) => a.unrealizedPL - b.unrealizedPL);
+    if (detracteurs.length) alerts.push('Principaux détracteurs : ' + detracteurs.slice(0, 3)
+      .map((p) => p.label + ' (' + Math.round(p.unrealizedPL).toLocaleString('fr-FR') + '€)').join(', '));
+
+    const europePct = francePct + pctGeo('germany') + pctGeo('europe');
+    if (francePct > 40) {
+      recs.push({ priority: 1, icon: '🌍', title: 'Réduire le biais France (' + francePct.toFixed(0) + '%)',
+        detail: 'Allouer davantage en ETF World (IWDA/VWCE) pour capturer la croissance US/Asie. Cible : France < 30%.' });
+    } else if (europePct > 60) {
+      recs.push({ priority: 1, icon: '🌍', title: 'Diversifier hors Europe (' + europePct.toFixed(0) + '% Europe)',
+        detail: 'Exposition Europe élevée. Renforcer l\'exposition US/Asie via ETFs internationaux.' });
+    }
+    if (pos.length > 12) {
+      const costTotal = Math.abs(costsAllTime.commissionsEUR) + Math.abs(costsAllTime.fttEUR); // v340 — fttEUR négatif
+      recs.push({ priority: 2, icon: '🎯', title: 'Trop de lignes IBKR (' + pos.length + ' positions)',
+        detail: pos.length + ' positions génèrent des frais (€' + Math.round(costTotal).toLocaleString('fr-FR') + ' cumulés depuis l\'ouverture) et du suivi. Un cœur ETF (80%) + satellites stock picking (20%) serait plus simple.' });
+    }
+    if (enPerte.length > 2) {
+      recs.push({ priority: 2, icon: '✂️', title: 'Positions à -10%+ (' + enPerte.length + ')',
+        detail: '€' + Math.round(enPerte.reduce((s2, p) => s2 + Math.abs(p.unrealizedPL), 0)).toLocaleString('fr-FR') + ' de perte latente. Vérifier si la thèse tient toujours pour chacune.' });
+    }
+    if (!pos.some((p) => ['GLD', 'SGOL', 'IAU', 'GOLD', 'PHAU', 'SGLD', 'IGLN', '4GLD'].includes(String(p.ticker).split('.')[0]))) {
+      recs.push({ priority: 3, icon: '🥇', title: 'Zéro exposition Or',
+        detail: 'Aucune ligne or dans ce portefeuille.' });
+    }
+    // Tech US en direct. Les ETF S&P 500 / Monde en contiennent déjà ; le titre le précise.
+    const techUSTickers = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'QQQ', 'QQQM', 'VGT'];
+    const techUSPct = totalGeo > 0 ? pos.filter((p) => techUSTickers.includes(p.ticker)).reduce((s2, p) => s2 + p.valEUR, 0) / totalGeo * 100 : 0;
+    if (sc.historique && techUSPct < 5) {
+      recs.push({ priority: 3, icon: '💻', title: 'Peu de tech US en direct' + (techUSPct > 0 ? ' (' + techUSPct.toFixed(0) + '%)' : ''),
+        detail: 'Hors ETF : les GAFAM détenus en direct pèsent ' + techUSPct.toFixed(0) + ' % du portefeuille.' });
+    }
+    // « Cash » = soldes créditeurs du périmètre ; la dette de marge est un fait distinct.
+    const cashPct = sc.nav > 0 ? sc.cash / sc.nav * 100 : 0;
+    const dettePct = sc.nav > 0 ? Math.abs(sc.dette) / sc.nav * 100 : 0;
+    if (cashPct > 15) {
+      recs.push({ priority: 1, icon: '💰', title: 'Cash élevé (' + cashPct.toFixed(0) + '% du compte)',
+        detail: '€' + Math.round(sc.cash).toLocaleString('fr-FR') + ' non investis au courtier.' });
+    }
+    if (sc.jpyDebtEUR > 5000) {
+      recs.push({ priority: 2, icon: '💴', title: 'Risque carry trade JPY (€' + Math.round(sc.jpyDebtEUR).toLocaleString('fr-FR') + ')',
+        detail: 'Si le yen se renforce (flight-to-safety), la dette en EUR augmente. Surveiller la BoJ.' });
+    }
+    const estCrypto = (p) => p.sector === 'crypto' || p.ticker === 'IBIT' || p.ticker === 'ETHA';
+    const cryptoVal = pos.filter(estCrypto).reduce((s2, p) => s2 + p.valEUR, 0);
+    const cryptoPct = totalGeo > 0 ? cryptoVal / totalGeo * 100 : 0;
+    if (cryptoPct > 15) {
+      recs.push({ priority: 1, icon: '⚡', title: 'Crypto > 15% du portefeuille (' + cryptoPct.toFixed(0) + '%)',
+        detail: 'Volatilité extrême. Considérer un rééquilibrage pour limiter le risque crypto à 5-10%.' });
+    }
+    const secteurs = Object.entries(sc.sector).sort((a, b) => b[1] - a[1]);
+    const totSect = secteurs.reduce((s2, [, v]) => s2 + v, 0);
+    if (secteurs.length && totSect > 0 && secteurs[0][1] / totSect * 100 > 35) {
+      recs.push({ priority: 2, icon: '📊', title: 'Concentration sectorielle : ' + secteurs[0][0] + ' (' + (secteurs[0][1] / totSect * 100).toFixed(0) + '%)',
+        detail: 'Plus d\'un tiers du portefeuille est dans un seul secteur.' });
+    }
+    recs.sort((a, b) => a.priority - b.priority);
+    out.push({
+      type: 'recommendation', title: 'Recommandations Stratégiques',
+      twr: meta.twr || 0, historique: sc.historique,
+      combinedRealizedPL, combinedUnrealizedPL, totalDeposits,
+      francePct, usPct: pctGeo('us'), europePct, currentLosersCount: enPerte.length,
+      winRate: sc.historique ? winRate : null,
+      profitFactor: sc.historique ? (totalLosses > 0 ? totalWins / totalLosses : Infinity) : null,
+      nbPositions: sc.concentration.nbLignes, nbPositionsIbkr: pos.length,
+      cashPct, cashCourtier: sc.cash, dettePct, detteMarge: sc.dette, cryptoPct, partsGeo,
+      divYield: totalPositionsVal > 0 ? ((meta.dividends || 0) / totalPositionsVal * 100) : 0,
+      positives, alerts, recommendations: recs,
+    });
+
+    if (sc.historique) out.push({ type: 'benchmark', title: 'Performance vs Benchmarks (YTD ' + new Date().getFullYear() + ')', benchmarks });
+
+    // Risques macro — mêmes règles, poids du périmètre.
+    const macro = [];
+    const baseSect = totSect || 1;
+    const pctIndus = (sc.sector.industrials || 0) / baseSect * 100;
+    const nomsIndus = pos.filter((p) => p.sector === 'industrials').sort((a, b) => b.valEUR - a.valEUR)
+      .map((p) => String(p.label || p.ticker).split(' (')[0]);
+    if (sc.valSgtm > 0) nomsIndus.push('SGTM');
+    if (pctIndus > 0) macro.push({
+      severity: pctIndus > 35 ? 'high' : pctIndus > 20 ? 'medium' : 'low',
+      label: 'Valeurs industrielles',
+      detail: 'Elles pèsent ' + pctIndus.toFixed(0) + ' % de l’allocation actions (' + nomsIndus.join(', ')
+        + ') et réagissent ensemble au cycle et au prix de l’énergie.',
+    });
+    const valUSD = pos.filter((p) => p.currency === 'USD').reduce((s2, p) => s2 + p.valEUR, 0) + sc.valEspp;
+    const pctUSD = valUSD / baseSect * 100;
+    if (pctUSD > 0) macro.push({
+      severity: pctUSD > 35 ? 'high' : 'medium', label: 'Volatilité EUR/USD',
+      detail: 'Positions cotées en dollars (ESPP compris) = ' + pctUSD.toFixed(0) + ' % de l’allocation actions. '
+        + 'Un euro qui se renforce fait baisser leur valeur en EUR, cours inchangés. Les ETF cotés en euros '
+        + '(S&P 500, Monde) portent aussi un risque dollar, non compté ici.',
+    });
+    if (cryptoVal > 0) {
+      const cryptoPL = pos.filter(estCrypto).reduce((s2, p) => s2 + p.unrealizedPL, 0);
+      macro.push({
+        severity: cryptoPct > 20 ? 'high' : 'medium', label: 'Exposition Crypto',
+        detail: 'La crypto pèse ' + cryptoPct.toFixed(0) + ' % de l’allocation actions, avec '
+          + (cryptoPL >= 0 ? 'une plus-value latente de ' : 'une perte latente de ')
+          + '€' + Math.abs(Math.round(cryptoPL)).toLocaleString('fr-FR') + '. Classe la plus volatile du portefeuille.',
+      });
+    }
+    if (sc.jpyDebtEUR > 0) {
+      const yens = Math.abs(ibkr.cashJPY);
+      macro.push({
+        severity: sc.jpyDebtEUR > 100000 ? 'high' : sc.jpyDebtEUR > 5000 ? 'medium' : 'low',
+        label: 'Dette de marge en yens (¥' + (yens / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' M)',
+        detail: 'Emprunt JPY = €' + Math.round(sc.jpyDebtEUR).toLocaleString('fr-FR') + '. Si le yen se renforce (flight-to-safety), la dette en EUR augmente.',
+      });
+    }
+    macro.push({
+      severity: 'low', label: 'Zéro exposition Or',
+      detail: (_orLive && _orLive.ytd != null
+        ? 'L’or a fait ' + (_orLive.ytd >= 0 ? '+' : '') + _orLive.ytd.toFixed(1) + ' % en euros depuis le 1er janvier. '
+        : '') + 'Aucune ligne or dans ce portefeuille.',
+    });
+    out.push({ type: 'macro-risks', title: 'Risques Macroéconomiques', risks: macro });
+
+    const proches = _dividendesProches(pos);
+    if (proches.length) out.push({
+      type: 'dividend-wht', title: 'Calendrier Dividendes — WHT à éviter',
+      upcoming: proches, totalWHTAtRisk: proches.reduce((s2, d) => s2 + d.whtCost, 0),
+    });
+    return out;
+  }
+  insights.length = 0;
+  insightsPour(PERIMETRES.couple, 'couple').forEach((x) => insights.push(x));
+  const insightsOwner = { amine: insightsPour(PERIMETRES.amine, 'amine'), nezha: insightsPour(PERIMETRES.nezha, 'nezha') };
 
   // ── Structure canonique du compte-titres (v528) ──────────────────────────────────────────
   // POURQUOI. La page Actions produisait ses chiffres en six endroits indépendants : le
@@ -1668,7 +1599,7 @@ function computeActionsView(portfolio, fx, stockSource, ibkrNAV, ibkrPositions, 
     return {
       ticker: t.ticker, label: t.label, pl, hasCost, _hasReportPL: t._hasReportPL,
       costEUR: cost, proceedsEUR: proceeds,
-      _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice,
+      _allTrades: t._allTrades || [], _ifHeldPriceEUR: t._ifHeldPriceEUR, _ifHeldValueEUR: t._ifHeldValueEUR, _ifHeldPL: t._ifHeldPL, _staticPrice: t._staticPrice, _radiee: t._radiee,
     };
   };
 
@@ -4494,6 +4425,42 @@ function computeBudgetView(portfolio, fx, immoView) {
 }
 
 /**
+ * v596 — Prochaines dates de détachement d'un dividende, CONFIRMÉES ou ESTIMÉES.
+ *
+ * Le calendrier (data.js `DIV_CALENDAR`) ne porte que les dates annoncées ; une fois passées, la
+ * colonne « Vendre avant » restait vide (« - ») sur toutes les lignes jusqu'à la saisie manuelle de
+ * l'année suivante. On projette donc chaque date passée d'un an (ou de plusieurs) tant qu'elle
+ * n'est pas future, en la marquant « estimée » ; une date réellement saisie (même non confirmée)
+ * l'emporte sur une projection à moins de 45 jours d'elle.
+ *
+ * Montant par date : `dps` de l'entrée s'il est donné ; sinon le DPS annuel divisé par le nombre
+ * de versements (2 pour 'semi-annual', 4 pour 'quarterly').
+ * @returns {Array<{date:Date, iso:string, joursRestants:number, confirmed:boolean, estimee:boolean, note:?string, dps:number, source:?string}>}
+ */
+export function prochainesExDates(cal, today = new Date()) {
+  if (!cal || !(cal.dps > 0)) return [];
+  const parAn = cal.frequency === 'quarterly' ? 4 : cal.frequency === 'semi-annual' ? 2 : 1;
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const jours = (d) => Math.ceil((d - today) / 86400000);
+  const top = cal.confirmed === true;
+  const saisies = (cal.exDates || []).map((e) => (typeof e === 'string'
+    ? { date: new Date(e + 'T00:00:00'), confirmed: top, note: null, dps: null }
+    : { date: new Date(e.date + 'T00:00:00'), confirmed: e.confirmed === true || (e.confirmed !== false && top && !e.estimee), note: e.note || null, dps: e.dps != null ? e.dps : null, estimee: e.estimee === true }));
+  const futures = saisies.filter((e) => e.date > today).map((e) => ({ ...e, estimee: e.estimee === true }));
+  saisies.filter((e) => e.date <= today).forEach((e) => {
+    const d = new Date(e.date);
+    while (d <= today) d.setFullYear(d.getFullYear() + 1);
+    if (futures.some((f) => Math.abs(f.date - d) < 45 * 86400000)) return;
+    futures.push({ date: d, confirmed: false, estimee: true, dps: e.dps,
+      note: 'estimée d\'après le détachement du ' + iso(e.date).split('-').reverse().join('/') });
+  });
+  return futures.sort((a, b) => a.date - b.date).map((e) => ({
+    date: e.date, iso: iso(e.date), joursRestants: jours(e.date), confirmed: !!e.confirmed && !e.estimee,
+    estimee: !!e.estimee, note: e.note, dps: e.dps != null ? e.dps : cal.dps / parAn, source: cal.source || null,
+  }));
+}
+
+/**
  * Compute dividend/WHT analysis for actions view
  */
 function computeDividendAnalysis(ibkrPositions, fx) {
@@ -4519,6 +4486,8 @@ function computeDividendAnalysis(ibkrPositions, fx) {
     let daysUntilEx = null;
     let nextExConfirmed = false;   // v303 — BUG-054 feature: true si dividende confirmé
     let nextExNote = null;          // v303 — note par-date
+    let nextExEstimee = false;      // v596 — date projetée d'après l'an passé
+    let nextExDps = null;           // v596 — montant de CE détachement (acompte ≠ solde)
     let upcomingPayments = [];
 
     let dpsNative = 0;
@@ -4531,45 +4500,20 @@ function computeDividendAnalysis(ibkrPositions, fx) {
       projectedDivEUR = toEUR(totalDivNative, pos.currency, fx);
       projectedWHT = projectedDivEUR * whtRate;
 
-      // v303 — support both formats of `exDates`:
-      //   - string 'YYYY-MM-DD' (legacy, inherits top-level `cal.confirmed`)
-      //   - object { date, confirmed?, dps?, note? } (per-date override)
-      // Normalize to objects { date: Date, confirmed: bool, note?: string }.
-      const topConfirmed = cal.confirmed === true;
-      const normalizedExDates = (cal.exDates || []).map(entry => {
-        if (typeof entry === 'string') {
-          return {
-            date: new Date(entry + 'T00:00:00'),
-            confirmed: topConfirmed,
-            note: null,
-          };
-        }
-        // Object form
-        return {
-          date: new Date(entry.date + 'T00:00:00'),
-          confirmed: entry.confirmed === true || (entry.confirmed !== false && topConfirmed),
-          note: entry.note || null,
-        };
-      });
-
-      // Find next upcoming ex-date (sorted, future only)
-      const futureExDates = normalizedExDates
-        .filter(obj => obj.date > today)
-        .sort((a, b) => a.date - b.date);
-
+      // v596 — dates confirmées ET estimées (prochainesExDates) : la colonne « Vendre avant »
+      // n'est plus vide une fois les détachements de l'année passés.
+      const futureExDates = prochainesExDates(cal, today);
       if (futureExDates.length > 0) {
         nextExDate = futureExDates[0].date;
-        daysUntilEx = Math.ceil((nextExDate - today) / (1000 * 60 * 60 * 24));
+        daysUntilEx = futureExDates[0].joursRestants;
         nextExConfirmed = futureExDates[0].confirmed;
+        nextExEstimee = futureExDates[0].estimee;
         nextExNote = futureExDates[0].note;
+        nextExDps = futureExDates[0].dps;
       }
-
-      // Build upcoming payments list (carries per-date confirmed status)
       upcomingPayments = futureExDates.map(obj => ({
-        exDate: obj.date,
-        daysUntil: Math.ceil((obj.date - today) / (1000 * 60 * 60 * 24)),
-        confirmed: obj.confirmed,
-        note: obj.note,
+        exDate: obj.date, daysUntil: obj.joursRestants, confirmed: obj.confirmed,
+        estimee: obj.estimee, note: obj.note, dps: obj.dps,
       }));
     }
 
@@ -4610,6 +4554,8 @@ function computeDividendAnalysis(ibkrPositions, fx) {
       daysUntilEx,
       nextExConfirmed,                // v303 — true si dividende annoncé officiellement
       nextExNote,                      // v303 — note par-date (ex: "acompte 5.50€")
+      nextExEstimee,
+      nextExDps,
       divSource: (cal && cal.source) || null,  // v303 — provenance de la confirmation
       upcomingPayments,
       recommendation,

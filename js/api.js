@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=595';
-import { DEPLOIEMENTS } from './deploiements.js?v=595';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=595';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=596';
+import { DEPLOIEMENTS } from './deploiements.js?v=596';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=596';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1752,4 +1752,71 @@ export function applyImmoRef(ref) {
     + ' · rueil ' + plan.rueil.value + '/' + plan.rueil.crd + ' · villejuif ' + plan.villejuif.value + '/' + plan.villejuif.crd
     + ' · 6 prêts');
   return true;
+}
+
+// ============================================================
+// v596 — BENCHMARKS YTD EN EUROS (carte « Performance vs Benchmarks »)
+// ============================================================
+// La carte comparait le portefeuille du jour à un relevé saisi à la main le 21/03/2026 : figé
+// depuis, il ne permettait plus aucun classement. Ici : variation depuis la dernière clôture de
+// l'année précédente, en euros (l'or, coté en dollars, est converti avec EURUSD aux deux dates).
+// Un indice indisponible est simplement omis ; tous indisponibles ⇒ null (repli manuel daté).
+const BENCHMARKS = [
+  { cle: 'world', label: 'MSCI World (EUR)', symbol: 'IWDA.AS', note: 'iShares Core MSCI World, coté en euros' },
+  { cle: 'sp500', label: 'S&P 500 (EUR)', symbol: 'SXR8.DE', note: 'iShares Core S&P 500, coté en euros' },
+  { cle: 'cac40', label: 'CAC 40', symbol: '%5EFCHI', note: 'indice de prix, hors dividendes' },
+  { cle: 'or', label: 'Or (EUR)', symbol: 'GC%3DF', devise: 'USD', note: 'contrat COMEX converti en euros' },
+  { cle: 'btc', label: 'Bitcoin (EUR)', symbol: 'BTC-EUR', note: 'cours en euros' },
+  { cle: 'immo', label: 'Foncières cotées (EUR)', symbol: 'IWDP.AS', note: 'iShares Developed Markets Property Yield' },
+];
+const BENCH_CACHE_KEY = 'nw_benchmarks_v1';
+const BENCH_TTL_MS = 6 * 3600 * 1000;
+
+function _ytdDepuis(serie, annee) {
+  if (!serie || !serie.dates || !serie.dates.length) return null;
+  const borne = annee + '-01-01';
+  let base = null, fin = null;
+  for (let i = 0; i < serie.dates.length; i++) {
+    const c = serie.closes[i];
+    if (!(c > 0)) continue;
+    if (serie.dates[i] < borne) base = { date: serie.dates[i], close: c };
+    fin = { date: serie.dates[i], close: c };
+  }
+  return base && fin && fin.date >= borne ? { base, fin } : null;
+}
+
+export async function fetchBenchmarks(forceRefresh) {
+  try {
+    if (!forceRefresh) {
+      const brut = localStorage.getItem(BENCH_CACHE_KEY);
+      const c = brut ? JSON.parse(brut) : null;
+      if (c && c._ts && Date.now() - c._ts < BENCH_TTL_MS && c.items && c.items.length) return c;
+    }
+  } catch (e) { /* cache illisible : on refait */ }
+  const annee = new Date().getFullYear();
+  const debut = Date.UTC(annee - 1, 11, 15) / 1000;   // couvre la dernière séance de l'an passé
+  const [series, eurusd] = await Promise.all([
+    Promise.all(BENCHMARKS.map(b => fetchTickerHistory(b.symbol, { period1: debut }).catch(() => null))),
+    fetchTickerHistory('EURUSD%3DX', { period1: debut }).catch(() => null),
+  ]);
+  const fxYtd = _ytdDepuis(eurusd, annee);
+  const items = [];
+  let asOf = null;
+  BENCHMARKS.forEach((b, i) => {
+    const y = _ytdDepuis(series[i], annee);
+    if (!y) return;
+    let base = y.base.close, fin = y.fin.close;
+    if (b.devise === 'USD') {
+      if (!fxYtd) return;              // pas de conversion fiable ⇒ indice omis
+      base /= fxYtd.base.close; fin /= fxYtd.fin.close;
+    }
+    items.push({ cle: b.cle, label: b.label, ytd: (fin / base - 1) * 100, note: b.note,
+      dateBase: y.base.date, dateFin: y.fin.date });
+    if (!asOf || y.fin.date > asOf) asOf = y.fin.date;
+  });
+  if (!items.length) { console.warn('[bench] aucun indice chargé — relevé manuel conservé'); return null; }
+  const res = { asOf, items, _ts: Date.now() };
+  try { localStorage.setItem(BENCH_CACHE_KEY, JSON.stringify(res)); } catch (e) { /* quota */ }
+  console.log('[bench] ✓ ' + items.length + '/' + BENCHMARKS.length + ' indices YTD au ' + asOf);
+  return res;
 }
