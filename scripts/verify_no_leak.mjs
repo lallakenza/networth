@@ -12,6 +12,10 @@
  *   2. aucun motif de donnée privée (soldes nominatifs, contreparties, adresses, IBAN, n° de compte) ;
  *   3. aucun montant patrimonial codé en dur dans le DOM initial (attributs data-eur non nuls).
  *
+ * Avec --prod, contrôle aussi la base Neon EN SESSION ANONYME (v591) :
+ *   4. snapshots nw_snapshots lisibles en clair (patrimoine daté) ;
+ *   5. référentiel immo : champs de revenus hors bail et valeurs de biens lisibles.
+ *
  * Le contrôle du DOM rendu et des requêtes réseau EN SESSION ANONYME se fait en complément avec un
  * navigateur (la page ne s'exécute pas ici) — voir la procédure de vérification de version.
  *
@@ -71,6 +75,29 @@ for (const [nom, re] of MOTIFS) {
 const durs = [...html.matchAll(/data-eur="([0-9]{3,})"/g)].filter((m) => m[1] !== '0');
 if (durs.length) echec(durs.length + ' attribut(s) data-eur non nuls dans le DOM initial : ' + durs.slice(0, 4).map((m) => m[1]).join(', '));
 else ok('aucun montant codé en dur dans le DOM initial');
+
+// 4-6. Base Neon, lue comme n'importe quel visiteur (jeton anonyme, sans compte)
+if (PROD) {
+  const NEON = 'https://ep-green-mountain-b91jna2h.apirest.c-7.eu-central-1.aws.neon.tech/neondb/rest/v1';
+  const AUTH = 'https://ep-green-mountain-b91jna2h.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth';
+  try {
+    const j = await fetch(AUTH + '/token/anonymous', { signal: AbortSignal.timeout(20000) });
+    if (!j.ok) throw new Error('jeton anonyme HTTP ' + j.status);
+    const H = { Authorization: 'Bearer ' + (await j.json()).token };
+    const get = async (q) => { const r = await fetch(NEON + q, { headers: H, signal: AbortSignal.timeout(20000) }); return r.ok ? r.json() : []; };
+    const snaps = await get('/nw_snapshots?select=snap_date,data&order=snap_date.desc&limit=1');
+    const clair = snaps.length && snaps[0].data && typeof snaps[0].data === 'object' && !snaps[0].data.chiffre
+      && /"(nw|couple|total|cash)"/.test(JSON.stringify(snaps[0].data));
+    if (clair) echec('Neon nw_snapshots : patrimoine daté lisible en clair par le rôle anonyme (dernier : ' + snaps[0].snap_date + ')');
+    else ok('Neon nw_snapshots : aucun patrimoine lisible en clair par le rôle anonyme');
+    const immo = await get('/immo_properties?select=id,rent');
+    const horsBail = immo.filter((p) => p.rent && MOTIFS[0][1].test(Object.keys(p.rent).join(' ')));
+    if (horsBail.length) echec('Neon immo_properties.rent : champs hors bail lisibles (' + horsBail.map((p) => p.id).join(', ') + ')');
+    else ok('Neon immo_properties.rent : aucun champ hors bail lisible');
+    const valeurs = immo.length && (await get('/immo_properties?select=value&limit=1'));
+    if (valeurs && valeurs.length && valeurs[0].value != null) echec('Neon immo_properties : valeurs de biens lisibles par le rôle anonyme');
+  } catch (e) { echec('contrôle Neon impossible (' + e.message + ') — confidentialité NON démontrée'); }
+}
 
 console.log('');
 if (ko === 0) { console.log('✅ Aucune fuite : les données patrimoniales ne sont pas exposées sans authentification.'); process.exit(0); }

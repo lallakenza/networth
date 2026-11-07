@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * refresh_price_history.mjs — met à jour chaque soir l'historique de cours partagé (Supabase
+ * refresh_price_history.mjs — met à jour chaque soir l'historique de cours partagé (Neon
  * `price_history`, la « L2 » de api.js) avec le seul DELTA depuis la dernière clôture connue (v567).
  *
  * Pourquoi côté serveur : le navigateur n'atteint Yahoo qu'à travers des proxys CORS gratuits, de moins
@@ -9,7 +9,8 @@
  * rien (ou presque) à télécharger.
  *
  * Usage : node scripts/refresh_price_history.mjs [--dry-run]
- * Écrit avec la clé publishable, comme le navigateur (RLS de price_history : ligne unique, prix publics).
+ * Écrit avec le rôle écrivain Neon (NW_NEON_WRITER_URL) s'il est fourni, sinon avec le jeton anonyme
+ * (prix publics, RLS de price_history : ligne unique) tant que ce rôle garde le droit d'écrire.
  */
 import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -25,9 +26,13 @@ const api = await readFile(join(ROOT, 'js', 'api.js'), 'utf8');
 const champ = (k) => (api.match(new RegExp(k + ":\\s*'([^']+)'")) || [])[1];
 const URL_L2 = champ('url'), URL_AUTH = champ('authUrl'), TABLE = champ('table'), LIGNE = champ('row');
 if (!URL_L2 || !URL_AUTH || !TABLE || !LIGNE) { console.error('✗ configuration L2 introuvable dans js/api.js'); process.exit(1); }
+// Lecture : jeton anonyme (les cours sont publics). Écriture : rôle écrivain si NW_NEON_WRITER_URL est
+// fourni (v591), sinon jeton anonyme tant que ce rôle garde le droit d'écrire le cache.
 const jeton = await fetch(URL_AUTH + '/token/anonymous', { signal: AbortSignal.timeout(30000) });
 if (!jeton.ok) { console.error('✗ jeton anonyme HTTP ' + jeton.status); process.exit(1); }
 const ENTETES = { Authorization: 'Bearer ' + (await jeton.json()).token };
+const { estUrlEcrivain, executerEcrivain } = await import('./_snapshot_auth.mjs');
+const ECRIVAIN = estUrlEcrivain(process.env.NW_NEON_WRITER_URL) ? process.env.NW_NEON_WRITER_URL.trim() : null;
 
 // Registres du dépôt : positions (tickers à suivre) et regroupements (unités des séries).
 const tmp = await mkdtemp(join(tmpdir(), 'nw-hist-'));
@@ -99,13 +104,19 @@ console.log(`[hist-cron] ${bilan.ok.length} séries à jour, échecs : ${bilan.k
   + (retard.length ? ' ; en retard de plus de 4 j : ' + retard.join(', ') : ''));
 
 if (DRY) { console.log('[hist-cron] --dry-run : aucune écriture'); process.exit(0); }
-const ecrit = await fetch(`${URL_L2}/rest/v1/${TABLE}`, {
-  method: 'POST',
-  headers: { ...ENTETES, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-  body: JSON.stringify({ id: LIGNE, data: blob }),
-  signal: AbortSignal.timeout(30000),
-});
-if (!ecrit.ok) { console.error('✗ écriture L2 HTTP ' + ecrit.status + ' : ' + (await ecrit.text()).slice(0, 200)); process.exit(1); }
+if (ECRIVAIN) {
+  try {
+    await executerEcrivain(ECRIVAIN, 'insert into price_history (id, data) values ($1, $2) on conflict (id) do update set data = excluded.data', [LIGNE, JSON.stringify(blob)]);
+  } catch (e) { console.error('✗ écriture L2 (rôle écrivain) refusée : ' + (e && e.message ? e.message.replace(/postgres(ql)?:\/\/\S+/g, '<url>') : e)); process.exit(1); }
+} else {
+  const ecrit = await fetch(`${URL_L2}/rest/v1/${TABLE}`, {
+    method: 'POST',
+    headers: { ...ENTETES, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id: LIGNE, data: blob }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!ecrit.ok) { console.error('✗ écriture L2 HTTP ' + ecrit.status + ' : ' + (await ecrit.text()).slice(0, 200)); process.exit(1); }
+}
 console.log('[hist-cron] ✓ historique partagé mis à jour');
 // Une série en échec n'empêche pas l'écriture des autres, mais le job doit le signaler.
 if (bilan.ko.length) process.exit(1);

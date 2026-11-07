@@ -3,7 +3,8 @@ name: Daily NW snapshot
 # v390 — Snapshot quotidien du patrimoine SANS visite du site (confirmé par Amine, 18/07/2026).
 # ~22h/23h Paris (21h UTC, après clôture US 16h ET). Prix live Yahoo depuis le runner,
 # SGTM via data/sgtm_live.json (cron horaire existant), INSERT Neon append-only (v582).
-# Aucun secret requis : le jeton anonyme Neon s'obtient sans compte ; GRANT + RLS limitent ses droits.
+# v591 — sans secret : jeton anonyme Neon (données en clair uniquement). Avec NW_NEON_WRITER_URL : rôle
+# écrivain dédié, seul chemin admis une fois les données chiffrées (échec fermé sinon).
 
 on:
   schedule:
@@ -20,11 +21,19 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # v591 — secrets optionnels (vides tant qu'ils n'existent pas) : rôle écrivain Neon, puis phrase de
+    # déchiffrement une fois les données chiffrées. Voir docs/CONFIDENTIALITE_NEON.md.
+    env:
+      NW_NEON_WRITER_URL: ${{ secrets.NW_NEON_WRITER_URL }}
+      NW_PASSPHRASE: ${{ secrets.NW_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Neon driver (rôle écrivain uniquement)
+        if: env.NW_NEON_WRITER_URL != ''
+        run: npm install --no-save --no-package-lock --ignore-scripts @neondatabase/serverless@1.2.0
       - name: Capture + insert daily snapshot
         run: node scripts/daily_snapshot.mjs
       # v567 — historique de cours partagé (Neon price_history) : le delta Yahoo du jour, appelé

@@ -6,10 +6,9 @@
  *   1. Prix live Yahoo (direct, pas de CORS en Node) pour chaque position + FX.
  *   2. SGTM : data/sgtm_live.json du checkout (rafraîchi par le cron horaire existant).
  *   3. compute() headless (même moteur que le site, imports ?v= strippés → .tmp/).
- *   4. buildDailySnapshot() → INSERT Supabase nw_snapshots (append-only). Clé serveur sb_secret_…
- *      (NW_SUPABASE_SECRET_KEY) en `apikey` seul dès qu'elle est valide ; sans elle, repli
- *      publishable tant que les données sont en clair, refus dès qu'elles sont chiffrées
- *      (scripts/_snapshot_auth.mjs).
+ *   4. buildDailySnapshot() → INSERT Neon nw_snapshots (append-only). Rôle écrivain Neon
+ *      (secret NW_NEON_WRITER_URL) dès qu'il est valide ; sans lui, jeton anonyme tant que les
+ *      données sont en clair, refus dès qu'elles sont chiffrées (scripts/_snapshot_auth.mjs, v591).
  *
  * Limites connues (flaguées dans meta) : pas de localStorage en headless → facturation
  * = fallback data.js ; fxSource='live (cron)'. La ligne du cron étant la plus récente à
@@ -20,7 +19,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { dechiffreBlobs, remplirEnPlace } from './_dechiffre.mjs';
-import { resolveSnapshotWriteAuth } from './_snapshot_auth.mjs';
+import { resolveSnapshotWriteAuth, executerEcrivain } from './_snapshot_auth.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--dry-run');
@@ -165,41 +164,42 @@ if (quality === 'static') { console.error('[cron-snap] tout statique → pas d\'
 if (!snap.meta.guardsOk) { console.error('[cron-snap] invariants KO → pas d\'insert'); process.exit(1); }
 
 // ── 6. INSERT append-only — authentification de transition (scripts/_snapshot_auth.mjs) ──
-// Secret serveur `sb_secret_…` valide (NW_SUPABASE_SECRET_KEY) → utilisé immédiatement, données
-//   chiffrées ou non, dans l'en-tête `apikey` SEUL (ce n'est pas un JWT, jamais de Bearer). C'est ce
-//   qui permet de fermer la RLS avant la bascule sans interrompre le cron.
-// Pas de secret valide : données en clair → repli temporaire sur la clé publishable (chemin
-//   historique) ; données chiffrées → échec FERMÉ, aucune écriture.
+// v591 — Neon. Rôle écrivain `nw_ecrivain` (secret GitHub NW_NEON_WRITER_URL) : SQL direct, données claires
+//   ou chiffrées. Sans lui : données en clair → jeton anonyme de la Data API (temporaire, jusqu'au retrait
+//   des droits d'écriture anonymes) ; données chiffrées → échec FERMÉ, aucune écriture.
 // Le secret arrive par l'environnement GitHub Actions, JAMAIS dans js/ ni dans un fichier suivi, et
 // n'est jamais imprimé.
-// v582 — base Neon : mêmes URL que js/api.js (SERVER_STORE). Le jeton anonyme s'obtient sans secret ;
-// il prend la place de l'ancienne clé publishable. Ce sont GRANT + RLS qui limitent ce qu'il permet.
 const NEON = 'https://ep-green-mountain-b91jna2h.apirest.c-7.eu-central-1.aws.neon.tech/neondb';
 const NEON_AUTH = 'https://ep-green-mountain-b91jna2h.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth';
 const snapDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 if (DRY) { console.log('[cron-snap] DRY RUN — insert sauté. Blob:', JSON.stringify(snap).length, 'octets, date', snapDate); process.exit(0); }
-const jetonRes = await fetch(NEON_AUTH + '/token/anonymous', { signal: AbortSignal.timeout(30000) });
-if (!jetonRes.ok) { console.error('[cron-snap] jeton anonyme HTTP', jetonRes.status); process.exit(1); }
-const JETON_ANONYME = (await jetonRes.json()).token;
+let JETON_ANONYME = null;
+if (!process.env.NW_NEON_WRITER_URL) {
+  const jetonRes = await fetch(NEON_AUTH + '/token/anonymous', { signal: AbortSignal.timeout(30000) });
+  if (jetonRes.ok) JETON_ANONYME = (await jetonRes.json()).token;
+  else console.error('[cron-snap] jeton anonyme HTTP', jetonRes.status);
+}
 let auth;
 try {
-  auth = resolveSnapshotWriteAuth({
-    donneesChiffrees: DONNEES_CHIFFREES,
-    secretKey: process.env.NW_SUPABASE_SECRET_KEY,
-    publishableKey: JETON_ANONYME,
-  });
+  auth = resolveSnapshotWriteAuth({ donneesChiffrees: DONNEES_CHIFFREES, writerUrl: process.env.NW_NEON_WRITER_URL, jetonAnonyme: JETON_ANONYME });
 } catch (e) {
   console.error('[cron-snap] ✗ ' + (e && e.message) + ' — AUCUNE écriture (échec fermé).');
-  console.error('             Créer le secret dépôt NW_SUPABASE_SECRET_KEY (clé serveur sb_secret_…) et l\'exposer au job.');
+  console.error('             Créer le secret dépôt NW_NEON_WRITER_URL (rôle Neon nw_ecrivain) — voir docs/CONFIDENTIALITE_NEON.md.');
   process.exit(1);
 }
 if (auth.warning) console.warn('[cron-snap] ⚠ ' + auth.warning);
 console.log('[cron-snap] écriture en mode « ' + auth.mode + ' » (version ' + APP_VERSION + ', données ' + (DONNEES_CHIFFREES ? 'chiffrées' : 'en clair') + ')');
-const res = await fetch(NEON + '/rest/v1/nw_snapshots', {
-  method: 'POST',
-  headers: auth.headers,
-  body: JSON.stringify({ snap_date: snapDate, quality, data: snap }),
-  signal: AbortSignal.timeout(30000),
-});
-if (!res.ok) { console.error('[cron-snap] insert HTTP', res.status, await res.text()); process.exit(1); }
+if (auth.mode === 'ecrivain') {
+  try {
+    await executerEcrivain(auth.url, 'insert into nw_snapshots (snap_date, quality, data) values ($1, $2, $3)', [snapDate, quality, JSON.stringify(snap)]);
+  } catch (e) { console.error('[cron-snap] insert (rôle écrivain) refusé :', e && e.message ? e.message.replace(/postgres(ql)?:\/\/\S+/g, '<url>') : e); process.exit(1); }
+} else {
+  const res = await fetch(NEON + '/rest/v1/nw_snapshots', {
+    method: 'POST',
+    headers: auth.headers,
+    body: JSON.stringify({ snap_date: snapDate, quality, data: snap }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) { console.error('[cron-snap] insert HTTP', res.status, await res.text()); process.exit(1); }
+}
 console.log('[cron-snap] ✅ snapshot', snapDate, '(' + quality + ') inséré — NW', snap.total.couple, '€');

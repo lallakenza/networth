@@ -1,134 +1,121 @@
 #!/usr/bin/env node
 // ============================================================================
-// Authentification d'écriture du snapshot nocturne — les quatre cas de la transition.
+// Authentification d'écriture du cron sur Neon (v591) — les quatre cas de la transition.
 //
-//   données EN CLAIR, sans secret valide → clé publishable, temporairement (chemin actuel du cron)
-//   données EN CLAIR, avec secret valide → clé serveur sb_secret_…, `apikey` seul
-//   données CHIFFRÉES, sans secret valide → échec fermé
-//   données CHIFFRÉES, avec secret valide → clé serveur sb_secret_…, `apikey` seul
+//   données EN CLAIR, sans rôle écrivain valide → jeton anonyme, temporairement (chemin actuel du cron)
+//   données EN CLAIR, avec rôle écrivain valide → SQL direct avec le rôle écrivain
+//   données CHIFFRÉES, sans rôle écrivain valide → échec fermé, aucune écriture
+//   données CHIFFRÉES, avec rôle écrivain valide → SQL direct avec le rôle écrivain
 // Le régime dépend de l'état des données, PAS du numéro de version (décision du 19/09/2026).
 //
-// Sans réseau ni secret réel : les clés factices sont construites par concaténation pour qu'aucune
-// valeur au format serveur n'apparaisse telle quelle dans un fichier suivi.
+// Sans réseau ni secret réel : les chaînes factices sont construites par concaténation pour qu'aucune
+// chaîne de connexion complète n'apparaisse telle quelle dans un fichier suivi.
 // ============================================================================
 const assert = require('assert/strict');
 const fs = require('fs'), path = require('path');
 const { execFileSync } = require('child_process');
 const RACINE = path.join(__dirname, '..');
 
-const PUBLISHABLE = 'sb_publishable_' + 'TEST_public_key_000';
-const FAUX_SECRET = 'sb_' + 'secret_' + 'FAKE_for_test_only_000';
-const JWT_LEGACY = 'eyJ' + 'hbGciOiJIUzI1NiJ9.e30.signature';
+const JETON = 'eyJ' + 'hbGciOiJFZERTQSJ9.e30.signature';
+const FAUX_MDP = 'FAKE' + '_pw_for_test_only';
+const URL_OK = 'postgresql://' + 'nw_ecrivain:' + FAUX_MDP + '@ep-exemple-000.c-7.eu-central-1.aws.neon.tech/neondb?sslmode=require';
 
 let ko = 0;
 const t = (nom, fn) => Promise.resolve().then(fn).then(() => console.log('  ✓', nom)).catch((e) => { ko++; console.log('  ✗', nom, '\n      ', e.message); });
 
-const apikeySeul = (headers, cle) => {
-  assert.equal(headers.apikey, cle, 'la clé serveur part dans apikey');
-  assert.equal('Authorization' in headers, false, 'aucun en-tête Authorization (sb_secret_… n\'est pas un JWT)');
-};
-
 (async () => {
-  const { resolveSnapshotWriteAuth, versionMajor, estCleServeur } = await import('../scripts/_snapshot_auth.mjs');
+  const { resolveSnapshotWriteAuth, versionMajor, estUrlEcrivain } = await import('../scripts/_snapshot_auth.mjs');
   const CLAIR = false, CHIFFRE = true;
-  const resoudre = (donneesChiffrees, secretKey) => resolveSnapshotWriteAuth({ donneesChiffrees, secretKey, publishableKey: PUBLISHABLE });
-  const refuse = (donneesChiffrees, secretKey) => assert.throws(() => resoudre(donneesChiffrees, secretKey), (e) => e && e.code === 'NO_SERVER_KEY');
+  const resoudre = (donneesChiffrees, writerUrl, jetonAnonyme = JETON) => resolveSnapshotWriteAuth({ donneesChiffrees, writerUrl, jetonAnonyme });
+  const refuse = (donneesChiffrees, writerUrl, jetonAnonyme) => assert.throws(() => resoudre(donneesChiffrees, writerUrl, jetonAnonyme), (e) => e && e.code === 'NO_SERVER_KEY');
+  const MAUVAIS = ['postgresql://nw_ecrivain@hote.neon.tech/neondb', 'https://exemple.neon.tech', 'postgresql://u:' + FAUX_MDP + '@db.supabase.co/postgres', 'n-importe-quoi'];
 
-  console.log('\n── snapshot : authentification d\'écriture (4 cas) ──');
+  console.log('\n── cron : authentification d\'écriture Neon (4 cas) ──');
 
-  await t('versionMajor lit v544/v545 et l\'absence (journalisation)', () => {
-    assert.equal(versionMajor('v544'), 544);
-    assert.equal(versionMajor('v545'), 545);
+  await t('versionMajor lit v590/v591 et l\'absence (journalisation)', () => {
+    assert.equal(versionMajor('v590'), 590);
+    assert.equal(versionMajor('v591'), 591);
     assert.equal(versionMajor(''), 0);
   });
 
-  await t('estCleServeur n\'accepte que le format sb_secret_…', () => {
-    assert.equal(estCleServeur(FAUX_SECRET), true);
-    assert.equal(estCleServeur(PUBLISHABLE), false);
-    assert.equal(estCleServeur(JWT_LEGACY), false, 'une ancienne clé JWT service_role est refusée');
-    assert.equal(estCleServeur(undefined), false);
-    assert.equal(estCleServeur(''), false);
+  await t('estUrlEcrivain n\'accepte qu\'une chaîne Postgres Neon avec identifiant et mot de passe', () => {
+    assert.equal(estUrlEcrivain(URL_OK), true);
+    assert.equal(estUrlEcrivain(URL_OK.replace('postgresql:', 'postgres:')), true);
+    for (const m of MAUVAIS) assert.equal(estUrlEcrivain(m), false, m);
+    assert.equal(estUrlEcrivain(undefined), false);
+    assert.equal(estUrlEcrivain(''), false);
   });
 
-  // ── Cas 1 : données en clair, sans secret valide ──
-  await t('cas 1 — données EN CLAIR, SANS secret : clé publishable conservée temporairement', () => {
+  await t('cas 1 — EN CLAIR, SANS rôle : jeton anonyme conservé temporairement', () => {
     const { mode, headers, warning } = resoudre(CLAIR, undefined);
-    assert.equal(mode, 'legacy');
-    assert.equal(headers.apikey, PUBLISHABLE);
-    assert.equal(headers.Authorization, 'Bearer ' + PUBLISHABLE, 'chemin actuel du cron inchangé');
+    assert.equal(mode, 'anonyme');
+    assert.equal(headers.Authorization, 'Bearer ' + JETON);
     assert.equal(warning, null);
   });
 
-  await t('cas 1 bis — EN CLAIR avec secret au MAUVAIS format : repli publishable + avertissement sans la valeur', () => {
-    for (const mauvais of [PUBLISHABLE, JWT_LEGACY, 'n-importe-quoi']) {
-      const { mode, headers, warning } = resoudre(CLAIR, mauvais);
-      assert.equal(mode, 'legacy');
-      assert.equal(headers.apikey, PUBLISHABLE, 'jamais la valeur invalide dans apikey');
-      assert.ok(warning && /mauvais format/.test(warning), 'un avertissement est émis');
-      assert.equal(warning.includes(mauvais), false, 'l\'avertissement ne contient pas la valeur');
+  await t('cas 1 bis — EN CLAIR avec chaîne au MAUVAIS format : repli anonyme + avertissement sans la valeur', () => {
+    for (const m of MAUVAIS) {
+      const { mode, headers, warning } = resoudre(CLAIR, m);
+      assert.equal(mode, 'anonyme');
+      assert.equal(JSON.stringify(headers).includes(m), false, 'jamais la valeur invalide dans les en-têtes');
+      assert.ok(warning && /mauvais format/.test(warning));
+      assert.equal(warning.includes(m), false, 'l\'avertissement ne contient pas la valeur');
     }
   });
 
-  // ── Cas 2 : données en clair, avec secret valide ──
-  await t('cas 2 — EN CLAIR AVEC secret valide : clé serveur préférée immédiatement, apikey seul', () => {
-    const { mode, headers, warning } = resoudre(CLAIR, FAUX_SECRET);
-    assert.equal(mode, 'secret');
-    apikeySeul(headers, FAUX_SECRET);
-    assert.notEqual(headers.apikey, PUBLISHABLE);
-    assert.equal(warning, null);
+  await t('cas 1 ter — EN CLAIR sans rôle ni jeton anonyme : échec fermé', () => refuse(CLAIR, undefined, null));
+
+  await t('cas 2 — EN CLAIR AVEC rôle valide : rôle écrivain préféré immédiatement', () => {
+    const r = resoudre(CLAIR, URL_OK);
+    assert.equal(r.mode, 'ecrivain');
+    assert.equal(r.url, URL_OK);
+    assert.equal('headers' in r, false, 'aucun jeton anonyme en mode écrivain');
   });
 
-  // ── Cas 3 : données chiffrées, sans secret valide ──
-  await t('cas 3 — données CHIFFRÉES SANS secret : échec fermé (NO_SERVER_KEY)', () => {
+  await t('cas 3 — CHIFFRÉES SANS rôle : échec fermé même avec un jeton anonyme', () => {
     refuse(CHIFFRE, undefined);
     refuse(CHIFFRE, '');
     refuse(CHIFFRE, '   ');
   });
 
-  await t('cas 3 bis — CHIFFRÉES avec clé JWT legacy ou publishable : échec fermé, message sans la valeur', () => {
-    for (const mauvais of [JWT_LEGACY, PUBLISHABLE]) {
-      refuse(CHIFFRE, mauvais);
-      try { resoudre(CHIFFRE, mauvais); } catch (e) { assert.equal(e.message.includes(mauvais), false); }
+  await t('cas 3 bis — CHIFFRÉES avec chaîne invalide : échec fermé, message sans la valeur', () => {
+    for (const m of MAUVAIS) {
+      refuse(CHIFFRE, m);
+      try { resoudre(CHIFFRE, m); } catch (e) { assert.equal(e.message.includes(m), false); assert.equal(e.message.includes(FAUX_MDP), false); }
     }
   });
 
-  await t('le numéro de version ne change rien : seule compte l\'état des données', () => {
-    // Une version postérieure avec des données encore en clair garde le chemin historique.
-    const { mode } = resolveSnapshotWriteAuth({ donneesChiffrees: false, secretKey: undefined, publishableKey: PUBLISHABLE, appVersion: 'v546' });
-    assert.equal(mode, 'legacy');
-  });
-
   await t('état des données inconnu : refus (jamais de repli anonyme par défaut)', () => {
-    assert.throws(() => resolveSnapshotWriteAuth({ secretKey: undefined, publishableKey: PUBLISHABLE }),
-      (e) => e && e.code === 'NO_SERVER_KEY');
-    assert.throws(() => resolveSnapshotWriteAuth({ donneesChiffrees: 'v546', secretKey: undefined, publishableKey: PUBLISHABLE }),
-      (e) => e && e.code === 'NO_SERVER_KEY');
+    assert.throws(() => resolveSnapshotWriteAuth({ jetonAnonyme: JETON }), (e) => e && e.code === 'NO_SERVER_KEY');
+    assert.throws(() => resolveSnapshotWriteAuth({ donneesChiffrees: 'v591', jetonAnonyme: JETON }), (e) => e && e.code === 'NO_SERVER_KEY');
   });
 
-  // ── Cas 4 : données chiffrées, avec secret valide ──
-  await t('cas 4 — CHIFFRÉES AVEC secret valide : apikey seul, jamais de Bearer', () => {
-    const { mode, headers } = resoudre(CHIFFRE, FAUX_SECRET);
-    assert.equal(mode, 'secret');
-    apikeySeul(headers, FAUX_SECRET);
+  await t('cas 4 — CHIFFRÉES AVEC rôle valide (collé avec retour à la ligne) : rôle écrivain, valeur normalisée', () => {
+    const r = resoudre(CHIFFRE, URL_OK + '\n', null);
+    assert.equal(r.mode, 'ecrivain');
+    assert.equal(r.url, URL_OK);
   });
 
-  await t('un secret collé avec retour à la ligne est normalisé (en-tête propre)', () => {
-    const { mode, headers } = resoudre(CHIFFRE, FAUX_SECRET + '\n');
-    assert.equal(mode, 'secret');
-    apikeySeul(headers, FAUX_SECRET);
+  await t('le cron n\'imprime jamais la chaîne de connexion (journaux masqués)', () => {
+    for (const f of ['scripts/daily_snapshot.mjs', 'scripts/refresh_price_history.mjs']) {
+      const src = fs.readFileSync(path.join(RACINE, f), 'utf8');
+      assert.equal(/console\.(log|error|warn)\([^)]*NW_NEON_WRITER_URL\s*\)/.test(src), false, f + ' imprime le secret');
+      assert.ok(/<url>/.test(src), f + ' masque les chaînes postgres dans les erreurs');
+    }
   });
 
-  await t('aucune clé serveur réelle dans js/ ni dans un fichier suivi', () => {
+  await t('aucune chaîne de connexion avec mot de passe ni clé serveur dans un fichier suivi', () => {
     const suivis = execFileSync('git', ['ls-files'], { cwd: RACINE, encoding: 'utf8' }).split('\n').filter(Boolean);
-    const motif = /sb_secret_[A-Za-z0-9]{8,}/;
+    const motifs = [/sb_secret_[A-Za-z0-9]{8,}/, /postgres(?:ql)?:\/\/[A-Za-z0-9_]+:[A-Za-z0-9_]{12,}@[a-z0-9.-]+\.neon\.tech/];
     const fautifs = suivis.filter((f) => {
       const p = path.join(RACINE, f);
       if (!fs.existsSync(p) || fs.statSync(p).size > 5e6) return false;
-      return motif.test(fs.readFileSync(p, 'utf8'));
+      const c = fs.readFileSync(p, 'utf8');
+      return motifs.some((m) => m.test(c));
     });
-    assert.deepEqual(fautifs, [], 'valeur au format sb_secret_ trouvée dans : ' + fautifs.join(', '));
+    assert.deepEqual(fautifs, [], 'secret trouvé dans : ' + fautifs.join(', '));
   });
 
-  console.log(ko === 0 ? '\n✅ snapshot auth : OK\n' : '\n❌ ' + ko + ' échec(s)\n');
+  console.log(ko === 0 ? '\n✅ cron auth (Neon) : OK\n' : '\n❌ ' + ko + ' échec(s)\n');
   process.exit(ko === 0 ? 0 : 1);
 })();

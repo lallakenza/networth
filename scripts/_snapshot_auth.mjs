@@ -1,21 +1,15 @@
-// Résolution des en-têtes d'écriture Supabase pour le snapshot nocturne — fonction PURE (testée).
+// Résolution de l'écriture du cron (snapshot nocturne, cache de cours) sur Neon — fonction PURE (testée).
 //
-// Le régime dépend de l'ÉTAT DES DONNÉES, pas du numéro de version (v545, décision Amine du
-// 19/09/2026) : les mises à jour de données doivent pouvoir monter de version librement avant la
-// bascule, et l'échec fermé doit s'enclencher exactement quand les données deviennent chiffrées.
+// v591 — adaptée à Neon. La v545 visait Supabase (clé serveur `sb_secret_…`) : ce régime n'a pas de sens
+// sur Neon, où l'acteur serveur est un RÔLE Postgres dédié (`nw_ecrivain`, droits d'écriture limités aux
+// deux tables du cron), joint par une chaîne de connexion fournie en secret GitHub `NW_NEON_WRITER_URL`.
 //
-// Quatre cas, pour une transition SANS interruption du cron :
-//   · données EN CLAIR, secret serveur VALIDE (`sb_secret_…`) → mode « secret » : la clé part
-//     UNIQUEMENT dans `apikey`, jamais en `Authorization: Bearer` (ce n'est pas un JWT). C'est ce
-//     qui permet d'installer le secret et de fermer la RLS AVANT la bascule.
-//   · données EN CLAIR, SANS secret valide → mode « legacy » TEMPORAIRE : clé publishable (publique
-//     par design), en `apikey` + `Authorization: Bearer`, comme le cron l'a toujours fait. Ne marche
-//     que tant que la policy INSERT anonyme existe, c'est-à-dire avant le SQL v545.
-//   · données CHIFFRÉES, SANS secret valide → échec FERMÉ (erreur NO_SERVER_KEY), aucune écriture.
-//   · données CHIFFRÉES, secret serveur VALIDE → mode « secret », `apikey` seul.
-//
-// Le projet a désactivé les anciennes clés JWT `anon`/`service_role` (`eyJ…`) : elles ne sont
-// jamais acceptées comme secret serveur. La valeur du secret n'apparaît dans AUCUN message.
+// Le régime dépend de l'ÉTAT DES DONNÉES, pas du numéro de version (décision du 19/09/2026) :
+//   · rôle écrivain VALIDE                        → mode « ecrivain » (SQL direct, données claires ou chiffrées) ;
+//   · données EN CLAIR, sans rôle valide          → mode « anonyme » TEMPORAIRE : jeton anonyme de la
+//     Data API, tant que le rôle `anonymous` garde ses droits d'écriture (à retirer à la bascule) ;
+//   · données CHIFFRÉES, sans rôle valide         → échec FERMÉ (erreur NO_SERVER_KEY), aucune écriture.
+// La chaîne de connexion n'apparaît dans AUCUN message, même mal formée.
 
 /** Numéro de version majeur : 'v545' → 545, absent → 0 (journalisation uniquement). */
 export function versionMajor(appVersion) {
@@ -28,45 +22,51 @@ export function normaliserCle(key) {
   return typeof key === 'string' ? key.trim() : '';
 }
 
-/** true si la clé a le format d'une clé SERVEUR Supabase du nouveau schéma. */
-export function estCleServeur(key) {
-  return /^sb_secret_[A-Za-z0-9_-]+$/.test(normaliserCle(key));
+/** true si la valeur a la forme d'une chaîne de connexion Postgres Neon avec identifiant et mot de passe. */
+export function estUrlEcrivain(url) {
+  return /^postgres(ql)?:\/\/[^:@\s/]+:[^@\s]+@[a-z0-9.-]+\.neon\.tech(:\d+)?\/[A-Za-z0-9_-]+(\?\S*)?$/.test(normaliserCle(url));
 }
 
 /**
- * Retourne { mode, headers, warning } pour l'INSERT nw_snapshots, ou lève une erreur de code
- * NO_SERVER_KEY si les données sont chiffrées et qu'aucun secret serveur valide n'est fourni.
- * @param {{donneesChiffrees:boolean, secretKey?:string, publishableKey:string}} o
+ * Retourne { mode: 'ecrivain', url } ou { mode: 'anonyme', headers, warning },
+ * ou lève une erreur de code NO_SERVER_KEY si les données sont chiffrées sans rôle écrivain valide.
+ * @param {{donneesChiffrees:boolean, writerUrl?:string, jetonAnonyme?:string}} o
  */
-export function resolveSnapshotWriteAuth({ donneesChiffrees, secretKey, publishableKey }) {
+export function resolveSnapshotWriteAuth({ donneesChiffrees, writerUrl, jetonAnonyme }) {
   if (typeof donneesChiffrees !== 'boolean') {
     // Refuser l'ambiguïté : un appelant qui oublierait l'état des données retomberait sinon en
-    // mode legacy, c'est-à-dire en écriture anonyme après la bascule.
+    // écriture anonyme après la bascule.
     const e = new Error('état des données inconnu (donneesChiffrees doit être true ou false)');
     e.code = 'NO_SERVER_KEY';
     throw e;
   }
-  const base = { 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  const cle = normaliserCle(secretKey);
+  const url = normaliserCle(writerUrl);
+  if (estUrlEcrivain(url)) return { mode: 'ecrivain', url, warning: null };
 
-  if (estCleServeur(cle)) {
-    return { mode: 'secret', headers: { apikey: cle, ...base }, warning: null };
-  }
-
-  const presenteMaisInvalide = cle !== '';
+  const presenteMaisInvalide = url !== '';
   if (donneesChiffrees) {
     const e = new Error(presenteMaisInvalide
-      ? 'NW_SUPABASE_SECRET_KEY au mauvais format (attendu une clé serveur sb_secret_…, pas une clé JWT ni publishable)'
-      : 'NW_SUPABASE_SECRET_KEY absent (clé serveur sb_secret_… requise dès que les données sont chiffrées)');
+      ? 'NW_NEON_WRITER_URL au mauvais format (attendu postgresql://<rôle>:<mot de passe>@<hôte>.neon.tech/<base>)'
+      : 'NW_NEON_WRITER_URL absent (rôle écrivain Neon requis dès que les données sont chiffrées)');
     e.code = 'NO_SERVER_KEY';
     throw e;
   }
-
+  if (!jetonAnonyme) {
+    const e = new Error('jeton anonyme absent : aucune écriture possible');
+    e.code = 'NO_SERVER_KEY';
+    throw e;
+  }
   return {
-    mode: 'legacy',
-    headers: { apikey: publishableKey, Authorization: 'Bearer ' + publishableKey, ...base },
+    mode: 'anonyme',
+    headers: { Authorization: 'Bearer ' + jetonAnonyme, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     warning: presenteMaisInvalide
-      ? 'NW_SUPABASE_SECRET_KEY présent mais au mauvais format (attendu sb_secret_…) — repli temporaire sur la clé publishable'
+      ? 'NW_NEON_WRITER_URL présent mais au mauvais format — repli temporaire sur le jeton anonyme (données en clair)'
       : null,
   };
+}
+
+/** Exécute une requête paramétrée avec le rôle écrivain (pilote HTTP officiel de Neon, chargé à la demande). */
+export async function executerEcrivain(url, requete, parametres) {
+  const { neon } = await import('@neondatabase/serverless');
+  return neon(url).query(requete, parametres);
 }

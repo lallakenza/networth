@@ -6083,3 +6083,20 @@ Le compteur header affiche désormais SGTM comme un ticker normal (`Actions: N/N
 **Cache-bust** `?v=339 → ?v=342` (3 bumps successifs) sur 18 imports + `APP_VERSION`. `DATA_LAST_UPDATE` reste `20/04/2026`.
 
 
+
+## v591 (7 novembre 2026) — audit v586, point 3 : chaîne de confidentialité adaptée à Neon (NON terminée)
+
+- **Cron** : `scripts/_snapshot_auth.mjs` abandonne le régime Supabase (`sb_secret_…`). Rôle Postgres
+  `nw_ecrivain` (créé en SQL : NOLOGIN, NOBYPASSRLS, INSERT `nw_snapshots`, upsert `price_history`, politiques
+  RLS dédiées, aucune lecture patrimoniale), joint par le secret `NW_NEON_WRITER_URL`. Données en clair sans
+  écrivain → jeton anonyme (temporaire) ; données chiffrées sans écrivain → échec fermé. Chaîne de connexion
+  jamais imprimée. `daily_snapshot.mjs` et `refresh_price_history.mjs` câblés ; workflow : secrets optionnels,
+  pilote `@neondatabase/serverless@1.2.0` installé seulement si le secret existe.
+- **Vérification honnête** : `npm run verify` inclut `confidentiality` (rouge tant qu'une fuite subsiste) ;
+  `verify:code` = lint + tests + desync. `verify_no_leak.mjs --prod` interroge aussi Neon en anonyme
+  (snapshots en clair, champs hors bail et valeurs du référentiel immo) : 23 fuites au 07/11.
+- **Reste au propriétaire** (docs/CONFIDENTIALITE_NEON.md) : mot de passe du rôle + secret GitHub, retrait
+  des écritures anonymes, compte Neon Auth + lecture authentifiée puis révocation des lectures anonymes,
+  chiffrement de `data.js` (phrase saisie par lui), sort des champs hors bail de `immo_properties.rent`,
+  historique Git.
+- Tests : `tests/snapshot-auth.test.js` réécrit (12 cas Neon).
