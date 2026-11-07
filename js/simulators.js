@@ -3,8 +3,8 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=589';
-import { IMMO_CONSTANTS } from './data.js?v=589';
+import { fmt, fmtAxis } from './render.js?v=590';
+import { IMMO_CONSTANTS } from './data.js?v=590';
 
 const IC = IMMO_CONSTANTS;
 
@@ -690,7 +690,7 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciati
     const monthFrac = (targetMonth - 1) / 12; // 0 = Jan, 0.917 = Dec
     const propEC = ecThisYear + (ecNextYear - ecThisYear) * monthFrac;
 
-    return Math.max(0, grossEquity - propEC);
+    return grossEquity - propEC;   // v590 — signed
   };
 }
 
@@ -930,7 +930,7 @@ function runNezhaSimulator(state) {
   const _vjEngage = s.nezha.villejuifEquity || 0;
   const _moisISO = (m) => { const d = moisBaseSim(m); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   const _ecartRueil = (s.nezha.rueilEquity || 0) - _rueilBrut(0);
-  const computeRueilEquity = (m) => Math.max(0, _rueilBrut(m) + _ecartRueil);
+  const computeRueilEquity = (m) => _rueilBrut(m) + _ecartRueil;   // v590 — signed
   const computeVillejuifEquity = (m) => (_moisISO(m) < _vjLivraison ? _vjEngage : _vjLivre(m));
 
   // 3. POSTES ABSENTS. L'ESPP (5 140 €), la Rolex (12 000 €) et la créance Omar (2 602 €)

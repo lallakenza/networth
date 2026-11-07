@@ -1752,7 +1752,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v589';
+export const APP_VERSION = 'v590';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2106,6 +2106,7 @@ export const IMMO_CONSTANTS = {
       // Taux annuel effectif assurance : 0.19%
       // Dernière échéance : 05/02/2048
       {
+        id: 'vitry_al',            // v590 — identifiant stable (= immo_loans.id)
         name: 'Action Logement',
         principal: 40000,      // montant viré à SEINEO
         rate: 0.005,           // 0.50% taux nominal fixe
@@ -2124,6 +2125,7 @@ export const IMMO_CONSTANTS = {
       // Structure : 60 mois de différé total, puis 180 mois d'amortissement constant
       // Dernière échéance : ~nov 2043
       {
+        id: 'vitry_ptz',            // v590 — identifiant stable (= immo_loans.id)
         name: 'PTZ (via Banque Populaire)',
         principal: 60000,
         rate: 0,               // 0% — Prêt à Taux Zéro
@@ -2151,6 +2153,7 @@ export const IMMO_CONSTANTS = {
       // Total intérêts : 48 263.39€ | Total remboursé : 223 263.39€
       // Dernière échéance : 06/12/2048
       {
+        id: 'vitry_bp',            // v590 — identifiant stable (= immo_loans.id)
         name: 'Banque Populaire (Riv\'immo)',
         principal: 175000,
         rate: 0.021,           // 2.10% taux nominal fixe
@@ -2186,6 +2189,7 @@ export const IMMO_CONSTANTS = {
     // Taux nominal fixe 1.20%
     // Assurance ACM VIE dégressive
     rueil: {
+      id: 'rueil_cm',            // v590 — identifiant stable (= immo_loans.id)
       principal: 251200,
       rate: 0.012,           // 1.20% taux nominal fixe
       startDate: '2019-12',   // 1ère échéance 5 décembre 2019
@@ -2215,6 +2219,7 @@ export const IMMO_CONSTANTS = {
       // Coût total intérêts : 142 199€ (offre de prêt, pour référence)
       // Intérêts différés pendant franchise : 19 055€
       {
+        id: 'villejuif_lcl1',            // v590 — identifiant stable (= immo_loans.id)
         name: 'LCL Prêt 1 — Immo Taux Fixe',
         principal: 286669.95,
         rate: 0.0327,          // 3.27% taux nominal fixe
@@ -2244,6 +2249,7 @@ export const IMMO_CONSTANTS = {
       // Assurance : 5.19€/mois
       // Coût total intérêts : 3 791€ (offre de prêt)
       {
+        id: 'villejuif_lcl2',            // v590 — identifiant stable (= immo_loans.id)
         name: 'LCL Prêt 2 — Immo Taux Fixe',
         principal: 31800,
         rate: 0.009,           // 0.90% taux nominal fixe

@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=589';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=589';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=590';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=590';
 
 // ---- Generic table sort utility ----
 /**
@@ -1182,7 +1182,7 @@ function renderDynamicInsights(state, view) {
     // Total row
     html += '<tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>';
     years.forEach((y, i) => {
-      const eqR = Math.max(0, rueilP ? rueilP.equity + rueilGrowth * monthsFromNow(y) : 0);
+      const eqR = rueilP ? rueilP.equity + rueilGrowth * monthsFromNow(y) : 0;   // v590 — signed
       html += '<td class="num"><strong>' + N(eqR + valVillejuif[i] + valCash[i]) + '</strong></td>';
     });
     html += '</tr></tbody></table>';
@@ -4864,8 +4864,8 @@ function renderImmoView(state) {
   };
   const fAvgLTV = fTotalValue > 0 ? (fTotalCRD / fTotalValue * 100) : 0;
   const fTotalExitCosts = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.totalExitCosts : 0), 0);
-  // Floor each property's net equity at 0 before summing (can't sell at a loss)
-  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + Math.max(0, p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity), 0);
+  // v590 — signed sum: a property worth less than its debt reduces the total (the debt does not vanish).
+  const fTotalNetEquityAfterExit = fp.reduce((s, p) => s + (p.exitCosts ? p.exitCosts.netEquityAfterExit : p.equity), 0);
 
   // KPIs
   setEur('kpiImmoViewEq', fTotalEquity);
@@ -5951,10 +5951,16 @@ function renderImmoView(state) {
     try {
       const vl = IMMO_CONSTANTS.loans.villejuifLoans || [];
       const meta_vj = IMMO_CONSTANTS.properties.villejuif || {};
-      const tr1 = (vl[0] && vl[0].tableauReel) || {};
-      const tr2 = (vl[1] && vl[1].tableauReel) || {};
-      const exactTire = ((tr1.crdFinFranchise || 0) - (tr1.tirageActe || 0))
-        + ((tr2.crdFinFranchise || 0) - (tr2.tirage || 0));
+      const tr1 = vl[0] && vl[0].tableauReel;
+      const tr2 = vl[1] && vl[1].tableauReel;
+      // v590 — sans les tableaux définitifs, les intérêts sur la part tirée sont INCONNUS, pas nuls :
+      // on ne présente ni « 0 € exacts » ni l'économie qui en découlerait.
+      if (!tr1 || !tr2 || tr1.crdFinFranchise == null || tr2.crdFinFranchise == null) {
+        vilSim.innerHTML = '<strong>Villejuif — Intérêts de franchise</strong><br><span style="font-size:12px;color:var(--gray)">'
+          + 'Tableaux d\u2019amortissement définitifs LCL non chargés : intérêts sur la part tirée non documentés, comparaison non calculée.</span>';
+        throw null;
+      }
+      const exactTire = (tr1.crdFinFranchise - (tr1.tirageActe || 0)) + (tr2.crdFinFranchise - (tr2.tirage || 0));
       const prix = meta_vj.totalOperation || 336330;
       const tauxP1 = (vl[0] && vl[0].rate) || 0.0327;
       const finFr = { y: 2028, m: 10 };  // v543 — P1 : échéances d'intérêts dès le 05/11/2028 (tableau du 03/07/2026)
@@ -5983,7 +5989,7 @@ function renderImmoView(state) {
         '<span style="font-size:11px;color:var(--gray)">Décomposition : ' + Math.round(exactTire).toLocaleString('fr-FR') + ' € exacts sur le tiré (tableaux LCL du 03/07/2026) + ~' + Math.round(futurs).toLocaleString('fr-FR') + ' € sur les appels restants. Hypothèses affichées : dates de chantier estimées ('
         + lignes.map(l => l.label + ' ' + l.date).join(' · ')
         + ') ; intérêts simples — la capitalisation annuelle (art. 1343-2) ajouterait ~1-2 %, négligés. À recaler à chaque appel de fonds reçu.</span>';
-    } catch (e) { vilSim.innerHTML = ''; }
+    } catch (e) { if (e !== null) vilSim.innerHTML = ''; }
   }
 
   // ── Immo Strategy ──
@@ -8238,7 +8244,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=589').then(m => {
+  import('./charts.js?v=590').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

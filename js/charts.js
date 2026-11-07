@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=589';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=589';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=589';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=589';
-import { loadSnapshots } from './api.js?v=589'; // v387 — historique NW (snapshots quotidiens Supabase)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=589'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=590';
+import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=590';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=590';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=590';
+import { loadSnapshots } from './api.js?v=590'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=590'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -889,7 +889,7 @@ function buildImmoViewEquityBar(state) {
       for (const ph of phases) { if (y >= ph.start && y <= ph.end) { taux = ph.rate; break; } }
       val *= (1 + taux);
     }
-    return { equity: Math.max(0, Math.round(val - crd)), crd: Math.round(crd) };
+    return { equity: Math.round(val - crd), crd: Math.round(crd) };   // v590 — signed
   });
 
   const construire = (annee) => {
@@ -1891,7 +1891,7 @@ function buildImmoViewProjection(state) {
       }
 
       const equity = projValue - crd;
-      return { equity: Math.max(0, Math.round(equity)), projValue, crd };
+      return { equity: Math.round(equity), projValue, crd };   // v590 — signed
     });
 
     const dataNet = projYears.map((year, i) => {
@@ -1902,7 +1902,7 @@ function buildImmoViewProjection(state) {
       const totalAmort = amortPerYear * yearsHeld;
       try {
         const exitCosts = computeExitCostsAtYear(key, year, projValue, purchasePrice, crd, totalAmort);
-        return Math.max(0, Math.round(exitCosts.netEquityAfterExit));
+        return Math.round(exitCosts.netEquityAfterExit);   // v590 — signed
       } catch (e) {
         return dataBrute[i].equity;
       }
@@ -1971,7 +1971,7 @@ export function buildPropertyDetailCharts(state, prop) {
       const crd = schedIdx < 0 || schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
       let projValue = prop.value;
       for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
-      return { projValue, crd, equityBrute: Math.max(0, Math.round(projValue - crd)) };
+      return { projValue, crd, equityBrute: Math.round(projValue - crd) };   // v590 — signed
     });
 
     const equityBruteData = rawData.map(d => d.equityBrute);
@@ -1984,7 +1984,7 @@ export function buildPropertyDetailCharts(state, prop) {
       const totalAmort = amortPerYear * yearsHeld;
       try {
         const exitCosts = computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort);
-        return Math.max(0, Math.round(exitCosts.netEquityAfterExit));
+        return Math.round(exitCosts.netEquityAfterExit);   // v590 — signed
       } catch (e) {
         return rawData[i].equityBrute;
       }
@@ -2130,7 +2130,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
 
     try {
       const ec = computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort, loanCRDs);
-      const netProceeds = Math.max(0, Math.round(ec.netEquityAfterExit));
+      const netProceeds = Math.round(ec.netEquityAfterExit);   // v590 — signed: negative = cash to bring at sale
       const taxes = ec.totalTaxPV;
       const tvaC = ec.tvaClawback || 0;
       const ira = ec.ira || 0;

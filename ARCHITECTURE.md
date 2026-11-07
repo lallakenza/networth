@@ -5056,6 +5056,25 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v590 (7 novembre 2026) — audit v586, points 4, 5 et 6 : référentiel immo atomique et fidèle, équités signées
+
+**Atomicité (6).** `applyImmoRef()` valide et prépare tout le référentiel avant de toucher l'état partagé ;
+un rejet (champ requis absent ou non numérique) laisse `PORTFOLIO` et `IMMO_CONSTANTS` strictement
+intacts. Champ optionnel absent = valeur locale conservée ; 0 explicite = 0 ; invalide = rejet.
+
+**Métadonnées des prêts (4).** Les prêts locaux portent un identifiant stable (= `immo_loans.id`) ; la
+surcouche fusionne par identifiant et conserve les champs documentaires absents de la base
+(`tableauReel` : 4 970,01 € d'intérêts documentés sur la part tirée de Villejuif, perdus avant). Sans
+tableaux définitifs, la simulation Villejuif affiche « non documenté » au lieu de « 0 € exacts ».
+Assurance Villejuif : la base portait 53,57 € (offre), corrigée à 51,29 € (constaté) dans Neon.
+Vérifié sur la base réelle : connecté = hors ligne (patrimoine, budget immo 2 827,06 €, cash-flow,
+CRD, intérêts documentés).
+
+**Équités signées (5).** Plus de `Math.max(0, …)` sur les équités immobilières : patrimoine (Vitry,
+Rueil, Villejuif), VEFA, projections (graphes, simulateurs, tableau Nezha) et total « après sortie ».
+Patrimoine actuel inchangé (les trois équités sont positives) ; Vitry à 200 000 € compterait −67 050 €.
+Le treemap ne dessine que les tuiles positives, mais le total de catégorie reste signé.
+
 ## v589 (7 novembre 2026) — audit v586, points 1 et 2 : INVSNT009 rapprochée, plus d'encaissement présumé
 
 **INVSNT009.** Payée le 03/11/2026 à 12:45 UTC : 19 085 € crédités sur iBanq (notification IFX Payments,

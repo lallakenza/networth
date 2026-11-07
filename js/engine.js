@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=589';
-import { lireContratEnCache } from './facturation_contract.js?v=589';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=590';
+import { lireContratEnCache } from './facturation_contract.js?v=590';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3489,7 +3489,7 @@ function computeImmoView(portfolio, fx) {
     // v543 — VEFA en construction : pas de frais de sortie modélisés (revente avant livraison non
     // démontrée par l'acte — hypothèse à confirmer) ; équité nette = équité au coût engagé.
     const exitCosts = propData.underConstruction
-      ? { netEquityAfterExit: Math.max(0, _val - computedCRD), totalExitCosts: 0, iraTotal: 0, pvImmoTax: 0, agencyFee: 0 }
+      ? { netEquityAfterExit: _val - computedCRD, totalExitCosts: 0, iraTotal: 0, pvImmoTax: 0, agencyFee: 0 }
       : computeExitCosts(loanKey, _val, purchasePrice, holdingYears, computedCRD, totalAmort, null, loanCRDs);
 
     // ── PV Abattement schedule (for chart visualization) ──
@@ -4742,7 +4742,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const amineVitryEquityBrute = amineVitryValue - amineVitryCRD;
   // Net equity = after exit costs, floored at 0 (if negative → not mature enough to sell)
   const vitryExitCosts = immoView.properties.find(pr => pr.loanKey === 'vitry')?.exitCosts;
-  const amineVitryEquity = Math.max(0, vitryExitCosts ? vitryExitCosts.netEquityAfterExit : amineVitryEquityBrute);
+  // v590 — signed: a residual debt above the sale value stays a liability (no floor at 0).
+  const amineVitryEquity = vitryExitCosts ? vitryExitCosts.netEquityAfterExit : amineVitryEquityBrute;
   const amineVehicles = p.amine.vehicles.cayenne + p.amine.vehicles.mercedes;
 
   // Creances — split by type: pro (factures clients) vs perso (prêts famille/amis)
@@ -4935,7 +4936,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const nezhaRueilEquityBrute = nezhaRueilValue - nezhaRueilCRD;
   // Net equity = after exit costs, floored at 0
   const rueilExitCosts = immoView.properties.find(pr => pr.loanKey === 'rueil')?.exitCosts;
-  const nezhaRueilEquity = Math.max(0, rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute);
+  // v590 — signed: a residual debt above the sale value stays a liability (no floor at 0).
+  const nezhaRueilEquity = rueilExitCosts ? rueilExitCosts.netEquityAfterExit : nezhaRueilEquityBrute;
   const villejuifSigned = !!p.nezha.immo.villejuif.signed;
   // v543 — VEFA en construction : valeur portée = COÛT ENGAGÉ (appels payés), CRD des tableaux LCL
   // (capital tiré) directement depuis buildProperty pour une cohérence totale avec l'immoView.
@@ -4946,7 +4948,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   const villejuifExitCosts = _vjProp?.exitCosts;
   const nezhaVillejuifEquityBrute = _vjValue - nezhaVillejuifCRD;
   const nezhaVillejuifEquity = villejuifSigned
-    ? Math.max(0, villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)
+    ? (villejuifExitCosts ? villejuifExitCosts.netEquityAfterExit : nezhaVillejuifEquityBrute)   // v590 — signed
     : 0;
   const nezhaVillejuifReservation = !villejuifSigned ? (p.nezha.immo.villejuif.reservationFees || 0) : 0;
   // Nezha cash — detailed accounts
