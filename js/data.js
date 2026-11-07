@@ -292,15 +292,15 @@ export const PORTFOLIO = {
         // VWCE = Vanguard FTSE All-World UCITS ETF USD **Acc** (capitalisant, domicile Irlande), coté Xetra en EUR.
         // Ticker Yahoo = VWCE.DE. Acheté le 01/09/2026 : sharesAtStart=0 sur MTD/1M/YTD/1Y ⇒ les prix de
         // référence ne servent pas au P&L de période (clôtures Yahoo relevées le 19/09/2026, pour mémoire).
-        { ticker: 'VWCE.DE', shares: 70,   price: 168.82, costBasis: 167.90, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 }, // v569 — 50 + 20 (26/10/2026) ; PRU IBKR 167,8996
+        { ticker: 'VWCE.DE', shares: 170,  price: 168.82, costBasis: 165.78, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 }, // v587 — 50 + 20 (26/10/2026) + 100 (06/11/2026), PRU du connecteur IBKR ; v569 — PRU IBKR 167,8996
         // v569 — Alphabet (GOOGL), 40 actions achetées le 30/10/2026 à 281 USD (lendemain d'une baisse de 12,7 % sur résultats).
         { ticker: 'GOOGL',   shares: 40,   price: 279.84, costBasis: 281.03, currency: 'USD', label: 'Alphabet (GOOGL)', sector: 'tech', geo: 'us', ytdOpen: 315.15, mtdOpen: 338.24, oneMonthAgo: 344.08 }, // clôtures Yahoo : 02/01 315,15 · 01/10 338,24 · 30/09 344,08
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
-      cashEUR: -5922.99,     // v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashEUR: -22361.85,    // v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
       cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
-      cashJPY: -1604546.36, // Solde JPY chez IBKR (connecteur 09/10/2026). −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
+      cashJPY: -1608111.36, // v587 — connecteur IBKR du 07/11/2026 : −3 565 ¥ d'intérêts de marge d'octobre. Avant : connecteur du 09/10/2026. −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
       cashAED: 30000,        // v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
@@ -340,6 +340,8 @@ export const PORTFOLIO = {
         { date: '2026-01-06', type: 'interest', eurAmount: -70.27,  usdAmount: -12.40, jpyAmount: -1778, label: 'Interest Dec-2025' },
         { date: '2026-02-04', type: 'interest', eurAmount: -49.42,  usdAmount: -26.00, jpyAmount: -4619, label: 'Interest Jan-2026' },
         { date: '2026-03-04', type: 'interest', eurAmount: -27.73,  usdAmount: -74.31, jpyAmount: -23049,label: 'Interest Feb-2026' },
+        // v587 — écart des soldes du connecteur entre le 31/10 et le 07/11, hors achat de VWCE : intérêts de marge d'octobre, date de passage approchée.
+        { date: '2026-11-04', type: 'interest', eurAmount: -8.65,   usdAmount: 0,      jpyAmount: -3565, label: 'Interest Oct-2026' },
         // ── DIVIDENDES IBKR (net après WHT) ──
         // Source: IBKR Activity Statement CSV, sections "Dividends" + "Withholding Tax"
         // Format: { date, type, [ticker], eurAmount, label }
@@ -577,6 +579,7 @@ export const PORTFOLIO = {
 
         // ─── VWCE (Vanguard FTSE All-World, Acc, Xetra) — position ouverte 1er sept 2026 ───
         { date: '2026-09-01', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 166.86, currency: 'EUR', cost: 8343, commission: -4.17, costBasis: 166.94, source: 'ibkr' },
+        { date: '2026-11-06', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 100, price: 164.22, currency: 'EUR', cost: 16422, commission: -8.21, costBasis: 164.30, source: 'ibkr' },  // v587 — connecteur IBKR : IBIS2, limite 164,22, 13:04 UTC
         { date: '2026-10-26', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 20, price: 170.14, currency: 'EUR', cost: 3402.8, commission: -3.00, costBasis: 170.29, source: 'ibkr' },  // v569 — connecteur IBKR : IBIS2, limite 170,14, commission 3 €
         { date: '2026-10-30', ticker: 'GOOGL',   label: 'Alphabet',                type: 'buy', qty: 40, price: 281.00, currency: 'USD', cost: 11240,  commission: -1.00, costBasis: 281.03, fxRate: 1.11828, source: 'ibkr' },  // v569 — connecteur IBKR : ISLAND, limite 281, commission 1,00 USD  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
 
@@ -1746,7 +1749,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v586';
+export const APP_VERSION = 'v587';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

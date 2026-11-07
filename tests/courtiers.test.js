@@ -55,15 +55,17 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     assert.ok(dep && dep.currency === 'USD' && Math.abs(dep.amount - 2729.33) < 0.01);
   });
 
-  t('IBKR au connecteur du 31/10/2026 : 70 VWCE, 40 GOOGL, cash EUR et USD', () => {
+  t('IBKR au connecteur du 07/11/2026 : 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
     const pos = (tk) => P.amine.ibkr.positions.find((p) => p.ticker === tk);
-    assert.equal(pos('VWCE.DE').shares, 70);
+    assert.equal(pos('VWCE.DE').shares, 170);
     assert.equal(pos('GOOGL').shares, 40);
-    assert.equal(P.amine.ibkr.cashEUR, -5922.99);
+    assert.equal(P.amine.espp.shares, 167, 'les 167 ACN venues d\'UBS, chez IBKR depuis le 09/10');
+    assert.equal(P.amine.ibkr.cashEUR, -22361.85);
     assert.equal(P.amine.ibkr.cashUSD, -8511.67);
-    // Les soldes se reconstituent au centime à partir des mouvements d'octobre.
-    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - P.amine.ibkr.cashEUR) < 0.01, 'EUR = solde du 09/10 − 20 VWCE');
-    assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = Wise − 40 GOOGL');
+    assert.equal(P.amine.ibkr.cashJPY, -1608111.36);
+    // Les soldes se reconstituent au centime à partir des mouvements depuis le 09/10.
+    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 - P.amine.ibkr.cashEUR) < 0.01, 'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre');
+    assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = cash UBS via Wise − 40 GOOGL');
   });
 
   console.log(ko === 0 ? '\n✅ Courtiers : OK\n' : '\n❌ ' + ko + ' échec(s)\n');

@@ -5056,6 +5056,12 @@ compte manquant « IBKR Cash AED » à la liste (absent depuis v351 : c'était l
 cashView.totalCash vs catégorie Cash ≈ 2,6 K relevé par l'audit BI — désormais 0 €).
 Un nouveau compte = UNE entrée dans la liste, plus ~9 endroits (leçon BUG-017/047/064).
 
+## v587 (7 novembre 2026) — IBKR au connecteur du 07/11 : 100 VWCE de plus, intérêts d'octobre
+
+Le connecteur confirme le transfert UBS → IBKR déjà enregistré en v569 (167 ACN au PRU de 215,88 $, cash
+UBS arrivé par Wise le 18/10) : rien de nouveau n'est arrivé d'UBS. Nouveaux mouvements : 100 VWCE à
+164,22 € le 06/11 (VWCE : 170 parts) et les intérêts de marge d'octobre (−8,65 € et −3 565 ¥).
+
 ## v586 (7 novembre 2026) — « si gardé » des lignes du PEA
 
 Cours de repli (`DEGIRO_STATIC_PRICES`, Yahoo du 06/11/2026) pour les 8 titres du PEA dont le cours
