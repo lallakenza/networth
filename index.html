@@ -3964,6 +3964,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
     <div class="kpi"><div class="value" id="kpiCashAvgYield">--</div><div class="label">Rendement moyen (brut)</div></div>
     <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashInflation">--</div><div class="label" id="kpiCashInflationLabel">&Eacute;rosion du cash qui ne bat pas l&rsquo;inflation /mois</div></div>
     <div class="kpi"><div class="value" id="kpiCashProductive">--</div><div class="label">Cash qui bat l&rsquo;inflation</div></div>
+    <div class="kpi" style="border-top-color:var(--red)"><div class="value" id="kpiCashNonProductif" data-eur="0">--</div><div class="label">Cash non productif net</div><div class="sub">Comptes dormants + cr&eacute;ances &minus; dettes</div></div>
     <!-- v305 — Patrimoine Financier Mobilisable : cash + positions liquides
          (IBKR + UBS + SGTM), hors immo/véhicules/créances/TVA. Per-owner
          breakdown visible dans l'insight ci-dessous. Réponse aux questionnaires
@@ -3977,10 +3978,16 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   </div>
   <div class="kpi-insight-bar" id="insight-cash"></div>
 
+  <h3>Cash non productif net</h3>
+  <p style="font-size:12px;color:var(--gray)">Cash bancaire sous l&rsquo;inflation + cr&eacute;ances restant &agrave; encaisser &minus; sommes restant &agrave; payer (tiers, TVA et cautions). Les cr&eacute;ances gardent leur pond&eacute;ration de recouvrement. Ce montant peut &ecirc;tre n&eacute;gatif ; il ne mesure pas la liquidit&eacute; disponible aujourd&rsquo;hui.</p>
+  <div class="table-wrap" style="--tbl-min:640px">
+    <table><thead><tr><th>Titulaire</th><th class="num">Comptes dormants</th><th class="num">+ Cr&eacute;ances restantes</th><th class="num">&minus; Dettes &agrave; payer</th><th class="num">Net</th></tr></thead><tbody id="cashNonProductifTbody"></tbody></table>
+  </div>
+
 <div class="grid2" style="margin-top:20px;">
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <h3 style="margin:0;">Cash Productif vs Dormant</h3>
+        <h3 style="margin:0;">Comptes bancaires : productif vs dormant</h3>
         <div id="cashFrameToggle" role="group" aria-label="Cadre de calcul du rendement" style="display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;font-size:12px;">
           <button type="button" data-frame="nominal" aria-pressed="false" style="border:none;background:transparent;padding:5px 13px;cursor:pointer;color:var(--gray);font-weight:600;">Sans inflation</button>
           <button type="button" data-frame="real" aria-pressed="true" style="border:none;background:transparent;padding:5px 13px;cursor:pointer;color:var(--gray);font-weight:600;">Apr&egrave;s inflation</button>
@@ -4764,7 +4771,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=592"></script>
+<script type="module" src="js/app.js?v=593"></script>
 
 </body>
 </html>

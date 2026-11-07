@@ -3,6 +3,14 @@
 Ce document recense tous les bugs détectés, leur cause racine, le mode de détection, et le correctif appliqué.
 Il sert de base pour le plan de tests de non-régression.
 
+## v593 — Cash non productif net : créances et dettes (7 novembre 2026)
+
+- **Détection :** règle métier précisée par l'utilisateur après le recheck v592.
+- **Symptôme :** l'analyse du cash dormant ne portait que sur les comptes ; l'argent prêté ou facturé non encaissé et les sommes dues aux tiers restaient hors de cet indicateur.
+- **Correctif :** ajout de `cashView.nonProductif` et d'une carte/table par titulaire : bancaire dormant + créances restantes pondérées − dettes. Positions brutes de facturation, TVA et cautions incluses. Net signé, sans plancher et sans ajout au NW ou au cash mobilisable.
+- **Correction associée :** le remboursement partiel d'une dette saisie négativement la réduit au lieu de l'aggraver ; le calcul de reste est partagé entre NW, créances et nouvel indicateur. Une probabilité de zéro reste zéro.
+- **Non-régression :** `tests/cash-nonproductif.test.js` couvre les paiements partiels, frais, recouvrement, probabilité zéro, devises, propriétaires, dettes supérieures au cash, absence de double déduction et facturation à net nul avec positions brutes opposées.
+
 
 #### Complément v408/v409 — unification de l'effet de CHANGE (TODO de v368 levé)
 Après le recalage des points, il restait un écart **structurel** de ~328 € entre la dernière

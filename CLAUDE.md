@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v592 (7 novembre 2026)
+- **Current version**: v593 (7 novembre 2026)
 
 ## Architecture
 
@@ -50,6 +50,11 @@ Where:
 - Splits items into: `activeItems` (en cours), `recoveredItems` (recouvré), `dettes` (TVA + facturation negatives)
 - Facturation receivables (positive amounts like Augustin) are injected into `activeItems` for display
 - KPIs computed AFTER injection so totals include facturation items
+
+### Cash non productif net (v593)
+- `cashView.nonProductif` = cash bancaire sous l'inflation + créances restantes pondérées − dettes restant à payer. Ventilation `byOwner.Amine/Nezha`, détail signé dans `lignes`.
+- Inclut les positions brutes du contrat 2048, TVA pondérée et caution locataire à restituer. Un paiement partiel réduit le reste dû ; frais retenus et créances recouvrées ne recréent pas d'actif.
+- Indicateur d'analyse uniquement : aucun ajout au NW, aux soldes bancaires, au fonds d'urgence ou au cash immédiatement mobilisable. Les prêts immobiliers et la marge restent dans leurs catégories ; les cartes/découverts déjà inclus dans les soldes ne sont pas redéduits. Le net peut être négatif.
 
 ### Base de données Neon (v582)
 - Projet Neon `curly-cherry-82481284` (Frankfurt, branche `production`), dédié à networth : `nw_snapshots`, `price_history`, `immo_*`. Avant la v582 : projet Supabase partagé avec Lalla Kenza.

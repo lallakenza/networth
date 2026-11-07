@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=592';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=592';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE } from './data.js?v=593';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=593';
 
 // ---- Generic table sort utility ----
 /**
@@ -4102,6 +4102,17 @@ function renderCashView(state) {
   setHTML('kpiCashInflationLabel', '\u00c9rosion du cash sous ' + (INFLATION_RATE * 100).toFixed(0) + '\u202f% (inflation) /mois');
   document.getElementById('kpiCashInflation')?.classList.add('pl-neg');
   setText('kpiCashProductive', fmt(cv.totalYielding));
+  const np = cv.nonProductif;
+  if (np) {
+    setEur('kpiCashNonProductif', np.net);
+    const detail = document.getElementById('cashNonProductifTbody');
+    if (detail) {
+      const ligne = (nom, b) => '<tr><td>' + nom + '</td><td class="num">' + fmt(b.bancaire)
+        + '</td><td class="num">' + fmt(b.creances) + '</td><td class="num">−' + fmt(b.dettes)
+        + '</td><td class="num"><strong>' + fmt(b.net) + '</strong></td></tr>';
+      detail.innerHTML = ligne('Amine', np.byOwner.Amine) + ligne('Nezha', np.byOwner.Nezha) + ligne('Couple', np);
+    }
+  }
 
   // v305 — Patrimoine Financier Mobilisable (KPI + sub-line)
   // Amine seul par défaut (le questionnaire "combien as-tu de mobilisable ?"
@@ -8244,7 +8255,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=592').then(m => {
+  import('./charts.js?v=593').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

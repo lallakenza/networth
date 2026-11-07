@@ -418,6 +418,7 @@ Page load
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| v593 | 7 novembre 2026 | `cashView.nonProductif` : cash bancaire dormant + créances restantes pondérées − dettes (tiers, TVA et cautions), détaillé par titulaire dans la vue Cash. Calcul de reste signé partagé avec le NW : un remboursement réduit une dette négative. Sans double comptage ni assimilation des créances à la liquidité mobilisable. |
 | v173 | Mars 2026 | Ajout de `simulators.js`, refactor engine.js (zéro hardcodé) |
 | v174 | Mars 2026 | Ajout bouton 1Y, fix chart labels |
 | v175 | Mars 2026 | Fix race condition `destroyAllCharts` (chart YTD blank) |

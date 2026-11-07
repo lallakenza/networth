@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=592';
-import { lireContratEnCache } from './facturation_contract.js?v=592';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=593';
+import { lireContratEnCache } from './facturation_contract.js?v=593';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -4092,6 +4092,48 @@ export function montantRegle(c) {
 export function fraisReglement(c) {
   return (c.payments || []).reduce((t, pay) => t + (pay.frais || 0), 0);
 }
+// Une dette saisie en négatif se rapproche de zéro lorsqu'elle est remboursée.
+function resteCreance(c) {
+  const regle = montantRegle(c);
+  return c.amount < 0 ? c.amount + Math.abs(regle) : c.amount - regle;
+}
+function valeurCreanceRestanteEUR(c, fx) {
+  if (c.status === 'recouvré') return 0;
+  return toEUR(resteCreance(c) * (c.probability ?? 1), c.currency, fx);
+}
+
+// Indicateur de capital immobilisé, distinct des soldes bancaires et du cash mobilisable.
+// Les créances et dettes restent comptées UNE fois dans le patrimoine ; on les relit ici
+// pour analyser le cash non productif net, sans modifier les catégories ni les comptes.
+function computeCashNonProductif(portfolio, fx, cashView, facturationNet) {
+  const lignes = [];
+  function ajouter(owner, label, valeur) {
+    if (valeur !== 0) lignes.push({ owner, label, valeur });
+  }
+  for (const [cle, owner] of [['amine', 'Amine'], ['nezha', 'Nezha']]) {
+    for (const c of (portfolio[cle].creances?.items || [])) {
+      ajouter(owner, c.label || c.counterparty || c.id, valeurCreanceRestanteEUR(c, fx));
+    }
+  }
+  const contrat = lireContratEnCache(typeof localStorage !== 'undefined' ? localStorage : null).contrat;
+  if (contrat) {
+    for (const pos of contrat.positions) {
+      ajouter('Amine', 'Facturation — ' + pos.nom, toEUR(pos.montantMAD, contrat.devise, fx));
+    }
+  } else {
+    ajouter('Amine', 'Facturation (net hérité)', facturationNet);
+  }
+  ajouter('Amine', 'TVA', tvaPonderee(portfolio.amine));
+  ajouter('Nezha', 'Caution Rueil à restituer', -(portfolio.nezha.cautionRueil || 0));
+  function bilan(owner) {
+    const detail = lignes.filter(l => !owner || l.owner === owner);
+    const bancaire = owner ? cashView.byOwner[owner].nonYielding : cashView.totalNonYielding;
+    const creances = detail.reduce((s, l) => s + Math.max(0, l.valeur), 0);
+    const dettes = detail.reduce((s, l) => s + Math.max(0, -l.valeur), 0);
+    return { bancaire, creances, dettes, net: bancaire + creances - dettes, lignes: detail };
+  }
+  return { ...bilan(null), byOwner: { Amine: bilan('Amine'), Nezha: bilan('Nezha') } };
+}
 // iBanq (Bairok) balance: the OBSERVED statement balance plus the credits recorded on receivables
 // after the observation date. Reconstructed, not certified, until a newer statement is entered:
 // once `ibanqBairokObserveLe` reaches the credit date, the credit is part of the observed balance.
@@ -4120,8 +4162,8 @@ function computeCreancesView(portfolio, fx) {
     const amountEUR = toEUR(c.amount, c.currency, fx);
     const paymentsTotal = (c.payments || []).reduce((s, p) => s + toEUR(p.amount, c.currency, fx), 0);
     const fraisTotal = toEUR(fraisReglement(c), c.currency, fx);
-    const remainingEUR = amountEUR - paymentsTotal - fraisTotal;
-    const expectedValue = remainingEUR * (c.probability || 1);
+    const remainingEUR = toEUR(resteCreance(c), c.currency, fx);
+    const expectedValue = remainingEUR * (c.probability ?? 1);
     // v347 — coût d'opportunité (inflation) sur TOUTE créance en cours. delayDays = délai de
     // paiement estimé (30-45j), pas un flag : l'ancien `!c.delayDays ? … : 0` zéro-tait justement
     // les factures en attente (SAP/Malt) qui immobilisent le cash. Recouvrées : remainingEUR=0 → 0.
@@ -4183,8 +4225,8 @@ function computeCreancesView(portfolio, fx) {
     .filter(i => i.status !== 'recouvré' && (i.amountEUR || 0) < 0)
     .forEach(i => dettes.push({
       label: i.label || i.counterparty || i.id,
-      amount: Math.abs(i.amount), currency: i.currency,
-      amountEUR: Math.abs(i.amountEUR), owner: i.owner, type: i.type || 'perso',
+      amount: Math.abs(resteCreance(i)), currency: i.currency,
+      amountEUR: Math.abs(i.expectedValue), owner: i.owner, type: i.type || 'perso',
     }));
   // TVA
   if (portfolio.amine.tva && portfolio.amine.tva < 0) {
@@ -4753,8 +4795,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   if (p.amine.creances.items) {
     p.amine.creances.items.forEach(c => {
       if (c.status === 'recouvré') return; // already in cash — skip to avoid double-count
-      const remaining = c.amount - montantRegle(c);   // v589 — crédits + frais retenus
-      const val = toEUR(remaining * (c.probability !== undefined ? c.probability : 1), c.currency, fx);
+      const val = valeurCreanceRestanteEUR(c, fx);
       if (c.type === 'pro') amineRecvPro += val;
       else amineRecvPersonal += val;
     });
@@ -4987,7 +5028,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   if (p.nezha.creances && p.nezha.creances.items) {
     p.nezha.creances.items.forEach(c => {
       if (c.status === 'recouvré') return; // same rule as Amine: skip recouvré
-      const remaining = c.amount - montantRegle(c);   // v589 — crédits + frais retenus
+      const remaining = resteCreance(c);
       const prob = (c.probability !== undefined ? c.probability : 1);
       nezhaRecvOmar += toEUR(remaining * prob, c.currency, fx);
       if (c.currency === 'MAD') { nezhaRecvOmarGrossMAD += remaining; nezhaRecvOmarWeightedMAD += remaining * prob; }
@@ -5149,6 +5190,7 @@ export function compute(portfolio, fx, stockSource = 'statique') {
   // treemaps (couple / amine / nezha). La marge JPY (isDebt) reste hors cash
   // (classée avec Actions), comme avant.
   const cashView = computeCashView(p, fx);
+  cashView.nonProductif = computeCashNonProductif(p, fx, cashView, amineFacturationNet);
   const _VERTS_TUILES = ['#22c55e', '#16a34a', '#15803d', '#4ade80', '#059669', '#86efac'];
   const _ROUGES_TUILES = ['#ef4444', '#dc2626', '#f87171', '#b91c1c', '#991b1b', '#a855f7', '#8b5cf6', '#c026d3', '#f472b6', '#f59e0b', '#fb923c', '#fdba74', '#fca5a5', '#7c2d12'];
   const _pctTuile = (a) => ((a.yield || 0) * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + '%';
