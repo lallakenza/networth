@@ -1423,26 +1423,32 @@ export const PORTFOLIO = {
   nezha: {
     // ── Cash détaillé Nezha (relevés 19 avril 2026) ──
     cash: {
-      revolutEUR: 4403.76,     // EUR — Revolut France, tous comptes (0%) — MAJ 19/09/2026 (capture app ; −2 000 le 12/09)
-      creditMutuelCC: 3058.85, // EUR — Crédit Mutuel compte courant (0%) — MAJ 19/09/2026 (capture app ; échéance prêt 987,68 le 05/09)
-      lclLivretA: 8015,        // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 19/09/2026 (déclaratif Amine)
-      lclCompteDepots: 1240,   // EUR — LCL Compte principal (0%) — MAJ 19/09/2026 (déclaratif Amine)
-      attijariwafarMAD: 5532.83, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 19/09/2026 : capture 25 532,83 (après 2 × 50 000 vers Amine) − 20 000 envoyés ensuite (déclaratif, hors frais)
+      revolutEUR: 4322.41,     // EUR — Revolut France, tous comptes (0%) — MAJ 07/11/2026 (capture app). Avant : 4 403,76 (19/09)
+      creditMutuelCC: 1004.19, // EUR — Crédit Mutuel compte courant (0%) — MAJ 07/11/2026 (capture app, après l'échéance de prêt de 987,62 le 06/11 ; série dans RELEVES_QUOTIDIENS.credit_mutuel)
+      lclLivretA: 10,          // EUR — LCL Livret A (1.5% défiscalisé) — MAJ 07/11/2026 (déclaratif Amine : LCL 3 525,50 au total, dont Livret A 10). Les 8 000 € versés sur IBKR le 05/11 en sont partis
+      lclCompteDepots: 3515.5, // EUR — LCL Compte principal (0%) — MAJ 07/11/2026 (déclaratif : 3 525,50 − 10 du Livret A)
+      attijariwafarMAD: 14299.47, // MAD — Attijariwafa Compte chèque MRE (0%) — MAJ 07/11/2026 (capture app). Avant : 5 532,83 (19/09, déclaratif)
       wioAED: 101000,          // AED — Wio, espace rose « Nezha money » (1 mois renouvelable, échéance 02/11/2026) = Nezha — MAJ 09/10/2026 (capture de l'app ; les deux espaces roses du 19/09 ont été regroupés)
     },
     // ── IBKR Nezha — compte-titres PROPRE à Nezha (≠ compte d'Amine), ventilé comme celui d'Amine ──
     // Même schéma que amine.ibkr : positions (valorisées au prix live), trades (P&L de période),
     // cash par devise. Source : captures de l'app IBKR de Nezha le 19/09/2026 — valeur nette
-    // 16 379 €, valeur de marché des titres 8 434,32 €.
+    // 16 379 €, valeur de marché des titres 8 434,32 € — puis captures du 07/11/2026 (v594) : virement
+    // de 8 000 € depuis LCL (envoyé le 05/11, disponible le 06/11, réf. 583168037), achats de MWRD
+    // et SXR8 le 06/11, valeur nette 24 229 €, cash EUR 812,02 €.
     // Le cash courtier est reclassé en « Cash » comme pour Amine ; les titres vont en « Actions ».
     ibkr: {
       positions: [
-        { ticker: 'VWCE.DE', shares: 50,     price: 167.14, costBasis: 165.26, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
+        { ticker: 'VWCE.DE', shares: 50,     price: 165.84, costBasis: 165.26, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 },
         // 0,8906 action Interactive Brokers Group (NASDAQ) — ligne ANCIENNE (coût ≈ 71 USD, niveau
         // de cours oct. 2025–avr. 2026), date d'entrée inconnue ⇒ aucun trade : le P&L de période
         // part des cours de référence Yahoo (tous postérieurs à l'entrée probable). PRU déduit du
         // P&L latent de l'app (116 € au total − 100,87 € sur VWCE ≈ 15 € sur cette ligne).
-        { ticker: 'IBKR',    shares: 0.8906, price: 90.69,  costBasis: 71.18,  currency: 'USD', label: 'Interactive Brokers (IBKR)', sector: 'finance', geo: 'us', ytdOpen: 67.23, mtdOpen: 90.39, oneMonthAgo: 90.54 },
+        { ticker: 'IBKR',    shares: 0.8906, price: 75.82,  costBasis: 71.18,  currency: 'USD', label: 'Interactive Brokers (IBKR)', sector: 'finance', geo: 'us', ytdOpen: 67.23, mtdOpen: 90.39, oneMonthAgo: 90.54 },
+        // v594 — achats du 06/11/2026 (capture de l'app du 07/11). Cours de repli = clôtures Yahoo du
+        // 06/11 ; refs = clôtures Yahoo du 02/01, du 02/11 et du 07/10/2026 (achetés après : non utilisées).
+        { ticker: 'MWRD.PA', shares: 50,     price: 159.98, costBasis: 159.29, currency: 'EUR', label: 'Amundi Core MSCI World (MWRD)', sector: 'etf', geo: 'world', ytdOpen: 139.78, mtdOpen: 163.17, oneMonthAgo: 165.14 },
+        { ticker: 'SXR8.DE', shares: 10,     price: 719.16, costBasis: 716.88, currency: 'EUR', label: 'iShares Core S&P 500 (SXR8)', sector: 'etf', geo: 'us', ytdOpen: 624.74, mtdOpen: 735.36, oneMonthAgo: 750.62 },
       ],
       // ⚠ À METTRE À JOUR une fois le compte IBKR de Nezha connecté (connecteur ou relevé
       //   d'activité) : dates, prix d'exécution et commissions RÉELS de chaque trade, date et coût
@@ -1453,10 +1459,17 @@ export const PORTFOLIO = {
         // Le PRU IBKR inclut la commission, non ventilée par l'app. Sans effet sur le P&L MTD/1M/YTD
         // (achat postérieur au 1er sept. et au 19/08 dans les deux cas).
         { date: '2026-09-15', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 165.26, currency: 'EUR', cost: 8263, commission: 0, costBasis: 165.26, source: 'ibkr-app', note: 'PRU commission incluse ; date déduite' },
+        // v594 — date établie par l'app : sur ces deux lignes, le P&L du jour égale le P&L latent
+        // (achat dans la séance du 06/11). PRU = (valeur de marché affichée + perte latente) / quantité,
+        // commission incluse : MWRD (7 963 + 1,48) / 50, SXR8 (7 153 + 15,78) / 10. Contrôle par le cash :
+        // 7 944,68 + 8 000 − 812,02 = 15 132,66 décaissés, contre 15 133,30 ici (écart 0,64 €, arrondis
+        // de l'app). Prix d'exécution et commissions exacts à reprendre du relevé d'activité.
+        { date: '2026-11-06', ticker: 'MWRD.PA', label: 'Amundi Core MSCI World', type: 'buy', qty: 50, price: 159.29, currency: 'EUR', cost: 7964.5, commission: 0, costBasis: 159.29, source: 'ibkr-app', note: 'PRU commission incluse' },
+        { date: '2026-11-06', ticker: 'SXR8.DE', label: 'iShares Core S&P 500', type: 'buy', qty: 10, price: 716.88, currency: 'EUR', cost: 7168.8, commission: 0, costBasis: 716.88, source: 'ibkr-app', note: 'PRU commission incluse' },
       ],
-      cashEUR: 7944.68,   // 16 379 (valeur nette) − 8 434,32 (valeur de marché des titres) ; l'app affiche « EUR Cash 7.94K »
+      cashEUR: 812.02,    // v594 — « EUR Cash 812.02 » (app, 07/11/2026). Avant : 7 944,68 (19/09, valeur nette − titres)
       cashUSD: 0,
-      _lastUpdate: '2026-09-19',
+      _lastUpdate: '2026-11-07',
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
     // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
@@ -1692,6 +1705,8 @@ export const PORTFOLIO = {
       'IBIT':     66.37,     // iShares Bitcoin (USD)
       'ETHA':     85.44,     // iShares Ethereum (USD) — v561 : 28,48 × 3, unités d'après le regroupement 1:3 du 06/10/2026
       'VWCE.DE':  139.04,    // Vanguard FTSE All-World (EUR) — clôture Yahoo 19/09/2025 (acheté 01/09/2026 : non utilisée)
+      'MWRD.PA':  131.50,    // Amundi Core MSCI World (EUR) — clôture Yahoo 30/07/2025 (acheté 06/11/2026 : non utilisée)
+      'SXR8.DE':  592.76,    // iShares Core S&P 500 (EUR) — clôture Yahoo 30/07/2025 (acheté 06/11/2026 : non utilisée)
       'ACN':      274.0,    // Accenture (USD) — même que acnOneYearAgo
       // Positions fermées depuis (prix au 16 juil 2025 ; sharesAtStart=0 si achetées après)
       'QQQM':     233.8,    // Invesco Nasdaq 100 (USD) — acheté avr 2025, vendu fév 2026
@@ -1751,8 +1766,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '09/10/2026';
-export const APP_VERSION = 'v593';
+export const DATA_LAST_UPDATE = '07/11/2026';
+export const APP_VERSION = 'v594';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3297,6 +3312,11 @@ export const RELEVES_QUOTIDIENS = {
     soldes: { '2026-10-31': 30000 } },
   // Avant le 26/08, Nezha n'a aucun espace Wio à son nom dans ce relevé : ses 18 385 AED de juillet
   // vivaient ailleurs (compte personnel non couvert). On ne corrige donc qu'à partir du 26/08.
+  // v594 — Crédit Mutuel de Nezha : opérations lues dans l'app le 07/11/2026. En remontant depuis le
+  // solde du jour (1 004,19), la chaîne retombe au centime sur les 3 058,85 du 19/09.
+  credit_mutuel: { devise: 'EUR', proprietaire: 'N', du: '2026-09-19', au: '2026-11-07',
+    source: 'App Crédit Mutuel (07/11/2026) : frais de tenue 2,25 € (30/09, 31/10), échéance de prêt 987,68 + assurance 33,20 (06/10), échéance 987,62 + 41,66 (06/11)',
+    soldes: { '2026-09-19': 3058.85, '2026-09-30': 3056.60, '2026-10-06': 2035.72, '2026-10-31': 2033.47, '2026-11-06': 1004.19 } },
   wio_nezha: { devise: 'AED', proprietaire: 'N', du: '2026-08-26', au: '2026-10-09',
     source: 'Relevé annuel Wio (CSV) : espaces roses « Flouss nezha pas touchi/toucher », puis « Nezha money »',
     soldes: { '2026-08-26': 61000, '2026-09-19': 101000 } },
@@ -3719,6 +3739,8 @@ export const DIV_YIELDS = {
   'IBIT': 0,          // iShares Bitcoin — PAS de dividendes (ETF spot)
   'ETHA': 0,          // iShares Ethereum — PAS de dividendes (ETF spot)
   'VWCE.DE': 0,       // Vanguard FTSE All-World Acc — capitalisant, AUCUNE distribution
+  'MWRD.PA': 0,       // Amundi Core MSCI World Acc — capitalisant, AUCUNE distribution
+  'SXR8.DE': 0,       // iShares Core S&P 500 Acc — capitalisant, AUCUNE distribution
 };
 
 // ════════════════════════════════════════════════════════════
@@ -3786,6 +3808,8 @@ export const DIV_CALENDAR = {
   'IBIT':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
   'ETHA':    { dps: 0,     exDates: [], frequency: 'none', confirmed: true },
   'VWCE.DE': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
+  'MWRD.PA': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
+  'SXR8.DE': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
 };
 
 // ════════════════════════════════════════════════════════════
