@@ -32,7 +32,7 @@
 // No computation here. Only formatting and DOM manipulation.
 
 import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=598';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel } from './engine.js?v=598';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=598';
 
 // ---- Generic table sort utility ----
 /**
@@ -8787,7 +8787,7 @@ function renderAlertsPanel(state) {
   // v322 — severity mapping aligné sur DESIGN_TOKENS. Les couleurs border
   // utilisent les CSS vars (--danger/--warning/--success) ; les backgrounds
   // restent en rgba(hex, 0.08) pour une teinte douce de remplissage.
-  const sevOrder = ['red', 'yellow', 'green'];
+  const sevOrder = SEVERITES_ALERTE;   // v599 — liste du moteur : une sévérité inconnue y serait refusée en test
   const sevMeta = {
     red:    { bg: 'rgba(185,28,28,0.08)',  border: 'var(--danger)',  label: 'À traiter' },
     yellow: { bg: 'rgba(180,83,9,0.08)',   border: 'var(--warning)', label: 'À surveiller' },

@@ -7043,6 +7043,10 @@ export function computeCashFlow(state, portfolio, fx) {
 //   4. Taux d'endettement > 40% (CRD / NW) → warning
 //   5. Emergency fund < 3 mois → risque liquidité
 //   6. Position IBKR ≥ +30% P&L → rebalancing opportunity
+// The only severities the alert renderer knows (render.js imports this list). Any other value is
+// silently dropped on screen — tests/creances-sap.test.js checks every alert against it.
+export const SEVERITES_ALERTE = ['red', 'yellow', 'green'];
+
 export function computeAlerts(state) {
   const alerts = [];
   const today = new Date();
@@ -7094,8 +7098,10 @@ export function computeAlerts(state) {
       // Past that date with no recorded payment, it is flagged — the asset stays in the NW.
       if (c.contractuel) {
         if (c.status !== 'recouvré' && c.expectedPaymentDate && new Date(c.expectedPaymentDate + 'T00:00:00') < new Date()) {
+          // v599 — was 'orange', which the renderer (red/yellow/green only) dropped in silence: the
+          // alert for an overdue SAP invoice never showed. Same trap as the v524 'amber'.
           alerts.push({
-            severity: 'orange', owner: c.owner || 'Amine',
+            severity: 'yellow', owner: c.owner || 'Amine',
             title: 'Encaissement attendu non constaté : ' + (c.label || c.id),
             msg: 'Paiement attendu vers le ' + c.expectedPaymentDate.split('-').reverse().join('/')
               + ', aucun crédit enregistré. La facture reste comptée au patrimoine jusqu’au paiement constaté.',

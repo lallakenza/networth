@@ -67,7 +67,12 @@ const TOTAL_PRO_ATTENDU = 11830;
     P2.amine.creances.items.push({ id: 'INVSNT099', amount: 1000, currency: 'EUR', type: 'pro', probability: 1, status: 'en_cours', dueDate: '2020-01-01', payments: [] });
     const s2 = compute(P2, { ...D.FX_STATIC }, 'static');
     if (Math.abs(s2.amine.recvPro - s.amine.recvPro - 1000) > 0.01) echecs.push('facture échue retirée du patrimoine sans paiement');
-    if (!computeAlerts(s2).some(a => (a.title || '').includes('INVSNT099') && a.severity === 'orange')) echecs.push('pas d\'alerte « encaissement attendu non constaté » après la date attendue');
+    // v599 — la sévérité doit être l'une de celles que le rendu affiche : 'orange' était filtrée en silence.
+    const alertes2 = computeAlerts(s2);
+    if (!alertes2.some(a => (a.title || '').includes('INVSNT099') && a.severity === 'yellow')) echecs.push('pas d\'alerte « encaissement attendu non constaté » (jaune) après la date attendue');
+    const { SEVERITES_ALERTE } = await import('file://' + path.join(TMP, 'engine.js'));
+    const invisibles = alertes2.filter(a => !SEVERITES_ALERTE.includes(a.severity));
+    if (invisibles.length) echecs.push('alertes au rendu impossible : ' + invisibles.map(a => a.severity + ' « ' + a.title + ' »').join(', '));
     // Paiement partiel : seul le reste dû est compté.
     const P3 = JSON.parse(JSON.stringify(P2));
     P3.amine.creances.items.at(-1).payments = [{ amount: 400, date: '2020-02-01', currency: 'EUR' }];
