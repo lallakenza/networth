@@ -2587,3 +2587,36 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
   - les valeurs radiées (`DEGIRO_STATIC_PRICES[].delisted`) passent avant tout cours live ;
   - produit nul affiché « n/c ».
 - **Test** : `tests/insights-actions.test.js`.
+
+## BUG-127 : audit du 07/11/2026 (v595/v596) — cash IBKR, épargne, cash-flow, loyers, provenance, historique
+
+- **Version** : corrigé en v599 (08/11/2026). **Sévérité** : moyenne (aucun écart de patrimoine, mais
+  plusieurs chiffres contradictoires ou mal nommés à l'écran). **Détection** : audit indépendant du
+  07/11/2026 sur v595, rejoué sur v596.
+- **Symptômes et causes** :
+  - vue Cash : IBKR EUR/USD débiteurs à 0 % sans coût (seul le JPY en portait un) — ~1 088 €/an absents ;
+    `ibkrEffectiveYield()` renvoie 0 pour tout solde sous le seuil, négatifs compris ;
+  - manque à gagner : 2 745 €/an dans les barres contre 4 184 €/an au diagnostic — `cashFrameMetrics()`
+    appliquait 6 % aux soldes débiteurs ;
+  - « taux d'épargne » : 1 % (fraction 0,746 arrondie sans ×100), 39,4 % et 74,6 % sous le même nom ;
+  - `computeCashFlow()` ignorait les biens conditionnels : assurance Villejuif (51,29 €/mois) absente ;
+  - loyer de Dubaï au budget : 150 000 AED/an estimés contre 145 000 au nouveau bail ;
+  - 6 000 € virés à IBKR comptés sans distinction du solde observé ;
+  - soldes présentés « arrêtés au » 07/11 alors qu'ils datent du 12/07 au 08/11 selon le compte ;
+  - Historique : heure, source et version des relevés invisibles ; textes « Supabase » et « à chaque visite » ;
+  - alerte SAP « encaissement non constaté » en sévérité `orange`, filtrée par le rendu (red/yellow/green),
+    et validée telle quelle par le test.
+- **Correctifs** : financement par `coutMargeIBKR()` (estimation annualisée, publiée à part :
+  `cashView.financement`, `resultatCash`) ; potentiel calculé une fois sur les soldes positifs ;
+  `epargneDeclaree`/`tauxEpargneDeclaree` et `surplusStructurel`/`tauxSurplusStructurel` + `fmtTaux` ;
+  `cfReel` pour un bien non livré ; `PORTFOLIO.amine.logementEAU` (loyer, paiement du 06/11 en deux
+  virements Wio, frais d'agence TTC, dépôt = CREP11) ; `ibkr.cashEURObserve` + `creditsAnticipes` ;
+  `PORTFOLIO.provenanceSoldes` + `provenanceSolde()`/`couvertureSoldes()` ; `meta.capture` du cron et
+  `expliquerVariation()` ; `SEVERITES_ALERTE` partagée. Identifiants de comptes et de dossiers retirés
+  des commentaires du dépôt public.
+- **Tests de non-régression** : `tests/cash-financement.test.js`, `tests/budget-epargne.test.js`,
+  `tests/provenance-soldes.test.js`, `tests/historique-variation.test.js`, `tests/creances-sap.test.js`
+  (sévérité affichable), `tests/confidentialite.test.js` (nouveaux motifs).
+- **Non traité** : le loyer de Vitry déclaré (1 200 €/mois, non imposable) contredit le bail modélisé
+  (600 € HC + 100 €) — en attente d'une précision du propriétaire, et non publiable en l'état dans le
+  dépôt public s'il dépasse le bail.
