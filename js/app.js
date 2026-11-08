@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=599';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=600';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=599';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=599';
-import { render, applySnapshotDeltas } from './render.js?v=599';
-import { chargerContratDistant } from './facturation_contract.js?v=599';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef, fetchBenchmarks, benchmarksDepuisHistorique, fusionnerBenchmarks } from './api.js?v=599';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=599';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=599';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=599';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=600';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=600';
+import { render, applySnapshotDeltas } from './render.js?v=600';
+import { chargerContratDistant } from './facturation_contract.js?v=600';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef, fetchBenchmarks, benchmarksDepuisHistorique, fusionnerBenchmarks } from './api.js?v=600';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=600';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=600';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=600';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -567,9 +567,14 @@ window.coupleChartZoomOut = coupleChartZoomOut;
 // ---- Dynamic date badge ----
 (function() {
   var d = new Date();
-  var label = 'Donnees au ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  // v599 — this date is TODAY's (prices and FX). Bank balances are not « as of » it: each one has its
+  // own observation date (cash detail, PORTFOLIO.provenanceSoldes). The label and tooltip say so.
+  var label = 'Cours au ' + d.getDate() + ' ' + d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   var badge = document.getElementById('dateBadge');
-  if (badge) badge.textContent = label;
+  if (badge) {
+    badge.textContent = label;
+    badge.title = 'Cours et taux de change du jour. Les soldes bancaires ont chacun leur date d\'observation (détail de la vue Cash) ; mise à jour des données du site : ' + DATA_LAST_UPDATE + '.';
+  }
   var vBadge = document.getElementById('versionBadge');
   if (vBadge) vBadge.textContent = APP_VERSION;
 })();
@@ -707,18 +712,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=599');
+  const auth = await import('./auth.js?v=600');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=599');
+  const auth = await import('./auth.js?v=600');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=599');
+  const auth = await import('./auth.js?v=600');
   auth.deconnecter();
   oublierAppareil();
 };

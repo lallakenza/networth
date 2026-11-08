@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=599';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=599';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=600';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=600';
 
 // ---- Generic table sort utility ----
 /**
@@ -4261,7 +4261,7 @@ function renderCashView(state) {
             yieldAnnStr = a.yield > 0 ? fmt(a.valEUR * a.yield) : '-';
             ownerYieldAnn += a.valEUR * (a.yield || 0);
           }
-          const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : (isDebt ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-');
+          const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-';   // v599 — plus de « -€ 0 » sur la ligne de marge JPY
           ownerMissed += a.missed;
           const tr = document.createElement('tr');
           tr.style.borderLeft = '3px solid ' + borderColor;
@@ -4322,7 +4322,7 @@ function renderCashView(state) {
           yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(1) + '%' : '0%';
           yieldAnnStr = a.yield > 0 ? fmt(a.yieldAnn) : '-';
         }
-        const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : (isDebt ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-');
+        const missedStr = a.missed > 10 ? '<span class="pl-neg">-' + fmt(a.missed) + '</span>' : '-';   // v599 — plus de « -€ 0 » sur la ligne de marge JPY
         grandTotalYieldAnn += a.yieldAnn;
         grandTotalMissed += a.missed;
         const tr = document.createElement('tr');
@@ -8340,7 +8340,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=599').then(m => {
+  import('./charts.js?v=600').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
