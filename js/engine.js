@@ -1954,6 +1954,12 @@ function computeCashView(portfolio, fx) {
     { label: 'Wio UAE (Nezha)', native: p.nezha.cash.wioAED, currency: 'AED', yield: CASH_YIELDS.nezhaWioAED, owner: 'Nezha' },
   ];
 
+  // v599 — provenance per account (observation date, source, status). Data-driven overrides:
+  // a reconstructed balance (iBanq + credits not yet on a statement) and an anticipated one
+  // (IBKR credit sent, not yet read) keep their OBSERVED date and say what was added on top.
+  accounts.forEach(a => { a.provenance = provenanceSolde(p, a); });
+  const couverture = couvertureSoldes(accounts);
+
   let totalCash = 0, totalYielding = 0, totalNonYielding = 0;
   let weightedYieldSum = 0;
   const byCurrency = {};
@@ -2271,6 +2277,7 @@ function computeCashView(portfolio, fx) {
     diagnostics,
     byOwner,
     coupleFrame,
+    couverture,
     financement,
     resultatCash,
     seuilsConfondus,
@@ -4106,6 +4113,31 @@ function computeCashNonProductif(portfolio, fx, cashView, facturationNet) {
   }
   return { ...bilan(null), byOwner: { Amine: bilan('Amine'), Nezha: bilan('Nezha') } };
 }
+// v599 — where a balance comes from. Registry PORTFOLIO.provenanceSoldes, keyed by the stable
+// account id; the status is forced by the data when the balance is reconstructed or anticipated.
+export function provenanceSolde(p, a) {
+  const id = CASH_ACCOUNT_IDS[a.label] || null;
+  const reg = (p.provenanceSoldes || {})[id] || null;
+  const base = { id, le: reg ? reg.le : null, source: reg ? reg.source : null, statut: reg ? reg.statut : 'observé', nonDate: !reg || !reg.le };
+  if (a.reconstruit) return { ...base, statut: 'reconstitué', le: a.soldeObserveLe || base.le, nonDate: !(a.soldeObserveLe || base.le) };
+  if (a.anticipe) return { ...base, statut: 'anticipé', le: a.soldeObserveLe || base.le, nonDate: !(a.soldeObserveLe || base.le) };
+  return base;
+}
+// Coverage of the balances shown: oldest and newest observation dates, undated accounts, and the
+// count per status. Replaces a single « balances as of <site update> » date.
+export function couvertureSoldes(accounts) {
+  const vus = accounts.filter(a => a.provenance && Math.abs(a.native || 0) >= 0.005);
+  const dates = vus.map(a => a.provenance.le).filter(Boolean).sort();
+  const parStatut = {};
+  vus.forEach(a => { parStatut[a.provenance.statut] = (parStatut[a.provenance.statut] || 0) + 1; });
+  return {
+    du: dates[0] || null, au: dates[dates.length - 1] || null,
+    nonDates: vus.filter(a => !a.provenance.le).map(a => a.label),
+    plusAnciens: vus.filter(a => a.provenance.le && a.provenance.le === dates[0]).map(a => a.label),
+    parStatut,
+  };
+}
+
 // v599 — IBKR credits sent but not yet on the statement (e.g. a weekend transfer). The balance used
 // everywhere (cashEUR/cashUSD) is the ANTICIPATED one; this exposes the observed balance and the
 // pending credits so the screen can tell them apart. Empty object when nothing is pending.

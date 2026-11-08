@@ -1711,6 +1711,45 @@ export const PORTFOLIO = {
     },
   },
 
+  // ══════════════════════════════════════════════════════════
+  // v599 — PROVENANCE DES SOLDES, compte par compte
+  // ══════════════════════════════════════════════════════════
+  // Chaque solde a sa propre date d'observation : la date de mise à jour du site (DATA_LAST_UPDATE)
+  // n'est PAS celle des comptes. Clé = id stable du compte (CASH_ACCOUNT_IDS, engine.js).
+  //   le      date de la lecture (AAAA-MM-JJ) ; null = non datée
+  //   source  d'où vient le chiffre : connecteur, capture d'app, relevé, déclaration
+  //   statut  'observé' | 'reconstitué' | 'anticipé'  — le moteur force 'reconstitué' (iBanq) et
+  //           'anticipé' (crédit IBKR envoyé) d'après les données, quelle que soit cette valeur.
+  // À METTRE À JOUR en même temps que le solde. Les comptes absents sont signalés « non datés ».
+  provenanceSoldes: {
+    mashreq:          { le: '2026-11-01', source: 'lecture en ligne (épargne + courant)', statut: 'observé' },
+    wio_savings:      { le: '2026-11-07', source: 'capture de l\'app Wio', statut: 'observé' },
+    wio_current:      { le: '2026-11-07', source: 'capture de l\'app Wio', statut: 'observé' },
+    wio_business:     { le: '2026-09-19', source: 'capture de l\'app Wio Business', statut: 'observé' },
+    wio_credit:       { le: '2026-10-07', source: 'remboursement intégral (e-mail Wio) ; dernier relevé : septembre', statut: 'observé' },
+    ibanq_bairok:     { le: '2026-10-31', source: 'capture du site iBanq', statut: 'observé' },
+    wise_bridgevale:  { le: '2026-09-19', source: 'déclaration d\'Amine', statut: 'observé' },
+    revolut_amine:    { le: '2026-11-07', source: 'déclaration d\'Amine', statut: 'observé' },
+    banque_populaire: { le: '2026-09-19', source: 'déclaration d\'Amine', statut: 'observé' },
+    binance:          { le: '2026-10-31', source: 'portefeuille Binance', statut: 'observé' },
+    attijari_amine:   { le: '2026-10-31', source: 'relevé Attijarinet', statut: 'observé' },
+    nabd:             { le: '2026-07-12', source: 'relevé de l\'app', statut: 'observé' },
+    cih:              { le: '2026-11-01', source: 'confirmation d\'Amine (capture du 28/08 + ventes P2P)', statut: 'observé' },
+    ibkr_cash_eur:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_usd:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_jpy:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_aed:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
+    espp_cash_amine:  { le: '2026-10-18', source: 'virement Wise → IBKR (e-mail IBKR) : compte UBS vidé', statut: 'observé' },
+    espp_cash_nezha:  { le: null, source: 'relevé UBS (date non tracée)', statut: 'observé' },
+    revolut_nezha:    { le: '2026-11-07', source: 'capture de l\'app Revolut', statut: 'observé' },
+    credit_mutuel:    { le: '2026-11-07', source: 'capture de l\'app Crédit Mutuel', statut: 'observé' },
+    livret_a:         { le: '2026-11-07', source: 'déclaration d\'Amine', statut: 'observé' },
+    lcl_compte:       { le: '2026-11-07', source: 'déclaration d\'Amine', statut: 'observé' },
+    ibkr_nezha:       { le: '2026-11-07', source: 'capture de l\'app IBKR', statut: 'observé' },
+    attijari_nezha:   { le: '2026-11-07', source: 'capture de l\'app Attijari', statut: 'observé' },
+    wio_nezha:        { le: '2026-11-07', source: 'capture de l\'app Wio', statut: 'observé' },
+  },
+
   // ════════════════════════════════════════════════════════
   // PRIX DE MARCHÉ (mis à jour automatiquement par API)
   // ════════════════════════════════════════════════════════

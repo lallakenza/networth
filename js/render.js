@@ -915,8 +915,9 @@ function renderDynamicInsights(state, view) {
       // L'horodatage visible sur la page est celui du rafraîchissement des devises et des cours.
       // Les soldes bancaires, eux, sont saisis à la main : les présenter sous la même fraîcheur
       // laissait croire qu'ils venaient d'être relevés.
-      '- <span style="color:var(--gray)">Soldes bancaires saisis manuellement, arr\u00eat\u00e9s au '
-      + (state._dataLastUpdate || '?') + '. Seuls les taux de change sont rafra\u00eechis en continu.</span><br>' +
+      // v599 — chaque compte a sa date : on annonce la PLAGE des observations, les plus anciennes et
+      // les statuts, au lieu de tout présenter comme arrêté à la date de mise à jour du site.
+      '- <span style="color:var(--gray)">' + _texteCouverture(cv.couverture, state._dataLastUpdate) + '</span><br>' +
       '- <span style="color:var(--green)">' + K(totalCash) + ' de cash total, rendement moyen pond\u00e9r\u00e9 ' + avgYld + '%.</span><br>' +
       // Le manque à gagner vient du moteur (`gapToPotential`), qui est aussi ce qu'affichent la vue
       // Cash et son graphe. Cet insight le recalculait autrement (non rémunéré × taux de
@@ -1219,6 +1220,31 @@ function libelleCreancesPro(s) {
 // v599 — one format for every rate stored as a FRACTION (0,394 → « 39.4% »).
 function fmtTaux(fraction) {
   return (typeof fraction === 'number' && isFinite(fraction) ? (fraction * 100).toFixed(1) : '—') + '%';
+}
+
+const _dateFR = (iso) => (iso ? iso.split('-').reverse().join('/') : '?');
+
+function _texteCouverture(c, majSite) {
+  if (!c || !c.au) return 'Soldes saisis manuellement ; dates d\'observation non renseign\u00e9es. Mise \u00e0 jour du site : ' + (majSite || '?') + '.';
+  const st = c.parStatut || {};
+  const extras = [];
+  if (st['reconstitu\u00e9']) extras.push(st['reconstitu\u00e9'] + ' reconstitu\u00e9' + (st['reconstitu\u00e9'] > 1 ? 's' : ''));
+  if (st['anticip\u00e9']) extras.push(st['anticip\u00e9'] + ' avec cr\u00e9dit anticip\u00e9');
+  if ((c.nonDates || []).length) extras.push(c.nonDates.length + ' non dat\u00e9' + (c.nonDates.length > 1 ? 's' : '') + ' (' + c.nonDates.join(', ') + ')');
+  return 'Soldes observ\u00e9s compte par compte, du ' + _dateFR(c.du) + ' (' + (c.plusAnciens || []).join(', ') + ') au ' + _dateFR(c.au)
+    + (extras.length ? ' \u2014 ' + extras.join(', ') : '') + '. Date de chaque solde dans le d\u00e9tail par compte. Mise \u00e0 jour du site : '
+    + (majSite || '?') + ' ; seuls les taux de change et les cours sont rafra\u00eechis en continu.';
+}
+
+// v599 — date d'observation et source sous chaque compte du détail Cash.
+function _mentionProvenance(a) {
+  const pv = a && a.provenance;
+  if (!pv || pv.statut !== 'observ\u00e9') return '';   // reconstitué / anticipé : _mentionReconstruit le dit déjà
+  if (!pv.le) return ' <span style="font-size:10px;color:#b45309;" title="' + (pv.source || '') + '">(non dat\u00e9)</span>';
+  const ageJ = Math.floor((Date.now() - new Date(pv.le + 'T00:00:00').getTime()) / 86400000);
+  const vieux = ageJ > 30;
+  return ' <span style="font-size:10px;color:' + (vieux ? '#b45309' : '#718096') + ';" title="Observ\u00e9 \u2014 ' + (pv.source || 'source non renseign\u00e9e') + '">'
+    + 'lu le ' + _dateFR(pv.le) + (vieux ? ' (' + ageJ + ' j)' : '') + '</span>';
 }
 
 function _margeLe() {
@@ -4241,7 +4267,7 @@ function renderCashView(state) {
           tr.style.borderLeft = '3px solid ' + borderColor;
           if (acctIndex % 2 === 1) tr.style.background = '#fafaf9';
           if (isNeg) tr.style.background = '#fff5f5';
-          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + '</td>'
+          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + _mentionProvenance(a) + '</td>'
             + '<td>' + a.owner + '</td>'
             + '<td>' + a.currency + '</td>'
             + '<td class="num"' + cls + '>' + nativeStr + '</td>'
@@ -4302,7 +4328,7 @@ function renderCashView(state) {
         const tr = document.createElement('tr');
         tr.style.borderLeft = '3px solid ' + ownerColor;
         if (isNeg) tr.style.background = '#fff5f5';
-        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + '</td>'
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + _mentionProvenance(a) + '</td>'
           + '<td>' + a.owner + '</td>'
           + '<td>' + a.currency + '</td>'
           + '<td class="num"' + cls + '>' + nativeStr + '</td>'
