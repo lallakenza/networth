@@ -1512,7 +1512,7 @@ export const PORTFOLIO = {
       _lastUpdate: '2026-11-07',
     },
     sgtm: { shares: 32 },   // SGTM Bourse Casablanca
-    // ── ESPP Nezha — UBS Account W3 F0329 11 (relevé juin 2025) ──
+    // ── ESPP Nezha — UBS (relevé juin 2025) ──
     // Source : relevé UBS "Investment Account June 2025" — 6 pages
     //
     // STRUCTURE DU COMPTE UBS:
@@ -2155,7 +2155,6 @@ export const IMMO_CONSTANTS = {
     vitryInsurance: 17.48,     // assurance APRIL globale : 209.76€/an = 17.48€/mois
     vitryLoans: [
       // ── PRÊT 1 : Action Logement ──
-      // Dossier : ALSXACC-22047897
       // Source : tableau d'amortissement Action Logement Services, Paris, 4 janvier 2023
       // Versement notaire (promoteur)
       // Échéance constante 145.20€ (1ère: 156.53€ intérêts longs), assurance 3.33€/mois intégrée
@@ -2173,9 +2172,8 @@ export const IMMO_CONSTANTS = {
         iraExempt: true,       // Action Logement loans are exempt from IRA
       },
       // ── PRÊT 2 : PTZ (Prêt à Taux Zéro) ──
-      // Dossier : 08867339 — Banque Populaire Rives de Paris, agence Diderot
-      // Compte : 23193675521
-      // Source : tableau d'amortissement édité le 10/11/2023 par GODEAU
+      // Banque Populaire Rives de Paris (numéros de dossier et de compte retirés du dépôt public, v599)
+      // Source : tableau d'amortissement édité le 10/11/2023
       // Catégorie : PRET A TAUX ZERO (768 ZZ)
       // Date réalisation : 06/04/2023, déblocage initial 5 000€
       // Structure : 60 mois de différé total, puis 180 mois d'amortissement constant
@@ -2195,9 +2193,7 @@ export const IMMO_CONSTANTS = {
         iraExempt: true,       // PTZ loans are exempt from IRA
       },
       // ── PRÊT 3 : Banque Populaire Riv'immo ──
-      // Dossier : 08867340 — Banque Populaire Rives de Paris, agence Diderot
-      // Compte : 23193675521 (même compte que PTZ)
-      // Conseillère : Nafissa BATTERY
+      // Banque Populaire Rives de Paris (numéro de dossier retiré du dépôt public, v599)
       // Source : tableau d'amortissement édité le 24/07/2025
       // Catégorie : PRET IMMOBILIER (840 ZZ)
       // Date réalisation : 10/11/2023, déblocage initial 1 250€
@@ -2405,7 +2401,7 @@ export const IMMO_CONSTANTS = {
       // C'est la vraie raison des recherches ADEME/DVF infructueuses : la voie est récente
       //   (ZAC Gare des Ardoines) et le bâti n'y est pas encore référencé. Chercher plutôt
       //   cette rue voisine, tous en B, sont d'ailleurs ceux du même programme.
-      syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte copropriétaire CP1710061',
+      syndic: 'LAMY Nogent-sur-Marne (Evoriel)',
       copropriete: 'Copropriété de la résidence (syndic LAMY)',
       surface: 67.14,           // m²
       purchasePrice: 275000,    // prix d'achat TTC (VEFA)
@@ -3013,7 +3009,7 @@ export const IMMO_PASSIFS_DOCUMENTES = {
   vitryCopro: {
     bien: 'vitry',
     nature: 'Impayé de charges courantes',
-    syndic: 'LAMY Nogent-sur-Marne (Evoriel) — compte CP1710061',
+    syndic: 'LAMY Nogent-sur-Marne (Evoriel)',
     montant: 716.10,
     date: '2025-12-01',
     // Colonne VERSEMENTS à 0,00 € depuis le 01/08/2025 — cinq appels mensuels non réglés,

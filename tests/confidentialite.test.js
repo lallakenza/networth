@@ -24,6 +24,12 @@ const INTERDITS = [
   ['identifiant de local fiscal', new RegExp('Local n° ' + '\\d{6,}')],
   // v599 — numéro de certificat Ejari (bail à Dubaï) : 16 chiffres commençant par 0120 / 0220.
   ['numéro de bail Ejari', new RegExp('\\b0[12]20' + '\\d{12}\\b')],
+  // v599 — identifiants de comptes et de dossiers retrouvés en commentaire : compte titres UBS,
+  // compte copropriétaire, numéro de dossier de prêt à 8 chiffres cité avec « Dossier ».
+  ['identifiant de compte titres', new RegExp('UBS ' + 'Account [A-Z0-9]', 'i')],
+  ['compte copropriétaire', new RegExp('\\bCP' + '\\d{6,}\\b')],
+  ['numéro de dossier de prêt', new RegExp('Dossier ?: ?' + '[A-Z0-9-]{6,}')],
+  ['numéro de compte bancaire', new RegExp('Compte ?: ?' + '\\d{6,}')],
 ];
 const HERITES = ['dashboard.html', 'portfolio_analysis.html', 'portfolio_analysis_v2.html', 'portfolio_analysis_v3.html',
   'portfolio_analysis_v4.html', 'AUDIT_REPORT.md', 'AUDIT_SUMMARY.txt', 'transaction_history.csv', 'FINANCIAL_DATA_EXTRACTION.md'];
