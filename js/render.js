@@ -1216,6 +1216,11 @@ function libelleCreancesPro(s) {
 }
 
 // v589 — un solde de compte reconstruit (relevé observé + crédits constatés depuis) le dit, avec sa date.
+function _margeLe() {
+  const le = IBKR_CONFIG && IBKR_CONFIG.margeVerifieeLe;
+  return le ? le.split('-').reverse().join('/') : '?';
+}
+
 function _mentionReconstruit(a) {
   if (!a || !a.reconstruit) return '';
   const le = a.soldeObserveLe ? a.soldeObserveLe.split('-').reverse().join('/') : '?';
@@ -4168,11 +4173,12 @@ function renderCashView(state) {
     const cashData = cv.accounts.map(a => {
       const isDebt = a.isDebt;
       let yieldAnnVal, missed;
-      if (isDebt) {
-        // Le coût d'emprunt JPY est un COÛT, pas un manque à gagner : le compter dans cette
+      if (isDebt || a.financement) {
+        // Le coût d'emprunt est un COÛT, pas un manque à gagner : le compter dans cette
         // colonne l'ajoutait au total et faisait diverger le tableau du graphe et du diagnostic
         // (196 € d'écart). Il reste visible dans la colonne « rendement annuel », en négatif.
-        const costAnn = Math.abs(a.valEUR) * Math.abs(a.yield || 0);
+        // v599 — même traitement pour les soldes débiteurs IBKR EUR/USD (affichés à 0 % avant).
+        const costAnn = a.financement ? a.financement.coutAnnuelEUR : Math.abs(a.valEUR) * Math.abs(a.yield || 0);
         yieldAnnVal = -costAnn;
         missed = 0;
       } else {
@@ -4206,11 +4212,11 @@ function renderCashView(state) {
           const cls = isNeg ? ' class="pl-neg"' : '';
           const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
           let yieldStr, yieldAnnStr;
-          if (isDebt) {
-            const costRate = Math.abs(a.yield || 0);
-            const costAnn = Math.abs(a.valEUR) * costRate;
-            yieldStr = '<span class="pl-neg">-' + (costRate * 100).toFixed(1) + '%</span>';
-            yieldAnnStr = '<span class="pl-neg">-' + fmt(costAnn) + '</span>';
+          if (isDebt || a.financement) {
+            const costRate = a.financement ? a.financement.tauxEffectif : Math.abs(a.yield || 0);
+            const costAnn = -a.yieldAnn;
+            yieldStr = '<span class="pl-neg" title="Taux de marge IBKR effectif (barème du ' + _margeLe() + ')">-' + (costRate * 100).toFixed(1) + '%</span>';
+            yieldAnnStr = '<span class="pl-neg" title="Estimation annualisée au solde du jour, pas un intérêt facturé">-' + fmt(costAnn) + '</span>';
             ownerYieldAnn -= costAnn;
           } else {
             yieldStr = a.yield > 0 ? (a.yield * 100).toFixed(1) + '%' : '0%';
@@ -4223,7 +4229,7 @@ function renderCashView(state) {
           tr.style.borderLeft = '3px solid ' + borderColor;
           if (acctIndex % 2 === 1) tr.style.background = '#fafaf9';
           if (isNeg) tr.style.background = '#fff5f5';
-          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + _mentionReconstruit(a) + '</td>'
+          tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + '</td>'
             + '<td>' + a.owner + '</td>'
             + '<td>' + a.currency + '</td>'
             + '<td class="num"' + cls + '>' + nativeStr + '</td>'
@@ -4252,7 +4258,7 @@ function renderCashView(state) {
       // La carte du haut donne le rendement BRUT (4,3 %) ; cette ligne inclut le coût de
       // l'emprunt JPY et donne donc le rendement NET (4,2 %). Les deux sont justes ; rien
       // ne les distinguait, et l'écart de 0,1 point paraissait être une erreur.
-      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coût de l\'emprunt JPY</span></td>'
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coûts de financement IBKR (estimation annualisée)</span></td>'
         + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
         + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
         + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
@@ -4270,8 +4276,8 @@ function renderCashView(state) {
         const nativeStr = Math.round(a.native).toLocaleString('fr-FR');
         const ownerColor = a.owner === 'Amine' ? 'var(--accent)' : 'var(--gold)';
         let yieldStr, yieldAnnStr;
-        if (isDebt) {
-          const costRate = Math.abs(a.yield || 0);
+        if (isDebt || a.financement) {
+          const costRate = a.financement ? a.financement.tauxEffectif : Math.abs(a.yield || 0);
           yieldStr = '<span class="pl-neg">-' + (costRate * 100).toFixed(1) + '%</span>';
           yieldAnnStr = '<span class="pl-neg">-' + fmt(Math.abs(a.yieldAnn)) + '</span>';
         } else {
@@ -4284,7 +4290,7 @@ function renderCashView(state) {
         const tr = document.createElement('tr');
         tr.style.borderLeft = '3px solid ' + ownerColor;
         if (isNeg) tr.style.background = '#fff5f5';
-        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : '') + _mentionReconstruit(a) + '</td>'
+        tr.innerHTML = '<td style="padding-left:20px;">' + a.label + (isDebt ? ' <span style="font-size:10px;color:#e53e3e;">(emprunt)</span>' : (a.financement ? ' <span style="font-size:10px;color:#e53e3e;">(solde débiteur)</span>' : '')) + _mentionReconstruit(a) + '</td>'
           + '<td>' + a.owner + '</td>'
           + '<td>' + a.currency + '</td>'
           + '<td class="num"' + cls + '>' + nativeStr + '</td>'
@@ -4300,7 +4306,7 @@ function renderCashView(state) {
       // La carte du haut donne le rendement BRUT (4,3 %) ; cette ligne inclut le coût de
       // l'emprunt JPY et donne donc le rendement NET (4,2 %). Les deux sont justes ; rien
       // ne les distinguait, et l'écart de 0,1 point paraissait être une erreur.
-      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coût de l\'emprunt JPY</span></td>'
+      tr.innerHTML = '<td colspan="4"><strong>Total Couple</strong> <span style="font-weight:400;color:#718096;">net après coûts de financement IBKR (estimation annualisée)</span></td>'
         + '<td class="num"><strong>' + fmt(cv.totalCash) + '</strong></td>'
         + '<td class="num"><strong>' + grandAvgYield + '%</strong></td>'
         + '<td class="num"><strong>' + fmt(grandTotalYieldAnn) + '</strong></td>'
@@ -4610,7 +4616,11 @@ function renderCashView(state) {
         title = '\uD83D\uDCCA Bilan : ' + d.dormantPct.toFixed(0) + '% du cash est dormant \u2014 manque \u00e0 gagner ' + fmt(d.totalMissedAnn) + '/an';
         detail = 'Rendement moyen actuel : ' + (d.avgYield * 100).toFixed(1) + '% vs ' + (d.targetYield * 100).toFixed(0) + '% atteignable. '
           + fmt(d.dormantEUR) + ' de cash rapporte moins de 3%. '
-          + 'Co\u00fbt emprunt JPY : ' + fmt(d.jpyCostAnn) + '/an en plus.';
+          + (d.resultatCash
+            ? 'Intérêts reçus ' + fmt(d.resultatCash.interetsRecusEUR) + '/an · coûts de financement IBKR (EUR, USD, JPY) −'
+              + fmt(d.resultatCash.coutFinancementEUR) + '/an · résultat net ' + fmt(d.resultatCash.netEUR)
+              + '/an — estimations annualisées aux soldes et barèmes du jour. Le manque à gagner ne porte que sur les soldes positifs : un solde débiteur n\'est pas une somme à placer.'
+            : 'Co\u00fbt emprunt JPY : ' + fmt(d.jpyCostAnn) + '/an en plus.');
       }
 
       // ── Comptes dormants par propriétaire (générique) ──

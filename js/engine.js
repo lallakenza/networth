@@ -1921,11 +1921,16 @@ function computeCashView(portfolio, fx) {
     { label: 'Nabd (ex-SOGE)', native: p.amine.maroc.nabd, currency: 'MAD', yield: CASH_YIELDS.nabd, owner: 'Amine' },
     { label: 'CIH Bank', native: p.amine.maroc.cih || 0, currency: 'MAD', yield: CASH_YIELDS.cih || 0, owner: 'Amine' }, // v353 — nouveau compte
     // IBKR: premiers 10K€/10K$ à 0%, le reste au taux IBKR Pro
+    // v599 — a NEGATIVE EUR/USD balance earns nothing AND is charged margin interest. Before, it showed
+    // 0 % and no cost (only JPY did), ~1 088 EUR/yr missing from the view. `financement` reuses
+    // coutMargeIBKR() (same tiers as the Actions view); the debt itself stays counted once, in the cash.
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, IBKR_CONFIG.cashThreshold),
+      financement: coutMargeIBKR(p.amine.ibkr.cashEUR, 'EUR', fx, CASH_YIELDS.wioSavings),
       owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, IBKR_CONFIG.cashThreshold),
+      financement: coutMargeIBKR(p.amine.ibkr.cashUSD, 'USD', fx, CASH_YIELDS.wioSavings),
       owner: 'Amine' },
     // v485 — manquait à la liste depuis v351 : c'était l'écart cashView.totalCash vs
     // catégorie Cash des vues (~2,6K€) relevé par l'audit BI du 27/08.
@@ -1933,6 +1938,7 @@ function computeCashView(portfolio, fx) {
     // IBKR JPY short: taux par tranche (tiered margin rate)
     { label: 'IBKR Cash JPY', native: p.amine.ibkr.cashJPY, currency: 'JPY',
       yield: ibkrJPYBorrowCost(Math.abs(p.amine.ibkr.cashJPY)),
+      financement: coutMargeIBKR(p.amine.ibkr.cashJPY, 'JPY', fx, CASH_YIELDS.wioSavings),
       owner: 'Amine', isDebt: true },
     { label: 'ESPP Cash (Amine)', native: p.amine.espp.cashEUR, currency: 'EUR', yield: CASH_YIELDS.esppCash, owner: 'Amine' },
     { label: 'ESPP Cash (Nezha)', native: (p.nezha.espp && p.nezha.espp.cashUSD) || 0, currency: 'USD', yield: CASH_YIELDS.esppCash, owner: 'Nezha' },
@@ -1979,7 +1985,8 @@ function computeCashView(portfolio, fx) {
       if (isProductive) { ow.yielding += a.valEUR; }
       else { ow.nonYielding += a.valEUR; }
       ow.weightedYieldSum += a.valEUR * (a.yield || 0);
-      ow.accounts.push({ label: a.label, valEUR: a.valEUR, yield: a.yield || 0, productive: isProductive });
+      ow.accounts.push({ label: a.label, valEUR: a.valEUR, yield: a.yield || 0, productive: isProductive,
+        ...(a.financement ? { financement: a.financement } : {}) });
     }
   });
 
@@ -2004,10 +2011,16 @@ function computeCashView(portfolio, fx) {
   // (Wio Savings et Wio UAE), donc ni sous l'inflation, ni sous le benchmark — et qu'aucun
   // compte doté d'un solde ne se trouve entre les deux seuils.
   const EGAL = 1e-9;   // comparaison de taux : 0.06 lu depuis deux constantes distinctes
+  // v599 — ONE placement calculation, shared by the bars, the diagnostic and the table: interest and
+  // potential are computed on POSITIVE balances only. A debit balance is not a sum to invest: applying
+  // 6 % to it (−24 k€ of IBKR EUR/USD) cut the bars' shortfall to 2 745 €/yr while the diagnostic said
+  // 4 184 €/yr. Financing (margin interest on debit balances) is reported separately, never netted
+  // into the shortfall.
   function cashFrameMetrics(accts, total) {
-    const gross = accts.reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
+    const positifs = accts.filter(a => a.valEUR > 0);
+    const gross = positifs.reduce((s, a) => s + a.valEUR * (a.yield || 0), 0);
     const nominalProductive = accts.filter(a => (a.yield || 0) > 0).reduce((s, a) => s + a.valEUR, 0);
-    const potentialGross = accts.reduce((s, a) => s + a.valEUR * Math.max(a.yield || 0, REF_YIELD_CASH), 0);
+    const potentialGross = positifs.reduce((s, a) => s + a.valEUR * Math.max(a.yield || 0, REF_YIELD_CASH), 0);
     // Cash rémunéré < benchmark 6% (= gisement optimisable). optimalCash = déjà ≥ 6%.
     const subOptimalCash = accts.filter(a => (a.yield || 0) < REF_YIELD_CASH - EGAL).reduce((s, a) => s + a.valEUR, 0);
     const atBenchmarkCash = accts.filter(a => Math.abs((a.yield || 0) - REF_YIELD_CASH) <= EGAL).reduce((s, a) => s + a.valEUR, 0);
@@ -2029,7 +2042,18 @@ function computeCashView(portfolio, fx) {
       potentialGross,
       potentialNet: potentialGross - total * INFLATION_RATE,
       gapToPotential: potentialGross - gross,
+      disponiblesPositifsEUR: positifs.reduce((s, a) => s + a.valEUR, 0),
     };
+  }
+  // Estimated annual financing cost of the debit balances (margin tiers of IBKR_CONFIG, today's
+  // balances and FX). An ANNUALISED ESTIMATE, not interest charged: the interest actually accrued is
+  // read from the statements (ibkr.costs, type 'interest') and never added here.
+  function financementDe(accts) {
+    const lignes = accts.filter(a => a.financement).map(a => ({
+      label: a.label, devise: a.currency, natif: a.native, valEUR: a.valEUR,
+      tauxEffectif: a.financement.tauxEffectif, coutAnnuelEUR: a.financement.coutAnnuelEUR,
+    }));
+    return { lignes, coutAnnuelEUR: lignes.reduce((s, l) => s + l.coutAnnuelEUR, 0), estimation: true };
   }
 
   // Per-owner computed fields
@@ -2038,11 +2062,22 @@ function computeCashView(portfolio, fx) {
     ow.avgYield = ow.total > 0 ? (ow.weightedYieldSum / ow.total) : 0;
     ow.netVsInflation = ow.weightedYieldSum - (ow.total * INFLATION_RATE); // gain - erosion
     Object.assign(ow, cashFrameMetrics(ow.accounts, ow.total));
+    // Financing includes the JPY margin (isDebt, outside the owner's cash total).
+    ow.financement = financementDe(accounts.filter(a => a.owner === name));
+    ow.resultatNetEUR = ow.grossInterest - ow.financement.coutAnnuelEUR;
   });
 
   const weightedAvgYield = totalCash > 0 ? (weightedYieldSum / totalCash) : 0;
   // Couple-level frame metrics (exclude debt account from the account set)
   const coupleFrame = cashFrameMetrics(accounts.filter(a => !a.isDebt), totalCash);
+  const financement = financementDe(accounts);
+  // Interest received (positive balances) − financing cost (debit balances) = net result, per year.
+  const resultatCash = {
+    interetsRecusEUR: coupleFrame.grossInterest,
+    coutFinancementEUR: financement.coutAnnuelEUR,
+    netEUR: coupleFrame.grossInterest - financement.coutAnnuelEUR,
+    estimation: true,
+  };
   // Deux seuils circulent dans cette vue : « bat l'inflation » (3 %) et « atteint le
   // benchmark » (6 %). Aujourd'hui aucun compte ne rend entre les deux — les rendements
   // pratiqués sont 0 %, 1,5 % et 6 % — si bien que les deux périmètres désignent les MÊMES
@@ -2070,16 +2105,16 @@ function computeCashView(portfolio, fx) {
 
   // --- Calcul du JPY ---
   const jpyAccount = accounts.find(a => a.isDebt);
-  const jpyCostAnn = jpyAccount ? Math.abs(jpyAccount.valEUR * jpyAccount.yield) : 0;
+  const jpyCostAnn = jpyAccount && jpyAccount.financement ? jpyAccount.financement.coutAnnuelEUR
+    : (jpyAccount ? Math.abs(jpyAccount.valEUR * jpyAccount.yield) : 0);
 
   // --- Manque à gagner total ---
   // `Math.max(0, …)` par compte : sans ce plafonnement, un compte payé AU-DESSUS de la
   // référence (Mashreq à 6,25 %) venait retrancher son surplus du manque à gagner — ~299 € en
   // moins que la même notion calculée par `cashFrameMetrics`, d'où deux chiffres différents sur
   // la même page. On ne « récupère » pas le surplus d'un compte en déplaçant les autres.
-  const totalMissedAnn = accounts
-    .filter(a => !a.isDebt && a.valEUR > 0)
-    .reduce((s, a) => s + Math.max(0, a.valEUR * (REF_YIELD - (a.yield || 0))), 0);
+  // v599 — taken from the shared placement calculation (same number as the bars and the table).
+  const totalMissedAnn = coupleFrame.gapToPotential;
 
   // ═══════════════════════════════════════════════════════
   // 1. VUE D'ENSEMBLE — Résumé stratégique
@@ -2091,6 +2126,8 @@ function computeCashView(portfolio, fx) {
     dormantEUR: totalNonYielding,
     totalMissedAnn: totalMissedAnn,
     jpyCostAnn: jpyCostAnn,
+    financementAnn: financement.coutAnnuelEUR,
+    resultatCash,
     avgYield: weightedAvgYield,
     targetYield: REF_YIELD,
     potentialGainAnn: totalMissedAnn,
@@ -2232,6 +2269,8 @@ function computeCashView(portfolio, fx) {
     diagnostics,
     byOwner,
     coupleFrame,
+    financement,
+    resultatCash,
     seuilsConfondus,
     inflationRate: INFLATION_RATE,
     refYield: REF_YIELD_CASH,
