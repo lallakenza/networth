@@ -63,7 +63,8 @@ const proche = (a, b, tol, m) => assert.ok(Math.abs(a - b) <= tol, (m || '') + '
     const loyer = D.BUDGET_EXPENSES.find((e) => e.label === 'Loyer Dubai');
     assert.equal(loyer.amount, L.loyerAnnuelAED);
     assert.equal(loyer.freq, 'yearly');
-    assert.equal(L.paiement.montantAED, L.loyerAnnuelAED + L.fraisAgenceAED + L.depotGarantieAED, '159 500 = loyer + agence + dépôt');
+    proche(L.paiement.montantAED, L.loyerAnnuelAED + L.fraisAgenceAED + L.tvaFraisAgenceAED + L.depotGarantieAED, 0.005, 'paiement = loyer + agence TTC + dépôt');
+    proche(L.paiement.montantAED, L.paiement.virements.reduce((x, v) => x + v.montantAED, 0), 0.005, 'paiement = Σ virements');
     assert.ok(!D.BUDGET_EXPENSES.some((e) => /d[ée]p[ôo]t|agence/i.test(e.label)), 'dépôt ou frais d\'agence dans le budget récurrent');
     const crep = D.PORTFOLIO.amine.creances.items.find((c) => c.id === 'CREP11');
     assert.equal(crep.amount, L.depotGarantieAED);

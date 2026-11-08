@@ -44,24 +44,30 @@ export const PORTFOLIO = {
   amine: {
     // v599 — LOGEMENT AUX EAU : nouveau bail, quatre flux à ne pas confondre.
     //   loyer annuel  → charge RÉCURRENTE du budget (÷ 12), à partir du début du bail ;
-    //   paiement      → décaissement unique du 07/11/2026 (loyer de l'année en un chèque/virement), déjà
+    //   paiement      → décaissement unique du 06/11/2026 (loyer de l'année en un virement), déjà
     //                   sorti de l'épargne Wio (wioSavingsJournal) : il n'est PAS une dépense du mois ;
     //   frais agence  → frais PONCTUELS (5 %), hors budget récurrent ;
     //   dépôt         → récupérable en fin de bail : une CRÉANCE (CREP11), jamais une dépense.
-    // Sources : déclaration d'Amine du 07/11/2026 (145 000 + 5 % + 5 % = 159 500 AED), e-mail DLD du
-    // 06/11/2026 « Ejari Tenancy Certificate » (nouveau contrat enregistré), e-mail DEWA du 06/11
-    // (mise en service, nouveau logement). L'ancien bail (143 000 AED/an) courait jusqu'au 09/11/2026.
+    // Sources : déclaration d'Amine du 07/11/2026 (145 000 + 5 % + 5 % = 159 500 AED) ; e-mails Wio du
+    // 06/11/2026 « Your local transfer was processed » : 152 250 AED au bailleur (loyer 145 000 + dépôt
+    // 7 250) et 7 612,50 AED à l'agence (7 250 + 5 % de TVA) ; e-mail DLD du 06/11 « Ejari Tenancy
+    // Certificate » (nouveau contrat enregistré) ; e-mail DEWA du 06/11 (mise en service, nouveau
+    // logement). L'ancien bail (143 000 AED/an) courait jusqu'au 09/11/2026. La déclaration omettait
+    // la TVA sur les frais d'agence (362,50 AED).
     // HYPOTHÈSES restantes : dates de début et de fin du nouveau bail (certificat Ejari dans l'app
     // Dubai REST, non lu) — durée supposée de 12 mois ; caution DEWA et frais Ejari non chiffrés.
     logementEAU: {
       loyerAnnuelAED: 145000,
-      paiement: { date: '2026-11-07', montantAED: 159500, source: 'déclaration d\'Amine du 07/11/2026', compte: 'Wio (épargne)' },
-      fraisAgenceAED: 7250,           // 5 % du loyer, ponctuel
+      paiement: { date: '2026-11-06', montantAED: 159862.50, declareAED: 159500, compte: 'Wio (courant, alimenté par l\'épargne)',
+                  virements: [{ montantAED: 152250, objet: 'bailleur : loyer 145 000 + dépôt 7 250' }, { montantAED: 7612.50, objet: 'agence : 7 250 + 5 % de TVA' }],
+                  source: 'e-mails Wio du 06/11/2026 (deux virements locaux)' },
+      fraisAgenceAED: 7250,           // 5 % du loyer, ponctuel, hors TVA
+      tvaFraisAgenceAED: 362.50,      // 5 % de TVA sur les frais d'agence (virement de 7 612,50)
       depotGarantieAED: 7250,         // 5 % du loyer, récupérable → créance CREP11
       ejariEnregistreLe: '2026-11-06',
       debutBail: null, finBail: null, // à lire sur le certificat Ejari ; non devinés
       dureeSupposeeMois: 12,
-      aConfirmer: ['date de début et de fin du bail (certificat Ejari)', 'caution DEWA', 'frais d\'enregistrement Ejari'],
+      aConfirmer: ['date de début et de fin du bail (certificat Ejari)', 'caution DEWA', 'frais d\'enregistrement Ejari (paiement OnTime du 06/11, montant non lu)'],
     },
     // ──────────────────────────────────────────────────────
     // CASH UAE (en AED) — se connecter à Mashreq/Wio app
@@ -87,7 +93,13 @@ export const PORTFOLIO = {
       wioSavingsJournal: [
         { date: '2026-10-04', montant: -35000, motif: 'retrait du Fixed Saving Space, viré vers Mashreq (5 000 + 25 000 + 5 000) pour acheter de l\'USDT en P2P', source: 'mails Wio « Fixed Saving Space partial withdrawal » et « Your local transfer was processed » du 04/10/2026' },
         { date: '2026-10-07', montant: -70000, motif: 'retrait du Fixed Saving Space pour rembourser intégralement la carte Wio Credit (69 998,89 AED)', source: 'mails Wio du 07/10/2026 « Fixed Saving Space partial withdrawal » et « Wio Credit repayment done »' },
-        { date: '2026-11-07', montant: -138140, motif: 'variation nette depuis le 09/10 (Fixed Saving Space soldé, Family 399 000 → 315 000) : loyer du logement payé à l\'année (145 000 + 5 % de dépôt + 5 % d\'agence = 159 500 AED, cf. CREP11 pour le dépôt) et 20 000 AED donnés à Nezha, intérêts déduits ; dates et ventilation exactes non relevées', source: 'captures de l\'app Wio du 07/11/2026 + déclaration d\'Amine' },
+        // v599 — variation du 09/10 au 07/11 (−138 140) détaillée par les e-mails Wio : Family 399 000 → 339 000
+        // (06/11, retrait 60 040 intérêts compris) → 335 000 (06/11, 4 002,67) → 315 000 (07/11, 20 016,67 : les
+        // 20 000 donnés à Nezha) ; Fixed Saving Space (54 140, rouvert le 01/11) soldé le 06/11 (141,67
+        // d'intérêts) après de petits retraits les 03 et 04/11 ; espace de 50 000 ouvert le 20/10. Le 06/11, le
+        // courant Wio a payé 152 250 au bailleur et 7 612,50 à l'agence (amine.logementEAU). Somme exacte des
+        // retraits du Fixed Saving Space : non lue (pièce manquante : relevé Wio d'octobre et de novembre).
+        { date: '2026-11-07', montant: -138140, motif: 'variation nette depuis le 09/10 (Fixed Saving Space soldé, Family 399 000 → 315 000) : loyer du logement payé à l\'année le 06/11 (152 250 au bailleur + 7 612,50 à l\'agence, cf. logementEAU ; dépôt en CREP11) et 20 000 AED donnés à Nezha le 07/11, intérêts déduits', source: 'captures de l\'app Wio du 07/11/2026 + e-mails Wio des 03, 04, 06 et 07/11/2026 + déclaration d\'Amine' },
       ],
       // ── Carte Wio Credit (carte Wio Personal en mode crédit) ──
       // Dette de carte de crédit : 2 % de cashback, et jusqu'à 60 jours sans intérêts quand le
@@ -788,7 +800,7 @@ export const PORTFOLIO = {
         // Anas — ancien prêt remboursé le 7 mars 2026. Nouvelle créance déclarée le 19/09/2026 : 3 600 EUR.
         { id: 'CREP09', label: 'Anas', amount: 3600, currency: 'EUR', type: 'perso', guaranteed: false, probability: 1.0, status: 'en_cours', dueDate: '2026-12-31', lastContact: '2026-09-19', payments: [], notes: 'Échéance non convenue — placeholder 31/12' },
         // v595 — loyer du logement payé à l'année le 07/11/2026 (déclaré par Amine) : 145 000 AED de loyer et 7 250 de frais d'agence sont des DÉPENSES ; seul le dépôt de garantie (5 %) est récupérable en fin de bail. Échéance = fin de bail estimée à un an ; probabilité 0,9 (retenues possibles à la sortie).
-        { id: 'CREP11', label: 'Dépôt de garantie — logement (EAU)', amount: 7250, currency: 'AED', type: 'perso', guaranteed: true, probability: 0.9, status: 'en_cours', dueDate: '2027-11-07', lastContact: '2026-11-07', payments: [], notes: '5 % de 145 000 AED, versé avec le loyer annuel le 07/11/2026 ; restitué en fin de bail (date de fin à confirmer)' },
+        { id: 'CREP11', label: 'Dépôt de garantie — logement (EAU)', amount: 7250, currency: 'AED', type: 'perso', guaranteed: true, probability: 0.9, status: 'en_cours', dueDate: '2027-11-07', lastContact: '2026-11-07', payments: [], notes: '5 % de 145 000 AED, versé au bailleur avec le loyer annuel le 06/11/2026 (virement Wio de 152 250 AED) ; restitué en fin de bail (date de fin à confirmer)' },
       ],
     },
 
@@ -1722,11 +1734,11 @@ export const PORTFOLIO = {
   //           'anticipé' (crédit IBKR envoyé) d'après les données, quelle que soit cette valeur.
   // À METTRE À JOUR en même temps que le solde. Les comptes absents sont signalés « non datés ».
   provenanceSoldes: {
-    mashreq:          { le: '2026-11-01', source: 'lecture en ligne (épargne + courant)', statut: 'observé' },
+    mashreq:          { le: '2026-11-01', source: 'lecture en ligne (épargne + courant) ; depuis, crédits connus non intégrés faute de relevé : +1 000 (06/11) et +500 (07/11) venus du Wio d\'Amine (e-mails Mashreq)', statut: 'observé' },
     wio_savings:      { le: '2026-11-07', source: 'capture de l\'app Wio', statut: 'observé' },
     wio_current:      { le: '2026-11-07', source: 'capture de l\'app Wio', statut: 'observé' },
     wio_business:     { le: '2026-09-19', source: 'capture de l\'app Wio Business', statut: 'observé' },
-    wio_credit:       { le: '2026-10-07', source: 'remboursement intégral (e-mail Wio) ; dernier relevé : septembre', statut: 'observé' },
+    wio_credit:       { le: '2026-10-07', source: 'remboursement intégral (e-mail Wio) ; dernier relevé : septembre. Remboursements de 4 182,54 (03/11) et 983,41 (04/11) : la carte a resservi, solde dû actuel non lu', statut: 'observé' },
     ibanq_bairok:     { le: '2026-10-31', source: 'capture du site iBanq', statut: 'observé' },
     wise_bridgevale:  { le: '2026-09-19', source: 'déclaration d\'Amine', statut: 'observé' },
     revolut_amine:    { le: '2026-11-07', source: 'déclaration d\'Amine', statut: 'observé' },
@@ -4100,7 +4112,7 @@ export const BUDGET_EXPENSES = [
   // novembre. v599 — montant aligné sur le nouveau bail (PORTFOLIO.amine.logementEAU, égalité testée) : 145 000 AED/an et non les
   // 150 000 estimés. Les frais d'agence et le dépôt n'entrent pas dans ce poste récurrent.
   { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement',
-    startDate: '2026-11', note: 'Nouveau bail enregistré à l\'Ejari le 06/11/2026, loyer de l\'année payé en une fois le 07/11 ; dates du bail à confirmer (12 mois supposés). Frais d\'agence (7 250 AED) ponctuels et dépôt (7 250 AED, créance CREP11) hors de ce poste.' },
+    startDate: '2026-11', note: 'Nouveau bail enregistré à l\'Ejari le 06/11/2026, loyer de l\'année payé en une fois le 06/11 ; dates du bail à confirmer (12 mois supposés). Frais d\'agence (7 612,50 AED TVA comprise) ponctuels et dépôt (7 250 AED, créance CREP11) hors de ce poste.' },
   // v428 — flux ABSENT du budget alors que documenté : bail de la résidence en France
   //   depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
   //   l'épargne nette mensuelle était surestimée de 1 300 €.
