@@ -1227,6 +1227,13 @@ function _margeLe() {
 }
 
 function _mentionReconstruit(a) {
+  if (a && a.anticipe) {
+    // v599 — crédit IBKR envoyé mais pas encore lu sur le relevé : compté, mais nommé comme tel.
+    const le = a.soldeObserveLe ? a.soldeObserveLe.split('-').reverse().join('/') : '?';
+    const credits = (a.creditsAnticipes || []).map(c => '+' + fmt(c.montant) + ' envoyé le ' + c.envoyeLe.split('-').reverse().join('/')).join(', ');
+    return ' <span style="font-size:10px;color:#b45309;" title="Solde anticipé = solde observé + crédits envoyés pas encore lus sur le relevé">(crédit anticipé — virement effectué le week-end, à rapprocher : '
+      + credits + ' ; solde observé ' + fmt(a.soldeObserve) + ' au ' + le + ')</span>';
+  }
   if (!a || !a.reconstruit) return '';
   const le = a.soldeObserveLe ? a.soldeObserveLe.split('-').reverse().join('/') : '?';
   const credits = (a.creditsARapprocher || []).map(c => c.id + ' ' + fmt(c.montant)).join(', ');

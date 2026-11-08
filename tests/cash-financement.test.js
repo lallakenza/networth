@@ -85,6 +85,36 @@ const proche = (a, b, tol, m) => assert.ok(Math.abs(a - b) <= tol, (m || '') + '
     assert.equal(pos.financement, null);
   });
 
+  // ── Crédit IBKR anticipé (virement du week-end) ──
+  const ib = D.PORTFOLIO.amine.ibkr;
+  t('crédit anticipé : solde utilisé = solde observé + crédits anticipés (données)', () => {
+    const anticipes = (ib.creditsAnticipes || []).filter((c) => c.devise === 'EUR' && c.statut === 'anticipé');
+    proche(ib.cashEUR, ib.cashEURObserve + anticipes.reduce((x, c) => x + c.montant, 0), 0.005);
+  });
+  t('crédit anticipé : la ligne IBKR EUR le dit, avec le solde observé', () => {
+    const l = E.compute(D.PORTFOLIO, FX, 'static').cashView.accounts.find((a) => a.label === 'IBKR Cash EUR');
+    if (!(ib.creditsAnticipes || []).some((c) => c.statut === 'anticipé')) return;
+    assert.equal(l.anticipe, true);
+    assert.equal(l.soldeObserve, ib.cashEURObserve);
+    assert.ok(l.creditsAnticipes[0].envoyeLe && l.creditsAnticipes[0].montant > 0);
+  });
+  t('crédit anticipé : un seul dépôt pour chaque virement', () => {
+    for (const c of ib.creditsAnticipes || []) {
+      const n = ib.deposits.filter((d) => d.date === c.depot && d.amount === c.montant && d.currency === c.devise).length;
+      assert.equal(n, 1, c.id + ' : ' + n + ' dépôt(s)');
+    }
+  });
+  t('rapprochement : à réception, le patrimoine ne bouge pas', () => {
+    if (!(ib.creditsAnticipes || []).length) return;
+    const avant = E.compute(D.PORTFOLIO, FX, 'static');
+    const P = structuredClone(D.PORTFOLIO);
+    P.amine.ibkr.cashEURObserve = P.amine.ibkr.cashEUR;   // le relevé montre enfin le crédit
+    P.amine.ibkr.creditsAnticipes = [];
+    const apres = E.compute(P, FX, 'static');
+    proche(apres.couple.nw, avant.couple.nw, 0.001, 'NW');
+    assert.equal(apres.cashView.accounts.find((a) => a.label === 'IBKR Cash EUR').anticipe, undefined);
+  });
+
   console.log(ko ? '\n✗ ' + ko + ' échec(s)' : '\n✓ vue Cash : financement IBKR');
   process.exit(ko ? 1 : 0);
 })();

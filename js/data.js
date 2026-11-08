@@ -323,7 +323,21 @@ export const PORTFOLIO = {
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
-      cashEUR: -16361.85,    // v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      // v599 — SOLDE ANTICIPÉ = solde observé + crédits anticipés (invariant testé). Le virement Revolut → IBKR
+      // de 6 000 € a été effectué le week-end (déclaration d'Amine) : il est compté dans le cash IBKR
+      // dès maintenant, sans compte de transit séparé, mais reste distinct du solde OBSERVÉ.
+      // À RÉCEPTION : reporter le nouveau solde du connecteur dans cashEURObserve, retirer l'entrée de
+      // creditsAnticipes ; ne créer AUCUN second dépôt (le dépôt du 07/11 existe déjà dans deposits[])
+      // et le patrimoine ne doit pas bouger. Les intérêts débiteurs réellement courus se lisent sur le
+      // relevé, à la date de valeur réelle du crédit : rien ici ne suppose le débit remboursé avant.
+      cashEUR: -16361.85,    // ANTICIPÉ (= −22 361,85 observé + 6 000 anticipés). v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashEURObserve: -22361.85,   // v599 — connecteur IBKR du 08/11/2026 (inchangé depuis le 07/11) : crédit pas encore lu
+      cashObserveLe: '2026-11-08',
+      creditsAnticipes: [
+        { id: 'IBKR-EUR-20261107', devise: 'EUR', montant: 6000, envoyeLe: '2026-11-07', statut: 'anticipé',
+          motif: 'crédit anticipé — virement effectué le week-end, à rapprocher', depot: '2026-11-07',
+          source: 'déclaration d\'Amine (virement Revolut → IBKR exécuté le week-end) ; absent du connecteur le 08/11/2026' },
+      ],
       cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1608111.36, // v587 — connecteur IBKR du 07/11/2026 : −3 565 ¥ d'intérêts de marge d'octobre. Avant : connecteur du 09/10/2026. −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
       cashAED: 30000,        // v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
@@ -485,7 +499,7 @@ export const PORTFOLIO = {
         { date: '2025-11-03', amount: 15000,  currency: 'AED', fxRateAtDate: 4.234, label: 'Virement AED #4 (Mashreq→IBKR)' },
         { date: '2026-10-31', amount: 30000,  currency: 'AED', fxRateAtDate: 4.0988, label: 'Virement AED #5 (Mashreq→IBKR ; taux du connecteur IBKR au 01/11/2026)' },
         // v595 — 5 000 € reçus de Nezha (2 000 LCL + 3 000 Revolut) + 1 000 € d'Amine. Pas de créance : Amine a donné 20 000 AED à Nezha (Wio), « on est quittes ».
-        { date: '2026-11-07', amount: 6000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement Revolut → IBKR (déclaré par Amine le 07/11/2026 ; en transit, pas encore lu par le connecteur)' },
+        { date: '2026-11-07', amount: 6000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement Revolut → IBKR envoyé le 07/11/2026 (week-end) — crédit anticipé, à rapprocher (ibkr.creditsAnticipes) ; à réception, aucun second dépôt' },
       ],
       // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
       // ══════════════════════════════════════════════════════════════

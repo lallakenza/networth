@@ -1927,10 +1927,12 @@ function computeCashView(portfolio, fx) {
     { label: 'IBKR Cash EUR', native: p.amine.ibkr.cashEUR, currency: 'EUR',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashEUR, CASH_YIELDS.ibkrCashEUR, IBKR_CONFIG.cashThreshold),
       financement: coutMargeIBKR(p.amine.ibkr.cashEUR, 'EUR', fx, CASH_YIELDS.wioSavings),
+      ...creditsIbkrAnticipes(p, 'EUR'),
       owner: 'Amine' },
     { label: 'IBKR Cash USD', native: p.amine.ibkr.cashUSD, currency: 'USD',
       yield: ibkrEffectiveYield(p.amine.ibkr.cashUSD, CASH_YIELDS.ibkrCashUSD, IBKR_CONFIG.cashThreshold),
       financement: coutMargeIBKR(p.amine.ibkr.cashUSD, 'USD', fx, CASH_YIELDS.wioSavings),
+      ...creditsIbkrAnticipes(p, 'USD'),
       owner: 'Amine' },
     // v485 — manquait à la liste depuis v351 : c'était l'écart cashView.totalCash vs
     // catégorie Cash des vues (~2,6K€) relevé par l'audit BI du 27/08.
@@ -4104,6 +4106,17 @@ function computeCashNonProductif(portfolio, fx, cashView, facturationNet) {
   }
   return { ...bilan(null), byOwner: { Amine: bilan('Amine'), Nezha: bilan('Nezha') } };
 }
+// v599 — IBKR credits sent but not yet on the statement (e.g. a weekend transfer). The balance used
+// everywhere (cashEUR/cashUSD) is the ANTICIPATED one; this exposes the observed balance and the
+// pending credits so the screen can tell them apart. Empty object when nothing is pending.
+export function creditsIbkrAnticipes(p, devise) {
+  const ib = (p.amine && p.amine.ibkr) || {};
+  const credits = (ib.creditsAnticipes || []).filter((c) => c.devise === devise && c.statut === 'anticipé');
+  if (!credits.length) return {};
+  const observe = devise === 'EUR' ? ib.cashEURObserve : ib.cashUSDObserve;
+  return { anticipe: true, soldeObserve: observe, soldeObserveLe: ib.cashObserveLe || null, creditsAnticipes: credits };
+}
+
 // iBanq (Bairok) balance: the OBSERVED statement balance plus the credits recorded on receivables
 // after the observation date. Reconstructed, not certified, until a newer statement is entered:
 // once `ibanqBairokObserveLe` reaches the credit date, the credit is part of the observed balance.
