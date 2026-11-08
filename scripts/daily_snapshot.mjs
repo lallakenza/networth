@@ -155,7 +155,9 @@ const state = compute(PORTFOLIO, fx, live > 0 ? 'live' : 'statique');
 const snap = buildDailySnapshot(state);
 snap.meta.fxSource = fxLive === 4 ? 'live (cron)' : 'partiel (cron ' + fxLive + '/4)';
 snap.meta.liveTickers = live + '/' + total;
-snap.meta.appVersion = 'cron';
+snap.meta.appVersion = 'cron';   // kept as is: selectionnerSnapshots ranks rows on this field
+// v599 — provenance of the capture: code version and commit (the field above says only « cron »).
+snap.meta.capture = { source: 'cron', codeVersion: APP_VERSION, commit: (process.env.GITHUB_SHA || '').slice(0, 7) || null };
 snap.meta.sgtmSource = sgtmSource;
 const quality = (live >= total && fxLive === 4) ? 'live' : (live > 0 ? 'partial' : 'static');
 console.log('[cron-snap] NW couple', snap.total.couple, '€ | qualité', quality, '| guards', snap.meta.guardsOk);

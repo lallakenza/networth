@@ -6310,6 +6310,43 @@ export function buildDailySnapshot(state) {
 }
 
 /**
+ * v599 — Explain the change in couple net worth between two snapshots (schema 1), from what the
+ * snapshots actually contain. Nothing here is a cash-flow ledger: the split is an attribution.
+ *   marche   Σ Δ unrealised P&L of the positions + Δ realised P&L (+ Δ SGTM, which has no P&L field):
+ *            price AND currency moves of the securities. A sale moves P&L from unrealised to realised.
+ *   change   cash and margin debt held in a foreign currency, revalued: Σ native_A × (1/fx_B − 1/fx_A).
+ *   immo     Δ immo category (capital repaid, revaluation).
+ *   soldes   the rest, at constant FX: income, spending, invoices and debts, and DATA CORRECTIONS.
+ *            An internal transfer (account → account, cash → securities, receivable → cash) nets to
+ *            zero here: it is never a performance. Snapshots hold balances, not movements, so income,
+ *            spending and corrections cannot be told apart without the statements.
+ * Returns null when either snapshot lacks the couple view.
+ */
+export function expliquerVariation(a, b) {
+  const va = a && a.views && a.views.couple, vb = b && b.views && b.views.couple;
+  if (!va || !vb) return null;
+  const total = (vb.nwRef || 0) - (va.nwRef || 0);
+  const pa = (a.stocks && a.stocks.positions) || {}, pb = (b.stocks && b.stocks.positions) || {};
+  let marche = ((b.stocks && b.stocks.realizedPL) || 0) - ((a.stocks && a.stocks.realizedPL) || 0);
+  for (const k of new Set([...Object.keys(pa), ...Object.keys(pb)])) {
+    const x = pa[k] || {}, y = pb[k] || {};
+    if (/^SGTM\./.test(k)) marche += (y.eur || 0) - (x.eur || 0);       // no P&L field: quantity assumed unchanged
+    else marche += (y.pl || 0) - (x.pl || 0);
+  }
+  const fxA = (a.meta && a.meta.fx) || {}, fxB = (b.meta && b.meta.fx) || {};
+  const ca = (a.cash && a.cash.accounts) || {}, cb = (b.cash && b.cash.accounts) || {};
+  let change = 0;
+  for (const [id, x] of Object.entries(ca)) {
+    if (!x || x.ccy === 'EUR' || !cb[id]) continue;   // the JPY margin debt included: its revaluation is a currency effect
+    const ra = fxA[x.ccy], rb = fxB[x.ccy];
+    if (ra > 0 && rb > 0 && typeof x.native === 'number') change += x.native * (1 / rb - 1 / ra);
+  }
+  const immo = (vb.immo || 0) - (va.immo || 0);
+  const soldes = total - marche - change - immo;
+  return { total, marche, change, immo, soldes };
+}
+
+/**
  * Compute the grand total from couple categories
  */
 export function getGrandTotal(state) {

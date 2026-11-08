@@ -6,10 +6,10 @@
 // Each function receives STATE, never reads DOM for data.
 
 import { fmt, fmtAxis } from './render.js?v=598';
-import { getGrandTotal, computeExitCostsAtYear, projectNW } from './engine.js?v=598';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation } from './engine.js?v=598';
 import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=598';
 import { PRICE_SNAPSHOT } from './price_snapshot.js?v=598';
-import { loadSnapshots } from './api.js?v=598'; // v387 — historique NW (snapshots quotidiens Supabase)
+import { loadSnapshots } from './api.js?v=598'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
 import { CASH_ACCOUNT_IDS } from './engine.js?v=598'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
@@ -964,10 +964,13 @@ function _histPeriodCutoff(period) {
   return d.toISOString().slice(0, 10);
 }
 
-function buildHistoriqueCharts() {
+function buildHistoriqueCharts(state) {
   const elTotal = document.getElementById('nwHistTotalChart');
   const elCats = document.getElementById('nwHistCatsChart');
   if (!elTotal || !elCats) return;
+  // v599 — état du tableau de bord au même format qu'un snapshot, pour expliquer l'écart entre le
+  // dernier relevé (capturé la nuit par le cron) et les chiffres affichés maintenant.
+  if (state) { try { window._histEtatCourant = buildDailySnapshot(state); } catch (e) { window._histEtatCourant = null; } }
 
   // Bind les pills une seule fois
   if (!window._histPeriodBound) {
@@ -995,9 +998,64 @@ function buildHistoriqueCharts() {
   loadSnapshots().then(rows => {
     window._nwSnapCache = rows || [];
     window._nwSnapLoading = false;
-    console.log('[historique] ' + window._nwSnapCache.length + ' snapshot(s) chargés depuis Supabase');
+    console.log('[historique] ' + window._nwSnapCache.length + ' snapshot(s) chargés depuis Neon');
     _drawHistoriqueCharts();
   }).catch(e => { window._nwSnapLoading = false; console.warn('[historique] chargement échoué:', e); });
+}
+
+// v599 — heure, fuseau, source et version d'un snapshot. Le cron capture la nuit (00:30 UTC ≈ 04:30 à
+// Dubaï) : le relevé du jour précède donc les mises à jour de données faites dans la journée.
+function _horodatageSnapshot(r) {
+  if (!r || !r.capturedAt) return r ? r.date + ' (' + r.quality + ')' : '--';
+  const d = new Date(r.capturedAt);
+  const f = (tz) => new Intl.DateTimeFormat('fr-FR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d);
+  return f('Asia/Dubai') + ' à Dubaï (UTC+4) · ' + _sourceSnapshot(r);
+}
+function _sourceSnapshot(r) {
+  const m = (r.data && r.data.meta) || {};
+  const cap = m.capture || {};
+  const src = cap.source || (m.appVersion === 'cron' ? 'cron' : (m.appVersion ? 'navigateur' : '?'));
+  const ver = cap.codeVersion || (/^v\d+/.test(m.appVersion || '') ? m.appVersion : null);
+  return src + (ver ? ' ' + ver : ' (version non enregistrée)');
+}
+function _provenanceSnapshot(r) {
+  const m = (r.data && r.data.meta) || {};
+  const d = r.capturedAt ? new Date(r.capturedAt) : null;
+  return 'Capture : ' + (d ? d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '?')
+    + ' · source ' + _sourceSnapshot(r) + ((m.capture && m.capture.commit) ? ' (commit ' + m.capture.commit + ')' : '')
+    + ' · qualité ' + r.quality + ' · données du site au ' + (m.dataLastUpdate || '?')
+    + ' · cours ' + (m.liveTickers || '?') + ' en direct · change ' + (m.fxSource || '?');
+}
+function _lignesVariation(v) {
+  const L = (lib, x, note) => '<tr><td>' + lib + (note ? ' <span style="color:#718096;font-size:11px;">' + note + '</span>' : '')
+    + '</td><td class="num" style="color:' + (x >= 0 ? 'var(--green)' : '#e53e3e') + ';">' + (x >= 0 ? '+' : '') + fmt(x) + '</td></tr>';
+  return L('Marchés : cours et change des titres', v.marche, '(P&L latent + réalisé)')
+    + L('Change sur le cash et la marge en devises', v.change)
+    + L('Immobilier', v.immo, '(capital remboursé, revalorisation)')
+    + L('Soldes, créances et dettes à change constant', v.soldes, '(revenus, dépenses, corrections de saisie ; un virement interne s\'y annule)')
+    + '<tr style="font-weight:700;border-top:1px solid #cbd5e0;"><td>Total</td><td class="num">' + (v.total >= 0 ? '+' : '') + fmt(v.total) + '</td></tr>';
+}
+function _afficherVariations(rowsNW, last) {
+  const el = document.getElementById('histVariation');
+  if (!el) return;
+  const fr = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+  let html = '';
+  const first = rowsNW[0];
+  if (first && last && first !== last) {
+    const v = expliquerVariation(first.data, last.data);
+    if (v) html += '<div style="flex:1;min-width:280px;"><h4 style="margin:0 0 6px;font-size:13px;">Du ' + fr(first.date) + ' au ' + fr(last.date) + '</h4>'
+      + '<table style="width:100%;font-size:12px;">' + _lignesVariation(v) + '</table></div>';
+  }
+  const cur = window._histEtatCourant;
+  if (last && cur) {
+    const v = expliquerVariation(last.data, cur);
+    if (v) html += '<div style="flex:1;min-width:280px;"><h4 style="margin:0 0 6px;font-size:13px;">Du dernier relevé (' + _horodatageSnapshot(last) + ') au tableau de bord actuel</h4>'
+      + '<table style="width:100%;font-size:12px;">' + _lignesVariation(v) + '</table>'
+      + '<div style="font-size:11px;color:#718096;margin-top:4px;">Le relevé est capturé par le cron la nuit ; les soldes mis à jour ensuite dans la journée apparaissent dans la dernière ligne. Les relevés bruts ne sont jamais réécrits.</div></div>';
+  }
+  el.innerHTML = html ? '<div style="display:flex;gap:18px;flex-wrap:wrap;">' + html + '</div>'
+    + '<div style="font-size:11px;color:#718096;margin-top:6px;">Attribution à partir des soldes enregistrés, pas d\'un relevé de mouvements : revenus, dépenses et corrections ne se séparent pas sans les relevés bancaires.</div>' : '';
+  el.style.display = html ? 'block' : 'none';
 }
 
 function _drawHistoriqueCharts() {
@@ -1063,16 +1121,20 @@ function _drawHistoriqueCharts() {
   // Jours couverts : snapshots NW réels + positions reconstituées (backfill trades×prix)
   const nBackfill = rows.length - rowsNW.length;
   if (elDays) elDays.textContent = String(rowsNW.length) + (nBackfill > 0 ? ' (+' + nBackfill + ' reconst.)' : '');
-  if (elLast && last) elLast.textContent = last.date + ' (' + last.quality + ')';
+  if (elLast && last) {
+    elLast.textContent = _horodatageSnapshot(last);
+    elLast.title = _provenanceSnapshot(last);
+  }
+  _afficherVariations(rowsNW, last);
 
   // Empty / 1-point state (sur les snapshots NW RÉELS — le backfill ne compte pas ici)
   if (emptyMsg) {
     if (allReal.length === 0) {
       emptyMsg.style.display = 'block';
-      emptyMsg.textContent = 'Aucun snapshot pour le moment — le premier sera capturé automatiquement lors d\'une visite avec prix live. Revenez demain !';
+      emptyMsg.textContent = 'Aucun snapshot pour le moment — le cron quotidien en capture un chaque nuit. Revenez demain !';
     } else if (allReal.length === 1) {
       emptyMsg.style.display = 'block';
-      emptyMsg.textContent = 'Premier snapshot NW capturé le ' + allReal[0].date + ' ✓ — la courbe NW se construit à chaque visite (1 point par jour). L\'explorateur de séries, lui, remonte déjà le passé des positions (reconstitution trades × prix).';
+      emptyMsg.textContent = 'Premier snapshot NW capturé le ' + allReal[0].date + ' ✓ — la courbe NW se construit avec le cron quotidien (1 point par nuit). L\'explorateur de séries, lui, remonte déjà le passé des positions (reconstitution trades × prix).';
     } else {
       emptyMsg.style.display = 'none';
     }

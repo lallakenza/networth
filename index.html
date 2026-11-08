@@ -4321,13 +4321,14 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 <!-- ═══════════ HISTORIQUE DU PATRIMOINE (v387 — snapshots quotidiens type Finary) ═══════════ -->
 <div class="card hidden" data-view="historique">
   <h2><span class="section-icon" style="background: #1a365d;">&#x1F4C8;</span>Historique du Patrimoine</h2>
-  <p style="color:#718096;font-size:13px;margin:-6px 0 14px;">Snapshots quotidiens captur&eacute;s automatiquement &agrave; chaque visite (prix live uniquement) &mdash; base Supabase append-only, partag&eacute;e entre machines.</p>
+  <p style="color:#718096;font-size:13px;margin:-6px 0 14px;">Un snapshot par nuit, captur&eacute; par le cron quotidien (vers 04:30 &agrave; Duba&iuml;, cours de cl&ocirc;ture de la veille) &mdash; base Neon en ajout seul. Les mises &agrave; jour de soldes faites dans la journ&eacute;e n'entrent qu'au relev&eacute; suivant ; les relev&eacute;s bruts ne sont jamais r&eacute;&eacute;crits.</p>
   <div class="kpi-strip" id="kpi-historique">
     <div class="kpi" style="border-top-color:#1a365d;"><div class="value" id="kpiHistNW" data-eur="0">--</div><div class="label">NW dernier snapshot</div></div>
     <div class="kpi" style="border-top-color:#48bb78;"><div class="value" id="kpiHistDelta">--</div><div class="label" id="kpiHistDeltaLabel">&Delta; p&eacute;riode</div></div>
     <div class="kpi"><div class="value" id="kpiHistDays">--</div><div class="label">Relev&eacute;s dans l'historique</div></div>
-    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiHistLast" style="font-size:15px;">--</div><div class="label">Derni&egrave;re capture</div></div>
+    <div class="kpi" style="border-top-color:#d69e2e;"><div class="value" id="kpiHistLast" style="font-size:12px;line-height:1.35;">--</div><div class="label">Derni&egrave;re capture (heure, source, version)</div></div>
   </div>
+  <div id="histVariation" style="display:none;margin:12px 0 4px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;background:var(--surface,#fff);"></div>
   <div id="histPeriodBar" style="display:flex;gap:6px;margin:14px 0 10px;flex-wrap:wrap;">
     <button class="hist-period-btn" data-hist-period="1M" style="padding:5px 12px;border:1px solid #cbd5e0;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;">1M</button>
     <button class="hist-period-btn" data-hist-period="3M" style="padding:5px 12px;border:1px solid #cbd5e0;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;">3M</button>
