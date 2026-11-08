@@ -42,6 +42,27 @@
 
 export const PORTFOLIO = {
   amine: {
+    // v599 — LOGEMENT AUX EAU : nouveau bail, quatre flux à ne pas confondre.
+    //   loyer annuel  → charge RÉCURRENTE du budget (÷ 12), à partir du début du bail ;
+    //   paiement      → décaissement unique du 07/11/2026 (loyer de l'année en un chèque/virement), déjà
+    //                   sorti de l'épargne Wio (wioSavingsJournal) : il n'est PAS une dépense du mois ;
+    //   frais agence  → frais PONCTUELS (5 %), hors budget récurrent ;
+    //   dépôt         → récupérable en fin de bail : une CRÉANCE (CREP11), jamais une dépense.
+    // Sources : déclaration d'Amine du 07/11/2026 (145 000 + 5 % + 5 % = 159 500 AED), e-mail DLD du
+    // 06/11/2026 « Ejari Tenancy Certificate » (nouveau contrat enregistré), e-mail DEWA du 06/11
+    // (mise en service, nouveau logement). L'ancien bail (143 000 AED/an) courait jusqu'au 09/11/2026.
+    // HYPOTHÈSES restantes : dates de début et de fin du nouveau bail (certificat Ejari dans l'app
+    // Dubai REST, non lu) — durée supposée de 12 mois ; caution DEWA et frais Ejari non chiffrés.
+    logementEAU: {
+      loyerAnnuelAED: 145000,
+      paiement: { date: '2026-11-07', montantAED: 159500, source: 'déclaration d\'Amine du 07/11/2026', compte: 'Wio (épargne)' },
+      fraisAgenceAED: 7250,           // 5 % du loyer, ponctuel
+      depotGarantieAED: 7250,         // 5 % du loyer, récupérable → créance CREP11
+      ejariEnregistreLe: '2026-11-06',
+      debutBail: null, finBail: null, // à lire sur le certificat Ejari ; non devinés
+      dureeSupposeeMois: 12,
+      aConfirmer: ['date de début et de fin du bail (certificat Ejari)', 'caution DEWA', 'frais d\'enregistrement Ejari'],
+    },
     // ──────────────────────────────────────────────────────
     // CASH UAE (en AED) — se connecter à Mashreq/Wio app
     // ⚠️ Soldes datés du 12 avril 2026 — à rafraîchir manuellement
@@ -4026,16 +4047,13 @@ export const MONTHLY_INCOMES = [
 ];
 
 export const BUDGET_EXPENSES = [
-  // v428 — 145 000 → 143 000 : montant CONTRACTUEL du bail Ejari 0120251011002074,
-  //   en vigueur depuis le 10/11/2025 (dépouillement iCloud v423). L'ancien 145 000
-  //   était une estimation.
-  // Logement inclus par l'employeur jusqu'en octobre 2026 (Notion, page Budget) : le poste
-  // ne demarre qu'en novembre, au nouveau montant de 150 000 AED/an. Il etait compte des
-  // aujourd'hui, sur l'ancienne base de 143 000 AED.
-  { label: 'Loyer Dubai',     amount: 150000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement',
-    startDate: '2026-11', note: 'Logement inclus jusqu\'en octobre 2026' },
+  // Logement inclus par l'employeur jusqu'en octobre 2026 (Notion, page Budget) : le poste démarre en
+  // novembre. v599 — montant aligné sur le nouveau bail (PORTFOLIO.amine.logementEAU, égalité testée) : 145 000 AED/an et non les
+  // 150 000 estimés. Les frais d'agence et le dépôt n'entrent pas dans ce poste récurrent.
+  { label: 'Loyer Dubai',     amount: 145000, currency: 'AED', freq: 'yearly',    zone: 'Dubai',   type: 'Logement',
+    startDate: '2026-11', note: 'Nouveau bail enregistré à l\'Ejari le 06/11/2026, loyer de l\'année payé en une fois le 07/11 ; dates du bail à confirmer (12 mois supposés). Frais d\'agence (7 250 AED) ponctuels et dépôt (7 250 AED, créance CREP11) hors de ce poste.' },
   // v428 — flux ABSENT du budget alors que documenté : bail de la résidence en France
-  //   (17 rue du Champtier) depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
+  //   depuis le 02/01/2024, 1 185 € + 115 € de charges. Sans lui,
   //   l'épargne nette mensuelle était surestimée de 1 300 €.
   { label: 'Loyer France (résidence)', amount: 1300, currency: 'EUR', freq: 'monthly', zone: 'France', type: 'Logement' },
   { label: 'Électricité',     amount: 840,    currency: 'AED', freq: 'monthly',   zone: 'Dubai',   type: 'Utilities' },

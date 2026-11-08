@@ -1216,6 +1216,11 @@ function libelleCreancesPro(s) {
 }
 
 // v589 — un solde de compte reconstruit (relevé observé + crédits constatés depuis) le dit, avec sa date.
+// v599 — one format for every rate stored as a FRACTION (0,394 → « 39.4% »).
+function fmtTaux(fraction) {
+  return (typeof fraction === 'number' && isFinite(fraction) ? (fraction * 100).toFixed(1) : '—') + '%';
+}
+
 function _margeLe() {
   const le = IBKR_CONFIG && IBKR_CONFIG.margeVerifieeLe;
   return le ? le.split('-').reverse().join('/') : '?';
@@ -7392,9 +7397,9 @@ function renderBudgetView(state) {
     }
     // v320 — "Épargne déclarée" : valeur utilisée dans toutes les projections long-terme.
     setEur('kpiCashflowDeclared', DECLARED_MONTHLY_SAVINGS_EUR);
-    // Taux d'épargne RÉEL = épargne déclarée / revenus (pas le netSavings surestimé).
-    const realSavingsRate = cf.incomeMonthly > 0 ? DECLARED_MONTHLY_SAVINGS_EUR / cf.incomeMonthly : 0;
-    setText('kpiCashflowRate', (realSavingsRate * 100).toFixed(1) + '%');
+    // Taux d'épargne DÉCLARÉ = épargne déclarée / revenus (moteur : cf.tauxEpargneDeclaree).
+    const realSavingsRate = cf.tauxEpargneDeclaree;
+    setText('kpiCashflowRate', fmtTaux(realSavingsRate));
     const rateEl = document.getElementById('kpiCashflowRate');
     if (rateEl) {
       rateEl.style.color = realSavingsRate >= 0.20 ? 'var(--green)' :
@@ -7427,10 +7432,12 @@ function renderBudgetView(state) {
       // Le chiffre est donc un plafond, pas une autonomie reelle — le libelle le dit.
       html += '• Autonomie sur charges fixes, a 0 revenu : <strong style="color:' + rnColor + '">' + cf.runwayMonths.toFixed(0) + ' mois</strong> '
         + '<span style="color:var(--gray);font-size:11px">(mobilisable / charges fixes — hors courses, voyages et loisirs, non recens&eacute;s)</span><br>';
-      const srColor = cf.savingsRate >= 0.30 ? 'var(--green)' :
-                       cf.savingsRate >= 0.20 ? 'var(--green)' :
-                       cf.savingsRate >= 0.10 ? '#d97706' : 'var(--red)';
-      html += '• Taux d\'&eacute;pargne : <strong style="color:' + srColor + '">' + (cf.savingsRate * 100).toFixed(1) + '%</strong> (top d&eacute;cile : ≥30%)<br>';
+      const srColor = cf.tauxEpargneDeclaree >= 0.20 ? 'var(--green)' :
+                       cf.tauxEpargneDeclaree >= 0.10 ? '#d97706' : 'var(--red)';
+      html += '• Taux d\'&eacute;pargne d&eacute;clar&eacute; : <strong style="color:' + srColor + '">' + fmtTaux(cf.tauxEpargneDeclaree) + '</strong> ('
+        + fmtMo(cf.epargneDeclaree) + ' €/mois mis de c&ocirc;t&eacute;, d&eacute;clar&eacute;)<br>';
+      html += '• Surplus avant d&eacute;penses variables : <strong>' + fmtMo(cf.surplusStructurel) + ' €/mois</strong>, soit ' + fmtTaux(cf.tauxSurplusStructurel)
+        + ' des revenus <span style="color:var(--gray);font-size:11px">(revenus − charges fixes recens&eacute;es ; courses, loisirs et voyages non suivis : ce n\'est pas une &eacute;pargne constat&eacute;e)</span><br>';
       html += '• Cash dormant : ' + fmtMo(cf.cashDormant) + ' € | Mobilisable total : ' + fmtMo(cf.liquid) + ' €<br>';
       // v320 — Projection 12 mois basée sur l'épargne déclarée (8 k€/mois), pas sur netSavings.
       // Le surplus structurel sert juste de diagnostic "combien de marge théorique" ; la projection
@@ -8559,14 +8566,14 @@ function renderDecisionCockpit(state) {
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">';
   html += tuile('Croissance — 30 jours', attente, 'depuis les snapshots quotidiens', 'ckpD30');
   html += tuile('Croissance — 1 an', attente, 'depuis les snapshots quotidiens', 'ckpD365');
-  if (cf && typeof cf.netSavings === 'number') {
-    const n = cf.netSavings;
-    const couleur = n >= 0 ? '#15803d' : '#dc2626';
-    const signe = n >= 0 ? '+' : '';
-    html += tuile('Épargne nette / mois',
-      '<span style="color:' + couleur + ';">' + signe + fmt(n) + '</span>',
-      'entrées ' + fmt(cf.incomeMonthly) + ' − sorties ' + fmt(cf.expensesMonthly)
-        + (typeof cf.savingsRate === 'number' ? ' · taux ' + Math.round(cf.savingsRate) + '%' : ''));
+  if (cf && typeof cf.epargneDeclaree === 'number') {
+    // v599 — l'accueil affichait « Épargne nette » = le SURPLUS avant dépenses variables, et un
+    // taux de 1 % (0,746 arrondi sans ×100). La tuile porte désormais l'épargne DÉCLARÉE ; le
+    // surplus reste en contexte, nommé comme tel.
+    html += tuile('Épargne déclarée / mois',
+      '<span style="color:#15803d;">+' + fmt(cf.epargneDeclaree) + '</span>',
+      'taux ' + fmtTaux(cf.tauxEpargneDeclaree) + ' des revenus · surplus avant dépenses variables '
+        + fmt(cf.surplusStructurel) + ' (' + fmtTaux(cf.tauxSurplusStructurel) + ')');
   }
   html += tuile('Reste à rembourser (immo)', fmt(crdTotal),
     equiteImmo != null ? 'équité nette ' + fmt(equiteImmo) + ' sur 3 biens' : '3 biens');

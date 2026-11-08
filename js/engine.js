@@ -25,7 +25,7 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES } from './data.js?v=598';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=598';
 import { lireContratEnCache } from './facturation_contract.js?v=598';
 
 /**
@@ -6903,18 +6903,22 @@ export function computeCashFlow(state, portfolio, fx) {
   // net, déjà calculé = loyer - charges - prêt - assurance).
   if (state.immoView && state.immoView.properties) {
     for (const prop of state.immoView.properties) {
-      // Ignorer les biens conditionnels (VEFA non livrée : pas de loyer)
-      if (prop.conditional) continue;
-      const netMo = prop.cf;
+      // v599 — a conditional property (VEFA not delivered) has no rent, but its CURRENT flows are
+      // paid (Villejuif: 51,29 €/mois of borrower insurance during the deferral). Skipping it whole
+      // made this total differ from the budget and the immo view by that amount. Same rule as
+      // immoView.totalCF: cfReel before delivery, cf after — never the post-delivery projection.
+      const netMo = prop.conditional ? (prop.cfReel || 0) : prop.cf;
       if (netMo != null && Math.abs(netMo) > 1) {   // ignore near-zero
         incomeSources.push({
-          label: 'Loyer net ' + (prop.name || prop.loanKey),
+          label: (prop.conditional ? 'Flux réel ' : 'Loyer net ') + (prop.name || prop.loanKey),
           owner: (prop.owner || 'Amine').toLowerCase(),
           type: 'Loyer',
           native: netMo,
           currency: 'EUR',
           monthlyEUR: netMo,
-          note: 'Cash-flow mensuel (loyer − charges − prêt − assurance).',
+          note: prop.conditional
+            ? 'Bien non livré : seuls les flux payés aujourd\'hui (assurance emprunteur), aucun loyer futur.'
+            : 'Cash-flow mensuel (loyer − charges − prêt − assurance).',
         });
         incomeMonthly += netMo;
       }
@@ -6971,8 +6975,16 @@ export function computeCashFlow(state, portfolio, fx) {
   // BUDGET_EXPENSES qui n'inclut PAS les mensualités immo (par design).
 
   // ── KPIs dérivés ──
+  // v599 — TWO notions, never one under the name « épargne » :
+  //   surplus structurel = revenus − charges fixes recensées, AVANT dépenses variables (courses,
+  //     loisirs, voyages ne sont pas suivis) : une marge théorique, pas une épargne constatée ;
+  //   épargne déclarée   = ce qui est réellement mis de côté chaque mois (DECLARED_MONTHLY_SAVINGS_EUR),
+  //     la base de toutes les projections.
+  // Les écrans affichaient 1 % (0,746 arrondi sans ×100), 39,4 % et 74,6 % sous le même nom.
   const netSavings = incomeMonthly - expensesMonthly;
   const savingsRate = incomeMonthly > 0 ? netSavings / incomeMonthly : 0;
+  const epargneDeclaree = DECLARED_MONTHLY_SAVINGS_EUR || 0;
+  const tauxEpargneDeclaree = incomeMonthly > 0 ? epargneDeclaree / incomeMonthly : 0;
 
   // Emergency fund : dormant cash (Cash dormant de cashView) / dépenses mensuelles
   const cashDormant = state.cashView && state.cashView.totalNonYielding
@@ -6989,6 +7001,10 @@ export function computeCashFlow(state, portfolio, fx) {
     expensesMonthly,
     netSavings,
     savingsRate,
+    surplusStructurel: netSavings,          // alias explicite de netSavings
+    tauxSurplusStructurel: savingsRate,     // fraction (0,746), jamais un pourcentage
+    epargneDeclaree,
+    tauxEpargneDeclaree,                    // fraction
     emergencyFundRatio,
     runwayMonths,
     incomeSources,
