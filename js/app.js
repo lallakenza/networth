@@ -4,17 +4,17 @@
 // See ARCHITECTURE.md for full documentation (pipeline, state
 // flow, cache-busting, version history, and audit changelog).
 
-import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=602';
+import { PORTFOLIO, FX_STATIC, DATA_LAST_UPDATE, EQUITY_HISTORY, APP_VERSION , PRICE_REFS_AS_OF, SOLDES_RETROACTIFS, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=603';
 import { deverrouiller, deverrouillerDepuisSession, blobDisponible,
          deverrouillerDepuisAppareil, deverrouillerDepuisServeur,
-         appareilAppaire, oublierAppareil } from './unlock.js?v=602';
-import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=602';
-import { render, applySnapshotDeltas } from './render.js?v=602';
-import { chargerContratDistant } from './facturation_contract.js?v=602';
-import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef, fetchBenchmarks, benchmarksDepuisHistorique, fusionnerBenchmarks } from './api.js?v=602';
-import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=602';
-import { initSimulators, bindSimulatorEvents } from './simulators.js?v=602';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=602';
+         appareilAppaire, oublierAppareil } from './unlock.js?v=603';
+import { compute, getGrandTotal, buildDailySnapshot, appliquerSoldesRetroactifs } from './engine.js?v=603';
+import { render, applySnapshotDeltas } from './render.js?v=603';
+import { chargerContratDistant } from './facturation_contract.js?v=603';
+import { fetchFXRates, fetchStockPrices, retryFailedTickers, fetchSoldStockPrices, clearCache, fetchHistoricalPrices, getStockQuote, getStockHistory, resolveMarket, getMoroccanPriceAt, pickMoroccanPriceAt, getHistoricalBase, saveHistStore, saveServerHistory, maybeSaveDailySnapshot, loadSnapshots, loadImmoRef, applyImmoRef, fetchBenchmarks, benchmarksDepuisHistorique, fusionnerBenchmarks } from './api.js?v=603';
+import { rebuildAllCharts, buildCFProjection, coupleChartZoomOut, buildPortfolioYTDChart, redrawChartForPeriod, switchChartMode, buildEquityHistoryChart, renderPortfolioChart } from './charts.js?v=603';
+import { initSimulators, bindSimulatorEvents } from './simulators.js?v=603';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=603';
 
 // v545 — positions IBKR des DEUX comptes : celui d'Amine et le compte propre de Nezha. Les prix
 // live, les références de période et le prolongement des séries s'appliquent aux deux.
@@ -712,18 +712,18 @@ window.nwOublierAppareil = () => oublierAppareil();
 
 /** Connexion par e-mail : appelée par la grille d'accueil. */
 window.nwEnvoyerCode = async (email) => {
-  const auth = await import('./auth.js?v=602');
+  const auth = await import('./auth.js?v=603');
   return auth.envoyerCode(email);
 };
 window.nwVerifierCode = async (email, code) => {
-  const auth = await import('./auth.js?v=602');
+  const auth = await import('./auth.js?v=603');
   await auth.verifierCode(email, code);
   const ok = await deverrouillerDepuisServeur();
   if (ok) apresDeverrouillage();
   return ok;
 };
 window.nwDeconnecter = async () => {
-  const auth = await import('./auth.js?v=602');
+  const auth = await import('./auth.js?v=603');
   auth.deconnecter();
   oublierAppareil();
 };
@@ -1381,7 +1381,13 @@ async function loadStockPrices(forceRefresh) {
 
     // « 9/14 live » en rouge laissait deviner ce que valaient les 5 autres. Un portefeuille
     // partiellement live est un état NORMAL et exploitable — il doit se lire comme tel.
-    if (allLive) {
+    // v603 — prices kept from an earlier cache because every source failed: say so, with the time.
+    const enCache = result.enCache || [];
+    const hhmm = (ms) => ms ? new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '?';
+    if (enCache.length > 0) {
+      const plusVieux = Math.min(...enCache.map(c => c.ts || Date.now()));
+      sBadge.textContent = 'Actions : ' + live + '/' + total + ' live · ' + enCache.length + ' au cache de ' + hhmm(plusVieux);
+    } else if (allLive) {
       sBadge.textContent = 'Actions : ' + live + '/' + total + ' live';
     } else if (live > 0) {
       sBadge.textContent = 'Actions : données mixtes — ' + live + ' live / ' + (total - live) + ' statiques';
@@ -1389,7 +1395,7 @@ async function loadStockPrices(forceRefresh) {
       sBadge.textContent = 'Actions : statique (données du ' + DATA_LAST_UPDATE + ')';
     }
     // Le rouge signale une panne. Un mélange live/statique n'en est pas une : orange.
-    sBadge.style.color = allLive ? 'var(--green-on-dark)' : (live > 0 ? '#f6ad55' : 'var(--red-on-dark)');
+    sBadge.style.color = (allLive && !enCache.length) ? 'var(--green-on-dark)' : (live > 0 || enCache.length ? '#f6ad55' : 'var(--red-on-dark)');
 
     // Tooltip : détail SGTM + tickers en échec éventuels (pour debug rapide sans console).
     const sgtmTip = 'SGTM ' + PORTFOLIO.market.sgtmPriceMAD + ' MAD — '
@@ -1397,7 +1403,11 @@ async function loadStockPrices(forceRefresh) {
     const failedTip = (result.failedTickers && result.failedTickers.length > 0)
       ? '\nÉchec: ' + result.failedTickers.join(', ')
       : '';
-    sBadge.title = sgtmTip + failedTip;
+    const cacheTip = enCache.length
+      ? '\nSources de cours injoignables : ' + enCache.length + ' cours repris du cache ('
+        + enCache.map(c => c.ticker + ' ' + hhmm(c.ts)).join(', ') + ') — P&L du jour à 0 tant que la séance du jour n\'est pas lue.'
+      : '';
+    sBadge.title = sgtmTip + failedTip + cacheTip;
   }
 
   try {
@@ -1449,12 +1459,14 @@ async function loadStockPrices(forceRefresh) {
       // Final badge update after retries
       // v545 — tickers IBKR uniques des deux comptes (Amine + Nezha)
       const _tkIbkr = [...new Set(_positionsIbkrApp().map(p => p.ticker))];
-      const finalLive = _tkIbkr.filter(t => _positionsIbkrApp().some(p => p.ticker === t && p._live === true)).length + (PORTFOLIO.market._acnLive ? 1 : 0);
+      const finalLive = _tkIbkr.filter(t => _positionsIbkrApp().some(p => p.ticker === t && p._live === true && !p._cacheTs)).length + (PORTFOLIO.market._acnLive ? 1 : 0);
+      // v603 — les cours repris du cache (sources injoignables) restent signalés comme tels
+      const _enCache = _tkIbkr.map(t => _positionsIbkrApp().find(p => p.ticker === t && p._cacheTs)).filter(Boolean).map(p => ({ ticker: p.ticker, ts: p._cacheTs }));
       const finalTotal = _tkIbkr.length + 1;
       const finalSgtm = PORTFOLIO.market._sgtmLive;
       const liveTot = finalLive + (finalSgtm ? 1 : 0);
       const tickersTot = finalTotal + 1;
-      updateBadge({ liveCount: liveTot, totalTickers: tickersTot, sgtmLive: finalSgtm });
+      updateBadge({ liveCount: liveTot, totalTickers: tickersTot, sgtmLive: finalSgtm, enCache: _enCache });
       // Les tentatives sont épuisées : l'état est ce qu'il est, et il doit être NOMMÉ. Le
       // libellé restait bloqué sur « retry 5... », qui décrit une action en cours et non un
       // résultat — on ne pouvait pas savoir si les chiffres à l'écran étaient exploitables.

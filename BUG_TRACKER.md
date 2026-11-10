@@ -2620,3 +2620,19 @@ doit couvrir un total, une vérification affichée plutôt qu'un commentaire.
 - **Non traité** : le loyer de Vitry déclaré (1 200 €/mois, non imposable) contredit le bail modélisé
   (600 € HC + 100 €) — en attente d'une précision du propriétaire, et non publiable en l'état dans le
   dépôt public s'il dépasse le bail.
+
+## BUG-128 : actions européennes figées au cours de la veille, badge « 19/19 live »
+
+- **Version** : affichage corrigé en v603 (10/11/2026) ; source de cours NON rétablie. **Sévérité** : moyenne.
+- **Détection** : Amine, 10/11/2026 à 10 h 40 (Paris) : les actions françaises ne bougent pas, P&L du jour « — ».
+- **Symptôme** : Airbus à 206 € (clôture du 09/11) pendant la séance du 10/11 ; colonne « Jour » vide pour
+  toutes les lignes cotées à Paris et Francfort ; badge « Actions : 19/19 live ».
+- **Cause** : les 6 proxies CORS de `fetchStockPrice` échouent (direct, allorigins, cors.lol, thingproxy :
+  réseau ; codetabs : délai ; corsproxy.io : 403 `keyless_legacy_url`). Le cache du navigateur (écrit à
+  07:57 Paris, avant l'ouverture) est appliqué, la relecture échoue, et `fetchStockPrices` comptait ces
+  cours comme chargés. US et Tokyo étant fermés à cette heure, leur cours en cache restait juste : seules
+  les places ouvertes semblaient « figées ». Le P&L du jour à 0 est le garde v454 (séance du jour non lue).
+- **Correctif v603** : `result.enCache` (cours périmés dont la relecture a échoué), exclus du compte live ;
+  badge « N live · M au cache de HH:MM » en orange, détail par ticker en infobulle.
+- **Reste à faire** : une source de cours joignable sans proxy (proposition : relevé intrajournalier par
+  GitHub Actions écrit dans le dépôt, comme SGTM — à valider par le propriétaire).

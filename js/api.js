@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=602';
-import { DEPLOIEMENTS } from './deploiements.js?v=602';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=602';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=603';
+import { DEPLOIEMENTS } from './deploiements.js?v=603';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=603';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -620,6 +620,7 @@ function applyTickerToPortfolio(ticker, priceData, portfolio) {
     pos.price = priceData.price;
     pos.previousClose = priceData.previousClose;
     pos.lastTradeTs = priceData.lastTradeTs || null;   // v454
+    pos._cacheTs = null;   // v603 — remis à jour par fetchStockPrices si ce cours vient d'un cache périmé
     pos.exchangeTz = priceData.exchangeTz || null;
     pos._live = true;
   });
@@ -762,22 +763,36 @@ export async function fetchStockPrices(portfolio, onProgress, forceRefresh, onTi
     if (cacheUpdated) saveCache(cache);
   }
 
+  // v603 — a stale cached price whose re-fetch FAILED is not live: it was counted as loaded and the
+  // badge said « 19/19 live » while every price source was down (cache of the morning, before the
+  // Paris open). Those tickers are reported apart, with the time of the cached quote.
+  const enCache = [...staleTickers]
+    .filter(t => prices[t] && cache.stocks[t] && prices[t] === cache.stocks[t] && !(Date.now() - (prices[t]._ts || 0) <= CACHE_TTL_MS))
+    .map(t => ({ ticker: t, ts: prices[t]._ts || null, lastTradeTs: prices[t].lastTradeTs || null }));
+  enCache.forEach(c => {
+    const pos = _positionsIbkr(portfolio).find(x => x.ticker === c.ticker);
+    if (pos) pos._cacheTs = c.ts;
+  });
+
   // Build result
   const sgtmLive = !!cachedSGTM;
   const failedTickers = allTickers.filter(t => !prices[t]);
   if (failedTickers.length > 0) {
     console.log('[api] Failed tickers after first pass: ' + failedTickers.join(', '));
+  } else if (enCache.length > 0) {
+    console.warn('[api] ' + enCache.length + ' ticker(s) en cache seulement (re-fetch en échec) : ' + enCache.map(c => c.ticker).join(', '));
   } else {
     console.log('[api] All held tickers loaded successfully!');
   }
 
   return {
     updated: Object.keys(prices).length > 0 || sgtmLive,
-    liveCount: Object.keys(prices).length + (sgtmLive ? 1 : 0),
+    liveCount: Object.keys(prices).length - enCache.length + (sgtmLive ? 1 : 0),
     totalTickers: allTickers.length + 1,
     sgtmLive,
     sgtmSource: portfolio.market._sgtmSource || null,
     failedTickers,
+    enCache,
   };
 }
 
