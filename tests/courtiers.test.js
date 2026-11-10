@@ -55,19 +55,24 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     assert.ok(dep && dep.currency === 'USD' && Math.abs(dep.amount - 2729.33) < 0.01);
   });
 
-  t('IBKR au connecteur du 07/11/2026 : 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
+  t('IBKR au connecteur du 10/11/2026 : 150 AIR, 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
     const pos = (tk) => P.amine.ibkr.positions.find((p) => p.ticker === tk);
+    assert.equal(pos('AIR.PA').shares, 150, '50 Airbus vendues le 09/11');
     assert.equal(pos('VWCE.DE').shares, 170);
     assert.equal(pos('GOOGL').shares, 40);
     assert.equal(P.amine.espp.shares, 167, 'les 167 ACN venues d\'UBS, chez IBKR depuis le 09/10');
-    // v595 — +6 000 € virés depuis Revolut le 07/11, en transit : le connecteur lit encore −22 361,85.
-    const transit = P.amine.ibkr.deposits.filter((d) => d.date === '2026-11-07' && d.currency === 'EUR').reduce((s, d) => s + d.amount, 0);
-    assert.equal(transit, 6000);
-    assert.ok(Math.abs(P.amine.ibkr.cashEUR - transit - (-22361.85)) < 0.01, 'cash EUR = connecteur + virement en transit');
+    // v601 — +6 000 € virés depuis Revolut le 07/11, reçus le 07/11 (e-mail IBKR du 09/11) : un seul dépôt.
+    const depot = P.amine.ibkr.deposits.filter((d) => d.date === '2026-11-07' && d.currency === 'EUR').reduce((s, d) => s + d.amount, 0);
+    assert.equal(depot, 6000);
+    assert.equal((P.amine.ibkr.creditsAnticipes || []).length, 0, 'crédit rapproché : plus rien d\'anticipé');
+    assert.ok(Math.abs(P.amine.ibkr.cashEUR - P.amine.ibkr.cashEURObserve) < 0.005, 'solde utilisé = solde observé');
     assert.equal(P.amine.ibkr.cashUSD, -8511.67);
     assert.equal(P.amine.ibkr.cashJPY, -1608111.36);
     // Les soldes se reconstituent au centime à partir des mouvements depuis le 09/10.
-    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + transit - P.amine.ibkr.cashEUR) < 0.01, 'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre');
+    const vente = P.amine.ibkr.trades.find((t) => t.date === '2026-11-09' && t.ticker === 'AIR.PA' && t.type === 'sell');
+    assert.ok(vente && vente.qty === 50 && vente.proceeds === 10135, 'vente AIR du 09/11');
+    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + depot + vente.proceeds + vente.commission - P.amine.ibkr.cashEUR) < 0.01,
+      'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre + 6 000 + vente AIR − commission');
     assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = cash UBS via Wise − 40 GOOGL');
   });
 

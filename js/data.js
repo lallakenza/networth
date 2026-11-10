@@ -308,7 +308,7 @@ export const PORTFOLIO = {
         // Achetées progressivement avril-nov 2025
         // Cours: prix live connecteur IBKR 12/07/2026 (fallback — surchargé par Yahoo au runtime)
         // PRU: prix d'achat moyen (costBasis EUR)
-        { ticker: 'AIR.PA',  shares: 200,  price: 204.10, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', whtCountry: 'netherlands', ytdOpen: 203.70, mtdOpen: 198.22, oneMonthAgo: 194.54 },
+        { ticker: 'AIR.PA',  shares: 150,  price: 204.10, costBasis: 190.25, currency: 'EUR', label: 'Airbus (AIR)', sector: 'industrials', geo: 'france', whtCountry: 'netherlands', ytdOpen: 203.70, mtdOpen: 198.22, oneMonthAgo: 194.54 },  // v602 — 50 vendues le 09/11/2026 (connecteur IBKR)
         { ticker: 'BN.PA',   shares: 200,  price: 64.82,  costBasis: 68.83,  currency: 'EUR', label: 'Danone (BN)', sector: 'consumer', geo: 'france', ytdOpen: 76.04, mtdOpen: 72.2, oneMonthAgo: 71.74 },
         // DG.PA — position fermée le 8 avr 2026 (100 actions vendues à 136.65)
 
@@ -342,14 +342,12 @@ export const PORTFOLIO = {
       // creditsAnticipes ; ne créer AUCUN second dépôt (le dépôt du 07/11 existe déjà dans deposits[])
       // et le patrimoine ne doit pas bouger. Les intérêts débiteurs réellement courus se lisent sur le
       // relevé, à la date de valeur réelle du crédit : rien ici ne suppose le débit remboursé avant.
-      cashEUR: -16361.85,    // v601 — = solde observé (crédit de 6 000 reçu le 07/11, rapproché). v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
-      // v601 — crédit RAPPROCHÉ : e-mail IBKR « Deposit Activity Update » du 09/11/2026 (01:14 UTC) : dépôt
-      // EUR « received on 2026-11-07 and is now available ». Date de valeur du crédit : 07/11/2026. Aucun
-      // second dépôt (celui du 07/11 existe dans deposits[]) ; patrimoine inchangé. Solde observé = solde
-      // du 08/11 (−22 361,85) + 6 000, en supposant aucune autre opération EUR depuis (aucun relevé
-      // quotidien reçu après celui du 06/11) — à reconfirmer au prochain relevé du connecteur.
-      cashEURObserve: -16361.85,
-      cashObserveLe: '2026-11-09',
+      cashEUR: -6231.92,     // v602 — connecteur IBKR du 10/11/2026 (= solde observé) : −16 361,85 + 10 135 (vente AIR du 09/11) − 5,07. Avant, v601 : −16 361,85 = −22 361,85 + 6 000 reçus le 07/11. v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      // v602 — connecteur IBKR du 10/11/2026 : −6 231,9175 = −16 361,85 (dont le crédit de 6 000 reçu le 07/11,
+      // e-mail IBKR « Deposit Activity Update » du 09/11) + 10 135 (vente de 50 AIR le 09/11) − 5,0675 de commission.
+      // Le rapprochement au centime confirme le crédit du 07/11 et l'absence d'autre opération EUR.
+      cashEURObserve: -6231.92,
+      cashObserveLe: '2026-11-10',
       creditsAnticipes: [],
       cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1608111.36, // v587 — connecteur IBKR du 07/11/2026 : −3 565 ¥ d'intérêts de marge d'octobre. Avant : connecteur du 09/10/2026. −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
@@ -634,6 +632,7 @@ export const PORTFOLIO = {
         // ─── VWCE (Vanguard FTSE All-World, Acc, Xetra) — position ouverte 1er sept 2026 ───
         { date: '2026-09-01', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 50, price: 166.86, currency: 'EUR', cost: 8343, commission: -4.17, costBasis: 166.94, source: 'ibkr' },
         { date: '2026-11-06', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 100, price: 164.22, currency: 'EUR', cost: 16422, commission: -8.21, costBasis: 164.30, source: 'ibkr' },  // v587 — connecteur IBKR : IBIS2, limite 164,22, 13:04 UTC
+        { date: '2026-11-09', ticker: 'AIR.PA',  label: 'Airbus',            type: 'sell', qty: 50,   price: 202.70,  currency: 'EUR', proceeds: 10135, realizedPL: 622.75,  commission: -5.07, costBasis: 190.245, source: 'ibkr' },  // v602 — connecteur IBKR : SBF 12:49 UTC, limite 202,70, 3 exécutions (6 + 5 + 39), commission 5,0675 ; 50×(202,70−190,245) ; IBKR réalisé net de commission 617,68
         { date: '2026-10-26', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 20, price: 170.14, currency: 'EUR', cost: 3402.8, commission: -3.00, costBasis: 170.29, source: 'ibkr' },  // v569 — connecteur IBKR : IBIS2, limite 170,14, commission 3 €
         { date: '2026-10-30', ticker: 'GOOGL',   label: 'Alphabet',                type: 'buy', qty: 40, price: 281.00, currency: 'USD', cost: 11240,  commission: -1.00, costBasis: 281.03, fxRate: 1.11828, source: 'ibkr' },  // v569 — connecteur IBKR : ISLAND, limite 281, commission 1,00 USD  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
 
@@ -1748,10 +1747,10 @@ export const PORTFOLIO = {
     attijari_amine:   { le: '2026-10-31', source: 'relevé Attijarinet', statut: 'observé' },
     nabd:             { le: '2026-07-12', source: 'relevé de l\'app', statut: 'observé' },
     cih:              { le: '2026-11-01', source: 'confirmation d\'Amine (capture du 28/08 + ventes P2P)', statut: 'observé' },
-    ibkr_cash_eur:    { le: '2026-11-09', source: 'connecteur IBKR du 08/11 (−22 361,85) + dépôt de 6 000 reçu le 07/11 (e-mail IBKR du 09/11)', statut: 'observé' },
-    ibkr_cash_usd:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
-    ibkr_cash_jpy:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
-    ibkr_cash_aed:    { le: '2026-11-08', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_eur:    { le: '2026-11-10', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_usd:    { le: '2026-11-10', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_jpy:    { le: '2026-11-10', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_aed:    { le: '2026-11-10', source: 'connecteur IBKR', statut: 'observé' },
     espp_cash_amine:  { le: '2026-10-18', source: 'virement Wise → IBKR (e-mail IBKR) : compte UBS vidé', statut: 'observé' },
     espp_cash_nezha:  { le: null, source: 'relevé UBS (date non tracée)', statut: 'observé' },
     revolut_nezha:    { le: '2026-11-07', source: 'capture de l\'app Revolut', statut: 'observé' },
@@ -1859,7 +1858,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '07/11/2026';
-export const APP_VERSION = 'v601';
+export const APP_VERSION = 'v602';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
