@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=606';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee } from './engine.js?v=606';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=607';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee, projectionSortieRueil } from './engine.js?v=607';
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5799,9 +5799,9 @@ function renderImmoView(state) {
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       // Le nombre était concaténé BRUT : d'où « -107.05999999999997/mois » à l'écran. Les
       // valeurs exactes servent au calcul, le formatage n'intervient qu'à l'affichage.
-      + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">'
+      + ' | Budget net fiscal estimé : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">'
       + (iv.totalCFNetFiscal >= 0 ? '+' : '\u2212') + fmt(Math.abs(Math.round(iv.totalCFNetFiscal))) + '/mois</strong>'
-      + '<br>Rueil : calcul annuel sous hypothèses du panneau LMNP (recettes CC, reports, TMI de scénario). Villejuif : plan absent, impôt après livraison non déterminé. Le coût actuel de son assurance reste inclus dans le cash-flow.';
+      + '<br>Rueil : budget complet du panneau LMNP (honoraires et CFE estimés inclus), distinct du CF courant avant ces frais. Villejuif : plan absent, impôt après livraison non déterminé. Le coût actuel de son assurance reste inclus dans le cash-flow.';
   }
 
   // ── Dynamic CF Table (was hardcoded in HTML) ──
@@ -6576,7 +6576,7 @@ function renderAptView(state, loanKey) {
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(cfFiche) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF réel aujourd\'hui /mois' : 'CF brut /mois') + '</div></div>'
     + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;color:#718096;">' + (prop.cf >= 0 ? '+' : '') + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF projeté après livraison /mois</div></div>' : '')
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + (Number.isFinite(prop.cfNetFiscal) ? cfNetSign + Math.round(prop.cfNetFiscal) + ' €' : 'Non déterminé') + '</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF fiscal après livraison — plan absent' : 'CF fiscal estimé /mois') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + (Number.isFinite(prop.cfNetFiscal) ? cfNetSign + Math.round(prop.cfNetFiscal) + ' €' : 'Non déterminé') + '</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF fiscal après livraison — plan absent' : loanKey === 'rueil' ? 'CF net projeté complet /mois' : 'CF fiscal estimé /mois') + '</div></div>'
       + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
@@ -6874,9 +6874,10 @@ function renderAptView(state, loanKey) {
     const holdYears = Math.max(0, (yr - py2) + (6 - pm2) / 12);  // approx mid-year (affichage)
     const totalAmort = loanKey === 'rueil' && iv.lmnpRueil ? amortImmoLmnpPourAnnee(iv.lmnpRueil, yr)
       : fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
-    const crd = crdAtYear(yr);
-    const prixYr = prixProjete(yr);
-    const exitSim = computeExitCostsAtYear(loanKey, yr, prixYr, purchasePrice, crd, totalAmort);
+    const lmnpSortie = loanKey === 'rueil' && iv.lmnpRueil ? projectionSortieRueil(iv, yr) : null;
+    const crd = lmnpSortie ? Math.round(lmnpSortie.crd) : crdAtYear(yr);
+    const prixYr = lmnpSortie ? Math.round(lmnpSortie.prixProjete) : prixProjete(yr);
+    const exitSim = lmnpSortie ? lmnpSortie.exitCosts : computeExitCostsAtYear(loanKey, yr, prixYr, purchasePrice, crd, totalAmort);
     const neColor = exitSim.netEquityAfterExit >= 0 ? '#276749' : '#c53030';
     html += '<tr>'
       + '<td><strong>' + yr + '</strong></td>'
@@ -7264,6 +7265,10 @@ function renderBudgetView(state) {
   setEur('kpiBudgetInvestLoyer', bv.investLoyerTotal);
   const cfSign = bv.investCFTotal >= 0 ? '+' : '';
   setText('kpiBudgetInvestCF', cfSign + fmt(bv.investCFTotal) + '/mois');
+  const rapprochementLmnp = document.getElementById('budgetLmnpReconciliation');
+  if (rapprochementLmnp) rapprochementLmnp.textContent = 'Budget courant avant impôt : ' + fmt(bv.investCFTotal)
+    + '/mois. Avec le seul ajustement LMNP complet de Rueil : ' + fmt(bv.investCFScenarioLmnp)
+    + '/mois (écart ' + fmt(bv.ajustementLmnp) + '/mois). Honoraires/CFE, TF et fiscalité du scénario : hypothèses, pas des paiements confirmés. Autres biens inchangés.';
   const cfEl = document.getElementById('kpiBudgetInvestCF');
   if (cfEl) cfEl.style.color = bv.investCFTotal >= 0 ? 'var(--green)' : 'var(--red)';
   // Grand total = personal + net CF from investments (if negative, adds to expenses)
@@ -7326,6 +7331,9 @@ function renderBudgetView(state) {
         + fmtMo(cf.epargneDeclaree) + ' €/mois mis de c&ocirc;t&eacute;, d&eacute;clar&eacute;)<br>';
       html += '• Surplus avant d&eacute;penses variables : <strong>' + fmtMo(cf.surplusStructurel) + ' €/mois</strong>, soit ' + fmtTaux(cf.tauxSurplusStructurel)
         + ' des revenus <span style="color:var(--gray);font-size:11px">(revenus − charges fixes recens&eacute;es ; courses, loisirs et voyages non suivis : ce n\'est pas une &eacute;pargne constat&eacute;e)</span><br>';
+      html += '• Scénario avec budget LMNP complet de Rueil : <strong>' + fmtMo(cf.surplusScenarioLmnp) + ' €/mois</strong> de surplus, soit '
+        + fmtMo(cf.ajustementLmnp) + ' €/mois d’ajustement (honoraires, CFE, TF et IR/PS du scénario). '
+        + '<span style="color:var(--gray);font-size:11px">Hypothèses, pas des paiements confirmés ; autres flux inchangés. L’épargne déclarée n’est pas augmentée de ce surplus.</span><br>';
       html += '• Cash dormant : ' + fmtMo(cf.cashDormant) + ' € | Mobilisable total : ' + fmtMo(cf.liquid) + ' €<br>';
       // v320 — Projection 12 mois basée sur l'épargne déclarée (8 k€/mois), pas sur netSavings.
       // Le surplus structurel sert juste de diagnostic "combien de marge théorique" ; la projection
@@ -8195,7 +8203,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=606').then(m => {
+  import('./charts.js?v=607').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

@@ -3359,6 +3359,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 <div class="card" data-view="couple">
   <h2><span class="section-icon" style="background: var(--accent);">📈</span>Évolution du Net Worth</h2>
   <div class="chart-container" style="height:280px"><canvas id="nwHistoryChart"></canvas></div>
+  <p style="font-size:11px;color:var(--gray);">Projection NW : Rueil inclut le plan ELM, les frais estim&eacute;s et l’IR/PS annuels sous maintien LMNP isol&eacute;. Autres biens : flux avant imp&ocirc;t ; fiscalit&eacute; future de Villejuif non d&eacute;termin&eacute;e. Les curseurs des simulateurs peuvent d&eacute;finir d’autres sc&eacute;narios de rendement et d’&eacute;pargne.</p>
 </div>
 
 <!-- TREEMAP -->
@@ -4233,7 +4234,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 <!-- v429 : section repliée -->
 <div style="border:1px solid var(--border,#e7e5e4);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface,#fff);"><button type="button" aria-expanded="false" aria-controls="secImmoCfProj" onclick="var d=document.getElementById('secImmoCfProj');var o=d.style.display==='none';d.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');this.querySelector('.chev').textContent=o?'\u25B2':'\u25BC';if(o){window.dispatchEvent(new Event('resize'));d.querySelectorAll('canvas').forEach(function(c){try{var g=Chart.getChart(c);if(g)g.resize();}catch(e){}});}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:none;background:#fafaf9;cursor:pointer;text-align:left;font-family:inherit;"><span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;color:#2d3748;">Projection cash-flow — 10 ans</span><span style="font-size:11.5px;color:#718096;font-weight:400;">graphique + tableau année par année</span></span><span class="chev" aria-hidden="true" style="color:#718096;font-size:11px;">&#x25BC;</span></button><div id="secImmoCfProj" style="display:none;padding:0 16px 16px;"><h3 style="margin-top: 28px;">Projection Cash Flow — 10 ans</h3>
-  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Cash flow mensuel net par appartement et total combine.</p>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">Budget projet&eacute; avant imp&ocirc;t, par appartement et total combin&eacute;. Rueil inclut honoraires et CFE estim&eacute;s. Le panneau LMNP affiche le sc&eacute;nario apr&egrave;s imp&ocirc;t.</p>
   <div class="chart-container" style="height: 380px;">
     <canvas id="cfProjectionChart"></canvas>
   </div>
@@ -4376,7 +4377,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 <div class="card" data-view="budget">
 <h2 style="margin-top:32px;"><span class="section-icon" style="background: #14b8a6;">&#x1F4CA;</span>Cash-flow consolid&eacute; mensuel</h2>
-  <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Synth&egrave;se des flux : revenus (salaires + facturation + loyers + dividendes) vs d&eacute;penses mensuelles. Permet de calculer le taux d'&eacute;pargne, l'emergency fund ratio, et le runway si perte de revenu.</p>
+  <p style="font-size:12px;color:var(--gray);margin:0 0 12px 0;">Budget courant recens&eacute;, avant imp&ocirc;t locatif et hors honoraires/CFE LMNP estim&eacute;s. Le sc&eacute;nario Rueil complet est rapproch&eacute; s&eacute;par&eacute;ment ci-dessous ; il ne constitue pas des paiements confirm&eacute;s.</p>
   <!-- v320 — Décomposition épargne : surplus structurel (revenus − dépenses fixes trackées,
        pédago mais ne reflète pas la réalité) vs épargne déclarée (8 000 €/mois, valeur utilisée
        partout dans les projections). Le surplus reste affiché pour diagnostic "combien de marge
@@ -4436,9 +4437,10 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
   <div class="kpi-strip" id="kpi-budget-invest" style="grid-template-columns: repeat(4, 1fr);">
     <div class="kpi" style="border-top-color:#e53e3e;"><div class="value" id="kpiBudgetInvestTotal" data-eur="0">--</div><div class="label">Charges /mois</div></div>
     <div class="kpi green"><div class="value" id="kpiBudgetInvestLoyer" data-eur="0">--</div><div class="label">Loyers /mois</div></div>
-    <div class="kpi" style="border-top-color:var(--green);"><div class="value" id="kpiBudgetInvestCF">--</div><div class="label">Cash-Flow Net</div></div>
+    <div class="kpi" style="border-top-color:var(--green);"><div class="value" id="kpiBudgetInvestCF">--</div><div class="label">Cash-flow courant avant imp&ocirc;t</div></div>
     <div class="kpi"><div class="value" id="kpiBudgetGrandTotal" data-eur="0">--</div><div class="label">Budget Total (perso + immo net)</div></div>
   </div>
+  <p id="budgetLmnpReconciliation" style="font-size:12px;color:var(--gray);"></p>
 
   <div id="budgetInvestDetail"></div>
 
@@ -4787,7 +4789,7 @@ window._nwCookieValide = (getCookie(AUTH_COOKIE) === AUTH_HASH);
 
 </div>
 
-<script type="module" src="js/app.js?v=606"></script>
+<script type="module" src="js/app.js?v=607"></script>
 
 </body>
 </html>

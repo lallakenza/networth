@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=606';
-import { lireContratEnCache } from './facturation_contract.js?v=606';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=607';
+import { lireContratEnCache } from './facturation_contract.js?v=607';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2652,14 +2652,49 @@ export function statutLocationMeublee(recettes, revenusEligibles, seuil) {
   return recettes > revenusEligibles ? 'LMP sous les hypothèses retenues' : 'LMNP sous les hypothèses retenues';
 }
 
-/** Réintégration immobilière : documentée aujourd'hui, conditionnelle à mi-année future. */
-export function amortImmoLmnpPourAnnee(projection, annee) {
+/** Réintégration immobilière : documentée aujourd'hui, prorata annuel simulé pour le futur. */
+export function amortImmoLmnpPourAnnee(projection, annee, fractionAnnee = 0.5) {
   if (!projection) return 0;
   const confirme = projection.plan.confirme.amortImmobilierDeduit2025;
   if (annee <= new Date().getFullYear()) return confirme;
   const precedent = projection.indexe.find(l => l.annee === annee - 1);
   const courant = projection.indexe.find(l => l.annee === annee);
-  return (precedent?.cumulImmo ?? confirme) + (courant?.amortImmobilierDeduit ?? 0) / 2;
+  return (precedent?.cumulImmo ?? confirme) + (courant?.amortImmobilierDeduit ?? 0) * Math.max(0, Math.min(1, fractionAnnee));
+}
+
+/** Moyenne mensuelle de l'exercice ELM : même flux pour chaque projection de NW. */
+export function fluxLmnpMensuel(projection, date, apresImpot = true) {
+  const l = projection?.indexe.find(r => r.annee === Number(String(date).slice(0, 4)));
+  return l ? (apresImpot ? l.cfApresImpot : l.cfAvantImpot) / 12 : null;
+}
+
+/** Vente Rueil : prix, dette et amortissement admis d'une même date, pour tableau et graphes. */
+export function projectionSortieRueil(iv, annee, options = {}) {
+  const p = iv.properties.find(p => p.loanKey === 'rueil');
+  if (!p || !iv.lmnpRueil) return null;
+  const now = new Date(), courant = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const date = options.date || (annee <= now.getFullYear() ? courant : annee + '-06');
+  if (date === courant) return { date, annee, prixProjete: p.value, crd: p.crd,
+    totalAmort: iv.lmnpRueil.plan.confirme.amortImmobilierDeduit2025,
+    exitCosts: p.exitCosts, netEquity: p.exitCosts.netEquityAfterExit };
+  const meta = p.propertyMeta || IMMO_CONSTANTS.properties.rueil;
+  const [y, m] = date.split('-').map(Number);
+  const mois = (y - now.getFullYear()) * 12 + m - now.getMonth() - 1;
+  let prixProjete = p.value;
+  for (let i = 1; i <= mois; i++) {
+    const yr = new Date(now.getFullYear(), now.getMonth() + i, 1).getFullYear();
+    const phase = (meta.appreciationPhases || []).find(ph => yr >= ph.start && yr <= ph.end);
+    const taux = options.appreciationOverride ?? phase?.rate ?? meta.appreciation ?? 0;
+    prixProjete *= Math.pow(1 + taux, 1 / 12);
+  }
+  const schedule = iv.amortSchedules.rueil?.schedule || [];
+  let row = null;
+  for (const r of schedule) { if (r.date <= date) row = r; else break; }
+  const crd = row ? row.remainingCRD : p.crd;
+  const totalAmort = amortImmoLmnpPourAnnee(iv.lmnpRueil, y, m / 12);
+  const exitCosts = computeExitCostsAtYear('rueil', y, prixProjete, p.purchasePrice || meta.purchasePrice,
+    crd, totalAmort, [{ name: 'Prêt principal', crd, rate: IMMO_CONSTANTS.loans.rueil.rate }]);
+  return { date, annee: y, prixProjete, crd, totalAmort, exitCosts, netEquity: exitCosts.netEquityAfterExit };
 }
 
 /** Projection ISOLÉE de Rueil sous maintien LMNP. Le statut du foyer reste un contrôle distinct.
@@ -3443,7 +3478,9 @@ function computeImmoView(portfolio, fx) {
         tauxEffectif: l.recettes > 0 ? l.impot / l.recettes * 100 : 0,
         note: 'Estimation annuelle Rueil isolé : plan ELM, charges et TMI hypothétiques ; statut du foyer distinct.' };
     }
-    const cfNetFiscal = fisc?.monthlyImpot == null ? null : cf - fisc.monthlyImpot;
+    const cfNetFiscal = loanKey === 'rueil' && lmnpAnneeCourante
+      ? lmnpAnneeCourante.cfApresImpot / 12
+      : fisc?.monthlyImpot == null ? null : cf - fisc.monthlyImpot;
 
     // Use computed CRD from amort schedule if available (more accurate than static snapshot)
     // Daily proration: interpolate CRD between monthly schedule entries so equity
@@ -3933,6 +3970,12 @@ function computeImmoView(portfolio, fx) {
     const perPropEC = {};
     projLoanKeys.forEach(lk => {
       const prop = properties.find(p => p.loanKey === lk);
+      if (lk === 'rueil' && lmnpRueil) {
+        const sortie = projectionSortieRueil({ properties, amortSchedules, lmnpRueil }, yr);
+        totalEC += sortie.exitCosts.totalExitCosts;
+        perPropEC[lk] = sortie.exitCosts.totalExitCosts;
+        return;
+      }
       const amort = amortSchedules[lk];
       const propMeta = IC.properties[lk] || {};
       const appreciationRate = propMeta.appreciation || 0;
@@ -4654,6 +4697,9 @@ function computeBudgetView(portfolio, fx, immoView) {
   const investTotal = investProperties.reduce((s, p) => s + p.currentCharges, 0);
   const investLoyerTotal = investProperties.reduce((s, p) => s + p.loyer, 0);
   const investCFTotal = investLoyerTotal - investTotal;
+  const rueilCourant = immoView?.properties.find(pr => pr.loanKey === 'rueil');
+  const rueilProjete = fluxLmnpMensuel(immoView?.lmnpRueil, new Date().getFullYear());
+  const ajustementLmnp = rueilCourant && rueilProjete != null ? rueilProjete - rueilCourant.cf : 0;
 
   // ── GRAND TOTAL (personal only — investment is separate) ──
   const totalMonthly = personalTotal;
@@ -4662,6 +4708,7 @@ function computeBudgetView(portfolio, fx, immoView) {
   return {
     personal, personalTotal, personalByZone, personalByType,
     investProperties, investTotal, investLoyerTotal, investCFTotal,
+    ajustementLmnp, investCFScenarioLmnp: investCFTotal + ajustementLmnp,
     totalMonthly, totalYearly,
   };
 }
@@ -6323,6 +6370,10 @@ export function projectNW(state, hyp = {}) {
     for (let i = 0; i <= H.horizonMois; i++) {
       const iso = moisISO(i);
       const y = parseInt(iso.slice(0, 4), 10);
+      if (k === 'rueil' && iv.lmnpRueil) {
+        netA.push(projectionSortieRueil(iv, y, { date: iso }).netEquity);
+        continue;
+      }
       if (i > 0) valeur *= 1 + tauxAnnee(y) / 12;
       if (estVEFA && iso < livraisonISO) {
         netA.push(null); // pré-livraison : équité engagée flat (delta 0)
@@ -6331,8 +6382,7 @@ export function projectNW(state, hyp = {}) {
       const crd = crdAuMois(iso);
       if (exitCacheYear !== y) {
         const yearsHeld = y - parseInt((meta.purchaseDate || '2023-01').slice(0, 4), 10);
-        const totalAmort = k === 'rueil' && iv.lmnpRueil ? amortImmoLmnpPourAnnee(iv.lmnpRueil, y)
-          : fiscType === 'lmnp' ? Math.round(purchasePrice * 0.80 * 0.02 * Math.max(0, yearsHeld)) : 0;
+        const totalAmort = fiscType === 'lmnp' ? Math.round(purchasePrice * 0.80 * 0.02 * Math.max(0, yearsHeld)) : 0;
         const ec = computeExitCostsAtYear(k, y, Math.round(valeur), purchasePrice, crd, totalAmort);
         exitCacheCosts = ec.totalExitCosts;
         exitCacheYear = y;
@@ -6347,12 +6397,16 @@ export function projectNW(state, hyp = {}) {
     }
 
     // cash-flow mensuel cumulé
+    let cumulBien = 0;
     for (let i = 1; i <= H.horizonMois; i++) {
       const iso = moisISO(i);
-      const lmnpLigne = k === 'rueil' ? iv.lmnpRueil?.indexe.find(l => l.annee === Number(iso.slice(0, 4))) : null;
-      const cf = lmnpLigne ? lmnpLigne.cfApresImpot / 12
+      const lmnpCF = k === 'rueil' ? fluxLmnpMensuel(iv.lmnpRueil, iso) : null;
+      const cf = lmnpCF != null ? lmnpCF
         : estVEFA ? (iso < livraisonISO ? (p.cfReel || 0) : (p.cf || 0)) : (p.cf || 0);
-      cfCumul[owner][i] = cfCumul[owner][i - 1] + cf;
+      // Plusieurs biens d'un même propriétaire doivent s'additionner : Villejuif
+      // écrasait le cumul de Rueil, rendant son impôt sans effet sur la courbe NW.
+      cumulBien += cf;
+      cfCumul[owner][i] += cumulBien;
     }
   });
 
@@ -7225,6 +7279,9 @@ export function computeCashFlow(state, portfolio, fx) {
   //     la base de toutes les projections.
   // Les écrans affichaient 1 % (0,746 arrondi sans ×100), 39,4 % et 74,6 % sous le même nom.
   const netSavings = incomeMonthly - expensesMonthly;
+  const rueilCourant = state.immoView?.properties.find(p => p.loanKey === 'rueil');
+  const rueilProjete = fluxLmnpMensuel(state.immoView?.lmnpRueil, new Date().getFullYear());
+  const ajustementLmnp = rueilCourant && rueilProjete != null ? rueilProjete - rueilCourant.cf : 0;
   const savingsRate = incomeMonthly > 0 ? netSavings / incomeMonthly : 0;
   const epargneDeclaree = DECLARED_MONTHLY_SAVINGS_EUR || 0;
   const tauxEpargneDeclaree = incomeMonthly > 0 ? epargneDeclaree / incomeMonthly : 0;
@@ -7245,6 +7302,7 @@ export function computeCashFlow(state, portfolio, fx) {
     netSavings,
     savingsRate,
     surplusStructurel: netSavings,          // alias explicite de netSavings
+    ajustementLmnp, surplusScenarioLmnp: netSavings + ajustementLmnp,
     tauxSurplusStructurel: savingsRate,     // fraction (0,746), jamais un pourcentage
     epargneDeclaree,
     tauxEpargneDeclaree,                    // fraction

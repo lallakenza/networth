@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=606';
-import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation } from './engine.js?v=606';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=606';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=606';
-import { loadSnapshots } from './api.js?v=606'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=606'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=607';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil } from './engine.js?v=607';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=607';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=607';
+import { loadSnapshots } from './api.js?v=607'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=607'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -489,6 +489,10 @@ function buildImmoProjection(state) {
     }
 
     const data = projYears.map(year => {
+      if (key === 'rueil' && iv.lmnpRueil) {
+        const r = projectionSortieRueil(iv, year);
+        return Math.round(r.prixProjete - r.crd);
+      }
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
       if (monthsFromStart < 0) return 0;
       const schedIdx = Math.min(monthsFromStart, sched.length - 1);
@@ -525,7 +529,7 @@ function buildImmoProjection(state) {
     type: 'line',
     data: { labels: projYears.map(String), datasets },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { title: { display: true, text: 'Projection equity (appréc. par phases)', font: { size: 14 } },
+      plugins: { title: { display: true, text: 'Projection equity brute — avant frais de sortie', font: { size: 14 } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) } } },
       scales: { y: { ticks: { callback: v => fmtAxis(v) } } } }
   });
@@ -1841,7 +1845,7 @@ function buildAmortChart(state) {
 }
 
 // ============ IMMO VIEW PROJECTION ============
-function buildImmoViewProjection(state) {
+export function buildImmoViewProjection(state) {
   const el = document.getElementById('immoViewProjectionChart');
   if (!el) return;
   if (charts.immoViewProj) { charts.immoViewProj.destroy(); delete charts.immoViewProj; }
@@ -1883,6 +1887,10 @@ function buildImmoViewProjection(state) {
     const amortPerYear = (purchasePrice * 0.80 * 0.02);
 
     const dataBrute = projYears.map(year => {
+      if (key === 'rueil' && iv.lmnpRueil) {
+        const r = projectionSortieRueil(iv, year);
+        return { equity: Math.round(r.prixProjete - r.crd), projValue: r.prixProjete, crd: r.crd };
+      }
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
       if (monthsFromStart < 0) return 0;
       const schedIdx = Math.min(monthsFromStart, sched.length - 1);
@@ -1899,6 +1907,7 @@ function buildImmoViewProjection(state) {
     });
 
     const dataNet = projYears.map((year, i) => {
+      if (key === 'rueil' && iv.lmnpRueil) return Math.round(projectionSortieRueil(iv, year).netEquity);
       const { projValue, crd } = dataBrute[i];
       const pDate = propMeta.purchaseDate || '2023-01';
       const [pY2] = pDate.split('-').map(Number);
@@ -1970,6 +1979,10 @@ export function buildPropertyDetailCharts(state, prop) {
     const amortPerYear = (purchasePrice * 0.80 * 0.02);
 
     const rawData = projYears.map(year => {
+      if (prop.loanKey === 'rueil' && iv.lmnpRueil) {
+        const r = projectionSortieRueil(iv, year);
+        return { projValue: r.prixProjete, crd: r.crd, equityBrute: Math.round(r.prixProjete - r.crd) };
+      }
       const monthsFromStart = (year - startY) * 12 + (1 - startM);
       const schedIdx = monthsFromStart < 0 ? -1 : Math.min(monthsFromStart, sched.length - 1);
       const crd = schedIdx < 0 || schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
@@ -1981,6 +1994,7 @@ export function buildPropertyDetailCharts(state, prop) {
     const equityBruteData = rawData.map(d => d.equityBrute);
 
     const equityNetData = projYears.map((year, i) => {
+      if (prop.loanKey === 'rueil' && iv.lmnpRueil) return Math.round(projectionSortieRueil(iv, year).netEquity);
       const { projValue, crd } = rawData[i];
       const pDate = propMeta.purchaseDate || '2023-01';
       const [pY2] = pDate.split('-').map(Number);
@@ -2101,14 +2115,16 @@ export function buildExitProjectionChart(state, prop, canvasId) {
   const dataTVA = [], dataIRA = [], dataSADEV = [];
 
   for (const year of projYears) {
+    const lmnpSortie = prop.loanKey === 'rueil' && iv.lmnpRueil ? projectionSortieRueil(iv, year) : null;
     // Projected value with appreciation
     let projValue = baseValue;
     for (let y = currentYear; y < year; y++) projValue *= (1 + getRate(y));
+    if (lmnpSortie) projValue = lmnpSortie.prixProjete;
 
     // CRD at target year
     const monthsFromStart = (year - startY) * 12 + (6 - startM); // ~June
     const schedIdx = Math.min(Math.max(0, monthsFromStart), sched.length - 1);
-    const crd = schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
+    const crd = lmnpSortie ? lmnpSortie.crd : schedIdx >= sched.length ? 0 : sched[schedIdx].remainingCRD;
 
     // Total amortissements
     const pDate = propMeta.purchaseDate || '2023-01';
@@ -2133,7 +2149,7 @@ export function buildExitProjectionChart(state, prop, canvasId) {
     }
 
     try {
-      const ec = computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort, loanCRDs);
+      const ec = lmnpSortie ? lmnpSortie.exitCosts : computeExitCostsAtYear(prop.loanKey, year, projValue, purchasePrice, crd, totalAmort, loanCRDs);
       const netProceeds = Math.round(ec.netEquityAfterExit);   // v590 — signed: negative = cash to bring at sale
       const taxes = ec.totalTaxPV;
       const tvaC = ec.tvaClawback || 0;

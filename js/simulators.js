@@ -3,8 +3,9 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=606';
-import { IMMO_CONSTANTS } from './data.js?v=606';
+import { fmt, fmtAxis } from './render.js?v=607';
+import { IMMO_CONSTANTS } from './data.js?v=607';
+import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=607';
 
 const IC = IMMO_CONSTANTS;
 
@@ -179,6 +180,9 @@ function runSimulatorGeneric(config) {
 
     if (totalNW >= 1000000 && month1M === -1) month1M = m;
 
+    // Le dernier point clôt l'horizon : aucune contribution ni recette supplémentaire.
+    if (m === months) break;
+
     const immoGrowth = immoGrowthFn(m);
     cumImmoReturns += immoGrowth;
     // Track per-property growth (for non-computed equity properties)
@@ -209,7 +213,7 @@ function runSimulatorGeneric(config) {
     let rentalCFThisMonth = 0;
     props.forEach((p) => {
       if (typeof p.cashFlowFn === 'function') {
-        rentalCFThisMonth += p.cashFlowFn(m) || 0;
+        rentalCFThisMonth += p.cashFlowFn(m + 1) || 0;
       }
     });
     if (rentalCFThisMonth !== 0) {
@@ -340,6 +344,9 @@ function runSimulatorGeneric(config) {
       'Part immo dans le NW final : <strong>' + pctImmoFinalNW + '%</strong> (' + fmt(Math.round(finalImmoTotal)) + ').' +
       m1MMotivation;
   }
+  if (prefix === 'cplSim') insightHtml += '<br>Rueil : plan ELM, frais estimés et IR/PS annuels, sous maintien LMNP isolé. '
+    + 'Villejuif : coût de portage avant livraison ; impôt futur non déterminé. '
+    + 'Les curseurs d’épargne et de rendement définissent ce scénario ; ils peuvent différer du graphe NW.';
   document.getElementById(prefix + 'Insight').innerHTML = insightHtml;
 
   // Build immo breakdown labels + data for chart tooltip
@@ -615,28 +622,34 @@ function makeComputePropertyCRD(iv, loanKey) {
 // ============ GENERIC PROPERTY EQUITY COMPUTER ============
 // Computes absolute NET equity (after exit costs) for any property
 // based on amort schedule + phased appreciation - projected exit costs
-function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciationOverride) {
+export function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciationOverride) {
   // Pre-extract exit costs by year for this property
   const exitCostsByYearProp = (iv && iv.exitCostsByYearProp) || {};
 
   return (m) => {
     if (!iv || !iv.amortSchedules || !iv.amortSchedules[loanKey]) return 0;
+    if (loanKey === 'rueil' && iv.lmnpRueil) {
+      const d = moisBaseSim(m), date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      return projectionSortieRueil(iv, d.getFullYear(), { date, appreciationOverride }).netEquity;
+    }
 
     const amort = iv.amortSchedules[loanKey];
     const prop = iv.properties.find(p => p.loanKey === loanKey);
     if (!prop) return 0;
+    if (m === 0) return prop.exitCosts?.netEquityAfterExit ?? prop.equity;
 
     const sched = amort.schedule;
     if (!sched || sched.length === 0) return 0;
 
     // Convert simulator month to actual date string (YYYY-MM)
-    // Simulator m=0 = March 2026, m=1 = April 2026, etc.
+    // m=0 est le mois courant, partagé par les trois simulateurs.
     const simBaseDate = moisBaseSim(); // v488 — mois courant, plus de date figée
     const targetDate = new Date(simBaseDate);
     targetDate.setMonth(targetDate.getMonth() + m);
     const targetYear = targetDate.getFullYear();
     const targetMonth = targetDate.getMonth() + 1; // 1-indexed
     const dateStr = targetYear + '-' + String(targetMonth).padStart(2, '0');
+    if (prop.conditional && dateStr < (prop.propertyMeta?.deliveryDate || '2028-06')) return prop.equity;
 
     // Find the closest schedule entry for this date
     let crd = 0;
@@ -695,7 +708,7 @@ function makeComputePropertyEquity(iv, loanKey, propertyInitialValue, appreciati
 }
 
 // ============ COUPLE SIMULATOR ============
-function runCoupleSimulator(state) {
+export function runCoupleSimulator(state) {
   const s = state;
   const monthlySavings = parseInt(document.getElementById('cplSimSavings').value);
   const pctActions = parseInt(document.getElementById('cplSimPctActions').value) / 100;
@@ -738,13 +751,10 @@ function runCoupleSimulator(state) {
   //        (mensualité prêt P+I + assurance + PNO + TF + copro). Déjà net fiscal via `cfNetFiscal`.
   // Quand le prêt est soldé (CRD=0), on réinjecte `monthlyPret` car la mensualité cesse.
   const vitryProp = iv?.properties?.find(p => p.loanKey === 'vitry');
-  const rueilProp = iv?.properties?.find(p => p.loanKey === 'rueil');
   const villejuifProp = iv?.properties?.find(p => p.loanKey === 'villejuif');
   const vitryCfBase = (vitryProp?.cfNetFiscal ?? vitryProp?.cf) || 0;
-  const rueilCfBase = (rueilProp?.cfNetFiscal ?? rueilProp?.cf) || 0;
   const villejuifCfBase = (villejuifProp?.cfNetFiscal ?? villejuifProp?.cf) || 0;
   const vitryPret = vitryProp?.monthlyPret || 0;
-  const rueilPret = rueilProp?.monthlyPret || 0;
   const villejuifPret = villejuifProp?.monthlyPret || 0;
   const makeCfFn = (cfBase, pret, crdFn, activeMonth) => (m) => {
     if (m < (activeMonth || 0)) return 0;
@@ -809,7 +819,7 @@ function runCoupleSimulator(state) {
         startEquity: rueilEq0,
         growthFn: computeRueilEquity,
         crdFn: computeRueilCRD,
-        cashFlowFn: makeCfFn(rueilCfBase, rueilPret, computeRueilCRD, 0),
+        cashFlowFn: (m) => fluxLmnpMensuel(iv.lmnpRueil, moisBaseSim(m).getFullYear()),
         _computedEquity: true
       },
       {
@@ -820,7 +830,8 @@ function runCoupleSimulator(state) {
         // capital engagé. La marche d'escalier que v347 voulait supprimer était revenue par ici.
         growthFn: (m) => m >= moisAvantLivraisonVJ() ? computeVillejuifEquity(m) : vjEquiteEngagee,
         crdFn: (m) => m >= moisAvantLivraisonVJ() ? computeVillejuifCRD(m) : 0,
-        cashFlowFn: makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, moisAvantLivraisonVJ()),
+        cashFlowFn: (m) => m < moisAvantLivraisonVJ() ? (villejuifProp?.cfReel ?? 0)
+          : makeCfFn(villejuifCfBase, villejuifPret, computeVillejuifCRD, 0)(m),
         _computedEquity: true
       },
     ]
@@ -889,7 +900,7 @@ function runAmineSimulator(state) {
 }
 
 // ============ NEZHA SIMULATOR ============
-function runNezhaSimulator(state) {
+export function runNezhaSimulator(state) {
   const s = state;
   const appreciation = parseFloat(document.getElementById('nzSimAppreciation').value) / 100;
   const cashReturn = parseFloat(document.getElementById('nzSimCashReturn').value) / 100;
@@ -923,14 +934,12 @@ function runNezhaSimulator(state) {
   //    de sortie d'APRÈS livraison : 33 428 € à m=0, contre 44 590 € au bilan. Avant livraison,
   //    ce que Nezha possède est le capital ENGAGÉ — c'est déjà la doctrine du simulateur couple
   //    (v490) et de projectNW. On l'applique ici, puis on bascule sur la projection livrée.
-  // 2. RUEIL. L'interpolation des frais de sortie sur la fraction de mois décale m=0 de ~554 €.
-  //    C'est un biais systématique, pas une différence réelle : on le neutralise par un décalage
-  //    constant, ce qui préserve la forme de la courbe.
+  // 2. RUEIL. La source commune date la valeur, le CRD et les déductions fiscales ensemble.
+  //    Le mois zéro reprend les frais de sortie actuels ; aucun décalage forfaitaire à corriger.
   const _vjLivraison = (_vjP && _vjP.propertyMeta && _vjP.propertyMeta.deliveryDate) || '2028-06';
   const _vjEngage = s.nezha.villejuifEquity || 0;
   const _moisISO = (m) => { const d = moisBaseSim(m); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
-  const _ecartRueil = (s.nezha.rueilEquity || 0) - _rueilBrut(0);
-  const computeRueilEquity = (m) => _rueilBrut(m) + _ecartRueil;   // v590 — signed
+  const computeRueilEquity = _rueilBrut; // ancrage et sortie issus du moteur commun
   const computeVillejuifEquity = (m) => (_moisISO(m) < _vjLivraison ? _vjEngage : _vjLivre(m));
 
   // 3. POSTES ABSENTS. L'ESPP (5 140 €), la Rolex (12 000 €) et la créance Omar (2 602 €)
@@ -959,6 +968,11 @@ function runNezhaSimulator(state) {
     }
     // Update cash and sgtm for next month (BUG-049: use geometric monthly rate)
     cashNz *= (1 + monthlyCashReturn);
+    const dateSuivante = _moisISO(m + 1);
+    // Même moyenne annuelle ELM que Couple et le graphe NW ; pas de loyer au mois zéro.
+    const cfRueil = fluxLmnpMensuel(ivNz.lmnpRueil, dateSuivante) ?? 0;
+    const cfVillejuif = dateSuivante < _vjLivraison ? (_vjP?.cfReel ?? 0) : (_vjP?.cf ?? 0);
+    cashNz += cfRueil + cfVillejuif;
     sgtmNz *= (1 + monthlySgtmReturn);
   }
 
@@ -977,7 +991,10 @@ function runNezhaSimulator(state) {
     '<strong>Resume :</strong> NW Nezha : <strong>' + fmt(s.nezha.nw) + '</strong> &rarr; <strong>' + fmt(finalNW) + '</strong> en ' + horizonYears + ' ans (+' + fmt(Math.round(totalGrowth)) + ').<br>' +
     'Rueil : ' + fmt(finalRueil) + ' | Villejuif : ' + fmt(finalVillejuif) + ' | Cash : ' + fmt(finalCash) + '.<br>' +
     '<strong>Croissance moyenne : +' + fmt(Math.round(totalGrowth / horizonYears)) + '/an</strong> via remboursement des prets' +
-    (appreciation > 0 ? ' + appreciation ' + (appreciation * 100).toFixed(1) + '%/an.' : '.');
+    (appreciation > 0 ? ' + appreciation ' + (appreciation * 100).toFixed(1) + '%/an.' : '.')
+    + '<br>Rueil : cash-flow annuel ELM après IR/PS et frais estimés, scénario isolé sous maintien LMNP. '
+    + 'Villejuif : assurance avant livraison ; flux après livraison avant impôt, fiscalité non déterminée. '
+    + 'Les hypothèses de rendement et d’appréciation de ces curseurs diffèrent de celles du graphe NW.';
 
   // Build cumulative stacking data (bottom-to-top: Rueil → Villejuif → Cash → Total line)
   const cumRueil = dataRueil.map(v => v);

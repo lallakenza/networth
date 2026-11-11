@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v606 (11 novembre 2026)
+- **Current version**: v607 (11 novembre 2026)
 
 ## Architecture
 
@@ -40,6 +40,10 @@ Read `BUG_TRACKER.md` for all known bugs, root causes, fixes, and regression tes
 - Furnished-income PS is 18.6% from income 2025; bare rental and private capital gains remain 17.2%. `normaliserFiscaliteImmo` prevents stale Neon fiscal data from overriding the dated statutory rate.
 - Current Rueil exit costs use only approximately €1,882 of documented 2025 building depreciation deducted (liasse rounded fiscal net value). Future exits use projected admitted building deductions, excluding furniture. Accounting entry €290,000 never replaces the deed price or market value.
 - `cfProjection`, property LMNP panels and the NW projection share this engine. The budget chart is before tax; Rueil's NW cash-flow includes scenario tax and estimated fees. PLF 2027 proposals are not applied as enacted law.
+- v607 propagation audit: `fluxLmnpMensuel` feeds Couple/Nezha simulators and `projectNW`. Accumulate cash **per property before adding by owner**: Villejuif must never overwrite Rueil. The final point of a simulator must not add a thirteenth contribution to a twelve-month horizon.
+- Rueil `cfNetFiscal` and `yieldNetFiscal` now use the complete annual scenario (about €44.39/month in 2026); current `cf` stays €126/month before estimated accounting/CFE/TF adjustments. Budget and structural surplus retain their current scope and display a separate LMNP scenario reconciliation; declared savings stay unchanged.
+- `projectionSortieRueil` supplies property tables, three exit/equity charts, simulators and the main NW projection. Current date uses documented exit costs; future price/debt/admitted building deductions share one date, with a linear within-year proration assumption. Never use the old 2%-of-80%-since-purchase shortcut for Rueil.
+- `tests/lmnp-propagation.test.js` exercises actual chart/simulator producers. A €1,200/year additional-tax shock must reduce Nezha/Couple monthly cash by €100, leave Amine unchanged, and be independent of property order. Confirmed accounting entries are not current cash balances or market values.
 
 ### Net Worth calculation (engine.js `compute()`)
 ```
