@@ -80,6 +80,24 @@ const copy = x => JSON.parse(JSON.stringify(x));
     const cash0 = p.datasets.find(d => d.label === 'Cash + SGTM')._actual;
     assert.notEqual(cash0[1], cash0[0], 'les loyers nets ne doivent plus être omis');
   });
+  t('tableau détaillé Nezha = séries du graphique, aujourd’hui et à horizon, même après changement des curseurs', () => {
+    for (const horizon of [12, 1]) {
+      node('nzSimHorizon').value = String(horizon);
+      S.runNezhaSimulator(s);
+      const data = charts.get('nzSimChart').data;
+      const html = node('nezhaProjectionTable').innerHTML;
+      assert.match(html, /Aujourd’hui/); assert.match(html, /horizon/);
+      const rows = Object.fromEntries([...html.matchAll(/<tr><td>(.*?)<\/td>(.*?)<\/tr>/gs)].map(m => [m[1],
+        [...m[2].matchAll(/<td class="num">(.*?)<\/td>/g)].map(c => Number(c[1].replace(/[^\d-]/g,'')))]));
+      for (const [nom, label] of [['Équité nette Rueil','Equity Rueil'], ['Équité Villejuif','Equity Villejuif'],
+        ['Cash et autres actifs','Cash + SGTM'], ['Total Nezha','NW Total Nezha']]) {
+        const d = data.datasets.find(d => d.label === label)._actual;
+        assert.equal(rows[nom][0], d[0]);
+        assert.equal(rows[nom].at(-1), d.at(-1));
+      }
+      proche(rows['Total Nezha'][0], s.nezha.nw, 1);
+    }
+  });
   t('douze mois = douze contributions dans les montants et dans la courbe', () => {
     node('cplSimSavings').value = '1000'; node('cplSimPctActions').value = '100'; node('cplSimHorizon').value = '1';
     S.runCoupleSimulator(s);

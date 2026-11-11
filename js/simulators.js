@@ -3,9 +3,9 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis } from './render.js?v=607';
-import { IMMO_CONSTANTS } from './data.js?v=607';
-import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=607';
+import { fmt, fmtAxis, renderNezhaProjectionTable } from './render.js?v=608';
+import { IMMO_CONSTANTS } from './data.js?v=608';
+import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=608';
 
 const IC = IMMO_CONSTANTS;
 
@@ -953,11 +953,12 @@ export function runNezhaSimulator(state) {
   const autresNz = (s.nezha.esppForActions || 0) + (s.nezha.ibkrForActions || 0) + (s.nezha.watches || 0)
     + (s.nezha.recvOmar || 0) - (s.nezha.cautionRueil || 0);
 
-  const dataLabels = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
+  const dataLabels = [], dataDates = [], dataRueil = [], dataVillejuif = [], dataCash = [], dataTotal = [];
 
   for (let m = 0; m <= months; m++) {
     if (true) { // Monthly granularity — every data point
       const date = moisBaseSim(m);
+      dataDates.push(date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0'));
       dataLabels.push(date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }));
       const rueilEq = computeRueilEquity(m);
       const villejuifEq = computeVillejuifEquity(m); // v347 — equity possédée dès m=0 (acte signé), plus de marche d'escalier
@@ -980,6 +981,7 @@ export function runNezhaSimulator(state) {
   const finalRueil = dataRueil[dataRueil.length - 1];
   const finalVillejuif = dataVillejuif[dataVillejuif.length - 1];
   const finalCash = dataCash[dataCash.length - 1];
+  renderNezhaProjectionTable({ dates: dataDates, rueil: dataRueil, villejuif: dataVillejuif, cash: dataCash, total: dataTotal });
 
   document.getElementById('nzSimNW').textContent = fmt(finalNW, true);
   document.getElementById('nzSimRueil').textContent = fmt(finalRueil, true);

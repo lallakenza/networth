@@ -31,11 +31,29 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=607';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee, projectionSortieRueil } from './engine.js?v=607';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=608';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee, projectionSortieRueil } from './engine.js?v=608';
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Affiche les points réellement tracés par le simulateur Nezha, sans seconde projection. */
+export function renderNezhaProjectionTable(series) {
+  const el = document.getElementById('nezhaProjectionTable');
+  if (!el) return;
+  const { dates, rueil, villejuif, cash, total } = series;
+  const janviers = dates.map((d, i) => d.endsWith('-01') && i > 0 ? i : -1).filter(i => i >= 0).slice(0, 6);
+  const indices = [...new Set([0, ...janviers, dates.length - 1])];
+  const label = i => i === 0 ? 'Aujourd’hui' : new Date(dates[i] + '-01T12:00:00')
+    .toLocaleDateString('fr-FR', {month:'short',year:'numeric'}) + (i === dates.length - 1 ? ' (horizon)' : '');
+  const lignes = [['Équité nette Rueil', rueil], ['Équité Villejuif', villejuif],
+    ['Cash et autres actifs', cash], ['Total Nezha', total]];
+  el.innerHTML = '<p style="font-size:11px;color:var(--gray)">Mêmes dates, mêmes curseurs et mêmes valeurs que le graphique ci-dessus. Montants arrondis à l’euro ; cash, titres tenus à plat et autres actifs selon le scénario du simulateur.</p>'
+    + '<div class="table-wrap"><table><thead><tr><th></th>' + indices.map(i => '<th class="num">' + label(i) + '</th>').join('')
+    + '</tr></thead><tbody>' + lignes.map(([nom, valeurs]) => '<tr><td>' + nom + '</td>'
+      + indices.map(i => '<td class="num">' + Math.round(valeurs[i]).toLocaleString('fr-FR') + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div>';
 }
 
 // ---- Generic table sort utility ----
@@ -1122,8 +1140,10 @@ function renderDynamicInsights(state, view) {
       // laquelle laissait croire que le brut était mobilisable tel quel.
       '- <span style="color:var(--green)">NW de ' + K(nzNW) + ' dont '
         + K(s.nezha.rueilEquityBrute || 0) + ' d\'équité brute Rueil ('
-        + K(rueilP ? rueilP.equity : 0) + ' nette après frais de sortie) = patrimoine solide et croissant en automatique.</span><br>' +
-      '- <span style="color:var(--green)">Rueil : auto-finance (' + rueilCF + '/mois de CF positif)</span>. ' + N(rueilWealth) + '/mois de creation de richesse, zero effort financier.<br>' +
+        + K(rueilP ? rueilP.exitCosts.netEquityAfterExit : 0) + ' nette après frais de sortie).</span><br>' +
+      '- Rueil : ' + rueilCF + '/mois de CF courant avant impôt et frais LMNP estimés. Budget complet LMNP : '
+        + (Number.isFinite(rueilP?.cfNetFiscal) ? N(rueilP.cfNetFiscal) + '/mois, sous hypothèses' : 'non déterminé')
+        + '. Création de richesse courante avant impôt : ' + N(rueilWealth) + '/mois.<br>' +
       // « Cash total ~56K » n'additionnait que France et Maroc : le Wio UAE de Nezha en
       // était absent, alors qu'il est bien dans son cash. On lit le total du moteur et on
       // détaille les trois zones, plutôt que d'en recomposer deux à la main.
@@ -1133,66 +1153,7 @@ function renderDynamicInsights(state, view) {
       '- <span style="color:var(--green)">Apres livraison :</span> 2 biens de creation de richesse.';
   }
 
-  // ── Nezha projection table ──
-  const nzProj = document.getElementById('nezhaProjectionTable');
-  if (nzProj && iv) {
-    // Simple projection based on current amortization schedules
-    const rueilP = iv.properties.find(pr => pr.loanKey === 'rueil');
-    const villejuifP = iv.properties.find(pr => pr.loanKey === 'villejuif');
-    const nzCash = s.nezha.cashFrance + s.nezha.cashMaroc;
-    // Project 6 years from now
-    const years = [2027, 2028, 2029, 2030, 2031, 2032];
-    const now = new Date();
-    const monthsFromNow = y => (y - now.getFullYear()) * 12 + (1 - now.getMonth());
-    let html = '<table><thead><tr><th></th>';
-    years.forEach(y => { html += '<th class="num">Jan ' + y + '</th>'; });
-    html += '</tr></thead><tbody>';
-    const rueilGrowth = rueilP ? (rueilP.wealthCreation || 0) : 0;
-    const vilGrowth = villejuifP ? (villejuifP.wealthCreation || 0) : 0;
-    // Equity Rueil row
-    html += '<tr><td>Equity Rueil</td>';
-    years.forEach(y => {
-      const m = monthsFromNow(y);
-      const eq = rueilP ? rueilP.equity + rueilGrowth * m : 0;
-      html += '<td class="num">' + N(Math.max(0, eq)) + '</td>';
-    });
-    html += '</tr>';
-    // v493 (audit) — cette ligne affichait 0 sur toutes les colonnes antérieures à 2028, alors que
-    // le capital ENGAGÉ (appels de fonds payés − CRD tiré) appartient déjà au patrimoine et compte
-    // dans le net worth de Nezha. Le total projeté démarrait donc SOUS le patrimoine actuel.
-    // Même doctrine que le simulateur (v490) et que projectNW : engagé jusqu'à la livraison,
-    // puis croissance.
-    const vjEngage = Math.round(s.nezha.villejuifEquity || 0);
-    // v524 — les valeurs sont calculées UNE FOIS et réutilisées pour les lignes ET le
-    // total. La ligne Total les recalculait à sa façon : elle remettait Villejuif à zéro
-    // avant 2028 et le faisait repartir de zéro ensuite, si bien que le total affiché
-    // (126 693 € en janvier 2027) ne faisait pas la somme des lignes juste au-dessus
-    // (171 283 €). Sommer ce qui est affiché rend la divergence impossible.
-    const valVillejuif = years.map(y => y < 2028
-      ? vjEngage
-      : Math.max(0, vjEngage + vilGrowth * ((y - 2028) * 12)));
-    html += '<tr><td>Equity Villejuif</td>';
-    valVillejuif.forEach(v => { html += '<td class="num">' + N(v) + '</td>'; });
-    html += '</tr>';
-    // Cash row — compute net CF from immo charges dynamically
-    const nzMonthlyCF = (rueilP ? rueilP.cf : 0) + (villejuifP ? villejuifP.cf : 0);
-    // If CF negative, cash declines; if positive, cash grows
-    const nzCashDrift = nzMonthlyCF; // monthly net cash change from immo
-    // « Cash » agrège en réalité cash, SGTM, ESPP, montre, créance Omar et caution :
-    // l'intitulé promettait moins que son contenu.
-    const valCash = years.map(y => Math.max(0, nzCash + nzCashDrift * monthsFromNow(y)));
-    html += '<tr><td>Cash et autres actifs<br><span style="font-size:10px;color:var(--gray)">cash, SGTM, ESPP, montre, créance, caution</span></td>';
-    valCash.forEach(v => { html += '<td class="num">' + N(v) + '</td>'; });
-    html += '</tr>';
-    // Total row
-    html += '<tr style="font-weight:700;background:#edf2f7"><td><strong>Total Nezha</strong></td>';
-    years.forEach((y, i) => {
-      const eqR = rueilP ? rueilP.equity + rueilGrowth * monthsFromNow(y) : 0;   // v590 — signed
-      html += '<td class="num"><strong>' + N(eqR + valVillejuif[i] + valCash[i]) + '</strong></td>';
-    });
-    html += '</tr></tbody></table>';
-    nzProj.innerHTML = html;
-  }
+  // Le tableau Nezha est rendu depuis les séries du simulateur (même scénario que son graphe).
 
   // ── Immo loan footnote ──
   const lnFoot = document.getElementById('immoLoanFootnote');
@@ -8203,7 +8164,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=607').then(m => {
+  import('./charts.js?v=608').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8634,7 +8595,7 @@ function renderPerfClasses(state) {
   const kImmo = kpiEur('CF net /mois', cfMois) + kpiEur('Richesse /mois', richesseMois)
     + kpiPct('Rdt net /an', netAn) + kpiPct('CoC /an', cocAn) + kpiPct('ROE /an', roeAn);
   const noteImmo = 'Richesse /mois = CF + amorti ' + fmt(wb.capitalAmorti || 0) + ' + appr\u00e9ciation '
-    + fmt(wb.appreciation || 0) + ' \u00b7 CoC = CF\u00d712/\u00e9quit\u00e9 \u00b7 ROE = richesse\u00d712/\u00e9quit\u00e9 \u00b7 Villejuif (VEFA) hors flux';
+    + fmt(wb.appreciation || 0) + ' \u00b7 CoC = CF\u00d712/\u00e9quit\u00e9 \u00b7 ROE = richesse\u00d712/\u00e9quit\u00e9 \u00b7 Villejuif : assurance seule avant livraison. Indicateurs courants avant impôt et frais LMNP estimés.';
 
   // ── Cash ──
   const yNom = fin(cv.weightedAvgYield) ? cv.weightedAvgYield * 100 : null;

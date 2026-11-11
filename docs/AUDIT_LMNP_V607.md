@@ -1,4 +1,4 @@
-# Audit de propagation LMNP — 11 novembre 2026
+# Audit de propagation LMNP — v607–v608, 11 novembre 2026
 
 La v606 avait intégré le plan ELM et l'impôt annuel, mais leur propagation était incomplète.
 
@@ -10,6 +10,7 @@ La v606 avait intégré le plan ELM et l'impôt annuel, mais leur propagation é
 4. La fiche affichait +126 €/mois comme cash-flow fiscal alors que le scénario complet donne +44,39 €/mois en 2026. Le cash-flow courant reste à +126 €/mois ; le net projeté et son rendement intègrent les hypothèses comptabilité/CFE/TF et le calcul fiscal annuel.
 5. Le dernier point des simulateurs ajoutait une période supplémentaire dans les totaux de contributions. Un horizon de douze mois compte désormais douze contributions et douze flux.
 6. Le simulateur Couple démarre sur les équités nettes actuelles ; l'interpolation des frais de sortie ne crée plus un patrimoine initial différent de son résumé.
+7. La vérification visuelle a révélé un ancien tableau « Projection détaillée » dans la vue Nezha, distinct du simulateur. Il multipliait encore la richesse mensuelle actuelle et omettait des actifs. La v608 affiche directement les séries du graphique, avec le point actuel, les prochains janvier et l'horizon choisi. Chaque changement de curseur actualise les deux. L'insight Nezha distingue aussi l'équité brute de l'équité nette après sortie et les deux périmètres de cash-flow.
 
 ## Périmètres à distinguer
 
