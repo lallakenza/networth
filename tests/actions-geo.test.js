@@ -21,12 +21,33 @@ for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
 (async () => {
   const echecs = [];
   const D = await import('file://' + path.join(TMP, 'data.js'));
-  const { compute } = await import('file://' + path.join(TMP, 'engine.js'));
+  const { compute, regrouperTreemapActions } = await import('file://' + path.join(TMP, 'engine.js'));
 
   for (const filtre of ['both', 'amine', 'nezha']) {
     globalThis.window = { _activeOwner: filtre };
     const s = compute(D.PORTFOLIO, { ...D.FX_STATIC }, 'static');
     const av = s.actionsView;
+
+    // Le mode du treemap ne doit ni changer les montants, ni perdre les petites lignes,
+    // ni compter un ETF crypto à la fois dans ETF et Crypto.
+    const cats = filtre === 'both' ? s.actionsCategories : s.actionsCategoriesOwner[filtre];
+    const attendu = cats.reduce((n, c) => n + c.total, 0);
+    const avant = JSON.stringify(cats);
+    for (const mode of ['geo','type','combined']) {
+      const groupes = regrouperTreemapActions(cats, mode);
+      const total = groupes.categories.reduce((n,c) => n+c.sub.reduce((a,p) => a+p.val,0),0);
+      if (Math.abs(total-attendu)>0.01) echecs.push(`[${filtre}/${mode}] treemap ${total} ≠ ${attendu}`);
+      if (JSON.stringify(cats)!==avant) echecs.push(`[${filtre}/${mode}] données sources mutées`);
+      if (groupes.groups.length !== (mode === 'combined' ? 3 : 2)) echecs.push(`[${filtre}/${mode}] hiérarchie incorrecte`);
+      if (mode !== 'type' && groupes.categories.some(c => c.label === 'Crypto')) echecs.push('Crypto doit être une classe d’actif, exposition mondiale dans la vue géographique');
+      if (mode === 'type') {
+        for (const c of groupes.categories) for (const p of c.sub) {
+          if (['IBIT','ETHA'].includes(p.ticker) && c.label !== 'Crypto') echecs.push(`${p.ticker} hors Crypto`);
+          if (['VWCE.DE','MWRD.PA','SXR8.DE'].includes(p.ticker) && c.label !== 'ETF') echecs.push(`${p.ticker} hors ETF`);
+          if (['ESPP Accenture','SGTM'].includes(p.label) && c.label !== 'Actions') echecs.push(`${p.label} hors Actions`);
+        }
+      }
+    }
 
     // 1. L'insight doit couvrir 100 %.
     const geo = (av.insights || []).find(i => i.type === 'geo');

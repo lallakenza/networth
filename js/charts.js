@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=610';
-import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil } from './engine.js?v=610';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=610';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=610';
-import { loadSnapshots } from './api.js?v=610'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=610'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=611';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil, regrouperTreemapActions } from './engine.js?v=611';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=611';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=611';
+import { loadSnapshots } from './api.js?v=611'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=611'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1505,7 +1505,7 @@ function buildNWHistoryChart() {
 window.buildNWHistoryChart = buildNWHistoryChart;   // rappel post-chargement des snapshots (app.js)
 
 // ============ GENERIC TREEMAP BUILDER ============
-function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel) {
+function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel, groups = ['category', 'label']) {
   const el = document.getElementById(canvasId);
   if (!el) return;
   if (charts[chartKey]) { charts[chartKey].destroy(); delete charts[chartKey]; }
@@ -1522,6 +1522,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
           label: sub.label, category: cat.label,
           value: sub.val, color: sub.color,
           catTotal: cat.total, owner: sub.owner || '',
+          assetTypeLabel: sub.assetTypeLabel, geoLabel: sub.geoLabel,
         });
       }
     });
@@ -1530,7 +1531,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
   const colorMap = {};
   treeData.forEach(d => { colorMap[d.label] = d.color; });
 
-  const isCategoryHeader = (d) => d && d.path && !d.path.includes('.');
+  const isCategoryHeader = (d) => d && d.path && d.path.split('.').length < groups.length;
   const pctLabel = tooltipLabel || 'du patrimoine';
 
   charts[chartKey] = new Chart(el, {
@@ -1538,7 +1539,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
     data: {
       datasets: [{
         tree: treeData, key: 'value',
-        groups: ['category', 'label'],
+        groups,
         borderWidth: 2, borderColor: '#ffffff', spacing: 1,
         backgroundColor: function(ctx) {
           if (ctx.type !== 'data') return 'transparent';
@@ -1603,13 +1604,13 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
           cornerRadius: 8, displayColors: false,
           callbacks: {
             title: items => {
-              const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
+              const leaf = items.find(i => i.raw?._data?.path && !isCategoryHeader(i.raw._data));
               if (leaf) return leaf.raw._data.label || '';
               const d = items[0]?.raw?._data;
               return d?.label || '';
             },
             beforeBody: items => {
-              const leaf = items.find(i => i.raw?._data?.path?.includes('.'));
+              const leaf = items.find(i => i.raw?._data?.path && !isCategoryHeader(i.raw._data));
               if (!leaf) {
                 const v = items[0]?.raw?.v || 0;
                 const pctNW = (v / grandTotal * 100).toFixed(1);
@@ -1618,13 +1619,14 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel)
               const v = leaf.raw.v || 0;
               const d = leaf.raw._data;
               const child = d.children && d.children[0];
-              const owner = (child && child.owner) || '';
+              const owner = [...new Set((d.children || []).map(c => c.owner).filter(Boolean))].join(' + ');
               const category = (child && child.category) || '';
               const catTot = (child && child.catTotal) || catTotals[category] || 0;
               const pctNW = (v / grandTotal * 100).toFixed(1);
               const lines = [];
               if (owner) { lines.push(owner + ' \u2014 ' + fmt(v)); }
               else { lines.push(fmt(v)); }
+              if (child?.geoLabel && child?.assetTypeLabel) lines.push(child.geoLabel + ' · ' + child.assetTypeLabel);
               lines.push(pctNW + '% ' + pctLabel);
               if (catTot > 0) {
                 const pctCat = (v / catTot * 100).toFixed(1);
@@ -1653,12 +1655,33 @@ function buildNezhaTreemap(state) {
   const total = state.nezhaCategories.reduce((s, c) => s + c.total, 0);
   buildGenericTreemap('nezhaTreemap', 'nezhaTreemap', state.nezhaCategories, total, 'du NW Nezha');
 }
-function buildActionsTreemap(state) {
+let actionsTreemapMode = (() => {
+  try { const mode = localStorage.getItem('nw_actions_treemap_mode'); return ['geo', 'type', 'combined'].includes(mode) ? mode : 'geo'; }
+  catch (_) { return 'geo'; }
+})();
+export function buildActionsTreemap(state) {
   // v378 — le toggle owner filtre aussi le treemap. 'both' → catégories inchangées.
   const _o = (typeof window !== 'undefined' && window._activeOwner) || 'both';
-  const cats = (_o !== 'both' && state.actionsCategoriesOwner && state.actionsCategoriesOwner[_o]) || state.actionsCategories;
+  const source = (_o !== 'both' && state.actionsCategoriesOwner && state.actionsCategoriesOwner[_o]) || state.actionsCategories;
+  const regroupement = regrouperTreemapActions(source, actionsTreemapMode);
+  const cats = regroupement.categories;
   const total = cats.reduce((s, c) => s + c.total, 0);
-  buildGenericTreemap('actionsTreemap', 'actionsTreemap', cats, total, 'du portefeuille');
+  const commandes = document.getElementById('actionsTreemapModes');
+  commandes?.querySelectorAll('button[data-treemap-mode]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.treemapMode === actionsTreemapMode));
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = 'true';
+    btn.addEventListener('click', () => {
+      actionsTreemapMode = btn.dataset.treemapMode;
+      try { localStorage.setItem('nw_actions_treemap_mode', actionsTreemapMode); } catch (_) { /* préférence facultative */ }
+      buildActionsTreemap(_state || state);
+    });
+  });
+  const legende = document.getElementById('actionsTreemapDescription');
+  if (legende) legende.textContent = (actionsTreemapMode === 'combined' ? 'Zone → type d’actif → position.'
+    : actionsTreemapMode === 'type' ? 'Actions, ETF et crypto, puis les positions.' : 'Pays ou zone, puis les positions.')
+    + ' Crypto inclut IBIT et ETHA ; les ETF diversifiés gardent leur zone d’exposition.';
+  buildGenericTreemap('actionsTreemap', 'actionsTreemap', cats, total, 'du portefeuille', regroupement.groups);
 }
 
 // ============ AMORTIZATION CHART ============

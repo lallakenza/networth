@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=610';
-import { lireContratEnCache } from './facturation_contract.js?v=610';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=611';
+import { lireContratEnCache } from './facturation_contract.js?v=611';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -34,6 +34,26 @@ import { lireContratEnCache } from './facturation_contract.js?v=610';
 function toEUR(amount, currency, fx) {
   if (currency === 'EUR') return amount;
   return amount / (fx[currency] || 1);
+}
+
+/** Regroupement d'affichage uniquement : chaque position conserve une seule valeur. */
+export function regrouperTreemapActions(categories, mode = 'geo') {
+  const choix = ['geo', 'type', 'combined'].includes(mode) ? mode : 'geo';
+  const types = { actions: { label: 'Actions', color: '#1e40af' },
+    etf: { label: 'ETF', color: '#0e7490' }, crypto: { label: 'Crypto', color: '#7c3aed' } };
+  const groupes = new Map();
+  for (const cat of (categories || [])) for (const sub of cat.sub) {
+    if (!(sub.val > 0)) continue;
+    const type = types[sub.assetType] || types.actions;
+    const zone = cat.label === 'Crypto' ? 'Monde' : cat.label;
+    const label = choix === 'type' ? type.label : zone;
+    if (!groupes.has(label)) groupes.set(label, { label, color: choix === 'type' ? type.color : zone === 'Monde' ? '#0891b2' : cat.color, total: 0, sub: [] });
+    const groupe = groupes.get(label);
+    groupe.total += sub.val;
+    groupe.sub.push({ ...sub, geoLabel: zone, assetTypeLabel: type.label });
+  }
+  return { mode: choix, groups: choix === 'combined' ? ['category', 'assetTypeLabel', 'label'] : ['category', 'label'],
+    categories: [...groupes.values()].sort((a, b) => b.total - a.total) };
 }
 
 /**
@@ -5718,7 +5738,8 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         const valEUR = toEUR(pos.shares * pos.price, pos.currency, fx);
         const short = pos.label.replace(/\s*\(.*\)/, '');
         const pal = geoColorSubs[geo] || ['#94a3b8'];
-        geoGroups[geo].push({ label: short, val: valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR', ticker: pos.ticker });
+        geoGroups[geo].push({ label: short, val: valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR', ticker: pos.ticker,
+          assetType: pos.sector === 'crypto' || geo === 'crypto' ? 'crypto' : pos.sector === 'etf' ? 'etf' : 'actions' });
       });
     }
     if (inclNezha) {   // v545 — compte IBKR propre de Nezha
@@ -5726,20 +5747,21 @@ export function compute(portfolio, fx, stockSource = 'statique') {
         const geo = pos.geo || 'france';
         if (!geoGroups[geo]) geoGroups[geo] = [];
         const pal = geoColorSubs[geo] || ['#94a3b8'];
-        geoGroups[geo].push({ label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR Nezha', ticker: pos.ticker });
+        geoGroups[geo].push({ label: pos.label.replace(/\s*\(.*\)/, ''), val: pos.valEUR, color: pal[geoGroups[geo].length % pal.length], owner: 'IBKR Nezha', ticker: pos.ticker,
+          assetType: pos.sector === 'crypto' || geo === 'crypto' ? 'crypto' : pos.sector === 'etf' ? 'etf' : 'actions' });
       });
     }
     const espp = (inclAmine ? amineEspp : 0) + (inclNezha ? nezhaEspp : 0);
     const sgtm = (inclAmine ? amineSgtm : 0) + (inclNezha ? nezhaSgtm : 0);
-    if (espp > 0) { if (!geoGroups['us']) geoGroups['us'] = []; geoGroups['us'].push({ label: 'ESPP Accenture', val: espp, color: '#10b981', owner: 'ESPP' }); }
-    if (sgtm > 0) { if (!geoGroups['morocco']) geoGroups['morocco'] = []; geoGroups['morocco'].push({ label: 'SGTM', val: sgtm, color: '#ca8a04', owner: 'Maroc' }); }
+    if (espp > 0) { if (!geoGroups['us']) geoGroups['us'] = []; geoGroups['us'].push({ label: 'ESPP Accenture', val: espp, color: '#10b981', owner: 'ESPP', assetType: 'actions' }); }
+    if (sgtm > 0) { if (!geoGroups['morocco']) geoGroups['morocco'] = []; geoGroups['morocco'].push({ label: 'SGTM', val: sgtm, color: '#ca8a04', owner: 'Maroc', assetType: 'actions' }); }
     // IBKR cash (EUR/USD) reclassified to Cash category in v292 — no longer in Actions geo treemap
     return Object.entries(geoGroups)
       .map(([geo, subs]) => ({
         label: geoLabels[geo] || geo,
         color: geoColors[geo] || '#94a3b8',
         total: subs.reduce((s, x) => s + x.val, 0),
-        sub: subs.filter(s => s.val > 100),
+        sub: subs.filter(s => s.val > 0),
       }))
       .filter(c => c.total > 0)
       .sort((a, b) => b.total - a.total);
