@@ -68,6 +68,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     const tr = IC.loans.villejuifLoans.map((l) => clone(l.tableauReel));
     assert.ok(tr[0] && tr[1], 'tableaux définitifs présents dans data.js');
     assert.equal(A.applyImmoRef(refLocal()), true);
+    assert.deepEqual(P.amine.immo.vitry.encaissements, initial.p.amine.immo.vitry.encaissements, 'encaissements propriétaire conservés après Neon');
     assert.deepEqual(IC.loans.villejuifLoans.map((l) => l.tableauReel), tr, 'tableauReel conservé par identifiant de prêt');
     assert.equal(IC.charges.villejuif.assurance, 51.29);
     assert.equal(IC.loans.villejuifInsurance, 51.29);

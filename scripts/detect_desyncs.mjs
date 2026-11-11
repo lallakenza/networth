@@ -88,7 +88,11 @@ for (const [nm, arr] of [['couple', s.coupleCategories], ['amine', s.amineCatego
 //    AC-2 : revenus déclarés 2026 = 425,81 + 600 + 600 = 1 625,81 € (prorata dès le 10/10)
 //    AC-8 : impôt 2027 calculé par le moteur dans [350 ; 480] €
 const fcV = s.immoView && s.immoView.vitryImpotForecast;
-if (!fcV) findings.push({ name: 'AC — vitryImpotForecast absent', a: 0, b: 1, gap: 1 });
+const pV = s.immoView && s.immoView.properties && s.immoView.properties.find((p) => p.loanKey === 'vitry');
+if (pV && pV.encaissements) {
+  chk('Vitry — ancien prévisionnel suspendu', fcV === null ? 1 : 0, 1);
+  chk('Vitry — toutes les recettes hors provisions dans la base fiscale', pV.loyerDeclareAnnuel, (pV.totalRevenue - pV.chargesLoc) * 12);
+} else if (!fcV) findings.push({ name: 'AC — vitryImpotForecast absent', a: 0, b: 1, gap: 1 });
 else {
   const l26 = fcV.lignes.find((l) => l.annee === 2026);
   const l27 = fcV.lignes.find((l) => l.annee === 2027);
@@ -97,11 +101,11 @@ else {
   if (!l27 || l27.impot < 350 || l27.impot > 480)
     findings.push({ name: 'AC-8 — impot vitry 2027 hors [350;480]', a: l27 ? l27.impot : 0, b: 415, gap: l27 ? l27.impot - 415 : 415 });
 }
-// AC-5 (structure) : vitry pre-bail = 0 revenu ; post-bail = 700 CC
-const pV = s.immoView && s.immoView.properties && s.immoView.properties.find((p) => p.loanKey === 'vitry');
+// AC-5 : recettes du propriétaire si disponibles ; sinon revenus du bail actif.
 if (pV && pV.bail && pV.bail.debut) {
-  const attendu = (new Date().toISOString().slice(0, 10) >= pV.bail.debut) ? (600 + 100) : 0;   // v543 — revenus du bail seuls
-  chk('AC-5 — totalRevenue vitry conforme au bail', pV.totalRevenue, attendu);
+  const attendu = pV.encaissements ? pV.encaissements.contrat + pV.encaissements.cash
+    : pV.bailActif ? pV.loyerHCContractuel + pV.chargesLocContractuel : 0;
+  chk('AC-5 — totalRevenue vitry conforme aux encaissements', pV.totalRevenue, attendu);
 }
 
 // ── Identité du module de données (v501) ──────────────────────────────────────

@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=604';
-import { lireContratEnCache } from './facturation_contract.js?v=604';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=605';
+import { lireContratEnCache } from './facturation_contract.js?v=605';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -3268,10 +3268,17 @@ function computeImmoView(portfolio, fx) {
     const bailProp = propData.bail;
     const bailActif = !bailProp || !bailProp.debut || (new Date().toISOString().slice(0, 10) >= bailProp.debut);
     // loyerHC: base rent (excluding tenant charges provision, e.g., "€1200 HC")
-    const loyerHC = bailActif ? (propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0)) : 0;
-    const chargesLoc = bailActif ? (propData.chargesLocataire || 0) : 0;  // Tenant charges provision
-    // v543 — seuls les revenus prévus au BAIL sont modélisés (loyer HC + provisions), à partir de sa
-    //   prise d'effet. Aucun autre flux locatif n'est représenté dans ces fichiers publics.
+    const enc = propData.encaissements;
+    const encaissements = enc && enc.depuis <= new Date().toISOString().slice(0, 10)
+      && Number.isFinite(enc.mensuel) && enc.mensuel >= 0
+      && Number.isFinite(enc.contrat) && enc.contrat >= 0 && Number.isFinite(enc.cash) && enc.cash >= 0
+      && Math.abs(enc.contrat + enc.cash - enc.mensuel) < 0.005 ? enc : null;
+    const chargesLoc = (encaissements || bailActif) ? (propData.chargesLocataire || 0) : 0;
+    // L'encaissement confirmé prime sur l'ancien bail. Les provisions restent une hypothèse
+    // explicite ; la ventilation contrat/cash ne détermine aucune exonération fiscale.
+    const loyerHC = encaissements ? Math.max(0, encaissements.mensuel - chargesLoc)
+      : bailActif ? (propData.loyerHC !== undefined ? propData.loyerHC : (propData.loyer || 0)) : 0;
+    // Aucun loyer de stationnement additionnel n'est inventé : le total propriétaire fait foi.
     const parking = 0;
     const loyer = loyerHC;
     const totalRevenue = loyer + chargesLoc;         // Full revenue including charges provision
@@ -3281,7 +3288,7 @@ function computeImmoView(portfolio, fx) {
     const amort = amortSchedules[loanKey];
 
     // Fiscal: use explicit declared amount if available, else all rent is declared
-    const loyerDeclareAnnuel = bailActif
+    const loyerDeclareAnnuel = encaissements ? loyerHC * 12 : bailActif
       ? (propData.loyerDeclare ? propData.loyerDeclare * 12 : loyerHC * 12)
       : 0;   // v458 — pas de bail effectif → rien à déclarer (prorata 2026 : voir vitryImpotForecast)
     const loyerTotalAnnuel = totalRevenue * 12;
@@ -3570,6 +3577,7 @@ function computeImmoView(portfolio, fx) {
       loyerHCContractuel: propData.loyerHC || 0,          // v460 — pour l'état vide pré-bail (UX)
       chargesLocContractuel: propData.chargesLocataire || 0,
       bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
+      encaissements,
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
@@ -3648,8 +3656,8 @@ function computeImmoView(portfolio, fx) {
       }
 
       prop.fiscalSimConfig = {
-        loyerTotalCC: vitryProp.loyerTotalCC || propMeta.loyerObjectif || 1200,
-        loyerDeclareCC: vitryProp.loyerDeclareCC || 600,
+        loyerTotalCC: prop.encaissements ? prop.totalRevenue : (vitryProp.loyerTotalCC || propMeta.loyerObjectif || 1200),
+        loyerDeclareCC: prop.encaissements ? prop.totalRevenue : (vitryProp.loyerDeclareCC || 600),
         contractStartMonth: contractStartMonth,
         tfExemptionEndYear: tfExemptionEndYear,
         startYear: startYear,
@@ -3977,7 +3985,9 @@ function computeImmoView(portfolio, fx) {
     const fV = IC.fiscalite && IC.fiscalite.vitry;
     const amV = amortSchedules.vitry;
     const vdV = portfolio.amine.immo.vitry || {};
-    if (fV && fV.tfSchedule && amV && vdV.bail) {
+    // L'historique antérieur au nouveau flux n'est pas daté : l'ancien prorata du bail ne peut
+    // plus produire un prévisionnel 2026 fiable. Ne pas afficher ce faux historique fiscal.
+    if (fV && fV.tfSchedule && amV && vdV.bail && !vdV.encaissements) {
       const chV = IC.charges.vitry;
       const tauxV = (fV.tmi || 0.20) + (fV.ps || 0.172);
       const coproNonRecupV = fV.coproRecuperableAnnuelle != null

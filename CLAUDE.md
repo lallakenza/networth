@@ -51,6 +51,12 @@ Where:
 - Facturation receivables (positive amounts like Augustin) are injected into `activeItems` for display
 - KPIs computed AFTER injection so totals include facturation items
 
+### Encaissements Vitry — instruction propriétaire du 11/11/2026
+- À sa demande explicite, `encaissements` porte le total réellement perçu et sa ventilation, même hors ancien bail. Cette instruction remplace la restriction v543 sur ces seuls montants ; aucune autorisation supplémentaire sur les adresses ou identifiants.
+- Flux depuis le 01/10/2026 ; historique antérieur non daté, aucun solde de cash inventé ni ajout au NW. Le nouveau contrat et sa ventilation HC/provisions restent à obtenir.
+- La demande d'exonération de la part en cash est consignée « règle non vérifiée », sans l'appliquer. L'estimation inclut tout le loyer hors provision historique à confirmer ; l'ancien prévisionnel fiscal 2026 est suspendu faute d'historique.
+- L'overlay Neon conserve ces informations locales ; ne pas rétablir les seuls anciens montants du bail dans les recettes ou la simulation fiscale.
+
 ### Cash non productif net (v593)
 - `cashView.nonProductif` = cash bancaire sous l'inflation + créances restantes pondérées − dettes restant à payer. Ventilation `byOwner.Amine/Nezha`, détail signé dans `lignes`.
 - Inclut les positions brutes du contrat 2048, TVA pondérée et caution locataire à restituer. Un paiement partiel réduit le reste dû ; frais retenus et créances recouvrées ne recréent pas d'actif.

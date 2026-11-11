@@ -31,8 +31,12 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=604';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=604';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=605';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=605';
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // ---- Generic table sort utility ----
 /**
@@ -1815,6 +1819,8 @@ function lirePerfGraphe(id) {
  * provisions pour charges). Le détail doit couvrir son total ; tout reste est signalé.
  */
 function partsRecettes(prop) {
+  if (prop.encaissements) return 'contrat ' + Math.round(prop.encaissements.contrat)
+    + ' + cash ' + Math.round(prop.encaissements.cash) + ' (propriétaire)';
   const parts = [];
   if (prop.loyerHC > 0) parts.push('HC ' + Math.round(prop.loyerHC));
   if (prop.chargesLoc > 0) parts.push('charges ' + Math.round(prop.chargesLoc));
@@ -4932,6 +4938,19 @@ function renderImmoView(state) {
 
   // v346 — toggle Villejuif supprimé (acte signé) : les 3 biens sont toujours inclus.
   const fp = iv.properties; // shorthand
+  const noteEnc = document.getElementById('immoEncaissementsNote');
+  if (noteEnc) noteEnc.innerHTML = fp.filter(p => p.encaissements).map(p => {
+    const e = p.encaissements;
+    return '<div style="background:#fffaf0;border:1px solid #feebc8;border-radius:8px;padding:12px;color:#744210;font-size:12px;line-height:1.6;">'
+      + '<strong>' + escapeHTML(p.name) + ' : ' + fmt(e.mensuel) + '/mois depuis le ' + escapeHTML(e.depuis.split('-').reverse().join('/')) + '</strong>'
+      + ' (' + fmt(e.contrat) + ' au contrat + ' + fmt(e.cash) + ' en cash), selon le propriétaire. '
+      + 'Ces recettes alimentent les KPI, graphiques et projections ; les flux futurs sont des hypothèses. '
+      + '<strong>Règle non vérifiée :</strong> l’exonération demandée sur la part en cash est consignée, sans être appliquée aux estimations fiscales. '
+      + 'La provision de ' + fmt(p.chargesLoc) + '/mois et la ventilation HC/charges restent à confirmer. '
+      + 'Les cash-flows de cette synthèse sont avant impôt ; le net fiscal figure dans la fiche du bien. '
+      + 'Les valeurs, CRD et passifs reposent sur les dernières pièces disponibles, sans nouvelle estimation de marché ni confirmation de règlement.'
+      + '</div>';
+  }).join('');
 
   // Recompute KPIs from filtered set
   const fTotalEquity = fp.reduce((s, p) => s + p.equity, 0);
@@ -6701,13 +6720,17 @@ function renderAptView(state, loanKey) {
     // v460 — état vide PÉDAGOGIQUE : avant la prise d'effet du bail, la boîte semblait
     // vide (barre à largeur 0, lignes conditionnelles masquées). On montre la composition
     // contractuelle grisée avec sa date, et le total actuel reste honnêtement à 0.
-    + (prop.bail && !prop.bailActif
+    + (prop.bail && !prop.bailActif && !prop.encaissements
       ? '<div style="font-size:12.5px;color:#4a5568;line-height:1.9;">'
         + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:#276749;border-bottom:1px solid #c6f6d5;margin-bottom:4px;padding-bottom:4px;"><span>Aujourd\u2019hui (avant bail)</span><span>0 €</span></div>'
         + '<div style="font-weight:600;color:#2d3748;margin:6px 0 2px;">Dès le ' + prop.bail.debut.split('-').reverse().join('/') + ' (bail — date d\u2019effet à confirmer)</div>'
         + '<div style="display:flex;justify-content:space-between;"><span>Loyer HC + provisions</span><strong>' + Math.round((prop.loyerHCContractuel || 0) + (prop.chargesLocContractuel || 0)) + ' €</strong></div>'
         + '</div>'
-      : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
+      : prop.encaissements
+        ? cfBarRowApt('Part au contrat', prop.encaissements.contrat, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
+          + cfBarRowApt('Part en cash', prop.encaissements.cash, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt)
+          + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total encaissé</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>'
+        : cfBarRowApt('Loyer HC', prop.loyerHC, 'linear-gradient(90deg,#9ae6b4,#38a169)', maxCFBarApt)
         + (prop.chargesLoc > 0 ? cfBarRowApt('Charges loc.', prop.chargesLoc, 'linear-gradient(90deg,#b2f5ea,#4fd1c5)', maxCFBarApt) : '')
         + '<div style="border-top:1px solid #c6f6d5;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.totalRevenue) + ' €</span></div>')
     + '</div>'
@@ -6721,6 +6744,15 @@ function renderAptView(state, loanKey) {
     + cfBarRowApt('Copro', Math.round(cd.copro || 0), 'linear-gradient(90deg,#fbd38d,#d69e2e)', maxCFBarApt)
     + '<div style="border-top:1px solid #fed7d7;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>Total</span><span>' + Math.round(prop.charges) + ' €</span></div>'
     + '</div></div>';
+  if (prop.encaissements) {
+    html += '<div role="note" style="background:#fffaf0;border:1px solid #feebc8;border-radius:8px;padding:12px;margin:12px 0;color:#744210;font-size:12px;line-height:1.6;">'
+      + '<strong>Encaissements indiqués par le propriétaire depuis le ' + prop.encaissements.depuis.split('-').reverse().join('/') + '.</strong> '
+      + escapeHTML(prop.encaissements.historiqueAvant || '') + '<br>'
+      + '<strong>Règle non vérifiée.</strong> ' + escapeHTML(prop.encaissements.remarqueFiscale || '') + '<br>'
+      + 'Les estimations fiscales incluent toutes les recettes hors provisions. La provision historique de ' + Math.round(prop.chargesLoc) + ' €/mois reste à confirmer, ainsi que la ventilation HC/charges du contrat. '
+      + 'Le prévisionnel fiscal annuel 2026-2029 est suspendu : historique antérieur incomplet. Aucun solde de cash ni revenu passé n’est ajouté au patrimoine.'
+      + '</div>';
+  }
   // CF KPIs
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(cfFiche) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF réel aujourd\'hui /mois' : 'CF brut /mois') + '</div></div>'
@@ -6767,7 +6799,7 @@ function renderAptView(state, loanKey) {
     + '<div><span style="color:#718096;">LTV</span><br><strong>' + prop.ltv.toFixed(1) + '%</strong></div>'
     // v438 (P3) — les KPIs du bien LUI-MÊME, calculés par le moteur mais jamais
     // affichés sur sa propre fiche (ils ne vivaient que dans les tables consolidées).
-    + '<div><span style="color:#718096;">Loyer HC</span><br><strong>'
+    + '<div><span style="color:#718096;">' + (prop.encaissements ? 'Loyer hors provisions estimé' : 'Loyer HC') + '</span><br><strong>'
       + (prop.loyerHC ? fmt(prop.loyerHC) + '/mois'
         : (prop.bail && !prop.bailActif ? Math.round(prop.loyerHCContractuel || 0) + ' €/mois <span style="font-weight:400;font-size:11px;color:#b7791f;">dès le ' + prop.bail.debut.split('-').reverse().join('/') + ', date à confirmer</span>' : '\u2014')) + '</strong></div>'
     + '<div><span style="color:#718096;">Rdt net</span><br><strong>'
@@ -6895,15 +6927,16 @@ function renderAptView(state, loanKey) {
       const b = prop.bail;
       const fdate = (d) => d ? d.split('-').reverse().join('/') : '—';
       html += '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:16px;margin-bottom:24px;">'
-        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">Bail' + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
+        + '<h3 style="margin:0 0 12px;font-size:15px;color:#276749;">' + (prop.encaissements ? 'Ancien bail — à actualiser' : 'Bail') + (prop.bailActif ? '' : ' <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">prise d\'effet ' + fdate(b.debut) + '</span>') + '</h3>'
+        + (prop.encaissements ? '<p style="font-size:12px;color:#744210;">Données de l’ancien document ; le nouveau contrat à 750 €/mois et sa ventilation HC/charges restent à obtenir. Les KPI utilisent les encaissements ci-dessus.</p>' : '')
         + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;">'
         + '<div><span style="color:#718096;">Type</span><br><strong>Nu, 3 ans</strong></div>'
         + '<div><span style="color:#718096;">Période</span><br><strong>' + fdate(b.debut) + ' → ' + fdate(b.fin) + '</strong></div>'
         // `|| 600` et `? 100 : 100` étaient deux valeurs écrites en dur : la seconde renvoie
         // 100 dans les deux branches, donc le ternaire ne testait rien. Un bien dont le loyer
         // déclaré est nul affichait « 600 € HC ».
-        + '<div><span style="color:#718096;">Recettes</span><br><strong>' + Math.round(prop.totalRevenue || 0) + ' €</strong>'
-        + '<br><span style="font-size:11px;color:#718096;">' + partsRecettes(prop) + '</span></div>'
+        + '<div><span style="color:#718096;">Recettes' + (prop.encaissements ? ' de l’ancien bail' : '') + '</span><br><strong>' + Math.round(prop.encaissements ? prop.loyerHCContractuel + prop.chargesLocContractuel : (prop.totalRevenue || 0)) + ' €</strong>'
+        + '<br><span style="font-size:11px;color:#718096;">' + (prop.encaissements ? 'HC ' + prop.loyerHCContractuel + ' + charges ' + prop.chargesLocContractuel : partsRecettes(prop)) + '</span></div>'
         + '<div><span style="color:#718096;">Dépôt de garantie</span><br><strong>' + (b.depotGarantie || 0) + ' € (hors revenus)</strong></div>'
         + '<div><span style="color:#718096;">Révision</span><br><strong>IRL chaque 10/10 (réf. T2 2026)</strong></div>'
         + (b.optionTravaux && !b.optionTravaux.active
@@ -8340,7 +8373,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=604').then(m => {
+  import('./charts.js?v=605').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

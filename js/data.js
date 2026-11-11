@@ -685,12 +685,17 @@ export const PORTFOLIO = {
     // ──────────────────────────────────────────────────────
     immo: {
       // Vitry — bail nu 3 ans : 600 € HC + 100 € de provisions (700 € CC), stationnement inclus.
-      // v543 — seuls les revenus prévus au BAIL sont modélisés, à partir de sa prise d'effet ; avant,
-      // aucun revenu locatif n'est modélisé. Date d'effet NON CONFIRMÉE — les sources divergent
-      // (01/10, 10/10 ou 01/11/2026) ; 10/10/2026 reste la date du site depuis l'arbitrage du
-      // 27/08/2026. Dépôt de garantie 600 € (pas un revenu). Révision IRL, indice T2 2026.
+      // Ancien bail conservé comme source documentaire ; les encaissements indiqués par le
+      // propriétaire le 11/11/2026 priment pour les flux dès le 01/10/2026. Nouveau contrat
+      // et ventilation HC/provisions à obtenir. Dépôt de garantie : pas un revenu.
       vitry: { value: 280000, valueDate: '2026-08', crd: 268061, loyerHC: 600, chargesLocataire: 100,
                loyerDeclare: 600,
+               // Déclaration du propriétaire du 11/11/2026 : flux réels, distincts de l'ancien bail.
+               // La ventilation HC/provisions du nouveau contrat n'est pas confirmée.
+               encaissements: { depuis: '2026-10-01', mensuel: 1200, contrat: 750, cash: 450,
+                 source: 'Propriétaire — 11/11/2026', provisionsAConfirmer: true,
+                 historiqueAvant: 'Même total mensuel, entièrement en cash ; date de début non précisée.',
+                 remarqueFiscale: 'Traitement non imposable demandé pour la part en cash : règle non vérifiée, non appliquée aux calculs.' },
                bail: { debut: '2026-10-10', dateEffetAConfirmer: true, fin: '2029-10-09', type: 'nu', depotGarantie: 600,
                        prorataOct2026: { hc: 425.81, provisions: 70.97 },
                        irl: { revision: '10-10', indiceRef: 'T2-2026' },
@@ -1858,8 +1863,8 @@ export const PRICE_REFS_AS_OF = {
 // Utilisée pour afficher "données du XX" pendant le chargement
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
-export const DATA_LAST_UPDATE = '07/11/2026';
-export const APP_VERSION = 'v604';
+export const DATA_LAST_UPDATE = '11/11/2026';
+export const APP_VERSION = 'v605';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322

@@ -468,15 +468,26 @@ t('la décomposition des recettes couvre le total, pour chaque bien', () => {
   });
 });
 
-t('Vitry : seuls les revenus du bail sont modélisés', () => {
-  // Les fichiers publics ne portent que le bail : 600 € HC + 100 € de provisions à partir de sa
-  // prise d'effet, rien avant. Aucun autre flux locatif n'est représenté.
+t('Vitry : les encaissements du propriétaire alimentent les recettes sans exonération liée au cash', () => {
   const v = iv.properties.find((p) => p.loanKey === 'vitry');
   assert.ok(v, 'Vitry introuvable');
-  const attendu = v.bailActif ? (v.loyerHCContractuel + v.chargesLocContractuel) : 0;
-  proche(v.totalRevenue, attendu, 0.5, 'recettes Vitry');
+  assert.equal(v.totalRevenue, 1200);
+  assert.equal(v.encaissements.contrat, 750);
+  assert.equal(v.encaissements.cash, 450);
+  assert.equal(v.loyerDeclareAnnuel, (1200 - v.chargesLoc) * 12);
+  assert.equal(v.fiscalSimConfig.loyerDeclareCC, 1200);
+  assert.equal(iv.vitryImpotForecast, null, 'ancien prorata fiscal encore présenté comme fiable');
+  assert.match(v.encaissements.remarqueFiscale, /règle non vérifiée, non appliquée/);
   assert.equal(v.parking, 0, 'un revenu de stationnement distinct est encore modélisé');
-  assert.ok(!Object.keys(v).some((k) => /^loyer.*ash/i.test(k)), 'un champ de loyer hors bail est encore exposé');
+});
+
+t('la correction de flux Vitry ajoute 500 €/mois au budget sans créer du patrimoine', () => {
+  const ancien = structuredClone(PORTFOLIO);
+  delete ancien.amine.immo.vitry.encaissements;
+  const avant = compute(ancien, fx, 'static');
+  proche(s.couple.nw, avant.couple.nw, 0.01, 'aucun revenu transformé en solde bancaire');
+  proche(iv.properties.find(p => p.loanKey === 'vitry').cf - avant.immoView.properties.find(p => p.loanKey === 'vitry').cf, 500, 0.01, 'delta cash-flow');
+  proche(s.budgetView.investCFTotal - avant.budgetView.investCFTotal, 500, 0.01, 'delta budget');
 });
 
 t('aucun loyer de repli n’est écrit en dur dans le rendu', () => {
