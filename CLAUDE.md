@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v604 (11 novembre 2026)
+- **Current version**: v606 (11 novembre 2026)
 
 ## Architecture
 
@@ -32,6 +32,14 @@ Read `BUG_TRACKER.md` for all known bugs, root causes, fixes, and regression tes
 5. **Fallback static**: If Yahoo API is unavailable, static prices in `data.js` / `price_snapshot.js` are used.
 
 ## Critical data flows
+
+### Rueil LMNP (v606)
+- `IMMO_CONSTANTS.lmnp.rueil` separates confirmed ELM/JD2M 2025 figures from projection assumptions. Land €43,500 is not depreciated; building €246,500 and furniture €6,185 use six component lives (full-year total €9,888.67).
+- `computeProjectionLmnpRueil` tracks annual depreciation, deductible amounts, 39 C carry and ten-year deficit cohorts. Loan principal affects cash only. No permanent zero-tax shortcut; Villejuif without a plan has unknown tax, not zero.
+- Current rent remains €1,300 HC + €150 provisions. Future indexation, inflation, CFE, quoted accounting fees, PNO and IR 20% are labeled assumptions. Future LMNP maintenance is a conditional isolated Rueil scenario: household LMP needs both legal conditions and verified income/residency.
+- Furnished-income PS is 18.6% from income 2025; bare rental and private capital gains remain 17.2%. `normaliserFiscaliteImmo` prevents stale Neon fiscal data from overriding the dated statutory rate.
+- Current Rueil exit costs use only approximately €1,882 of documented 2025 building depreciation deducted (liasse rounded fiscal net value). Future exits use projected admitted building deductions, excluding furniture. Accounting entry €290,000 never replaces the deed price or market value.
+- `cfProjection`, property LMNP panels and the NW projection share this engine. The budget chart is before tax; Rueil's NW cash-flow includes scenario tax and estimated fees. PLF 2027 proposals are not applied as enacted law.
 
 ### Net Worth calculation (engine.js `compute()`)
 ```

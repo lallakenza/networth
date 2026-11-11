@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=605';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE } from './engine.js?v=605';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=606';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee } from './engine.js?v=606';
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1905,9 +1905,9 @@ function bandeauResidenceFiscale() {
           + (r.transition ? ' (\u00e0 partir de ' + r.transition + ')' : ' (date \u00e0 confirmer)'));
   };
   return ligne('Amine', R.amine) + '. ' + ligne('Nezha', R.nezha) + '.'
-    + ' Les chiffres ci-dessous appliquent le bar\u00e8me <strong>non-r\u00e9sident</strong> '
-    + '(taux minimum 20&nbsp;% + PS 17,2&nbsp;%), coh\u00e9rent avec les projections mais '
-    + '<span style="color:#b45309">pas avec la situation actuelle de Nezha</span>.';
+    + ' IR de scénario : <strong>20&nbsp;%</strong>, à confirmer pour Nezha selon sa situation réelle. '
+    + 'PS : 17,2&nbsp;% en location nue ; 18,6&nbsp;% sur les revenus meublés depuis 2025. '
+    + '<span style="color:#b45309">La TMI actuelle de Nezha et sa date éventuelle de départ restent à confirmer.</span>';
 }
 
 /**
@@ -4933,6 +4933,59 @@ function renderWealthBreakdown(iv, filteredProps, filteredTotals) {
  *
  * @param {Object} state - Application state containing immoView and all properties
  */
+function montantFiscal(v) {
+  return Number.isFinite(v) ? Math.round(v).toLocaleString('fr-FR') : 'Non déterminé';
+}
+
+function renderProjectionLmnpRueil(projection) {
+  if (!projection) return '';
+  const { plan, hypotheses: h, indexe, stable, composantes } = projection;
+  const c = plan.confirme;
+  const somme = v => fmt(Math.round(v));
+  const signe = v => (v > 0 ? '+' : '') + somme(v);
+  const ligne = (l, i) => '<tr><td>' + l.annee + '</td><td class="num">' + somme(l.hcFin) + '</td>'
+    + '<td class="num">' + somme(l.dotImmo) + '</td><td class="num">' + somme(l.dotMobilier) + '</td>'
+    + '<td class="num">' + somme(l.impot) + '</td>'
+    + '<td class="num">' + signe(l.cfApresImpot / 12) + '</td>'
+    + '<td class="num">' + signe(stable[i].cfApresImpot / 12) + '</td>'
+    + '<td>' + (l.recettesFoyerAnnualisees > plan.regles.seuilLmp ? 'Foyer à vérifier' : 'Sous le seuil') + '</td></tr>';
+  const tables = lignes => '<div class="table-wrap" style="--tbl-min:850px"><table><thead><tr>'
+    + '<th>Année</th><th class="num">HC fin d’année<br>indexé</th><th class="num">Dotation immo/an</th>'
+    + '<th class="num">Dotation mobilier/an</th><th class="num">IR + PS/an<br>estimés</th>'
+    + '<th class="num">CF net/mois<br>indexé</th><th class="num">CF net/mois<br>HC stable</th><th>Statut du foyer</th>'
+    + '</tr></thead><tbody>' + lignes + '</tbody></table></div>';
+  return '<section class="lmnp-panel" aria-label="Plan comptable et projections LMNP Rueil">'
+    + '<h3>Rueil — plan comptable et projections LMNP</h3>'
+    + '<div class="lmnp-evidence-grid"><div class="lmnp-confirmed"><h4>Données confirmées</h4>'
+    + '<p>Début : 04/10/2025. Valeur d’entrée comptable : <strong>' + somme(c.valeurEntree) + '</strong>, dont terrain non amortissable '
+    + somme(c.terrain) + '. Bâti : ' + somme(c.construction) + ' ; mobilier séparé : ' + somme(c.composantes.find(x => x.type === 'mobilier').base) + '.</p>'
+    + '<p>Liasse 2025 : recettes ' + somme(c.recettes2025) + ', déficit ' + somme(c.deficit2025) + ', report 39 C ' + somme(c.report39C2025) + '. Acceptation technique DGFiP du 20/09/2026.</p>'
+    + '<p>Loyer actuel confirmé le 11/11/2026 : <strong>' + somme(c.loyerHC) + ' HC + ' + somme(c.provisions) + ' de provisions</strong>. Aucune révision appliquée automatiquement.</p>'
+    + '<a href="' + escapeHTML(plan.source.url) + '" target="_blank" rel="noopener">Consulter la liasse et sa provenance dans Notion</a>'
+    + '</div><div class="lmnp-assumptions"><h4>Hypothèses de projection</h4>'
+    + '<p>Mêmes locataires, 12 mois payés ; HC +' + (h.indexationLoyer * 100).toFixed(1) + ' % chaque 4 octobre dès 2027, comparé au HC stable. Provisions et coûts +' + (h.inflationCharges * 100).toFixed(0) + ' %/an.</p>'
+    + '<p>Comptabilité : ' + somme(h.comptabiliteAnnuelle) + '/an (tarif proposé, renouvellement non confirmé). CFE : <strong>' + somme(h.cfeAnnuelle) + '/an estimés</strong>, aucun avis obtenu. TF : ' + somme(h.taxeFonciereAnnuelle) + ' (avis 2025), pas un avis 2026. PNO : ' + somme(h.pnoAnnuelle) + '/an, couverture à confirmer.</p>'
+    + '<p>IR de scénario : ' + (h.ir * 100).toFixed(0) + ' % ; PS meublé : ' + (plan.regles.psRevenusDepuis2025 * 100).toFixed(1) + ' %. La résidence fiscale actuelle de Nezha reste celle documentée dans le site ; sa TMI réelle et une éventuelle date de départ ne sont pas établies ici.</p>'
+    + '<p>Aucune vacance, aucun impayé, gros travaux ou remplacement de mobilier inclus. DPE du lot non confirmé : l’indexation est une simulation, pas une hausse acquise.</p></div></div>'
+    + '<details><summary>Vrai plan ELM — annuité pleine ' + somme(projection.annuitePleine) + ', hors terrain</summary>'
+    + '<div class="table-wrap"><table><thead><tr><th>Composant</th><th class="num">Base</th><th class="num">Durée</th><th class="num">Annuité pleine</th></tr></thead><tbody>'
+    + composantes.map(a => '<tr><td>' + escapeHTML(a.nom) + '</td><td class="num">' + somme(a.base) + '</td><td class="num">' + a.dureeAns + ' ans</td><td class="num">' + somme(a.annuitePleine) + '</td></tr>').join('')
+    + '</tbody></table></div><p>Prorata comptable 30/360 de la liasse : 88 jours en 2025. Mobilier jusqu’en octobre 2030 ; aménagements jusqu’en octobre 2037. Les dotations ne deviennent déductibles qu’à concurrence du résultat : stocks 39 C et déficits suivis séparément.</p></details>'
+    + '<h4>Cash-flow annuel ramené au mois — Rueil isolé, sous maintien LMNP</h4>'
+    + '<p>Inclut crédit (capital + intérêts), assurances et budget complet. Seuls les intérêts sont fiscalement déductibles. Ce budget de scénario est distinct du cash-flow courant avant frais comptables/CFE estimés. Les impôts futurs ne sont pas garantis nuls.</p>'
+    + tables(indexe.map((l, i) => [2026, 2027, 2030, 2031, 2035, 2038].includes(l.annee) ? ligne(l, i) : '').join(''))
+    + '<details><summary>Année par année : recettes, reports et résultat imposable</summary>'
+    + tables(indexe.map(ligne).join(''))
+    + '<div class="table-wrap" style="--tbl-min:850px"><table><thead><tr><th>Année</th><th class="num">Recettes CC</th><th class="num">Intérêts</th><th class="num">Capital remboursé</th><th class="num">Amort. déduit</th><th class="num">Report 39 C</th><th class="num">Déficits restants</th><th class="num">Imposable</th></tr></thead><tbody>'
+    + indexe.map(l => '<tr><td>' + l.annee + '</td>' + [l.recettes,l.interets,l.capitalRembourse,l.amortDeduit,l.stock39C,l.stockDeficits,l.imposable].map(v => '<td class="num">' + somme(v) + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div></details>'
+    + '<div class="lmnp-status" role="note"><strong>LMNP / LMP : deux conditions, au niveau du foyer.</strong> Rueil seul : ' + escapeHTML(projection.statutActuel) + '. À partir du début de location estimé de Villejuif (' + projection.anneeVj + '), ajouter environ ' + somme(projection.vjRecettesAnnualisees) + ' de recettes annualisées, puis comparer aux autres revenus d’activité éligibles du foyer. Résidence, date réelle d’achèvement et revenus éligibles non confirmés : aucun passage automatique ni exonération LMP de revente supposé. Les chiffres ci-dessus restent le scénario isolé de Rueil.</div>'
+    + '<p class="lmnp-source">Revenus meublés : PS 18,6 % depuis les revenus 2025 ; location nue et plus-values privées : 17,2 %, règles distinctes. Pour les non-résidents, seuls les autres revenus d’activité effectivement imposés à un impôt équivalent sont retenus : ne pas assimiler automatiquement les revenus UAE à des revenus éligibles. '
+    + '<a href="' + escapeHTML(plan.regles.psSource) + '" target="_blank" rel="noopener">Taux DGFiP</a> · '
+    + '<a href="' + escapeHTML(plan.regles.statutSource) + '" target="_blank" rel="noopener">Statut BOFiP</a>.</p>'
+    + '<p class="lmnp-source">' + escapeHTML(plan.regles.plf2027) + ' La valeur comptable de 290 000 € ne modifie ni la valeur de marché du patrimoine, ni le prix d’acquisition de l’acte. Les frais de sortie actuels retiennent environ ' + somme(c.amortImmobilierDeduit2025) + ' d’amortissement immobilier fiscalement déduit en 2025 (valeur fiscale arrondie de la liasse, à finaliser avec le comptable). Les déductions futures et le mobilier ne sont pas des déductions constatées aujourd’hui.</p></section>';
+}
+
 function renderImmoView(state) {
   const iv = state.immoView;
 
@@ -5578,8 +5631,8 @@ function renderImmoView(state) {
       const cfClass = cfCarte >= 0 ? 'pl-pos' : 'pl-neg';
       const cfSign = cfCarte >= 0 ? '+' : '';
       const f = prop.fiscalite;
-      const fiscLine = f ? '<div class="prop-kpi"><div class="pk-val pl-neg">' + f.monthlyImpot + '</div><div class="pk-label">Impot /mois</div></div>'
-        + '<div class="prop-kpi"><div class="pk-val">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</div><div class="pk-label">Yield net fiscal</div></div>'
+      const fiscLine = f ? '<div class="prop-kpi"><div class="pk-val pl-neg">' + montantFiscal(f.monthlyImpot) + '</div><div class="pk-label">Impôt estimé /mois</div></div>'
+        + '<div class="prop-kpi"><div class="pk-val">' + (Number.isFinite(prop.yieldNetFiscal) ? prop.yieldNetFiscal.toFixed(1) + '%' : 'Non déterminé') + '</div><div class="pk-label">Rendement fiscal estimé</div></div>'
         : '';
       const regimeDisplay = f ? (f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime) : '';
       const regimeBadge = f ? '<span style="background:#ebf8ff;padding:1px 6px;border-radius:4px;font-size:10px;color:#2b6cb0;margin-left:4px">' + regimeDisplay + '</span>' : '';
@@ -5630,244 +5683,9 @@ function renderImmoView(state) {
     });
   }
 
-  // ── LMP Alert Section (Nezha) ──
+  // v606 — même modèle annuel que la fiche ; aucun comparateur LMP à taux forfaitaire.
   const lmpSection = document.getElementById('lmpAlertSection');
-  if (lmpSection) {
-    const rueilProp = fp.find(p => p.loanKey === 'rueil');
-    const villejuifProp = iv.properties.find(p => p.loanKey === 'villejuif'); // v346 — toujours inclus (acte signé)
-
-    // Calculate LMP thresholds
-    const LMP_THRESHOLD = 23000; // €/an
-    // Assiette du seuil LMP = RECETTES ENCAISSÉES, charges comprises (BOFiP, locations
-    // meublées) — pas le loyer hors charges. Rueil était compté 15 600 €/an au lieu de
-    // 17 400 €/an. Le franchissement du seuil ne change pas ici, mais le chiffre affiché si.
-    const rueilLoyer = rueilProp ? ((rueilProp.totalRevenue != null ? rueilProp.totalRevenue : rueilProp.loyer) * 12) : 0;
-    // Projection « après Villejuif » : recettes futures, même assiette.
-    const villejuifFutureLoyer = villejuifProp
-      ? ((villejuifProp.totalRevenue || villejuifProp.loyer || 1700) * 12) : 0;
-    const totalLoyerAnnuel = rueilLoyer + villejuifFutureLoyer;
-
-    // LMP is triggered when:
-    // 1. Recettes meublées > 23,000€/an AND
-    // 2. Recettes > revenus d'activité du foyer fiscal. Le commentaire précédent tenait ce
-    //    second critère pour automatiquement rempli « pour Nezha non-résidente » : sa résidence
-    //    fiscale n'est pas établie côté données (le brief patrimonial la dit résidente
-    //    française), et ce critère dépend de ses autres revenus. À confirmer avant de conclure.
-    //    Le libellé ci-dessous ne tranche donc plus, il annonce le seuil de recettes seulement.
-    const isRueilAloneLMP = rueilLoyer > LMP_THRESHOLD;
-    const isCombinedLMP = totalLoyerAnnuel > LMP_THRESHOLD;
-
-    // Show alert if villejuif will be meublé OR already triggered
-    if (rueilProp) {
-      // ═══ COMPACT BANNER (always visible) ═══
-      let html = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;margin:12px 0;cursor:pointer;"'
-        + ' onclick="var d=this.nextElementSibling;d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.lmp-arrow\').textContent=d.style.display===\'none\'?\'▸\':\'▾\'">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-        + '<div style="font-size:13px;color:#1e40af;">'
-        + '<strong>Seuil LMP</strong> — Rueil seul: <span style="color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + '">' + fmt(Math.round(rueilLoyer)) + '€/an (' + (isRueilAloneLMP ? 'LMP' : 'LMNP') + ')</span> · '
-        + 'Après Villejuif: <span style="color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + '">' + fmt(Math.round(totalLoyerAnnuel)) + '€/an ' + (isCombinedLMP ? '→ LMP auto' : '') + '</span>'
-        + '</div>'
-        + '<span class="lmp-arrow" style="color:#1e40af;font-size:14px;">▸</span>'
-        + '</div>'
-        + '</div>'
-        + '<div style="display:none;">'
-        + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0;">'
-        + '<h4 style="color:#1e40af;margin:0 0 12px;">Seuil LMP — Détails</h4>'
-        + '<p style="font-size:13px;color:#1e3a5f;margin:0 0 12px;">'
-        + 'Le statut <strong>LMP (Loueur Meublé Professionnel)</strong> s\'applique quand les recettes meublées dépassent <strong>23 000\u20ac/an</strong> ET les revenus d\'activité du foyer fiscal.'
-        + '</p>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
-        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#1e40af;">Aujourd\'hui (Rueil seul)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + ';">' + fmt(Math.round(rueilLoyer)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isRueilAloneLMP ? '#dc2626' : '#15803d') + ';">' + (isRueilAloneLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
-        + '</div>'
-        + '<div style="background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">'
-        + '<div style="font-size:11px;color:#1e40af;">Apr\u00e8s Villejuif (2028)</div>'
-        + '<div style="font-size:22px;font-weight:800;color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + ';">' + fmt(Math.round(totalLoyerAnnuel)) + '</div>'
-        + '<div style="font-size:11px;color:' + (isCombinedLMP ? '#dc2626' : '#15803d') + ';">' + (isCombinedLMP ? 'Au-dessus du seuil \u2192 LMP' : 'Sous le seuil \u2192 LMNP') + '</div>'
-        + '</div>'
-        + '</div>'
-        + '<div style="font-size:12px;color:#1e3a5f;">'
-        + '<strong>Impacts du passage LMP :</strong>'
-        + '<ul style="margin:6px 0;padding-left:20px;">'
-        + '<li><span style="color:#dc2626;font-weight:600;">Cotisations sociales SSI ~40%</span> sur le b\u00e9n\u00e9fice net (vs 17.2% PS en LMNP)</li>'
-        + '<li><span style="color:#dc2626;font-weight:600;">Affiliation SSI obligatoire</span> m\u00eame pour non-r\u00e9sident</li>'
-        + '<li><span style="color:#15803d;font-weight:600;">D\u00e9ficit imputable</span> sur le revenu global (avantage)</li>'
-        + '<li><span style="color:#15803d;font-weight:600;">PV professionnelle</span> : exon\u00e9ration totale si >5 ans ET CA <90K\u20ac</li>'
-        + '</ul>'
-        + '</div>'
-        + '<div style="background:#e0e7ff;border-radius:6px;padding:10px;font-size:11px;color:#312e81;margin-top:8px;">'
-        + '<strong>Non-r\u00e9sident :</strong> Nezha n\'a pas de revenus d\'activit\u00e9 en France \u2192 la condition "recettes > revenus d\'activit\u00e9" est automatiquement remplie. D\u00e8s que Villejuif est lou\u00e9 en meubl\u00e9, le statut LMP s\'applique.'
-        + '</div>';
-
-      // ═══ FEATURE 2: Tax on Rental Income Breakdown ═══
-      html += '<div style="margin-top:16px;background:#fef9c3;border-radius:8px;padding:12px;">'
-        + '<h5 style="color:#92400e;margin:0 0 12px;font-size:13px;">📊 Impact fiscal sur 1 000€ de revenu locatif net</h5>';
-
-      if (rueilProp) {
-        const monthlyRent = rueilProp.loyer || 1300;
-        const monthlyAmortizationLMNP = (240000 * 0.80 * 0.02) / 12; // ~320€
-        const taxableIncomeLMNP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
-        const taxableIncomeLMP = Math.max(0, monthlyRent - monthlyAmortizationLMNP);
-
-        const irRate = 0.20;
-        const psRateLMNP = 0.172;
-        const ssiRateLMP = 0.40;
-
-        const irLMNP = Math.round(taxableIncomeLMNP * irRate);
-        const psLMNP = Math.round(taxableIncomeLMNP * psRateLMNP);
-        const totalTaxLMNP = irLMNP + psLMNP;
-        const netAfterTaxLMNP = monthlyRent - totalTaxLMNP;
-
-        const irLMP = Math.round(taxableIncomeLMP * irRate);
-        const ssiLMP = Math.round(taxableIncomeLMP * ssiRateLMP);
-        const totalTaxLMP = irLMP + ssiLMP;
-        const netAfterTaxLMP = monthlyRent - totalTaxLMP;
-
-        html += '<div style="overflow-x:auto;font-size:12px;">'
-          + '<table style="width:100%;border-collapse:collapse;margin-top:8px;">'
-          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">LMNP réel</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">LMP</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;">Loyer net mensuel</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(monthlyRent)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">Amortissement (~' + Math.round(monthlyAmortizationLMNP) + '€)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(Math.round(monthlyAmortizationLMNP)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fef9c3;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Revenu imposable</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMNP)) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(Math.round(taxableIncomeLMP)) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">IR (20%)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(irLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:1px solid #fef3c7;background:#fffbeb;">'
-          + '<td style="padding:6px;text-align:left;font-size:11px;color:#666;">PS (17.2%) / SSI (~40%)</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#666;">−' + fmt(psLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-size:11px;color:#dc2626;font-weight:600;">−' + fmt(ssiLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="border-bottom:2px solid #d97706;background:#fef3c7;">'
-          + '<td style="padding:6px;text-align:left;font-weight:600;">Total fiscal</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;">' + fmt(totalTaxLMNP) + '€</td>'
-          + '<td style="padding:6px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(totalTaxLMP) + '€</td>'
-          + '</tr>'
-          + '<tr style="background:#fef9c3;">'
-          + '<td style="padding:8px;text-align:left;font-weight:600;">Net après impôt</td>'
-          + '<td style="padding:8px;text-align:right;font-weight:600;color:#15803d;">' + fmt(Math.round(netAfterTaxLMNP)) + '€</td>'
-          + '<td style="padding:8px;text-align:right;font-weight:600;color:#dc2626;">' + fmt(Math.round(netAfterTaxLMP)) + '€</td>'
-          + '</tr>'
-          + '</table>'
-          + '</div>';
-      }
-
-      html += '</div>';
-
-      // ═══ FEATURE 1: LMNP vs LMP Exit Costs Comparison ═══
-      html += '<div style="margin-top:16px;background:#fffbeb;border:1px solid #d97706;border-radius:8px;padding:12px;">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === \'none\' ? \'block\' : \'none\';this.querySelector(\'.toggle-arrow\').style.transform = this.nextElementSibling.style.display === \'none\' ? \'rotate(0deg)\' : \'rotate(180deg)\';">'
-        + '<h5 style="color:#92400e;margin:0;font-size:13px;">🔍 Voir comparaison LMNP vs LMP (2026-2050)</h5>'
-        + '<span class="toggle-arrow" style="display:inline-block;font-size:16px;transition:transform 200ms;">▼</span>'
-        + '</div>'
-        + '<div id="lmpExitCostsTable" style="display:none;margin-top:8px;overflow-x:auto;font-size:11px;"></div>'
-        + '</div>';
-
-      html += '</div>'
-        + '</div>'; // Close the hidden container
-
-      lmpSection.innerHTML = html;
-
-      // ═══ Populate Exit Costs Comparison Table ═══
-      setTimeout(() => {
-        const tableDiv = document.getElementById('lmpExitCostsTable');
-        if (tableDiv && rueilProp) {
-          const purchasePrice = 240000; // IC.properties.rueil.purchasePrice
-          const lmnpStartDate = '2025-10'; // [year, month]
-          const [lmnpYear, lmnpMonth] = lmnpStartDate.split('-').map(Number);
-
-          let tableHtml = '<table style="width:100%;border-collapse:collapse;background:white;">'
-            + '<thead style="background:#fef3c7;border-bottom:2px solid #d97706;position:sticky;top:0;">'
-            + '<tr>'
-            + '<th style="padding:6px;text-align:center;font-size:10px;">Année</th>'
-            + '<th style="padding:6px;text-align:center;font-size:10px;">Détention</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: PV Nette</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMNP: Taxe</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">LMP: Exonération</th>'
-            + '<th style="padding:6px;text-align:right;font-size:10px;">Différence</th>'
-            + '</tr>'
-            + '</thead>'
-            + '<tbody>';
-
-          // Simulate 2026-2050
-          for (let year = 2026; year <= 2050; year++) {
-            const holdingYears = year - 2019; // Purchase in 2019
-            const lmnpYears = year - lmnpYear; // LMNP starts 2025-10
-
-            // Project value with 1% annual appreciation
-            let projectedValue = purchasePrice;
-            for (let y = 2019; y < year; y++) {
-              projectedValue *= 1.01;
-            }
-
-            // LMNP: Calculate amortissements
-            const totalAmortLMNP = Math.max(0, purchasePrice * 0.80 * 0.02 * Math.max(0, lmnpYears));
-
-            // v474 (BUG-092) — LMNP : PV imposable + taxe via le moteur PARTAGÉ
-            // (computeExitCostsAtYear, crd=0 → on ne garde que la fiscalité PV :
-            // assiette acq. +7,5 % + réintégration amortissements, barème
-            // d'abattements EXIT_COSTS). L'ancienne copie locale divergeait du
-            // barème (off-by-one sur l'entrée en abattement, surtaxe absente).
-            const ecY = computeExitCostsAtYear('rueil', year, projectedValue, purchasePrice, 0, totalAmortLMNP);
-            const pvBruteLMNP = ecY.pvBrute;
-            const taxLMNP = ecY.totalTaxPV;
-
-            // LMP: Short-term (amortissements) taxed at 37.2%, Long-term (appreciation) at 30%
-            // BUT: Full exemption if > 5 years AND CA < 90K€/an
-            let taxLMP = 0;
-            const annualCA = rueilProp.loyer * 12; // ~15.6K€
-            if (lmnpYears >= 5 && annualCA < 90000) {
-              // Exonération totale
-              taxLMP = 0;
-            } else {
-              // Part amortissements (short-term): 37.2%
-              const pvAmortissements = totalAmortLMNP;
-              const pvAppreciation = pvBruteLMNP - pvAmortissements;
-              const taxAmortissements = Math.round(pvAmortissements * 0.372);
-              const taxAppreciation = Math.round(pvAppreciation * 0.30);
-              taxLMP = taxAmortissements + taxAppreciation;
-            }
-
-            const difference = taxLMNP - taxLMP;
-            const detentionStr = holdingYears + ' ans';
-
-            tableHtml += '<tr style="border-bottom:1px solid #e5e5e5;background:' + (year % 2 === 0 ? '#fafafa' : '#fff') + ';">'
-              + '<td style="padding:4px;text-align:center;font-size:10px;font-weight:600;">' + year + '</td>'
-              + '<td style="padding:4px;text-align:center;font-size:10px;">' + detentionStr + '</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;">' + fmt(Math.round(pvBruteLMNP)) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:#dc2626;">' + fmt(taxLMNP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (taxLMP === 0 ? '#15803d' : '#dc2626') + ';">' + fmt(taxLMP) + '€</td>'
-              + '<td style="padding:4px;text-align:right;font-size:10px;font-weight:600;color:' + (difference >= 0 ? '#15803d' : '#dc2626') + ';">' + fmt(difference) + '€</td>'
-              + '</tr>';
-          }
-
-          tableHtml += '</tbody></table>';
-          tableDiv.innerHTML = tableHtml;
-        }
-      }, 0);
-    } else {
-      lmpSection.innerHTML = '';
-    }
-  }
+  if (lmpSection) lmpSection.innerHTML = renderProjectionLmnpRueil(iv.lmnpRueil);
 
   // Loans table
   const loansTbody = document.getElementById('immoLoansTbody');
@@ -5944,28 +5762,28 @@ function renderImmoView(state) {
     fp.forEach(prop => {
       const f = prop.fiscalite;
       if (!f) return;
-      totalImpot += f.totalImpot;
+      if (!prop.conditional) totalImpot += f.totalImpot ?? 0;
       const tr = document.createElement('tr');
       if (prop.conditional) tr.style.color = '#92400e';
-      const regimeLabel = f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime;
-      const deductionCol = f.deductions != null
-        ? f.deductions.toLocaleString('fr-FR') + ' (réel)'
+      const regimeLabel = f.inconnu ? 'Meublé au réel — hypothèse' : f.regime === 'lmnp-amort' ? 'LMNP réel (amort.)' : f.type === 'lmnp' ? 'LMNP ' + f.regime : 'NU ' + f.regime;
+      const deductionCol = f.inconnu ? 'Non déterminé' : f.deductions != null
+        ? f.deductions.toLocaleString('fr-FR') + (f.estimation ? ' (estimé)' : ' (réel)')
         : f.abattement.toLocaleString('fr-FR') + ' (' + f.abattementPct + '%)';
       tr.innerHTML = '<td>' + prop.name + '</td>'
-        + '<td>' + regimeLabel + '</td>'
+        + '<td>' + regimeLabel + (f.inconnu ? '<br><small>Plan absent — non déterminé</small>' : f.estimation ? '<br><small>Estimation annuelle ' + f.annee + '</small>' : '') + '</td>'
         + '<td class="num">' + f.loyerDeclare.toLocaleString('fr-FR') + '</td>'
         + '<td class="num">' + deductionCol + '</td>'
-        + '<td class="num">' + f.revenuImposable.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + f.ir.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num">' + f.ps.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num pl-neg">' + f.totalImpot.toLocaleString('fr-FR') + '</td>'
-        + '<td class="num ' + (prop.yieldNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (prop.yieldNetFiscal || 0).toFixed(1) + '%</td>';
+        + '<td class="num">' + montantFiscal(f.revenuImposable) + '</td>'
+        + '<td class="num">' + montantFiscal(f.ir) + '</td>'
+        + '<td class="num">' + montantFiscal(f.ps) + '</td>'
+        + '<td class="num pl-neg">' + montantFiscal(f.totalImpot) + '</td>'
+        + '<td class="num ' + (prop.yieldNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">' + (Number.isFinite(prop.yieldNetFiscal) ? prop.yieldNetFiscal.toFixed(1) + '%' : '—') + '</td>';
       fiscTbody.appendChild(tr);
     });
     // Total row
     const tr = document.createElement('tr');
     tr.style.fontWeight = '700'; tr.style.background = '#edf2f7';
-    tr.innerHTML = '<td colspan="7"><strong>Total</strong></td>'
+    tr.innerHTML = '<td colspan="7"><strong>Total estimé en exploitation (hors Villejuif)</strong></td>'
       + '<td class="num pl-neg"><strong>' + totalImpot.toLocaleString('fr-FR') + '/an</strong></td>'
       + '<td></td>';
     fiscTbody.appendChild(tr);
@@ -5976,13 +5794,14 @@ function renderImmoView(state) {
   if (fiscSummary) {
     const loyerAn = iv.totalLoyerAnnuel;
     const impotAn = iv.totalImpotAnnuel;
-    fiscSummary.innerHTML = '<strong>Synthese fiscale :</strong> '
+    fiscSummary.innerHTML = '<strong>Synthèse fiscale estimative, biens actuellement loués :</strong> '
       + 'Recettes des baux ' + Math.round(loyerAn).toLocaleString('fr-FR') + '/an'
       + ' | Impot total ' + impotAn.toLocaleString('fr-FR') + '/an (' + Math.round(impotAn / 12) + '/mois)'
       // Le nombre était concaténé BRUT : d'où « -107.05999999999997/mois » à l'écran. Les
       // valeurs exactes servent au calcul, le formatage n'intervient qu'à l'affichage.
       + ' | CF net fiscal total : <strong class="' + (iv.totalCFNetFiscal >= 0 ? 'pl-pos' : 'pl-neg') + '">'
-      + (iv.totalCFNetFiscal >= 0 ? '+' : '\u2212') + fmt(Math.abs(Math.round(iv.totalCFNetFiscal))) + '/mois</strong>';
+      + (iv.totalCFNetFiscal >= 0 ? '+' : '\u2212') + fmt(Math.abs(Math.round(iv.totalCFNetFiscal))) + '/mois</strong>'
+      + '<br>Rueil : calcul annuel sous hypothèses du panneau LMNP (recettes CC, reports, TMI de scénario). Villejuif : plan absent, impôt après livraison non déterminé. Le coût actuel de son assurance reste inclus dans le cash-flow.';
   }
 
   // ── Dynamic CF Table (was hardcoded in HTML) ──
@@ -6757,12 +6576,14 @@ function renderAptView(state, loanKey) {
   html += '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfClass + '">' + cfSign + Math.round(cfFiche) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF réel aujourd\'hui /mois' : 'CF brut /mois') + '</div></div>'
     + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;color:#718096;">' + (prop.cf >= 0 ? '+' : '') + Math.round(prop.cf) + ' €</div><div style="font-size:11px;color:#718096;">CF projeté après livraison /mois</div></div>' : '')
-    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + cfNetSign + Math.round(prop.cfNetFiscal) + ' €</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF net projeté /mois' : 'CF net fiscal /mois') + '</div></div>'
+    + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:20px;font-weight:700;" class="' + cfNetClass + '">' + (Number.isFinite(prop.cfNetFiscal) ? cfNetSign + Math.round(prop.cfNetFiscal) + ' €' : 'Non déterminé') + '</div><div style="font-size:11px;color:#718096;">' + (prop.conditional ? 'CF fiscal après livraison — plan absent' : 'CF fiscal estimé /mois') + '</div></div>'
       + (prop.conditional ? '<div class="detail-metric" style="flex:1;min-width:120px;"><div style="font-size:20px;font-weight:700;" class="' + ((prop.cfReel || 0) >= 0 ? 'pl-pos' : 'pl-neg') + '">' + Math.round(prop.cfReel || 0) + ' €</div><div style="font-size:11px;color:#718096;">CF réel aujourd\'hui (assurance CACI)</div></div>' : '')
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldGross.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. brut' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + prop.yieldNet.toFixed(1) + '%</div><div style="font-size:11px;color:#718096;">Rend. net' + (prop.conditional ? ' (projeté post-livraison)' : (prop.bail && !prop.bailActif ? ' (réel actuel)' : '')) + '</div></div>'
     + '<div class="detail-metric" style="flex:1;min-width:110px;"><div style="font-size:18px;font-weight:700;">' + fmt(prop.wealthCreation) + '</div><div style="font-size:11px;color:#718096;">Création richesse /mois</div></div>'
     + '</div></div>';
+
+  if (loanKey === 'rueil') html += renderProjectionLmnpRueil(iv.lmnpRueil);
 
   // ── Section 1: Fiche propriété + Exit costs KPIs ──
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:24px;">';
@@ -7051,7 +6872,8 @@ function renderAptView(state, loanKey) {
 
   for (let yr = 2026; yr <= 2040; yr += 2) {
     const holdYears = Math.max(0, (yr - py2) + (6 - pm2) / 12);  // approx mid-year (affichage)
-    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
+    const totalAmort = loanKey === 'rueil' && iv.lmnpRueil ? amortImmoLmnpPourAnnee(iv.lmnpRueil, yr)
+      : fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, holdYears)) : 0;
     const crd = crdAtYear(yr);
     const prixYr = prixProjete(yr);
     const exitSim = computeExitCostsAtYear(loanKey, yr, prixYr, purchasePrice, crd, totalAmort);
@@ -8373,7 +8195,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=605').then(m => {
+  import('./charts.js?v=606').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);

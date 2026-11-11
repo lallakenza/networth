@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=605';
-import { DEPLOIEMENTS } from './deploiements.js?v=605';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots } from './engine.js?v=605';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=606';
+import { DEPLOIEMENTS } from './deploiements.js?v=606';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots, normaliserFiscaliteImmo } from './engine.js?v=606';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 
@@ -1721,7 +1721,8 @@ export function applyImmoRef(ref) {
     for (const [key, p] of [['vitry', v], ['rueil', r], ['villejuif', j]]) {
       if (p.charges) plan.charges[key] = { pret: fin(p.charges.pret, key + '.charges.pret'), assurance: fin(p.charges.assurance, key + '.charges.assurance'),
         pno: fin(p.charges.pno, key + '.charges.pno'), tf: fin(p.charges.tf, key + '.charges.tf'), copro: fin(p.charges.copro, key + '.charges.copro') };
-      if (p.fiscal && IMMO_CONSTANTS.fiscalite) plan.fiscalite[key] = { ...p.fiscal };
+      // Les taux légaux datés et le plan comptable local ne régressent pas avec une ancienne base.
+      if (p.fiscal && IMMO_CONSTANTS.fiscalite) plan.fiscalite[key] = normaliserFiscaliteImmo({ ...IMMO_CONSTANTS.fiscalite[key], ...p.fiscal });
       if (p.appreciation && IMMO_CONSTANTS.properties && IMMO_CONSTANTS.properties[key]) {
         plan.appreciation[key] = { rate: fin(p.appreciation.rate, key + '.appreciation.rate'),
           phases: Array.isArray(p.appreciation.phases) ? p.appreciation.phases : undefined };

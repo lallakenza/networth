@@ -86,6 +86,15 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     restaurer(initial);
   });
 
+  t('un ancien taux Neon ne remplace ni le taux légal meublé ni le plan ELM', () => {
+    restaurer(initial);
+    const ref = refLocal(); ref.properties[1].fiscal = { ...IC.fiscalite.rueil, ps: 0.172 };
+    assert.equal(A.applyImmoRef(ref), true);
+    assert.equal(IC.fiscalite.rueil.ps, 0.186);
+    assert.deepEqual(IC.lmnp, initial.ic.lmnp);
+    restaurer(initial);
+  });
+
   t('rejet atomique : Vitry 123 456 puis Rueil non numérique → false et état strictement intact', () => {
     restaurer(initial);
     const ref = refLocal();

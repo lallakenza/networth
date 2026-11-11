@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=605';
-import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation } from './engine.js?v=605';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=605';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=605';
-import { loadSnapshots } from './api.js?v=605'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=605'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=606';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation } from './engine.js?v=606';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=606';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=606';
+import { loadSnapshots } from './api.js?v=606'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=606'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -561,69 +561,14 @@ function buildImmoProjection(state) {
 export function buildCFProjection(state) {
   if (charts.cfProj) { charts.cfProj.destroy(); delete charts.cfProj; }
 
-  const YEARS = 10;
-  const RENT_GROWTH = 0.015;
-  const IC = IMMO_CONSTANTS;
-  // v490 (audit) — l'année 0 était bâtie sur des littéraux (loyer Rueil figé à 1 300 € au lieu
-  // des 1 450 € réels, paliers Vitry inventés, Villejuif démarré en 2030 alors que la livraison
-  // est prévue en 09/2028). Cette courbe annonçait −206 €/mois de CF total là où le KPI de la
-  // MÊME page affiche −107. On lit désormais la vue immo, source unique, et la date de livraison
-  // déclarée dans les constantes.
-  const _props = (state && state.immoView && state.immoView.properties) || [];
-  const _p = (k) => _props.find(x => x.loanKey === k) || null;
-  const START_YEAR = new Date().getFullYear();
-  const _vjLivraison = ((IC.properties.villejuif || {}).deliveryDate || '2028-09');
-  const _vjAnneeLivraison = parseInt(_vjLivraison.slice(0, 4), 10);
-
-  const labels = [];
-  const vitryData = [], rueilData = [], villejuifData = [], totalData = [];
-
-  // Revenus de départ : ceux que le moteur calcule réellement (gating bail,
-  // charges locataires), et non des constantes réécrites à la main.
-  const _vitryP = _p('vitry'), _rueilP = _p('rueil'), _vjP = _p('villejuif');
-  let vitryLoyer = _vitryP ? (_vitryP.totalRevenue || 0) : 1270;
-  let rueilLoyer = _rueilP ? (_rueilP.totalRevenue || 0) : 1450;
-  let villejuifLoyer = _vjP ? (_vjP.loyer || _vjP.totalRevenue || 0) : 1700;
-  const vitryParking = 0; // déjà inclus dans totalRevenue
-
-  for (let i = 0; i < YEARS; i++) {
-    const year = START_YEAR + i;
-    labels.push(String(year));
-
-    if (year > START_YEAR) {
-      vitryLoyer *= (1 + RENT_GROWTH);
-      rueilLoyer *= (1 + RENT_GROWTH);
-      if (year > _vjAnneeLivraison) villejuifLoyer *= (1 + RENT_GROWTH);
-    }
-
-    // Vitry CF
-    const vitryRev = vitryLoyer + vitryParking;
-    let vitryCharges = IC.charges.vitry.pno + IC.charges.vitry.tf + IC.charges.vitry.copro;
-    if (year < IC.prets.vitryEnd) vitryCharges += IC.charges.vitry.pret + IC.charges.vitry.assurance;
-    const vitryCF = Math.round(vitryRev - vitryCharges);
-
-    // Rueil CF
-    const rueilRev = rueilLoyer;
-    let rueilCharges = IC.charges.rueil.pno + IC.charges.rueil.tf + IC.charges.rueil.copro;
-    if (year < IC.prets.rueilEnd) rueilCharges += IC.charges.rueil.pret + IC.charges.rueil.assurance;
-    const rueilCF = Math.round(rueilRev - rueilCharges);
-
-    // Villejuif CF — à partir de l'année de livraison DÉCLARÉE (et non d'un 2030 codé en dur).
-    // v491 — avant livraison, le flux n'est pas nul : l'assurance emprunteur (CACI) est prélevée
-    // depuis la signature de l'offre. C'est `cfReel` (v473), déjà compté dans le KPI de la page.
-    let villejuifCF = _vjP && year < _vjAnneeLivraison ? Math.round(_vjP.cfReel || 0) : 0;
-    if (year >= _vjAnneeLivraison) {
-      const vjRev = villejuifLoyer;
-      let vjCharges = IC.charges.villejuif.pno + IC.charges.villejuif.tf + IC.charges.villejuif.copro;
-      if (year < IC.prets.villejuifEnd) vjCharges += IC.charges.villejuif.pret + IC.charges.villejuif.assurance;
-      villejuifCF = Math.round(vjRev - vjCharges);
-    }
-
-    vitryData.push(vitryCF);
-    rueilData.push(rueilCF);
-    villejuifData.push(villejuifCF);
-    totalData.push(vitryCF + rueilCF + villejuifCF);
-  }
+  const projection = state.immoView.cfProjection || [];
+  const YEARS = projection.length;
+  const START_YEAR = projection[0]?.annee ?? new Date().getFullYear();
+  const labels = projection.map(l => String(l.annee));
+  const vitryData = projection.map(l => Math.round(l.parBien.vitry));
+  const rueilData = projection.map(l => Math.round(l.parBien.rueil));
+  const villejuifData = projection.map(l => Math.round(l.parBien.villejuif));
+  const totalData = projection.map(l => Math.round(l.total));
 
   // Build chart
   const ctx = document.getElementById('cfProjectionChart');
@@ -645,7 +590,7 @@ export function buildCFProjection(state) {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Projection Cash Flow mensuel \u2014 10 ans', font: { size: 14 } },
+        title: { display: true, text: 'Cash-flow projeté avant impôt — budget complet', font: { size: 14 } },
         legend: { labels: { filter: item => item.text !== 'Equilibre (0)', font: { size: 11 } } },
         tooltip: {
           filter: item => item.dataset.label !== 'Equilibre (0)',
@@ -668,20 +613,17 @@ export function buildCFProjection(state) {
   for (let i = 0; i < YEARS; i++) {
     const year = START_YEAR + i;
     const tr = document.createElement('tr');
-    const isKey = year === 2027 || year === 2030;
-    if (isKey) tr.style.background = '#fffbeb';
-    let note = year === 2027 ? ' *' : year === 2030 ? ' **' : '';
     const cfClass = v => v >= 0 ? 'num pos' : 'num neg';
     const cfFmt = v => (v >= 0 ? '+' : '') + v.toLocaleString('fr-FR');
-    tr.innerHTML = '<td><strong>' + year + '</strong>' + note + '</td>'
+    tr.innerHTML = '<td><strong>' + year + '</strong></td>'
       + '<td class="' + cfClass(vitryData[i]) + '">' + cfFmt(vitryData[i]) + '</td>'
       + '<td class="' + cfClass(rueilData[i]) + '">' + cfFmt(rueilData[i]) + '</td>'
-      + '<td class="' + cfClass(villejuifData[i]) + '">' + (year < 2030 ? '<span style="color:var(--gray)">\u2014</span>' : cfFmt(villejuifData[i])) + '</td>'
+      + '<td class="' + cfClass(villejuifData[i]) + '">' + cfFmt(villejuifData[i]) + '</td>'
       + '<td class="' + cfClass(totalData[i]) + '" style="font-weight:700;background:#f0fff4">' + cfFmt(totalData[i]) + '</td>';
     tbody.appendChild(tr);
   }
   const fn = document.createElement('tr');
-  fn.innerHTML = '<td colspan="5" style="font-size:10px;color:var(--gray);padding-top:8px">* Augmentation loyer Vitry a 1,400. ** Debut remboursement + loyer Villejuif (loyers pre-2030 absorbent les travaux).</td>';
+  fn.innerHTML = '<td colspan="5" style="font-size:10px;color:var(--gray);padding-top:8px">Scénario avant impôt, source moteur commune : Rueil inclut honoraires et CFE estimés. Loyers futurs, inflation, date de mise en location de Villejuif : hypothèses. Voir le panneau LMNP pour le scénario fiscal isolé et le contrôle du foyer.</td>';
   tbody.appendChild(fn);
 }
 

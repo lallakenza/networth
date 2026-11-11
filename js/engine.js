@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=605';
-import { lireContratEnCache } from './facturation_contract.js?v=605';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=606';
+import { lireContratEnCache } from './facturation_contract.js?v=606';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -2626,10 +2626,131 @@ function computeMultiLoanSchedule(subLoans, insuranceMonthly) {
 /**
  * Compute fiscalité for a property
  * Handles: micro-foncier (nu), micro-BIC (LMNP), réel foncier, réel BIC
- * Non-résident UAE : taux minimum 20% + PS 17.2%
+ * IR de scénario séparé des PS : meublé 18.6% depuis 2025, nu 17.2%.
  */
+export function normaliserFiscaliteImmo(config, annee = new Date().getFullYear()) {
+  const regles = IMMO_CONSTANTS.lmnp?.rueil?.regles;
+  return config?.type === 'lmnp' && regles ? { ...config,
+    ps: annee >= 2025 ? regles.psRevenusDepuis2025 : regles.psRevenusAvant2025 } : { ...config };
+}
+
+/** Dotations comptables par composant ; aucune déduction fiscale automatique. */
+export function dotationsLmnp(plan, annee) {
+  const c = plan.confirme;
+  const debutAnnee = Number(c.debut.slice(0, 4));
+  return c.composantes.map(a => {
+    const dejaJours = annee <= debutAnnee ? 0 : c.prorata2025Jours360 + (annee - debutAnnee - 1) * 360;
+    const jours = annee < debutAnnee ? 0 : Math.min(annee === debutAnnee ? c.prorata2025Jours360 : 360,
+      Math.max(0, a.dureeAns * 360 - dejaJours));
+    return { ...a, annuitePleine: a.base / a.dureeAns, dotation: a.base / a.dureeAns * jours / 360 };
+  });
+}
+
+export function statutLocationMeublee(recettes, revenusEligibles, seuil) {
+  if (recettes <= seuil) return 'LMNP : seuil non dépassé';
+  if (!Number.isFinite(revenusEligibles)) return 'À vérifier : seconde condition et foyer fiscal';
+  return recettes > revenusEligibles ? 'LMP sous les hypothèses retenues' : 'LMNP sous les hypothèses retenues';
+}
+
+/** Réintégration immobilière : documentée aujourd'hui, conditionnelle à mi-année future. */
+export function amortImmoLmnpPourAnnee(projection, annee) {
+  if (!projection) return 0;
+  const confirme = projection.plan.confirme.amortImmobilierDeduit2025;
+  if (annee <= new Date().getFullYear()) return confirme;
+  const precedent = projection.indexe.find(l => l.annee === annee - 1);
+  const courant = projection.indexe.find(l => l.annee === annee);
+  return (precedent?.cumulImmo ?? confirme) + (courant?.amortImmobilierDeduit ?? 0) / 2;
+}
+
+/** Projection ISOLÉE de Rueil sous maintien LMNP. Le statut du foyer reste un contrôle distinct.
+ * Principal du crédit exclu de l'assiette fiscale, inclus dans les sorties de trésorerie.
+ * Reports 39 C ventilés immobilier/mobilier ; déficits par millésime (10 ans), jamais confondus.
+ */
+export function computeProjectionLmnpRueil(portfolio, amort, options = {}) {
+  const plan = IMMO_CONSTANTS.lmnp?.rueil;
+  if (!plan) return null;
+  const c = plan.confirme, h = { ...plan.hypotheses, ...options }, regles = plan.regles;
+  // Le moteur NW accepte jusqu'à 600 mois : éviter tout retour à l'ancien CF après 20 ans.
+  const fin = options.anneeFin ?? Math.max(new Date().getFullYear() + 51, 2046);
+  const rent = portfolio.nezha.immo.rueil;
+  const hcBase = rent.loyerHC ?? c.loyerHC;
+  const provBase = rent.chargesLocataire ?? c.provisions;
+  const anneeVj = Number(IMMO_CONSTANTS.fiscalite.villejuif.lmnpStartDate.slice(0, 4));
+  const vjRecettesAnnualisees = ((portfolio.nezha.immo.villejuif.loyerHC ?? 0)
+    + (portfolio.nezha.immo.villejuif.chargesLocataire ?? 0)) * 12;
+  const parAnnee = {};
+  for (const r of (amort?.schedule || [])) {
+    const y = Number(r.date.slice(0, 4));
+    const a = parAnnee[y] || (parAnnee[y] = { interets: 0, principal: 0, paiements: 0, mois: 0 });
+    a.interets += r.interest || 0; a.principal += r.principal || 0;
+    a.paiements += (r.principal || 0) + (r.interest || 0); a.mois++;
+  }
+  const simulation = (indexation) => {
+    let stockImmo = c.reportImmobilier2025, stockMobilier = c.reportMobilier2025;
+    let cumulImmo = c.amortImmobilierDeduit2025;
+    const deficits = [{ annee: 2025, montant: c.deficit2025 }];
+    const lignes = [];
+    for (let annee = h.anneeBase; annee <= fin; annee++) {
+      const n = annee - h.anneeBase, inflation = Math.pow(1 + h.inflationCharges, n);
+      const hcFin = hcBase * Math.pow(1 + indexation, n);
+      const hcAvant = hcBase * Math.pow(1 + indexation, Math.max(0, n - 1));
+      // Révision au 04/10, prorata 30/360 : 9,1 mois ancien loyer + 2,9 mois nouveau.
+      const loyerHC = n === 0 ? hcBase * 12 : hcAvant * 9.1 + hcFin * 2.9;
+      const provisions = provBase * 12 * inflation;
+      const recettes = loyerHC + provisions;
+      const a = parAnnee[annee] || { interets: 0, principal: 0, paiements: 0, mois: 0 };
+      const assurance = (IMMO_CONSTANTS.loans.rueil.insurance ?? 0) * a.mois;
+      const chargesHorsCredit = (h.coproAnnuelle + h.taxeFonciereAnnuelle + h.pnoAnnuelle
+        + h.comptabiliteAnnuelle + h.cfeAnnuelle) * inflation + assurance;
+      const sorties = chargesHorsCredit + a.paiements;
+      const resultatAvantAmort = recettes - chargesHorsCredit - a.interets;
+      const dotations = dotationsLmnp(plan, annee);
+      const dotImmo = dotations.filter(d => d.type === 'immobilier').reduce((s, d) => s + d.dotation, 0);
+      const dotMobilier = dotations.filter(d => d.type === 'mobilier').reduce((s, d) => s + d.dotation, 0);
+      const dotation = dotImmo + dotMobilier;
+      const admisCourant = Math.min(dotation, Math.max(0, resultatAvantAmort));
+      const immoCourant = dotation > 0 ? admisCourant * dotImmo / dotation : 0;
+      const mobCourant = admisCourant - immoCourant;
+      stockImmo += dotImmo - immoCourant; stockMobilier += dotMobilier - mobCourant;
+      const disponible = Math.max(0, resultatAvantAmort - admisCourant);
+      const stock = stockImmo + stockMobilier;
+      const reportUtilise = Math.min(stock, disponible);
+      const reportImmo = stock > 0 ? reportUtilise * stockImmo / stock : 0;
+      stockImmo -= reportImmo; stockMobilier -= reportUtilise - reportImmo;
+      const amortImmobilierDeduit = immoCourant + reportImmo;
+      cumulImmo += amortImmobilierDeduit;
+      const resultat = resultatAvantAmort - admisCourant - reportUtilise;
+      let imposable = Math.max(0, resultat);
+      if (resultat < 0) deficits.push({ annee, montant: -resultat });
+      for (const d of deficits) {
+        if (annee - d.annee > regles.reportDeficitAns) d.montant = 0;
+        const utilise = Math.min(d.montant, imposable); d.montant -= utilise; imposable -= utilise;
+      }
+      const psTaux = annee >= 2025 ? regles.psRevenusDepuis2025 : regles.psRevenusAvant2025;
+      const ir = imposable * h.ir, ps = imposable * psTaux, impot = ir + ps;
+      const recettesFoyerAnnualisees = recettes + (annee >= anneeVj ? vjRecettesAnnualisees : 0);
+      lignes.push({ annee, hcFin, loyerHC, provisions, recettes, sorties, chargesHorsCredit,
+        interets: a.interets, capitalRembourse: a.principal, dotation, dotImmo, dotMobilier,
+        amortDeduit: admisCourant + reportUtilise, amortImmobilierDeduit, cumulImmo,
+        stock39C: stockImmo + stockMobilier, stockDeficits: deficits.reduce((s, d) => s + d.montant, 0),
+        imposable, ir, ps, psTaux, impot, cfAvantImpot: recettes - sorties, cfApresImpot: recettes - sorties - impot,
+        recettesFoyerAnnualisees, statut: statutLocationMeublee(recettesFoyerAnnualisees, h.revenusActiviteEligiblesFoyer, regles.seuilLmp),
+        scenarioLmnpIsole: true, fraisCfeEstimes: h.cfeAnnuelle * inflation,
+      });
+    }
+    return lignes;
+  };
+  return { plan, hypotheses: h, composantes: dotationsLmnp(plan, h.anneeBase),
+    annuitePleine: dotationsLmnp(plan, h.anneeBase).reduce((s, d) => s + d.annuitePleine, 0),
+    indexe: simulation(h.indexationLoyer), stable: simulation(0),
+    anneeVj, vjRecettesAnnualisees, statutActuel: statutLocationMeublee((hcBase + provBase) * 12,
+      h.revenusActiviteEligiblesFoyer, regles.seuilLmp),
+    revisionPossible: hcBase * c.revision.irl2026 / c.revision.irl2025,
+  };
+}
+
 function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscConfig, loanInterestAnnuel) {
-  const f = fiscConfig;
+  const f = normaliserFiscaliteImmo(fiscConfig);
 
   // loyerDeclareAnnuel = loyer du bail (hors provisions) ; loyerTotalAnnuel = loyer + provisions.
   const loyerDeclare = loyerDeclareAnnuel;
@@ -2673,18 +2794,13 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
   }
 
   if (f.regime === 'lmnp-amort') {
-    // LMNP réel avec amortissement du bien
-    // L'amortissement couvre largement le revenu net → impôt = 0
+    // Sans plan comptable, aucun zéro fiscal ne peut être déduit de l'étiquette LMNP.
     return {
       regime: 'lmnp-amort', type: 'lmnp',
       loyerAnnuel: loyerTotalAnnuel, loyerDeclare: Math.round(loyerDeclare),
       abattement: 0, abattementPct: 0,
-      revenuImposable: 0,
-      ir: 0, ps: 0,
-      totalImpot: 0,
-      monthlyImpot: 0,
-      tauxEffectif: 0,
-      note: 'Amortissement du bien > revenu net',
+      revenuImposable: null, ir: null, ps: null, totalImpot: null, monthlyImpot: null,
+      tauxEffectif: null, inconnu: true, note: 'Plan comptable absent : impôt non déterminé',
     };
   }
 
@@ -2717,12 +2833,12 @@ function computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, charges, fiscCon
  *   - Capital gains tax (IR + PS + sur-taxation)
  *   - Agency fees (typically 5-8%)
  *   - Mainlevée costs (loan payoff fees)
- *   - TVA clawback (for LMNP with depreciation clawback on gains)
+ *   - Documented building depreciation deducted (LMNP acquisition-basis adjustment)
  *   - Net equity after all exit costs
  *
  * Tax computation depends on:
- *   - Holding duration (exemption after 5 years for some regimes)
- *   - Amortissements (LMNP réel): TVA at 20% applies to depreciation recapture
+ *   - Holding duration (private capital-gains holding-period allowances)
+ *   - Amortissements (LMNP réel): admitted building deductions reduce acquisition basis
  *   - Regime type (micro vs réel LMNP vs foncier)
  *   - Personal tax rate (TMI) and social contribution rate (PS)
  *
@@ -3190,6 +3306,9 @@ function computeImmoView(portfolio, fx) {
     }
   }
 
+  const lmnpRueil = computeProjectionLmnpRueil(portfolio, amortSchedules.rueil);
+  const lmnpAnneeCourante = lmnpRueil?.indexe.find(l => l.annee === new Date().getFullYear());
+
   // Helper to build property with fiscal data
   function buildProperty(name, owner, propData, chargesConfig, loanKey, conditional) {
     // ── Dynamic property valuation with phase-specific appreciation ──
@@ -3312,11 +3431,19 @@ function computeImmoView(portfolio, fx) {
       deductibleCharges = chargesConfig.pno + Math.max(0, chargesConfig.tf - fcfgProp.teomAnnuelle / 12)
         + coproNonRecup / 12 + chargesConfig.assurance + assurAL + (fcfgProp.gestionForfaitAnnuel || 0) / 12;
     }
-    const fisc = IC.fiscalite && IC.fiscalite[loanKey]
+    let fisc = IC.fiscalite && IC.fiscalite[loanKey]
       ? computeFiscalite(loyerDeclareAnnuel, loyerTotalAnnuel, deductibleCharges, IC.fiscalite[loanKey], loanInterestAnnuel)
       : null;
-
-    const cfNetFiscal = fisc ? cf - fisc.monthlyImpot : cf;
+    if (loanKey === 'rueil' && lmnpAnneeCourante) {
+      const l = lmnpAnneeCourante;
+      fisc = { ...fisc, inconnu: false, estimation: true, annee: l.annee,
+        loyerAnnuel: l.recettes, loyerDeclare: Math.round(l.recettes),
+        deductions: Math.round(l.recettes - l.imposable), revenuImposable: Math.round(l.imposable),
+        ir: Math.round(l.ir), ps: Math.round(l.ps), totalImpot: Math.round(l.impot), monthlyImpot: l.impot / 12,
+        tauxEffectif: l.recettes > 0 ? l.impot / l.recettes * 100 : 0,
+        note: 'Estimation annuelle Rueil isolé : plan ELM, charges et TMI hypothétiques ; statut du foyer distinct.' };
+    }
+    const cfNetFiscal = fisc?.monthlyImpot == null ? null : cf - fisc.monthlyImpot;
 
     // Use computed CRD from amort schedule if available (more accurate than static snapshot)
     // Daily proration: interpolate CRD between monthly schedule entries so equity
@@ -3449,7 +3576,11 @@ function computeImmoView(portfolio, fx) {
       const [ly, lm] = fiscConfig2.lmnpStartDate.split('-').map(Number);
       lmnpYears = Math.max(0, (now.getFullYear() - ly) + (now.getMonth() + 1 - lm) / 12);
     }
-    const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYears)) : 0;
+    // Aujourd'hui : seules les déductions immobilières déjà documentées, pas les dotations
+    // comptables futures ni le mobilier. La valeur d'entrée LMNP ne remplace pas le prix d'achat.
+    const totalAmort = loanKey === 'rueil' && lmnpRueil
+      ? lmnpRueil.plan.confirme.amortImmobilierDeduit2025
+      : fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYears)) : 0;
     // Build per-loan CRDs for IRA computation
     let loanCRDs = null;
     if (amort && amort.subSchedules) {
@@ -3561,7 +3692,7 @@ function computeImmoView(portfolio, fx) {
       // 141 K de versements donnaient un « 14,5 % brut » absurde ; sur 336 330 € : ~6,1 %.
       yieldGross: (totalRevenue * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100),
       yieldNet: (cf * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100),
-      yieldNetFiscal: fisc ? (cfNetFiscal * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100) : null,
+      yieldNetFiscal: cfNetFiscal != null ? (cfNetFiscal * 12 / (propData.underConstruction && propData.contractPrice ? propData.contractPrice : _val) * 100) : null,
       wealthCreation: Math.round(wealthCreationComputed),
       wealthBreakdown: {
         capitalAmorti: Math.round(wealthCapital),
@@ -3578,6 +3709,7 @@ function computeImmoView(portfolio, fx) {
       chargesLocContractuel: propData.chargesLocataire || 0,
       bailActif,                              // v458 — false avant la prise d'effet (revenus coupés)
       encaissements,
+      lmnpProjection: loanKey === 'rueil' ? lmnpRueil : null,
       loanDetails,
       fiscalite: fisc,
       cfNetFiscal,
@@ -3752,12 +3884,12 @@ function computeImmoView(portfolio, fx) {
 
 
   // Fiscal totals
-  const totalImpotAnnuel = properties.reduce((s, p) => s + (p.fiscalite ? p.fiscalite.totalImpot : 0), 0);
+  const totalImpotAnnuel = properties.reduce((s, p) => s + (!p.conditional ? (p.fiscalite?.totalImpot ?? 0) : 0), 0);
   // v340 — exclure les biens conditionnels (Villejuif non livré) des agrégats loyer/CF :
   // le loyer n'est pas encore perçu. Aligne computeImmoView sur computeBudgetView (3397)
   // et computeCashFlow (4982) qui zéro-tent déjà Villejuif.
   const totalLoyerAnnuel = properties.reduce((s, p) => s + (p.conditional ? 0 : (p.totalRevenue || p.loyer) * 12), 0);
-  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.conditional ? (p.cfReel || 0) : (p.cfNetFiscal || p.cf)), 0); // v473 : flux réel CACI inclus
+  const totalCFNetFiscal = properties.reduce((s, p) => s + (p.conditional ? (p.cfReel ?? 0) : (p.cfNetFiscal ?? p.cf)), 0);
 
   // Amortization totals
   const totalInterestPaid = Object.values(amortSchedules).reduce((s, a) => s + a.interestPaid, 0);
@@ -3831,7 +3963,9 @@ function computeImmoView(portfolio, fx) {
         const [ly] = fiscConfig.lmnpStartDate.split('-').map(Number);
         lmnpYearsProj = Math.max(0, yr - ly);
       }
-      const totalAmort = fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYearsProj)) : 0;
+      const totalAmort = lk === 'rueil' && lmnpRueil
+        ? amortImmoLmnpPourAnnee(lmnpRueil, yr)
+        : fiscType === 'lmnp' ? Math.round((purchasePrice * 0.80) * 0.02 * Math.max(0, lmnpYearsProj)) : 0;
       // Per-loan CRDs for IRA
       let loanCRDs = null;
       if (amort && amort.subSchedules) {
@@ -3929,12 +4063,13 @@ function computeImmoView(portfolio, fx) {
         const fixedCharges = loanActive ? cbd.fixedMonthly : 0; // prêt+assurance stop when loan ends
         const variableCharges = cbd.variableMonthly * Math.pow(1 + chargesInflation, yearsFromNow);
 
-        cfM = grownRevenue - fixedCharges - variableCharges;
+        const lmnpLigne = lk === 'rueil' ? lmnpRueil?.indexe.find(l => l.annee === y) : null;
+        cfM = lmnpLigne ? lmnpLigne.cfAvantImpot / 12 : grownRevenue - fixedCharges - variableCharges;
       }
 
       // For conditional but not yet operational: only appreciation counts
       const effCapital = isOperationalAtM ? capitalM : 0;
-      const effCF = isOperationalAtM ? cfM : 0;
+      const effCF = isOperationalAtM ? cfM : (prop.conditional ? (prop.cfReel ?? 0) : 0);
 
       // Per-property exit cost savings (same fallback logic as total: first year → 0 savings)
       const thisPropEC = (exitCostsByYearProp[y] || {})[lk] || 0;
@@ -4027,8 +4162,21 @@ function computeImmoView(portfolio, fx) {
     }
   } catch (e) { /* prévisionnel optionnel */ }
 
+  // Source commune du graphique de budget complet : agrégats de la même projection,
+  // jamais d'anciens loyers ou dates de livraison réécrits dans charts.js.
+  const cfProjection = [];
+  for (let annee = projStartY; annee < projStartY + 10; annee++) {
+    const mois = wealthProjection.filter(l => Number(l.date.slice(0, 4)) === annee);
+    const parBien = Object.fromEntries(properties.map(p => [p.loanKey, mois.length
+      ? mois.reduce((s, m) => s + m.perProp[p.loanKey].cashflow, 0) / mois.length : 0]));
+    const l = lmnpRueil?.indexe.find(x => x.annee === annee);
+    if (l) parBien.rueil = l.cfAvantImpot / 12;
+    cfProjection.push({ annee, parBien, total: Object.values(parBien).reduce((s, v) => s + v, 0) });
+  }
   return {
     properties,
+    lmnpRueil,
+    cfProjection,
     vitryImpotForecast,
     totalEquity, totalValue, totalCRD,
     totalCF, totalWealthCreation, totalWealthBreakdown, temporel,
@@ -6183,7 +6331,8 @@ export function projectNW(state, hyp = {}) {
       const crd = crdAuMois(iso);
       if (exitCacheYear !== y) {
         const yearsHeld = y - parseInt((meta.purchaseDate || '2023-01').slice(0, 4), 10);
-        const totalAmort = fiscType === 'lmnp' ? Math.round(purchasePrice * 0.80 * 0.02 * Math.max(0, yearsHeld)) : 0;
+        const totalAmort = k === 'rueil' && iv.lmnpRueil ? amortImmoLmnpPourAnnee(iv.lmnpRueil, y)
+          : fiscType === 'lmnp' ? Math.round(purchasePrice * 0.80 * 0.02 * Math.max(0, yearsHeld)) : 0;
         const ec = computeExitCostsAtYear(k, y, Math.round(valeur), purchasePrice, crd, totalAmort);
         exitCacheCosts = ec.totalExitCosts;
         exitCacheYear = y;
@@ -6200,7 +6349,9 @@ export function projectNW(state, hyp = {}) {
     // cash-flow mensuel cumulé
     for (let i = 1; i <= H.horizonMois; i++) {
       const iso = moisISO(i);
-      const cf = estVEFA ? (iso < livraisonISO ? (p.cfReel || 0) : (p.cf || 0)) : (p.cf || 0);
+      const lmnpLigne = k === 'rueil' ? iv.lmnpRueil?.indexe.find(l => l.annee === Number(iso.slice(0, 4))) : null;
+      const cf = lmnpLigne ? lmnpLigne.cfApresImpot / 12
+        : estVEFA ? (iso < livraisonISO ? (p.cfReel || 0) : (p.cf || 0)) : (p.cf || 0);
       cfCumul[owner][i] = cfCumul[owner][i - 1] + cf;
     }
   });

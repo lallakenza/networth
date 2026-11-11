@@ -1864,7 +1864,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '11/11/2026';
-export const APP_VERSION = 'v605';
+export const APP_VERSION = 'v606';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -2414,9 +2414,52 @@ export const IMMO_CONSTANTS = {
   // Rueil + Villejuif (Nezha) : LMNP (meublé)
   //   regime: 'micro-BIC' (abattement 50%) si recettes < 77 700€/an
   //   ou régime réel simplifié (amortissement du bien)
-  //   Non-résident : taux minimum 20%
-  //   PS : 17.2%
+  //   IR 20% : hypothèse de projection, TMI actuelle de Nezha non établie ici.
+  //   PS meublé : 18.6% depuis les revenus 2025 ; 17.2% auparavant.
   // ──────────────────────────────────────────────────────
+  // v606 — pièces comptables confirmées, distinctes de la valeur de marché portée au NW.
+  lmnp: {
+    rueil: {
+      source: { date: '2026-09-17', acceptation: '2026-09-20',
+        url: 'https://app.notion.com/p/3e10b87c7044814d9e98ff4fd2ebc82e',
+        libelle: 'Liasse ELM/JD2M 2025 corrigée, p.4-5 et 20 ; acceptation technique DGFiP' },
+      confirme: {
+        debut: '2025-10-04', valeurEntree: 290000, terrain: 43500, construction: 246500,
+        recettes2025: 4210, deficit2025: 289, report39C2025: 266,
+        reportImmobilier2025: 232, reportMobilier2025: 34,
+        amortImmobilierDeduit2025: 1882, // valeur nette fiscale p.6, arrondie à l'euro
+        composantes: [
+          { id: 'interieur', nom: 'Aménagements intérieurs', base: 55100, dureeAns: 12, type: 'immobilier' },
+          { id: 'etancheite', nom: 'Étanchéité', base: 20300, dureeAns: 25, type: 'immobilier' },
+          { id: 'structure', nom: 'Gros œuvre', base: 130500, dureeAns: 75, type: 'immobilier' },
+          { id: 'electricite', nom: 'Installation électrique', base: 17400, dureeAns: 30, type: 'immobilier' },
+          { id: 'toiture', nom: 'Toiture', base: 23200, dureeAns: 25, type: 'immobilier' },
+          { id: 'mobilier', nom: 'Mobilier', base: 6185, dureeAns: 5, type: 'mobilier' },
+        ],
+        prorata2025Jours360: 88,
+        loyerHC: 1300, provisions: 150, loyerConfirmeLe: '2026-11-11',
+        revision: { mois: 10, jour: 4, trimestre: 2, irl2025: 146.68, irl2026: 148.37 },
+      },
+      hypotheses: {
+        anneeBase: 2026, indexationLoyer: 0.015, inflationCharges: 0.02,
+        ir: 0.20, // scénario, pas la TMI établie du foyer ni une preuve de départ de France
+        comptabiliteAnnuelle: 629, // tarif proposé le 20/09 ; renouvellement/paiement non confirmé
+        cfeAnnuelle: 300, // enveloppe de simulation, aucun avis obtenu
+        taxeFonciereAnnuelle: 715, // dernier avis documenté : 2025, pas un avis 2026
+        pnoAnnuelle: 144, // hypothèse du site ; couverture effective à confirmer
+        coproAnnuelle: 3228, // budget du site (269/mois), fonds ALUR déductibles à vérifier
+        occupantsConstants: true, dpeDuLotConfirme: false,
+        revenusActiviteEligiblesFoyer: null, // ne jamais déduire LMP du seul seuil de 23 000
+      },
+      regles: {
+        psRevenusDepuis2025: 0.186, psRevenusAvant2025: 0.172,
+        seuilLmp: 23000, reportDeficitAns: 10,
+        psSource: 'https://www.impots.gouv.fr/particulier/questions/je-donne-un-bien-en-location-dois-je-payer-des-prelevements-sociaux',
+        statutSource: 'https://bofip.impots.gouv.fr/bofip/3615-PGP.html/identifiant=BOI-BIC-CHAMP-40-10-20260415',
+        plf2027: 'Projet non définitif au 11/11/2026 ; aucun plafonnement ni suppression des reports appliqué.',
+      },
+    },
+  },
   fiscalite: {
     // v458 — fiscalité RÉELLE du bail (non-résident : 20 % IR minimum + 17,2 % PS = 37,2 %).
     // Base = loyers HC − charges déductibles À COMPTER DU 10/10/2026 (prorata 2026).
@@ -2438,12 +2481,12 @@ export const IMMO_CONSTANTS = {
     // Vitry : loyerDeclare (500€/mois) est dans portfolio.amine.immo.vitry
     // Régime réel : on déduit intérêts d'emprunt, assurance, PNO, TF, copro
     // TMI 20% + PS 17.2% = taux effectif ~37% sur le revenu net
-    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2025-10' },
-    // LMNP réel avec amortissement → impôt = 0 (amortissement > revenu net)
+    rueil:     { regime: 'lmnp-amort', tmi: 0.20, ps: 0.186, type: 'lmnp', lmnpStartDate: '2025-10' },
+    // LMNP réel : dotations, déductions et reports calculés annuellement depuis le plan ELM.
     // lmnpStartDate: date de passage en LMNP (bail signé sept 2025, prise effet oct 2025)
     // Amortissement commence à cette date, pas à la date d'achat (2019)
-    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.172, type: 'lmnp', lmnpStartDate: '2028-09' }, // HYPOTHÈSE de début de location — livraison contractuelle 30/06/2028 (acte p.8)
-    // lmnpStartDate: livraison + début location estimé sept 2029
+    villejuif: { regime: 'lmnp-amort', tmi: 0.20, ps: 0.186, type: 'lmnp', lmnpStartDate: '2028-09' }, // HYPOTHÈSE, plan comptable non disponible
+    // lmnpStartDate: début de location estimé sept 2028, hypothèse à confirmer.
   },
   // ──────────────────────────────────────────────────────
   // MÉTADONNÉES PROPRIÉTÉS — surface, adresse, prix, appréciation
