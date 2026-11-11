@@ -31,8 +31,8 @@
 //
 // No computation here. Only formatting and DOM manipulation.
 
-import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES } from './data.js?v=609';
-import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee, projectionSortieRueil } from './engine.js?v=609';
+import { CURRENCY_CONFIG, CASH_YIELDS, IBKR_CONFIG, IMMO_CONSTANTS, EXIT_COSTS, VITRY_CONSTRAINTS, IMMO_PRESETS, FX_STATIC, DECLARED_MONTHLY_SAVINGS_EUR, DESIGN_TOKENS, MARGIN_RATES, IMMO_PASSIFS_DOCUMENTES, INFLATION_RATE, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, RESIDENCE_FISCALE, WHT_RATES, PROJECTION_HYPOTHESES } from './data.js?v=610';
+import { getGrandTotal, computeImmoFinancing, computeCashFlow, computeAlerts, computeObjectifs, computeSensibilite, computeFiscaliteMRE, computeExitCostsAtYear, computeScenarioTauxImmo, projectNW, sadevFenetre, tvaPonderee, coutEmpruntAnnuel, SEVERITES_ALERTE, amortImmoLmnpPourAnnee, projectionSortieRueil } from './engine.js?v=610';
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8164,7 +8164,7 @@ function renderImmoFinancingView(state) {
   renderImmoFinComparisonTable(result);
 
   // ── Charts (lazy import to avoid circular dep) ──
-  import('./charts.js?v=609').then(m => {
+  import('./charts.js?v=610').then(m => {
     // v310 — passer le mode d'affichage sélectionné (absolu/zoom/delta)
     if (typeof m.buildImmoFinPatrimoineChart === 'function') m.buildImmoFinPatrimoineChart(result, _immoFinChartMode);
     if (typeof m.buildImmoFinLtvChart === 'function') m.buildImmoFinLtvChart(result);
@@ -8704,9 +8704,9 @@ function renderPlanFiscalView(state) {
   //            ne sont pas trackées dans BUDGET_EXPENSES.
   //   - v320 : retour à une valeur déclarée, alignée avec le champ "Épargne mensuelle"
   //            du module Financement Immo et la KPI "Épargne déclarée" du Budget.
-  // Rendement base 0.06 = moyenne historique S&P500 après inflation (~6-7% réel long terme).
+  // Même rendement actions nominal p50 que le graphe NW ; inflation affichée séparément.
   const baseSavings = DECLARED_MONTHLY_SAVINGS_EUR;
-  const baseRendement = 0.06;
+  const baseRendement = PROJECTION_HYPOTHESES.rendements.p50;
 
   // ── v312 — Objectifs ──
   const objectifs = computeObjectifs(state, { monthlySavingsEUR: baseSavings, annualReturn: baseRendement });
@@ -8749,7 +8749,7 @@ function renderPlanFiscalView(state) {
     });
     html += '</tbody></table>';
     html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">'
-      + 'Hypothèses : épargne mensuelle <strong>' + baseSavings.toLocaleString('fr-FR') + ' €</strong> (depuis cash-flow consolidé) ; rendement <strong>' + (baseRendement * 100).toFixed(0) + ' %/an</strong> (moyenne actions diversifiées long terme) ; inflation <strong>3 %/an</strong> pour la conversion en € réels 2026.'
+      + 'Hypothèses : épargne déclarée <strong>' + baseSavings.toLocaleString('fr-FR') + ' €/mois</strong> pendant ' + PROJECTION_HYPOTHESES.dureeContributionsMois + ' mois pour les bases NW ; rendement actions nominal <strong>' + (baseRendement * 100).toFixed(0) + ' %/an</strong>, mêmes règles LMNP que le graphe NW ; inflation <strong>3 %/an</strong> pour la conversion en € réels 2026. Les objectifs de liquidité ont leur propre périmètre financier.'
       + '</p>';
     tblObj.innerHTML = html;
   }
@@ -8788,7 +8788,7 @@ function renderPlanFiscalView(state) {
     html += '</tbody></table>';
     html += '<p style="font-size:11px;color:var(--gray);margin-top:8px;font-style:italic">'
       + 'Lecture : "1.2M€ (120%)" = projeté à 1.2M€ qui dépasse l\'objectif de ' + Math.round(sens.target / 1000) + 'k€ (120 % atteint). '
-      + 'Cellule centrale (fond bleu) = scénario base (épargne réelle ' + savBase.toLocaleString('fr-FR') + ' €/m × rendement ' + (sens.baseRendement * 100).toFixed(0) + ' %). '
+      + 'Cellule centrale (fond bleu) = scénario base du moteur NW (épargne déclarée ' + savBase.toLocaleString('fr-FR') + ' €/m, rendement actions ' + (sens.baseRendement * 100).toFixed(0) + ' %, flux et sortie LMNP inclus). '
       + 'Variations : ±2 points de rendement, ±20 % d\'épargne pour cadrer le risque.</p>';
     // ── v447 — scénario taux → prix immo (canal de solvabilité, élasticité explicite) ──
     try {

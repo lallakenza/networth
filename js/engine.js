@@ -25,8 +25,8 @@
 //
 // compute(portfolio, fx, stockSource) → STATE object
 
-import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=609';
-import { lireContratEnCache } from './facturation_contract.js?v=609';
+import { ACCRUALS_HISTORIQUE, CASH_YIELDS, PRICE_REFS_AS_OF, INFLATION_RATE, IMMO_CONSTANTS, WHT_RATES, DIV_YIELDS, DIV_CALENDAR, IBKR_CONFIG, BUDGET_EXPENSES, EXIT_COSTS, VITRY_CONSTRAINTS, VILLEJUIF_CONSTRAINTS, VILLEJUIF_ACTE, FX_STATIC, DEGIRO_STATIC_PRICES, IMMO_RECALCULE, FACTURATION_HISTORIQUE, FACTURES_RESTATEES_JUSQUAU, PORTFOLIO, NW_HISTORY, EQUITY_HISTORY, IMMO_MAROC_FEES, MARGIN_RATES, MONTHLY_INCOMES, DATA_LAST_UPDATE, DESIGN_TOKENS, PROJECTION_HYPOTHESES, DECLARED_MONTHLY_SAVINGS_EUR } from './data.js?v=610';
+import { lireContratEnCache } from './facturation_contract.js?v=610';
 
 /**
  * Convert a foreign amount to EUR using FX rates
@@ -7569,8 +7569,9 @@ const DEFAULT_OBJECTIFS = [
 
 export function computeObjectifs(state, opts) {
   const today = new Date();
-  const monthlySavingsEUR = (opts && opts.monthlySavingsEUR != null) ? opts.monthlySavingsEUR : 8000;
-  const annualReturn = (opts && opts.annualReturn != null) ? opts.annualReturn : 0.06;
+  const monthlySavingsEUR = (opts && opts.monthlySavingsEUR != null) ? opts.monthlySavingsEUR : DECLARED_MONTHLY_SAVINGS_EUR;
+  const annualReturn = (opts && opts.annualReturn != null) ? opts.annualReturn
+    : PROJECTION_HYPOTHESES.rendements[(opts && opts.scenario) || 'p50'];
   const inflationRate = (opts && opts.inflationRate != null) ? opts.inflationRate : INFLATION_RATE;
   // v347 — BUG-049 propagé : racine géométrique pour que le taux annuel affiché soit réalisé.
   // annualReturn/12 traitait le taux comme un APR nominal → (1+r/12)^12 − 1 > annualReturn
@@ -7594,7 +7595,8 @@ export function computeObjectifs(state, opts) {
   }, 12);
   const scenario = (opts && opts.scenario) || 'p50';
   let proj = null;
-  try { proj = projectNW(state, { horizonMois: Math.min(600, moisMax + 2) }); } catch (e) { proj = null; }
+  try { proj = projectNW(state, { horizonMois: Math.min(600, moisMax + 2), contributionMensuelle: monthlySavingsEUR,
+    rendements: { ...PROJECTION_HYPOTHESES.rendements, [scenario]: annualReturn } }); } catch (e) { proj = null; }
   const serie = (base) => {
     if (!proj) return null;
     if (base === 'couple-NW') return proj.couple && proj.couple[scenario];
@@ -7724,8 +7726,8 @@ export function computeSensibilite(state, baseObjectif, opts) {
   const tgt = new Date(dateTarget + '-01T00:00:00');
   const monthsToTarget = Math.max(1, (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth()));
 
-  const baseRendement = (opts && opts.baseRendement != null) ? opts.baseRendement : 0.06;
-  const baseSavings = (opts && opts.baseSavings != null) ? opts.baseSavings : 8000;
+  const baseRendement = (opts && opts.baseRendement != null) ? opts.baseRendement : PROJECTION_HYPOTHESES.rendements.p50;
+  const baseSavings = (opts && opts.baseSavings != null) ? opts.baseSavings : DECLARED_MONTHLY_SAVINGS_EUR;
 
   // Variations centrées sur la base : ±2 points de rendement, ±20 % d'épargne
   const rendementVariations = [
@@ -7746,9 +7748,15 @@ export function computeSensibilite(state, baseObjectif, opts) {
       rendement: rAnnual,
       cells: savingsVariations.map(sav => {
         // v317 (C5) — Guard div-by-zero si r = 0
-        const projected = r === 0
+        const analytique = r === 0
           ? couple + sav * monthsToTarget
           : couple * factor + sav * (factor - 1) / r;
+        // Même moteur que les objectifs : ne pas capitaliser tout le patrimoine
+        // comme des actions en perdant les flux LMNP et les frais de sortie.
+        const projected = state?.immoView && state?.views && monthsToTarget <= 600
+          ? projectNW(state, { horizonMois: monthsToTarget, contributionMensuelle: sav,
+            rendements: { p50: rAnnual } }).couple.p50[monthsToTarget]
+          : analytique;
         return {
           savings: sav,
           projected,

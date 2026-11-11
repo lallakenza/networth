@@ -61,6 +61,18 @@ const copy = x => JSON.parse(JSON.stringify(x));
     assert.deepEqual(p.nezha.p50, q.nezha.p50);
     assert.deepEqual(p.couple.p50, q.couple.p50);
   });
+  t('Plan : objectif, cellule centrale de sensibilité et graphe NW ont la même base et réagissent au LMNP', () => {
+    const d = new Date(); d.setMonth(d.getMonth() + 24);
+    const objectif = {label:'Patrimoine couple', basis:'couple-NW',target:1000000,
+      dateTarget:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+    const h = {baseRendement:D.PROJECTION_HYPOTHESES.rendements.p50,baseSavings:D.DECLARED_MONTHLY_SAVINGS_EUR};
+    const p = E.computeSensibilite(s, objectif, h), q = E.computeSensibilite(choc, objectif, h);
+    const o = E.computeObjectifs(s,{objectifs:[objectif]})[0];
+    const nw = E.projectNW(s,{horizonMois:24});
+    assert.equal(p.matrix[1].cells[1].projected, nw.couple.p50[24]);
+    assert.equal(o.projectedValue, p.matrix[1].cells[1].projected);
+    for (let i=0;i<3;i++) for(let j=0;j<3;j++) proche(p.matrix[i].cells[j].projected-q.matrix[i].cells[j].projected,2400,1);
+  });
   Object.entries({ cplSimSavings: 0, cplSimPctActions: 0, cplSimReturnActions: 0,
     cplSimHorizon: 12, cplSimStopYear: 0, nzSimAppreciation: 0, nzSimCashReturn: 0, nzSimHorizon: 12 })
     .forEach(([id,v]) => { node(id).value = String(v); });

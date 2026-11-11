@@ -1,4 +1,4 @@
-# Audit de propagation LMNP — v607–v609, 11 novembre 2026
+# Audit de propagation LMNP — v607–v610, 11 novembre 2026
 
 La v606 avait intégré le plan ELM et l'impôt annuel, mais leur propagation était incomplète.
 
@@ -12,6 +12,7 @@ La v606 avait intégré le plan ELM et l'impôt annuel, mais leur propagation é
 6. Le simulateur Couple démarre sur les équités nettes actuelles ; l'interpolation des frais de sortie ne crée plus un patrimoine initial différent de son résumé.
 7. La vérification visuelle a révélé un ancien tableau « Projection détaillée » dans la vue Nezha, distinct du simulateur. Il multipliait encore la richesse mensuelle actuelle et omettait des actifs. La v608 affiche directement les séries du graphique, avec le point actuel, les prochains janvier et l'horizon choisi. Chaque changement de curseur actualise les deux. L'insight Nezha distingue aussi l'équité brute de l'équité nette après sortie et les deux périmètres de cash-flow.
 8. Le test interactif des curseurs a révélé qu'ils réutilisaient le premier patrimoine chargé, en perdant les cours/FX et données arrivés depuis. La v609 lit le dernier état actualisé ; le premier point ne revient plus à une ancienne valeur lors d'un changement d'horizon.
+9. La matrice de sensibilité de « Plan & Fiscalité » capitalisait encore tout le patrimoine comme des actions et omettait les flux LMNP. La v610 utilise `projectNW` dans chaque cellule. Le scénario central et l'objectif patrimonial correspondant partagent désormais le rendement actions p50 nominal, l'épargne déclarée et la durée des contributions ; les overrides de calcul sont réellement appliqués.
 
 ## Périmètres à distinguer
 

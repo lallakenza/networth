@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v609 (11 novembre 2026)
+- **Current version**: v610 (11 novembre 2026)
 
 ## Architecture
 
@@ -46,6 +46,7 @@ Read `BUG_TRACKER.md` for all known bugs, root causes, fixes, and regression tes
 - `tests/lmnp-propagation.test.js` exercises actual chart/simulator producers. A €1,200/year additional-tax shock must reduce Nezha/Couple monthly cash by €100, leave Amine unchanged, and be independent of property order. Confirmed accounting entries are not current cash balances or market values.
 - v608: `nezhaProjectionTable` renders the actual Nezha simulator series via `renderNezhaProjectionTable`, including all its cash/assets and the LMNP flows. Never rebuild it by multiplying current wealth creation or CF by a number of months. Slider changes must refresh the table and graph together; their current and final totals must match.
 - v609: simulator input listeners consume `_simLastState`, refreshed by `initSimulators`, rather than capturing the initial load state. Live price/FX/reference updates must not be discarded when a user moves a slider; regression tested after a simulated balance update.
+- v610: Plan sensitivity cells use `projectNW`, including LMNP cash and exit costs. The central cell and its NW objective must match at the same return/contribution inputs; Plan defaults to the main graph's nominal p50 return. Objectif overrides for return/contribution are honored; never compound the entire net worth as if it were an equity portfolio.
 
 ### Net Worth calculation (engine.js `compute()`)
 ```
