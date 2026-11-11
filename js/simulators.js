@@ -3,9 +3,9 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis, renderNezhaProjectionTable } from './render.js?v=608';
-import { IMMO_CONSTANTS } from './data.js?v=608';
-import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=608';
+import { fmt, fmtAxis, renderNezhaProjectionTable } from './render.js?v=609';
+import { IMMO_CONSTANTS } from './data.js?v=609';
+import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=609';
 
 const IC = IMMO_CONSTANTS;
 
@@ -1181,15 +1181,15 @@ export function bindSimulatorEvents(state, refreshFn) {
 
   // Couple
   ['cplSimSavings','cplSimPctActions','cplSimReturnActions','cplSimStopYear','cplSimHorizon'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', () => runCoupleSimulator(state));
+    document.getElementById(id)?.addEventListener('input', () => runCoupleSimulator(_simLastState || state));
   });
   // Amine
   ['amSimSavings','amSimPctActions','amSimReturnActions','amSimStopYear','amSimHorizon'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', () => runAmineSimulator(state));
+    document.getElementById(id)?.addEventListener('input', () => runAmineSimulator(_simLastState || state));
   });
   // Nezha
   ['nzSimAppreciation','nzSimCashReturn','nzSimHorizon'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', () => runNezhaSimulator(state));
+    document.getElementById(id)?.addEventListener('input', () => runNezhaSimulator(_simLastState || state));
   });
   // Opportunity cost
   ['oppCostAmount','oppCostReturn','oppCostHorizon'].forEach(id => {

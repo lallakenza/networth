@@ -10,7 +10,8 @@ for (const f of ['data.js', 'engine.js', 'facturation_contract.js', 'render.js',
 const nodes = new Map(), charts = new Map();
 const node = id => {
   if (!nodes.has(id)) nodes.set(id, { id, value: '0', style: {}, textContent: '', innerHTML: '',
-    getContext: () => ({ id }), appendChild() {}, addEventListener() {}, classList: { add() {}, remove() {} } });
+    getContext: () => ({ id }), appendChild() {}, listeners: {},
+    addEventListener(type, fn) { this.listeners[type] = fn; }, classList: { add() {}, remove() {} } });
   return nodes.get(id);
 };
 globalThis.document = { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) };
@@ -131,6 +132,17 @@ const copy = x => JSON.parse(JSON.stringify(x));
     const b = E.projectionSortieRueil(iv, 2031, {date:'2031-12'});
     const l = iv.lmnpRueil.indexe.find(l => l.annee === 2031);
     proche(b.totalAmort - a.totalAmort, l.amortImmobilierDeduit / 2, 1e-8);
+  });
+  t('après rafraîchissement des cours/données, un curseur garde le dernier patrimoine plutôt que le premier état chargé', () => {
+    Object.entries({amSimSavings:0,amSimPctActions:0,amSimReturnActions:0,amSimHorizon:1,amSimStopYear:0,
+      oppCostAmount:10000,oppCostReturn:10,oppCostHorizon:20}).forEach(([id,v]) => {node(id).value=String(v);});
+    S.initSimulators(s); S.bindSimulatorEvents(s, () => {});
+    const actualise = copy(s); actualise.nezha.cash += 10000; actualise.nezha.nw += 10000;
+    S.initSimulators(actualise);
+    node('nzSimHorizon').value = '1'; node('nzSimHorizon').listeners.input();
+    const total = charts.get('nzSimChart').data.datasets.find(d => d.label === 'NW Total Nezha').data;
+    proche(total[0], actualise.nezha.nw, 1);
+    assert.ok(total[0] > s.nezha.nw + 9998);
   });
   fs.rmSync(tmp, {recursive:true,force:true});
   process.exitCode = ko ? 1 : 0;
