@@ -11,9 +11,9 @@
 // tickers in a loop until all are loaded or max retries reached.
 
 // ---- Cache helpers ----
-import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=611';
-import { DEPLOIEMENTS } from './deploiements.js?v=611';
-import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots, normaliserFiscaliteImmo } from './engine.js?v=611';
+import { PORTFOLIO, IMMO_CONSTANTS, APP_VERSION, SOLDES_RETROACTIFS, FX_STATIC, REGROUPEMENTS_TITRES, RELEVES_QUOTIDIENS, SNAPSHOTS_RECONSTRUITS } from './data.js?v=612';
+import { DEPLOIEMENTS } from './deploiements.js?v=612';
+import { appliquerSoldesRetroactifs, normaliserRegroupements, selectionnerSnapshots, normaliserFiscaliteImmo } from './engine.js?v=612';
 const CACHE_PREFIX = 'nw_cache_';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — re-fetch live after this
 

@@ -39,6 +39,14 @@ for (const f of ['engine.js', 'data.js', 'facturation_contract.js']) {
       if (Math.abs(total-attendu)>0.01) echecs.push(`[${filtre}/${mode}] treemap ${total} ≠ ${attendu}`);
       if (JSON.stringify(cats)!==avant) echecs.push(`[${filtre}/${mode}] données sources mutées`);
       if (groupes.groups.length !== (mode === 'combined' ? 3 : 2)) echecs.push(`[${filtre}/${mode}] hiérarchie incorrecte`);
+      if (mode === 'combined') {
+        const parents = new Map();
+        for (const c of groupes.categories) for (const p of c.sub) {
+          const cle = p[groupes.groups[1]];
+          if (parents.has(cle) && parents.get(cle) !== c.label) echecs.push(`sous-groupe ${cle} partagé par plusieurs zones`);
+          parents.set(cle, c.label);
+        }
+      }
       if (mode !== 'type' && groupes.categories.some(c => c.label === 'Crypto')) echecs.push('Crypto doit être une classe d’actif, exposition mondiale dans la vue géographique');
       if (mode === 'type') {
         for (const c of groupes.categories) for (const p of c.sub) {

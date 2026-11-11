@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=611';
-import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil, regrouperTreemapActions } from './engine.js?v=611';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=611';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=611';
-import { loadSnapshots } from './api.js?v=611'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=611'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=612';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil, regrouperTreemapActions } from './engine.js?v=612';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=612';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=612';
+import { loadSnapshots } from './api.js?v=612'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=612'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
@@ -1522,7 +1522,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel,
           label: sub.label, category: cat.label,
           value: sub.val, color: sub.color,
           catTotal: cat.total, owner: sub.owner || '',
-          assetTypeLabel: sub.assetTypeLabel, geoLabel: sub.geoLabel,
+          assetTypeLabel: sub.assetTypeLabel, assetTypeGroup: sub.assetTypeGroup, geoLabel: sub.geoLabel,
         });
       }
     });
@@ -1540,6 +1540,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel,
       datasets: [{
         tree: treeData, key: 'value',
         groups,
+        captions: { display: true, formatter: ctx => ctx.type === 'data' ? String(ctx.raw?.g || '').split(' › ').pop() : '' },
         borderWidth: 2, borderColor: '#ffffff', spacing: 1,
         backgroundColor: function(ctx) {
           if (ctx.type !== 'data') return 'transparent';
@@ -1578,7 +1579,7 @@ function buildGenericTreemap(canvasId, chartKey, CATS, grandTotal, tooltipLabel,
             const label = d.label || ctx.raw.g || '';
             const w = ctx.raw.w || 0; const h = ctx.raw.h || 0;
             const area = w * h;
-            if (isCategoryHeader(d)) return label;
+            if (isCategoryHeader(d)) return label.split(' › ').pop();
             if (area < 1200) return ''; // Hide all labels on segments < 1200px²
             if (area < 1500) return label.length > 6 ? label.substring(0, 5) + '.' : label;
             if (area < 3000) {

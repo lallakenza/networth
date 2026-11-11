@@ -4,7 +4,7 @@
 Static GitHub Pages app (zero backend) that computes and displays the net worth of couple Amine & Nezha.
 - **URL**: https://lallakenza.github.io/networth/
 - **Repo**: `lallakenza/networth` on GitHub Pages (main branch auto-deploys)
-- **Current version**: v611 (11 novembre 2026)
+- **Current version**: v612 (11 novembre 2026)
 
 ## Architecture
 
@@ -111,6 +111,7 @@ Where:
 
 ### Chart system (charts.js)
 - Actions treemap (v611): three persistent grouping modes, geography / asset type / geography → type. `regrouperTreemapActions` changes presentation only and preserves all positive positions, including <€100, plus owner filtering. IBIT/ETHA are Crypto exposure (not counted twice as ETF); crypto and diversified World ETF exposures use Monde in geographical grouping. `_state` supplies fresh data to grouping button handlers.
+- Combined treemap subgroups use a unique zone + type key (`assetTypeGroup`), with a short type-only caption. Shared labels such as Actions must never merge child positions across different geographic parents.
 - 3 levels of data coexist: (1) raw series (couple-level), (2) owner-filtered series (render loop lines ~2143-2154), (3) metadata like `startValue` stays couple-level
 - **Every consumer** (tooltip, header, click panel) must apply owner filter consistently
 - Tooltip computes per-owner `startV` from filtered NAV arrays at `startIdx`
