@@ -55,9 +55,9 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     assert.ok(dep && dep.currency === 'USD' && Math.abs(dep.amount - 2729.33) < 0.01);
   });
 
-  t('IBKR au connecteur du 10/11/2026 : 150 AIR, 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
+  t('IBKR au connecteur du 11/11/2026 : 110 AIR, 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
     const pos = (tk) => P.amine.ibkr.positions.find((p) => p.ticker === tk);
-    assert.equal(pos('AIR.PA').shares, 150, '50 Airbus vendues le 09/11');
+    assert.equal(pos('AIR.PA').shares, 110, '50 Airbus vendues le 09/11, 40 le 10/11');
     assert.equal(pos('VWCE.DE').shares, 170);
     assert.equal(pos('GOOGL').shares, 40);
     assert.equal(P.amine.espp.shares, 167, 'les 167 ACN venues d\'UBS, chez IBKR depuis le 09/10');
@@ -71,8 +71,13 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     // Les soldes se reconstituent au centime à partir des mouvements depuis le 09/10.
     const vente = P.amine.ibkr.trades.find((t) => t.date === '2026-11-09' && t.ticker === 'AIR.PA' && t.type === 'sell');
     assert.ok(vente && vente.qty === 50 && vente.proceeds === 10135, 'vente AIR du 09/11');
-    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + depot + vente.proceeds + vente.commission - P.amine.ibkr.cashEUR) < 0.01,
-      'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre + 6 000 + vente AIR − commission');
+    const vente2 = P.amine.ibkr.trades.find((t) => t.date === '2026-11-10' && t.ticker === 'AIR.PA' && t.type === 'sell');
+    assert.ok(vente2 && vente2.qty === 40 && vente2.proceeds === 8378, 'vente AIR du 10/11');
+    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + depot + vente.proceeds + vente.commission + vente2.proceeds + vente2.commission - P.amine.ibkr.cashEUR) < 0.01,
+      'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre + 6 000 + ventes AIR − commissions');
+    // Positions = achats − ventes du journal.
+    const net = P.amine.ibkr.trades.filter((t) => t.ticker === 'AIR.PA').reduce((x, t) => x + (t.type === 'buy' ? t.qty : t.type === 'sell' ? -t.qty : 0), 0);
+    assert.equal(net, pos('AIR.PA').shares, 'journal AIR = position');
     assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = cash UBS via Wise − 40 GOOGL');
   });
 

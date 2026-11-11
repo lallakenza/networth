@@ -43,7 +43,9 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
   });
 
   t('vue Amine : aucune ligne de Nezha ; vue Couple : les deux comptes', () => {
-    const nomsNezha = D.PORTFOLIO.nezha.ibkr.positions.map((p) => p.label);
+    // Lignes PROPRES à Nezha : un titre détenu par les deux (VWCE) porte le même libellé des deux côtés.
+    const tickersAmine = new Set(D.PORTFOLIO.amine.ibkr.positions.map((p) => p.ticker));
+    const nomsNezha = D.PORTFOLIO.nezha.ibkr.positions.filter((p) => !tickersAmine.has(p.ticker)).map((p) => p.label);
     const am = de(av.insightsOwner.amine, 'concentration');
     const cp = de(av.insights, 'concentration');
     assert.ok(am.totalPositions < cp.totalPositions);
