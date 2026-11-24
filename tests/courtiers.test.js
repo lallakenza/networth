@@ -55,30 +55,43 @@ const t = (nom, fn) => { try { fn(); console.log('  ✓', nom); } catch (e) { ko
     assert.ok(dep && dep.currency === 'USD' && Math.abs(dep.amount - 2729.33) < 0.01);
   });
 
-  t('IBKR au connecteur du 11/11/2026 : 110 AIR, 170 VWCE, 40 GOOGL, 167 ACN, cash EUR/USD/JPY', () => {
+  t('IBKR au connecteur du 24/11/2026 : 110 AIR, 170 VWCE, 40 GOOGL, 120 NVDA, 500 ANAU, 167 ACN, cash EUR/USD/JPY/AED', () => {
     const pos = (tk) => P.amine.ibkr.positions.find((p) => p.ticker === tk);
     assert.equal(pos('AIR.PA').shares, 110, '50 Airbus vendues le 09/11, 40 le 10/11');
     assert.equal(pos('VWCE.DE').shares, 170);
     assert.equal(pos('GOOGL').shares, 40);
+    assert.equal(pos('NVDA').shares, 120, '120 NVIDIA achetées le 18/11');
+    assert.equal(pos('ANAU.PA').shares, 500, '500 ANAU achetées le 20/11');
     assert.equal(P.amine.espp.shares, 167, 'les 167 ACN venues d\'UBS, chez IBKR depuis le 09/10');
     // v601 — +6 000 € virés depuis Revolut le 07/11, reçus le 07/11 (e-mail IBKR du 09/11) : un seul dépôt.
     const depot = P.amine.ibkr.deposits.filter((d) => d.date === '2026-11-07' && d.currency === 'EUR').reduce((s, d) => s + d.amount, 0);
     assert.equal(depot, 6000);
     assert.equal((P.amine.ibkr.creditsAnticipes || []).length, 0, 'crédit rapproché : plus rien d\'anticipé');
     assert.ok(Math.abs(P.amine.ibkr.cashEUR - P.amine.ibkr.cashEURObserve) < 0.005, 'solde utilisé = solde observé');
-    assert.equal(P.amine.ibkr.cashUSD, -8511.67);
+    assert.equal(P.amine.ibkr.cashUSD, 0);
+    assert.equal(P.amine.ibkr.cashAED, 0, '30 000 AED repartis vers Wio le 12/11');
     assert.equal(P.amine.ibkr.cashJPY, -1608111.36);
     // Les soldes se reconstituent au centime à partir des mouvements depuis le 09/10.
     const vente = P.amine.ibkr.trades.find((t) => t.date === '2026-11-09' && t.ticker === 'AIR.PA' && t.type === 'sell');
     assert.ok(vente && vente.qty === 50 && vente.proceeds === 10135, 'vente AIR du 09/11');
     const vente2 = P.amine.ibkr.trades.find((t) => t.date === '2026-11-10' && t.ticker === 'AIR.PA' && t.type === 'sell');
     assert.ok(vente2 && vente2.qty === 40 && vente2.proceeds === 8378, 'vente AIR du 10/11');
-    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + depot + vente.proceeds + vente.commission + vente2.proceeds + vente2.commission - P.amine.ibkr.cashEUR) < 0.01,
-      'EUR = solde du 09/10 − 20 et 100 VWCE − intérêts d\'octobre + 6 000 + ventes AIR − commissions');
-    // Positions = achats − ventes du journal.
-    const net = P.amine.ibkr.trades.filter((t) => t.ticker === 'AIR.PA').reduce((x, t) => x + (t.type === 'buy' ? t.qty : t.type === 'sell' ? -t.qty : 0), 0);
-    assert.equal(net, pos('AIR.PA').shares, 'journal AIR = position');
-    assert.ok(Math.abs(2729.33 - 11240 - 1 - P.amine.ibkr.cashUSD) < 0.01, 'USD = cash UBS via Wise − 40 GOOGL');
+    // v613 — 18 au 24/11 : change EUR→USD, 500 ANAU, deux virements Wio (25 000 + 20 000), retrait vers la BP.
+    const tr = P.amine.ibkr.trades;
+    const fx = tr.find((t) => t.date === '2026-11-18' && t.ticker === 'EUR.USD');
+    const anau = tr.find((t) => t.date === '2026-11-20' && t.ticker === 'ANAU.PA');
+    const nvda = tr.find((t) => t.date === '2026-11-18' && t.ticker === 'NVDA');
+    const mouvEUR = P.amine.ibkr.deposits.filter((d) => d.currency === 'EUR' && d.date >= '2026-11-12').reduce((s, d) => s + d.amount, 0);
+    assert.ok(fx && anau && nvda, 'trades du 18 et du 20/11');
+    assert.ok(Math.abs(-2517.19 - 3402.8 - 3 - 16422 - 8.21 - 8.65 + depot + vente.proceeds + vente.commission + vente2.proceeds + vente2.commission
+      - fx.qty + fx.commission - anau.cost + anau.commission + mouvEUR - P.amine.ibkr.cashEUR) < 0.01,
+      'EUR = solde du 09/10 − VWCE − intérêts d\'octobre + 6 000 + ventes AIR − change − ANAU + virements − retrait');
+    for (const tk of ['AIR.PA', 'NVDA', 'ANAU.PA']) {
+      const n = tr.filter((t) => t.ticker === tk).reduce((x, t) => x + (t.type === 'buy' ? t.qty : t.type === 'sell' ? -t.qty : 0), 0);
+      assert.equal(n, pos(tk).shares, 'journal ' + tk + ' = position');
+    }
+    // USD : cash UBS via Wise − 40 GOOGL + change − 120 NVDA ; IBKR affiche 0 pour −0,25 (écart documenté).
+    assert.ok(Math.abs(2729.33 - 11240 - 1 + fx.targetAmount - nvda.cost + nvda.commission - P.amine.ibkr.cashUSD) < 0.3, 'USD reconstitué');
   });
 
   console.log(ko === 0 ? '\n✅ Courtiers : OK\n' : '\n❌ ' + ko + ' échec(s)\n');

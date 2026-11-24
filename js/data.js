@@ -332,6 +332,13 @@ export const PORTFOLIO = {
         { ticker: 'VWCE.DE', shares: 170,  price: 168.82, costBasis: 165.78, currency: 'EUR', label: 'Vanguard FTSE All-World (VWCE)', sector: 'etf', geo: 'world', ytdOpen: 145.14, mtdOpen: 166.62, oneMonthAgo: 166.50 }, // v587 — 50 + 20 (26/10/2026) + 100 (06/11/2026), PRU du connecteur IBKR ; v569 — PRU IBKR 167,8996
         // v569 — Alphabet (GOOGL), 40 actions achetées le 30/10/2026 à 281 USD (lendemain d'une baisse de 12,7 % sur résultats).
         { ticker: 'GOOGL',   shares: 40,   price: 279.84, costBasis: 281.03, currency: 'USD', label: 'Alphabet (GOOGL)', sector: 'tech', geo: 'us', ytdOpen: 315.15, mtdOpen: 338.24, oneMonthAgo: 344.08 }, // clôtures Yahoo : 02/01 315,15 · 01/10 338,24 · 30/09 344,08
+        // v613 — NVIDIA (NVDA), 120 actions achetées le 18/11/2026 à 150,84 USD (connecteur IBKR, PRU commission comprise 150,85).
+        // Achat dans le mois : les prix de référence ne servent pas au P&L de période (clôtures Yahoo pour mémoire).
+        { ticker: 'NVDA',    shares: 120,  price: 165.05, costBasis: 150.85, currency: 'USD', label: 'NVIDIA (NVDA)', sector: 'tech', geo: 'us', ytdOpen: 188.85, mtdOpen: 202.06, oneMonthAgo: 216.00 }, // clôtures Yahoo : 02/01 188,85 · 02/11 202,06 · 26/10 216,00
+        // v613 — BNP Paribas Easy Nasdaq 100 UCITS ETF USD Acc (capitalisant), coté Paris en EUR (Yahoo ANAU.PA),
+        // 500 parts achetées le 20/11/2026 à 20,045 € (gettex). Historique Yahoo depuis le 01/06/2026 seulement :
+        // ytdOpen = première clôture disponible, sans effet (achat dans le mois).
+        { ticker: 'ANAU.PA', shares: 500,  price: 21.255, costBasis: 20.055, currency: 'EUR', label: 'BNP Paribas Easy Nasdaq 100 (ANAU)', sector: 'etf', geo: 'us', ytdOpen: 22.78, mtdOpen: 22.23, oneMonthAgo: 22.635 }, // clôtures Yahoo : 01/06 22,78 · 02/11 22,23 · 23/10 22,635
       ],
       // ⬇️ Cash multi-devises (IBKR — MAJ 12/07/2026 depuis le connecteur IBKR, valeurs réelles)
       // v562 — connecteur IBKR du 09/10/2026 : 13 positions identiques à data.js (parts et PRU), NAV 207 255 €.
@@ -342,16 +349,16 @@ export const PORTFOLIO = {
       // creditsAnticipes ; ne créer AUCUN second dépôt (le dépôt du 07/11 existe déjà dans deposits[])
       // et le patrimoine ne doit pas bouger. Les intérêts débiteurs réellement courus se lisent sur le
       // relevé, à la date de valeur réelle du crédit : rien ici ne suppose le débit remboursé avant.
-      cashEUR: 2141.89,      // v604 — connecteur IBKR du 11/11/2026 : −6 231,92 + 8 378 (vente de 40 AIR le 10/11) − 4,19 de commission = 2 141,89, au centime. v602 — connecteur IBKR du 10/11/2026 (= solde observé) : −16 361,85 + 10 135 (vente AIR du 09/11) − 5,07. Avant, v601 : −16 361,85 = −22 361,85 + 6 000 reçus le 07/11. v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
+      cashEUR: 9980.37,      // v613 — connecteur IBKR du 24/11/2026 : 2 141,89 − 24 246,97 (EUR→USD du 18/11) − 1,81 − 10 027,51 (500 ANAU le 20/11) + 25 000 (12/11) + 20 000 (24/11) − 2 885,23 (retrait du 19/11, déduit) = 9 980,37. v604 — connecteur IBKR du 11/11/2026 : −6 231,92 + 8 378 (vente de 40 AIR le 10/11) − 4,19 de commission = 2 141,89, au centime. v602 — connecteur IBKR du 10/11/2026 (= solde observé) : −16 361,85 + 10 135 (vente AIR du 09/11) − 5,07. Avant, v601 : −16 361,85 = −22 361,85 + 6 000 reçus le 07/11. v595 — +6 000 virés depuis Revolut le 07/11/2026 (deposits[]), EN TRANSIT : le connecteur lit encore −22 361,85 ce jour-là ; à confirmer à réception. v587 — connecteur IBKR du 07/11/2026 : −5 922,99 − 16 430,21 (100 VWCE le 06/11, commission comprise) − 8,65 (intérêts d'octobre). Avant, v569 — connecteur IBKR du 31/10/2026 : −2 517,19 − 3 405,80 (20 VWCE le 26/10), au centime. Avant : −5,57 € depuis le 19/09 sans trade (intérêts débiteurs de septembre, probablement)
       // v602 — connecteur IBKR du 10/11/2026 : −6 231,9175 = −16 361,85 (dont le crédit de 6 000 reçu le 07/11,
       // e-mail IBKR « Deposit Activity Update » du 09/11) + 10 135 (vente de 50 AIR le 09/11) − 5,0675 de commission.
       // Le rapprochement au centime confirme le crédit du 07/11 et l'absence d'autre opération EUR.
-      cashEURObserve: 2141.89,
-      cashObserveLe: '2026-11-11',
+      cashEURObserve: 9980.37,
+      cashObserveLe: '2026-11-24',
       creditsAnticipes: [],
-      cashUSD: -8511.67,     // v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
+      cashUSD: 0,            // v613 — connecteur IBKR du 24/11/2026 : −8 511,67 + 26 612,99 (EUR→USD du 18/11) − 18 101,57 (120 NVDA) = −0,25, affiché 0 par IBKR (écart de 0,25 USD non expliqué). v569 — connecteur IBKR du 31/10/2026 : +2 729,33 (virement Wise du 18/10, cash UBS) − 11 241,00 (40 GOOGL le 30/10)
       cashJPY: -1608111.36, // v587 — connecteur IBKR du 07/11/2026 : −3 565 ¥ d'intérêts de marge d'octobre. Avant : connecteur du 09/10/2026. −3 166 ¥ depuis le 19/09 sans trade (intérêts de marge JPY de septembre, probablement)
-      cashAED: 30000,        // v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
+      cashAED: 0,            // v613 — 30 000 AED retirés vers Wio le 12/11/2026 (connecteur du 24/11 : plus de ligne AED). v581 — connecteur IBKR du 01/11/2026 : 30 000 AED reçus de Mashreq, débités le 31/10 (annoncés par Amine, relevé Mashreq). Avant : 11 319,13 AED retirés vers Wio le 31/08/2026
       // Performance metrics — TOUTES les valeurs financières sont calculées dynamiquement
       // par engine.js depuis trades[] et costs[]. Aucun montant hardcodé ici.
       meta: {
@@ -511,6 +518,11 @@ export const PORTFOLIO = {
         { date: '2026-10-31', amount: 30000,  currency: 'AED', fxRateAtDate: 4.0988, label: 'Virement AED #5 (Mashreq→IBKR ; taux du connecteur IBKR au 01/11/2026)' },
         // v595 — 5 000 € reçus de Nezha (2 000 LCL + 3 000 Revolut) + 1 000 € d'Amine. Pas de créance : Amine a donné 20 000 AED à Nezha (Wio), « on est quittes ».
         { date: '2026-11-07', amount: 6000,   currency: 'EUR', fxRateAtDate: 1, label: 'Virement Revolut → IBKR envoyé le 07/11/2026 (e-mail Revolut) ; reçu le 07/11 selon l\'e-mail IBKR « Deposit Activity Update » du 09/11 — rapproché, aucun second dépôt' },
+        // v613 — mouvements du 12 au 24/11/2026 : montants masqués dans les e-mails IBKR, lus côté banque émettrice.
+        { date: '2026-11-12', amount: 25000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement Wio → IBKR (e-mail Wio du 12/11 : 25 000 € payés ; e-mail IBKR « Deposit Activity Update » du 12/11)' },
+        { date: '2026-11-12', amount: -30000, currency: 'AED', fxRateAtDate: 4.0988, label: 'Retrait AED vers Wio (e-mail IBKR « Withdrawal Activity » du 12/11 ; 30 000 AED reçus sur Wio le 13/11 ; même taux que le dépôt du 31/10 : aller-retour neutre)' },
+        { date: '2026-11-19', amount: -2885.23, currency: 'EUR', fxRateAtDate: 1, label: 'Retrait EUR vers Banque Populaire (e-mail IBKR du 19/11, montant masqué) — DÉDUIT du solde du connecteur du 24/11, à confirmer sur le relevé' },
+        { date: '2026-11-24', amount: 20000,  currency: 'EUR', fxRateAtDate: 1, label: 'Virement Wio → IBKR (e-mail Wio du 24/11 : 20 000 € payés ; e-mail IBKR « Deposit Activity Update » du 24/11)' },
       ],
       // Total dépôts IBKR = €197,886.10 (vérifié vs statement — inclut retrait -2000 mars 2026)
       // ══════════════════════════════════════════════════════════════
@@ -634,6 +646,8 @@ export const PORTFOLIO = {
         { date: '2026-11-06', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 100, price: 164.22, currency: 'EUR', cost: 16422, commission: -8.21, costBasis: 164.30, source: 'ibkr' },  // v587 — connecteur IBKR : IBIS2, limite 164,22, 13:04 UTC
         { date: '2026-11-09', ticker: 'AIR.PA',  label: 'Airbus',            type: 'sell', qty: 50,   price: 202.70,  currency: 'EUR', proceeds: 10135, realizedPL: 622.75,  commission: -5.07, costBasis: 190.245, source: 'ibkr' },  // v602 — connecteur IBKR : SBF 12:49 UTC, limite 202,70, 3 exécutions (6 + 5 + 39), commission 5,0675 ; 50×(202,70−190,245) ; IBKR réalisé net de commission 617,68
         { date: '2026-11-10', ticker: 'AIR.PA',  label: 'Airbus',            type: 'sell', qty: 40,   price: 209.45,  currency: 'EUR', proceeds: 8378, realizedPL: 768.20,  commission: -4.19, costBasis: 190.245, source: 'ibkr' },  // v604 — connecteur IBKR : Xetra (IBIS) 08:05 UTC, limite 209,45, 2 exécutions (18 + 22), commission 4,189 ; 40×(209,45−190,245) au coût moyen. IBKR déclare 848,72 net (852,91 brut, PRU 188,127) : écart de 84,71 € sur cette vente, 317,70 € sur la ligne entière, non expliqué (le 09/11, IBKR réalisait encore au PRU 190,245)
+        { date: '2026-11-18', ticker: 'NVDA',    label: 'NVIDIA',            type: 'buy',  qty: 120,  price: 150.838, currency: 'USD', cost: 18100.57, commission: -1.00, costBasis: 150.85, fxRate: 1.09758, source: 'ibkr' },  // v613 — connecteur IBKR : DARK 20:34 UTC, limite 150,84, 2 exécutions (100 × 150,838 + 20 × 150,8385), commission 1,0004 USD
+        { date: '2026-11-20', ticker: 'ANAU.PA', label: 'BNP Paribas Easy Nasdaq 100', type: 'buy', qty: 500, price: 20.045, currency: 'EUR', cost: 10022.5, commission: -5.01, costBasis: 20.055, source: 'ibkr' },  // v613 — connecteur IBKR : GETTEX2 20:07 UTC, limite 20,045, commission 5,01
         { date: '2026-10-26', ticker: 'VWCE.DE', label: 'Vanguard FTSE All-World', type: 'buy', qty: 20, price: 170.14, currency: 'EUR', cost: 3402.8, commission: -3.00, costBasis: 170.29, source: 'ibkr' },  // v569 — connecteur IBKR : IBIS2, limite 170,14, commission 3 €
         { date: '2026-10-30', ticker: 'GOOGL',   label: 'Alphabet',                type: 'buy', qty: 40, price: 281.00, currency: 'USD', cost: 11240,  commission: -1.00, costBasis: 281.03, fxRate: 1.11828, source: 'ibkr' },  // v569 — connecteur IBKR : ISLAND, limite 281, commission 1,00 USD  // connecteur IBKR : IBIS2, limite 166,86, commission 4,1715 € ; PRU IBKR 166,94343 (commission incluse)
 
@@ -658,6 +672,8 @@ export const PORTFOLIO = {
         { date: '2026-03-18', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 13111, price: 183.545, currency: 'EUR', jpyAmount: 2406458,  commission: -1.73, note: 'Rachat JPY short — deleverage' , source: 'ibkr' },
         // ─── JPY deleverage 8 avr 2026 ───
         { date: '2026-04-08', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 11679, price: 185.060, currency: 'EUR', jpyAmount: 2161316,  commission: -1.74, note: 'Rachat JPY short — deleverage (correctif audit 30/08 : la commission relevée, 319,17, est en JPY comme sur tous les autres FX ; saisie en EUR elle pesait 319 € au lieu de 1,74 € et représentait 58 % du total des commissions affiché)' , source: 'ibkr' },
+        // ─── EUR→USD 18 nov 2026 : financer les 120 NVDA et solder le débit USD ───
+        { date: '2026-11-18', ticker: 'EUR.USD', label: 'EUR→USD',            type: 'fx', qty: 24246.97, price: 1.09758, currency: 'EUR', targetAmount: 26612.99, targetCurrency: 'USD', commission: -1.81, note: 'v613 — connecteur IBKR : IDEALPRO 20:39 UTC ; commission 1,98 USD, débitée en EUR (le cash USD reste à 0)', source: 'ibkr' },
         { date: '2026-08-28', ticker: 'EUR.JPY', label: 'EUR→JPY (deleverage)', type: 'fx', qty: 4571, price: 185.925, currency: 'EUR', jpyAmount: 849863,  commission: -1.72, note: 'Rachat JPY short — deleverage (connecteur ; commission 318,8 JPY ≈ 1,72 €)' , source: 'ibkr' },
       ],
     },
@@ -1753,10 +1769,10 @@ export const PORTFOLIO = {
     attijari_amine:   { le: '2026-10-31', source: 'relevé Attijarinet', statut: 'observé' },
     nabd:             { le: '2026-07-12', source: 'relevé de l\'app', statut: 'observé' },
     cih:              { le: '2026-11-01', source: 'confirmation d\'Amine (capture du 28/08 + ventes P2P)', statut: 'observé' },
-    ibkr_cash_eur:    { le: '2026-11-11', source: 'connecteur IBKR', statut: 'observé' },
-    ibkr_cash_usd:    { le: '2026-11-11', source: 'connecteur IBKR', statut: 'observé' },
-    ibkr_cash_jpy:    { le: '2026-11-11', source: 'connecteur IBKR', statut: 'observé' },
-    ibkr_cash_aed:    { le: '2026-11-11', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_eur:    { le: '2026-11-24', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_usd:    { le: '2026-11-24', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_jpy:    { le: '2026-11-24', source: 'connecteur IBKR', statut: 'observé' },
+    ibkr_cash_aed:    { le: '2026-11-24', source: 'connecteur IBKR', statut: 'observé' },
     espp_cash_amine:  { le: '2026-10-18', source: 'virement Wise → IBKR (e-mail IBKR) : compte UBS vidé', statut: 'observé' },
     espp_cash_nezha:  { le: null, source: 'relevé UBS (date non tracée)', statut: 'observé' },
     revolut_nezha:    { le: '2026-11-07', source: 'capture de l\'app Revolut', statut: 'observé' },
@@ -1864,7 +1880,7 @@ export const PRICE_REFS_AS_OF = {
 // Format : 'JJ/MM/YYYY' — à mettre à jour à chaque modification de data.js
 // ════════════════════════════════════════════════════════════
 export const DATA_LAST_UPDATE = '11/11/2026';
-export const APP_VERSION = 'v612';
+export const APP_VERSION = 'v613';
 
 // ════════════════════════════════════════════════════════════
 // DESIGN TOKENS — v322
@@ -3444,9 +3460,10 @@ export const RELEVES_QUOTIDIENS = {
     source: 'Relevé annuel Wio (CSV) : compte courant AED d\'Amine ; 09/10 = lecture de l\'app (inchangé)',
     soldes: { '2026-07-10': 0, '2026-07-11': 18.33, '2026-07-24': 94.33, '2026-07-30': 439.33, '2026-08-01': 613.1, '2026-08-08': 0, '2026-08-09': 287.55, '2026-08-13': 787.55, '2026-08-17': 311.55, '2026-08-21': 50311.55, '2026-08-25': 311.55, '2026-08-29': 581.55, '2026-08-31': 11900.68, '2026-09-01': 11932.37, '2026-09-08': 0, '2026-09-12': 500, '2026-09-19': 57500, '2026-09-24': 57750, '2026-09-28': 58020, '2026-10-01': 58122.17, '2026-10-03': 0.84, '2026-10-04': 6.67, '2026-10-07': 54.45 } },
   // v581 — 30 000 AED débités de Mashreq le 31/10 et lus chez IBKR le 01/11 : même date des deux côtés.
-  ibkr_cash_aed: { devise: 'AED', proprietaire: 'A', du: '2026-10-31', au: '2026-10-31',
-    source: 'Relevé Mashreq du 31/10 + connecteur IBKR du 01/11/2026 (30 000 AED)',
-    soldes: { '2026-10-31': 30000 } },
+  // v613 — retirés vers Wio le 12/11 (e-mail IBKR « Withdrawal Activity »), reçus sur Wio le 13/11.
+  ibkr_cash_aed: { devise: 'AED', proprietaire: 'A', du: '2026-10-31', au: '2026-11-12',
+    source: 'Relevé Mashreq du 31/10 + connecteur IBKR du 01/11/2026 (30 000 AED) ; retrait vers Wio du 12/11/2026',
+    soldes: { '2026-10-31': 30000, '2026-11-12': 0 } },
   // Avant le 26/08, Nezha n'a aucun espace Wio à son nom dans ce relevé : ses 18 385 AED de juillet
   // vivaient ailleurs (compte personnel non couvert). On ne corrige donc qu'à partir du 26/08.
   // v594 — Crédit Mutuel de Nezha : opérations lues dans l'app le 07/11/2026. En remontant depuis le
@@ -3878,6 +3895,8 @@ export const DIV_YIELDS = {
   'VWCE.DE': 0,       // Vanguard FTSE All-World Acc — capitalisant, AUCUNE distribution
   'MWRD.PA': 0,       // Amundi Core MSCI World Acc — capitalisant, AUCUNE distribution
   'SXR8.DE': 0,       // iShares Core S&P 500 Acc — capitalisant, AUCUNE distribution
+  'ANAU.PA': 0,       // v613 — BNP Paribas Easy Nasdaq 100 USD Acc — capitalisant, AUCUNE distribution
+  'NVDA': 0,          // v613 — NVIDIA : dividende symbolique (0,01 USD/trimestre, ≈ 0,02 %), négligé
 };
 
 // ════════════════════════════════════════════════════════════
@@ -3960,6 +3979,8 @@ export const DIV_CALENDAR = {
   'VWCE.DE': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
   'MWRD.PA': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
   'SXR8.DE': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
+  'ANAU.PA': { dps: 0,     exDates: [], frequency: 'none', confirmed: true, source: 'part capitalisante (Acc) — dividendes réinvestis dans le fonds' },
+  'NVDA':    { dps: 0,     exDates: [], frequency: 'none', confirmed: false, note: 'dividende symbolique de 0,01 USD par trimestre (≈ 1,20 USD pour 120 actions), négligé ; dates non relevées' },
 };
 
 // ════════════════════════════════════════════════════════════

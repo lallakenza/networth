@@ -179,7 +179,10 @@ const centimes = (a, b, quoi) => assert.ok(Math.abs(a - b) < 0.005, quoi + ' : '
 
   t('les AED retirés de l’IBKR vers Wio le 31/08 ne sont comptés qu’une fois', () => {
     const ib = D.PORTFOLIO.amine.ibkr;
-    assert.equal(ib.cashAED, 30000, 'vide après le retrait (connecteur du 09/10), seuls les 30 000 AED reçus le 31/10 s’y trouvent (connecteur du 01/11)');
+    // Vide après le retrait (connecteur du 09/10) ; les 30 000 AED reçus le 31/10 sont repartis vers Wio le 12/11 (v613).
+    const aed = ib.deposits.filter((d) => d.currency === 'AED' && d.date >= '2026-08-31').reduce((x, d) => x + d.amount, 0);
+    assert.equal(ib.cashAED, 0);
+    assert.ok(Math.abs(aed + 11319.13) < 0.005, 'retrait 31/08 + dépôt 31/10 − retrait 12/11 : seuls les mouvements expliquent le solde');
     const retrait = ib.deposits.find((d) => d.date === '2026-08-31' && d.currency === 'AED');
     assert.ok(retrait && retrait.amount < 0, 'le retrait doit sortir des apports nets, sinon NAV − apports gonfle le P/L');
     const p = D.SOLDES_RETROACTIFS.ibkr_cash_aed[0];

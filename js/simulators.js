@@ -3,9 +3,9 @@
 // ============================================================
 // See ARCHITECTURE.md for full documentation.
 
-import { fmt, fmtAxis, renderNezhaProjectionTable } from './render.js?v=612';
-import { IMMO_CONSTANTS } from './data.js?v=612';
-import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=612';
+import { fmt, fmtAxis, renderNezhaProjectionTable } from './render.js?v=613';
+import { IMMO_CONSTANTS } from './data.js?v=613';
+import { fluxLmnpMensuel, projectionSortieRueil } from './engine.js?v=613';
 
 const IC = IMMO_CONSTANTS;
 

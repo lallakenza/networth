@@ -258,8 +258,10 @@ const ligne = (jour, capture, version, couple, extra = {}) => ({
     assert.ok(Math.abs(fin('2026-10-09') - 20881 - 40.95 - 30000 - 26 + 2667.75 - fin('2026-10-31')) < 0.01, 'mouvements du 10 au 31/10');
     assert.ok(Math.abs(fin('2026-10-31') - D.PORTFOLIO.amine.uae.mashreq) < 0.01, 'relevé = data.js');
     const ibkr = D.PORTFOLIO.amine.ibkr;
-    assert.equal(ibkr.cashAED, 30000, 'les 30 000 AED sont lus chez IBKR');
-    assert.equal(D.RELEVES_QUOTIDIENS.ibkr_cash_aed.soldes['2026-10-31'], ibkr.cashAED, 'même date que le débit Mashreq');
+    assert.equal(D.RELEVES_QUOTIDIENS.ibkr_cash_aed.soldes['2026-10-31'], 30000, 'les 30 000 AED lus chez IBKR, même date que le débit Mashreq');
+    // v613 — repartis vers Wio le 12/11 : un retrait, pas un second dépôt.
+    assert.equal(D.RELEVES_QUOTIDIENS.ibkr_cash_aed.soldes['2026-11-12'], ibkr.cashAED);
+    assert.ok(ibkr.deposits.some((x) => x.date === '2026-11-12' && x.amount === -30000 && x.currency === 'AED'), 'retrait du 12/11');
     assert.ok(ibkr.deposits.some((x) => x.date === '2026-10-31' && x.amount === 30000 && x.currency === 'AED'), 'dépôt compté dans le net déployé');
   });
 

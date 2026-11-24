@@ -5,12 +5,12 @@
 // architecture, and palette documentation.
 // Each function receives STATE, never reads DOM for data.
 
-import { fmt, fmtAxis } from './render.js?v=612';
-import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil, regrouperTreemapActions } from './engine.js?v=612';
-import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=612';
-import { PRICE_SNAPSHOT } from './price_snapshot.js?v=612';
-import { loadSnapshots } from './api.js?v=612'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
-import { CASH_ACCOUNT_IDS } from './engine.js?v=612'; // v388 — labels FR de l'explorateur de séries
+import { fmt, fmtAxis } from './render.js?v=613';
+import { getGrandTotal, computeExitCostsAtYear, projectNW, buildDailySnapshot, expliquerVariation, projectionSortieRueil, regrouperTreemapActions } from './engine.js?v=613';
+import { IMMO_CONSTANTS, EQUITY_HISTORY, PORTFOLIO, FX_STATIC, DESIGN_TOKENS } from './data.js?v=613';
+import { PRICE_SNAPSHOT } from './price_snapshot.js?v=613';
+import { loadSnapshots } from './api.js?v=613'; // v387 — historique NW (snapshots quotidiens, base Neon depuis v582)
+import { CASH_ACCOUNT_IDS } from './engine.js?v=613'; // v388 — labels FR de l'explorateur de séries
 
 let charts = {};
 let coupleSelectedCat = null;
